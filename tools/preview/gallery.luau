@@ -140,6 +140,11 @@ row("conifers+palms", 0, 40, 19, {
 	{ "palmTree", { seed = 2, variant = 2 } },
 	{ "palmTree", { seed = 3, variant = 1 } },
 	{ "palmTree", { seed = 4, variant = 2, lean = 1 } },
+	-- lite versions for background forests
+	{ "oakTree", { seed = 11, lite = true } },
+	{ "pineTree", { seed = 12, variant = 2, lite = true } },
+	{ "palmTree", { seed = 13, lite = true } },
+	{ "birchTree", { seed = 14, lite = true } },
 })
 
 row("plants", 0, 70, 8, {

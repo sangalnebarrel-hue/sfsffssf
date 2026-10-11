@@ -17,6 +17,8 @@
 	          scale    uniform size multiplier (default 1)
 	          variant  some props have named/numbered variants (see each constructor)
 	          name     Model name override
+	          lite     trees only: fewer parts for background forests (oak/cherry/autumn/round
+	                   8, birch 8, pine 8-10, palm 10)
 	          colour overrides: see each constructor (color, leaves, trunk, ...)
 	The returned Model has PrimaryPart set to its main part, and PrimaryPart.PivotOffset is set so
 	that the model pivot is exactly `cframe` (Model:PivotTo(newGroundCFrame) works at runtime).
@@ -666,7 +668,8 @@ end
 --[[
 	Shared broadleaf tree: square trunk with root blocks and a branch, and a voxel "ball" canopy:
 	three rounded ("plus"-shaped) layers — dark bottom, wide mid, light top — a cap and two bumps
-	(one low and dark, one high and light) that break the silhouette.
+	(one low and dark, one high and light) that break the silhouette. With opts.lite the roots,
+	bumps, branch, fruit and litter are left out (8 parts: trunk + canopy only).
 	p: trunkW, trunkH (canopy bottom), R (canopy half-width), H (canopy height),
 	   pal {dark, mid, light}, trunk, trunkDark, fruit (colour | nil), litter (colour of fallen
 	   leaves/petals | nil), crownScale, branch = false.
@@ -675,12 +678,13 @@ local function broadleaf(b: any, p: { [string]: any }): any
 	local tw, th = p.trunkW, p.trunkH
 	local pal = p.pal
 	local dark, mid, lightC = pal[1], pal[2], pal[3]
+	local lite = b.opts.lite == true
 	local trunk = b:span("Trunk", -tw / 2, -1, -tw / 2, tw / 2, th + 2.5, tw / 2, p.trunk)
 
 	-- two root blocks on neighbouring sides
 	local sides = { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 } }
 	local s0 = b:int(1, 4)
-	for i = 1, 2 do
+	for i = 1, if lite then 0 else 2 do
 		local sd = sides[(s0 + i - 2) % 4 + 1]
 		local out = 1.0
 		local cx, cz = sd[1] * (tw / 2 + out / 2 - 0.05), sd[2] * (tw / 2 + out / 2 - 0.05)
@@ -722,11 +726,15 @@ local function broadleaf(b: any, p: { [string]: any }): any
 	-- bumps breaking the silhouette: one low & dark, one high & light, on different sides
 	local a0 = b:int(0, 3) * 90
 	local bumps = { { a0, yB0 + hB * 0.3, dark }, { a0 + 180 + b:range(-50, 50), yB1 - hB * 0.15, lightC } }
-	for i, bm in bumps do
+	for i, bm in if lite then {} else bumps do
 		local a = RAD(bm[1] + b:range(-25, 25))
 		local d = R * 0.98
 		local s = R * b:range(0.62, 0.78)
 		b:vox(`Bump{i}`, bx + d * math.sin(a), bm[2], bz + d * math.cos(a), s, hB * 0.62, s, bm[3], FOLIAGE)
+	end
+
+	if lite then
+		return trunk
 	end
 
 	-- a branch under the low bump
@@ -892,7 +900,7 @@ function Props.birchTree(parent: any, cf: any, opts: { [string]: any }?): any
 	local trunk = b:span("Trunk", -tw / 2, -1, -tw / 2, tw / 2, th + 2.5, tw / 2, pickColor(o, "trunk", C.Birch))
 	-- dark bark marks sticking out of the trunk faces
 	local faces = { { 1, 0 }, { 0, -1 }, { -1, 0 }, { 0, 1 } }
-	for i, f in faces do
+	for i, f in if o.lite then {} else faces do
 		local yy = 1.2 + i * 1.6 + b:range(-0.3, 0.3)
 		local w = tw * 0.6
 		local sx = if f[1] ~= 0 then 0.24 else w
@@ -969,7 +977,12 @@ function Props.pineTree(parent: any, cf: any, opts: { [string]: any }?): any
 		local skirtC = if o.snow then lerpColor(C.Snow, C.Glass, 0.15) else shade(leaves[1], 1 + 0.12 * t)
 		local bodyC = lerpColor(leaves[2], leaves[3], t)
 		local hs = math.max(1.2, layerH * 0.34)
-		b:cross(`Skirt{i + 1}`, ox, y, oz, y + hs, w, w, 0.66, skirtC, FOLIAGE)
+		if o.lite then
+			local sw = w * 0.88
+			b:span(`Skirt{i + 1}`, ox - sw / 2, y, oz - sw / 2, ox + sw / 2, y + hs, oz + sw / 2, skirtC, FOLIAGE)
+		else
+			b:cross(`Skirt{i + 1}`, ox, y, oz, y + hs, w, w, 0.66, skirtC, FOLIAGE)
+		end
 		local bw = w * 0.7
 		b:span(
 			`Body{i + 1}`,
@@ -1001,7 +1014,7 @@ function Props.palmTree(parent: any, cf: any, opts: { [string]: any }?): any
 	local o = b.opts
 	treeSize(b)
 	local pal = o.leaves or { C.Palm1, C.Palm2, C.Palm3 }
-	local variant = o.variant or b:int(1, 2)
+	local variant = if o.lite then 1 else o.variant or b:int(1, 2)
 	local bark = pickColor(o, "trunk", C.PalmBark)
 	local barkDark = shade(bark, 0.83)
 
@@ -1045,7 +1058,7 @@ function Props.palmTree(parent: any, cf: any, opts: { [string]: any }?): any
 			local top = y + 0.62 - (i % 2) * 0.05
 			b:vox(`FrondTip{i}`, tx + d[1] * reach, top - 0.65, d[2] * reach, sx, 1.3, sz, shade(pal[2], 0.86), FOLIAGE)
 		end
-		for i, d in { { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do
+		for i, d in if o.lite then {} else { { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do
 			local dd = L * 0.6
 			b:vox(`FrondDiag{i}`, tx + d[1] * dd, y + 0.35 - (i % 2) * 0.12, d[2] * dd, 2.6, 0.8, 2.6, pal[3], FOLIAGE)
 		end
@@ -1065,6 +1078,9 @@ function Props.palmTree(parent: any, cf: any, opts: { [string]: any }?): any
 			seg(`FrondMid{i}`, L - 0.3, 2.6, 1.9, y + 0.6 + lift, pal[2])
 			seg(`FrondTip{i}`, L + 2.0, 2.2, 1.5, y - 0.25 + lift, pal[1])
 		end
+	end
+	if o.lite then
+		return b:finish(first)
 	end
 	-- coconuts under the crown
 	b:vox("Coconut1", tx + 1.0, y - 1.2, 0.6, 1.2, 1.2, 1.2, C.Coconut, DECOR)
