@@ -129,6 +129,25 @@ default size.
 Render a place and confirm in `top.png` that a part at +X is on the right and a part
 at +Z is below the centre; the iso gizmo shows the projected +X/+Y/+Z axes.
 
+## Prop gallery (gallery.luau)
+
+`gallery.luau` builds a showcase place with every constructor of
+`tools/builder/Props.luau` (several seeds/variants of the trees) on a checkered green
+ground, with a water channel (a `Workspace.Map.Water` stand-in) for the boats, docks,
+shipwreck, whale, rock arch, bridges and a waterfall off a cliff, a row of landmarks and
+balloons/clouds in the sky. It fails if a public `Props` function is not shown, prints the
+parts per prop and a `--zoom` target per section:
+
+```sh
+$LUNE run tools/preview/gallery.luau /tmp/gallery.rbxl
+$LUNE run tools/preview/export_parts.luau /tmp/gallery.rbxl /tmp/gallery.json --no-bases
+python3 tools/preview/render.py /tmp/gallery.json --out-dir /tmp/gallery --no-labels \
+    --views iso,zoom --elevation 28 --zoom 140,20,100,25 --zoom 75,140,62,22
+```
+
+Props face +Z (towards the default iso camera). Renders of the current library are in
+`docs/props/`.
+
 
 ## Terrain
 
