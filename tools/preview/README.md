@@ -23,6 +23,21 @@ Each image has an info box (view, part counts), a scale bar and an axis legend.
 Perspective views (`persp_1.png`, `persp_2.png`, ...) are described in
 [Perspective views](#perspective-player-eye-views).
 
+### Previewing one player base (template_preview.luau)
+
+`template_preview.luau` builds a tiny place with only `ServerStorage.BaseTemplate` (from
+`tools/builder/BaseTemplate.luau`), one base slot at the origin and a flat stand-in world
+(grass, the promenade strip, beach, water), so the base can be iterated on without
+generating the whole map. The optional second argument picks the base colour
+(`BaseConfig.Colors[index]`). Renders of the current base live in `docs/base/`.
+
+```sh
+$LUNE run tools/preview/template_preview.luau /tmp/preview/base.rbxl 3   # 3 = yellow base
+$LUNE run tools/preview/export_parts.luau /tmp/preview/base.rbxl /tmp/preview/base.json
+python3 tools/preview/render.py /tmp/preview/base.json --out-dir /tmp/preview/base \
+    --views iso,zoom --zoom 0,62,100,200 --zoom 0,92,40,200 --zoom 2,-62,42,215
+```
+
 ## export_parts.luau
 
 ```
@@ -46,7 +61,8 @@ worldCF = slot.CFrame * (PrimaryPart.CFrame * PrimaryPart.PivotOffset):Inverse()
 ```
 
 which is what `Model:PivotTo(slot.CFrame)` does. Template parts with attribute
-`Accent == true` get the base colour `Colors[Index]` from
+`Accent == true` get the base colour `Colors[Index]` (shaded by the optional number
+attribute `AccentShade` like BaseService does: > 0 towards white, < 0 towards black) from
 `ReplicatedStorage.Shared.Config.BaseConfig` (the ModuleScript source is executed in a
 sandbox with `Color3`, `Vector3`, `Enum`, ... and a `require` that works for other
 ModuleScripts in the place). If that module is missing or fails, a built-in 8-colour

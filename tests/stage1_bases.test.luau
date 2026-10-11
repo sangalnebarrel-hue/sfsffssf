@@ -66,6 +66,31 @@ local function distance(a: any, b: any): number
 	return (a - b).Magnitude
 end
 
+-- BaseService rule for Accent parts: the base colour, lerped towards white (AccentShade > 0)
+-- or black (AccentShade < 0) by |AccentShade|.
+local function shaded(color: any, shade: any): any
+	if typeof(shade) ~= "number" or shade == 0 then
+		return color
+	end
+	local target = if shade > 0 then roblox.Color3.new(1, 1, 1) else roblox.Color3.new(0, 0, 0)
+	return color:Lerp(target, math.clamp(math.abs(shade), 0, 1))
+end
+
+local function luminance(c: any): number
+	return 0.299 * c.R + 0.587 * c.G + 0.114 * c.B
+end
+
+-- All TextLabels with the given name anywhere in the base model.
+local function labelsNamed(model: any, name: string): { any }
+	local found = {}
+	for _, d in model:GetDescendants() do
+		if d:IsA("TextLabel") and d.Name == name then
+			table.insert(found, d)
+		end
+	end
+	return found
+end
+
 local function notifiesFor(sim: any, player: any): { string }
 	local texts = {}
 	for _, event in sim.ClientEvents do
@@ -128,6 +153,102 @@ tests["server boots: 8 coloured bases placed on their slots"] = function(t)
 	-- Terrain is baked into the place (tests/worldgen.test.luau covers it); no water stand-ins.
 	t.ok(ws.Map:FindFirstChild("Water") == nil, "no water stand-in parts")
 	t.eq(sim.game:GetService("Players").CharacterAutoLoads, false)
+	sim:AssertNoErrors()
+end
+
+tests["accent parts are painted in the base colour, AccentShade gives lighter/darker variants"] = function(t)
+	local sim = boot(t)
+	for i = 1, 8 do
+		local model = bases(sim):FindFirstChild(`Base_{i}`)
+		local color = BaseConfig.Colors[i].Color
+		local plain, lighter, darker = 0, 0, 0
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") and d:GetAttribute("Accent") == true then
+				local shade = d:GetAttribute("AccentShade")
+				local expected = shaded(color, shade)
+				local delta = math.max(
+					math.abs(d.Color.R - expected.R),
+					math.abs(d.Color.G - expected.G),
+					math.abs(d.Color.B - expected.B)
+				)
+				t.ok(delta < 1e-3, `Base_{i}.{d:GetFullName()}: colour {d.Color} ≠ {expected} (shade {shade})`)
+				if typeof(shade) ~= "number" or shade == 0 then
+					plain += 1
+				elseif shade > 0 then
+					lighter += 1
+					t.ok(luminance(d.Color) > luminance(color), `Base_{i}: {d.Name} lighter than the base colour`)
+				else
+					darker += 1
+					t.ok(luminance(d.Color) < luminance(color), `Base_{i}: {d.Name} darker than the base colour`)
+				end
+			end
+		end
+		t.ok(plain > 0 and lighter > 0 and darker > 0, `Base_{i}: plain {plain}, lighter {lighter}, darker {darker}`)
+	end
+	sim:AssertNoErrors()
+end
+
+tests["gate sign: every OwnerLabel/BaseLabel shows the owner and the base name"] = function(t)
+	local sim = boot(t)
+	for i = 1, 8 do
+		local model = bases(sim):FindFirstChild(`Base_{i}`)
+		local owners = labelsNamed(model, "OwnerLabel")
+		t.ok(#owners >= 3, `Base_{i}: flag + both gate faces carry OwnerLabel ({#owners})`)
+		for _, label in owners do
+			t.eq(label.Text, "Свободно", `Base_{i}: {label:GetFullName()}`)
+		end
+		for _, label in labelsNamed(model, "BaseLabel") do
+			t.eq(label.Text, `{BaseConfig.Colors[i].Name} база`, `Base_{i}: {label:GetFullName()}`)
+			t.eq(label.TextColor3, BaseConfig.Colors[i].Color, `Base_{i}: {label:GetFullName()} colour`)
+		end
+		t.eq(model.Gate.Board.SignFront.OwnerLabel.Text, "Свободно", `Base_{i}: gate sign`)
+	end
+
+	local p = addPlayer(sim, 1)
+	local base = baseOf(sim, p)
+	t.eq(base.Gate.Board.SignFront.OwnerLabel.Text, "Игрок1", "gate sign (promenade side) shows the owner")
+	t.eq(base.Gate.Board.SignBack.OwnerLabel.Text, "Игрок1", "gate sign (yard side) shows the owner")
+	for _, label in labelsNamed(base, "OwnerLabel") do
+		t.eq(label.Text, "Игрок1", label:GetFullName())
+	end
+
+	sim:RemovePlayer(p)
+	sim:Advance(0.5)
+	for _, label in labelsNamed(base, "OwnerLabel") do
+		t.eq(label.Text, "Свободно", `released: {label:GetFullName()}`)
+	end
+	sim:AssertNoErrors()
+end
+
+tests["base template: 12 display slots, tank prompt, alarm, dog (names the server relies on)"] = function(t)
+	local sim = boot(t)
+	local model = bases(sim):FindFirstChild("Base_1")
+	t.ok(model.Tank.Glass:IsA("BasePart") and model.Tank.Glass.PromptAttachment:IsA("Attachment"), "tank prompt")
+	t.ok(model.Alarm.Lamp:IsA("BasePart"), "alarm lamp")
+	t.ok(model.Dog:IsA("Model") and model.Dog.PrimaryPart ~= nil, "dog with PrimaryPart")
+	t.ok(model.FishingSpot:IsA("BasePart"), "fishing spot")
+	local spawnPos = model.SpawnPad.CFrame.Position
+	local dist = {}
+	for i = 1, 12 do
+		local slot = model.Tank.Slots:FindFirstChild(`Slot_{i}`)
+		t.ok(slot, `Slot_{i} exists`)
+		t.eq(slot:GetAttribute("SlotIndex"), i, `Slot_{i} SlotIndex`)
+		local pedestal, display = slot:FindFirstChild("Pedestal"), slot:FindFirstChild("Display")
+		t.ok(pedestal and pedestal:IsA("BasePart"), `Slot_{i}.Pedestal`)
+		t.ok(display and display:IsA("BasePart"), `Slot_{i}.Display`)
+		t.ok(pedestal:FindFirstChild("PromptAttachment"), `Slot_{i}.Pedestal.PromptAttachment`)
+		t.eq(pedestal.LabelGui.Label.Text, "Пусто", `Slot_{i} label`)
+		local fishPoint = display:FindFirstChild("FishPoint")
+		t.ok(fishPoint and fishPoint:IsA("Attachment"), `Slot_{i}.Display.FishPoint`)
+		local fishWorld = (display.CFrame * fishPoint.CFrame).Position
+		t.near(fishWorld, display.CFrame.Position, 1e-3, `Slot_{i}: fish point in the display centre`)
+		dist[i] = distance(pedestal.CFrame.Position, spawnPos)
+	end
+	-- The starting slots 1..3 are the nearest to the entrance.
+	local farthestStarter = math.max(dist[1], dist[2], dist[3])
+	for i = 4, 12 do
+		t.ok(dist[i] >= farthestStarter - 1e-3, `Slot_{i} is not nearer to the spawn than slots 1..3`)
+	end
 	sim:AssertNoErrors()
 end
 

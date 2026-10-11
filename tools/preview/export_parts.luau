@@ -17,7 +17,9 @@
 	    virtual copy of ServerStorage.BaseTemplate is placed like Model:PivotTo(slot.CFrame):
 	        worldCF = slot.CFrame * PrimaryPart.CFrame:Inverse() * part.CFrame
 	    (PrimaryPart.PivotOffset is honoured when set), and parts with attribute
-	    Accent == true get base color Index from BaseConfig.Colors       -> kind "base"
+	    Accent == true get base color Index from BaseConfig.Colors, shaded like BaseService
+	    does by the optional number attribute AccentShade (> 0 lighter, < 0 darker)
+	                                                                     -> kind "base"
 	    (disable with --no-bases)
 
 	Output: { parts = {...}, bounds = {...}, slots = {...}, stats = {...} }
@@ -230,6 +232,16 @@ local function readBaseColors(): ({ any }, string)
 	return colors, "BaseConfig"
 end
 
+-- Mirrors BaseService: AccentShade > 0 lerps the base colour towards white, < 0 towards black.
+local WHITE = Color3.new(1, 1, 1)
+local BLACK = Color3.new(0, 0, 0)
+local function accentColor(baseColor: any, shade: any): any
+	if type(shade) ~= "number" or shade == 0 then
+		return baseColor
+	end
+	return baseColor:Lerp(if shade > 0 then WHITE else BLACK, math.clamp(math.abs(shade), 0, 1))
+end
+
 ------------------------------------------------------------------------------------------
 -- Export
 ------------------------------------------------------------------------------------------
@@ -357,7 +369,9 @@ if simulateBases and template and slotFolder then
 					stats.skippedInvisible += 1
 					continue
 				end
-				local color = if inst:GetAttribute("Accent") == true then baseColor else inst.Color
+				local color = if inst:GetAttribute("Accent") == true
+					then accentColor(baseColor, inst:GetAttribute("AccentShade"))
+					else inst.Color
 				addPart(
 					inst,
 					slotToWorld * inst.CFrame,

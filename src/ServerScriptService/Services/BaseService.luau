@@ -5,7 +5,10 @@
 	Что делает:
 	  1. При старте сервера клонирует шаблон ServerStorage.BaseTemplate в каждый слот
 	     Workspace.Map.BaseSlots (8 штук) и красит базу в свой цвет из BaseConfig.Colors.
-	     Красятся детали шаблона с атрибутом Accent = true (флаг, крыша будки, площадка и т.д.).
+	     Красятся детали шаблона с атрибутом Accent = true (флаг, стены, крыши, площадка и т.д.);
+	     числовой атрибут AccentShade (от -1 до 1) даёт оттенок: > 0 — светлее (к белому),
+	     < 0 — темнее (к чёрному). Все TextLabel с именами OwnerLabel / BaseLabel (табличка над
+	     флагом, вывеска на воротах и т.д.) показывают владельца и название базы.
 	  2. Выдаёт игроку свободную базу при входе и освобождает её при выходе.
 	     Если свободных баз нет — игрок ждёт на хабе в очереди (первым пришёл — первым получил).
 	  3. Сам спаунит персонажей (Players.CharacterAutoLoads = false): персонаж появляется
@@ -64,7 +67,8 @@ export type Base = {
 	TankPromptAttachment: Attachment,
 	AlarmLamp: BasePart,
 	Dog: Model,
-	OwnerLabel: TextLabel,
+	OwnerLabel: TextLabel, -- табличка над флагом (обязательная)
+	OwnerLabels: { TextLabel }, -- все надписи с именем владельца (флаг, ворота, ...)
 }
 
 type PlayerState = {
@@ -88,6 +92,9 @@ local states: { [Player]: PlayerState } = {}
 local waitQueue: { Player } = {} -- игроки без базы, по порядку входа
 local homeCooldown = Cooldown.new(math.max(0, BaseConfig.HomeCooldown - HOME_COOLDOWN_SLACK))
 local rng = Random.new()
+
+local WHITE = Color3.new(1, 1, 1)
+local BLACK = Color3.new(0, 0, 0)
 
 --------------------------------------------------------------------------------
 -- Создание баз
@@ -144,7 +151,19 @@ end
 
 local function updateSign(base: Base)
 	local owner = base.Owner
-	base.OwnerLabel.Text = if owner then owner.DisplayName else "Свободно"
+	local text = if owner then owner.DisplayName else "Свободно"
+	for _, label in base.OwnerLabels do
+		label.Text = text
+	end
+end
+
+-- Цвет акцентной детали: цвет базы, осветлённый (AccentShade > 0) или затемнённый (< 0).
+local function shadeColor(color: Color3, shade: any): Color3
+	if typeof(shade) ~= "number" or shade == 0 then
+		return color
+	end
+	local target = if shade > 0 then WHITE else BLACK
+	return color:Lerp(target, math.clamp(math.abs(shade), 0, 1))
 end
 
 local function createBase(template: Model, slot: BasePart, index: number, parent: Instance): Base
@@ -155,10 +174,18 @@ local function createBase(template: Model, slot: BasePart, index: number, parent
 	model.Name = `Base_{index}`
 	model:PivotTo(slot.CFrame)
 
-	-- Красим акцентные детали в цвет базы.
+	-- Красим акцентные детали в цвет базы (с оттенком) и собираем все надписи базы.
+	local ownerLabels: { TextLabel } = {}
+	local baseLabels: { TextLabel } = {}
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") and descendant:GetAttribute("Accent") == true then
-			descendant.Color = colorDef.Color
+			descendant.Color = shadeColor(colorDef.Color, descendant:GetAttribute("AccentShade"))
+		elseif descendant:IsA("TextLabel") then
+			if descendant.Name == "OwnerLabel" then
+				table.insert(ownerLabels, descendant)
+			elseif descendant.Name == "BaseLabel" then
+				table.insert(baseLabels, descendant)
+			end
 		end
 	end
 
@@ -184,12 +211,15 @@ local function createBase(template: Model, slot: BasePart, index: number, parent
 		AlarmLamp = findRequired(model, { "Alarm", "Lamp" }, "BasePart"),
 		Dog = findRequired(model, { "Dog" }, "Model"),
 		OwnerLabel = findRequired(model, { "Flag", "Pole", "SignAttachment", "OwnerSign", "OwnerLabel" }, "TextLabel"),
+		OwnerLabels = ownerLabels,
 	}
 
-	local baseLabel: TextLabel =
-		findRequired(model, { "Flag", "Pole", "SignAttachment", "OwnerSign", "BaseLabel" }, "TextLabel")
-	baseLabel.Text = `{colorDef.Name} база`
-	baseLabel.TextColor3 = colorDef.Color
+	-- Табличка над флагом обязательна; остальные надписи (ворота и т.д.) — сколько есть.
+	findRequired(model, { "Flag", "Pole", "SignAttachment", "OwnerSign", "BaseLabel" }, "TextLabel")
+	for _, baseLabel in baseLabels do
+		baseLabel.Text = `{colorDef.Name} база`
+		baseLabel.TextColor3 = colorDef.Color
+	end
 	updateSign(base)
 
 	model.Parent = parent
