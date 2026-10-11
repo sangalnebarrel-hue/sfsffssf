@@ -153,3 +153,56 @@ bridges + promenade ≤ 1 200, nature ≤ 2 500, landmarks + islets + lagoon dec
 → `python3 tools/preview/render.py parts.json --out-dir DIR [--terrain water.bin] --zoom x,z,r,az`.
 Read the PNGs and judge them against section 1. Iterate until it looks like a polished
 simulator map, not a prototype.
+
+## 5. VoxelWorld API (for Hub/Map decorators)
+
+`local world = VoxelWorld.new(MapConfig)` (built once in `tools/build.luau` and passed as the
+third argument to `buildMap(game, cfg, world)`, which passes it on to `buildHub(map, cfg, world)`).
+
+| call | returns |
+|---|---|
+| `world:heightAt(x, z)` | top y of the ground column under (x, z) (stand props at this y) |
+| `world:kindAt(x, z)` | `grass` `meadow` `path` `sand` `shallow` `seabed` `deep` `stone` `snow` `grassRock` |
+| `world:surfaceAt(x, z)` | `top, kind, waterTop?` (waterTop = 0 when the column is under water) |
+| `world:isWater(x, z)` | column top below WaterTop |
+| `world:slope(x, z)` | biggest step to a neighbour column (studs) — 0 on flat ground |
+| `world:isReserved(x, z, margin?)` | inside/near hub+lagoon+promenade, plots, gateways, paths, landmark sites |
+| `world:toBaseLocal(i, x, z)` | base-local `lx, lz` of base i |
+| `world.bases[i]` | `{ index, angle, x, z }` (slot position) |
+| `world.gateways[i]` | `{ index, angle, x, z, radius }` flat plazas behind each bridge landing |
+| `world.landmarks.Waterfall` | `{ angle, radius (cliff front r), cliffTop = 44, halfWidth = 56, depth = 150, pondR, pondX, pondZ, pondRadius = 30 }` — mesa from r = radius outwards (flat top 44, a 32-high ledge ring along its sides/back), pond (water) at its foot |
+| `world.landmarks.Windmill` | `{ angle, radius, x, z, hillRadius = 84, topRadius = 18, top = 36 }` — climbable ziggurat, flat meadow top |
+| `world.landmarks.GiantTree` | `{ angle, radius, x, z, plateauRadius = 46, top = 8 }` — meadow plateau one step up |
+| `world.landmarks.Peak` | `{ angle, radius, x, z, mountainRadius = 150, top = 116 }` — snowy mountain at the outer coast |
+| `world.islets[i]` | `{ angle, x, z, size, height }` — stepped rounded-square islands in the ocean |
+| `world:noise(x, y)` | deterministic Perlin noise in about [−1, 1] |
+
+Ground facts: cells are 8 studs; hills/coast/sea are sampled on a 16-stud grid, so terraces are
+16-stud blocks with 4-stud steps; plots, promenade, gateways and paths are exactly GroundTop
+(4); beaches are y = 2; the lagoon bed is −2 / −6 / −14; the ocean shelf −2 / −8 / −16 / −24.
+Radial paths (kind `path`, width 12) run from the promenade to the windmill hill, giant tree,
+waterfall pond and the peak's foot.
+
+## 6. What goes where (composition)
+
+* **Hub (r < 150)** — the heart of the map, seen from every base across the lagoon: a big
+  bright village plaza. Four avenues from the bridge landings (θ = 0/90/180/270, decks land at
+  r ≈ 118–124) meet at a central landmark (giant fountain with a golden fish / a tall
+  lighthouse). The three shops sit between avenues, each a big colourful building with a
+  huge sign and a blocky shopkeeper: `Shop` (rods), `FishMarket` (sell fish), `Workshop`
+  (upgrades); plus a Ferris wheel, food stalls, benches, lamps, flower beds, bunting, palms
+  on the beach ring and a small harbour with boats. `HubSpawn` (SpawnLocation) near the centre.
+* **Bridges** — 4 chunky voxel bridges with arches at both ends.
+* **Promenade (r 312–330)** — plank/stone ring walk with lamps, benches, flower boxes and
+  bunting; gaps at piers (θ = base angle ± 5°) and bridge landings.
+* **Gateways (θ = 0/90/180/270, r ≈ 372)** — each a themed plaza: welcome arch + big sign,
+  e.g. fish statue, notice board/map, market stall, photo spot.
+* **Landmarks (θ = 45/135/225/315)** — Waterfall (falls down the mesa face into the pond,
+  stairs to a lookout deck on the mesa), Windmill (on the ziggurat top, flower fields on the
+  terraces), Giant tree (treehouse, swing, glowing mushrooms), Peak (flag and lookout on the
+  summit, pines on the slopes).
+* **Nature** — voxel forests on the hills (pine/oak/cherry/autumn groves by noise), palms
+  near the outer beaches, bushes, flowers, rocks, mushrooms. Never on reserved ground.
+* **Lagoon** — sailboats, rowboats, buoys, lily pads near shores.
+* **Ocean** — islets decorated (palms, a lighthouse, shipwreck, rock arch), a whale, voxel
+  clouds in the sky.
