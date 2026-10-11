@@ -170,7 +170,7 @@ third argument to `buildMap(game, cfg, world)`, which passes it on to `buildHub(
 | `world:toBaseLocal(i, x, z)` | base-local `lx, lz` of base i |
 | `world.bases[i]` | `{ index, angle, x, z }` (slot position) |
 | `world.gateways[i]` | `{ index, angle, x, z, radius }` flat plazas behind each bridge landing |
-| `world.landmarks.Waterfall` | `{ angle, radius (cliff front r), cliffTop = 44, halfWidth = 56, depth = 150, pondR, pondX, pondZ, pondRadius = 30 }` — mesa from r = radius outwards (flat top 44, a 32-high ledge ring along its sides/back), pond (water) at its foot |
+| `world.landmarks.Waterfall` | `{ angle, radius (cliff front r), cliffTop = 56, halfWidth = 56, depth = 150, pondR, pondX, pondZ, pondRadius = 30 }` — mesa from r = radius outwards (flat top 56, a 44-high ledge ring along its sides/back), pond (water) at its foot |
 | `world.landmarks.Windmill` | `{ angle, radius, x, z, hillRadius = 84, topRadius = 18, top = 36 }` — climbable ziggurat, flat meadow top |
 | `world.landmarks.GiantTree` | `{ angle, radius, x, z, plateauRadius = 46, top = 8 }` — meadow plateau one step up |
 | `world.landmarks.Peak` | `{ angle, radius, x, z, mountainRadius = 150, top = 116 }` — snowy mountain at the outer coast |

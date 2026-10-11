@@ -174,7 +174,13 @@ tests["everything important is reachable from the hub (walk, jump 4, swim)"] = f
 	end
 	for i = 1, cfg.BaseCount do
 		for _, p in
-			{ { 0, cfg.PlotFront + 10 }, { 0, cfg.PlotFront + cfg.PlotDepth - 10 }, { 60, 90 }, { -60, 90 }, { 0, -60 } }
+			{
+				{ 0, cfg.PlotFront + 10 },
+				{ 0, cfg.PlotFront + cfg.PlotDepth - 10 },
+				{ 60, 90 },
+				{ -60, 90 },
+				{ 0, -60 },
+			}
 		do
 			local x, z = baseLocal(i, p[1], p[2])
 			t.ok(reachable(x, z), `base {i} point ({p[1]}, {p[2]}) reachable`)
@@ -194,7 +200,7 @@ tests["ground part budget"] = function(t)
 	local game = roblox.Instance.new("DataModel")
 	local map = U.new("Model", { Name = "Map" }, game:GetService("Workspace"))
 	local res = buildGround(map, world)
-	t.ok(res.parts <= 5200, `ground parts {res.parts} <= 5200`)
+	t.ok(res.parts <= 6000, `ground parts {res.parts} <= 6000`)
 	for _, part in res.model:GetDescendants() do
 		if part:IsA("BasePart") then
 			local s = part.Size

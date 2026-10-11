@@ -16,12 +16,12 @@ local CFrame = U.CFrame
 local Enum = U.Enum
 local rgb = U.rgb
 
-local CAP = 1 -- cap thickness (studs)
+local CAP = 2 -- cap thickness (studs): half of a 4-stud terrace step shows grass
 local MAX_SPAN = 240 -- columns per rectangle side (part size limit 2048)
 
 -- kind -> { cap = Color3?, body = Color3, name }
 local GRASS_SHADES = { rgb(104, 214, 72), rgb(88, 198, 62), rgb(124, 226, 86) }
-local DIRT = rgb(170, 116, 70)
+local DIRT = rgb(190, 132, 78)
 local KIND_STYLE = {
 	grass = { body = DIRT, name = "Grass" }, -- cap shade by terrace level
 	meadow = { cap = rgb(156, 236, 92), body = DIRT, name = "Meadow" },

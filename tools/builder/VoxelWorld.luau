@@ -44,8 +44,8 @@ VoxelWorld.KindIndex = KIND_INDEX
 
 -- Height bands on hills.
 local SNOW_LINE = 92
-local STONE_LINE = 64
-local ROCK_LINE = 28
+local STONE_LINE = 76
+local ROCK_LINE = 52
 
 --------------------------------------------------------------------------------
 -- Math helpers
@@ -174,7 +174,7 @@ local DEFAULTS = {
 	GatewayRadius = 40,
 	GatewayDistance = 372,
 	RingOuterRadius = 640,
-	HillHeight = 44,
+	HillHeight = 60,
 	PathWidth = 12,
 	Landmarks = {},
 	OceanHalf = 1400,
@@ -240,7 +240,7 @@ function VoxelWorld:setupLandmarks()
 		local site = { name = def.Name, angle = def.Angle, radius = def.Radius }
 		if def.Name == "Waterfall" then
 			-- Cliff plateau from r = Radius outwards, pond at its foot.
-			site.cliffTop = 44
+			site.cliffTop = 56
 			site.halfWidth = 56
 			site.depth = 150
 			site.pondR = def.Radius - 38
@@ -253,9 +253,12 @@ function VoxelWorld:setupLandmarks()
 		elseif def.Name == "GiantTree" then
 			site.plateauRadius = 46
 			site.top = 8
-		elseif def.Name == "Peak" then
-			site.mountainRadius = 150
-			site.top = 116
+		elseif string.sub(def.Name, 1, 4) == "Peak" then
+			-- snowy mountains on the outer ring; only the main "Peak" gets a path to its foot
+			site.peak = true
+			site.mountainRadius = def.Size or 150
+			site.top = def.Height or 116
+			site.path = def.Name == "Peak"
 		end
 		site.x, site.z = polar(def.Angle, def.Radius)
 		if site.pondR then
@@ -309,6 +312,9 @@ function VoxelWorld:pathDistance(x: number, z: number): number
 	local c = self.cfg
 	local best = math.huge
 	for _, site in self.landmarks do
+		if site.peak and not site.path then
+			continue
+		end
 		local reach = if site.name == "Waterfall"
 			then site.pondR - site.pondRadius
 			elseif site.name == "Windmill" then site.radius - site.hillRadius + 4
@@ -362,7 +368,7 @@ function VoxelWorld:hillHeight(x: number, z: number, r: number, theta: number, f
 	local ridge = 1 - abs(self:noise(x / 170 + 31, z / 170 - 17))
 	local h = c.HillHeight * rise * fall * (0.3 + 0.7 * (0.6 * n + 0.4 * ridge))
 	-- Keep gameplay areas flat and let hills grow away from them.
-	return h * smoothstep(0, 40, flat)
+	return h * smoothstep(0, 90, flat)
 end
 
 -- Landmark terrain shapes; returns (height above GroundTop or nil, kind or nil, isPond).
@@ -406,7 +412,7 @@ function VoxelWorld:landmarkShape(x: number, z: number, flat: number, mflat: num
 			if d < site.plateauRadius then
 				return site.top - 4, "meadow", false
 			end
-		elseif site.name == "Peak" then
+		elseif site.peak then
 			local d = sqrt((mx - site.x) ^ 2 + (mz - site.z) ^ 2)
 			if d < site.mountainRadius then
 				local t = 1 - d / site.mountainRadius
