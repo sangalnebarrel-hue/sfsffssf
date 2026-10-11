@@ -51,7 +51,7 @@ function HudController:Start(hud: ScreenGui)
 			swatch.BackgroundColor3 = if typeof(color) == "Color3" then color else UIConfig.NoBaseColor
 			homeButton.Visible = true
 		elseif index == 0 then
-			badgeLabel.Text = "Ждём свободную базу…"
+			badgeLabel.Text = "Ждём базу…"
 			swatch.BackgroundColor3 = UIConfig.NoBaseColor
 			homeButton.Visible = false
 		else

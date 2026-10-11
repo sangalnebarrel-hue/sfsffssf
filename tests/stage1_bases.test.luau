@@ -442,6 +442,55 @@ tests["spawn: after repeated failures the player is kicked with a message"] = fu
 	sim:AssertNoErrors()
 end
 
+tests["spawn: a pending retry does not respawn a character created meanwhile"] = function(t)
+	local sim = bootPatched(t, {
+		{
+			path = "ServerScriptService.Services.BaseService",
+			from = "player:LoadCharacterAsync()",
+			to = "if (_G.FailLoads or 0) > 0 then _G.FailLoads -= 1; error('test failure') end player:LoadCharacterAsync()",
+		},
+	})
+	sim:Globals("server").FailLoads = 1
+	local p = sim:AddPlayer({ UserId = 1, Name = "Player1", DisplayName = "Игрок1" })
+	sim:Advance(0.5) -- first load failed, retry scheduled in 2 s
+	local BaseService = sim:Require(sim:Find("ServerScriptService.Services.BaseService"))
+	sim:Run(function()
+		BaseService:RespawnPlayer(p)
+	end)
+	sim:Advance(0.2)
+	local character = p.Character
+	t.ok(character ~= nil, "RespawnPlayer created a character")
+	sim:Advance(3)
+	t.eq(p.Character, character, "the old retry did not replace it")
+	sim:AssertNoErrors()
+end
+
+tests["respawn: death + a failed RespawnPlayer give exactly one respawn"] = function(t)
+	local sim = bootPatched(t, {
+		{
+			path = "ServerScriptService.Services.BaseService",
+			from = "player:LoadCharacterAsync()",
+			to = "if (_G.FailLoads or 0) > 0 then _G.FailLoads -= 1; error('test failure') end player:LoadCharacterAsync()",
+		},
+	})
+	local p = addPlayer(sim, 1)
+	local spawns = 0
+	p.CharacterAdded:Connect(function()
+		spawns += 1
+	end)
+	sim:KillCharacter(p) -- death respawn due in RespawnDelay (3 s)
+	sim:Advance(2.5) -- the failed RespawnPlayer's retry (2 s later) lands after the death respawn
+	sim:Globals("server").FailLoads = 1
+	local BaseService = sim:Require(sim:Find("ServerScriptService.Services.BaseService"))
+	sim:Run(function()
+		BaseService:RespawnPlayer(p) -- fails, schedules a retry
+	end)
+	sim:Advance(6)
+	t.eq(spawns, 1, "exactly one new character")
+	t.near(distance(rootPos(p), spawnPos(baseOf(sim, p))), 0, 0.01, "on own base")
+	sim:AssertNoErrors()
+end
+
 tests["spawn: a character loaded outside BaseService still ends up on the base"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)

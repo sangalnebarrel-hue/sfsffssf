@@ -68,10 +68,12 @@ local function label(parent: any, name: string, props: { [string]: any }): any
 		base[key] = value
 	end
 	local maxText = base.MaxTextSize
+	local minText = base.MinTextSize or MIN_TEXT
 	base.MaxTextSize = nil
+	base.MinTextSize = nil
 	local inst = U.new("TextLabel", base, parent)
 	if maxText then
-		U.new("UITextSizeConstraint", { MaxTextSize = maxText, MinTextSize = MIN_TEXT }, inst)
+		U.new("UITextSizeConstraint", { MaxTextSize = maxText, MinTextSize = minText }, inst)
 	end
 	return inst
 end
@@ -100,7 +102,7 @@ local function buildStatus(hud: any)
 		LayoutOrder = 20,
 		BackgroundColor3 = C.panel,
 		BackgroundTransparency = 0.2,
-		Size = UDim2.fromScale(0.62, 0.38),
+		Size = UDim2.fromScale(0.76, 0.38),
 	}, status)
 	corner(badge, 0.5)
 	stroke(badge, 2, 0.3)
@@ -116,7 +118,7 @@ local function buildStatus(hud: any)
 	U.new("UIStroke", { Color = C.text, Thickness = 2 }, swatch)
 	label(badge, "Label", {
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.fromScale(0.2, 0.5),
+		Position = UDim2.fromScale(0.21, 0.5),
 		Size = UDim2.fromScale(0.75, 0.68),
 		Text = "Ищем базу…",
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -130,10 +132,10 @@ local function buildRightButtons(hud: any)
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.fromScale(0.99, 0.64), -- bottom edge; the column grows upwards
-		Size = UDim2.fromScale(0.16, 0.6),
+		Size = UDim2.fromScale(0.18, 0.6), -- 3 square buttons (0.54H) + gaps fit in 0.6H
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 	}, hud)
-	U.new("UISizeConstraint", { MaxSize = Vector2.new(100, 380) }, right)
+	U.new("UISizeConstraint", { MaxSize = Vector2.new(104, 380) }, right)
 	U.new("UIListLayout", {
 		FillDirection = Enum.FillDirection.Vertical,
 		SortOrder = Enum.SortOrder.LayoutOrder,
@@ -146,7 +148,7 @@ local function buildRightButtons(hud: any)
 	local home = U.new("TextButton", {
 		Name = "HomeButton",
 		LayoutOrder = 100, -- bottom of the column; Shop/Shield go above it later
-		Size = UDim2.fromScale(1, 0.26),
+		Size = UDim2.fromScale(1, 0.3),
 		BackgroundColor3 = C.home,
 		AutoButtonColor = true,
 		Text = "",
@@ -166,6 +168,7 @@ local function buildRightButtons(hud: any)
 		Size = UDim2.fromScale(0.92, 0.3),
 		Text = "ДОМОЙ",
 		MaxTextSize = 24,
+		MinTextSize = 9, -- short caption in a small square: allow it to shrink rather than wrap
 	})
 	local cooldown = U.new("Frame", {
 		Name = "Cooldown",

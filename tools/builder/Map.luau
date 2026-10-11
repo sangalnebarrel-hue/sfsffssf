@@ -462,7 +462,7 @@ local function buildShop(hub: any, cfg: any)
 	U.part(
 		shop,
 		"FishTail",
-		Vector3.new(2.6, 2.6, 0.6), -- thinner than the body: no coplanar faces (z-fighting)
+		Vector3.new(2.6, 2.6, 0.7), -- between the body (0.8) and the sign (0.6): no coplanar faces
 		CFrame.new(-4.4, fy, -11) * CFrame.Angles(0, 0, math.rad(45)),
 		rgb(45, 115, 205)
 	)
@@ -513,9 +513,9 @@ local function buildHub(hub: any, cfg: any)
 	path("PathSouth", -3, 3, 14, 32)
 	-- From the north bridge the path goes AROUND the shop (its back wall is blank) to the side arms.
 	path("PathNorth", -3, 3, -32, -26)
-	path("PathBehindShop", -16, 16, -26, -22)
-	path("PathShopWest", -16, -12, -22, -3)
-	path("PathShopEast", 12, 16, -22, -3)
+	path("PathBehindShop", -15.5, 15.5, -26, -22) -- ends off the 8-stud cell grid (no z-fighting)
+	path("PathShopWest", -15.5, -12, -22, -3)
+	path("PathShopEast", 12, 15.5, -22, -3)
 
 	buildShop(hub, cfg)
 

@@ -158,15 +158,15 @@ end
 -- 8. Write + stats
 --------------------------------------------------------------------------------
 
-fs.writeFile(output, roblox.serializePlace(game))
+local placeBytes = roblox.serializePlace(game)
 
 --------------------------------------------------------------------------------
--- Self-check: re-read the written file and verify things that Lune could silently drop
+-- Self-check: re-read the serialized bytes (before writing) and verify things Lune could silently drop
 -- (non-serialized aliases such as Attachment.Position or Model.WorldPivot) or that the
 -- server code depends on.
 --------------------------------------------------------------------------------
 
-local check = roblox.deserializePlace(fs.readFile(output))
+local check = roblox.deserializePlace(placeBytes)
 local problems = {}
 local function expect(cond: boolean, message: string)
 	if not cond then
@@ -199,7 +199,7 @@ expectAttachment(
 	U.Vector3.new(0, 0.6, 1.4)
 )
 local accents = 0
-for _, d in checkTemplate:GetDescendants() do
+for _, d in (if checkTemplate then checkTemplate:GetDescendants() else {}) do
 	if d:GetAttribute("Accent") == true then
 		accents += 1
 	end
@@ -225,6 +225,9 @@ expect(pivotsSaved > 0, "Model pivots (WorldPivotData) not saved")
 if #problems > 0 then
 	error("Self-check of the built place failed:\n  - " .. table.concat(problems, "\n  - "))
 end
+
+-- Only a place that passed the self-check replaces Place1.rbxl.
+fs.writeFile(output, placeBytes)
 fs.writeFile("sourcemap.json", serde.encode("json", Sourcemap.build(game, mapping), true))
 
 local function countParts(root: any): number

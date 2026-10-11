@@ -210,6 +210,23 @@ local function isAlive(character: Model): boolean
 	return humanoid ~= nil and humanoid.Health > 0
 end
 
+-- Запоминает поток возрождения/повтора; предыдущий ожидающий поток отменяется,
+-- чтобы одновременно жил только один (иначе игрок мог бы возродиться дважды).
+local function setRespawnThread(state: PlayerState, thread: thread?)
+	local previous = state.RespawnThread
+	if previous and previous ~= coroutine.running() and coroutine.status(previous) == "suspended" then
+		task.cancel(previous)
+	end
+	state.RespawnThread = thread
+end
+
+-- Сбрасывает поле, только если там всё ещё наш поток (а не уже более новый).
+local function clearRespawnThread(state: PlayerState)
+	if state.RespawnThread == coroutine.running() then
+		state.RespawnThread = nil
+	end
+end
+
 -- Ставит живого персонажа на площадку его базы (если база есть).
 local function placeCharacter(player: Player, character: Model)
 	local state = states[player]
@@ -226,6 +243,20 @@ local function placeCharacter(player: Player, character: Model)
 		return -- мёртвое тело не двигаем: новый персонаж появится на базе сам
 	end
 	character:PivotTo(BaseService:GetSpawnCFrame(base))
+end
+
+-- То же, но для персонажа, который движок ещё не поставил в мир: CharacterAdded приходит
+-- ДО того, как персонаж окажется в Workspace и будет перенесён на SpawnLocation.
+-- Ждём появления в Workspace, даём движку кадр закончить спаун и только потом переносим.
+local function placeWhenReady(player: Player, character: Model)
+	if not character:IsDescendantOf(Workspace) then
+		local deadline = os.clock() + 10
+		while not character:IsDescendantOf(Workspace) and os.clock() < deadline do
+			task.wait(0.1)
+		end
+		task.wait()
+	end
+	placeCharacter(player, character)
 end
 
 -- LoadCharacterAsync — новое имя LoadCharacter (старое помечено устаревшим).
@@ -276,17 +307,24 @@ local function spawnCharacter(player: Player)
 			)
 			return
 		end
-		state.RespawnThread = task.delay(SPAWN_RETRY_DELAY, function()
-			state.RespawnThread = nil
-			spawnCharacter(player)
-		end)
+		-- Повторяем, только если за это время персонажа не создали другим путём.
+		local failedWith = player.Character
+		setRespawnThread(
+			state,
+			task.delay(SPAWN_RETRY_DELAY, function()
+				clearRespawnThread(state)
+				if states[player] == state and player.Character == failedWith then
+					spawnCharacter(player)
+				end
+			end)
+		)
 		return
 	end
 	state.SpawnFailures = 0
 
 	local character = player.Character
 	if character then
-		placeCharacter(player, character)
+		placeWhenReady(player, character)
 	end
 
 	-- Во время загрузки кто-то попросил возрождение: нужно, только если новый персонаж уже мёртв.
@@ -299,33 +337,30 @@ local function spawnCharacter(player: Player)
 end
 
 local function scheduleRespawn(player: Player, state: PlayerState, character: Model)
-	local previous = state.RespawnThread
-	if previous and coroutine.status(previous) == "suspended" then
-		task.cancel(previous)
-	end
-	state.RespawnThread = task.delay(BaseConfig.RespawnDelay, function()
-		state.RespawnThread = nil
-		-- Возрождаем, только если это всё ещё тот же игрок и тот же (мёртвый) персонаж.
-		if states[player] == state and player.Character == character then
-			spawnCharacter(player)
-		end
-	end)
+	setRespawnThread(
+		state,
+		task.delay(BaseConfig.RespawnDelay, function()
+			clearRespawnThread(state)
+			-- Возрождаем, только если это всё ещё тот же игрок и тот же (мёртвый) персонаж.
+			if states[player] == state and player.Character == character then
+				spawnCharacter(player)
+			end
+		end)
+	)
 end
 
 local function onCharacterAdded(player: Player, state: PlayerState, character: Model)
 	state.CharacterTrove:Clean()
 
-	-- Персонажа создал не spawnCharacter (например, кто-то вызвал LoadCharacterAsync сам).
-	-- CharacterAdded приходит ДО того, как движок поставит персонажа на SpawnLocation, поэтому
-	-- ждём, пока он окажется в Workspace, даём движку кадр закончить спаун и только потом переносим.
+	-- Персонажа создал не spawnCharacter (например, кто-то вызвал LoadCharacterAsync сам) —
+	-- всё равно переносим его на базу, когда движок закончит спаун.
+	-- (Если идёт spawnCharacter, он сам поставит player.Character на базу после загрузки.)
 	if not state.Spawning then
 		state.CharacterTrove:Add(task.spawn(function()
-			local deadline = os.clock() + 10
-			while not character:IsDescendantOf(Workspace) and os.clock() < deadline do
-				task.wait(0.1)
+			if character:IsDescendantOf(Workspace) then
+				task.wait() -- уже в мире: даём движку закончить перенос на SpawnLocation
 			end
-			task.wait()
-			placeCharacter(player, character)
+			placeWhenReady(player, character)
 		end))
 	end
 
@@ -473,11 +508,7 @@ local function onPlayerRemoving(player: Player)
 		table.remove(waitQueue, queueIndex)
 	end
 
-	local respawnThread = state.RespawnThread
-	if respawnThread and coroutine.status(respawnThread) == "suspended" then
-		task.cancel(respawnThread)
-	end
-	state.RespawnThread = nil
+	setRespawnThread(state, nil)
 
 	state.Trove:Clean()
 	homeCooldown:Clear(player)
