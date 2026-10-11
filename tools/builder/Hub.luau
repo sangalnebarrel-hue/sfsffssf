@@ -127,7 +127,16 @@ local function cornerWedge(parent: any, name: string, size: any, cf: any, color:
 end
 
 -- Cylinder along the local X axis of cf.
-local function cyl(parent: any, name: string, d: number, len: number, cf: any, color: any, material: any?, extra: any?): any
+local function cyl(
+	parent: any,
+	name: string,
+	d: number,
+	len: number,
+	cf: any,
+	color: any,
+	material: any?,
+	extra: any?
+): any
 	return U.part(parent, name, V(len, d, d), cf, color, material, with({ Shape = Enum.PartType.Cylinder }, extra))
 end
 
@@ -135,12 +144,30 @@ local UPRIGHT = CFrame.Angles(0, 0, rad(90))
 local FORWARD = CFrame.Angles(0, rad(90), 0)
 
 -- Cylinder along the local Y axis of cf (a post, a disc lying flat).
-local function cylUp(parent: any, name: string, d: number, h: number, cf: any, color: any, material: any?, extra: any?): any
+local function cylUp(
+	parent: any,
+	name: string,
+	d: number,
+	h: number,
+	cf: any,
+	color: any,
+	material: any?,
+	extra: any?
+): any
 	return cyl(parent, name, d, h, cf * UPRIGHT, color, material, extra)
 end
 
 -- Cylinder along the local Z axis of cf (a disc facing the front).
-local function cylFwd(parent: any, name: string, d: number, t: number, cf: any, color: any, material: any?, extra: any?): any
+local function cylFwd(
+	parent: any,
+	name: string,
+	d: number,
+	t: number,
+	cf: any,
+	color: any,
+	material: any?,
+	extra: any?
+): any
 	return cyl(parent, name, d, t, cf * FORWARD, color, material, extra)
 end
 
@@ -265,7 +292,15 @@ local function lampPost(parent: any, ground: any, withLight: boolean)
 		M.Neon,
 		SMALL
 	)
-	blk(m, "Cap", V(1.9, 0.45, 1.9), base * CFrame.new(0, 10.55, 0) * CFrame.Angles(0, rad(45), 0), C.iron, M.Metal, SMALL)
+	blk(
+		m,
+		"Cap",
+		V(1.9, 0.45, 1.9),
+		base * CFrame.new(0, 10.55, 0) * CFrame.Angles(0, rad(45), 0),
+		C.iron,
+		M.Metal,
+		SMALL
+	)
 	if withLight then
 		pointLight(lantern, C.lamp, 14, 1.2)
 	end
@@ -276,7 +311,14 @@ end
 local function bench(parent: any, cf: any)
 	local m = U.model(parent, "Bench")
 	blk(m, "Seat", V(5, 0.4, 1.8), cf * CFrame.new(0, 1.7, 0), C.woodLight, M.WoodPlanks)
-	blk(m, "Back", V(5, 1.6, 0.35), cf * CFrame.new(0, 2.65, 0.75) * CFrame.Angles(rad(-8), 0, 0), C.woodLight, M.WoodPlanks)
+	blk(
+		m,
+		"Back",
+		V(5, 1.6, 0.35),
+		cf * CFrame.new(0, 2.65, 0.75) * CFrame.Angles(rad(-8), 0, 0),
+		C.woodLight,
+		M.WoodPlanks
+	)
 	for _, sx in { -1, 1 } do
 		blk(m, "Leg", V(0.4, 1.8, 1.7), cf * CFrame.new(sx * 2.0, 0.7, 0), C.iron, M.Metal, SMALL)
 	end
@@ -384,9 +426,29 @@ local function signFish(m: any, fish: any, s: number, look: { [string]: any }): 
 	fp("FishSnout", V(1.2, 2.4, 1.2), CFrame.new(6.2 * s, -0.1 * s, 0), look.body)
 	fp("FishBelly", V(6.6, 1.3, 1.5), CFrame.new(0.4 * s, -1.6 * s, 0), look.belly)
 	fp("FishTailBase", V(1.8, 2.8, 1.2), CFrame.new(-4 * s, 0, 0), look.body)
-	fp("FishTail", V(3.2, 1.6, 1), CFrame.new(-5.6 * s, 1.3 * s, 0) * CFrame.Angles(0, 0, rad(-35)), look.fins, finMaterial)
-	fp("FishTail", V(3.2, 1.6, 1), CFrame.new(-5.6 * s, -1.3 * s, 0) * CFrame.Angles(0, 0, rad(35)), look.fins, finMaterial)
-	wdg(m, "FishFin", V(0.9, 2, 3.6) * s, fish * CFrame.new(0, 3.2 * s, 0) * CFrame.Angles(0, rad(90), 0), look.fins, finMaterial, extra)
+	fp(
+		"FishTail",
+		V(3.2, 1.6, 1),
+		CFrame.new(-5.6 * s, 1.3 * s, 0) * CFrame.Angles(0, 0, rad(-35)),
+		look.fins,
+		finMaterial
+	)
+	fp(
+		"FishTail",
+		V(3.2, 1.6, 1),
+		CFrame.new(-5.6 * s, -1.3 * s, 0) * CFrame.Angles(0, 0, rad(35)),
+		look.fins,
+		finMaterial
+	)
+	wdg(
+		m,
+		"FishFin",
+		V(0.9, 2, 3.6) * s,
+		fish * CFrame.new(0, 3.2 * s, 0) * CFrame.Angles(0, rad(90), 0),
+		look.fins,
+		finMaterial,
+		extra
+	)
 	ball(m, "FishEye", 1.7 * s, fish * CFrame.new(4.7 * s, 0.7 * s, 0), C.white, nil, SMALL)
 	fp("FishPupil", V(0.7, 0.8, 1.9), CFrame.new(5 * s, 0.7 * s, 0), C.ink, nil, SMALL)
 	return body
@@ -527,7 +589,16 @@ local function buildShop(hub: any, F: any)
 		blk(m, "Valance", V(18 / 7, 1, 0.2), at(x, 7.0, -12.45), color, nil, SMALL)
 	end
 	for _, sx in { -1, 1 } do
-		beam(m, "AwningBracket", (at(sx * 8.8, 6, -6.8)).Position, (at(sx * 8.8, 7.5, -12.2)).Position, 0.3, C.iron, M.Metal, SMALL)
+		beam(
+			m,
+			"AwningBracket",
+			(at(sx * 8.8, 6, -6.8)).Position,
+			(at(sx * 8.8, 7.5, -12.2)).Position,
+			0.3,
+			C.iron,
+			M.Metal,
+			SMALL
+		)
 	end
 
 	-- Shopkeeper and the goods behind him.
@@ -551,7 +622,10 @@ local function buildShop(hub: any, F: any)
 			"Rod",
 			0.25,
 			7,
-			rods * CFrame.new(spec[4], 0.6, spec[5]) * CFrame.Angles(rad(spec[3]), 0, rad(spec[2])) * CFrame.new(0, 3.5, 0),
+			rods
+				* CFrame.new(spec[4], 0.6, spec[5])
+				* CFrame.Angles(rad(spec[3]), 0, rad(spec[2]))
+				* CFrame.new(0, 3.5, 0),
 			spec[1],
 			nil,
 			SMALL
@@ -660,7 +734,15 @@ local function buildWorkshop(hub: any, F: any)
 	blk(m, "BenchShelf", V(10, 0.4, 2.6), at(0, 0.9, -7.4), C.woodDark, M.Wood, SMALL)
 	blk(m, "Vice", V(1.2, 0.9, 1.4), at(-4.2, 3.75, -7.6), C.iron, M.Metal, SMALL)
 	blk(m, "ViceJaw", V(1.8, 0.5, 0.3), at(-4.2, 3.95, -8.45), C.iron, M.Metal, SMALL)
-	blk(m, "HammerHandle", V(2.4, 0.3, 0.3), at(-1.4, 3.45, -7.9) * CFrame.Angles(0, rad(20), 0), C.woodDark, nil, SMALL)
+	blk(
+		m,
+		"HammerHandle",
+		V(2.4, 0.3, 0.3),
+		at(-1.4, 3.45, -7.9) * CFrame.Angles(0, rad(20), 0),
+		C.woodDark,
+		nil,
+		SMALL
+	)
 	blk(m, "HammerHead", V(0.6, 0.6, 1.2), at(-0.3, 3.6, -8.3) * CFrame.Angles(0, rad(20), 0), C.iron, M.Metal, SMALL)
 	cylUp(m, "Reel", 1.4, 0.6, at(1.8, 3.6, -7.2), C.silver, M.Metal, SMALL)
 	cyl(m, "RodBlank", 0.25, 5, at(2.6, 3.45, -6.5) * CFrame.Angles(0, rad(15), 0), C.red, nil, SMALL)
@@ -674,7 +756,15 @@ local function buildWorkshop(hub: any, F: any)
 	cylUp(m, "Stump", 2.4, 2.4, at(-3, 1, 2), C.wood, M.Wood)
 	blk(m, "AnvilBase", V(1.2, 0.7, 1), at(-3, 2.55, 2), C.iron, M.Metal)
 	blk(m, "Anvil", V(2.8, 0.9, 1.3), at(-3, 3.35, 2), C.iron, M.Metal)
-	wdg(m, "AnvilHorn", V(1.3, 0.9, 1.4), at(-0.9, 3.35, 2) * CFrame.Angles(0, rad(-90), 0) * CFrame.Angles(0, 0, pi), C.iron, M.Metal, SMALL)
+	wdg(
+		m,
+		"AnvilHorn",
+		V(1.3, 0.9, 1.4),
+		at(-0.9, 3.35, 2) * CFrame.Angles(0, rad(-90), 0) * CFrame.Angles(0, 0, pi),
+		C.iron,
+		M.Metal,
+		SMALL
+	)
 	blk(m, "Forge", V(4, 3, 3.5), at(5.6, 1.3, 4.6), C.stoneDark, M.Cobblestone)
 	local coals = blk(m, "Coals", V(3, 0.3, 2.5), at(5.6, 2.9, 4.6), rgb(255, 112, 36), M.Neon, SMALL)
 	pointLight(coals, rgb(255, 140, 60), 12, 1.2)
@@ -690,7 +780,15 @@ local function buildWorkshop(hub: any, F: any)
 	blk(m, "ChimneyCap", V(3.6, 0.6, 3.6), at(11.6, 25.8, 3.5), C.stoneDark, nil, SMALL)
 	blk(m, "ChimneyGlow", V(2.2, 0.3, 2.2), at(11.6, 26.15, 3.5), C.orange, M.Neon, SMALL)
 	for i, puff in { { 12, 28.4, 3.3, 2.2 }, { 12.9, 30.8, 2.8, 2.8 }, { 14.1, 33.6, 2.2, 3.4 } } do
-		ball(m, "Smoke", puff[4], at(puff[1], puff[2], puff[3]), rgb(236, 236, 240), nil, with(GHOST, { Transparency = 0.1 + 0.18 * i }))
+		ball(
+			m,
+			"Smoke",
+			puff[4],
+			at(puff[1], puff[2], puff[3]),
+			rgb(236, 236, 240),
+			nil,
+			with(GHOST, { Transparency = 0.1 + 0.18 * i })
+		)
 	end
 
 	-- Lumber, barrel and crates on the left side (the +X walkway side).
@@ -719,11 +817,11 @@ local function buildFishMarket(hub: any, F: any)
 	end
 
 	local floor = blk(m, "Floor", V(18, 0.4, 9.2), at(0, 0, 1), C.wood, M.WoodPlanks, SMALL)
-	local backWall = blk(m, "BackWall", V(18.4, 11.8, 0.8), at(0, 5.4, 5.8), C.woodLight, M.WoodPlanks)
+	local backWall = blk(m, "BackWall", V(18.4, 13.9, 0.8), at(0, 6.45, 5.8), C.woodLight, M.WoodPlanks)
 	signText(backWall, Enum.NormalId.Back, "СКУПКА РЫБЫ", C.white, C.navy, { 0.5, 0.45, 0.9, 0.35 })
 	for _, sx in { -1, 1 } do
 		blk(m, "PostFront", V(0.8, 13.6, 0.8), at(sx * 8.8, 6.3, -5), C.beam, M.Wood)
-		blk(m, "PostBack", V(0.8, 11.9, 0.8), at(sx * 8.8, 5.45, 5), C.beam, M.Wood)
+		blk(m, "PostBack", V(0.8, 14, 0.8), at(sx * 8.8, 6.5, 5), C.beam, M.Wood)
 		ball(m, "PostCap", 1.1, at(sx * 8.8, 13.5, -5), C.gold, nil, SMALL)
 	end
 	blk(m, "Boardwalk", V(18, 0.3, 3.4), at(0, 0, -7.6), C.wood, M.WoodPlanks, SMALL)
@@ -740,7 +838,15 @@ local function buildFishMarket(hub: any, F: any)
 		local cf = at(x, 3.95, z) * CFrame.Angles(0, rad(if i % 2 == 0 then 25 else -20), 0)
 		local color = FISH_COLORS[i]
 		blk(m, "Fish", V(1.9, 0.5, 0.9), cf, color, nil, SMALL)
-		blk(m, "FishTail", V(0.75, 0.45, 0.75), cf * CFrame.new(-1.15, 0, 0) * CFrame.Angles(0, rad(45), 0), color, nil, SMALL)
+		blk(
+			m,
+			"FishTail",
+			V(0.75, 0.45, 0.75),
+			cf * CFrame.new(-1.15, 0, 0) * CFrame.Angles(0, rad(45), 0),
+			color,
+			nil,
+			SMALL
+		)
 	end
 
 	-- Scales: the sell prompt (stage 3) is created on its attachment.
@@ -753,11 +859,19 @@ local function buildFishMarket(hub: any, F: any)
 	blk(m, "GoldFishTail", V(0.7, 0.45, 0.7), at(4.45, 5.25, -4.12) * CFrame.Angles(0, rad(60), 0), C.gold, nil, SMALL)
 
 	-- Striped canopy sloping to the front, valance flaps.
-	local slope = math.atan2(2.2, 12.4)
+	local slope = math.atan2(4.2, 12.4)
 	for i = 0, 6 do
 		local x = -9.6 + 19.2 / 7 * (i + 0.5)
 		local color = if i % 2 == 0 then C.blue else C.white
-		blk(m, "Canopy", V(19.2 / 7, 0.3, 12.6), at(x, 10.3, -0.6) * CFrame.Angles(-slope, 0, 0), color, nil, { CastShadow = true })
+		blk(
+			m,
+			"Canopy",
+			V(19.2 / 7, 0.3, 13.1),
+			at(x, 11.3, -0.6) * CFrame.Angles(-slope, 0, 0),
+			color,
+			nil,
+			{ CastShadow = true }
+		)
 		blk(m, "Valance", V(19.2 / 7, 1, 0.2), at(x, 8.75, -6.85), color, nil, SMALL)
 	end
 
@@ -779,8 +893,24 @@ local function buildFishMarket(hub: any, F: any)
 	-- Outside: barrel of fish, crates (the +Z walkway side), drying net behind.
 	local b = at(10.6, 0, -1.5)
 	barrel(m, b)
-	blk(m, "FishInBarrel", V(0.6, 1.6, 1), b * CFrame.new(-0.3, 2.6, 0) * CFrame.Angles(0, 0, rad(15)), C.pink, nil, SMALL)
-	blk(m, "FishInBarrel", V(0.6, 1.4, 0.9), b * CFrame.new(0.4, 2.5, 0.2) * CFrame.Angles(rad(-12), 0, rad(-18)), C.yellow, nil, SMALL)
+	blk(
+		m,
+		"FishInBarrel",
+		V(0.6, 1.6, 1),
+		b * CFrame.new(-0.3, 2.6, 0) * CFrame.Angles(0, 0, rad(15)),
+		C.pink,
+		nil,
+		SMALL
+	)
+	blk(
+		m,
+		"FishInBarrel",
+		V(0.6, 1.4, 0.9),
+		b * CFrame.new(0.4, 2.5, 0.2) * CFrame.Angles(rad(-12), 0, rad(-18)),
+		C.yellow,
+		nil,
+		SMALL
+	)
 	crate(m, at(10.6, 0, 2.6) * CFrame.Angles(0, rad(-8), 0))
 	crate(m, at(10.6, 2.1, 2.6) * CFrame.Angles(0, rad(12), 0), 1.7)
 	for _, sx in { -1, 1 } do
@@ -802,7 +932,14 @@ local function buildFountain(hub: any, G: number)
 	local apo = 8.6
 	local side = 2 * apo * math.tan(rad(22.5))
 	for k = 0, 7 do
-		blk(m, "Rim", V(side, 1.4, 1.2), O * CFrame.Angles(0, rad(k * 45), 0) * CFrame.new(0, 0.4, apo), C.stoneLight, M.Slate)
+		blk(
+			m,
+			"Rim",
+			V(side, 1.4, 1.2),
+			O * CFrame.Angles(0, rad(k * 45), 0) * CFrame.new(0, 0.4, apo),
+			C.stoneLight,
+			M.Slate
+		)
 		cylUp(
 			m,
 			"RimPost",
@@ -814,7 +951,16 @@ local function buildFountain(hub: any, G: number)
 		)
 	end
 	cylUp(m, "BasinFloor", 17.6, 0.4, O * CFrame.new(0, 0.1, 0), rgb(36, 128, 150), nil, SMALL)
-	cylUp(m, "Pool", 17.6, 0.35, O * CFrame.new(0, 0.775, 0), C.water, nil, with(GHOST, { Transparency = 0.3, Reflectance = 0.1 }))
+	cylUp(
+		m,
+		"Pool",
+		17.6,
+		0.35,
+		O * CFrame.new(0, 0.775, 0),
+		C.water,
+		nil,
+		with(GHOST, { Transparency = 0.3, Reflectance = 0.1 })
+	)
 	cylUp(m, "Pedestal", 5, 2.6, O * CFrame.new(0, 1.3, 0), C.stoneLight, M.Slate)
 	cylUp(m, "Bowl", 9, 0.9, O * CFrame.new(0, 3.05, 0), C.stoneLight, M.Slate)
 	cylUp(m, "BowlWater", 8.2, 0.15, O * CFrame.new(0, 3.575, 0), C.water, nil, with(GHOST, { Transparency = 0.25 }))
@@ -845,7 +991,15 @@ local function buildFountain(hub: any, G: number)
 	for i = 1, #pts - 1 do
 		beam(m, "WaterJet", pts[i], pts[i + 1], 0.7, rgb(206, 242, 255), nil, with(GHOST, { Transparency = 0.3 }))
 	end
-	blk(m, "Splash", V(2.4, 0.6, 2.4), CFrame.new(7.2, G + 1.0, 0), C.white, nil, with(GHOST, { Shape = Enum.PartType.Ball, Transparency = 0.3 }))
+	blk(
+		m,
+		"Splash",
+		V(2.4, 0.6, 2.4),
+		CFrame.new(7.2, G + 1.0, 0),
+		C.white,
+		nil,
+		with(GHOST, { Shape = Enum.PartType.Ball, Transparency = 0.3 })
+	)
 
 	m.PrimaryPart = body
 	return m
@@ -863,7 +1017,14 @@ local function buildLighthouse(hub: any, F: any)
 	cylUp(m, "Podium", 15, 11.5, at(0, -5.85, 0), C.stone, M.Cobblestone)
 	local cap = cylUp(m, "PodiumCap", 15.8, 0.6, at(0, 0.2, 0), C.stoneLight, M.Slate)
 	for _, r in { { -9.5, 7.2, V(5, 4.4, 4.5), 20, 35, -14 }, { 8.6, 7.8, V(4.5, 3.6, 5.5), -16, -28, 12 } } do
-		blk(m, "Rock", r[3], at(r[1], -2.4, r[2]) * CFrame.Angles(rad(r[4]), rad(r[5]), rad(r[6])), C.stoneDark, M.Slate)
+		blk(
+			m,
+			"Rock",
+			r[3],
+			at(r[1], -2.4, r[2]) * CFrame.Angles(rad(r[4]), rad(r[5]), rad(r[6])),
+			C.stoneDark,
+			M.Slate
+		)
 	end
 	-- Tower: 6 tapering bands.
 	local y = 0.5
@@ -903,11 +1064,28 @@ local function buildLighthouse(hub: any, F: any)
 	end
 	-- Lantern room.
 	local ly = top + 1.0 + 2.3
-	cylUp(m, "LanternGlass", 5.6, 4.6, at(0, ly, 0), rgb(255, 236, 170), nil, { Transparency = 0.45, CastShadow = false })
+	cylUp(
+		m,
+		"LanternGlass",
+		5.6,
+		4.6,
+		at(0, ly, 0),
+		rgb(255, 236, 170),
+		nil,
+		{ Transparency = 0.45, CastShadow = false }
+	)
 	local core = ball(m, "Lamp", 3.2, at(0, ly, 0), rgb(255, 214, 90), M.Neon, GHOST)
 	pointLight(core, rgb(255, 220, 140), 16, 2)
 	for k = 0, 3 do
-		blk(m, "Mullion", V(0.35, 4.6, 0.35), at(0, 0, 0) * CFrame.Angles(0, rad(45 + k * 90), 0) * CFrame.new(0, ly, -2.75), C.iron, M.Metal, SMALL)
+		blk(
+			m,
+			"Mullion",
+			V(0.35, 4.6, 0.35),
+			at(0, 0, 0) * CFrame.Angles(0, rad(45 + k * 90), 0) * CFrame.new(0, ly, -2.75),
+			C.iron,
+			M.Metal,
+			SMALL
+		)
 	end
 	local ry = ly + 2.3
 	cylUp(m, "Roof", 7, 0.8, at(0, ry + 0.4, 0), C.red)
@@ -940,7 +1118,13 @@ local function boat(parent: any, B: any, hull: any, trim: any, fishing: boolean)
 	blk(m, "Stern", V(4.6, 2.2, 0.5), at(0, 0.3, -4.25), hull)
 	-- Pointed bow: two wedges laid on their sides (right angle at the hull's front centre).
 	wdg(m, "Bow", V(2.2, 2.3, 3.2), B * CFrame.fromMatrix(V(1.15, 0.3, 5.6), V(0, 1, 0), V(1, 0, 0), V(0, 0, -1)), hull)
-	wdg(m, "Bow", V(2.2, 2.3, 3.2), B * CFrame.fromMatrix(V(-1.15, 0.3, 5.6), V(0, -1, 0), V(-1, 0, 0), V(0, 0, -1)), hull)
+	wdg(
+		m,
+		"Bow",
+		V(2.2, 2.3, 3.2),
+		B * CFrame.fromMatrix(V(-1.15, 0.3, 5.6), V(0, -1, 0), V(-1, 0, 0), V(0, 0, -1)),
+		hull
+	)
 	blk(m, "Seat", V(3.6, 0.3, 1), at(0, 0.9, 1.6), C.woodLight, M.Wood, SMALL)
 	if fishing then
 		blk(m, "Cabin", V(3, 2.6, 2.6), at(0, 1.6, -2.2), C.white)
@@ -1039,13 +1223,13 @@ return function(parent: any, cfg: any, gen: any?)
 
 	------------------------------------------------------------------ plaza paving
 	local plaza = U.model(hub, "Plaza")
-	cylUp(plaza, "PavingBorder", 40, 0.5, CFrame.new(0, G - 0.17, 0), C.pavingDark, M.Slate, SMALL)
+	cylUp(plaza, "PavingBorder", 40, 0.5, CFrame.new(0, G - 0.17, 0), C.terracotta, M.Slate, SMALL)
 	cylUp(plaza, "Paving", 38, 0.5, CFrame.new(0, G - 0.13, 0), C.paving, M.Pavement, SMALL)
 	for k = 0, 3 do
-		blk(plaza, "Ray", V(1.6, 0.4, 7.4), U.polarCFrame(45 + k * 90, 14.2, G - 0.04), C.terracotta, M.Pavement, SMALL)
+		blk(plaza, "Ray", V(1.6, 0.4, 7.4), U.polarCFrame(45 + k * 90, 14.2, G - 0.04), C.teal, M.Pavement, SMALL)
 	end
 	for _, a in cfg.BridgeAngles do
-		blk(plaza, "WalkwayBorder", V(10.6, 0.5, 24.4), U.polarCFrame(a, 31.5, G - 0.19), C.pavingDark, M.Slate, SMALL)
+		blk(plaza, "WalkwayBorder", V(10.6, 0.5, 24.4), U.polarCFrame(a, 31.5, G - 0.19), C.terracotta, M.Slate, SMALL)
 		blk(plaza, "Walkway", V(9, 0.5, 24), U.polarCFrame(a, 31.5, G - 0.15), C.paving, M.Pavement, SMALL)
 	end
 
@@ -1089,7 +1273,11 @@ return function(parent: any, cfg: any, gen: any?)
 		local cf = U.polarCFrame(a, 15.4, G + 0.1)
 		bench(street, cf)
 		lampPost(street, (cf * CFrame.new(-4.1, -0.3, 0.2)).Position, true)
-		planter(street, (cf * CFrame.new(4.4, -0.1, 0.3)).Position, if k % 2 == 0 then { C.pink, C.yellow } else { C.purple, C.white })
+		planter(
+			street,
+			(cf * CFrame.new(4.4, -0.1, 0.3)).Position,
+			if k % 2 == 0 then { C.pink, C.yellow } else { C.purple, C.white }
+		)
 	end
 
 	-- Café terrace and notice board between the −Z and −X walkways.
@@ -1106,8 +1294,18 @@ return function(parent: any, cfg: any, gen: any?)
 	signText(boardPart, Enum.NormalId.Front, "НОВОСТИ ГАВАНИ", C.beam, C.cream, { 0.5, 0.12, 0.9, 0.18 })
 	wdg(board, "BoardRoof", V(7.6, 1, 0.9), nb * CFrame.new(0, 7.2, -0.45), C.roofRed)
 	wdg(board, "BoardRoof", V(7.6, 1, 0.9), nb * CFrame.new(0, 7.2, 0.45) * CFrame.Angles(0, pi, 0), C.roofRed)
-	for i, note in { { -1.8, 4.2, 6, C.white }, { 0, 3.6, -4, C.yellow }, { 1.9, 4.3, 8, C.pink }, { 0.2, 5.2, 3, C.ice } } do
-		blk(board, "Note", V(1.4, 1.5, 0.1), nb * CFrame.new(note[1], note[2], -0.25) * CFrame.Angles(0, 0, rad(note[3])), note[4], nil, SMALL)
+	for i, note in
+		{ { -1.8, 4.2, 6, C.white }, { 0, 3.6, -4, C.yellow }, { 1.9, 4.3, 8, C.pink }, { 0.2, 5.2, 3, C.ice } }
+	do
+		blk(
+			board,
+			"Note",
+			V(1.4, 1.5, 0.1),
+			nb * CFrame.new(note[1], note[2], -0.25) * CFrame.Angles(0, 0, rad(note[3])),
+			note[4],
+			nil,
+			SMALL
+		)
 		local _ = i
 	end
 	local poleTops = {}
@@ -1115,7 +1313,18 @@ return function(parent: any, cfg: any, gen: any?)
 		local base = U.polar(a, 27, G)
 		cylUp(cafe, "FestivalPole", 0.6, 16, CFrame.new(base + V(0, 7.8, 0)), C.white, nil, SMALL)
 		ball(cafe, "PoleBall", 1.2, CFrame.new(base + V(0, 16, 0)), C.gold, nil, SMALL)
-		wdg(cafe, "PoleFlag", V(0.12, 1.6, 2.4), CFrame.new(base + V(0, 14.6, 0)) * CFrame.Angles(0, rad(a), 0) * CFrame.new(0, 0, 1.4) * CFrame.Angles(0, 0, pi), C.red, nil, GHOST)
+		wdg(
+			cafe,
+			"PoleFlag",
+			V(0.12, 1.6, 2.4),
+			CFrame.new(base + V(0, 14.6, 0))
+				* CFrame.Angles(0, rad(a), 0)
+				* CFrame.new(0, 0, 1.4)
+				* CFrame.Angles(0, 0, pi),
+			C.red,
+			nil,
+			GHOST
+		)
 		poleTops[a] = base + V(0, 13.2, 0)
 	end
 
@@ -1131,12 +1340,30 @@ return function(parent: any, cfg: any, gen: any?)
 
 	------------------------------------------------------------------ beach: palms, rocks
 	local beach = U.model(hub, "Beach")
-	for _, spec in { { 15, 51, 1.0 }, { 33, 52, 0.9 }, { 75, 50, 0.95 }, { 106, 51, 1.05 }, { 152, 51, 1.0 }, { 166, 50, 0.9 }, { 249, 50, 1.05 }, { 290, 51, 1.0 } } do
+	for _, spec in
+		{
+			{ 15, 51, 1.0 },
+			{ 33, 52, 0.9 },
+			{ 75, 50, 0.95 },
+			{ 106, 51, 1.05 },
+			{ 152, 51, 1.0 },
+			{ 166, 50, 0.9 },
+			{ 249, 50, 1.05 },
+			{ 290, 51, 1.0 },
+		}
+	do
 		palm(beach, groundPoint(spec[1], spec[2], 0), spec[1], spec[3])
 	end
 	for i, spec in { { 122, 56, V(4, 2.6, 3.4) }, { 300, 57, V(3.6, 2.4, 3) } } do
 		local g = groundPoint(spec[1], spec[2], 0.5)
-		blk(beach, "Rock", spec[3], CFrame.new(g + V(0, spec[3].Y / 2 - 0.4, 0)) * CFrame.Angles(rad(6 * i), rad(53 * i), rad(-4 * i)), C.stone, M.Slate)
+		blk(
+			beach,
+			"Rock",
+			spec[3],
+			CFrame.new(g + V(0, spec[3].Y / 2 - 0.4, 0)) * CFrame.Angles(rad(6 * i), rad(53 * i), rad(-4 * i)),
+			C.stone,
+			M.Slate
+		)
 	end
 
 	------------------------------------------------------------------ docks and boats

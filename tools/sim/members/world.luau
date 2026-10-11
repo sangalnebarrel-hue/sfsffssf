@@ -3,6 +3,7 @@
 
 local roblox = require("@lune/roblox")
 local World = require("../world")
+local SmoothGrid = require("../../terrain/SmoothGrid")
 
 local Vector3 = roblox.Vector3
 local CFrame = roblox.CFrame
@@ -557,8 +558,42 @@ return function(M)
 		ReplaceMaterial = terrainOp("ReplaceMaterial"),
 		WriteVoxels = terrainOp("WriteVoxels"),
 		PasteRegion = terrainOp("PasteRegion"),
-		ReadVoxels = M.method(function()
-			return {}, {}
+		-- Answers from the terrain baked into the place (Terrain.SmoothGrid), decoded once.
+		-- Terrain written at runtime (Fill*/WriteVoxels) is only recorded, not readable here.
+		ReadVoxels = M.method(function(sim, real, region, resolution)
+			assert(resolution == 4, "RbxSim: ReadVoxels supports resolution 4 only")
+			if sim._terrainGrid == nil then
+				local ok, bytes = pcall(function()
+					return real.SmoothGrid
+				end)
+				sim._terrainGrid = if ok and type(bytes) == "string" and #bytes > 2
+					then SmoothGrid.decode(bytes)
+					else false
+			end
+			local grid = sim._terrainGrid
+			local centre, size = region.CFrame.Position, region.Size
+			local x0 = math.floor((centre.X - size.X / 2) / 4 + 0.5)
+			local y0 = math.floor((centre.Y - size.Y / 2) / 4 + 0.5)
+			local z0 = math.floor((centre.Z - size.Z / 2) / 4 + 0.5)
+			local nx, ny, nz = math.round(size.X / 4), math.round(size.Y / 4), math.round(size.Z / 4)
+			local materials, occupancies = {}, {}
+			for ix = 1, nx do
+				local mx, ox = {}, {}
+				for iy = 1, ny do
+					local mz, oz = {}, {}
+					for iz = 1, nz do
+						local slot, occupancy = 0, 0
+						if grid then
+							slot, occupancy = grid:get(x0 + ix - 1, y0 + iy - 1, z0 + iz - 1)
+						end
+						mz[iz] = roblox.Enum.Material[SmoothGrid.SlotNames[slot]]
+						oz[iz] = if slot == 0 then 0 else (occupancy + 1) / 256
+					end
+					mx[iy], ox[iy] = mz, oz
+				end
+				materials[ix], occupancies[ix] = mx, ox
+			end
+			return materials, occupancies
 		end),
 		CopyRegion = M.method(noop),
 		WorldToCell = M.method(function(_, _, pos)
