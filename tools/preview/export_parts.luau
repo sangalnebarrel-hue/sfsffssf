@@ -155,7 +155,7 @@ local function colorArray(color: any): { number }
 	}
 end
 
--- World-space AABB half extents of a box with rotation cf and the given size.
+-- World-space AABB (min, max corners) of a box with CFrame cf and the given size.
 local function aabb(cf: any, size: any): (any, any)
 	local _, _, _, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
 	local hx, hy, hz = size.X / 2, size.Y / 2, size.Z / 2

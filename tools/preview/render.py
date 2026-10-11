@@ -11,11 +11,13 @@ Renders orthographic PNG previews of a Roblox place (no Studio needed):
 Usage:
   python3 tools/preview/render.py parts.json --out-dir out/ \
       [--views top,iso,iso2,zoom] [--zoom x,z,radius[,azimuth]]... [--size 1600]
+  (see --help and tools/preview/README.md for all options)
 
 Rendering is a small numpy z-buffer rasterizer: every part becomes a convex
-polygon mesh, back faces are culled, opaque faces are depth tested, transparent
-faces (and water) are blended back-to-front on top. Images are supersampled and
-box-filtered down for anti-aliasing. Thin dark outlines come from face-id edges.
+polygon mesh, back faces are culled and opaque faces are depth tested. The nearest
+transparent surface in front of them (glass, water) is then blended once per pixel.
+Images are supersampled and box-filtered down for anti-aliasing; thin dark outlines
+come from edges in the per-pixel face-id buffer.
 """
 
 from __future__ import annotations
@@ -138,8 +140,9 @@ def _half_extents(shape, size):
 
 
 class Scene:
+    """Parts from the JSON turned into one flat list of convex faces plus per-part data."""
+
     def __init__(self, data):
-        self.data = data
         self.parts = data.get("parts", [])
         self.slots = data.get("slots", [])
         self._build()
@@ -170,10 +173,12 @@ class Scene:
         polys, counts, normals, centroids, groups, owners = [], [], [], [], [], []
         group_base = 0
         shape_of = np.array([p.get("shape", "Block") for p in parts])
+        special = [s for s in MESHES if s != "Block"]
         for shape, (uverts, faces, fgroups) in MESHES.items():
-            idx = np.nonzero(shape_of == shape)[0]
-            if shape == "Block":  # unknown shapes fall back to blocks
-                idx = np.nonzero(~np.isin(shape_of, [s for s in MESHES if s != "Block"]))[0]
+            if shape == "Block":  # blocks and any unknown shape
+                idx = np.nonzero(~np.isin(shape_of, special))[0]
+            else:
+                idx = np.nonzero(shape_of == shape)[0]
             if len(idx) == 0:
                 continue
             scale = _half_extents(shape, size[idx])
@@ -261,6 +266,7 @@ class Scene:
 
 
 def _newell(poly):
+    """Unit normals of (N, k, 3) polygons (Newell's method; robust for padded polygons)."""
     nxt = np.roll(poly, -1, axis=1)
     x, y, z = poly[..., 0], poly[..., 1], poly[..., 2]
     nx_, ny_, nz_ = nxt[..., 0], nxt[..., 1], nxt[..., 2]
@@ -277,6 +283,8 @@ def _newell(poly):
 
 
 class Camera:
+    """Orthographic camera: forward/right/up basis, centre point and pixels per stud."""
+
     def __init__(self, forward, center, scale, width, height, ss, up_hint=(0, 1, 0)):
         f = np.asarray(forward, float)
         f /= np.linalg.norm(f)
@@ -298,6 +306,7 @@ class Camera:
 
     @staticmethod
     def orbit(azimuth_deg, elevation_deg, center, scale, width, height, ss):
+        """Camera on a sphere around `center`: azimuth from +Z towards +X, elevation up."""
         az, el = math.radians(azimuth_deg), math.radians(elevation_deg)
         eye = np.array([math.sin(az) * math.cos(el), math.sin(el), math.cos(az) * math.cos(el)])
         return Camera(-eye, center, scale, width, height, ss)
@@ -749,7 +758,10 @@ def view_orbit(scene, args, azimuth, title):
         draw_slot_labels(im, cam, scene)
     font = _font(15)
     _scale_bar(ImageDraw.Draw(im, "RGBA"), scale, (14, im.size[1] - 20), font)
-    draw_title(im, [f"{title}  (orthographic, azimuth {azimuth:g} deg, elevation {args.elevation:g} deg)", _stats_line(scene)])
+    draw_title(
+        im,
+        [f"{title}  (orthographic, azimuth {azimuth:g} deg, elevation {args.elevation:g} deg)", _stats_line(scene)],
+    )
     return im
 
 
