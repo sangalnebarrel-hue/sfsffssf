@@ -2,33 +2,34 @@
 --[[
 	MapService — проверка мира при старте сервера.
 
-	Рельеф «Рыбацкой долины» (озеро, горы, реки) запечён прямо в Place1.rbxl — его видно в Studio
-	без запуска игры. На всякий случай сервер проверяет, что рельеф на месте (читает пару вокселей
-	в центре острова). Если там пусто — генерирует весь рельеф заново тем же генератором
-	(ServerStorage.WorldGen) через Terrain:WriteVoxels. Это занимает несколько секунд и в норме
-	не нужно никогда.
+	Земля «Острова Рыбаков» — это детали (Workspace.Map.Ground), а вода лагуны и океана —
+	Terrain, «запечённый» прямо в Place1.rbxl (её видно в Studio без запуска игры).
+	На всякий случай сервер проверяет, что вода на месте (читает пару вокселей посреди лагуны).
+	Если её нет (например, Terrain случайно очистили) — заливает воду заново блоками
+	Terrain:FillBlock до глубины океана. Внутри деталей земли вода не видна и не мешает.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
 
 local MapConfig = require(ReplicatedStorage.Shared.Config.MapConfig)
 
 local VOXEL = 4
-local BLOCK = 32 -- колонок по X и Z за один вызов WriteVoxels
+local TILE = 512 -- сторона одного блока заливки (studs)
 
 local MapService = {}
 
--- true, если в центре острова (под площадью) есть твёрдый рельеф.
-local function terrainPresent(terrain: Terrain): boolean
-	local y = MapConfig.GroundTop - VOXEL
-	local region = Region3.new(Vector3.new(-VOXEL, y - VOXEL, -VOXEL), Vector3.new(VOXEL, y, VOXEL)):ExpandToGrid(VOXEL)
+-- true, если посреди лагуны (между островом и берегом) есть вода.
+local function waterPresent(terrain: Terrain): boolean
+	local r = (MapConfig.HubRadius + MapConfig.LagoonRadius) / 2
+	local y = MapConfig.WaterTop - VOXEL
+	local region = Region3.new(Vector3.new(-VOXEL, y, r - VOXEL), Vector3.new(VOXEL, y + VOXEL, r + VOXEL))
+		:ExpandToGrid(VOXEL)
 	local materials = terrain:ReadVoxels(region, VOXEL)
 	for _, plane in materials do
 		for _, column in plane do
 			for _, material in column do
-				if material ~= Enum.Material.Air and material ~= Enum.Material.Water then
+				if material == Enum.Material.Water then
 					return true
 				end
 			end
@@ -37,64 +38,35 @@ local function terrainPresent(terrain: Terrain): boolean
 	return false
 end
 
--- Аварийная генерация всего рельефа (если в файле его нет).
-local function regenerate(terrain: Terrain)
-	local worldGen = ServerStorage:FindFirstChild("WorldGen")
-	assert(worldGen and worldGen:IsA("ModuleScript"), "[MapService] нет ServerStorage.WorldGen")
-	local WorldGen = require(worldGen) :: any
+-- Аварийная заливка: вода от дна океана до поверхности по всему квадрату ±OceanHalf.
+local function refill(terrain: Terrain)
 	local started = os.clock()
-	local gen = WorldGen.new(MapConfig)
-	gen:build()
-
-	local yMin, yMax = gen:voxelRangeY()
-	local height = yMax - yMin + 1
-	local n = gen.n
-	for bz = -n, n - 1, BLOCK do
-		for bx = -n, n - 1, BLOCK do
-			local sizeX, sizeZ = math.min(BLOCK, n - bx), math.min(BLOCK, n - bz)
-			local materials: { { { Enum.Material } } } = {}
-			local occupancies: { { { number } } } = {}
-			for x = 1, sizeX do
-				local mx: { { Enum.Material } } = {}
-				local ox: { { number } } = {}
-				for y = 1, height do
-					mx[y] = table.create(sizeZ, Enum.Material.Air)
-					ox[y] = table.create(sizeZ, 0)
-				end
-				materials[x], occupancies[x] = mx, ox
-			end
-			for dx = 0, sizeX - 1 do
-				for dz = 0, sizeZ - 1 do
-					gen:fillColumn(bx + dx, bz + dz, function(iy: number, material: string, occupancy: number)
-						local y = iy - yMin + 1
-						if y >= 1 and y <= height then
-							materials[dx + 1][y][dz + 1] = (Enum.Material :: any)[material]
-							occupancies[dx + 1][y][dz + 1] = occupancy
-						end
-					end)
-				end
-			end
-			local corner = Vector3.new(bx * VOXEL, yMin * VOXEL, bz * VOXEL)
-			local region = Region3.new(corner, corner + Vector3.new(sizeX, height, sizeZ) * VOXEL)
-			terrain:WriteVoxels(region, VOXEL, materials, occupancies)
+	local depth = MapConfig.OceanDepth
+	local half = MapConfig.OceanHalf
+	local y = MapConfig.WaterTop - depth / 2
+	for x = -half, half - 1, TILE do
+		for z = -half, half - 1, TILE do
+			local sizeX, sizeZ = math.min(TILE, half - x), math.min(TILE, half - z)
+			local centre = Vector3.new(x + sizeX / 2, y, z + sizeZ / 2)
+			terrain:FillBlock(CFrame.new(centre), Vector3.new(sizeX, depth, sizeZ), Enum.Material.Water)
 			task.wait() -- не подвешиваем сервер
 		end
 	end
-	warn(`[MapService] рельеф сгенерирован заново за {math.floor(os.clock() - started)} c`)
+	warn(`[MapService] вода залита заново за {math.floor(os.clock() - started)} c`)
 end
 
 function MapService:Init()
 	local terrain = Workspace.Terrain
-	local ok, present = pcall(terrainPresent, terrain)
+	local ok, present = pcall(waterPresent, terrain)
 	if not ok then
-		warn(`[MapService] не удалось прочитать рельеф: {present}`)
+		warn(`[MapService] не удалось прочитать воду: {present}`)
 		return
 	end
 	if present then
-		print("[MapService] рельеф на месте")
+		print("[MapService] вода на месте")
 	else
-		warn("[MapService] рельеф в файле не найден — генерирую заново…")
-		regenerate(terrain)
+		warn("[MapService] воды в файле нет — заливаю заново…")
+		refill(terrain)
 	end
 end
 

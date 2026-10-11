@@ -5,3 +5,5 @@ __pycache__/
 # Studio lock / backup files
 *.rbxl.lock
 *.rbxlx.lock
+# agent worktrees (Claude Code)
+.claude/worktrees/

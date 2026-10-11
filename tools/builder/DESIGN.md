@@ -61,8 +61,8 @@ ColorCorrection saturation ≈ +0.25, bloom for neon. Terrain water is turquoise
         hills/forest  r 480..640, landmarks between plots (r 330..560)
      8 big plots  r 330..480  (BaseAngleOffset 22.5° + k·45°)
    promenade ring r 312..330  (flat, GroundTop)
-  beach ring     r 300..312  (sand, y = 2)
- lagoon water    r 150..300  (Terrain water, bed −2 … −14)
+  beach ring     r 296..307  (sand, y = 2)
+ lagoon water    r 150..296  (Terrain water, bed −2 … −14)
 hub island       r < 150     (plaza flat at GroundTop for r < 124, sand y = 2 to r 150)
 4 bridges at θ = 0/90/180/270 from the hub plaza to the promenade
 ```
@@ -74,7 +74,7 @@ hub island       r < 150     (plaza flat at GroundTop for r < 124, sand y = 2 to
 | CellSize | 8 | ground voxel column width (studs); heights are multiples of 2 |
 | HubRadius | 150 | hub island waterline |
 | HubPlazaRadius | 124 | hub flat ground (GroundTop) radius |
-| LagoonRadius | 300 | ring shore waterline |
+| LagoonRadius | 296 | ring shore waterline |
 | LagoonDepth | 14 | deepest lagoon bed (y = −14) |
 | BeachWidth | 12 | sand (y = 2) from LagoonRadius to the promenade |
 | PromenadeRadius | 312 | inner edge of the promenade ring = base slot radius |

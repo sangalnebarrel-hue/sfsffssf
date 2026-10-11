@@ -1,16 +1,15 @@
 --[[
-	Builds Workspace.Map — everything made of parts in the big "Fishing Valley" world.
-	The terrain itself (lake, beaches, valley, mountains, rivers) is baked separately
-	(tools/terrain/Bake.luau from src/ServerStorage/WorldGen.luau); this module places
-	parts ON that terrain using the generator's height queries:
-	  Map.BaseSlots   8 invisible markers where the server clones the base template
-	  Map.Hub         the central island village (tools/builder/Hub.luau)
-	  Map.Bridges     4 long bridges to the island + bridges where the ring road crosses rivers
-	  Map.Waterfalls  falling water sheets at the river cliffs
-	  Map.Nature      forests, bushes, flowers (scattered on terrain, away from gameplay areas)
-	  Map.Road        lamp posts and signposts along the ring road
-	  Map.Lake        boats and buoys on the lake
-	  Map.Boundaries  invisible ring wall in front of the mountains
+	Builds Workspace.Map — everything made of parts in World v3 «Остров Рыбаков»
+	(see tools/builder/DESIGN.md). The ground comes from VoxelWorld (heightfield) via Ground.luau;
+	the water is Terrain (baked separately in tools/build.luau). This module places on top:
+	  Map.BaseSlots    8 invisible markers where the server clones the base template
+	  Map.Ground       voxel ground (Ground.luau)
+	  Map.Hub          the central island village (Hub.luau)
+	  Map.Bridges      4 bridges hub ↔ promenade
+	  Map.Promenade    the ring walkway along the lagoon with lamps
+	  Map.Nature       trees, bushes, flowers on the hills (away from gameplay areas)
+	  Map.Lagoon       boats and buoys
+	  Map.Boundaries   invisible ring wall in the ocean
 
 	Coordinates: angle θ (degrees, 0 = +Z) and radius r map to (r·sin θ, y, r·cos θ).
 ]]
@@ -18,11 +17,12 @@
 local U = require("./Util")
 local Props = require("./Props")
 local buildHub = require("./Hub")
+local buildGround = require("./Ground")
 
 local Vector3 = U.Vector3
 local CFrame = U.CFrame
 
-local sin, rad, sqrt = math.sin, math.rad, math.sqrt
+local sqrt, rad = math.sqrt, math.rad
 
 -- Deterministic random numbers (the world must be identical on every build).
 local function makeRandom(seed: number)
@@ -45,10 +45,9 @@ local function call(name: string, ...: any): any
 	return fn(...)
 end
 
--- Ground CFrame at (x, z) on the terrain surface (slightly sunk), facing yaw degrees.
-local function groundCFrame(gen: any, x: number, z: number, yaw: number, sink: number?): any
-	local h = gen:surfaceAt(x, z)
-	return CFrame.new(x, h - (sink or 0.4), z) * CFrame.Angles(0, rad(yaw), 0)
+-- Ground CFrame at (x, z) on top of the voxel column, facing yaw degrees.
+local function groundCFrame(world: any, x: number, z: number, yaw: number): any
+	return CFrame.new(x, world:heightAt(x, z), z) * CFrame.Angles(0, rad(yaw), 0)
 end
 
 local function angleDistance(a: number, b: number): number
@@ -61,96 +60,114 @@ local function buildSlots(map: any, cfg: any)
 	local slots = U.folder(map, "BaseSlots")
 	for i = 1, cfg.BaseCount do
 		local angle = cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount
+		-- polarCFrame faces the slot's −Z towards the lagoon centre
 		U.marker(slots, `Slot_{i}`, Vector3.new(4, 0.2, 4), U.polarCFrame(angle, cfg.BaseRadius, cfg.GroundTop), {
 			Attributes = { Index = i, Angle = angle },
 		})
 	end
 end
 
-local function buildBridges(map: any, cfg: any, gen: any)
+local function buildBridges(map: any, cfg: any)
 	local bridges = U.model(map, "Bridges")
-	local deckY = cfg.GroundTop + 0.6
 	for i, angle in cfg.BridgeAngles do
-		local from = U.polar(angle, cfg.HubPlazaRadius - 3, 0)
-		local to = U.polar(angle, cfg.LakeRadius + 4, 0)
+		local from = U.polar(angle, cfg.HubPlazaRadius - 6, 0)
+		local to = U.polar(angle, cfg.PromenadeRadius + 2, 0)
 		local bridge = call("bridge", bridges, from, to, {
-			deckY = deckY,
+			deckY = cfg.GroundTop + 0.6,
 			width = cfg.BridgeWidth,
-			bedY = -cfg.LakeDepth,
+			bedY = -cfg.LagoonDepth,
 		})
 		bridge.Name = `Bridge_{i}`
 	end
-	-- Ring road crossing each river.
-	local roadR = cfg.RingRoadRadius
-	for i, angle in cfg.Rivers do
-		local centre = angle + 3.5 * sin((roadR - cfg.LakeRadius) / 38)
-		local halfSpan = math.deg((cfg.RiverWidth / 2 + 12) / roadR)
-		local from = U.polar(centre - halfSpan, roadR, 0)
-		local to = U.polar(centre + halfSpan, roadR, 0)
-		local deck = math.max((gen:surfaceAt(from.X, from.Z)), (gen:surfaceAt(to.X, to.Z))) + 0.6
-		local bridge = call("bridge", bridges, from, to, { deckY = deck, width = cfg.RoadWidth - 2, bedY = -6 })
-		bridge.Name = `RiverBridge_{i}`
-	end
 end
 
-local function buildWaterfalls(map: any, cfg: any, gen: any)
-	local falls = U.model(map, "Waterfalls")
-	local fallR = cfg.ValleyRadius + 26
-	for i, angle in cfg.Rivers do
-		local function at(r: number, y: number)
-			return U.polar(angle + 3.5 * sin((r - cfg.LakeRadius) / 38), r, y)
+-- The promenade: a ring of plank deck segments along the lagoon, with lamps on the water side.
+local function buildPromenade(map: any, cfg: any, world: any)
+	local promenade = U.model(map, "Promenade")
+	local deck = U.model(promenade, "Deck")
+	local inner = cfg.PromenadeRadius
+	local outer = inner + cfg.PromenadeWidth
+	local mid = (inner + outer) / 2
+	local segments = 96
+	local step = 360 / segments
+	local colors = { U.rgb(236, 184, 120), U.rgb(222, 166, 104) }
+	for k = 0, segments - 1 do
+		local a = k * step
+		local length = 2 * outer * math.tan(rad(step / 2)) + 0.6
+		U.part(
+			deck,
+			"Deck",
+			Vector3.new(length, 0.6, cfg.PromenadeWidth),
+			U.polarCFrame(a, mid, cfg.GroundTop + 0.3),
+			colors[k % 2 + 1]
+		)
+	end
+	local lamps = U.model(promenade, "Lamps")
+	local placed = 0
+	for k = 0, 47 do
+		local a = k * 7.5 + 3.75
+		local clear = true
+		for _, b in cfg.BridgeAngles do
+			if angleDistance(a, b) < 4 then
+				clear = false
+			end
 		end
-		local top = at(fallR + 1, gen.UpperRiverWater or 40)
-		local bottom = at(fallR - 7, 0)
-		local fall = call("waterfall", falls, top, bottom, cfg.RiverWidth - 4)
-		fall.Name = `Waterfall_{i}`
+		for i = 1, cfg.BaseCount do
+			if angleDistance(a, cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount) < 5 then
+				clear = false -- pier entrance
+			end
+		end
+		if clear then
+			local p = U.polar(a, inner + 1.5, 0)
+			call("lampPost", lamps, CFrame.new(p.X, cfg.GroundTop + 0.6, p.Z) * CFrame.Angles(0, rad(a), 0), {
+				light = k % 2 == 0,
+			})
+			placed += 1
+		end
 	end
+	return placed
 end
 
-local function buildNature(map: any, cfg: any, gen: any)
+local function buildNature(map: any, cfg: any, world: any)
 	local nature = U.model(map, "Nature")
 	local trees = U.model(nature, "Trees")
 	local plants = U.model(nature, "Plants")
 	local random = makeRandom(4242)
-	local beachR = cfg.LakeRadius + cfg.BeachWidth
 	local counts = { pine = 0, round = 0, palm = 0, bush = 0, flowers = 0 }
 
 	-- Jittered grid: one candidate per cell, so forests are dense but never overlap.
-	local cell = 26
-	local maxR = cfg.BoundaryRadius + 30
+	local cell = 24
+	local maxR = cfg.RingOuterRadius + 60
 	for gz = -maxR, maxR, cell do
 		for gx = -maxR, maxR, cell do
-			local x = gx + random(-cell * 0.4, cell * 0.4)
-			local z = gz + random(-cell * 0.4, cell * 0.4)
+			local x = gx + random(-cell * 0.35, cell * 0.35)
+			local z = gz + random(-cell * 0.35, cell * 0.35)
 			local r = sqrt(x * x + z * z)
-			if r > beachR + 4 and r < maxR and not gen:isReserved(x, z, 3) then
-				local h, material = gen:surfaceAt(x, z)
-				local slope = gen:slope(math.floor(x / 4), math.floor(z / 4))
-				local soft = material == "Grass" or material == "LeafyGrass" or material == "Ground"
-				-- Thick groves (noise) in the valley, sparser higher up the mountains.
-				local grove = gen:noise(x / 160 + 70, z / 160 - 30) * 0.5 + 0.5
-				local chance = if r < cfg.ValleyRadius then 0.2 + 0.65 * grove else 0.5 * (1 - (h - 40) / 140)
-				if soft and slope < 0.75 and h < 150 and random() < chance then
-					local cf = groundCFrame(gen, x, z, random(0, 360))
-					local opts = { seed = math.floor(random(1, 100000)), scale = random(0.85, 1.3) }
-					if r < beachR + 40 and random() < 0.6 then
+			if r > cfg.PromenadeRadius and r < maxR and not world:isReserved(x, z, 4) then
+				local h, kind = world:surfaceAt(x, z)
+				local soft = kind == "grass" or kind == "meadow" or kind == "grassRock"
+				local flatEnough = world:slope(x, z) <= 4
+				local grove = world:noise(x / 160 + 70, z / 160 - 30) * 0.5 + 0.5
+				if soft and flatEnough and h > 2 and random() < 0.15 + 0.6 * grove then
+					local cf = groundCFrame(world, x, z, random(0, 360))
+					local opts = { seed = math.floor(random(1, 100000)), scale = random(0.9, 1.3) }
+					if h <= 8 and r > cfg.RingOuterRadius - 80 and random() < 0.6 then
 						call("palmTree", trees, cf, opts)
 						counts.palm += 1
-					elseif h > 28 or random() < 0.45 then
-						opts.scale *= 1.1
+					elseif h > 24 or random() < 0.4 then
 						call("pineTree", trees, cf, opts)
 						counts.pine += 1
 					else
 						call("roundTree", trees, cf, opts)
 						counts.round += 1
 					end
-				elseif soft and slope < 0.5 and r < cfg.ValleyRadius and random() < 0.25 then
+				elseif soft and flatEnough and random() < 0.12 then
 					local opts = { seed = math.floor(random(1, 100000)) }
-					if random() < 0.55 then
-						call("bush", plants, groundCFrame(gen, x, z, random(0, 360), 0.6), opts)
+					if random() < 0.5 then
+						call("bush", plants, groundCFrame(world, x, z, random(0, 360)), opts)
 						counts.bush += 1
 					else
-						call("flowerPatch", plants, groundCFrame(gen, x, z, random(0, 360), 0.2), opts)
+						call("flowerPatch", plants, groundCFrame(world, x, z, random(0, 360)), opts)
 						counts.flowers += 1
 					end
 				end
@@ -160,63 +177,24 @@ local function buildNature(map: any, cfg: any, gen: any)
 	return counts
 end
 
-local function buildRoad(map: any, cfg: any, gen: any)
-	local road = U.model(map, "Road")
-	local roadR = cfg.RingRoadRadius
-	local edge = roadR - cfg.RoadWidth / 2 - 2.5 -- inner (lake-side) edge of the road
-	local placed = 0
-	for k = 0, 47 do
-		local a = k * 7.5 + 3.75
-		local clear = true
-		for _, river in cfg.Rivers do
-			if angleDistance(a, river) < 7 then
-				clear = false -- river bridges here
-			end
-		end
-		for _, b in cfg.BridgeAngles do
-			if angleDistance(a, b) < 3 then
-				clear = false -- bridge path junction
-			end
-		end
-		for i = 1, cfg.BaseCount do
-			if angleDistance(a, cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount) < 3 then
-				clear = false -- base path junction
-			end
-		end
-		if clear then
-			local p = U.polar(a, edge, 0)
-			call("lampPost", road, groundCFrame(gen, p.X, p.Z, a + 180, 0.2), { light = k % 3 == 0 })
-			placed += 1
-		end
-	end
-	-- Signposts where the bridge paths meet the ring road.
-	for _, angle in cfg.BridgeAngles do
-		local p = U.polar(angle + 3.2, edge - 1, 0)
-		call("signpost", road, groundCFrame(gen, p.X, p.Z, angle + 180, 0.2), { text = "ОСТРОВ" })
-	end
-	return placed
-end
-
-local function buildLake(map: any, cfg: any)
-	local lake = U.model(map, "Lake")
+local function buildLagoon(map: any, cfg: any)
+	local lagoon = U.model(map, "Lagoon")
 	local random = makeRandom(777)
-	-- Boats between the bridges (on the diagonals there are no piers or bridges).
 	for k = 0, 3 do
-		local a = 45 + k * 90 + random(-8, 8)
-		local p = U.polar(a, random(115, 160), 0)
+		local a = 45 + k * 90 + random(-6, 6)
+		local p = U.polar(a, random(190, 240), 0)
 		local cf = CFrame.new(p.X, 0, p.Z) * CFrame.Angles(0, rad(random(0, 360)), 0)
-		call(if k % 2 == 0 then "sailboat" else "rowboat", lake, cf, { seed = k + 1 })
+		call(if k % 2 == 0 then "sailboat" else "rowboat", lagoon, cf, { seed = k + 1 })
 	end
-	-- A ring of buoys around the deep middle of the lake.
-	for k = 0, 11 do
-		local p = U.polar(k * 30 + 15, 100, 0)
-		call("buoy", lake, CFrame.new(p.X, 0, p.Z), { seed = k })
+	for k = 0, 15 do
+		local p = U.polar(k * 22.5 + 11.25, (cfg.HubRadius + cfg.LagoonRadius) / 2, 0)
+		call("buoy", lagoon, CFrame.new(p.X, 0, p.Z), { seed = k })
 	end
 end
 
 local function buildBoundaries(map: any, cfg: any)
 	local walls = U.folder(map, "Boundaries")
-	local count = 32
+	local count = 48
 	local R = cfg.BoundaryRadius
 	local width = 2 * R * math.tan(math.pi / count) + 4
 	for k = 0, count - 1 do
@@ -239,21 +217,22 @@ end
 
 --------------------------------------------------------------------------------
 
-return function(game: any, cfg: any, gen: any)
+return function(game: any, cfg: any, world: any)
 	local workspace = game:GetService("Workspace")
 	local map = U.new("Model", { Name = "Map" }, workspace)
 
 	buildSlots(map, cfg)
-	local hub = buildHub(map, cfg, gen)
-	buildBridges(map, cfg, gen)
-	buildWaterfalls(map, cfg, gen)
-	local natureCounts = buildNature(map, cfg, gen)
-	local lamps = buildRoad(map, cfg, gen)
-	buildLake(map, cfg)
+	local ground = buildGround(map, world)
+	local hub = buildHub(map, cfg, world)
+	buildBridges(map, cfg)
+	local lamps = buildPromenade(map, cfg, world)
+	local natureCounts = buildNature(map, cfg, world)
+	buildLagoon(map, cfg)
 	buildBoundaries(map, cfg)
 
 	return {
 		map = map,
+		groundParts = ground.parts,
 		natureCounts = natureCounts,
 		lamps = lamps,
 		expectedAttachments = hub.expectedAttachments or {},

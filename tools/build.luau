@@ -9,7 +9,7 @@
 	Steps:
 	  1. load the input place and remove everything this script manages (so it is repeatable);
 	  2. world settings (streaming off, manual character spawning, lighting, water look);
-	  3. Workspace.Map (shore, lake, hub, bridges, decor, base slots);
+	  3. Workspace.Map (voxel ground, hub, bridges, promenade, decor, base slots) + Terrain water;
 	  4. ServerStorage.BaseTemplate;
 	  5. ReplicatedStorage.Remotes from RemoteNames;
 	  6. StarterGui.HUD;
@@ -23,7 +23,8 @@ local roblox = require("@lune/roblox")
 local serde = require("@lune/serde")
 
 local U = require("./builder/Util")
-local Bake = require("./terrain/Bake")
+local VoxelWorld = require("./builder/VoxelWorld")
+local SmoothGrid = require("./terrain/SmoothGrid")
 local buildMap = require("./builder/Map")
 local buildBaseTemplate = require("./builder/BaseTemplate")
 local buildGui = require("./builder/Gui")
@@ -70,8 +71,8 @@ end
 --------------------------------------------------------------------------------
 
 local workspace = game:GetService("Workspace")
--- Parts stay a few thousand and the terrain is compact: replicate everything up front, so
--- client code never waits for streamed-out bases/tanks.
+-- The whole map is ~15k static parts: replicate everything up front, so client code never
+-- waits for streamed-out bases/tanks.
 workspace.StreamingEnabled = false
 
 -- The HUD is laid out for landscape (sizes follow screen height) — like most action games.
@@ -81,32 +82,39 @@ local players = game:GetService("Players")
 players.CharacterAutoLoads = false -- BaseService spawns characters on their base
 players.RespawnTime = BaseConfig.RespawnDelay
 
--- Terrain: bake the procedural valley (lake, beaches, hills, mountains, rivers) into voxels.
+-- World: the voxel ground (parts, built in Map.luau) and Terrain water (lagoon, pond, ocean).
 local terrain = workspace:FindFirstChildOfClass("Terrain")
 assert(terrain, "place has no Terrain")
-local baked = Bake.run(MapConfig)
+local world = VoxelWorld.new(MapConfig)
+local waterGrid = world:bakeWater(SmoothGrid)
+local baked = { smoothGrid = waterGrid:encode(), physicsGrid = waterGrid:encodePhysics() }
 terrain.SmoothGrid = baked.smoothGrid
 terrain.PhysicsGrid = baked.physicsGrid
-terrain.WaterColor = rgb(30, 145, 185)
-terrain.WaterTransparency = 0.72
-terrain.WaterReflectance = 0.55
-terrain.WaterWaveSize = 0.12
-terrain.WaterWaveSpeed = 9
-terrain.Decoration = true -- animated grass blades (auto-disabled on low graphics quality)
+-- Bright tropical lagoon water.
+terrain.WaterColor = rgb(24, 196, 222)
+terrain.WaterTransparency = 0.55
+terrain.WaterReflectance = 0.35
+terrain.WaterWaveSize = 0.1
+terrain.WaterWaveSpeed = 8
+terrain.Decoration = false -- no terrain grass blades (there is no solid terrain anyway)
 local clouds = terrain:FindFirstChildOfClass("Clouds") or U.new("Clouds", { Name = "Clouds" }, terrain)
-clouds.Cover = 0.55
-clouds.Density = 0.7
+clouds.Cover = 0.5
+clouds.Density = 0.55
 clouds.Color = rgb(255, 255, 255)
 
--- Lighting: warm sunny afternoon with depth haze so the big valley reads well.
+-- Lighting: bright, saturated, sunny "simulator" look.
 local lighting = game:GetService("Lighting")
-lighting.TimeOfDay = "14:40:00"
-lighting.Brightness = 2.6
-lighting.Ambient = rgb(95, 95, 110)
-lighting.OutdoorAmbient = rgb(150, 150, 165)
+lighting.TimeOfDay = "13:30:00"
+lighting.Brightness = 3
+lighting.Ambient = rgb(118, 118, 132)
+lighting.OutdoorAmbient = rgb(168, 168, 182)
+lighting.ColorShift_Top = rgb(255, 244, 226)
+lighting.ColorShift_Bottom = rgb(0, 0, 0)
 lighting.EnvironmentDiffuseScale = 1
-lighting.EnvironmentSpecularScale = 1
+lighting.EnvironmentSpecularScale = 0.6
+lighting.ExposureCompensation = 0.1
 lighting.GlobalShadows = true
+lighting.ShadowSoftness = 0.25
 -- Depth of field is a full-screen blur pass — too heavy for phones.
 local dof = lighting:FindFirstChildOfClass("DepthOfFieldEffect")
 if dof then
@@ -114,32 +122,32 @@ if dof then
 end
 local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
 	or U.new("Atmosphere", { Name = "Atmosphere" }, lighting)
-atmosphere.Density = 0.33
-atmosphere.Offset = 0.2
-atmosphere.Color = rgb(199, 220, 255)
-atmosphere.Decay = rgb(106, 120, 145)
-atmosphere.Glare = 0.35
-atmosphere.Haze = 1.4
+atmosphere.Density = 0.24
+atmosphere.Offset = 0.12
+atmosphere.Color = rgb(206, 232, 255)
+atmosphere.Decay = rgb(150, 196, 255)
+atmosphere.Glare = 0.15
+atmosphere.Haze = 0.6
 local bloom = lighting:FindFirstChildOfClass("BloomEffect") or U.new("BloomEffect", { Name = "Bloom" }, lighting)
-bloom.Intensity = 0.55
-bloom.Size = 24
-bloom.Threshold = 1.6
+bloom.Intensity = 0.45
+bloom.Size = 22
+bloom.Threshold = 1.35
 local sunRays = lighting:FindFirstChildOfClass("SunRaysEffect")
 	or U.new("SunRaysEffect", { Name = "SunRays" }, lighting)
-sunRays.Intensity = 0.06
-sunRays.Spread = 0.55
+sunRays.Intensity = 0.04
+sunRays.Spread = 0.5
 local grade = lighting:FindFirstChildOfClass("ColorCorrectionEffect")
 	or U.new("ColorCorrectionEffect", { Name = "ColorCorrection" }, lighting)
-grade.Saturation = 0.14
-grade.Contrast = 0.07
-grade.Brightness = 0.02
-grade.TintColor = rgb(255, 251, 243)
+grade.Saturation = 0.25
+grade.Contrast = 0.1
+grade.Brightness = 0.03
+grade.TintColor = rgb(255, 252, 246)
 
 --------------------------------------------------------------------------------
 -- 3-6. Generated content
 --------------------------------------------------------------------------------
 
-local mapResult = buildMap(game, MapConfig, baked.gen)
+local mapResult = buildMap(game, MapConfig, world)
 local templateResult = buildBaseTemplate(game, MapConfig)
 
 local replicatedStorage = game:GetService("ReplicatedStorage")
@@ -282,13 +290,8 @@ end
 local mapParts = countParts(mapResult.map)
 local runtimeParts = mapParts + templateResult.partCount * MapConfig.BaseCount
 print(`Built {output} from {input} (self-check passed)`)
-print(
-	`  terrain: SmoothGrid {#baked.smoothGrid} B, PhysicsGrid {#baked.physicsGrid} B `
-		.. `(heightfield {string.format("%.1f", baked.timing.heightfield)} s, voxels {string.format(
-			"%.1f",
-			baked.timing.voxels
-		)} s)`
-)
+print(`  water: SmoothGrid {#baked.smoothGrid} B, PhysicsGrid {#baked.physicsGrid} B`)
+print(`  ground parts: {mapResult.groundParts}`)
 print(`  map parts: {mapParts}`)
 print(`  base template parts: {templateResult.partCount} × {MapConfig.BaseCount} bases`)
 print(`  ≈ parts at runtime: {runtimeParts}`)

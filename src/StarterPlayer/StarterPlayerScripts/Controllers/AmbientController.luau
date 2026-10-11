@@ -15,8 +15,8 @@ local Workspace = game:GetService("Workspace")
 local MapConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("MapConfig"))
 
 local AMBIENT = {
-	FishCount = 26,
-	GullCount = 6,
+	FishCount = 36,
+	GullCount = 8,
 	UpdateRate = 30, -- раз в секунду
 }
 
@@ -65,7 +65,7 @@ local function makeFish(folder: Instance, rng: Random): Mover
 	local tail = decorPart(folder, Vector3.new(0.15, 0.7, 0.6) * size, color:Lerp(Color3.new(1, 1, 1), 0.25))
 
 	-- Swims around the lake (between the island and the shore) at its own radius/speed/depth.
-	local radius = rng:NextNumber(MapConfig.HubRadius + 15, MapConfig.LakeRadius - 25)
+	local radius = rng:NextNumber(MapConfig.HubRadius + 15, MapConfig.LagoonRadius - 25)
 	local speed = rng:NextNumber(4, 9) / radius * (if rng:NextNumber() < 0.5 then -1 else 1)
 	local depth = rng:NextNumber(1.6, 3.2)
 	local start = rng:NextNumber(0, math.pi * 2)
@@ -96,8 +96,8 @@ local function makeGull(folder: Instance, rng: Random): Mover
 	local right = decorPart(folder, Vector3.new(2.6, 0.15, 0.9), Color3.fromRGB(225, 225, 230))
 	local beak = decorPart(folder, Vector3.new(0.25, 0.25, 0.5), Color3.fromRGB(255, 190, 60))
 
-	local radius = rng:NextNumber(25, 70)
-	local height = rng:NextNumber(32, 60)
+	local radius = rng:NextNumber(40, MapConfig.HubRadius - 20)
+	local height = rng:NextNumber(45, 75)
 	local speed = rng:NextNumber(10, 16) / radius
 	local start = rng:NextNumber(0, math.pi * 2)
 
