@@ -1,23 +1,31 @@
 #!/usr/bin/env python3
 """Preview renderer for parts exported by export_parts.luau.
 
-Renders orthographic PNG previews of a Roblox place (no Studio needed):
+Renders PNG previews of a Roblox place (no Studio needed):
 
   top    top-down map (looking down -Y, +X right, +Z down) with a stud grid
   iso    3D view from azimuth 45 deg (camera in the +X/+Z quadrant)
   iso2   3D view from azimuth 225 deg (camera in the -X/-Z quadrant)
   zoom   iso view around (x, z) with a radius; one image per --zoom argument
+  persp  perspective "player eye" view with sky and distance fog; one image per
+         --persp eye/target (or 6 automatic views with --persp-preset ring)
+
+The first four are orthographic.
 
 Usage:
   python3 tools/preview/render.py parts.json --out-dir out/ \
       [--views top,iso,iso2,zoom] [--zoom x,z,radius[,azimuth]]... [--size 1600]
+  python3 tools/preview/render.py parts.json --out-dir out/ --terrain smoothgrid.bin \
+      --persp ex,ey,ez,tx,ty,tz[,fov]... | --persp-preset ring
   (see --help and tools/preview/README.md for all options)
 
 Rendering is a small numpy z-buffer rasterizer: every part becomes a convex
 polygon mesh, back faces are culled and opaque faces are depth tested. The nearest
 transparent surface in front of them (glass, water) is then blended once per pixel.
 Images are supersampled and box-filtered down for anti-aliasing; thin dark outlines
-come from edges in the per-pixel face-id buffer.
+come from edges in the per-pixel face-id buffer. The perspective view uses the same
+passes on frustum-culled faces clipped at the near plane, with -1/distance as the
+depth (linear in screen space).
 """
 
 from __future__ import annotations
@@ -264,6 +272,8 @@ class Scene:
 
         self.stats = {k: kinds.count(k) for k in sorted(set(kinds))}
         self.water = water
+        self.face_water = water[owner]
+        self.part_opacity = opacity
         self.is_base = np.array([k == "base" for k in kinds], bool)
 
     def frame_box(self, mode="auto"):
@@ -440,21 +450,71 @@ class TerrainField:
             top, material = top_d, best
         return np.array([ox, oz]), f * self.step, top, bottom, water, material
 
-    def mesh(self, step, crop=None):
-        """Faces of the terrain at `step` studs per quad (the last two are cached)."""
-        key = (float(step), None if crop is None else tuple(round(float(c), 3) for c in crop))
+    def mesh(self, step, crop=None, hole=None, match=None):
+        """Faces of the terrain at `step` studs per quad (the last four are cached).
+
+        crop=(xmin, zmin, xmax, zmax) limits the mesh to that rectangle; hole=(...)
+        leaves out the surface of the columns inside that rectangle (it must be aligned
+        to this level's quads), so a finer level can fill it; solid terrain gets walls
+        (skirts) along the hole's edge. match=STUDS makes the corners on the edge of
+        `crop` follow the surface of that coarser level (which has the hole), so the
+        two levels meet without cracks."""
+
+        def rect(r):
+            return None if r is None else tuple(round(float(c), 3) for c in r)
+
+        key = (float(step), rect(crop), rect(hole), match)
         if key not in self._cache:
-            while len(self._cache) >= 2:
+            while len(self._cache) >= 4:
                 self._cache.pop(next(iter(self._cache)))
-            self._cache[key] = self._build(step, crop)
+            self._cache[key] = self._build(step, crop, hole, match)
         return self._cache[key]
+
+    def _corner_heights(self, top):
+        """Grid-corner heights: mean top of the present columns around each corner."""
+        T = np.pad(top, 1, constant_values=np.nan)
+        around = np.stack([T[:-1, :-1], T[:-1, 1:], T[1:, :-1], T[1:, 1:]])
+        fin = np.isfinite(around)
+        n = fin.sum(0)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            V = np.where(fin, around, 0).sum(0) / n
+        return V.astype(np.float64)
+
+    def _match_edges(self, V, origin, s, coarse):
+        """Corners on the outer edge of a cropped level take the surface height of the
+        `coarse` level there (bilinear in its corner grid = linear along its quad
+        edges), so the finer level ends exactly on the coarser level's surface."""
+        nz1, nx1 = V.shape
+        x0, z0 = origin
+        x1, z1 = x0 + (nx1 - 1) * s, z0 + (nz1 - 1) * s
+        corg, cs, ctop, _, _, _ = self._level(coarse, (x0 - coarse, z0 - coarse, x1 + coarse, z1 + coarse))
+        if ctop.size == 0:
+            return V
+        Vc = self._corner_heights(ctop)
+        edge = np.zeros(V.shape, bool)
+        edge[0, :] = edge[-1, :] = edge[:, 0] = edge[:, -1] = True
+        a, b = np.nonzero(edge)
+        u = (x0 + b * s - corg[0]) / cs
+        v = (z0 + a * s - corg[1]) / cs
+        j0 = np.clip(np.floor(u).astype(int), 0, Vc.shape[1] - 2)
+        i0 = np.clip(np.floor(v).astype(int), 0, Vc.shape[0] - 2)
+        fu, fv = np.clip(u - j0, 0, 1), np.clip(v - i0, 0, 1)
+        h = (
+            Vc[i0, j0] * (1 - fu) * (1 - fv)
+            + Vc[i0, j0 + 1] * fu * (1 - fv)
+            + Vc[i0 + 1, j0] * (1 - fu) * fv
+            + Vc[i0 + 1, j0 + 1] * fu * fv
+        )
+        out = V.copy()
+        out[a, b] = np.where(np.isfinite(h) & np.isfinite(V[a, b]), h, V[a, b])
+        return out
 
     def sample_points(self, step=16.0):
         """Mesh vertices at a coarse level (for framing the 3D views)."""
         m = self.mesh(max(step, self.step))
         return m["poly"][:, :4, :].reshape(-1, 3) if len(m["poly"]) else np.zeros((0, 3))
 
-    def _build(self, step, crop):
+    def _build(self, step, crop, hole=None, match=None):
         origin, s, top, bottom, water, material = self._level(step, crop)
         nz, nx = top.shape
         polys, colors, kinds, outward = [], [], [], []  # per batch: (N, MAX_POLY, 3), ...
@@ -463,15 +523,18 @@ class TerrainField:
         Z = origin[1] + np.arange(nz + 1) * s
         solid = np.isfinite(top)
         mat = np.where(material >= 0, material, 0)
+        # Columns that get surface faces (all but those inside `hole`).
+        keep = np.ones((nz, nx), bool)
+        if hole is not None:
+            cx, cz = (X[:-1] + X[1:]) / 2, (Z[:-1] + Z[1:]) / 2
+            keep = ~(
+                ((cx > hole[0]) & (cx < hole[2]))[None, :] & ((cz > hole[1]) & (cz < hole[3]))[:, None]
+            )
 
         # Corner heights: mean top of the present columns around each corner.
-        T = np.pad(top, 1, constant_values=np.nan)
-        around = np.stack([T[:-1, :-1], T[:-1, 1:], T[1:, :-1], T[1:, 1:]])
-        fin = np.isfinite(around)
-        n = fin.sum(0)
-        with np.errstate(invalid="ignore", divide="ignore"):
-            V = np.where(fin, around, 0).sum(0) / n
-        V = V.astype(np.float64)
+        V = self._corner_heights(top)
+        if match is not None and crop is not None and top.size:
+            V = self._match_edges(V, origin, s, float(match))
 
         jz, jx = np.indices((nz, nx))
         jitter = 1 + TERRAIN_JITTER * (((jx * 73856093) ^ (jz * 19349663)) % 1009 / 504.0 - 1)
@@ -481,9 +544,9 @@ class TerrainField:
         flat = solid & (np.maximum.reduce([v00, v10, v01, v11]) - np.minimum.reduce([v00, v10, v01, v11]) < 1e-3)
 
         # Flat columns: merged row quads.
-        if flat.any():
+        if (flat & keep).any():
             key = np.where(flat, np.round(np.nan_to_num(v00) * 1000).astype(np.int64) * 32 + mat, -1)
-            r, c0, c1 = _row_runs(flat, key)
+            r, c0, c1 = _row_runs(flat & keep, key)
             y = v00[r, c0]
             quad = np.stack(
                 [
@@ -511,7 +574,7 @@ class TerrainField:
         for a, b in ((Tq[1:-1, :-2], Tq[1:-1, 2:]), (Tq[:-2, 1:-1], Tq[2:, 1:-1])):
             a, b = np.where(np.isfinite(a), a, tc), np.where(np.isfinite(b), b, tc)
             extremum |= (tc > np.maximum(a, b) + 0.5) | (tc < np.minimum(a, b) - 0.5)
-        fan = solid & ~flat & extremum & (np.abs(top - mean) > 0.25)
+        fan = solid & ~flat & extremum & (np.abs(top - mean) > 0.25) & keep
         i, j = np.nonzero(fan)
         if len(i):
             p00 = np.stack([X[j], v00[i, j], Z[i]], 1)
@@ -527,7 +590,7 @@ class TerrainField:
                 outward.append(np.tile([0.0, 1.0, 0.0], (len(i), 1)))
 
         # Other sloped columns: two triangles, split along the flatter diagonal.
-        i, j = np.nonzero(solid & ~flat & ~fan)
+        i, j = np.nonzero(solid & ~flat & ~fan & keep)
         if len(i):
             p00 = np.stack([X[j], v00[i, j], Z[i]], 1)
             p10 = np.stack([X[j + 1], v10[i, j], Z[i]], 1)
@@ -542,20 +605,23 @@ class TerrainField:
             kinds += [np.zeros(len(i), np.int8)] * 2
             outward += [np.tile([0.0, 1.0, 0.0], (len(i), 1))] * 2
 
-        # Walls where the terrain ends (no column next to it).
-        Sp = np.pad(solid, 1, constant_values=False)
+        # Walls where the terrain ends (no column next to it), and skirts (surface
+        # colour) along the edge of a hole that a finer level fills.
+        Sp = np.pad(solid & keep, 1, constant_values=False)
+        Hp = np.pad(solid & ~keep, 1, constant_values=False)
         floor = np.where(np.isfinite(bottom), bottom, top)
         walls = (
-            # (neighbour present, edge corner a, edge corner b, outward)
-            (Sp[:-2, 1:-1], (0, 0), (0, 1), (0.0, 0.0, -1.0)),  # -Z edge
-            (Sp[2:, 1:-1], (1, 0), (1, 1), (0.0, 0.0, 1.0)),  # +Z edge
-            (Sp[1:-1, :-2], (0, 0), (1, 0), (-1.0, 0.0, 0.0)),  # -X edge
-            (Sp[1:-1, 2:], (0, 1), (1, 1), (1.0, 0.0, 0.0)),  # +X edge
+            # (neighbour present, neighbour in hole, edge corner a, edge corner b, outward)
+            (Sp[:-2, 1:-1], Hp[:-2, 1:-1], (0, 0), (0, 1), (0.0, 0.0, -1.0)),  # -Z edge
+            (Sp[2:, 1:-1], Hp[2:, 1:-1], (1, 0), (1, 1), (0.0, 0.0, 1.0)),  # +Z edge
+            (Sp[1:-1, :-2], Hp[1:-1, :-2], (0, 0), (1, 0), (-1.0, 0.0, 0.0)),  # -X edge
+            (Sp[1:-1, 2:], Hp[1:-1, 2:], (0, 1), (1, 1), (1.0, 0.0, 0.0)),  # +X edge
         )
-        for neighbour, a, b, out in walls:
-            i, j = np.nonzero(solid & ~neighbour)
+        for neighbour, in_hole, a, b, out in walls:
+            i, j = np.nonzero(solid & keep & ~neighbour)
             if not len(i):
                 continue
+            shade = np.where(in_hole[i, j], 1.0, TERRAIN_SKIRT_SHADE)[:, None]
             ya, yb, yf = V[i + a[0], j + a[1]], V[i + b[0], j + b[1]], floor[i, j].astype(np.float64)
             pa = np.stack([X[j + a[1]], ya, Z[i + a[0]]], 1)
             pb = np.stack([X[j + b[1]], yb, Z[i + b[0]]], 1)
@@ -563,15 +629,15 @@ class TerrainField:
             qa = np.stack([X[j + a[1]], np.minimum(yf, ya - 0.01), Z[i + a[0]]], 1)
             polys.append(_pad_poly(np.stack([pa, pb, qb, qa], 1)))
             counts.append(np.full(len(i), 4))
-            colors.append(base_color[i, j] * TERRAIN_SKIRT_SHADE)
+            colors.append(base_color[i, j] * shade)
             kinds.append(np.zeros(len(i), np.int8))
             outward.append(np.tile(out, (len(i), 1)))
 
         # Water: sheets at the surface (merged along rows), walls at open edges.
         wet = np.isfinite(water) & ~(water < np.where(solid, top, -np.inf) - 0.05)
-        if wet.any():
+        if (wet & keep).any():
             level = np.where(wet, np.round(water.astype(np.float64), 2), np.nan)
-            r, c0, c1 = _row_runs(wet, np.where(wet, np.round(level * 100), 0).astype(np.int64))
+            r, c0, c1 = _row_runs(wet & keep, np.where(wet, np.round(level * 100), 0).astype(np.int64))
             y = level[r, c0]
             quad = np.stack(
                 [
@@ -596,7 +662,7 @@ class TerrainField:
                 (Wp[1:-1, 2:], Tp[1:-1, 2:], (0, 1), (1, 1), (1.0, 0.0, 0.0)),
             )
             for nwet, ntop, a, b, out in sides:
-                i, j = np.nonzero(wet & ~nwet & (ntop < level - 0.05))
+                i, j = np.nonzero(wet & keep & ~nwet & (ntop < level - 0.05))
                 if not len(i):
                     continue
                 y = level[i, j]
@@ -652,6 +718,7 @@ def with_terrain(scene, mesh):
         [scene.face_opacity, np.where(mesh["water"], WATER_OPACITY, 1.0).astype(np.float32)]
     )
     out.face_bias = np.concatenate([scene.face_bias, np.zeros(n)])
+    out.face_water = np.concatenate([scene.face_water, mesh["water"]])
     return out
 
 
@@ -955,6 +1022,259 @@ def to_image(buf, ss):
 
 
 # --------------------------------------------------------------------------------------
+# Perspective ("player eye") camera and renderer
+# --------------------------------------------------------------------------------------
+
+PERSP_FOV = 70.0  # default vertical field of view (Roblox default camera)
+PERSP_ASPECT = 9 / 16  # image height / width
+NEAR_PLANE = 0.3  # studs; polygons are clipped here
+FAR_PLANE = 30000.0  # faces entirely farther away are dropped
+GUARD_BAND = 2.0  # polygons are clipped to GUARD_BAND x the view frustum (keeps coords small)
+SKY_HORIZON = np.array([212, 229, 244], np.float32)
+SKY_ZENITH = np.array([84, 142, 218], np.float32)
+FOG_START, FOG_END = 300.0, 1500.0  # fog starts at START, is 90% at END (studs)
+OUTLINE_FADE = (60.0, 400.0)  # outlines fade from full strength to none over this distance
+WATER_FRESNEL = 0.85  # extra opacity / sky reflection of water at grazing angles
+
+
+class PerspCamera:
+    """Pinhole camera at `eye` looking at `target` (no roll), vertical FOV in degrees."""
+
+    def __init__(self, eye, target, fov_deg, width, height, ss):
+        self.eye = np.asarray(eye, float)
+        self.target = np.asarray(target, float)
+        f = self.target - self.eye
+        f = f / np.linalg.norm(f) if np.linalg.norm(f) > 1e-9 else np.array([0.0, 0, -1])
+        r = np.cross(f, (0.0, 1.0, 0.0))
+        if np.linalg.norm(r) < 1e-6:  # looking straight up/down: +X right
+            r = np.array([1.0, 0, 0])
+        r /= np.linalg.norm(r)
+        self.f, self.r, self.u = f, r, np.cross(r, f)
+        self.fov = float(fov_deg)
+        self.width, self.height, self.ss = width, height, ss
+        self.tan_v = math.tan(math.radians(self.fov) / 2)
+        self.tan_h = self.tan_v * width / height
+
+    def focal(self, ss=None):
+        """Focal length in pixels (at supersampling `ss`, default the camera's)."""
+        return self.height * (self.ss if ss is None else ss) / 2 / self.tan_v
+
+    @property
+    def heading(self):
+        """Azimuth of the view direction in degrees (0 = +Z, 90 = +X)."""
+        return math.degrees(math.atan2(self.f[0], self.f[2])) % 360
+
+    @property
+    def pitch(self):
+        return math.degrees(math.asin(max(-1.0, min(1.0, self.f[1]))))
+
+    def project(self, pts, ss=None):
+        """World points (..., 3) -> pixel x, y and view depth (distance along the view axis)."""
+        ss = self.ss if ss is None else ss
+        rel = np.asarray(pts, float) - self.eye
+        x, y, z = rel @ self.r, rel @ self.u, rel @ self.f
+        fp = self.focal(ss)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            px = self.width * ss / 2 + fp * x / z
+            py = self.height * ss / 2 - fp * y / z
+        return px, py, z
+
+
+def _clip_polys(V, count, s):
+    """Clip convex polygons to the half-space s >= 0 (Sutherland-Hodgman, vectorized).
+
+    V: (M, K, 3) vertices padded by repeating the last one, count: (M,) vertex counts,
+    s: (M, K) signed distances of the vertices. Returns the clipped vertices (same
+    padding, at most count + 1 of them, so K must exceed the largest count) and counts
+    (< 3 = nothing left)."""
+    M, K, _ = V.shape
+    j = np.arange(K)[None, :]
+    nxt = np.where(j + 1 >= count[:, None], 0, j + 1)
+    rows = np.arange(M)[:, None]
+    Vn, sn = V[rows, nxt], s[rows, nxt]
+    valid = j < count[:, None]
+    cur_in, nxt_in = s >= 0, sn >= 0
+    cross = valid & (cur_in != nxt_in)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = np.where(cross, s / (s - sn), 0.0)
+    out = np.empty((M, 2 * K, 3))
+    out[:, 0::2] = V
+    out[:, 1::2] = V + t[..., None] * (Vn - V)
+    ok = np.empty((M, 2 * K), bool)
+    ok[:, 0::2] = valid & cur_in
+    ok[:, 1::2] = cross
+    order = np.argsort(~ok, axis=1, kind="stable")[:, :K]  # valid entries first, in order
+    n = ok.sum(1)
+    pick = np.take_along_axis(order, np.minimum(j, np.maximum(n - 1, 0)[:, None]), 1)
+    return np.take_along_axis(out, pick[..., None], 1), n
+
+
+def _persp_faces(scene, cam, W, H, fp):
+    """Front faces inside the view frustum, clipped to the near plane and a guard band,
+    projected to (supersampled) pixels. Returns (faces, px, py, count, A, B, C, nc):
+    original face indices, padded pixel polygons, vertex counts, the screen-space
+    depth plane depth = A*x + B*y + C (depth = -1/t, t = distance along the view axis,
+    smaller = closer, linear in screen space) and the camera-space normals."""
+    eye = cam.eye
+    k = np.einsum("ni,ni->n", scene.normal, scene.centroid - eye)  # < 0: eye in front
+    faces = np.nonzero((k < -1e-3) & (scene.face_opacity > 0))[0]
+    rel = scene.poly[faces] - eye
+    x, y, z = rel @ cam.r, rel @ cam.u, rel @ cam.f
+    tx, ty = cam.tan_h, cam.tan_v
+    outside = (
+        (z < NEAR_PLANE).all(1)
+        | (z > FAR_PLANE).all(1)
+        | (x > z * tx).all(1)
+        | (-x > z * tx).all(1)
+        | (y > z * ty).all(1)
+        | (-y > z * ty).all(1)
+    )
+    inside = np.nonzero(~outside)[0]
+    faces, x, y, z = faces[inside], x[inside], y[inside], z[inside]
+    count = scene.count[faces].astype(np.int64)
+
+    # Clip: near plane, then the four guard-band planes (each adds at most one vertex).
+    gx, gy = GUARD_BAND * tx, GUARD_BAND * ty
+    planes = ((0, 0, 1, -NEAR_PLANE), (-1, 0, gx, 0), (1, 0, gx, 0), (0, -1, gy, 0), (0, 1, gy, 0))
+    K = MAX_POLY + len(planes)
+    V = np.empty((len(faces), K, 3))
+    V[:, :MAX_POLY] = np.stack([x, y, z], -1)
+    V[:, MAX_POLY:] = V[:, MAX_POLY - 1 : MAX_POLY]
+    alive = np.ones(len(faces), bool)
+    for plane in planes:
+        s = V @ np.asarray(plane[:3], float) + plane[3]
+        need = np.nonzero(alive & (s < 0).any(1))[0]
+        if len(need):
+            V[need], count[need] = _clip_polys(V[need], count[need], s[need])
+            alive[need] = count[need] >= 3
+    faces, V, count = faces[alive], V[alive], count[alive]
+
+    px = W / 2 + fp * V[..., 0] / V[..., 2]
+    py = H / 2 - fp * V[..., 1] / V[..., 2]
+    n = scene.normal[faces]
+    nc = np.stack([n @ cam.r, n @ cam.u, n @ cam.f], 1)
+    kk = k[faces] - scene.face_bias[faces]  # Baseplate-sized parts pushed back slightly
+    A = -nc[:, 0] / (fp * kk)
+    B = nc[:, 1] / (fp * kk)
+    C = -(nc[:, 2] - nc[:, 0] * W / (2 * fp) + nc[:, 1] * H / (2 * fp)) / kk
+    return faces, px, py, count, A, B, C, nc
+
+
+def _sky(sin_elevation):
+    """Sky colour (..., 3) for view rays with the given sine of their elevation."""
+    g = np.clip(sin_elevation / 0.6, 0, 1) ** 0.7
+    return SKY_HORIZON + (SKY_ZENITH - SKY_HORIZON) * g[..., None]
+
+
+def _fog_amount(dist, fog):
+    """0 (clear) .. 1 (only fog) for distances in studs; fog = (start, end) or None."""
+    if not fog:
+        return np.zeros_like(dist)
+    start, end = fog
+    t = np.clip((dist - start) / max(end - start, 1e-6), 0, None)
+    return 1 - np.exp(-2.3 * t**1.5)
+
+
+def render_persp(scene, cam: PerspCamera, outlines=True, fog=(FOG_START, FOG_END)):
+    """Rasterize the scene in perspective into a supersampled (H*ss, W*ss, 3) uint8 array.
+
+    Same passes as render() (opaque z-buffer, then the nearest transparent surface
+    blended once), with depth = -1/distance (linear in screen space). Background is a
+    sky gradient; colours fade into the sky colour with distance (fog), outlines fade
+    out with distance. Returns (image, info); info["zbuf"] is the opaque depth buffer
+    (valid until the next render).
+    """
+    ss = cam.ss
+    W, H = cam.width * ss, cam.height * ss
+    fp = cam.focal(ss)
+    faces, px, py, count, A, B, C, nc = _persp_faces(scene, cam, W, H, fp)
+
+    x0 = np.floor(px.min(1)).clip(0, W).astype(np.int64)
+    x1 = np.ceil(px.max(1)).clip(0, W).astype(np.int64)
+    y0 = np.floor(py.min(1)).clip(0, H).astype(np.int64)
+    y1 = np.ceil(py.max(1)).clip(0, H).astype(np.int64)
+    area = (px * np.roll(py, -1, 1) - py * np.roll(px, -1, 1)).sum(1)
+    sel = (x1 > x0) & (y1 > y0) & (np.abs(area) > 1e-9)
+    sign = np.where(area > 0, 1.0, -1.0)
+
+    raster = _Rasterizer(px, py, sign, A, B, C, count, x0, x1, y0, y1, W, H)
+    opacity = scene.face_opacity[faces]
+    opaque = np.nonzero(sel & (opacity >= 0.999))[0]
+    transparent = np.nonzero(sel & (opacity < 0.999))[0]
+
+    zbuf = _buffer("p_zbuf", (H, W), np.float32)
+    zbuf.fill(np.inf)
+    fidx = _buffer("p_fidx", (H, W), np.int32)
+    fidx.fill(-1)
+    _depth_pass(raster, opaque, zbuf, fidx)
+
+    if outlines:  # where the visible smoothing group changes (sky = -1)
+        groups = np.concatenate([[-1], scene.group[faces]]).astype(np.int32)
+        ids = _buffer("p_ids", (H, W), np.int32)
+        np.take(groups, fidx + 1, out=ids)
+        edge = _buffer("p_edge", (H, W), bool)
+        edge[:, -1] = False
+        np.not_equal(ids[:, :-1], ids[:, 1:], out=edge[:, :-1])
+        edge[:-1, :] |= ids[:-1, :] != ids[1:, :]
+        edge &= ids >= 0
+
+    if len(transparent):
+        tz = _buffer("p_tz", (H, W), np.float32)
+        tz.fill(np.inf)
+        tf = _buffer("p_tf", (H, W), np.int32)
+        tf.fill(-1)
+        _depth_pass(raster, transparent, tz, tf, limit=zbuf)
+
+    # Shade in row chunks: sky, face colour, outlines, transparent layer, fog.
+    table = scene.face_rgb[faces].astype(np.float32)
+    water = scene.face_water[faces] if hasattr(scene, "face_water") else np.zeros(len(faces), bool)
+    X = ((np.arange(W, dtype=np.float32) + 0.5) - W / 2) / fp
+    Yall = (H / 2 - (np.arange(H, dtype=np.float32) + 0.5)) / fp
+    img = _buffer("p_img", (H, W, 3), np.uint8)
+    fade0, fade1 = OUTLINE_FADE
+    for r0 in range(0, H, 128):
+        r1 = min(H, r0 + 128)
+        Y = Yall[r0:r1, None]
+        norm = np.sqrt(1 + X[None, :] ** 2 + Y**2)  # |ray| for a unit view-axis step
+        sky = _sky((cam.f[1] + X[None, :] * cam.r[1] + Y * cam.u[1]) / norm)
+        f_ = fidx[r0:r1]
+        hit = f_ >= 0
+        col = sky.copy()
+        col[hit] = table[f_[hit]]
+        dist = np.full(hit.shape, np.inf, np.float32)
+        dist[hit] = -norm[hit] / zbuf[r0:r1][hit]
+        if outlines:
+            e = edge[r0:r1]
+            if e.any():
+                w = np.clip((fade1 - dist[e]) / (fade1 - fade0), 0, 1)
+                col[e] *= (1 - (1 - OUTLINE_FACTOR) * w)[:, None]
+        if len(transparent):
+            t_ = tf[r0:r1]
+            th = t_ >= 0
+            if th.any():
+                face = t_[th]
+                a = opacity[face].astype(np.float32)
+                rgb = table[face]
+                wm = water[face]
+                if wm.any():  # Fresnel: water turns opaque and reflects the sky at grazing angles
+                    gx = np.broadcast_to(X[None, :], th.shape)[th]
+                    gy = np.broadcast_to(Y, th.shape)[th]
+                    cos = np.abs(nc[face, 0] * gx + nc[face, 1] * gy + nc[face, 2]) / norm[th]
+                    F = np.where(wm, (1 - np.clip(cos, 0, 1)) ** 5 * WATER_FRESNEL, 0).astype(np.float32)
+                    a = a + (1 - a) * F
+                    rgb = rgb + (sky[th] - rgb) * (0.6 * F)[:, None]
+                col[th] = col[th] * (1 - a)[:, None] + rgb * a[:, None]
+                dist[th] = np.minimum(dist[th], -norm[th] / tz[r0:r1][th])
+        fogged = np.isfinite(dist)
+        if fog and fogged.any():
+            f = _fog_amount(dist[fogged], fog)[:, None]
+            col[fogged] += (sky[fogged] - col[fogged]) * f
+        img[r0:r1] = (col + 0.5).clip(0, 255).astype(np.uint8)
+    info = {"zbuf": zbuf, "faces": int(sel.sum()), "total": len(scene.count)}
+    return img, info
+
+
+# --------------------------------------------------------------------------------------
 # Overlays (grid, labels, legend)
 # --------------------------------------------------------------------------------------
 
@@ -1114,9 +1434,10 @@ def _terrain_line(args, mesh):
         return []
     if mesh is None:
         return ["terrain: empty"]
+    steps = "/".join(f"{st:g}" for st in mesh["steps"]) if "steps" in mesh else f"{mesh['step']:g}"
     line = (
         f"terrain: {field.columns} columns ({field.wet_columns} with water), "
-        f"{mesh['step']:g}-stud quads, {len(mesh['poly'])} faces"
+        f"{steps}-stud quads, {len(mesh['poly'])} faces"
     )
     return [line]
 
@@ -1227,6 +1548,310 @@ def view_zoom(scene, args, x, z, radius, azimuth):
     return im
 
 
+def _merge_meshes(meshes):
+    """One terrain mesh dict from several (levels of detail)."""
+    meshes = [m for m in meshes if m is not None and len(m["poly"])]
+    if not meshes:
+        return None
+    out = {k: np.concatenate([m[k] for m in meshes]) for k in ("poly", "count", "normal", "centroid", "rgb", "water")}
+    out["steps"] = sorted({float(m["step"]) for m in meshes})
+    out["step"] = out["steps"][0]
+    return out
+
+
+def _terrain_mesh_persp(args, cam):
+    """Terrain faces for a perspective view: nested square rings of detail around the
+    eye. Each level (4, 8, 16, ... studs) covers the distance where its quads still
+    span >= TERRAIN_QUAD_PX pixels; the next coarser level fills the rest (with a hole
+    where the finer one is). --terrain-step forces one level everywhere."""
+    field = getattr(args, "terrain_field", None)
+    if field is None or field.empty:
+        return None
+    if args.terrain_step:
+        m = field.mesh(field.lod(1.0, args.terrain_step))
+        return _merge_meshes([m])
+    lo, hi = field.bounds()
+    ox, oz = field.origin
+    ex, ez = cam.eye[0], cam.eye[2]
+    k = cam.focal(1)  # final-image pixels per stud at 1 stud distance
+    step, hole, meshes = field.step, None, []
+    while True:
+        reach = step * k / TERRAIN_QUAD_PX
+        coarse = 2 * step
+
+        def snap(v, o, up):
+            return o + (math.ceil if up else math.floor)((v - o) / coarse) * coarse
+
+        rect = (snap(ex - reach, ox, False), snap(ez - reach, oz, False),
+                snap(ex + reach, ox, True), snap(ez + reach, oz, True))
+        last = step >= 64 or (rect[0] <= lo[0] and rect[1] <= lo[2] and rect[2] >= hi[0] and rect[3] >= hi[2])
+        overlaps = rect[0] < hi[0] and rect[2] > lo[0] and rect[1] < hi[2] and rect[3] > lo[2]
+        if last or overlaps:
+            meshes.append(field.mesh(step, None if last else rect, hole, None if last else coarse))
+        if last:
+            break
+        hole, step = rect, coarse
+    return _merge_meshes(meshes)
+
+
+def draw_persp_slot_labels(im, cam, scene, zbuf, fog):
+    """Numbered base-slot markers; faint when hidden behind something or far away."""
+    if not scene.slots:
+        return
+    draw = ImageDraw.Draw(im, "RGBA")
+    font = _font(16)
+    ss = cam.ss
+    for slot in scene.slots:
+        p = np.array(slot["cf"][:3], float) + (0, 3, 0)
+        x, y, z = cam.project(p, ss=1)
+        if not (z > NEAR_PLANE and 0 <= x < im.size[0] and 0 <= y < im.size[1]):
+            continue
+        dist = float(np.linalg.norm(p - cam.eye))
+        if fog and dist > fog[1] * 1.2:
+            continue
+        zx, zy = min(int(x * ss), zbuf.shape[1] - 1), min(int(y * ss), zbuf.shape[0] - 1)
+        visible = not (zbuf[zy, zx] < 0 and -1 / zbuf[zy, zx] < z - 4)
+        alpha = 230 if visible else 110
+        col = tuple(int(c) for c in slot.get("color", [255, 255, 255]))
+        rad = 13 if dist < 400 else 10
+        draw.ellipse([x - rad, y - rad, x + rad, y + rad], fill=col + (alpha,), outline=(20, 20, 20, alpha), width=2)
+        _text(draw, (x, y), str(slot["index"]), font, fill=(20, 24, 30, alpha), anchor="mm")
+
+
+def view_persp(scene, args, spec, n):
+    eye, target, fov, label = spec
+    width = args.size
+    height = int(round(args.size * PERSP_ASPECT))
+    cam = PerspCamera(eye, target, fov, width, height, args.ss)
+    mesh = _terrain_mesh_persp(args, cam)
+    buf, info = render_persp(with_terrain(scene, mesh), cam, outlines=not args.no_outlines, fog=args.fog)
+    im = to_image(buf, args.ss)
+    if not args.no_labels:
+        draw_persp_slot_labels(im, cam, scene, info["zbuf"], args.fog)
+    fog = f"fog {args.fog[0]:g}..{args.fog[1]:g} studs" if args.fog else "no fog"
+    title = f"PERSP {n}" + (f"  {label}" if label else "")
+    draw_title(
+        im,
+        [
+            title,
+            f"eye ({eye[0]:.0f}, {eye[1]:.0f}, {eye[2]:.0f})  ->  target ({target[0]:.0f}, {target[1]:.0f}, {target[2]:.0f})",
+            f"heading {cam.heading:.0f} deg (0 = +Z, 90 = +X), pitch {cam.pitch:.0f} deg, "
+            f"vertical FOV {fov:g} deg, {fog}",
+            _stats_line(scene) + f"; {info['faces']} of {info['total']} faces in view",
+        ]
+        + _terrain_line(args, mesh),
+    )
+    return im
+
+
+# --------------------------------------------------------------------------------------
+# Perspective presets
+# --------------------------------------------------------------------------------------
+
+
+def _vertical_hits(scene, x, z):
+    """(ymin, ymax) of each part's box along the vertical line through (x, z); NaN = miss."""
+    n = len(scene.parts)
+    if n == 0:
+        return np.zeros(0), np.zeros(0)
+    half = scene.size / 2
+    a = np.einsum("nji,nj->ni", scene.rot, np.array([x, 0.0, z]) - scene.pos)  # R^T d
+    b = scene.rot[:, 1, :]  # R^T e_y
+    lo, hi = np.full(n, -np.inf), np.full(n, np.inf)
+    ok = np.ones(n, bool)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        for i in range(3):
+            small = np.abs(b[:, i]) < 1e-9
+            ok &= ~small | (np.abs(a[:, i]) <= half[:, i])
+            t1 = (-half[:, i] - a[:, i]) / b[:, i]
+            t2 = (half[:, i] - a[:, i]) / b[:, i]
+            lo = np.where(small, lo, np.maximum(lo, np.minimum(t1, t2)))
+            hi = np.where(small, hi, np.minimum(hi, np.maximum(t1, t2)))
+    ok &= lo <= hi
+    return np.where(ok, lo, np.nan), np.where(ok, hi, np.nan)
+
+
+def _ground_y(scene, field, x, z, below=1e9):
+    """Highest surface (part top, terrain or water) at (x, z) that is not above `below`."""
+    best = -np.inf
+    _, top = _vertical_hits(scene, x, z)
+    solid = np.isfinite(top) & (top <= below)
+    if len(top):
+        solid &= (scene.part_opacity > 0.3) | scene.water
+    if solid.any():
+        best = float(top[solid].max())
+    if field is not None and not field.empty:
+        ix = int(math.floor((x - field.origin[0]) / field.step))
+        iz = int(math.floor((z - field.origin[1]) / field.step))
+        if 0 <= iz < field.top.shape[0] and 0 <= ix < field.top.shape[1]:
+            surf = float(np.fmax(field.top[iz, ix], field.water[iz, ix]))
+            if math.isfinite(surf) and surf <= below:
+                best = max(best, surf)
+    return best if math.isfinite(best) else 0.0
+
+
+def _inside_part(scene, p, margin=1.0):
+    """Is point p inside (or within `margin` of) any non-water part's box?"""
+    if len(scene.parts) == 0:
+        return False
+    local = np.einsum("nji,nj->ni", scene.rot, np.asarray(p, float) - scene.pos)
+    inside = np.all(np.abs(local) <= scene.size / 2 + margin, 1) & ~scene.water
+    return bool(inside.any())
+
+
+def _slot_frame(scene, slot):
+    """Slot position, rotation and the z range (slot-local, -Z = front, the look
+    direction) of the base parts placed on it (default -30..30 without a base)."""
+    cf = np.asarray(slot["cf"], float)
+    pos, rot = cf[:3], cf[3:].reshape(3, 3)
+    mine = np.nonzero(scene.is_base & np.array([p.get("baseIndex") == slot.get("index") for p in scene.parts], bool))[0]
+    if len(mine) == 0:
+        return pos, rot, -30.0, 30.0
+    rl = np.einsum("ji,njk->nik", rot, scene.rot[mine])  # part rotation in slot space
+    centre = (scene.pos[mine] - pos) @ rot  # R^T (p - pos)
+    half = np.einsum("nij,nj->ni", np.abs(rl), scene.size[mine] / 2)
+    return pos, rot, float((centre[:, 2] - half[:, 2]).min()), float((centre[:, 2] + half[:, 2]).max())
+
+
+def _bridge_axes(scene):
+    """Bridges (parts whose path has a segment containing "bridge"), as (inner, outer)
+    end points of their long horizontal axis, inner = the end nearer the origin."""
+    groups = {}
+    for i, p in enumerate(scene.parts):
+        if p.get("kind") == "base":
+            continue
+        segs = p.get("path", "").split(".")
+        hits = [j for j, sgm in enumerate(segs) if "bridge" in sgm.lower()]
+        if hits:
+            groups.setdefault(".".join(segs[: hits[-1] + 1]), []).append(i)
+    axes = []
+    for idx in groups.values():
+        lo, hi = scene.aabb_min[idx].min(0), scene.aabb_max[idx].max(0)
+        ext = hi - lo
+        if max(ext[0], ext[2]) > HUGE_EXTENT or max(ext[0], ext[2]) < 20:
+            continue
+        c = (lo + hi) / 2
+        d = np.array([ext[0] / 2, 0, 0]) if ext[0] >= ext[2] else np.array([0, 0, ext[2] / 2])
+        a, b = c - d, c + d
+        a[1] = b[1] = 0.0
+        if np.hypot(a[0], a[2]) > np.hypot(b[0], b[2]):
+            a, b = b, a
+        axes.append((a, b))
+    return axes
+
+
+def _azimuth(v):
+    return math.atan2(v[0], v[2])  # radians, 0 = +Z, pi/2 = +X
+
+
+def _heading(az):
+    return np.array([math.sin(az), 0.0, math.cos(az)])
+
+
+def _angle_diff(a, b):
+    return abs((a - b + math.pi) % (2 * math.pi) - math.pi)
+
+
+def ring_preset(scene, field):
+    """Six player-eye views of a ring map whose lagoon centre is the origin:
+    (label, eye, target) tuples. Positions come from the slots and the geometry."""
+    slots = sorted(scene.slots, key=lambda sl: sl.get("index", 0))
+    sp = np.array([sl["cf"][:3] for sl in slots], float).reshape(-1, 3)
+    ring_r = float(np.median(np.hypot(sp[:, 0], sp[:, 2]))) if len(sp) else 300.0
+    a_slot1 = _azimuth(sp[0]) if len(sp) else 0.0
+    bridges = _bridge_axes(scene)
+    if bridges:  # the bridge closest to slot 1
+        a_hub = min((_azimuth(b) for _, b in bridges), key=lambda a: _angle_diff(a, a_slot1))
+    elif len(sp) > 1:  # halfway to the neighbouring slot
+        other = min((_azimuth(p) for p in sp[1:]), key=lambda a: _angle_diff(a, a_slot1))
+        a_hub = a_slot1 + ((other - a_slot1 + math.pi) % (2 * math.pi) - math.pi) / 2
+    else:
+        a_hub = 0.0
+    views = []
+
+    def free(p):
+        return not _inside_part(scene, p, 1.0)
+
+    # 1. Hub centre, eye height ~12, looking out along a_hub at the ring.
+    d = _heading(a_hub)
+    eye = None
+    for r in np.arange(12.0, 60.0, 2.0):
+        q = d * r
+        q[1] = _ground_y(scene, field, q[0], q[2], below=30) + 8
+        if free(q):
+            eye = q
+            break
+    eye = eye if eye is not None else d * 12 + (0, 12, 0)
+    views.append(("hub centre, looking out at the ring", eye, d * ring_r + (0, 8, 0)))
+
+    # 2. On a bridge (the next one round), near its outer end, looking back at the hub.
+    if bridges:
+        inner, outer = min(bridges, key=lambda ab: _angle_diff(_azimuth(ab[1]), a_hub + math.pi / 2))
+    else:
+        inner, outer = _heading(a_hub + math.pi / 2) * ring_r * 0.45, _heading(a_hub + math.pi / 2) * ring_r * 0.95
+    eye = inner + (outer - inner) * 0.75
+    eye[1] = _ground_y(scene, field, eye[0], eye[2], below=40) + 7
+    views.append(("on a bridge, looking back at the hub", eye, np.array([0.0, 14.0, 0.0])))
+
+    # 3. Front of slot 1's plot (its -Z side, towards the lagoon), looking at the lagoon.
+    if len(sp):
+        pos0, rot0, zmin, zmax = _slot_frame(scene, slots[0])
+        eye = None
+        for back in (3, 6, 10, 1, 14):
+            for side in (0, 3, -3, 6, -6, 10, -10):
+                q = pos0 + rot0 @ np.array([side, 0.0, zmin + back])
+                q[1] = _ground_y(scene, field, q[0], q[2], below=pos0[1] + 25) + 6
+                if free(q):
+                    eye = q
+                    break
+            if eye is not None:
+                break
+        if eye is None:
+            eye = pos0 + rot0 @ np.array([0.0, 6.0, zmin])
+        views.append((f"front of plot {slots[0].get('index', 1)}, looking at the lagoon", eye,
+                      np.array([0.0, 6.0, 0.0])))
+
+        # 4. High above the base opposite slot 1: behind its back edge at y = 60, looking
+        #    down over the whole plot towards the lagoon.
+        k = int(np.argmax([_angle_diff(_azimuth(p), a_slot1) for p in sp])) if len(sp) > 1 else 0
+        posk, rotk, zmin, zmax = _slot_frame(scene, slots[k])
+        eye = posk + rotk @ np.array([0.0, 0.0, zmax + 26])
+        eye[1] = 60.0
+        target = posk + rotk @ np.array([0.0, 0.0, (zmin + zmax) / 2])
+        views.append((f"high above base {slots[k].get('index', k + 1)}", eye, target))
+
+    # 5. From the ocean, eye height 40, looking at the island.
+    content = scene.content & ~scene.water & ~scene.is_base & (scene.aabb_max[:, 1] > 0)
+    if content.any():
+        c = (scene.aabb_min[content] + scene.aabb_max[content]) / 2
+        island_r = float(np.percentile(np.hypot(c[:, 0], c[:, 2]), 90))
+    else:
+        island_r = ring_r * 2
+    dist = island_r + 350
+    if field is not None and not field.empty:
+        tlo, thi = field.bounds()
+        dist = min(dist, float(min(-tlo[0], -tlo[2], thi[0], thi[2])) - 60)
+    dist = max(dist, ring_r * 1.5)
+    eye = None
+    for step_ in [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, -7, 8, -8, 9, -9, 10, -10, 11, -11, 12]:
+        q = _heading(a_slot1 + math.radians(15) * step_) * dist
+        dx = np.maximum(np.maximum(scene.aabb_min[:, 0] - q[0], q[0] - scene.aabb_max[:, 0]), 0)
+        dz = np.maximum(np.maximum(scene.aabb_min[:, 2] - q[2], q[2] - scene.aabb_max[:, 2]), 0)
+        near = scene.content & ~scene.water & (scene.aabb_max[:, 1] > -1) & (np.hypot(dx, dz) < 220)
+        if not near.any():
+            eye = q
+            break
+    eye = eye if eye is not None else _heading(a_slot1) * dist
+    eye[1] = max(40.0, _ground_y(scene, field, eye[0], eye[2]) + 15)
+    views.append(("from the ocean, looking at the island", eye, np.array([0.0, 12.0, 0.0])))
+
+    # 6. High overview.
+    eye = _heading(a_hub + math.pi / 4) * ring_r * 2
+    eye[1] = 350.0
+    views.append(("high overview", eye, np.array([0.0, 0.0, 0.0])))
+    return views
+
+
 def _bounds(scene, args):
     lo, hi = scene.frame_box(args.frame)
     field = getattr(args, "terrain_field", None)
@@ -1260,6 +1885,20 @@ def _parse_zoom(text):
     return vals
 
 
+def _parse_persp(text):
+    vals = [float(v) for v in text.split(",")]
+    if len(vals) not in (6, 7):
+        raise argparse.ArgumentTypeError("--persp expects ex,ey,ez,tx,ty,tz[,fov]")
+    return vals
+
+
+def _parse_fog(text):
+    vals = [float(v) for v in text.split(",")]
+    if len(vals) != 2 or vals[1] <= vals[0]:
+        raise argparse.ArgumentTypeError("--fog expects start,end with end > start")
+    return vals
+
+
 def _parse_bounds(text):
     vals = [float(v) for v in text.split(",")]
     if len(vals) != 4:
@@ -1271,7 +1910,9 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Render preview PNGs from export_parts.luau JSON.")
     ap.add_argument("parts_json", help='export_parts.luau JSON, or "-" for none (terrain only)')
     ap.add_argument("--out-dir", required=True)
-    ap.add_argument("--views", default="top,iso,iso2,zoom", help="comma list of top,iso,iso2,zoom")
+    ap.add_argument("--views", default=None,
+                    help="comma list of top,iso,iso2,zoom,persp (default: top,iso,iso2,zoom; "
+                         "persp alone when --persp/--persp-preset is given)")
     ap.add_argument("--zoom", action="append", type=_parse_zoom, default=[], metavar="X,Z,R[,AZ]",
                     help="zoom target (repeatable); default: first base slot")
     ap.add_argument("--size", type=int, default=1600, help="output width in pixels")
@@ -1289,12 +1930,25 @@ def main(argv=None):
                          "or a raw SmoothGrid .bin from export_terrain.luau")
     ap.add_argument("--terrain-step", type=float, default=None, metavar="STUDS",
                     help="terrain quad size (4 = native voxel columns); default: automatic per view")
+    ap.add_argument("--persp", action="append", type=_parse_persp, default=[], metavar="EX,EY,EZ,TX,TY,TZ[,FOV]",
+                    help="perspective view: eye and look-at target in studs, vertical FOV in degrees "
+                         f"(default {PERSP_FOV:g}); repeatable -> persp_1.png, persp_2.png, ...")
+    ap.add_argument("--persp-preset", choices=("ring",), default=None,
+                    help="ring: 6 player-eye views of the ring map (hub, bridge, plot front, above a base, "
+                         "ocean, overview), after any --persp views")
+    ap.add_argument("--fog", type=_parse_fog, default=[FOG_START, FOG_END], metavar="START,END",
+                    help=f"persp distance fog: starts at START studs, 90%% at END (default {FOG_START:g},{FOG_END:g})")
+    ap.add_argument("--no-fog", action="store_true", help="persp: no distance fog")
     # Allow "--zoom -57,-57,30" (argparse would read the value as an option).
     argv = list(sys.argv[1:] if argv is None else argv)
     for i in range(len(argv) - 1):
-        if argv[i] in ("--zoom", "--bounds") and argv[i + 1].startswith("-"):
+        if argv[i] in ("--zoom", "--bounds", "--persp") and argv[i + 1].startswith("-"):
             argv[i : i + 2] = [f"{argv[i]}={argv[i + 1]}", ""]
     args = ap.parse_args([a for a in argv if a != ""])
+    if args.no_fog:
+        args.fog = None
+    if args.views is None:
+        args.views = "persp" if (args.persp or args.persp_preset) else "top,iso,iso2,zoom"
 
     if args.parts_json == "-":  # terrain only
         data = {"parts": [], "slots": []}
@@ -1321,7 +1975,7 @@ def main(argv=None):
 
     views = [v.strip() for v in args.views.split(",") if v.strip()]
     for view in views:
-        if view not in ("top", "iso", "iso2", "zoom"):
+        if view not in ("top", "iso", "iso2", "zoom", "persp"):
             sys.exit(f"unknown view: {view}")
 
     def save(name, im, started):
@@ -1352,6 +2006,19 @@ def main(argv=None):
                 x, z, radius = target[:3]
                 az = target[3] if len(target) > 3 else 45.0
                 save(f"zoom_{n}.png", view_zoom(scene, args, x, z, radius, az), t)
+        elif view == "persp":
+            specs = []
+            for v in args.persp:
+                specs.append((np.array(v[:3]), np.array(v[3:6]), v[6] if len(v) > 6 else PERSP_FOV, ""))
+            if args.persp_preset == "ring" or not specs:
+                for label, eye, target in ring_preset(scene, args.terrain_field):
+                    specs.append((eye, target, PERSP_FOV, label))
+            for n, spec in enumerate(specs, 1):
+                t = time.time()
+                eye, target = spec[0], spec[1]
+                print(f"[render] persp_{n}: eye ({eye[0]:.1f}, {eye[1]:.1f}, {eye[2]:.1f}) -> target "
+                      f"({target[0]:.1f}, {target[1]:.1f}, {target[2]:.1f}) fov {spec[2]:g}  {spec[3]}")
+                save(f"persp_{n}.png", view_persp(scene, args, spec, n), t)
     print(f"[render] done in {time.time() - t0:.2f}s")
 
 

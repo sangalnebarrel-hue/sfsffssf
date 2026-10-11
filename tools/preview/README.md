@@ -5,7 +5,8 @@ checked visually without Roblox Studio. Two steps:
 
 1. `export_parts.luau` (Lune 0.11) reads the place and writes every visible part as JSON.
    It also simulates what the server does at runtime (base spawning, see below).
-2. `render.py` (Python 3 + numpy + Pillow) draws the JSON as orthographic images.
+2. `render.py` (Python 3 + numpy + Pillow) draws the JSON as orthographic images, and
+   as perspective "player eye" images with sky and distance fog (`--views persp`).
 
 ```sh
 LUNE=/opt/tools/l11/lune   # Lune 0.11; 0.10.4 cannot read the place
@@ -19,6 +20,8 @@ Smooth terrain (`Workspace.Terrain` voxels) is not a part: add it with `--terrai
 
 Output files in `--out-dir`: `top.png`, `iso.png`, `iso2.png`, `zoom_1.png`, `zoom_2.png`, ...
 Each image has an info box (view, part counts), a scale bar and an axis legend.
+Perspective views (`persp_1.png`, `persp_2.png`, ...) are described in
+[Perspective views](#perspective-player-eye-views).
 
 ## export_parts.luau
 
@@ -81,9 +84,9 @@ python3 tools/preview/render.py <parts.json> --out-dir <dir> [options]
 
 | option | default | meaning |
 |---|---|---|
-| `--views LIST` | `top,iso,iso2,zoom` | which images to render |
+| `--views LIST` | `top,iso,iso2,zoom` | which images to render: any of `top,iso,iso2,zoom,persp`. With `--persp`/`--persp-preset` and no `--views`, only `persp`. |
 | `--zoom X,Z,R[,AZ]` | first base slot, radius 40 | zoom target; repeat for `zoom_1.png`, `zoom_2.png`, ... Optional 4th value = azimuth (default 45). Negative values work (`--zoom -57,-57,30`). |
-| `--size PX` | 1600 | output width in pixels (height follows the scene, zoom is 4:3) |
+| `--size PX` | 1600 | output width in pixels (height follows the scene, zoom is 4:3, persp is 16:9) |
 | `--ss N` | 2 | supersampling factor (anti-aliasing) |
 | `--elevation DEG` | 35 | camera elevation of the 3D views |
 | `--frame auto\|all` | `auto` | `auto` frames the play area: ignores Baseplate-sized parts, water and the outermost 1% of part extents (e.g. ocean-floor slabs), but always includes every base. `all` frames everything except Baseplate-sized parts. |
@@ -92,7 +95,11 @@ python3 tools/preview/render.py <parts.json> --out-dir <dir> [options]
 | `--no-outlines` | | no dark edge lines |
 | `--no-labels` | | no base-slot number markers |
 | `--terrain FILE` | | also draw smooth terrain: heightfield `.npz`/`.json` from `terrain_export.py`, or a raw SmoothGrid `.bin` (decoded on the fly). See [Terrain](#terrain). |
-| `--terrain-step STUDS` | auto | terrain quad size: 4 = native voxel columns, 8/16/... = averaged. Auto picks the smallest of 4, 8, 16, ... studs whose quads cover >= 5 output pixels (full 1400-stud world at 1600 px: 8; zooms: 4). |
+| `--terrain-step STUDS` | auto | terrain quad size: 4 = native voxel columns, 8/16/... = averaged. Auto picks the smallest of 4, 8, 16, ... studs whose quads cover >= 5 output pixels (full 1400-stud world at 1600 px: 8; zooms: 4; persp: per distance ring, see below). |
+| `--persp EX,EY,EZ,TX,TY,TZ[,FOV]` | | perspective view from eye `(EX,EY,EZ)` looking at `(TX,TY,TZ)` (studs), vertical field of view `FOV` degrees (default 70, the Roblox default). Repeat for `persp_1.png`, `persp_2.png`, ... Negative values work (`--persp -60,30,-60,0,10,0`). |
+| `--persp-preset ring` | | 6 automatic views of the ring map (see below), numbered after any `--persp` views. `--views persp` without `--persp` also uses it. |
+| `--fog START,END` | `300,1500` | persp distance fog: starts at `START` studs, 90 % fogged at `END` |
+| `--no-fog` | | persp: no fog |
 
 `parts_json` may be `-` (no parts) to render terrain alone.
 
@@ -106,6 +113,8 @@ Views:
 * **iso2**: azimuth 225 deg, the opposite side (camera in the -X/-Z quadrant).
 * **zoom**: iso-style view centred on (X, Z), `R` studs from the centre to the left/right
   edge. Azimuth is measured from +Z towards +X (0 = camera on the +Z side, 90 = +X side).
+* **persp**: perspective view from a given eye point, roughly what a player sees; see
+  [Perspective views](#perspective-player-eye-views).
 
 Base slots are marked with a numbered circle in the base colour (at the slot position).
 
@@ -123,6 +132,81 @@ parts lose ties to everything else.
 
 Performance: ~2500 parts render in about 0.5-1.5 s per view (4 views in ~4 s) at the
 default size.
+
+## Perspective (player-eye) views
+
+```sh
+OUT=/tmp/preview
+$LUNE run tools/preview/export_parts.luau   Place1.rbxl $OUT/parts.json
+$LUNE run tools/preview/export_terrain.luau Place1.rbxl $OUT/smoothgrid.bin   # water
+# 6 automatic views of the ring map -> persp_1.png .. persp_6.png
+python3 tools/preview/render.py $OUT/parts.json --terrain $OUT/smoothgrid.bin --out-dir $OUT \
+    --persp-preset ring
+# your own: eye (0, 12, 12) looking at (0, 8, 312), and a 50-degree view from above slot 2
+python3 tools/preview/render.py $OUT/parts.json --terrain $OUT/smoothgrid.bin --out-dir $OUT \
+    --persp 0,12,12,0,8,312 --persp 330,60,140,250,4,100,50
+# together with the orthographic views
+python3 tools/preview/render.py $OUT/parts.json --terrain $OUT/smoothgrid.bin --out-dir $OUT \
+    --views top,iso,persp --persp-preset ring
+```
+
+The camera is a pinhole camera without roll (the image's horizontal axis stays
+horizontal); the vertical field of view is `FOV`, images are 16:9 (`--size` x
+`--size * 9/16`, default 1600 x 900). The info box gives eye, target, heading (0 = +Z,
+90 = +X), pitch, FOV, fog and how many faces are in view.
+
+What it draws:
+
+* Same geometry, lighting, outlines and transparency rules as the orthographic views.
+  Depth is a z-buffer of `-1/distance`. Faces entirely outside the view frustum are culled
+  first. The rest are clipped against the near plane (0.3 studs) and a guard band, so
+  parts beside or behind the camera, or around it (the floor under the eye, a
+  long water strip), are cut cleanly. A camera inside a part sees through it (back faces
+  are culled).
+* Background: sky gradient by view elevation, light blue at the horizon to deeper blue at
+  the zenith (below the horizon, the horizon colour).
+* Distance fog (Roblox `Atmosphere`-like): surface colours blend into the sky colour behind
+  them, `1 - exp(-2.3 * ((d - START) / (END - START))^1.5)`: 0 up to 300 studs, ~25 % at
+  600, ~63 % at 1000, 90 % at 1500 (defaults). Very high cameras (y > ~1500) see only fog;
+  use `--no-fog` or e.g. `--fog 2000,6000` there.
+* Outlines are full strength up to 60 studs, fade out by 400 studs and are not drawn
+  beyond.
+* Water (water parts and `--terrain` water) is translucent from above and turns opaque
+  and sky-tinted at grazing angles (Fresnel), so open water reads correctly towards
+  the horizon. Terrain water covers its whole area, out to the horizon. Beyond the
+  terrain's edge there is only sky; fog hides the edge at distance. Water is one-sided:
+  a camera under the water surface sees no surface.
+* Terrain uses rings of detail around the eye: 4-stud quads where they span >= 5 px, then
+  8, 16, ... studs further out (about 500 / 1000 / 2000 studs at 1600 x 900, FOV 70).
+  Each ring's edge follows the next coarser ring's surface, so they meet without cracks.
+  `--terrain-step` forces one size everywhere.
+* Base slots get their numbered marker (faint when hidden behind something, none beyond
+  the fog). `--no-labels` turns them off.
+
+### `--persp-preset ring`
+
+Six views of the ring map, assuming the lagoon centre is the origin. Ring radius and
+directions come from the JSON `slots` (slot 1 first). Bridges are found as parts whose
+path contains "bridge" (e.g. `Workspace.Map.Bridges.Bridge_1`). Eye heights are put on
+the surface found under the eye (parts or terrain), and eyes are moved so they are not
+inside a part.
+
+| # | view | eye | looks at |
+|---|---|---|---|
+| 1 | hub centre | just outside the hub centre (>= 12 studs) on the bridge axis nearest slot 1, ground + 8 (y ~ 12) | the ring along that axis, y 8 |
+| 2 | bridge | 3/4 along the next bridge round (+90 deg), deck + 7 | the hub (0, 14, 0) |
+| 3 | plot front | slot 1's plot, a few studs inside its front edge (slot-local -Z, the lagoon side), ground + 6 | the lagoon / hub (0, 6, 0) |
+| 4 | above a base | 26 studs behind the back edge of the plot opposite slot 1, y = 60 | the middle of that plot |
+| 5 | ocean | open water (no part within 220 studs) at the 90th-percentile island radius + 350 studs (inside the terrain), first clear direction from slot 1's, y = 40 | the island (0, 12, 0) |
+| 6 | overview | 2 x ring radius out, 45 deg from view 1's axis, y = 350 | the origin |
+
+Without slots, views 3 and 4 are skipped and a 300-stud ring is assumed. The chosen
+positions are printed (`[render] persp_N: eye (...) -> target (...)`), so a view can be
+re-rendered or adjusted with `--persp`.
+
+Speed: the current place (11.3k parts, 120k faces, 2800 x 2800-stud terrain water)
+takes 2.5-3.5 s per 1600 x 900 view (`--ss 2`), the 6-view preset ~18 s. A 21k-part
+copy (219k faces) takes 3-5.5 s per view.
 
 ## Checking orientation quickly
 
