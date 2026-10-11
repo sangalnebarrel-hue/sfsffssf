@@ -23,6 +23,7 @@ come from edges in the per-pixel face-id buffer.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import math
 import os
@@ -50,6 +51,35 @@ HUGE_EXTENT = 1000.0  # parts wider than this are ignored when framing (Baseplat
 MAX_POLY = 16  # max vertices per face (cylinder caps)
 CYL_SEGMENTS = 16
 SPHERE_STACKS, SPHERE_SLICES = 6, 10
+
+# Smooth terrain (--terrain): colour per Roblox terrain material.
+TERRAIN_COLORS = {
+    "Grass": (90, 170, 60),
+    "LeafyGrass": (80, 150, 50),
+    "Sand": (230, 210, 150),
+    "Rock": (120, 120, 125),
+    "Slate": (100, 100, 110),
+    "Ground": (130, 100, 70),
+    "Mud": (90, 70, 50),
+    "Snow": (245, 248, 255),
+    "Glacier": (200, 230, 250),
+    "Cobblestone": (160, 160, 155),
+    "Pavement": (170, 170, 165),
+    "Basalt": (60, 60, 65),
+    "Sandstone": (200, 160, 110),
+    "Limestone": (220, 215, 190),
+    "Salt": (236, 236, 230),
+    "Asphalt": (65, 65, 70),
+    "Concrete": (175, 175, 170),
+    "Brick": (165, 85, 65),
+    "WoodPlanks": (160, 120, 75),
+    "Ice": (175, 215, 245),
+    "CrackedLava": (215, 90, 40),
+    "Water": tuple(int(c) for c in WATER_COLOR),
+}
+TERRAIN_QUAD_PX = 5.0  # auto LOD: coarsest quad size (4, 8, 16... studs) still >= this many px
+TERRAIN_JITTER = 0.04  # +- per-column brightness variation (reads as texture)
+TERRAIN_SKIRT_SHADE = 0.8  # colour multiplier of the vertical walls at the terrain's edges
 
 
 # --------------------------------------------------------------------------------------
@@ -278,6 +308,354 @@ def _newell(poly):
 
 
 # --------------------------------------------------------------------------------------
+# Smooth terrain: a heightfield (terrain_export.py) turned into faces.
+# --------------------------------------------------------------------------------------
+
+
+def _shade(normal, color):
+    """Same lighting as Scene: ambient + half-Lambert towards SUN."""
+    shade = AMBIENT + (1 - AMBIENT) * (0.5 + 0.5 * (normal @ SUN))
+    return (color * shade[:, None]).clip(0, 255).astype(np.float32)
+
+
+def _pad_poly(pts):
+    """(N, k, 3) polygons -> (N, MAX_POLY, 3) by repeating the last vertex."""
+    k = pts.shape[1]
+    return np.concatenate([pts, np.repeat(pts[:, -1:, :], MAX_POLY - k, axis=1)], axis=1)
+
+
+def _row_runs(mask, key):
+    """Horizontal runs of `mask` cells with equal `key`: arrays (row, col0, col1_exclusive)."""
+    nx = mask.shape[1]
+    same = np.zeros_like(mask)
+    same[:, 1:] = mask[:, 1:] & mask[:, :-1] & (key[:, 1:] == key[:, :-1])
+    flat_mask, flat_same = mask.ravel(), same.ravel()
+    starts = np.nonzero(flat_mask & ~flat_same)[0]
+    breaks = np.append(np.nonzero(~flat_same)[0], flat_mask.size)
+    ends = breaks[np.searchsorted(breaks, starts, side="right")]
+    return starts // nx, starts % nx, starts % nx + (ends - starts)
+
+
+def _block_reduce(a, f, fill):
+    """(nz, nx) -> (ceil(nz/f), f, ceil(nx/f), f) view padded with `fill`."""
+    nz, nx = a.shape
+    a = np.pad(a, ((0, (-nz) % f), (0, (-nx) % f)), constant_values=fill)
+    return a.reshape(a.shape[0] // f, f, a.shape[1] // f, f)
+
+
+class TerrainField:
+    """Column heightfield of the terrain (see terrain_export.py) and its meshes.
+
+    The surface is drawn smooth: every corner of the column grid takes the mean top
+    of the (up to four) columns around it, each column becomes two triangles (flat
+    columns are merged into row quads), and vertical walls close the terrain where
+    it ends. Water is a translucent sheet at its surface height (with walls at its
+    edges). Coarser levels of detail average 2x2, 4x4... columns.
+    """
+
+    def __init__(self, hf):
+        self.origin = np.asarray(hf["origin"], float)
+        self.step = float(hf["step"])
+        self.top = np.asarray(hf["top"], np.float32)
+        self.bottom = np.asarray(hf["bottom"], np.float32)
+        self.water = np.asarray(hf["water"], np.float32)
+        self.material = np.asarray(hf["material"], np.int16)
+        names = list(hf["materials"])
+        self.palette = np.array([TERRAIN_COLORS.get(n, (200, 0, 200)) for n in names], np.float32)
+        self.columns = int(np.isfinite(self.top).sum())
+        self.wet_columns = int(np.isfinite(self.water).sum())
+        self._cache = {}
+
+    @property
+    def empty(self):
+        return self.columns == 0 and self.wet_columns == 0
+
+    def bounds(self):
+        """World AABB (lo, hi) of the columns holding terrain or water."""
+        used = np.isfinite(self.top) | np.isfinite(self.water)
+        rows, cols = np.nonzero(used.any(1))[0], np.nonzero(used.any(0))[0]
+        ox, oz, s = self.origin[0], self.origin[1], self.step
+        heights = np.concatenate([self.top[np.isfinite(self.top)], self.water[np.isfinite(self.water)]])
+        floor = self.bottom[np.isfinite(self.bottom)]
+        ylo = float(floor.min()) if len(floor) else float(heights.min())
+        lo = np.array([ox + cols[0] * s, ylo, oz + rows[0] * s])
+        hi = np.array([ox + (cols[-1] + 1) * s, float(heights.max()), oz + (rows[-1] + 1) * s])
+        return lo, hi
+
+    def surface_near(self, x, z, radius):
+        """Visible surface heights (top or water, whichever is higher) of the columns
+        whose centres lie within `radius` of (x, z)."""
+        s = self.step
+        nz, nx = self.top.shape
+        cx = self.origin[0] + (np.arange(nx) + 0.5) * s
+        cz = self.origin[1] + (np.arange(nz) + 0.5) * s
+        inside = (cx[None, :] - x) ** 2 + (cz[:, None] - z) ** 2 <= radius**2
+        surf = np.fmax(self.top, self.water)
+        return surf[inside & np.isfinite(surf)]
+
+    def lod(self, px_per_stud, forced=None):
+        """Quad size in studs: `forced` (rounded to a multiple of the column size), or
+        the smallest power-of-two multiple of the column size whose quads cover at
+        least TERRAIN_QUAD_PX output pixels (finer detail would not be visible)."""
+        if forced:
+            return self.step * max(1, round(float(forced) / self.step))
+        step = self.step
+        while step * px_per_stud < TERRAIN_QUAD_PX and step < 64:
+            step *= 2
+        return step
+
+    def _level(self, step, crop):
+        """Heightfield arrays at `step` studs per column, optionally cropped to the
+        XZ rectangle crop=(xmin, zmin, xmax, zmax)."""
+        f = max(1, round(step / self.step))
+        top, bottom, water, material = self.top, self.bottom, self.water, self.material
+        ox, oz = self.origin
+        if crop is not None:
+            nz, nx = top.shape
+            ix0 = int(np.clip(np.floor((crop[0] - ox) / self.step / f) * f, 0, nx))
+            ix1 = int(np.clip(np.ceil((crop[2] - ox) / self.step / f) * f, 0, nx))
+            iz0 = int(np.clip(np.floor((crop[1] - oz) / self.step / f) * f, 0, nz))
+            iz1 = int(np.clip(np.ceil((crop[3] - oz) / self.step / f) * f, 0, nz))
+            top, bottom = top[iz0:iz1, ix0:ix1], bottom[iz0:iz1, ix0:ix1]
+            water, material = water[iz0:iz1, ix0:ix1], material[iz0:iz1, ix0:ix1]
+            ox, oz = ox + ix0 * self.step, oz + iz0 * self.step
+        if f > 1 and top.size:
+            t = _block_reduce(top, f, np.nan)
+            fin = np.isfinite(t)
+            n = fin.sum((1, 3))
+            with np.errstate(invalid="ignore", divide="ignore"):
+                top_d = np.where(fin, t, 0).sum((1, 3)) / n
+            top_d = np.where(n > 0, top_d, np.nan).astype(np.float32)
+            b = _block_reduce(bottom, f, np.inf).min((1, 3))
+            bottom = np.where(np.isfinite(b), b, np.nan).astype(np.float32)
+            w = _block_reduce(water, f, -np.inf).max((1, 3))
+            water = np.where(np.isfinite(w), w, np.nan).astype(np.float32)
+            m = _block_reduce(material, f, -1)
+            best = np.full(top_d.shape, -1, np.int16)
+            best_n = np.zeros(top_d.shape, int)
+            for slot in np.unique(m[m >= 0]):
+                cnt = (m == slot).sum((1, 3))
+                better = cnt > best_n
+                best[better], best_n[better] = slot, cnt[better]
+            top, material = top_d, best
+        return np.array([ox, oz]), f * self.step, top, bottom, water, material
+
+    def mesh(self, step, crop=None):
+        """Faces of the terrain at `step` studs per quad (the last two are cached)."""
+        key = (float(step), None if crop is None else tuple(round(float(c), 3) for c in crop))
+        if key not in self._cache:
+            while len(self._cache) >= 2:
+                self._cache.pop(next(iter(self._cache)))
+            self._cache[key] = self._build(step, crop)
+        return self._cache[key]
+
+    def sample_points(self, step=16.0):
+        """Mesh vertices at a coarse level (for framing the 3D views)."""
+        m = self.mesh(max(step, self.step))
+        return m["poly"][:, :4, :].reshape(-1, 3) if len(m["poly"]) else np.zeros((0, 3))
+
+    def _build(self, step, crop):
+        origin, s, top, bottom, water, material = self._level(step, crop)
+        nz, nx = top.shape
+        polys, colors, kinds, outward = [], [], [], []  # per batch: (N, MAX_POLY, 3), ...
+        counts = []
+        X = origin[0] + np.arange(nx + 1) * s
+        Z = origin[1] + np.arange(nz + 1) * s
+        solid = np.isfinite(top)
+        mat = np.where(material >= 0, material, 0)
+
+        # Corner heights: mean top of the present columns around each corner.
+        T = np.pad(top, 1, constant_values=np.nan)
+        around = np.stack([T[:-1, :-1], T[:-1, 1:], T[1:, :-1], T[1:, 1:]])
+        fin = np.isfinite(around)
+        n = fin.sum(0)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            V = np.where(fin, around, 0).sum(0) / n
+        V = V.astype(np.float64)
+
+        jz, jx = np.indices((nz, nx))
+        jitter = 1 + TERRAIN_JITTER * (((jx * 73856093) ^ (jz * 19349663)) % 1009 / 504.0 - 1)
+        base_color = self.palette[mat] * jitter[..., None]
+
+        v00, v10, v01, v11 = V[:-1, :-1], V[:-1, 1:], V[1:, :-1], V[1:, 1:]
+        flat = solid & (np.maximum.reduce([v00, v10, v01, v11]) - np.minimum.reduce([v00, v10, v01, v11]) < 1e-3)
+
+        # Flat columns: merged row quads.
+        if flat.any():
+            key = np.where(flat, np.round(np.nan_to_num(v00) * 1000).astype(np.int64) * 32 + mat, -1)
+            r, c0, c1 = _row_runs(flat, key)
+            y = v00[r, c0]
+            quad = np.stack(
+                [
+                    np.stack([X[c0], y, Z[r]], 1),
+                    np.stack([X[c1], y, Z[r]], 1),
+                    np.stack([X[c1], y, Z[r + 1]], 1),
+                    np.stack([X[c0], y, Z[r + 1]], 1),
+                ],
+                1,
+            )
+            polys.append(_pad_poly(quad))
+            counts.append(np.full(len(r), 4))
+            colors.append(base_color[r, c0])
+            kinds.append(np.zeros(len(r), np.int8))
+            outward.append(np.tile([0.0, 1.0, 0.0], (len(r), 1)))
+
+        # One-column ridges and channels (higher or lower than both neighbours along x
+        # or z): a fan of four triangles through the column centre at its exact
+        # height, so they keep their true height instead of being averaged away.
+        # Cliff edges are not extrema and stay smooth (no saw-tooth rims).
+        mean = (v00 + v10 + v01 + v11) / 4
+        tc = top.astype(np.float64)
+        Tq = np.pad(tc, 1, constant_values=np.nan)
+        extremum = np.zeros_like(solid)
+        for a, b in ((Tq[1:-1, :-2], Tq[1:-1, 2:]), (Tq[:-2, 1:-1], Tq[2:, 1:-1])):
+            a, b = np.where(np.isfinite(a), a, tc), np.where(np.isfinite(b), b, tc)
+            extremum |= (tc > np.maximum(a, b) + 0.5) | (tc < np.minimum(a, b) - 0.5)
+        fan = solid & ~flat & extremum & (np.abs(top - mean) > 0.25)
+        i, j = np.nonzero(fan)
+        if len(i):
+            p00 = np.stack([X[j], v00[i, j], Z[i]], 1)
+            p10 = np.stack([X[j + 1], v10[i, j], Z[i]], 1)
+            p01 = np.stack([X[j], v01[i, j], Z[i + 1]], 1)
+            p11 = np.stack([X[j + 1], v11[i, j], Z[i + 1]], 1)
+            pc = np.stack([X[j] + s / 2, top[i, j].astype(np.float64), Z[i] + s / 2], 1)
+            for pa, pb in ((p00, p10), (p10, p11), (p11, p01), (p01, p00)):
+                polys.append(_pad_poly(np.stack([pa, pb, pc], 1)))
+                counts.append(np.full(len(i), 3))
+                colors.append(base_color[i, j])
+                kinds.append(np.zeros(len(i), np.int8))
+                outward.append(np.tile([0.0, 1.0, 0.0], (len(i), 1)))
+
+        # Other sloped columns: two triangles, split along the flatter diagonal.
+        i, j = np.nonzero(solid & ~flat & ~fan)
+        if len(i):
+            p00 = np.stack([X[j], v00[i, j], Z[i]], 1)
+            p10 = np.stack([X[j + 1], v10[i, j], Z[i]], 1)
+            p01 = np.stack([X[j], v01[i, j], Z[i + 1]], 1)
+            p11 = np.stack([X[j + 1], v11[i, j], Z[i + 1]], 1)
+            diag = (np.abs(v00 - v11) <= np.abs(v10 - v01))[i, j][:, None, None]
+            t1 = np.where(diag, np.stack([p00, p10, p11], 1), np.stack([p00, p10, p01], 1))
+            t2 = np.where(diag, np.stack([p00, p11, p01], 1), np.stack([p10, p11, p01], 1))
+            polys += [_pad_poly(t1), _pad_poly(t2)]
+            counts += [np.full(len(i), 3)] * 2
+            colors += [base_color[i, j]] * 2
+            kinds += [np.zeros(len(i), np.int8)] * 2
+            outward += [np.tile([0.0, 1.0, 0.0], (len(i), 1))] * 2
+
+        # Walls where the terrain ends (no column next to it).
+        Sp = np.pad(solid, 1, constant_values=False)
+        floor = np.where(np.isfinite(bottom), bottom, top)
+        walls = (
+            # (neighbour present, edge corner a, edge corner b, outward)
+            (Sp[:-2, 1:-1], (0, 0), (0, 1), (0.0, 0.0, -1.0)),  # -Z edge
+            (Sp[2:, 1:-1], (1, 0), (1, 1), (0.0, 0.0, 1.0)),  # +Z edge
+            (Sp[1:-1, :-2], (0, 0), (1, 0), (-1.0, 0.0, 0.0)),  # -X edge
+            (Sp[1:-1, 2:], (0, 1), (1, 1), (1.0, 0.0, 0.0)),  # +X edge
+        )
+        for neighbour, a, b, out in walls:
+            i, j = np.nonzero(solid & ~neighbour)
+            if not len(i):
+                continue
+            ya, yb, yf = V[i + a[0], j + a[1]], V[i + b[0], j + b[1]], floor[i, j].astype(np.float64)
+            pa = np.stack([X[j + a[1]], ya, Z[i + a[0]]], 1)
+            pb = np.stack([X[j + b[1]], yb, Z[i + b[0]]], 1)
+            qb = np.stack([X[j + b[1]], np.minimum(yf, yb - 0.01), Z[i + b[0]]], 1)
+            qa = np.stack([X[j + a[1]], np.minimum(yf, ya - 0.01), Z[i + a[0]]], 1)
+            polys.append(_pad_poly(np.stack([pa, pb, qb, qa], 1)))
+            counts.append(np.full(len(i), 4))
+            colors.append(base_color[i, j] * TERRAIN_SKIRT_SHADE)
+            kinds.append(np.zeros(len(i), np.int8))
+            outward.append(np.tile(out, (len(i), 1)))
+
+        # Water: sheets at the surface (merged along rows), walls at open edges.
+        wet = np.isfinite(water) & ~(water < np.where(solid, top, -np.inf) - 0.05)
+        if wet.any():
+            level = np.where(wet, np.round(water.astype(np.float64), 2), np.nan)
+            r, c0, c1 = _row_runs(wet, np.where(wet, np.round(level * 100), 0).astype(np.int64))
+            y = level[r, c0]
+            quad = np.stack(
+                [
+                    np.stack([X[c0], y, Z[r]], 1),
+                    np.stack([X[c1], y, Z[r]], 1),
+                    np.stack([X[c1], y, Z[r + 1]], 1),
+                    np.stack([X[c0], y, Z[r + 1]], 1),
+                ],
+                1,
+            )
+            polys.append(_pad_poly(quad))
+            counts.append(np.full(len(r), 4))
+            colors.append(np.tile(WATER_COLOR, (len(r), 1)))
+            kinds.append(np.ones(len(r), np.int8))
+            outward.append(np.tile([0.0, 1.0, 0.0], (len(r), 1)))
+            Wp = np.pad(wet, 1, constant_values=False)
+            Tp = np.pad(np.where(solid, top, -np.inf), 1, constant_values=-np.inf)
+            sides = (
+                (Wp[:-2, 1:-1], Tp[:-2, 1:-1], (0, 0), (0, 1), (0.0, 0.0, -1.0)),
+                (Wp[2:, 1:-1], Tp[2:, 1:-1], (1, 0), (1, 1), (0.0, 0.0, 1.0)),
+                (Wp[1:-1, :-2], Tp[1:-1, :-2], (0, 0), (1, 0), (-1.0, 0.0, 0.0)),
+                (Wp[1:-1, 2:], Tp[1:-1, 2:], (0, 1), (1, 1), (1.0, 0.0, 0.0)),
+            )
+            for nwet, ntop, a, b, out in sides:
+                i, j = np.nonzero(wet & ~nwet & (ntop < level - 0.05))
+                if not len(i):
+                    continue
+                y = level[i, j]
+                lowest = np.where(solid[i, j], top[i, j], np.where(np.isfinite(bottom[i, j]), bottom[i, j], y - 4))
+                lowest = np.minimum(lowest.astype(np.float64), y - 0.01)
+                pa = np.stack([X[j + a[1]], y, Z[i + a[0]]], 1)
+                pb = np.stack([X[j + b[1]], y, Z[i + b[0]]], 1)
+                qb = np.stack([X[j + b[1]], lowest, Z[i + b[0]]], 1)
+                qa = np.stack([X[j + a[1]], lowest, Z[i + a[0]]], 1)
+                polys.append(_pad_poly(np.stack([pa, pb, qb, qa], 1)))
+                counts.append(np.full(len(i), 4))
+                colors.append(np.tile(WATER_COLOR, (len(i), 1)))
+                kinds.append(np.ones(len(i), np.int8))
+                outward.append(np.tile(out, (len(i), 1)))
+
+        if not polys:
+            return {"poly": np.zeros((0, MAX_POLY, 3)), "count": np.zeros(0, int), "step": s}
+        poly = np.concatenate(polys)
+        kind = np.concatenate(kinds)
+        out = np.concatenate(outward)
+        normal = _newell(poly)
+        normal[np.einsum("ni,ni->n", normal, out) < 0] *= -1
+        count = np.concatenate(counts)
+        color = np.concatenate(colors).astype(np.float32)
+        centroid = np.where((count == 4)[:, None], poly[:, :4].mean(1), poly[:, :3].mean(1))
+        return {
+            "poly": poly,
+            "count": count,
+            "normal": normal,
+            "centroid": centroid,
+            "rgb": _shade(normal, color),
+            "water": kind == 1,
+            "step": s,
+        }
+
+
+def with_terrain(scene, mesh):
+    """A shallow copy of `scene` whose face arrays also hold the terrain faces (after the
+    part faces, so face indices of parts are unchanged)."""
+    if mesh is None or len(mesh["poly"]) == 0:
+        return scene
+    out = copy.copy(scene)
+    n = len(mesh["poly"])
+    gbase = int(scene.group.max()) + 1 if len(scene.group) else 0
+    out.poly = np.concatenate([scene.poly, mesh["poly"]])
+    out.count = np.concatenate([scene.count, mesh["count"]])
+    out.normal = np.concatenate([scene.normal, mesh["normal"]])
+    out.centroid = np.concatenate([scene.centroid, mesh["centroid"]])
+    # One outline group for land and one for water: outlines only at silhouettes.
+    out.group = np.concatenate([scene.group, np.where(mesh["water"], gbase + 1, gbase).astype(np.int32)])
+    out.face_rgb = np.concatenate([scene.face_rgb, mesh["rgb"]])
+    out.face_opacity = np.concatenate(
+        [scene.face_opacity, np.where(mesh["water"], WATER_OPACITY, 1.0).astype(np.float32)]
+    )
+    out.face_bias = np.concatenate([scene.face_bias, np.zeros(n)])
+    return out
+
+
+# --------------------------------------------------------------------------------------
 # Camera: orthographic, defined by forward/right/up and a world-space centre.
 # --------------------------------------------------------------------------------------
 
@@ -497,13 +875,16 @@ class _Rasterizer:
         g = np.arange(T, dtype=np.float32) + 0.5
         x0, y0 = self.x0[faces], self.y0[faces]
         fx0, fy0 = x0.astype(np.float32), y0.astype(np.float32)
-        xs = (fx0[:, None] + g[None, :])[:, None, :]  # (F, 1, T) pixel centres
-        ys = (fy0[:, None] + g[None, :])[:, :, None]  # (F, T, 1)
-        inside = (xs < self.x1[faces][:, None, None]) & (ys < self.y1[faces][:, None, None])
+        # Edge functions in coordinates local to each face's bounding box: small
+        # float32 values keep shared edges watertight (no pixel gaps between the
+        # triangles of a terrain mesh, even far from the image origin).
+        xs = g[None, None, :]  # (1, 1, T) pixel centres
+        ys = g[None, :, None]  # (1, T, 1)
+        inside = (xs < (self.x1[faces] - x0)[:, None, None]) & (ys < (self.y1[faces] - y0)[:, None, None])
         sign = self.sign[faces]
         cnt = self.count[faces]
         rows = np.arange(len(faces))
-        vx, vy = self.px[faces], self.py[faces]
+        vx, vy = self.px[faces] - x0[:, None], self.py[faces] - y0[:, None]
         for j in range(int(cnt.max())):
             # Edge j -> j+1, closing back to vertex 0. Past a face's own vertex count the
             # padded vertex equals the last one, so this just repeats the closing edge.
@@ -718,20 +1099,44 @@ def _fit(extent_w, extent_h, size, min_aspect=0.5, max_aspect=1.6, margin=0.06):
     return width, height, scale
 
 
+def _terrain_mesh(args, px_per_stud, crop=None):
+    """Terrain faces for a view (None without --terrain) at the level of detail that
+    suits `px_per_stud` final-image pixels per stud."""
+    field = getattr(args, "terrain_field", None)
+    if field is None or field.empty:
+        return None
+    return field.mesh(field.lod(px_per_stud, args.terrain_step), crop)
+
+
+def _terrain_line(args, mesh):
+    field = getattr(args, "terrain_field", None)
+    if field is None:
+        return []
+    if mesh is None:
+        return ["terrain: empty"]
+    line = (
+        f"terrain: {field.columns} columns ({field.wet_columns} with water), "
+        f"{mesh['step']:g}-stud quads, {len(mesh['poly'])} faces"
+    )
+    return [line]
+
+
 def view_top(scene, args):
     lo, hi = _bounds(scene, args)
     center = (lo + hi) / 2
     center[1] = hi[1] + 10
     width, height, scale = _fit(hi[0] - lo[0], hi[2] - lo[2], args.size)
     cam = Camera.top(center, scale, width, height, args.ss)
-    im = to_image(render(scene, cam, outlines=not args.no_outlines), args.ss)
+    mesh = _terrain_mesh(args, scale)
+    im = to_image(render(with_terrain(scene, mesh), cam, outlines=not args.no_outlines), args.ss)
     box = draw_title(
         im,
         [
             "TOP  (looking down -Y;  +X right, +Z down)",
             f"x {lo[0]:.0f}..{hi[0]:.0f}   z {lo[2]:.0f}..{hi[2]:.0f}   y {lo[1]:.0f}..{hi[1]:.0f}",
             _stats_line(scene),
-        ],
+        ]
+        + _terrain_line(args, mesh),
     )
     draw_top_overlay(im, cam, box)
     if not args.no_labels:
@@ -744,6 +1149,11 @@ def view_orbit(scene, args, azimuth, title):
     center = (lo + hi) / 2
     probe = Camera.orbit(azimuth, args.elevation, center, 1.0, 1, 1, 1)
     pts = scene.vertices_within(lo, hi)  # tight fit around the geometry in the box
+    field = getattr(args, "terrain_field", None)
+    if field is not None and not field.empty and not args.bounds:
+        tp = field.sample_points()
+        tp = tp[np.all((tp >= lo - 1e-3) & (tp <= hi + 1e-3), 1)]
+        pts = np.concatenate([pts, tp]) if len(pts) else tp
     if args.bounds or len(pts) == 0:
         pts = np.array([[x, y, z] for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])])
     rel = pts - center
@@ -752,7 +1162,9 @@ def view_orbit(scene, args, azimuth, title):
     center = center + probe.r * (sx.max() + sx.min()) / 2 + probe.u * (sy.max() + sy.min()) / 2
     width, height, scale = _fit(sx.max() - sx.min(), sy.max() - sy.min(), args.size)
     cam = Camera.orbit(azimuth, args.elevation, center, scale, width, height, args.ss)
-    im = to_image(render(scene, cam, outlines=not args.no_outlines), args.ss)
+    crop = (lo[0], lo[2], hi[0], hi[2]) if args.bounds else None
+    mesh = _terrain_mesh(args, scale, crop)
+    im = to_image(render(with_terrain(scene, mesh), cam, outlines=not args.no_outlines), args.ss)
     draw_axis_gizmo(im, cam)
     if not args.no_labels:
         draw_slot_labels(im, cam, scene)
@@ -760,7 +1172,8 @@ def view_orbit(scene, args, azimuth, title):
     _scale_bar(ImageDraw.Draw(im, "RGBA"), scale, (14, im.size[1] - 20), font)
     draw_title(
         im,
-        [f"{title}  (orthographic, azimuth {azimuth:g} deg, elevation {args.elevation:g} deg)", _stats_line(scene)],
+        [f"{title}  (orthographic, azimuth {azimuth:g} deg, elevation {args.elevation:g} deg)", _stats_line(scene)]
+        + _terrain_line(args, mesh),
     )
     return im
 
@@ -768,16 +1181,20 @@ def view_orbit(scene, args, azimuth, title):
 def view_zoom(scene, args, x, z, radius, azimuth):
     # Keep parts whose XZ footprint is near the zoom disc so unrelated geometry in
     # front of it does not block the view (Baseplate-sized parts are always kept).
+    # Terrain is cropped to the same square around the centre.
     keep_r = radius * args.zoom_cull if args.zoom_cull > 0 else float("inf")
     dx = np.maximum(np.maximum(scene.aabb_min[:, 0] - x, x - scene.aabb_max[:, 0]), 0)
     dz = np.maximum(np.maximum(scene.aabb_min[:, 2] - z, z - scene.aabb_max[:, 2]), 0)
     near = np.hypot(dx, dz) <= keep_r
-    # Vertical centre: halfway between the floor (low percentile of the part tops in
-    # the disc) and the tallest part there, limited so tall things don't push the
-    # floor out of the frame.
+    # Vertical centre: halfway between the floor (low percentile of the part tops and
+    # terrain surface in the disc) and the tallest thing there, limited so tall things
+    # don't push the floor out of the frame.
     inside = near & scene.content & (np.hypot(dx, dz) <= radius)
-    if inside.any():
-        tops = scene.aabb_max[inside, 1]
+    tops = scene.aabb_max[inside, 1]
+    field = getattr(args, "terrain_field", None)
+    if field is not None and not field.empty:
+        tops = np.concatenate([tops, field.surface_near(x, z, radius)])
+    if len(tops):
         floor = float(np.percentile(tops, 10))
         y = (floor + min(float(tops.max()), floor + radius)) / 2
     else:
@@ -787,8 +1204,14 @@ def view_zoom(scene, args, x, z, radius, azimuth):
     width = args.size
     height = int(round(args.size * 0.75))
     scale = width / (2 * radius)
+    crop = None if math.isinf(keep_r) else (x - keep_r, z - keep_r, x + keep_r, z + keep_r)
+    mesh = _terrain_mesh(args, scale, crop)
+    if mesh is not None:
+        face_filter = np.concatenate([face_filter, np.ones(len(mesh["poly"]), bool)])
     cam = Camera.orbit(azimuth, args.elevation, np.array([x, y, z]), scale, width, height, args.ss)
-    im = to_image(render(scene, cam, outlines=not args.no_outlines, face_filter=face_filter), args.ss)
+    im = to_image(
+        render(with_terrain(scene, mesh), cam, outlines=not args.no_outlines, face_filter=face_filter), args.ss
+    )
     draw_axis_gizmo(im, cam)
     if not args.no_labels:
         draw_slot_labels(im, cam, scene)
@@ -798,13 +1221,21 @@ def view_zoom(scene, args, x, z, radius, azimuth):
         [
             f"ZOOM  centre ({x:g}, {y:.1f}, {z:g})  radius {radius:g}  azimuth {azimuth:g} deg",
             f"{int(near.sum())} of {len(scene.parts)} parts shown (cull radius {keep_r:g})",
-        ],
+        ]
+        + _terrain_line(args, mesh),
     )
     return im
 
 
 def _bounds(scene, args):
     lo, hi = scene.frame_box(args.frame)
+    field = getattr(args, "terrain_field", None)
+    if field is not None and not field.empty:
+        tlo, thi = field.bounds()
+        if len(scene.parts) and scene.content.any():
+            lo, hi = np.minimum(lo, tlo), np.maximum(hi, thi)
+        else:  # only Baseplate-sized parts (or none): frame the terrain
+            lo, hi = tlo, thi
     if args.bounds:
         xmin, zmin, xmax, zmax = args.bounds
         lo = np.array([xmin, lo[1], zmin], float)
@@ -838,7 +1269,7 @@ def _parse_bounds(text):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Render preview PNGs from export_parts.luau JSON.")
-    ap.add_argument("parts_json")
+    ap.add_argument("parts_json", help='export_parts.luau JSON, or "-" for none (terrain only)')
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--views", default="top,iso,iso2,zoom", help="comma list of top,iso,iso2,zoom")
     ap.add_argument("--zoom", action="append", type=_parse_zoom, default=[], metavar="X,Z,R[,AZ]",
@@ -853,6 +1284,11 @@ def main(argv=None):
                     help="zoom: hide parts farther than radius*FACTOR from the centre (0 = off)")
     ap.add_argument("--no-outlines", action="store_true")
     ap.add_argument("--no-labels", action="store_true")
+    ap.add_argument("--terrain", metavar="FILE",
+                    help="also draw smooth terrain: heightfield .npz/.json from terrain_export.py, "
+                         "or a raw SmoothGrid .bin from export_terrain.luau")
+    ap.add_argument("--terrain-step", type=float, default=None, metavar="STUDS",
+                    help="terrain quad size (4 = native voxel columns); default: automatic per view")
     # Allow "--zoom -57,-57,30" (argparse would read the value as an option).
     argv = list(sys.argv[1:] if argv is None else argv)
     for i in range(len(argv) - 1):
@@ -860,13 +1296,28 @@ def main(argv=None):
             argv[i : i + 2] = [f"{argv[i]}={argv[i + 1]}", ""]
     args = ap.parse_args([a for a in argv if a != ""])
 
-    with open(args.parts_json, "r", encoding="utf-8") as fh:
-        data = json.load(fh)
+    if args.parts_json == "-":  # terrain only
+        data = {"parts": [], "slots": []}
+    else:
+        with open(args.parts_json, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
     os.makedirs(args.out_dir, exist_ok=True)
 
     t0 = time.time()
     scene = Scene(data)
     print(f"[render] {len(scene.parts)} parts -> {len(scene.count)} faces ({time.time() - t0:.2f}s)")
+    args.terrain_field = None
+    if args.terrain:
+        t = time.time()
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import terrain_export
+
+        args.terrain_field = TerrainField(terrain_export.load_heightfield(args.terrain))
+        f = args.terrain_field
+        print(
+            f"[render] terrain {f.top.shape[1]}x{f.top.shape[0]} columns, {f.columns} solid,"
+            f" {f.wet_columns} with water ({time.time() - t:.2f}s)"
+        )
 
     views = [v.strip() for v in args.views.split(",") if v.strip()]
     for view in views:
@@ -893,7 +1344,7 @@ def main(argv=None):
                     p = scene.slots[0]["cf"]
                     targets = [[p[0], p[2], 40.0]]
                 else:
-                    lo, hi = scene.frame_box(args.frame)
+                    lo, hi = _bounds(scene, args)
                     c = (lo + hi) / 2
                     targets = [[c[0], c[2], max(float((hi - lo)[[0, 2]].max()) / 4, 10.0)]]
             for n, target in enumerate(targets, 1):

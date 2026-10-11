@@ -4,6 +4,9 @@
 //! ```text
 //! terrain_demo <out_dir>          small test scene (320 x 320 studs)
 //! terrain_demo <out_dir> --big    1408 x 1408-stud world (renderer timing)
+//! terrain_demo <out_dir> --random  4000 random voxels: every material, occupancy
+//!                                  and liquid byte, negative chunks (decoder
+//!                                  cross-checks, like upstream's round-trip test)
 //! ```
 //!
 //! Writes `<out_dir>/smoothgrid.bin` and `<out_dir>/physicsgrid.bin`; put
@@ -23,12 +26,18 @@ const VS: f32 = 4.0;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let big = args.iter().any(|a| a == "--big");
+    let has = |flag: &str| args.iter().any(|a| a == flag);
     let Some(out) = args.iter().find(|a| !a.starts_with("--")) else {
-        eprintln!("usage: terrain_demo <out_dir> [--big]");
+        eprintln!("usage: terrain_demo <out_dir> [--big | --random]");
         std::process::exit(2);
     };
-    let grid = if big { big_world() } else { small_scene() };
+    let grid = if has("--big") {
+        big_world()
+    } else if has("--random") {
+        random_grid()
+    } else {
+        small_scene()
+    };
     let smooth = smooth_grid::encode(&grid);
     let physics = physics_grid::encode(&grid);
     std::fs::create_dir_all(out).expect("create output directory");
@@ -52,7 +61,9 @@ fn main() {
 // ---------------------------------------------------------------------------
 
 fn hash(x: i32, z: i32, seed: u32) -> f32 {
-    let mut h = (x as u32).wrapping_mul(0x8da6_b343) ^ (z as u32).wrapping_mul(0xd816_3841) ^ seed.wrapping_mul(0xcb1a_b31f);
+    let mut h = (x as u32).wrapping_mul(0x8da6_b343)
+        ^ (z as u32).wrapping_mul(0xd816_3841)
+        ^ seed.wrapping_mul(0xcb1a_b31f);
     h ^= h >> 13;
     h = h.wrapping_mul(0x5bd1_e995);
     h ^= h >> 15;
@@ -152,7 +163,8 @@ fn small_scene() -> VoxelGrid {
         for vx in -40..40 {
             let (x, z) = (vx as f32 * VS + 2.0, vz as f32 * VS + 2.0);
             let h = height(x, z);
-            let slope = ((height(x + VS, z) - height(x - VS, z)).abs()
+            let slope = ((height(x + VS, z) - height(x - VS, z))
+                .abs()
                 .max((height(x, z + VS) - height(x, z - VS)).abs()))
                 / (2.0 * VS);
             let dp = ((x - pool.0).powi(2) + (z - pool.1).powi(2)).sqrt();
@@ -222,7 +234,10 @@ fn big_world() -> VoxelGrid {
             -6.0 + 12.0 * smoothstep(220.0, 250.0, r) + 8.0 * smoothstep(300.0, 410.0, r) + 3.0 * n
         } else {
             let ridge = 1.0 - fbm(x / 70.0, z / 70.0, 4, 23).abs();
-            14.0 + 150.0 * smoothstep(420.0, 520.0, r) * smoothstep(700.0, 600.0, r) * (0.55 + 0.45 * ridge)
+            14.0 + 150.0
+                * smoothstep(420.0, 520.0, r)
+                * smoothstep(700.0, 600.0, r)
+                * (0.55 + 0.45 * ridge)
                 + 6.0 * n
         };
         // Rivers at 45, 225 and 315 degrees (angle from +Z towards +X).
@@ -243,7 +258,8 @@ fn big_world() -> VoxelGrid {
         for vx in -176..176 {
             let (x, z) = (vx as f32 * VS + 2.0, vz as f32 * VS + 2.0);
             let h = height(x, z);
-            let slope = ((height(x + VS, z) - height(x - VS, z)).abs()
+            let slope = ((height(x + VS, z) - height(x - VS, z))
+                .abs()
                 .max((height(x, z + VS) - height(x, z - VS)).abs()))
                 / (2.0 * VS);
             let speckle = hash(vx, vz, 5);
@@ -272,6 +288,31 @@ fn big_world() -> VoxelGrid {
             };
             fill_column(&mut grid, vx, vz, -8, h, water, &material);
         }
+    }
+    grid
+}
+
+// ---------------------------------------------------------------------------
+// Random voxels (same generator as upstream's `varied_grid_round_trips`).
+// ---------------------------------------------------------------------------
+
+fn random_grid() -> VoxelGrid {
+    let mut grid = VoxelGrid::new();
+    let mut seed = 0x2545_f491u32;
+    for _ in 0..4000 {
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        let voxel = [
+            (seed % 97) as i32 - 48,
+            (seed / 97 % 61) as i32 - 30,
+            (seed / 5917 % 89) as i32 - 44,
+        ];
+        let material = Material::from_slot((seed >> 24) as u8 % 23).unwrap();
+        grid.set(
+            voxel,
+            Cell::new(material, (seed >> 8) as u8, (seed >> 16) as u8),
+        );
     }
     grid
 }

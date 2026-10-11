@@ -87,7 +87,7 @@ local function buildBridges(map: any, cfg: any, gen: any)
 		local halfSpan = math.deg((cfg.RiverWidth / 2 + 12) / roadR)
 		local from = U.polar(centre - halfSpan, roadR, 0)
 		local to = U.polar(centre + halfSpan, roadR, 0)
-		local deck = math.max(gen:surfaceAt(from.X, from.Z), gen:surfaceAt(to.X, to.Z)) + 0.6
+		local deck = math.max((gen:surfaceAt(from.X, from.Z)), (gen:surfaceAt(to.X, to.Z))) + 0.6
 		local bridge = call("bridge", bridges, from, to, { deckY = deck, width = cfg.RoadWidth - 2, bedY = -6 })
 		bridge.Name = `RiverBridge_{i}`
 	end

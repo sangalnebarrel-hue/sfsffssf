@@ -321,17 +321,19 @@ def load_heightfield(path: str) -> dict:
         with open(path, "r", encoding="utf-8") as fh:
             doc = json.load(fh)
 
-        def arr(name):
-            a = np.array(doc[name], dtype=object)
-            return np.where(a == None, np.nan, a).astype(np.float32)  # noqa: E711
+        shape = (doc["size"][1], doc["size"][0])
+
+        def arr(name, dtype=np.float32):
+            a = np.array(doc[name], dtype=object).reshape(shape)
+            return np.where(np.equal(a, None), np.nan, a).astype(dtype)
 
         return {
             "origin": np.array(doc["origin"], float),
             "step": float(doc["step"]),
-            "top": arr("top").reshape(-1, doc["size"][0]),
-            "bottom": arr("bottom").reshape(-1, doc["size"][0]),
-            "water": arr("water").reshape(-1, doc["size"][0]),
-            "material": np.array(doc["material"], np.int16).reshape(-1, doc["size"][0]),
+            "top": arr("top"),
+            "bottom": arr("bottom"),
+            "water": arr("water"),
+            "material": arr("material", np.int16),
             "materials": doc["materials"],
         }
     with open(path, "rb") as fh:
@@ -473,10 +475,9 @@ def main(argv=None):
         ix, iz = int((v[0] * VOXEL - ox) // VOXEL), int((v[2] * VOXEL - oz) // VOXEL)
         if 0 <= iz < hf["top"].shape[0] and 0 <= ix < hf["top"].shape[1]:
             t, w, m = hf["top"][iz, ix], hf["water"][iz, ix], hf["material"][iz, ix]
-            print(
-                f"column: surface y={t:.3f} ({MATERIALS[m] if m >= 0 else 'none'}), "
-                f"water y={w:.3f}" if math.isfinite(t) else f"column: no solid, water y={w:.3f}"
-            )
+            solid = f"surface y={t:.3f} ({MATERIALS[m]})" if math.isfinite(t) else "no solid"
+            wet = f"water surface y={w:.3f}" if math.isfinite(w) else "no water above the surface"
+            print(f"column: {solid}, {wet}")
     if args.out:
         os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
         meta = {"source": os.path.abspath(args.smoothgrid), "bytes": len(data), "chunks": len(chunks)}

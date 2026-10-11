@@ -64,6 +64,8 @@ struct Blobs {
     source: String,
     smooth: Option<Vec<u8>>,
     physics: Option<Vec<u8>>,
+    /// False for `--raw` without a PhysicsGrid file: that check is skipped.
+    physics_expected: bool,
 }
 
 fn main() -> ExitCode {
@@ -161,7 +163,9 @@ fn load(opts: &Options) -> Result<Blobs, String> {
     if opts.raw {
         let files = &opts.positional;
         if files.is_empty() || files.len() > 2 {
-            return Err(format!("--raw takes <smoothgrid.bin> [<physicsgrid.bin>]\n{USAGE}"));
+            return Err(format!(
+                "--raw takes <smoothgrid.bin> [<physicsgrid.bin>]\n{USAGE}"
+            ));
         }
         let read = |path: &str| std::fs::read(path).map_err(|e| format!("cannot read {path}: {e}"));
         let smooth = read(&files[0])?;
@@ -173,6 +177,7 @@ fn load(opts: &Options) -> Result<Blobs, String> {
         return Ok(Blobs {
             source,
             smooth: Some(smooth),
+            physics_expected: physics.is_some(),
             physics,
         });
     }
@@ -183,7 +188,8 @@ fn load(opts: &Options) -> Result<Blobs, String> {
 }
 
 fn load_place(path: &Path) -> Result<Blobs, String> {
-    let file = std::fs::File::open(path).map_err(|e| format!("cannot open {}: {e}", path.display()))?;
+    let file =
+        std::fs::File::open(path).map_err(|e| format!("cannot open {}: {e}", path.display()))?;
     let dom = rbx_binary::from_reader(std::io::BufReader::new(file))
         .map_err(|e| format!("cannot read {} as a binary place: {e}", path.display()))?;
     let root = dom.root();
@@ -207,22 +213,30 @@ fn load_place(path: &Path) -> Result<Blobs, String> {
             Some(Variant::BinaryString(b)) => Ok(Some(AsRef::<[u8]>::as_ref(b).to_vec())),
             Some(Variant::String(s)) => Ok(Some(s.as_bytes().to_vec())),
             Some(Variant::SharedString(s)) => Ok(Some(s.data().to_vec())),
-            Some(other) => Err(format!("Terrain.{name} has unexpected type {:?}", other.ty())),
+            Some(other) => Err(format!(
+                "Terrain.{name} has unexpected type {:?}",
+                other.ty()
+            )),
         }
     };
     Ok(Blobs {
         source: format!("{} (Workspace.Terrain)", path.display()),
         smooth: blob("SmoothGrid")?,
         physics: blob("PhysicsGrid")?,
+        physics_expected: true,
     })
 }
 
 fn dump_inputs(dir: &Path, blobs: &Blobs) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
-    for (name, blob) in [("smoothgrid.bin", &blobs.smooth), ("physicsgrid.bin", &blobs.physics)] {
+    for (name, blob) in [
+        ("smoothgrid.bin", &blobs.smooth),
+        ("physicsgrid.bin", &blobs.physics),
+    ] {
         if let Some(bytes) = blob {
             let path = dir.join(name);
-            std::fs::write(&path, bytes).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+            std::fs::write(&path, bytes)
+                .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
             eprintln!("wrote {} ({} bytes)", path.display(), bytes.len());
         }
     }
@@ -236,7 +250,8 @@ fn emit_canonical(dir: &Path, grid: &VoxelGrid) -> Result<(), String> {
         ("physicsgrid.canonical.bin", physics_grid::encode(grid)),
     ] {
         let path = dir.join(name);
-        std::fs::write(&path, &bytes).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+        std::fs::write(&path, &bytes)
+            .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
         eprintln!("wrote {} ({} bytes)", path.display(), bytes.len());
     }
     Ok(())
@@ -346,7 +361,9 @@ fn digest(grid: &VoxelGrid) -> String {
     let mut hasher = Sha256::new();
     let mut buf = Vec::with_capacity(3 * (CHUNK * CHUNK * CHUNK) as usize);
     for key in grid.chunk_keys() {
-        let Some(cells) = grid.chunk(key) else { continue };
+        let Some(cells) = grid.chunk(key) else {
+            continue;
+        };
         hasher.update(key.x.to_le_bytes());
         hasher.update(key.y.to_le_bytes());
         hasher.update(key.z.to_le_bytes());
@@ -356,13 +373,10 @@ fn digest(grid: &VoxelGrid) -> String {
         }
         hasher.update(&buf);
     }
-    hasher
-        .finalize()
-        .iter()
-        .fold(String::new(), |mut s, b| {
-            let _ = write!(s, "{b:02x}");
-            s
-        })
+    hasher.finalize().iter().fold(String::new(), |mut s, b| {
+        let _ = write!(s, "{b:02x}");
+        s
+    })
 }
 
 fn print_stats(smooth: &[u8], grid: &VoxelGrid) {
@@ -451,7 +465,13 @@ fn print_stats(smooth: &[u8], grid: &VoxelGrid) {
         let lo = v.iter().copied().fold(f64::INFINITY, f64::min);
         let hi = v.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         let mean = v.iter().sum::<f64>() / v.len() as f64;
-        format!("{} columns, y {:.2}..{:.2}, mean {:.2}", v.len(), lo, hi, mean)
+        format!(
+            "{} columns, y {:.2}..{:.2}, mean {:.2}",
+            v.len(),
+            lo,
+            hi,
+            mean
+        )
     };
     println!("solid surface (4x4-stud columns): {}", summary(&tops));
     println!("water surface (4x4-stud columns): {}", summary(&waters));
@@ -475,7 +495,10 @@ fn check(blobs: &Blobs, smooth: &[u8], grid: &VoxelGrid, quiet: bool) -> ExitCod
     // 1. Canonical encoding.
     let encoded = smooth_grid::encode(grid);
     if encoded == smooth {
-        println!("canonical: OK (reference re-encode is byte-identical, {} bytes)", smooth.len());
+        println!(
+            "canonical: OK (reference re-encode is byte-identical, {} bytes)",
+            smooth.len()
+        );
     } else {
         ok = false;
         println!(
@@ -489,6 +512,11 @@ fn check(blobs: &Blobs, smooth: &[u8], grid: &VoxelGrid, quiet: bool) -> ExitCod
     // 2. PhysicsGrid.
     let expected = physics_grid::encode(grid);
     match &blobs.physics {
+        None if !blobs.physics_expected => println!(
+            "PhysicsGrid: not given, skipped (the reference PhysicsGrid would be {} bytes, {} regions)",
+            expected.len(),
+            parse_physics(&expected).map_or(0, |p| p.lists[0].len())
+        ),
         None => {
             ok = false;
             println!(
@@ -527,7 +555,11 @@ fn check(blobs: &Blobs, smooth: &[u8], grid: &VoxelGrid, quiet: bool) -> ExitCod
 }
 
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" ")
+    bytes
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn print_decode_context(bytes: &[u8]) {
@@ -608,7 +640,11 @@ impl<'a> RecordWalker<'a> {
             if usize::from(lead & 0x3f) >= 23 {
                 return Err(format!("material slot {} > 22", lead & 0x3f));
             }
-            let occupancy = if lead & 0x40 != 0 { Some(self.byte()?) } else { None };
+            let occupancy = if lead & 0x40 != 0 {
+                Some(self.byte()?)
+            } else {
+                None
+            };
             let (count, liquid, run) = if lead & 0x80 != 0 {
                 match self.byte()? {
                     0 => (Some(0), Some(self.byte()?), 1),
@@ -676,8 +712,14 @@ fn explain_smooth_diff(input: &[u8], encoded: &[u8], grid: &VoxelGrid) {
         None => println!(),
     }
     let lo = first.saturating_sub(8);
-    println!("  input   [{lo}..]: {}", hex(&input[lo..(first + 16).min(input.len())]));
-    println!("  encoded [{lo}..]: {}", hex(&encoded[lo..(first + 16).min(encoded.len())]));
+    println!(
+        "  input   [{lo}..]: {}",
+        hex(&input[lo..(first + 16).min(input.len())])
+    );
+    println!(
+        "  encoded [{lo}..]: {}",
+        hex(&encoded[lo..(first + 16).min(encoded.len())])
+    );
 
     // Chunk-level comparison.
     let keys_in: Vec<ChunkKey> = index_in.iter().map(|(k, _)| *k).collect();
@@ -685,7 +727,9 @@ fn explain_smooth_diff(input: &[u8], encoded: &[u8], grid: &VoxelGrid) {
     let mut sorted = keys_in.clone();
     sorted.sort();
     if sorted != keys_in {
-        println!("  chunks are not in (x, y, z) order: Roblox writes them sorted by x, then y, then z");
+        println!(
+            "  chunks are not in (x, y, z) order: Roblox writes them sorted by x, then y, then z"
+        );
     }
     let stored: BTreeSet<ChunkKey> = keys_in.iter().copied().collect();
     let kept: BTreeSet<ChunkKey> = keys_out.iter().copied().collect();
@@ -694,7 +738,11 @@ fn explain_smooth_diff(input: &[u8], encoded: &[u8], grid: &VoxelGrid) {
         println!(
             "  {} stored chunk(s) are all Air and must be omitted, e.g. {:?}",
             dropped.len(),
-            dropped.iter().take(4).map(|k| (k.x, k.y, k.z)).collect::<Vec<_>>()
+            dropped
+                .iter()
+                .take(4)
+                .map(|k| (k.x, k.y, k.z))
+                .collect::<Vec<_>>()
         );
     }
     let body_out: HashMap<ChunkKey, &[u8]> = index_out
@@ -715,7 +763,11 @@ fn explain_smooth_diff(input: &[u8], encoded: &[u8], grid: &VoxelGrid) {
         } else {
             format!(
                 ", e.g. {:?}",
-                differing.iter().take(4).map(|k| (k.x, k.y, k.z)).collect::<Vec<_>>()
+                differing
+                    .iter()
+                    .take(4)
+                    .map(|k| (k.x, k.y, k.z))
+                    .collect::<Vec<_>>()
             )
         }
     );
@@ -732,9 +784,12 @@ fn explain_smooth_diff(input: &[u8], encoded: &[u8], grid: &VoxelGrid) {
                 rec.offset,
                 v,
                 v.map(|a| a * 4),
-                hex(&input[rec.offset..rec.offset + 1 + rec.occupancy.is_some() as usize
-                    + rec.count.is_some() as usize
-                    + rec.liquid.is_some() as usize])
+                hex(&input[rec.offset
+                    ..rec.offset
+                        + 1
+                        + rec.occupancy.is_some() as usize
+                        + rec.count.is_some() as usize
+                        + rec.liquid.is_some() as usize])
             );
         }
     };
@@ -752,16 +807,32 @@ fn explain_smooth_diff(input: &[u8], encoded: &[u8], grid: &VoxelGrid) {
         for (i, rec) in records.iter().enumerate() {
             let slot = rec.lead & 0x3f;
             if slot == 0 && rec.occupancy.is_some_and(|o| o != 0) {
-                note("Air record with a nonzero occupancy byte (Air is always 0)", *key, rec);
+                note(
+                    "Air record with a nonzero occupancy byte (Air is always 0)",
+                    *key,
+                    rec,
+                );
             } else if slot != 0 && rec.occupancy == Some(255) {
-                note("occupancy byte 255 written explicitly (omit it: no 0x40 flag means full)", *key, rec);
+                note(
+                    "occupancy byte 255 written explicitly (omit it: no 0x40 flag means full)",
+                    *key,
+                    rec,
+                );
             } else if slot == 0 && rec.occupancy == Some(0) {
-                note("Air record with an explicit occupancy byte 0 (omit the 0x40 flag)", *key, rec);
+                note(
+                    "Air record with an explicit occupancy byte 0 (omit the 0x40 flag)",
+                    *key,
+                    rec,
+                );
             }
             if rec.count == Some(0) {
                 let cell = cell_of(rec);
                 if rec.liquid == Some(0) {
-                    note("count-0 record with liquid byte 0 (write a plain 1-voxel record)", *key, rec);
+                    note(
+                        "count-0 record with liquid byte 0 (write a plain 1-voxel record)",
+                        *key,
+                        rec,
+                    );
                 } else if cell.liquid == 0 {
                     note(
                         "liquid byte on a voxel that cannot hold one (Air, Water or full solid); \
@@ -785,7 +856,9 @@ fn explain_smooth_diff(input: &[u8], encoded: &[u8], grid: &VoxelGrid) {
         }
     }
     if issues.is_empty() {
-        println!("  no record-level problems found (difference is in chunk order/headers or lengths)");
+        println!(
+            "  no record-level problems found (difference is in chunk order/headers or lengths)"
+        );
     } else {
         println!("  non-canonical patterns in the input:");
         for (what, (count, example)) in &issues {
@@ -822,9 +895,10 @@ fn parse_physics(bytes: &[u8]) -> Result<Physics, String> {
         at += 4;
         let mut prev = [0i32; 3];
         for i in 0..count {
-            let rec = bytes
-                .get(at..at + 12)
-                .ok_or(format!("list {} entry {i} of {count} truncated at byte {at}", n + 1))?;
+            let rec = bytes.get(at..at + 12).ok_or(format!(
+                "list {} entry {i} of {count} truncated at byte {at}",
+                n + 1
+            ))?;
             let mut delta = [0u32; 3];
             for b in 0..4 {
                 for axis in 0..3 {
@@ -889,9 +963,17 @@ fn explain_physics_diff(stored: &[u8], expected: &[u8]) {
     println!(
         "  regions (8x8x8 voxels) only in stored: {}{}; missing from stored: {}{}",
         a.difference(&b).count(),
-        if extra.is_empty() { String::new() } else { format!(" e.g. {extra:?}") },
+        if extra.is_empty() {
+            String::new()
+        } else {
+            format!(" e.g. {extra:?}")
+        },
         b.difference(&a).count(),
-        if missing.is_empty() { String::new() } else { format!(" e.g. {missing:?}") }
+        if missing.is_empty() {
+            String::new()
+        } else {
+            format!(" e.g. {missing:?}")
+        }
     );
 }
 
@@ -910,7 +992,12 @@ fn describe(cell: Cell) -> String {
         cell.fraction()
     );
     if cell.liquid != 0 {
-        let _ = write!(s, ", liquid {} ({:.3} water)", cell.liquid, cell.water_fraction());
+        let _ = write!(
+            s,
+            ", liquid {} ({:.3} water)",
+            cell.liquid,
+            cell.water_fraction()
+        );
     }
     s
 }
@@ -939,7 +1026,12 @@ fn sample(blobs: &Blobs, grid: &VoxelGrid, p: [f64; 3]) {
         key.z
     );
     println!("voxel: {}", describe(cell));
-    println!("material={} occupancy={} liquid={}", cell.material.name(), cell.occupancy, cell.liquid);
+    println!(
+        "material={} occupancy={} liquid={}",
+        cell.material.name(),
+        cell.occupancy,
+        cell.liquid
+    );
     // The column through the point.
     let mut col = Column {
         solid_y: i32::MIN,
