@@ -244,7 +244,7 @@ return function(game: any, cfg: any, gen: any)
 	local map = U.new("Model", { Name = "Map" }, workspace)
 
 	buildSlots(map, cfg)
-	local hub = buildHub(map, cfg)
+	local hub = buildHub(map, cfg, gen)
 	buildBridges(map, cfg, gen)
 	buildWaterfalls(map, cfg, gen)
 	local natureCounts = buildNature(map, cfg, gen)

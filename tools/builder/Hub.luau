@@ -2,22 +2,26 @@
 	Hub — the central island village «Рыбацкая гавань» (Workspace.Map.Hub): the social hub
 	where every player buys upgrades and sells fish.
 
-	Usage (from Map.luau):  local hub = buildHub(map, cfg, gen?)
+	Usage (from Map.luau):  local hub = buildHub(map, cfg, gen?, opts?)
 	  parent  Workspace.Map
 	  cfg     MapConfig
 	  gen     optional WorldGen (gen:surfaceAt(x, z)): beach props stand on the real terrain.
 	          Without it the island profile of WorldGen.naturalHeight is reproduced here.
+	  opts    optional { gates = true }: own welcome gates with a «РЫБАЦКАЯ ГАВАНЬ» sign over
+	          the 4 walkways at r = 40 (off by default: Props.bridge already puts a gate there).
 	Returns { model = Model "Hub", partCount = number, expectedAttachments = {...} }.
 
 	Layout (angle θ in degrees, 0 = +Z; θ → (sin θ, 0, cos θ)); the plaza is flat at GroundTop:
-	  * centre      octagonal fountain with a golden fish; HubSpawn on its −Z side, facing +Z
+	  * centre      octagonal fountain with a golden fish; HubSpawn on its −Z side, facing +Z;
+	                benches, lamps and planters on the diagonals
 	  * walkways    along the 4 axes (the bridges land there): nothing within |lateral| < 6
-	                from r = 20 outwards; light paving strips mark them, lamp pairs at r = 41
+	                from r = 20 outwards; paving strips mark them, flower beds line them
 	  * 45°         Shop «МАГАЗИН»: 2-storey timber house, striped awning, fish on the roof
 	  * 135°        Workshop «МАСТЕРСКАЯ»: stone forge with a gear sign on the ridge
 	  * 315°        Fish market «СКУПКА РЫБЫ»: open stall with ice, fish, scales, canopy
 	  * 225°        café terrace + notice board on the plaza, lighthouse on the shore
-	  * beach ring  palms, 2 docks with 3 moored boats, rocks, gulls
+	  * overhead    pennant strings across the 4 walkways between the buildings
+	  * beach ring  palms, 2 docks with 3 moored boats and an angler, rocks, gulls
 	Every building is modelled in a local frame (U.polarCFrame) whose −Z faces the plaza centre,
 	so the customer side of counters is local −Z.
 ]]
@@ -336,6 +340,24 @@ local function planter(parent: any, ground: any, flowers: { any })
 	end
 end
 
+-- Long raised flower bed (cf: ground centre, long side along cf's Z).
+local FLOWER_COLORS = { C.pink, C.yellow, C.purple, C.orange }
+local function flowerBed(parent: any, cf: any, color: any)
+	local m = U.model(parent, "FlowerBed")
+	blk(m, "Box", V(2.4, 1, 7), cf * CFrame.new(0, 0.3, 0), C.woodDark, M.WoodPlanks)
+	blk(m, "Hedge", V(2, 0.8, 6.6), cf * CFrame.new(0, 1, 0), C.leaf, M.Grass)
+	blk(m, "Flowers", V(1.6, 0.5, 5.8), cf * CFrame.new(0, 1.55, 0), color, M.Grass, SMALL)
+end
+
+-- Hanging blade sign sticking out of a facade corner (F local −Z = out of the facade),
+-- readable from both sides (the walkways run past the buildings at 45°).
+local function bladeSign(parent: any, F: any, x: number, y: number, z: number, text: string, board: any, ink: any)
+	blk(parent, "SignBracket", V(0.3, 0.3, 4.6), F * CFrame.new(x, y + 1.35, z - 2.1), C.iron, M.Metal, SMALL)
+	local b = blk(parent, "BladeSign", V(0.3, 2.4, 4.2), F * CFrame.new(x, y, z - 2.4), board, nil, SMALL)
+	signText(b, Enum.NormalId.Left, text, ink, C.navy)
+	signText(b, Enum.NormalId.Right, text, ink, C.navy)
+end
+
 -- Palm: 2 bending trunk segments leaning towards cf's +Z, 5 drooping leaves, coconuts.
 local function palm(parent: any, ground: any, yaw: number, scale: number)
 	local m = U.model(parent, "Palm")
@@ -353,10 +375,10 @@ local function palm(parent: any, ground: any, yaw: number, scale: number)
 	for k = 0, 4 do
 		local leafCF = top
 			* CFrame.Angles(0, rad(k * 72 + 15), 0)
-			* CFrame.Angles(rad(24 + (k % 2) * 8), 0, 0)
-			* CFrame.new(0, 0, 3.6 * s)
+			* CFrame.Angles(rad(27 + (k % 2) * 10), 0, 0)
+			* CFrame.new(0, 0, 3.9 * s)
 			* CFrame.Angles(0, pi, 0)
-		wdg(m, "Leaf", V(2.4 * s, 0.6 * s, 7.6 * s), leafCF, if k % 2 == 0 then C.leaf else C.leafDark, nil, GHOST)
+		wdg(m, "Leaf", V(2.1 * s, 0.55 * s, 8.2 * s), leafCF, if k % 2 == 0 then C.leaf else C.leafDark, nil, GHOST)
 	end
 end
 
@@ -601,6 +623,10 @@ local function buildShop(hub: any, F: any)
 		)
 	end
 
+	for _, sx in { -1, 1 } do
+		bladeSign(m, F, sx * 11.3, 9.8, -7.3, "МАГАЗИН", C.blue, C.yellow)
+	end
+
 	-- Shopkeeper and the goods behind him.
 	villager(m, "Shopkeeper", at(0, 0.2, -4), { shirt = C.orange, pants = C.navy, apron = C.white, hat = C.blue })
 	blk(m, "Shelf", V(14, 0.4, 1.6), at(0, 5.6, 5.2), C.woodDark, M.Wood, SMALL)
@@ -616,7 +642,7 @@ local function buildShop(hub: any, F: any)
 	-- A barrel of fishing rods for sale and crates by the front corners.
 	local rods = at(-11.6, 0, -10)
 	barrel(m, rods)
-	for i, spec in { { C.red, 8, 5, 0.3, 0.3 }, { C.yellow, -7, 6, -0.4, 0.1 }, { C.teal, 3, -9, 0, -0.4 } } do
+	for _, spec in { { C.red, 8, 5, 0.3, 0.3 }, { C.yellow, -7, 6, -0.4, 0.1 }, { C.teal, 3, -9, 0, -0.4 } } do
 		cylUp(
 			m,
 			"Rod",
@@ -630,7 +656,6 @@ local function buildShop(hub: any, F: any)
 			nil,
 			SMALL
 		)
-		local _ = i
 	end
 	crate(m, at(11.7, 0, -9.8) * CFrame.Angles(0, rad(12), 0))
 	crate(m, at(11.7, 2.1, -9.8) * CFrame.Angles(0, rad(-10), 0), 1.7)
@@ -724,8 +749,8 @@ local function buildWorkshop(hub: any, F: any)
 	blk(m, "SignWrenchJaw", V(0.8, 0.9, 0.56), wrenchCF * CFrame.new(0, 4.7, 0), C.navy, nil, SMALL)
 
 	-- Workbench in the bay (stage: the upgrade prompt is created on its attachment).
-	local bench = blk(m, "Workbench", V(11, 0.6, 3.2), at(0, 3, -7.4), C.woodLight, M.WoodPlanks)
-	U.new("Attachment", { Name = "UpgradePromptAttachment", CFrame = CFrame.new(0, 0.5, -2.8) }, bench)
+	local workbench = blk(m, "Workbench", V(11, 0.6, 3.2), at(0, 3, -7.4), C.woodLight, M.WoodPlanks)
+	U.new("Attachment", { Name = "UpgradePromptAttachment", CFrame = CFrame.new(0, 0.5, -2.8) }, workbench)
 	for _, sx in { -1, 1 } do
 		for _, z in { -8.6, -6.2 } do
 			blk(m, "BenchLeg", V(0.7, 2.9, 0.7), at(sx * 4.9, 1.25, z), C.beam, M.Wood, SMALL)
@@ -770,6 +795,10 @@ local function buildWorkshop(hub: any, F: any)
 	pointLight(coals, rgb(255, 140, 60), 12, 1.2)
 	blk(m, "ForgeHood", V(4.4, 1.2, 3.9), at(5.6, 6.8, 4.6), C.iron, M.Metal)
 	blk(m, "ForgeFlue", V(1.6, 2.6, 1.6), at(5.6, 8.6, 4.6), C.iron, M.Metal, SMALL)
+
+	for _, sx in { -1, 1 } do
+		bladeSign(m, F, sx * 10.2, 7.4, -8, "МАСТЕРСКАЯ", C.navy, C.orange)
+	end
 
 	-- The smith behind the bench.
 	villager(m, "Smith", at(0, 0.2, -4.6), { shirt = C.red, pants = C.navy, apron = rgb(126, 84, 52), hat = C.iron })
@@ -827,7 +856,7 @@ local function buildFishMarket(hub: any, F: any)
 	blk(m, "Boardwalk", V(18, 0.3, 3.4), at(0, 0, -7.6), C.wood, M.WoodPlanks, SMALL)
 
 	-- Counter with an ice tray of colourful fish.
-	blk(m, "Counter", V(16.8, 3.4, 2.2), at(0, 1.2, -4.4), C.woodLight, M.WoodPlanks)
+	blk(m, "StallCounter", V(16.8, 3.4, 2.2), at(0, 1.2, -4.4), C.woodLight, M.WoodPlanks)
 	blk(m, "CounterTop", V(17.4, 0.3, 2.6), at(0, 3.05, -4.4), C.woodDark, M.Wood)
 	blk(m, "CounterPanel", V(15.6, 2, 0.25), at(0, 1.5, -5.6), C.blue, nil, SMALL)
 	blk(m, "CounterWave", V(15.6, 0.35, 0.2), at(0, 1.9, -5.78), C.white, nil, SMALL)
@@ -876,7 +905,7 @@ local function buildFishMarket(hub: any, F: any)
 	end
 
 	-- Sign between the front posts with a big orange fish on top.
-	local sign = blk(m, "Sign", V(17.6, 3.2, 0.5), at(0, 11.5, -5), C.teal)
+	local sign = blk(m, "Sign", V(17.6, 3.1, 0.5), at(0, 11.45, -5), C.teal)
 	signText(sign, Enum.NormalId.Front, "СКУПКА РЫБЫ", C.white, C.navy)
 	signText(sign, Enum.NormalId.Back, "СКУПКА РЫБЫ", C.white, C.navy)
 	signFish(m, at(0.3, 14.55, -5), 0.55, { body = C.orange, belly = C.cream, fins = C.yellow })
@@ -968,8 +997,10 @@ local function buildFountain(hub: any, G: number)
 	cylUp(m, "Column", 2.2, 2, O * CFrame.new(0, 4.5, 0), C.stoneLight, M.Slate)
 	cylUp(m, "ColumnCap", 3, 0.5, O * CFrame.new(0, 5.6, 0), C.gold, M.Metal)
 
-	-- Golden fish leaping out of the bowl (head towards +X, tilted 60° up), broadside towards ±Z.
-	local fish = O * CFrame.new(2, 10.2, 0) * CFrame.Angles(0, 0, rad(60))
+	-- Golden fish leaping out of the bowl (head up and out, tilted 60°). Turned 45° so that it
+	-- is seen three-quarter from all four walkways and from the spawn.
+	local Y = O * CFrame.Angles(0, rad(45), 0)
+	local fish = Y * CFrame.new(2, 10.2, 0) * CFrame.Angles(0, 0, rad(60))
 	local body = signFish(m, fish, 1, {
 		body = C.gold,
 		belly = C.goldLight,
@@ -979,15 +1010,11 @@ local function buildFountain(hub: any, G: number)
 	})
 	pointLight(body, C.goldLight, 14, 1.4)
 
-	-- Water jet from the mouth arcing into the pool, with a splash.
-	local mouth = (fish * CFrame.new(6.7, -0.3, 0)).Position
-	local pts = {
-		mouth,
-		mouth + V(0.6, 1.3, 0),
-		mouth + V(1.4, 1.5, 0),
-		mouth + V(2.0, 0.2, 0),
-		V(7.2, G + 1.0, 0),
-	}
+	-- Water jet from the mouth (local (5.6, 15.85) in Y) arcing into the pool, with a splash.
+	local pts = {}
+	for i, q in { { 5.6, 15.85 }, { 6.2, 17.15 }, { 7, 17.35 }, { 7.6, 16.05 }, { 7.2, 1 } } do
+		pts[i] = (Y * CFrame.new(q[1], q[2], 0)).Position
+	end
 	for i = 1, #pts - 1 do
 		beam(m, "WaterJet", pts[i], pts[i + 1], 0.7, rgb(206, 242, 255), nil, with(GHOST, { Transparency = 0.3 }))
 	end
@@ -995,7 +1022,7 @@ local function buildFountain(hub: any, G: number)
 		m,
 		"Splash",
 		V(2.4, 0.6, 2.4),
-		CFrame.new(7.2, G + 1.0, 0),
+		Y * CFrame.new(7.2, 1, 0),
 		C.white,
 		nil,
 		with(GHOST, { Shape = Enum.PartType.Ball, Transparency = 0.3 })
@@ -1149,7 +1176,7 @@ local function angler(parent: any, A: any, waterBelow: number)
 		return blk(m, n, size, A * CFrame.new(x, y, z), color, nil, extra)
 	end
 	p("Thighs", V(2, 1, 2), 0, 0.5, -0.5, C.navy)
-	p("Shins", V(2, 2.2, 1), 0, -0.6, -1, C.navy, SMALL)
+	p("Shins", V(1.9, 2.2, 0.9), 0, -0.6, -1, C.navy, SMALL)
 	local torso = p("Torso", V(2, 2, 1), 0, 2, 0.2, C.green)
 	p("ArmLeft", V(1, 1, 2), -1.5, 2.6, -0.6, C.green, SMALL)
 	p("ArmRight", V(1, 1, 2), 1.5, 2.6, -0.6, C.green, SMALL)
@@ -1199,7 +1226,8 @@ end
 
 --------------------------------------------------------------------------------
 
-return function(parent: any, cfg: any, gen: any?)
+return function(parent: any, cfg: any, gen: any?, opts: { [string]: any }?)
+	local options = opts or {}
 	local startCount = U.partCount
 	local G = cfg.GroundTop
 	local PR, HR = cfg.HubPlazaRadius, cfg.HubRadius
@@ -1265,7 +1293,16 @@ return function(parent: any, cfg: any, gen: any?)
 	------------------------------------------------------------------ street furniture
 	local street = U.model(hub, "Street")
 	for _, a in cfg.BridgeAngles do
-		gateArch(street, a, 40, G)
+		-- The bridges (Props.bridge) already put a gate at the plaza end; ours only on request.
+		if options.gates then
+			gateArch(street, a, 40, G)
+		end
+		-- Flower beds lining the walkway on both sides.
+		local tangent = V(math.cos(rad(a)), 0, -math.sin(rad(a)))
+		for i, sx in { -1, 1 } do
+			local cf = U.polarCFrame(a, 34, G) + tangent * (sx * 8.2)
+			flowerBed(street, cf, FLOWER_COLORS[(a // 90 + i) % #FLOWER_COLORS + 1])
+		end
 	end
 	-- Around the fountain on the diagonals: bench facing the water, lamp and planter at its ends.
 	for k = 0, 3 do
@@ -1294,7 +1331,7 @@ return function(parent: any, cfg: any, gen: any?)
 	signText(boardPart, Enum.NormalId.Front, "НОВОСТИ ГАВАНИ", C.beam, C.cream, { 0.5, 0.12, 0.9, 0.18 })
 	wdg(board, "BoardRoof", V(7.6, 1, 0.9), nb * CFrame.new(0, 7.2, -0.45), C.roofRed)
 	wdg(board, "BoardRoof", V(7.6, 1, 0.9), nb * CFrame.new(0, 7.2, 0.45) * CFrame.Angles(0, pi, 0), C.roofRed)
-	for i, note in
+	for _, note in
 		{ { -1.8, 4.2, 6, C.white }, { 0, 3.6, -4, C.yellow }, { 1.9, 4.3, 8, C.pink }, { 0.2, 5.2, 3, C.ice } }
 	do
 		blk(
@@ -1306,10 +1343,9 @@ return function(parent: any, cfg: any, gen: any?)
 			nil,
 			SMALL
 		)
-		local _ = i
 	end
 	local poleTops = {}
-	for _, a in { 206, 244 } do
+	for _, a in { 203, 244 } do
 		local base = U.polar(a, 27, G)
 		cylUp(cafe, "FestivalPole", 0.6, 16, CFrame.new(base + V(0, 7.8, 0)), C.white, nil, SMALL)
 		ball(cafe, "PoleBall", 1.2, CFrame.new(base + V(0, 16, 0)), C.gold, nil, SMALL)
@@ -1335,7 +1371,7 @@ return function(parent: any, cfg: any, gen: any?)
 	end
 	bunting(flags, p(shopF, -11.3, 17.6, -7.3), p(marketF, 8.8, 12.6, -5), 2.5, 9, 0)
 	bunting(flags, p(shopF, 11.3, 17.6, -7.3), p(workshopF, -10.2, 16.4, -8.2), 2.5, 9, 2)
-	bunting(flags, p(workshopF, 10.2, 16.4, -8.2), poleTops[206], 2.5, 9, 4)
+	bunting(flags, p(workshopF, 10.2, 16.4, -8.2), poleTops[203], 2.5, 9, 4)
 	bunting(flags, poleTops[244], p(marketF, -8.8, 12.6, -5), 2.5, 9, 1)
 
 	------------------------------------------------------------------ beach: palms, rocks
