@@ -86,6 +86,22 @@ local function anyContains(list: { string }, needle: string): boolean
 	return false
 end
 
+-- Boots a sim whose ModuleScript sources are patched before the server starts.
+local function bootPatched(t: any, patches: { { path: string, from: string, to: string } }): any
+	local sim = t.sim({ place = PLACE })
+	for _, patch in patches do
+		local module = sim:Find(patch.path)
+		t.ok(module, `module {patch.path} exists`)
+		local source = module.Source
+		local start = string.find(source, patch.from, 1, true)
+		t.ok(start, `patch anchor found in {patch.path}`)
+		module.Source = string.sub(source, 1, start - 1) .. patch.to .. string.sub(source, start + #patch.from)
+	end
+	sim:StartServer()
+	sim:Advance(0.5)
+	return sim
+end
+
 local tests = {}
 
 tests["server boots: 8 coloured bases placed on their slots, water filled"] = function(t)
@@ -275,9 +291,9 @@ tests["client HUD: badge shows the base, Home button visible and fires the remot
 	sim:Advance(0.5)
 	local hud = p.PlayerGui:FindFirstChild("HUD")
 	t.ok(hud, "HUD copied into PlayerGui")
-	local label = hud.TopLeft.BaseBadge.Label
+	local label = hud.Status.BaseBadge.Label
 	t.eq(label.Text, `{p:GetAttribute("BaseColorName")} база`)
-	t.eq(hud.TopLeft.BaseBadge.Swatch.BackgroundColor3, p:GetAttribute("BaseColor"))
+	t.eq(hud.Status.BaseBadge.Swatch.BackgroundColor3, p:GetAttribute("BaseColor"))
 	local home = hud.RightButtons.HomeButton
 	t.eq(home.Visible, true)
 
@@ -325,6 +341,173 @@ tests["no leaks: connections return to baseline after players leave"] = function
 	end
 	sim:Advance(1)
 	t.eq(sim:CountConnections(), baseline, "server connections back to baseline")
+	sim:AssertNoErrors()
+end
+
+tests["queue is FIFO: a newcomer in the same frame does not overtake a waiting player"] = function(t)
+	-- In Roblox (Deferred events) a join processed in the same cycle as a leave runs BEFORE the
+	-- deferred serveQueue. The sim flushes on RemovePlayer, so widen that window explicitly.
+	local sim = bootPatched(t, {
+		{
+			path = "ServerScriptService.Services.BaseService",
+			from = "task.defer(serveQueue)",
+			to = "task.delay(0.5, serveQueue)",
+		},
+	})
+	local players = {}
+	for id = 1, 8 do
+		players[id] = addPlayer(sim, id)
+	end
+	local waiting = addPlayer(sim, 9)
+	local freed = baseOf(sim, players[4])
+	-- Leave + join without advancing time in between (same frame).
+	sim:RemovePlayer(players[4])
+	local newcomer = sim:AddPlayer({ UserId = 10, Name = "Player10", DisplayName = "Игрок10" })
+	sim:Advance(1)
+	t.eq(baseOf(sim, waiting), freed, "the waiting player got the freed base")
+	t.eq(newcomer:GetAttribute("BaseIndex"), 0, "the newcomer waits")
+	sim:AssertNoErrors()
+end
+
+tests["queue: a dead waiting player's body is not moved; they respawn on the new base"] = function(t)
+	local sim = boot(t)
+	local players = {}
+	for id = 1, 8 do
+		players[id] = addPlayer(sim, id)
+	end
+	local waiting = addPlayer(sim, 9)
+	local corpse = waiting.Character
+	sim:KillCharacter(waiting)
+	sim:Advance(0.2)
+	local corpsePos = corpse.HumanoidRootPart.CFrame.Position
+	local freed = baseOf(sim, players[2])
+	sim:RemovePlayer(players[2])
+	sim:Advance(0.5)
+	t.eq(baseOf(sim, waiting), freed, "got the base while dead")
+	t.near(distance(corpse.HumanoidRootPart.CFrame.Position, corpsePos), 0, 0.01, "corpse not teleported")
+	sim:Advance(BaseConfig.RespawnDelay + 0.5)
+	t.ok(waiting.Character ~= corpse, "respawned")
+	t.near(distance(rootPos(waiting), spawnPos(freed)), 0, 0.01, "respawned on the new base")
+	sim:AssertNoErrors()
+end
+
+tests["debug knob BaseConfig.MaxBases limits the number of bases"] = function(t)
+	local sim = bootPatched(t, {
+		{
+			path = "ReplicatedStorage.Shared.Config.BaseConfig",
+			from = "MaxBases = nil :: number?",
+			to = "MaxBases = 2 :: number?",
+		},
+	})
+	t.eq(#bases(sim):GetChildren(), 2, "only 2 bases")
+	addPlayer(sim, 1)
+	addPlayer(sim, 2)
+	local third = addPlayer(sim, 3)
+	t.eq(third:GetAttribute("BaseIndex"), 0, "third player waits")
+	sim:AssertNoErrors()
+end
+
+tests["spawn: a failed LoadCharacterAsync is retried"] = function(t)
+	local sim = bootPatched(t, {
+		{
+			path = "ServerScriptService.Services.BaseService",
+			from = "player:LoadCharacterAsync()",
+			to = "if (_G.FailLoads or 0) > 0 then _G.FailLoads -= 1; error('test failure') end player:LoadCharacterAsync()",
+		},
+	})
+	sim:Globals("server").FailLoads = 2
+	local p = sim:AddPlayer({ UserId = 1, Name = "Player1", DisplayName = "Игрок1" })
+	sim:Advance(0.5)
+	t.ok(p.Character == nil, "no character after the first failure")
+	sim:Advance(5)
+	t.ok(p.Character ~= nil, "character created after retries")
+	t.near(distance(rootPos(p), spawnPos(baseOf(sim, p))), 0, 0.01, "on its base")
+	t.ok(p.PlayerGui:FindFirstChild("HUD"), "HUD arrived")
+	sim:AssertNoErrors()
+end
+
+tests["spawn: after repeated failures the player is kicked with a message"] = function(t)
+	local sim = bootPatched(t, {
+		{
+			path = "ServerScriptService.Services.BaseService",
+			from = "player:LoadCharacterAsync()",
+			to = "if (_G.FailLoads or 0) > 0 then _G.FailLoads -= 1; error('test failure') end player:LoadCharacterAsync()",
+		},
+	})
+	sim:Globals("server").FailLoads = 100
+	local p = sim:AddPlayer({ UserId = 1, Name = "Player1", DisplayName = "Игрок1" })
+	sim:Advance(15)
+	t.eq(#sim.Kicks, 1, "kicked once")
+	t.eq(p.Parent, nil, "player removed")
+	sim:AssertNoErrors()
+end
+
+tests["spawn: a character loaded outside BaseService still ends up on the base"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	sim:Run(function()
+		p:LoadCharacterAsync()
+	end)
+	sim:Advance(0.5)
+	t.near(distance(rootPos(p), spawnPos(baseOf(sim, p))), 0, 0.01, "placed on own base")
+	sim:AssertNoErrors()
+end
+
+tests["RespawnPlayer API respawns the character on the base"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	local old = p.Character
+	local BaseService = sim:Require(sim:Find("ServerScriptService.Services.BaseService"))
+	sim:Run(function()
+		BaseService:RespawnPlayer(p)
+	end)
+	sim:Advance(0.5)
+	t.ok(p.Character ~= old, "new character")
+	t.near(distance(rootPos(p), spawnPos(baseOf(sim, p))), 0, 0.01, "on own base")
+	sim:AssertNoErrors()
+end
+
+tests["Main: a service whose Init fails is reported and the others still start"] = function(t)
+	local sim = bootPatched(t, {
+		{
+			path = "ServerScriptService.Services.MapService",
+			from = "function MapService:Init()",
+			to = "function MapService:Init()\n\terror('broken map')",
+		},
+	})
+	local p = addPlayer(sim, 1)
+	t.ok(baseOf(sim, p), "BaseService still works")
+	local found = false
+	for _, w in sim.Warnings do
+		local text = if typeof(w) == "table" then tostring(w.message) else tostring(w)
+		if string.find(text, "MapService", 1, true) and string.find(text, "broken map", 1, true) then
+			found = true
+		end
+	end
+	t.ok(found, "failure of MapService reported in Output")
+	sim:AssertNoErrors()
+end
+
+tests["home: the server tolerates network jitter at the end of the cooldown"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	local base = baseOf(sim, p)
+	sim:FireServer(p, "RequestHome")
+	sim:Advance(BaseConfig.HomeCooldown - 0.3)
+	p.Character.HumanoidRootPart.CFrame = roblox.CFrame.new(0, 5, 0)
+	sim:FireServer(p, "RequestHome")
+	sim:Advance(0.1)
+	t.near(distance(rootPos(p), spawnPos(base)), 0, 0.01, "accepted 0.3 s early")
+	sim:AssertNoErrors()
+end
+
+tests["client HUD: right buttons move down on desktop, stay above the jump zone on phones"] = function(t)
+	local sim = boot(t)
+	local phone = sim:AddPlayer({ UserId = 1, Name = "Phone", device = "phone" })
+	local desktop = sim:AddPlayer({ UserId = 2, Name = "Desktop", device = "desktop" })
+	sim:Advance(1)
+	t.near(phone.PlayerGui.HUD.RightButtons.Position.Y.Scale, 0.64, 1e-6, "phone keeps the column above Jump")
+	t.near(desktop.PlayerGui.HUD.RightButtons.Position.Y.Scale, 0.96, 1e-6, "desktop column moved down")
 	sim:AssertNoErrors()
 end
 

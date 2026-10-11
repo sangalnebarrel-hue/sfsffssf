@@ -12,10 +12,34 @@ local Players = {}
 Players.__index = Players
 
 local DEVICES = {
-	desktop = { TouchEnabled = false, KeyboardEnabled = true, MouseEnabled = true, GamepadEnabled = false, viewport = { 1280, 720 } },
-	phone = { TouchEnabled = true, KeyboardEnabled = false, MouseEnabled = false, GamepadEnabled = false, viewport = { 844, 390 } },
-	tablet = { TouchEnabled = true, KeyboardEnabled = false, MouseEnabled = false, GamepadEnabled = false, viewport = { 1024, 768 } },
-	console = { TouchEnabled = false, KeyboardEnabled = false, MouseEnabled = false, GamepadEnabled = true, viewport = { 1920, 1080 } },
+	desktop = {
+		TouchEnabled = false,
+		KeyboardEnabled = true,
+		MouseEnabled = true,
+		GamepadEnabled = false,
+		viewport = { 1280, 720 },
+	},
+	phone = {
+		TouchEnabled = true,
+		KeyboardEnabled = false,
+		MouseEnabled = false,
+		GamepadEnabled = false,
+		viewport = { 844, 390 },
+	},
+	tablet = {
+		TouchEnabled = true,
+		KeyboardEnabled = false,
+		MouseEnabled = false,
+		GamepadEnabled = false,
+		viewport = { 1024, 768 },
+	},
+	console = {
+		TouchEnabled = false,
+		KeyboardEnabled = false,
+		MouseEnabled = false,
+		GamepadEnabled = true,
+		viewport = { 1920, 1080 },
+	},
 }
 Players.DEVICES = DEVICES
 
@@ -155,20 +179,24 @@ function Players:startClient(real)
 			end
 		end
 	end
-	local ps = real:FindFirstChildOfClass("PlayerScripts")
-	local starterPlayer = sim.real:FindFirstChildOfClass("StarterPlayer")
-	local sps = starterPlayer and starterPlayer:FindFirstChildOfClass("StarterPlayerScripts")
-	if ps and sps then
-		for _, c in sps:GetChildren() do
-			local clone = c:Clone()
-			if clone then
-				proxy:setParent(clone, ps)
+	runtime:batch(function()
+		local ps = real:FindFirstChildOfClass("PlayerScripts")
+		local starterPlayer = sim.real:FindFirstChildOfClass("StarterPlayer")
+		local sps = starterPlayer and starterPlayer:FindFirstChildOfClass("StarterPlayerScripts")
+		if ps and sps then
+			for _, c in sps:GetChildren() do
+				local clone = c:Clone()
+				if clone then
+					proxy:setParent(clone, ps)
+				end
 			end
 		end
-	end
+	end)
 	runtime:startClientRunContextScripts(ctx)
 	-- LocalScripts placed into this player's containers before the client started
-	for _, container in { real:FindFirstChildOfClass("PlayerGui"), real:FindFirstChildOfClass("Backpack"), real.Character } do
+	for _, container in
+		{ real:FindFirstChildOfClass("PlayerGui"), real:FindFirstChildOfClass("Backpack"), real.Character }
+	do
 		if container then
 			for _, s in container:GetDescendants() do
 				runtime:maybeRun(s)
@@ -214,7 +242,11 @@ function Players:remove(real)
 end
 
 function Players:kick(real, message)
-	table.insert(self.sim.Kicks, { player = self.sim.proxy:wrap(real), message = message and tostring(message) or "", time = self.sim.sched.clock })
+	table.insert(self.sim.Kicks, {
+		player = self.sim.proxy:wrap(real),
+		message = message and tostring(message) or "",
+		time = self.sim.sched.clock,
+	})
 	self:remove(real)
 end
 
@@ -327,6 +359,14 @@ function Players:loadCharacter(real)
 	if st == nil or st.removed then
 		error("LoadCharacter can only be called when Player is in the world", 0)
 	end
+	local char
+	self.sim.runtime:batch(function()
+		char = self:_spawnCharacter(real, st)
+	end)
+	return char
+end
+
+function Players:_spawnCharacter(real, st)
 	local sim = self.sim
 	local proxy = sim.proxy
 	local old = real.Character
@@ -495,6 +535,16 @@ function Players:humanoidMoveTo(hum, pos, part)
 		error("Humanoid:MoveTo expects a Vector3", 0)
 	end
 	if self.dead[hum] then
+		return
+	end
+	if self.sim.opts.instantMoveTo then
+		local char = hum.Parent
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			local y = hrp.CFrame.Position.Y
+			self.sim.world:setPartCFrame(hrp, CFrame.new(target.X, y, target.Z) * hrp.CFrame.Rotation)
+		end
+		self.sim.proxy:fire(hum, "MoveToFinished", true)
 		return
 	end
 	self.walks[hum] = { target = target, started = self.sim.sched.clock }

@@ -72,6 +72,9 @@ local workspace = game:GetService("Workspace")
 -- Small map (~1k parts): stream everything, so client code never waits for missing parts.
 workspace.StreamingEnabled = false
 
+-- The HUD is laid out for landscape (sizes follow screen height) — like most action games.
+game:GetService("StarterGui").ScreenOrientation = Enum.ScreenOrientation.LandscapeSensor
+
 local players = game:GetService("Players")
 players.CharacterAutoLoads = false -- BaseService spawns characters on their base
 players.RespawnTime = BaseConfig.RespawnDelay
@@ -119,8 +122,9 @@ end
 
 buildGui(game)
 
--- Models without a PrimaryPart get their pivot at the centre of their parts (instead of the
--- world origin), so Studio's move/rotate gizmo appears on the object itself.
+-- Models without a PrimaryPart get their pivot at the centre of their parts, so Studio's
+-- move/rotate gizmo appears on the object itself. Note: the saved property is WorldPivotData
+-- (Model.WorldPivot is a non-serialized alias and would be silently dropped).
 local function centrePivots(root: any)
 	for _, model in root:GetDescendants() do
 		if model:IsA("Model") and not model.PrimaryPart then
@@ -132,7 +136,7 @@ local function centrePivots(root: any)
 				end
 			end
 			if count > 0 then
-				model.WorldPivot = U.CFrame.new(sum / count)
+				model.WorldPivotData = U.CFrame.new(sum / count)
 			end
 		end
 	end
@@ -155,6 +159,72 @@ end
 --------------------------------------------------------------------------------
 
 fs.writeFile(output, roblox.serializePlace(game))
+
+--------------------------------------------------------------------------------
+-- Self-check: re-read the written file and verify things that Lune could silently drop
+-- (non-serialized aliases such as Attachment.Position or Model.WorldPivot) or that the
+-- server code depends on.
+--------------------------------------------------------------------------------
+
+local check = roblox.deserializePlace(fs.readFile(output))
+local problems = {}
+local function expect(cond: boolean, message: string)
+	if not cond then
+		table.insert(problems, message)
+	end
+end
+local function find(root: any, path: { string }): any
+	local current = root
+	for _, name in path do
+		current = current and current:FindFirstChild(name)
+	end
+	return current
+end
+local function expectAttachment(root: any, path: { string }, offset: any)
+	local attachment = find(root, path)
+	expect(attachment ~= nil, `missing {table.concat(path, ".")}`)
+	if attachment then
+		local delta = (attachment.CFrame.Position - offset).Magnitude
+		expect(delta < 1e-3, `{table.concat(path, ".")} offset {attachment.CFrame.Position} ≠ {offset}`)
+	end
+end
+
+local checkTemplate = check:GetService("ServerStorage"):FindFirstChild("BaseTemplate")
+expect(checkTemplate ~= nil and checkTemplate.PrimaryPart ~= nil, "BaseTemplate.PrimaryPart not saved")
+expectAttachment(checkTemplate, { "Flag", "Pole", "SignAttachment" }, U.Vector3.new(0, 9.6, 0))
+expectAttachment(checkTemplate, { "Tank", "Glass", "PromptAttachment" }, U.Vector3.new(0, -1, 3.9))
+expectAttachment(
+	check:GetService("Workspace"),
+	{ "Map", "Hub", "Shop", "Counter", "ShopPromptAttachment" },
+	U.Vector3.new(0, 0.6, 1.4)
+)
+local accents = 0
+for _, d in checkTemplate:GetDescendants() do
+	if d:GetAttribute("Accent") == true then
+		accents += 1
+	end
+end
+expect(accents >= 8, `only {accents} Accent parts in BaseTemplate`)
+local slotsFolder = find(check:GetService("Workspace"), { "Map", "BaseSlots" })
+expect(slotsFolder ~= nil and #slotsFolder:GetChildren() == MapConfig.BaseCount, "BaseSlots count mismatch")
+expect(check:GetService("Players").CharacterAutoLoads == false, "CharacterAutoLoads not saved")
+expect(check:GetService("Workspace").StreamingEnabled == false, "StreamingEnabled not saved")
+local pivotsSaved = 0
+for _, d in find(check:GetService("Workspace"), { "Map" }):GetDescendants() do
+	if d:IsA("Model") and not d.PrimaryPart then
+		local ok, pivot = pcall(function()
+			return d.WorldPivotData
+		end)
+		if ok and pivot and pivot.Position.Magnitude > 0 then
+			pivotsSaved += 1
+		end
+	end
+end
+expect(pivotsSaved > 0, "Model pivots (WorldPivotData) not saved")
+
+if #problems > 0 then
+	error("Self-check of the built place failed:\n  - " .. table.concat(problems, "\n  - "))
+end
 fs.writeFile("sourcemap.json", serde.encode("json", Sourcemap.build(game, mapping), true))
 
 local function countParts(root: any): number
@@ -170,7 +240,7 @@ end
 local mapParts = countParts(mapResult.map)
 local waterParts = countParts(mapResult.map:FindFirstChild("Water"))
 local runtimeParts = mapParts - waterParts + templateResult.partCount * MapConfig.BaseCount
-print(`Built {output} from {input}`)
+print(`Built {output} from {input} (self-check passed)`)
 print(`  map parts: {mapParts} (incl. {waterParts} water volumes removed at runtime)`)
 print(`  base template parts: {templateResult.partCount} × {MapConfig.BaseCount} bases`)
 print(`  ≈ parts at runtime: {runtimeParts}`)

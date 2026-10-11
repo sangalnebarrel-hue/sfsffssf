@@ -131,7 +131,8 @@ return function(M)
 			for i, c in sortedSiblings(parent, grid) do
 				if c == gui then
 					local idx = i - 1
-					return ppos + Vector2.new((idx % perRow) * (cw + px), (idx // perRow) * (ch + py)), Vector2.new(cw, ch)
+					return ppos + Vector2.new((idx % perRow) * (cw + px), (idx // perRow) * (ch + py)),
+						Vector2.new(cw, ch)
 				end
 			end
 		end
@@ -141,9 +142,7 @@ return function(M)
 	absRect = function(sim, gui)
 		local parent = gui.Parent
 		local ppos, psize
-		if parent == nil then
-			ppos, psize = Vector2.zero, viewportOf(sim, gui)
-		elseif parent:IsA("GuiObject") then
+		if parent ~= nil and parent:IsA("GuiObject") then
 			ppos, psize = absRect(sim, parent)
 			if parent:IsA("ScrollingFrame") then
 				local cs = parent.CanvasSize
@@ -160,7 +159,7 @@ return function(M)
 				ppos = ppos + Vector2.new(l, t)
 				psize = psize - Vector2.new(l + r, t + b)
 			end
-		elseif parent:IsA("LayerCollector") then
+		elseif parent ~= nil and parent:IsA("LayerCollector") then
 			ppos, psize = layerRect(sim, parent)
 		else
 			ppos, psize = Vector2.zero, viewportOf(sim, gui)

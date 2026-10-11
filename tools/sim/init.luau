@@ -94,6 +94,7 @@ end
 	opts.remoteLatency seconds of one-way latency for remotes (default 0)
 	opts.strictReplication  error on client writes that would not replicate
 	opts.destroyPlayerOnLeave  Destroy() Player objects on leave (default false)
+	opts.instantMoveTo  Humanoid:MoveTo teleports instead of walking at WalkSpeed
 	opts.verbose      echo logs to stdout (also SIM_VERBOSE=1)
 ]=]
 function Sim.new(opts)
@@ -245,6 +246,7 @@ function Sim:_killContext(ctx)
 	end
 	table.clear(ctx.threads)
 	ctx.renderBinds = {}
+	self.proxy:dropOverlays(ctx)
 	self.remotes:onContextKilled(ctx)
 	self.input.cas[ctx] = nil
 	self.input.focused[ctx] = nil
@@ -392,18 +394,14 @@ function Sim:_clientOwns(ctx, real, what: string): boolean
 	return false
 end
 
--- Records client-side writes that would not replicate to the server.
-function Sim:_checkClientWrite(real, what: string)
-	local ctx = self.sched:context()
-	if ctx.kind ~= "client" or self:_clientOwns(ctx, real, what) then
-		return
-	end
+function Sim:_recordClientWrite(ctx, real, what: string, applied: string)
 	local key = ctx.name .. "|" .. Util.fullName(real) .. "|" .. what
 	local message = string.format(
-		"client %s changed %s.%s on an instance it does not own; this change does not replicate to the server",
+		"client %s changed %s.%s on an instance it does not own; %s",
 		ctx.name,
 		Util.fullName(real),
-		what
+		what,
+		applied
 	)
 	if not self.clientWriteSeen[key] then
 		self.clientWriteSeen[key] = true
@@ -419,6 +417,33 @@ function Sim:_checkClientWrite(real, what: string)
 	if self.opts.strictReplication then
 		error("RbxSim: " .. message, 0)
 	end
+end
+
+-- Returns the client context when the running code is a client writing to an
+-- instance it does not own: such writes stay local to that client (like Roblox,
+-- where they never replicate). Logged in sim.ClientWrites.
+function Sim:_clientLocal(real, what: string)
+	local ctx = self.sched:context()
+	if ctx.kind ~= "client" or self:_clientOwns(ctx, real, what) then
+		return nil
+	end
+	self:_recordClientWrite(ctx, real, what, "the value is kept client-local and does not replicate to the server")
+	return ctx
+end
+
+-- Hierarchy changes / Destroy / Health by a client on server-owned instances are
+-- applied globally (not emulated as local) but still reported.
+function Sim:_checkClientWrite(real, what: string)
+	local ctx = self.sched:context()
+	if ctx.kind ~= "client" or self:_clientOwns(ctx, real, what) then
+		return
+	end
+	self:_recordClientWrite(
+		ctx,
+		real,
+		what,
+		"RbxSim applies it globally, but in Roblox it would not replicate to the server"
+	)
 end
 
 function Sim:_onReparented(real, oldParent, newParent, wasInGame: boolean, isInGame: boolean, getSubtree)
@@ -474,6 +499,9 @@ end
 function Sim:Step(dt: number?)
 	local step = dt or self.frameTime
 	local sched = self.sched
+	if sched.depth > 0 then
+		error("RbxSim: Step/Advance cannot be called from inside a sim thread", 2)
+	end
 	local proxy = self.proxy
 	local rs = self.runServiceReal
 	sched.frame += 1
@@ -561,6 +589,9 @@ end
 -- advancing time until it finishes. Errors are re-raised in the caller.
 function Sim:Run(fn, who, timeout: number?)
 	local ctx = self:_ctxFor(who)
+	if not ctx.alive then
+		error("RbxSim: the " .. ctx.name .. " context is no longer running (player left?)", 2)
+	end
 	local sched = self.sched
 	local done, results = false, nil
 	local co = coroutine.create(function()
@@ -573,10 +604,13 @@ function Sim:Run(fn, who, timeout: number?)
 	sched:resume(co)
 	sched:flush()
 	local limit = sched.clock + (timeout or 30)
-	while not done and sched.clock < limit - 1e-9 do
+	while not done and sched.clock < limit - 1e-9 and coroutine.status(co) ~= "dead" do
 		self:Step()
 	end
 	if not done then
+		if coroutine.status(co) == "dead" then
+			error("RbxSim: sim:Run thread was stopped (its context ended)", 2)
+		end
 		sched:kill(co)
 		error(string.format("RbxSim: sim:Run timed out after %gs", timeout or 30), 2)
 	end
@@ -584,6 +618,16 @@ function Sim:Run(fn, who, timeout: number?)
 		error(results[2], 2)
 	end
 	return table.unpack(results, 2, results.n)
+end
+
+-- The global environment of a context (TweenInfo, RaycastParams, Random, typeof ...).
+function Sim:Env(who)
+	return self:_ctxFor(who).env
+end
+
+-- Roblox-style typeof (proxies -> "Instance", signals -> "RBXScriptSignal", ...).
+function Sim:Typeof(v): string
+	return self.serverCtx.env.typeof(v)
 end
 
 -- The _G table of a context (server by default, or a player's client).
@@ -1177,10 +1221,19 @@ function Sim:ConnectionReport(filter)
 	local groups = {}
 	for conn in self.connections do
 		if f(conn) then
-			local key = conn.signal:describe() .. "|" .. conn.ctx.name .. "|" .. (conn.script and Util.fullName(conn.script) or "-")
+			local key = conn.signal:describe()
+				.. "|"
+				.. conn.ctx.name
+				.. "|"
+				.. (conn.script and Util.fullName(conn.script) or "-")
 			local g = groups[key]
 			if g == nil then
-				g = { signal = conn.signal:describe(), context = conn.ctx.name, script = conn.script and Util.fullName(conn.script) or nil, count = 0 }
+				g = {
+					signal = conn.signal:describe(),
+					context = conn.ctx.name,
+					script = conn.script and Util.fullName(conn.script) or nil,
+					count = 0,
+				}
 				groups[key] = g
 			end
 			g.count += 1

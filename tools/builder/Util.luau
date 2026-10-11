@@ -26,6 +26,10 @@ Util.UDim2 = roblox.UDim2
 Util.Vector2 = roblox.Vector2
 Util.Font = roblox.Font
 
+-- One UI font for the whole game. Must support Cyrillic (all texts are Russian):
+-- FredokaOne/LuckiestGuy do not, Nunito does (rounded, playful, fits the voxel style).
+Util.FONT = roblox.Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.ExtraBold)
+
 -- Generic constructor: Util.new("Part", { Name = "X", Attributes = {...}, Tags = {...} }, parent)
 function Util.new(className: string, props: { [string]: any }?, parent: any?): any
 	local inst = Instance.new(className)
@@ -107,6 +111,36 @@ function Util.part(
 	end
 	Util.partCount += 1
 	return Util.new("Part", props, parent)
+end
+
+-- WedgePart: full bottom and back (+Z) faces, slope from the top-back edge down to the front (-Z).
+function Util.wedge(
+	parent: any,
+	name: string,
+	size: any,
+	cframe: any,
+	color: any,
+	material: any?,
+	extra: { [string]: any }?
+): any
+	local props: { [string]: any } = {
+		Name = name,
+		Size = size,
+		CFrame = cframe,
+		Color = color,
+		Material = material or Enum.Material.SmoothPlastic,
+		Anchored = true,
+		TopSurface = Enum.SurfaceType.Smooth,
+		BottomSurface = Enum.SurfaceType.Smooth,
+		CanTouch = false,
+	}
+	if extra then
+		for key, value in extra do
+			props[key] = value
+		end
+	end
+	Util.partCount += 1
+	return Util.new("WedgePart", props, parent)
 end
 
 -- Invisible, non-colliding, non-queryable marker part.

@@ -210,7 +210,7 @@ local function buildTank(template: any)
 		}
 	)
 	-- Stage 3/4: tank / steal ProximityPrompts live here, on the side facing the pier deck.
-	U.new("Attachment", { Name = "PromptAttachment", Position = Vector3.new(0, -1, 3.9) }, glass)
+	U.new("Attachment", { Name = "PromptAttachment", CFrame = CFrame.new(0, -1, 3.9) }, glass)
 	for _, p in { { -3.5, -3.5 }, { 3.5, -3.5 }, { -3.5, 3.5 }, { 3.5, 3.5 } } do
 		U.part(
 			tank,
@@ -249,7 +249,10 @@ end
 local function buildDogHouse(template: any)
 	local house = U.model(template, "DogHouse")
 	local cx, cz = 11, 12
-	local wallH, wallY = 4.5, 1.75 -- from y = -0.5 (sunk into ground) to 4
+	-- Walls from y = -0.5 (sunk into the ground) up to 4.4, where the roof panels rest.
+	local wallTop = 4.4
+	local wallH = wallTop + 0.5
+	local wallY = wallTop - wallH / 2
 
 	U.part(
 		house,
@@ -294,8 +297,8 @@ local function buildDogHouse(template: any)
 	U.part(
 		house,
 		"Lintel",
-		Vector3.new(2.4, 1.3, 0.6),
-		CFrame.new(cx, 3.35, cz - 2.7),
+		Vector3.new(2.4, wallTop - 2.7, 0.6),
+		CFrame.new(cx, (2.7 + wallTop) / 2, cz - 2.7),
 		C.wood,
 		Enum.Material.WoodPlanks
 	)
@@ -317,6 +320,20 @@ local function buildDogHouse(template: any)
 		nil,
 		ACCENT
 	)
+	-- Triangular gables (front and back) under the roof: two wedges each, tall side at the ridge.
+	local gableH = 1.9
+	for _, z in { cz - 2.7, cz + 2.7 } do
+		for _, side in { -1, 1 } do
+			U.wedge(
+				house,
+				"Gable",
+				Vector3.new(0.6, gableH, 2.7),
+				CFrame.new(cx + side * 1.35, wallTop + gableH / 2, z) * CFrame.Angles(0, math.rad(-90 * side), 0),
+				C.wood,
+				Enum.Material.WoodPlanks
+			)
+		end
+	end
 end
 
 -- Blocky husky sitting in front of the dog house, facing the pier (-Z).
@@ -381,7 +398,7 @@ local function buildFlag(template: any)
 	)
 
 	-- Owner sign above the flag (BaseService writes the owner name / base name).
-	local attachment = U.new("Attachment", { Name = "SignAttachment", Position = Vector3.new(0, 9.6, 0) }, pole)
+	local attachment = U.new("Attachment", { Name = "SignAttachment", CFrame = CFrame.new(0, 9.6, 0) }, pole)
 	local sign = U.new("BillboardGui", {
 		Name = "OwnerSign",
 		Size = UDim2.new(14, 0, 4, 0), -- studs
@@ -389,7 +406,7 @@ local function buildFlag(template: any)
 		MaxDistance = 170,
 		AlwaysOnTop = false,
 	}, attachment)
-	local font = U.Font.fromEnum(Enum.Font.FredokaOne)
+	local font = U.FONT
 	U.new("TextLabel", {
 		Name = "OwnerLabel",
 		Size = UDim2.fromScale(1, 0.58),

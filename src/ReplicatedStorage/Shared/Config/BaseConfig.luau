@@ -37,6 +37,10 @@ local BaseConfig = {
 
 	-- Кулдаун кнопки «Домой» (секунды). Проверяется на сервере.
 	HomeCooldown = 5,
+
+	-- ОТЛАДКА: ограничить число баз. nil — по числу меток Workspace.Map.BaseSlots (8).
+	-- Например, 2 — и очередь ожидания можно проверить в Studio всего с 3 клиентами.
+	MaxBases = nil :: number?,
 }
 
 return BaseConfig

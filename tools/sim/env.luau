@@ -11,6 +11,87 @@ local Env = {}
 local luneTypeof = typeof
 local nativeCoroutine = coroutine
 
+-- Enum wrapper ---------------------------------------------------------------------------
+-- Lune's enum database names a few items differently from Roblox scripts.
+local ENUM_ALIASES = {
+	KeyCode = { Unknown = "None" },
+}
+
+local function makeEnum(sim)
+	local cache = {}
+	local function wrapEnum(enumName: string, real)
+		local w = cache[enumName]
+		if w then
+			return w
+		end
+		w = newproxy(true)
+		local mt = getmetatable(w)
+		local aliases = ENUM_ALIASES[enumName]
+		mt.__index = function(_, key)
+			if key == "GetEnumItems" then
+				return function()
+					return real:GetEnumItems()
+				end
+			elseif key == "FromName" then
+				return function(_, name)
+					local ok, item = pcall(function()
+						return real[name]
+					end)
+					return ok and item or nil
+				end
+			elseif key == "FromValue" then
+				return function(_, value)
+					for _, item in real:GetEnumItems() do
+						if item.Value == value then
+							return item
+						end
+					end
+					return nil
+				end
+			end
+			local ok, item = pcall(function()
+				return real[key]
+			end)
+			if ok then
+				return item
+			end
+			if aliases and aliases[key] then
+				return real[aliases[key]]
+			end
+			error(string.format('%s is not a valid member of "Enum.%s"', tostring(key), enumName), 2)
+		end
+		mt.__tostring = function()
+			return enumName
+		end
+		mt.__metatable = "The metatable is locked"
+		sim.types[w] = "Enum"
+		cache[enumName] = w
+		return w
+	end
+	local root = newproxy(true)
+	local mt = getmetatable(root)
+	mt.__index = function(_, key)
+		if key == "GetEnums" then
+			return function()
+				return roblox.Enum:GetEnums()
+			end
+		end
+		local ok, real = pcall(function()
+			return (roblox.Enum :: any)[key]
+		end)
+		if not ok then
+			error(string.format('%s is not a valid member of "Enums"', tostring(key)), 2)
+		end
+		return wrapEnum(key, real)
+	end
+	mt.__tostring = function()
+		return "Enums"
+	end
+	mt.__metatable = "The metatable is locked"
+	sim.types[root] = "Enums"
+	return root
+end
+
 -- Mock datatypes -------------------------------------------------------------------------
 
 function Env.newTweenInfo(sim, time, style, direction, repeatCount, reverses, delayTime)
@@ -140,7 +221,8 @@ local function makeDateTimeLib(sim)
 		return newDateTime(sim, tonumber(ms) or 0)
 	end
 	function lib.fromUniversalTime(y, mo, d, h, mi, s, ms)
-		local secs = os.time({ year = y or 1970, month = mo or 1, day = d or 1, hour = h or 0, min = mi or 0, sec = s or 0 })
+		local secs =
+			os.time({ year = y or 1970, month = mo or 1, day = d or 1, hour = h or 0, min = mi or 0, sec = s or 0 })
 		-- os.time interprets the table as local time; correct by the UTC offset
 		local utcSelf = os.time(os.date("!*t", secs) :: any)
 		secs = secs + (secs - utcSelf)
@@ -164,44 +246,38 @@ function Env.build(sim, ctx)
 	local sched = sim.sched
 	local proxy = sim.proxy
 
-	local env = {}
-
 	-- standard library
-	for name, value in
-		{
-			assert = assert,
-			error = error,
-			getmetatable = getmetatable,
-			setmetatable = setmetatable,
-			ipairs = ipairs,
-			pairs = pairs,
-			next = next,
-			pcall = pcall,
-			xpcall = xpcall,
-			rawequal = rawequal,
-			rawget = rawget,
-			rawset = rawset,
-			rawlen = rawlen,
-			select = select,
-			tonumber = tonumber,
-			tostring = tostring,
-			type = type,
-			unpack = table.unpack,
-			gcinfo = gcinfo,
-			collectgarbage = collectgarbage,
-			newproxy = newproxy,
-			getfenv = getfenv,
-			setfenv = setfenv,
-			string = string,
-			table = table,
-			utf8 = utf8,
-			bit32 = bit32,
-			buffer = buffer,
-			vector = (vector :: any),
-		}
-	do
-		env[name] = value
-	end
+	local env = table.clone({
+		assert = assert,
+		error = error,
+		getmetatable = getmetatable,
+		setmetatable = setmetatable,
+		ipairs = ipairs,
+		pairs = pairs,
+		next = next,
+		pcall = pcall,
+		xpcall = xpcall,
+		rawequal = rawequal,
+		rawget = rawget,
+		rawset = rawset,
+		rawlen = rawlen,
+		select = select,
+		tonumber = tonumber,
+		tostring = tostring,
+		type = type,
+		unpack = table.unpack,
+		gcinfo = gcinfo,
+		collectgarbage = collectgarbage,
+		newproxy = newproxy,
+		getfenv = getfenv,
+		setfenv = setfenv,
+		string = string,
+		table = table,
+		utf8 = utf8,
+		bit32 = bit32,
+		buffer = buffer,
+		vector = vector :: any,
+	})
 
 	-- deterministic math.random
 	local mathLib = table.clone(math)
@@ -395,13 +471,14 @@ function Env.build(sim, ctx)
 			"PhysicalProperties",
 			"Axes",
 			"Faces",
-			"Enum",
 			"Font",
 			"Content",
 		}
 	do
 		env[name] = (roblox :: any)[name]
 	end
+
+	env.Enum = makeEnum(sim)
 
 	env.Instance = table.freeze({
 		new = function(className, parent)

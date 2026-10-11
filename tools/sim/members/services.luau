@@ -56,7 +56,8 @@ return function(M)
 			if type(name) ~= "string" or type(fn) ~= "function" then
 				error("BindToRenderStep(name, priority, function) expected", 0)
 			end
-			ctx.renderBinds[name] = { priority = tonumber(priority) or 0, fn = fn, script = sim.sched:script(), seq = sim:_nextSeq() }
+			ctx.renderBinds[name] =
+				{ priority = tonumber(priority) or 0, fn = fn, script = sim.sched:script(), seq = sim:_nextSeq() }
 		end),
 		UnbindFromRenderStep = M.method(function(sim, _, name)
 			local ctx = sim.sched:context()
@@ -186,7 +187,10 @@ return function(M)
 				local keys = {}
 				for k in pairs(v) do
 					if type(k) ~= "string" then
-						error("HttpService:JSONEncode: Cannot convert mixed or non-array tables: keys must be strings", 0)
+						error(
+							"HttpService:JSONEncode: Cannot convert mixed or non-array tables: keys must be strings",
+							0
+						)
 					end
 					table.insert(keys, k)
 				end
@@ -232,9 +236,11 @@ return function(M)
 			return v
 		end),
 		UrlEncode = M.method(function(_, _, s)
-			return (string.gsub(tostring(s), "[^%w%-_%.~]", function(c)
-				return string.format("%%%02X", string.byte(c))
-			end))
+			return (
+				string.gsub(tostring(s), "[^%w%-_%.~]", function(c)
+					return string.format("%%%02X", string.byte(c))
+				end)
+			)
 		end),
 		GetAsync = M.method(function()
 			error("Http requests are not enabled. Enable via game settings", 0)
@@ -358,7 +364,10 @@ return function(M)
 			return v ~= false
 		end),
 		SetCore = M.method(function(sim, _, name, value)
-			table.insert(sim.CoreCalls, { name = name, value = value, ctx = sim.sched:context().name, time = sim.sched.clock })
+			table.insert(
+				sim.CoreCalls,
+				{ name = name, value = value, ctx = sim.sched:context().name, time = sim.sched.clock }
+			)
 		end),
 		GetCore = M.method(noop),
 		RegisterSetCore = M.method(noop),

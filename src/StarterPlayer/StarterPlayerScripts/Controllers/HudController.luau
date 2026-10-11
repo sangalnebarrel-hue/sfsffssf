@@ -2,16 +2,19 @@
 --[[
 	HudController — основной интерфейс (Этап 1).
 
-	  • Плашка «Твоя база» (HUD.TopLeft.BaseBadge): цвет и название базы игрока.
+	  • Плашка «Твоя база» (HUD.Status.BaseBadge, вверху по центру): цвет и название базы игрока.
 	    Данные приходят с сервера через атрибуты игрока: BaseIndex, BaseColorName, BaseColor.
 	    BaseIndex = 0 — все базы заняты, игрок ждёт.
 	  • Кнопка «Домой» (HUD.RightButtons.HomeButton): просит сервер телепортировать на базу.
 	    Сервер сам проверяет кулдаун; здесь кулдаун только для красивой анимации кнопки.
+	  • На устройствах без тач-экрана колонка кнопок опускается к правому нижнему углу
+	    (на телефонах низ справа занят кнопкой прыжка).
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local BaseConfig = require(Shared:WaitForChild("Config"):WaitForChild("BaseConfig"))
@@ -23,13 +26,19 @@ local player = Players.LocalPlayer
 local HudController = {}
 
 function HudController:Start(hud: ScreenGui)
-	local badge = hud:WaitForChild("TopLeft"):WaitForChild("BaseBadge")
+	local badge = hud:WaitForChild("Status"):WaitForChild("BaseBadge")
 	local swatch = badge:WaitForChild("Swatch") :: Frame
 	local badgeLabel = badge:WaitForChild("Label") :: TextLabel
 
-	local homeButton = hud:WaitForChild("RightButtons"):WaitForChild("HomeButton") :: GuiButton
+	local rightButtons = hud:WaitForChild("RightButtons") :: Frame
+	local homeButton = rightButtons:WaitForChild("HomeButton") :: GuiButton
 	local cooldownOverlay = homeButton:WaitForChild("Cooldown") :: Frame
 	local requestHome = Net.Event("RequestHome")
+
+	-- Без тач-экрана нет кнопки прыжка — колонку можно опустить ниже.
+	if not UserInputService.TouchEnabled then
+		rightButtons.Position = UDim2.fromScale(0.99, 0.96)
+	end
 
 	-- Плашка базы ------------------------------------------------------------------
 	local function refreshBadge()

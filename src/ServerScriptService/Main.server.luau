@@ -3,8 +3,10 @@
 
 	Загружает сервисы из папки ServerScriptService.Services и запускает их по порядку:
 	  1) у всех вызывается Init() — подготовка мира (карта, базы), без ожидания игроков;
-	  2) у всех вызывается Start() — подписки на события игроков, RemoteEvent'ы, игровые циклы.
-	Ошибка в одном сервисе выводится в Output, но не мешает запуститься остальным.
+	  2) у всех, чей Init прошёл успешно, вызывается Start() — подписки на события игроков,
+	     RemoteEvent'ы, игровые циклы.
+	Если сервис не загрузился или его Init упал — в Output будет ошибка с трассировкой,
+	его Start не вызывается (чтобы он не работал «наполовину»), остальные сервисы запускаются.
 
 	Новый сервис = ModuleScript в папке Services + его имя в списке ORDER.
 ]]
@@ -20,23 +22,34 @@ local ORDER = {
 }
 
 local loaded = {}
+local failed = {}
+
+local function report(name: string, phase: string, err: any)
+	failed[name] = true
+	warn(`[Main] ❌ {name}: {phase} не удался — сервис выключен.\n{err}`)
+end
 
 for _, name in ORDER do
 	local module = Services:FindFirstChild(name)
 	if module and module:IsA("ModuleScript") then
-		loaded[name] = require(module)
+		local ok, result = xpcall(require, debug.traceback, module)
+		if ok then
+			loaded[name] = result
+		else
+			report(name, "require", result)
+		end
 	else
-		warn(`[Main] сервис {name} не найден в ServerScriptService.Services`)
+		report(name, "поиск", "нет ModuleScript в ServerScriptService.Services")
 	end
 end
 
 local function runPhase(phase: string)
 	for _, name in ORDER do
 		local service = loaded[name]
-		if service and type(service[phase]) == "function" then
+		if service and not failed[name] and type(service[phase]) == "function" then
 			local ok, err = xpcall(service[phase], debug.traceback, service)
 			if not ok then
-				warn(`[Main] {name}:{phase}() упал:\n{err}`)
+				report(name, `{phase}()`, err)
 			end
 		end
 	end
@@ -45,4 +58,8 @@ end
 runPhase("Init")
 runPhase("Start")
 
-print("[Main] сервер запущен")
+if next(failed) then
+	warn("[Main] сервер запущен С ОШИБКАМИ — смотри сообщения ❌ выше")
+else
+	print("[Main] сервер запущен")
+end

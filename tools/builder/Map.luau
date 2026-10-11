@@ -37,6 +37,8 @@ local C = {
 }
 
 local LOCKED = { Locked = true }
+-- Flush ground/seabed slabs: locked in Studio and no shadow casting (they never cast a visible shadow).
+local SLAB = { Locked = true, CastShadow = false }
 
 --------------------------------------------------------------------------------
 -- Small reusable props
@@ -240,16 +242,16 @@ local function buildTerrain(map: any, hub: any, cfg: any)
 			waterVolume(lakeWater, size, cf)
 		elseif rect.cls == "grass" then
 			local size, cf = rectBox(cfg, rect, cfg.LakeBottom, cfg.GroundTop)
-			U.part(ground, "Grass", size, cf, C.grass, Enum.Material.Grass, LOCKED)
+			U.part(ground, "Grass", size, cf, C.grass, Enum.Material.Grass, SLAB)
 		elseif rect.cls == "sand" then
 			local size, cf = rectBox(cfg, rect, cfg.LakeBottom, cfg.GroundTop)
-			U.part(ground, "Sand", size, cf, C.sand, Enum.Material.Sand, LOCKED)
+			U.part(ground, "Sand", size, cf, C.sand, Enum.Material.Sand, SLAB)
 		elseif rect.cls == "hubSand" then
 			local size, cf = rectBox(cfg, rect, cfg.LakeBottom, cfg.GroundTop)
-			U.part(island, "Sand", size, cf, C.hubSand, Enum.Material.Sand, LOCKED)
+			U.part(island, "Sand", size, cf, C.hubSand, Enum.Material.Sand, SLAB)
 		elseif rect.cls == "hubGrass" then
 			local size, cf = rectBox(cfg, rect, cfg.LakeBottom, cfg.HubTop)
-			U.part(island, "Grass", size, cf, C.grass, Enum.Material.Grass, LOCKED)
+			U.part(island, "Grass", size, cf, C.grass, Enum.Material.Grass, SLAB)
 		end
 	end
 
@@ -264,7 +266,7 @@ local function buildTerrain(map: any, hub: any, cfg: any)
 		{ Vector3.new(L - h, height, 2 * h), Vector3.new(-(L + h) / 2, yc, 0) },
 	}
 	for _, f in frame do
-		U.part(ground, "Grass", f[1], CFrame.new(f[2]), C.grass, Enum.Material.Grass, LOCKED)
+		U.part(ground, "Grass", f[1], CFrame.new(f[2]), C.grass, Enum.Material.Grass, SLAB)
 	end
 
 	-- Lake bed under every lake cell.
@@ -276,7 +278,7 @@ local function buildTerrain(map: any, hub: any, cfg: any)
 		CFrame.new(0, cfg.LakeBottom - 1, 0),
 		C.seabed,
 		Enum.Material.Sand,
-		LOCKED
+		SLAB
 	)
 
 	-- Ocean around the land (water volumes + floor).
@@ -299,7 +301,7 @@ local function buildTerrain(map: any, hub: any, cfg: any)
 			CFrame.new(p.X, cfg.LakeBottom - 1, p.Z),
 			C.seabed,
 			Enum.Material.Sand,
-			LOCKED
+			SLAB
 		)
 	end
 
@@ -322,7 +324,7 @@ local function buildShop(hub: any, cfg: any)
 		C.wood,
 		Enum.Material.WoodPlanks
 	)
-	U.part(
+	local backWall = U.part(
 		shop,
 		"BackWall",
 		Vector3.new(20, 9, 1),
@@ -330,6 +332,26 @@ local function buildShop(hub: any, cfg: any)
 		C.wood,
 		Enum.Material.WoodPlanks
 	)
+	-- Painted sign on the back, seen by players arriving from the north bridge.
+	local backGui = U.new("SurfaceGui", {
+		Name = "BackSignGui",
+		Face = Enum.NormalId.Front, -- -Z, towards the north bridge
+		SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud,
+		PixelsPerStud = 30,
+		LightInfluence = 0,
+	}, backWall)
+	U.new("TextLabel", {
+		Name = "Title",
+		AnchorPoint = U.Vector2.new(0.5, 0.5),
+		Position = U.UDim2.fromScale(0.5, 0.45),
+		Size = U.UDim2.fromScale(0.8, 0.3),
+		BackgroundTransparency = 1,
+		Text = "⬅ МАГАЗИН ➡",
+		TextScaled = true,
+		FontFace = U.FONT,
+		TextColor3 = rgb(250, 236, 200),
+		TextStrokeTransparency = 0.5,
+	}, backGui)
 	U.part(
 		shop,
 		"WallLeft",
@@ -365,7 +387,8 @@ local function buildShop(hub: any, cfg: any)
 		Enum.Material.SmoothPlastic
 	)
 	-- Stage 5: the shop / sell ProximityPrompts are created on this attachment.
-	U.new("Attachment", { Name = "ShopPromptAttachment", Position = Vector3.new(0, 0.6, 1.4) }, counter)
+	-- Attachments must be placed via CFrame: Lune does not save Attachment.Position.
+	U.new("Attachment", { Name = "ShopPromptAttachment", CFrame = CFrame.new(0, 0.6, 1.4) }, counter)
 
 	-- Striped awning, front edge lower.
 	for i = 0, 5 do
@@ -430,7 +453,7 @@ local function buildShop(hub: any, cfg: any)
 		BackgroundTransparency = 1,
 		Text = "МАГАЗИН",
 		TextScaled = true,
-		FontFace = U.Font.fromEnum(Enum.Font.FredokaOne),
+		FontFace = U.FONT,
 		TextColor3 = C.shopBlue,
 	}, gui)
 
@@ -439,7 +462,7 @@ local function buildShop(hub: any, cfg: any)
 	U.part(
 		shop,
 		"FishTail",
-		Vector3.new(2.6, 2.6, 0.8),
+		Vector3.new(2.6, 2.6, 0.6), -- thinner than the body: no coplanar faces (z-fighting)
 		CFrame.new(-4.4, fy, -11) * CFrame.Angles(0, 0, math.rad(45)),
 		rgb(45, 115, 205)
 	)
@@ -463,8 +486,8 @@ local function buildShop(hub: any, cfg: any)
 		{ CastShadow = false }
 	)
 
-	crate(shop, Vector3.new(11.8, floorTop - 0.6, -12), 15)
-	barrel(shop, Vector3.new(12.2, floorTop - 0.6, -16))
+	crate(shop, Vector3.new(11, floorTop - 0.6, -12.5), 0)
+	barrel(shop, Vector3.new(11, floorTop - 0.6, -16))
 end
 
 local function buildHub(hub: any, cfg: any)
@@ -488,7 +511,11 @@ local function buildHub(hub: any, cfg: any)
 	path("PathEast", 10, 32, -3, 3)
 	path("PathWest", -32, -10, -3, 3)
 	path("PathSouth", -3, 3, 14, 32)
-	path("PathNorth", -3, 3, -32, -21)
+	-- From the north bridge the path goes AROUND the shop (its back wall is blank) to the side arms.
+	path("PathNorth", -3, 3, -32, -26)
+	path("PathBehindShop", -16, 16, -26, -22)
+	path("PathShopWest", -16, -12, -22, -3)
+	path("PathShopEast", 12, 16, -22, -3)
 
 	buildShop(hub, cfg)
 
@@ -532,8 +559,8 @@ local function buildHub(hub: any, cfg: any)
 	local palms = U.model(hub, "Palms")
 	palm(palms, Vector3.new(-20, top, -12), 10)
 	palm(palms, Vector3.new(20, top, -12), 70)
-	palm(palms, Vector3.new(-17, top, 17), 130)
-	palm(palms, Vector3.new(17, top, 17), 200)
+	palm(palms, Vector3.new(-15, top, 17), 130) -- (±15, 17) is still a grass cell (top = HubTop)
+	palm(palms, Vector3.new(15, top, 17), 200)
 
 	-- Fallback spawn: players without a base appear here. Bases use their own SpawnPad.
 	U.new("SpawnLocation", {
@@ -590,7 +617,7 @@ local function buildBridges(map: any, cfg: any)
 				{ CastShadow = false }
 			)
 			for _, z in { z0 + 10, zc, z1 - 10 } do
-				local postH = railTop - cfg.LakeBottom
+				local postH = railTop - 0.4 - cfg.LakeBottom -- ends under the rail: no coplanar tops
 				U.part(
 					bridge,
 					"Post",

@@ -53,7 +53,14 @@ function Input:keysPressed()
 	local out = {}
 	if st then
 		for kc in st.keysDown do
-			table.insert(out, self:makeInputObject({ KeyCode = kc, UserInputType = Enum.UserInputType.Keyboard, UserInputState = Enum.UserInputState.Begin }))
+			table.insert(
+				out,
+				self:makeInputObject({
+					KeyCode = kc,
+					UserInputType = Enum.UserInputType.Keyboard,
+					UserInputState = Enum.UserInputState.Begin,
+				})
+			)
 		end
 	end
 	return out
@@ -62,7 +69,8 @@ end
 -- Builds a (proxied) InputObject from a spec table.
 function Input:makeInputObject(spec)
 	local io = roblox.Instance.new("InputObject")
-	io.KeyCode = spec.KeyCode or Enum.KeyCode.Unknown
+	-- KeyCode.None is Lune's name for Roblox's KeyCode.Unknown (value 0)
+	io.KeyCode = spec.KeyCode or Enum.KeyCode.None
 	io.UserInputType = spec.UserInputType or Enum.UserInputType.None
 	io.UserInputState = spec.UserInputState or Enum.UserInputState.Begin
 	local pos = spec.Position
@@ -185,7 +193,11 @@ function Input:triggerAction(playerReal, name: string, state, io)
 	if b == nil then
 		error("RbxSim: no ContextActionService action named '" .. name .. "' is bound for this player", 3)
 	end
-	io = io or self:makeInputObject({ UserInputType = Enum.UserInputType.Touch, UserInputState = state or Enum.UserInputState.Begin })
+	io = io
+		or self:makeInputObject({
+			UserInputType = Enum.UserInputType.Touch,
+			UserInputState = state or Enum.UserInputState.Begin,
+		})
 	local r = self:_callBinding(ctx, b, state or Enum.UserInputState.Begin, io)
 	self.sim.sched:flush()
 	return r
@@ -228,7 +240,8 @@ end
 function Input:keyEvent(playerReal, keyCode, down: boolean, gameProcessed: boolean?)
 	local ctx, st = self:_ctxOf(playerReal)
 	local state = if down then Enum.UserInputState.Begin else Enum.UserInputState.End
-	local io = self:makeInputObject({ KeyCode = keyCode, UserInputType = Enum.UserInputType.Keyboard, UserInputState = state })
+	local io =
+		self:makeInputObject({ KeyCode = keyCode, UserInputType = Enum.UserInputType.Keyboard, UserInputState = state })
 	local real = self.sim.proxy:toReal(io)
 	local sunk = self:_routeCAS(ctx, real, state)
 	if down then
@@ -251,7 +264,8 @@ end
 
 function Input:tap(playerReal, position, gameProcessed: boolean?)
 	local pos = position or roblox.Vector2.new(100, 100)
-	local spec = { UserInputType = Enum.UserInputType.Touch, Position = pos, UserInputState = Enum.UserInputState.Begin }
+	local spec =
+		{ UserInputType = Enum.UserInputType.Touch, Position = pos, UserInputState = Enum.UserInputState.Begin }
 	local ctx = self:_ctxOf(playerReal)
 	local began = self:makeInputObject(spec)
 	local sunk = self:_routeCAS(ctx, self.sim.proxy:toReal(began), Enum.UserInputState.Begin)

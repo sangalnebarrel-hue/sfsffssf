@@ -40,7 +40,20 @@ function World:setPartCFrame(real, cf, noAssembly: boolean?)
 	end
 	local sim = self.sim
 	local proxy = sim.proxy
-	sim:_checkClientWrite(real, "CFrame")
+	local localCtx = sim:_clientLocal(real, "CFrame")
+	if localCtx then
+		-- a client moving a part it does not own only moves its local copy
+		proxy:setLocal(localCtx, real, "CFrame", cf)
+		local filter = function(c)
+			return c == localCtx
+		end
+		for _, key in MOVE_KEYS do
+			if key ~= "CFrame" and proxy:isWatched(real, key) then
+				proxy:emitChanged(real, key, nil, filter)
+			end
+		end
+		return
+	end
 	local old = real.CFrame
 	real.CFrame = cf
 	if proxy.signals[real] then
@@ -69,6 +82,11 @@ function World:setPartCFrame(real, cf, noAssembly: boolean?)
 			end
 		end
 	end
+end
+
+-- CFrame as seen by the running context (client-local moves included).
+function World:partCFrame(real)
+	return self.sim.proxy:get(real, "CFrame")
 end
 
 -- Returns a list of BaseParts at/under an instance.
@@ -180,6 +198,11 @@ function World:boundingBox(real)
 	return cf, size
 end
 
+-- Parts considered by raycasts/overlaps (Terrain is handled separately).
+function World.isQueryable(d): boolean
+	return d:IsA("BasePart") and d.ClassName ~= "Terrain" and d.CanQuery ~= false
+end
+
 -- Filtering for RaycastParams / OverlapParams mocks.
 local function makeFilter(sim, params)
 	if params == nil then
@@ -282,7 +305,12 @@ function World:terrainVolumes()
 			table.insert(vols, { kind = "ball", center = op.args[1], radius = op.args[2], material = op.args[3] })
 		elseif op.op == "FillCylinder" then
 			local r = op.args[3]
-			table.insert(vols, { kind = "box", cframe = op.args[1], size = Vector3.new(r * 2, op.args[2], r * 2), material = op.args[4] })
+			table.insert(vols, {
+				kind = "box",
+				cframe = op.args[1],
+				size = Vector3.new(r * 2, op.args[2], r * 2),
+				material = op.args[4],
+			})
 		elseif op.op == "FillRegion" then
 			local region = op.args[1]
 			table.insert(vols, { kind = "box", cframe = region.CFrame, size = region.Size, material = op.args[3] })
@@ -303,7 +331,7 @@ function World:defaultRaycast(origin, direction, params)
 	local respectCollide = params ~= nil and params.RespectCanCollide == true
 	local best
 	for _, d in sim.workspaceReal:GetDescendants() do
-		if d:IsA("BasePart") and d.CanQuery ~= false and filter(d) and (not respectCollide or d.CanCollide) then
+		if World.isQueryable(d) and filter(d) and (not respectCollide or d.CanCollide) then
 			local t, n = rayBox(origin, dir, maxDist, d.CFrame, d.Size)
 			if t and (best == nil or t < best.t) then
 				best = { t = t, normal = n, instance = d, material = d.Material }
@@ -371,7 +399,7 @@ local function overlapQuery(self, params, test)
 	local respectCollide = params ~= nil and params.RespectCanCollide == true
 	local out = {}
 	for _, d in sim.workspaceReal:GetDescendants() do
-		if d:IsA("BasePart") and d.CanQuery ~= false and filter(d) and (not respectCollide or d.CanCollide) then
+		if World.isQueryable(d) and filter(d) and (not respectCollide or d.CanCollide) then
 			local lo, hi = aabb(d.CFrame, d.Size)
 			if test(lo, hi, d) then
 				table.insert(out, sim.proxy:wrap(d))
@@ -401,7 +429,13 @@ end
 function World:partsInPart(part, params)
 	local qlo, qhi = aabb(part.CFrame, part.Size)
 	return overlapQuery(self, params, function(lo, hi, d)
-		return d ~= part and lo.X <= qhi.X and hi.X >= qlo.X and lo.Y <= qhi.Y and hi.Y >= qlo.Y and lo.Z <= qhi.Z and hi.Z >= qlo.Z
+		return d ~= part
+			and lo.X <= qhi.X
+			and hi.X >= qlo.X
+			and lo.Y <= qhi.Y
+			and hi.Y >= qlo.Y
+			and lo.Z <= qhi.Z
+			and hi.Z >= qlo.Z
 	end)
 end
 

@@ -60,34 +60,35 @@ return function(M)
 	})
 
 	M.define("BasePart", {
-		CFrame = M.prop(function(_, real)
-			return real.CFrame
+		CFrame = M.prop(function(sim, real)
+			return sim.world:partCFrame(real)
 		end, function(sim, real, v)
 			sim.world:setPartCFrame(real, v)
 		end),
-		Position = M.prop(function(_, real)
-			return real.CFrame.Position
+		Position = M.prop(function(sim, real)
+			return sim.world:partCFrame(real).Position
 		end, function(sim, real, v)
 			expect(v, "Vector3", "Position")
-			sim.world:setPartCFrame(real, CFrame.new(v) * real.CFrame.Rotation)
+			sim.world:setPartCFrame(real, CFrame.new(v) * sim.world:partCFrame(real).Rotation)
 		end),
-		Orientation = M.prop(function(_, real)
-			return World.orientationOf(real.CFrame)
+		Orientation = M.prop(function(sim, real)
+			return World.orientationOf(sim.world:partCFrame(real))
 		end, function(sim, real, v)
 			expect(v, "Vector3", "Orientation")
-			local cf = CFrame.new(real.CFrame.Position)
+			local cf = CFrame.new(sim.world:partCFrame(real).Position)
 				* CFrame.fromOrientation(math.rad(v.X), math.rad(v.Y), math.rad(v.Z))
 			sim.world:setPartCFrame(real, cf)
 		end),
-		Rotation = M.prop(function(_, real)
-			return World.rotationOf(real.CFrame)
+		Rotation = M.prop(function(sim, real)
+			return World.rotationOf(sim.world:partCFrame(real))
 		end, function(sim, real, v)
 			expect(v, "Vector3", "Rotation")
-			local cf = CFrame.new(real.CFrame.Position) * CFrame.Angles(math.rad(v.X), math.rad(v.Y), math.rad(v.Z))
+			local cf = CFrame.new(sim.world:partCFrame(real).Position)
+				* CFrame.Angles(math.rad(v.X), math.rad(v.Y), math.rad(v.Z))
 			sim.world:setPartCFrame(real, cf)
 		end),
-		BrickColor = M.prop(function(_, real)
-			return roblox.BrickColor.new(real.Color)
+		BrickColor = M.prop(function(sim, real)
+			return roblox.BrickColor.new(sim.proxy:get(real, "Color"))
 		end, function(sim, real, v)
 			expect(v, "BrickColor", "BrickColor")
 			sim.proxy:setProperty(real, "Color", v.Color)
@@ -158,7 +159,7 @@ return function(M)
 	M.define("Model", {
 		WorldPivot = M.prop(function(sim, real)
 			return sim.world:getPivot(real)
-		end, function(sim, real, v)
+		end, function(_sim, real, v)
 			expect(v, "CFrame", "WorldPivot")
 			local pp = real.PrimaryPart
 			if pp then

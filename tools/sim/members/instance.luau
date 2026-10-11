@@ -1,5 +1,7 @@
 -- members/instance.luau: members shared by every Instance.
 
+local roblox = require("@lune/roblox")
+
 return function(M)
 	local function nameArg(name, what)
 		if type(name) ~= "string" then
@@ -40,7 +42,17 @@ return function(M)
 			if sim.proxy:isProxy(value) then
 				error("SetAttribute: Instance values are not supported as attributes", 0)
 			end
-			sim:_checkClientWrite(real, "@" .. name)
+			local localCtx = sim:_clientLocal(real, "@" .. name)
+			if localCtx then
+				-- validate through a scratch instance, keep the value client-local
+				local scratch = roblox.Instance.new("Folder")
+				local ok, err = pcall(scratch.SetAttribute, scratch, name, value)
+				if not ok then
+					error(sim.util.cleanError(err), 0)
+				end
+				sim.proxy:setLocal(localCtx, real, "@" .. name, value)
+				return
+			end
 			local old = real:GetAttribute(name)
 			local ok, err = pcall(real.SetAttribute, real, name, value)
 			if not ok then
@@ -52,6 +64,29 @@ return function(M)
 				proxy:fire(real, "attr:" .. name)
 				proxy:fire(real, "AttributeChanged", name)
 			end
+		end),
+
+		GetAttribute = M.method(function(sim, real, name)
+			nameArg(name, "GetAttribute")
+			local found, v = sim.proxy:overlayValue(real, "@" .. name)
+			if found then
+				return v
+			end
+			return real:GetAttribute(name)
+		end),
+
+		GetAttributes = M.method(function(sim, real)
+			local attrs = real:GetAttributes()
+			local ctx = sim.proxy:clientContext()
+			local o = ctx and sim.proxy.overlayCount > 0 and sim.proxy:overlayFor(ctx, real, false)
+			if o then
+				for key, v in o do
+					if string.sub(key, 1, 1) == "@" then
+						attrs[string.sub(key, 2)] = if v == sim.proxy.NIL then nil else v
+					end
+				end
+			end
+			return attrs
 		end),
 
 		Destroy = M.method(function(sim, real)

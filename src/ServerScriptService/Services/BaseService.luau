@@ -7,9 +7,10 @@
 	     Workspace.Map.BaseSlots (8 штук) и красит базу в свой цвет из BaseConfig.Colors.
 	     Красятся детали шаблона с атрибутом Accent = true (флаг, крыша будки, площадка и т.д.).
 	  2. Выдаёт игроку свободную базу при входе и освобождает её при выходе.
-	     Если свободных баз нет — игрок ждёт на хабе и получает первую освободившуюся.
+	     Если свободных баз нет — игрок ждёт на хабе в очереди (первым пришёл — первым получил).
 	  3. Сам спаунит персонажей (Players.CharacterAutoLoads = false): персонаж появляется
 	     на площадке своей базы, после смерти — снова там через BaseConfig.RespawnDelay секунд.
+	     Если создать персонажа не удалось — пробует ещё несколько раз.
 	  4. Обрабатывает кнопку «Домой» (RemoteEvent RequestHome) с серверным кулдауном.
 
 	Состояние для клиентов (атрибуты реплицируются автоматически):
@@ -22,6 +23,7 @@
 	  BaseService:GetBaseFromInstance(instance) -> Base?   -- по любой детали внутри базы
 	  BaseService:GetSpawnCFrame(base) -> CFrame
 	  BaseService:TeleportHome(player) -> boolean
+	  BaseService:RespawnPlayer(player)                     -- пересоздать персонажа (всегда через этот метод!)
 	  BaseService.BaseAssigned  -- Signal (player, base)
 	  BaseService.BaseReleased  -- Signal (player, base)
 ]]
@@ -39,6 +41,13 @@ local Net = require(Shared.Net)
 local Signal = require(Shared.Util.Signal)
 local Trove = require(Shared.Util.Trove)
 local Notify = require(ServerScriptService.Lib.Notify)
+
+-- Сколько раз пробовать создать персонажа, если LoadCharacterAsync упал, и с какой паузой.
+local SPAWN_ATTEMPTS = 5
+local SPAWN_RETRY_DELAY = 2
+-- Сервер прощает чуть-чуть кулдауна «Домой»: из-за задержки сети нажатие сразу после того,
+-- как кнопка снова стала активной у клиента, может прийти на сервер раньше 5 секунд.
+local HOME_COOLDOWN_SLACK = 0.5
 
 export type Base = {
 	Index: number,
@@ -62,8 +71,10 @@ type PlayerState = {
 	Base: Base?,
 	Trove: Trove.Trove, -- соединения, живущие пока игрок в игре
 	CharacterTrove: Trove.Trove, -- соединения текущего персонажа
-	Spawning: boolean,
-	RespawnThread: thread?,
+	Spawning: boolean, -- сейчас идёт LoadCharacterAsync
+	SpawnPending: boolean, -- пока шла загрузка, попросили ещё одно возрождение
+	SpawnFailures: number,
+	RespawnThread: thread?, -- отложенное возрождение / повтор спауна
 }
 
 local BaseService = {
@@ -75,7 +86,7 @@ local bases: { Base } = {}
 local baseByModel: { [Model]: Base } = {}
 local states: { [Player]: PlayerState } = {}
 local waitQueue: { Player } = {} -- игроки без базы, по порядку входа
-local homeCooldown = Cooldown.new(BaseConfig.HomeCooldown)
+local homeCooldown = Cooldown.new(math.max(0, BaseConfig.HomeCooldown - HOME_COOLDOWN_SLACK))
 local rng = Random.new()
 
 --------------------------------------------------------------------------------
@@ -112,6 +123,22 @@ local function getSlots(): { BasePart }
 	table.sort(slots, function(a, b)
 		return (a:GetAttribute("Index") :: number) < (b:GetAttribute("Index") :: number)
 	end)
+
+	-- Отладка очереди: BaseConfig.MaxBases ограничивает число баз.
+	local maxBases = BaseConfig.MaxBases
+	if maxBases and maxBases < #slots then
+		warn(
+			`[BaseService] BaseConfig.MaxBases = {maxBases}: создаётся только {maxBases} баз (режим отладки)`
+		)
+		for _ = maxBases + 1, #slots do
+			table.remove(slots)
+		end
+	end
+	if #slots > #BaseConfig.Colors then
+		warn(
+			`[BaseService] слотов ({#slots}) больше, чем цветов в BaseConfig.Colors ({#BaseConfig.Colors}) — цвета повторятся`
+		)
+	end
 	return slots
 end
 
@@ -178,7 +205,12 @@ function BaseService:GetSpawnCFrame(base: Base): CFrame
 	return pad.CFrame * CFrame.new(0, pad.Size.Y / 2 + BaseConfig.SpawnHeight, 0)
 end
 
--- Ставит персонажа на площадку его базы (если база есть).
+local function isAlive(character: Model): boolean
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	return humanoid ~= nil and humanoid.Health > 0
+end
+
+-- Ставит живого персонажа на площадку его базы (если база есть).
 local function placeCharacter(player: Player, character: Model)
 	local state = states[player]
 	if not state or not state.Base then
@@ -189,6 +221,9 @@ local function placeCharacter(player: Player, character: Model)
 	local base = state.Base
 	if not root or not base or states[player] ~= state or player.Character ~= character or not character.Parent then
 		return
+	end
+	if not isAlive(character) then
+		return -- мёртвое тело не двигаем: новый персонаж появится на базе сам
 	end
 	character:PivotTo(BaseService:GetSpawnCFrame(base))
 end
@@ -212,23 +247,54 @@ end
 -- Создаёт персонажа (Players.CharacterAutoLoads выключен) и ставит его на базу.
 local function spawnCharacter(player: Player)
 	local state = states[player]
-	if not state or state.Spawning or player.Parent ~= Players then
+	if not state or player.Parent ~= Players then
 		return
 	end
+	if state.Spawning then
+		state.SpawnPending = true -- выполним, когда закончится текущая загрузка
+		return
+	end
+
 	state.Spawning = true
+	state.SpawnPending = false
 	-- Ждёт, пока персонаж появится. Без базы он встанет на HubSpawn в центре.
 	local ok, err = loadCharacter(player)
 	state.Spawning = false
+
+	if states[player] ~= state or player.Parent ~= Players then
+		return -- игрок вышел, пока персонаж создавался (ошибка в этом случае ожидаема)
+	end
+
 	if not ok then
-		warn(`[BaseService] LoadCharacter({player.Name}) не удался: {err}`)
+		state.SpawnFailures += 1
+		warn(
+			`[BaseService] LoadCharacter({player.Name}) не удался (попытка {state.SpawnFailures}): {err}`
+		)
+		if state.SpawnFailures >= SPAWN_ATTEMPTS then
+			player:Kick(
+				"Не получилось создать персонажа. Перезайди, пожалуйста."
+			)
+			return
+		end
+		state.RespawnThread = task.delay(SPAWN_RETRY_DELAY, function()
+			state.RespawnThread = nil
+			spawnCharacter(player)
+		end)
 		return
 	end
-	if states[player] ~= state then
-		return -- игрок вышел, пока персонаж создавался
-	end
+	state.SpawnFailures = 0
+
 	local character = player.Character
 	if character then
 		placeCharacter(player, character)
+	end
+
+	-- Во время загрузки кто-то попросил возрождение: нужно, только если новый персонаж уже мёртв.
+	if state.SpawnPending then
+		state.SpawnPending = false
+		if not character or not isAlive(character) then
+			spawnCharacter(player)
+		end
 	end
 end
 
@@ -249,9 +315,18 @@ end
 local function onCharacterAdded(player: Player, state: PlayerState, character: Model)
 	state.CharacterTrove:Clean()
 
-	-- Персонажа создал не spawnCharacter (например, кто-то вызвал LoadCharacter сам) — всё равно ставим на базу.
+	-- Персонажа создал не spawnCharacter (например, кто-то вызвал LoadCharacterAsync сам).
+	-- CharacterAdded приходит ДО того, как движок поставит персонажа на SpawnLocation, поэтому
+	-- ждём, пока он окажется в Workspace, даём движку кадр закончить спаун и только потом переносим.
 	if not state.Spawning then
-		task.defer(placeCharacter, player, character)
+		state.CharacterTrove:Add(task.spawn(function()
+			local deadline = os.clock() + 10
+			while not character:IsDescendantOf(Workspace) and os.clock() < deadline do
+				task.wait(0.1)
+			end
+			task.wait()
+			placeCharacter(player, character)
+		end))
 	end
 
 	local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", 10)
@@ -301,7 +376,7 @@ local function assignBase(player: Player, state: PlayerState, base: Base)
 	BaseService.BaseAssigned:Fire(player, base)
 end
 
--- Раздаёт освободившиеся базы игрокам из очереди.
+-- Раздаёт свободные базы игрокам из очереди (по порядку входа).
 local function serveQueue()
 	while #waitQueue > 0 do
 		local base = pickFreeBase()
@@ -341,6 +416,7 @@ local function releaseBase(player: Player, state: PlayerState)
 
 	BaseService.BaseReleased:Fire(player, base)
 	-- Отдаём базу ждущему игроку чуть позже, чтобы обработчики BaseReleased успели прибраться.
+	-- Новые игроки в это время не обгонят очередь (см. onPlayerAdded).
 	task.defer(serveQueue)
 end
 
@@ -354,6 +430,8 @@ local function onPlayerAdded(player: Player)
 		Trove = Trove.new(),
 		CharacterTrove = Trove.new(),
 		Spawning = false,
+		SpawnPending = false,
+		SpawnFailures = 0,
 		RespawnThread = nil,
 	}
 	states[player] = state
@@ -366,18 +444,18 @@ local function onPlayerAdded(player: Player)
 		state.CharacterTrove:Clean()
 	end)
 
-	local base = pickFreeBase()
+	-- Свободную базу берём, только если никто не ждёт в очереди — иначе встаём в конец.
+	local base = if #waitQueue == 0 then pickFreeBase() else nil
 	if base then
 		assignBase(player, state, base)
 		Notify.Send(player, `Твоя база — {base.ColorName}!`, "success")
 	else
 		player:SetAttribute("BaseIndex", 0)
 		table.insert(waitQueue, player)
-		Notify.Send(
-			player,
-			"Все базы заняты. Как только одна освободится — она твоя!",
-			"warning"
-		)
+		serveQueue() -- если база уже освободилась, но ещё не роздана, раздадим по очереди
+		if not state.Base then
+			Notify.Send(player, "Все базы заняты — ждём свободную", "warning")
+		end
 	end
 
 	spawnCharacter(player)
@@ -431,6 +509,12 @@ function BaseService:GetBaseFromInstance(instance: Instance): Base?
 		current = current.Parent
 	end
 	return nil
+end
+
+-- Пересоздать персонажа игрока (появится на своей базе). Другие сервисы должны
+-- пользоваться этим методом, а не вызывать LoadCharacterAsync напрямую.
+function BaseService:RespawnPlayer(player: Player)
+	task.spawn(spawnCharacter, player)
 end
 
 -- Телепортирует живого персонажа на площадку его базы.
@@ -487,6 +571,7 @@ function BaseService:Start()
 		task.spawn(onPlayerAdded, player)
 	end
 
+	-- Аргументы от клиента не нужны и игнорируются.
 	Net.Event("RequestHome").OnServerEvent:Connect(function(player: Player)
 		if not states[player] or not homeCooldown:TryUse(player) then
 			return

@@ -60,7 +60,7 @@ function Misc:playTrack(track, speed)
 	st.started = sim.sched.clock
 	st.token += 1
 	local token = st.token
-	local looped = track.Looped
+	local looped = sim.proxy:read(track, "Looped")
 	if not looped and st.length > 0 then
 		sim.sched:after(st.length / math.max(st.speed, 1e-3), function()
 			if st.token == token and st.playing then
@@ -105,19 +105,22 @@ end
 
 function Misc:playSound(sound, resume: boolean?)
 	local sim = self.sim
+	local proxy = sim.proxy
 	local st = self:soundState(sound)
 	st.playing = true
 	st.paused = false
 	st.token += 1
 	local token = st.token
-	sim.proxy:fire(sound, if resume then "Resumed" else "Played", sound.SoundId)
+	local soundId = proxy:read(sound, "SoundId")
+	proxy:fire(sound, if resume then "Resumed" else "Played", soundId)
 	local len = sound:GetAttribute("SimTimeLength")
 	len = type(len) == "number" and len or 1
-	if not sound.Looped then
-		sim.sched:after(len / math.max(sound.PlaybackSpeed, 1e-3), function()
+	if not proxy:read(sound, "Looped") then
+		local speed = tonumber(proxy:read(sound, "PlaybackSpeed")) or 1
+		sim.sched:after(len / math.max(speed, 1e-3), function()
 			if st.token == token and st.playing then
 				st.playing = false
-				sim.proxy:fire(sound, "Ended", sound.SoundId)
+				proxy:fire(sound, "Ended", soundId)
 			end
 		end)
 	end
@@ -129,7 +132,7 @@ function Misc:stopSound(sound, how: string)
 		st.playing = false
 		st.paused = how == "Paused"
 		st.token += 1
-		self.sim.proxy:fire(sound, how, sound.SoundId)
+		self.sim.proxy:fire(sound, how, self.sim.proxy:read(sound, "SoundId"))
 	end
 end
 

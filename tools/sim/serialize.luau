@@ -33,13 +33,25 @@ local function copyRemote(sim, v, dir, path, seen, target)
 				local owner = sim.players:ownerOf(real)
 				local visible = target and owner == target.player and not proxy:isServerOnly(real)
 				if not visible then
-					sim:_note(string.format("remote %s: instance %s is not replicated to the client and arrives as nil", path, Util.fullName(real)))
+					sim:_note(
+						string.format(
+							"remote %s: instance %s is not replicated to the client and arrives as nil",
+							path,
+							Util.fullName(real)
+						)
+					)
 					return nil
 				end
 			end
 		elseif dir == "toServer" then
 			if sim:_createdByClient(real) then
-				sim:_note(string.format("remote %s: client-created instance %s does not exist on the server and arrives as nil", path, Util.fullName(real)))
+				sim:_note(
+					string.format(
+						"remote %s: client-created instance %s does not exist on the server and arrives as nil",
+						path,
+						Util.fullName(real)
+					)
+				)
 				return nil
 			end
 		end
@@ -99,7 +111,12 @@ local function copyRemote(sim, v, dir, path, seen, target)
 					key = tostring(k)
 					sim:_warn(
 						nil,
-						string.format("[RbxSim] remote %s: non-string key %s converted to string \"%s\"", path, tostring(k), key)
+						string.format(
+							'[RbxSim] remote %s: non-string key %s converted to string "%s"',
+							path,
+							tostring(k),
+							key
+						)
 					)
 				end
 				out[key] = copyRemote(sim, x, dir, path .. "." .. tostring(k), seen, target)
@@ -174,7 +191,14 @@ local function validateStore(v, path, seen)
 	if tv == "userdata" and t == "userdata" then
 		t = "Instance"
 	end
-	error(string.format("104: Cannot store %s in data store. Data stores can only accept valid UTF-8 characters. (%s)", t, path), 0)
+	error(
+		string.format(
+			"104: Cannot store %s in data store. Data stores can only accept valid UTF-8 characters. (%s)",
+			t,
+			path
+		),
+		0
+	)
 end
 
 function Serialize.validateStoreValue(v)

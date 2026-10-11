@@ -163,6 +163,12 @@ function Members:defaultValue(className: string, prop: string)
 			end)
 			if ok and items[1] then
 				value = items[1]
+				for _, item in items do
+					if item.Value == 0 then
+						value = item
+						break
+					end
+				end
 			end
 		end
 	end

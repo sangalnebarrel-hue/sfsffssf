@@ -158,7 +158,14 @@ function Tween:create(target, info, goals)
 		end
 		local tc, tg = typeof(cur), typeof(goal)
 		if not TWEENABLE[tc] then
-			error(string.format("TweenService:Create property named '%s' on object '%s' is not a data type that can be tweened", k, real.Name), 0)
+			error(
+				string.format(
+					"TweenService:Create property named '%s' on object '%s' is not a data type that can be tweened",
+					k,
+					real.Name
+				),
+				0
+			)
 		end
 		if tc ~= tg then
 			error(
@@ -177,6 +184,7 @@ function Tween:create(target, info, goals)
 	tw.Name = "Tween"
 	self.state[tw] = {
 		target = real,
+		ctx = sim.sched:context(), -- writes happen in the creating context
 		info = info,
 		goals = props,
 		playback = Enum.PlaybackState.Begin,
@@ -231,9 +239,12 @@ function Tween:play(tw)
 		st.cycle = 0
 		st.reversing = false
 		st.starts = {}
+		local prevCtx = sim.sched.currentCtx
+		sim.sched.currentCtx = st.ctx
 		for k in st.goals do
 			st.starts[k] = sim.proxy:read(st.target, k)
 		end
+		sim.sched.currentCtx = prevCtx
 	end
 	local owned = self.owner[st.target]
 	if owned == nil then
@@ -284,12 +295,16 @@ end
 function Tween:_apply(st, alpha)
 	local eased = Tween.ease(if st.reversing then 1 - alpha else alpha, st.info.EasingStyle, st.info.EasingDirection)
 	local proxy = self.sim.proxy
+	local sched = self.sim.sched
+	local prevCtx = sched.currentCtx
+	sched.currentCtx = st.ctx
 	for k, goal in st.goals do
 		local ok, err = pcall(proxy.assign, proxy, st.target, k, lerp(st.starts[k], goal, eased))
 		if not ok then
-			self.sim:_warn(nil, "[RbxSim] tween failed to set " .. k .. ": " .. tostring(err))
+			self.sim:_warn(st.ctx, "[RbxSim] tween failed to set " .. k .. ": " .. tostring(err))
 		end
 	end
+	sched.currentCtx = prevCtx
 end
 
 function Tween:_finished(st, status)
@@ -323,7 +338,8 @@ function Tween:legacy(real, goals, dir, style, time, override, callback)
 			self:cancel(current)
 		end
 	end
-	local info = sim.env.newTweenInfo(sim, tonumber(time) or 1, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out)
+	local info =
+		sim.env.newTweenInfo(sim, tonumber(time) or 1, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out)
 	local twProxy = self:create(real, info, goals)
 	local tw = sim.proxy:toReal(twProxy)
 	if type(callback) == "function" then
@@ -347,7 +363,7 @@ function Tween:update(dt: number)
 			if i then
 				table.remove(self.active, i)
 			end
-		elseif proxy:isDestroyed(st.target) then
+		elseif proxy:isDestroyed(st.target) or not st.ctx.alive then
 			self:_release(tw, st)
 			self:_setPlayback(tw, st, Enum.PlaybackState.Cancelled)
 		else

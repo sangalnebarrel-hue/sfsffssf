@@ -301,7 +301,11 @@ tests["remote serialization rules"] = function(t)
 	local p = sim:AddPlayer()
 	sim:Advance(0.2)
 	local part = sim:Create("Part", { Name = "Ref" }, sim.workspace)
-	local withMeta = setmetatable({ k = 1 }, { __index = function() return "meta" end })
+	local withMeta = setmetatable({ k = 1 }, {
+		__index = function()
+			return "meta"
+		end,
+	})
 	sim:FireServer(p, "R", { 1, 2, 3 }, { 1, 2, x = 3 }, { [10] = "a" }, part, withMeta, nil, "tail")
 	sim:Advance(0.1)
 	local got = sim:Globals().received[1]
@@ -644,37 +648,84 @@ tests["instance semantics: Destroy, hierarchy events, circular parent, client vi
 	sim:AssertNoErrors()
 end
 
-tests["client writes to server-owned state are reported"] = function(t)
+tests["client writes to server-owned state stay client-local and are reported"] = function(t)
 	local sim = build(t, {
+		{
+			"ServerScriptService",
+			"Script",
+			"Watch",
+			[[
+			_G.serverSawChange = false
+			workspace:WaitForChild("Baseplate"):GetPropertyChangedSignal("Color"):Connect(function()
+				_G.serverSawChange = true
+			end)
+		]],
+		},
 		{
 			"StarterPlayer.StarterPlayerScripts",
 			"LocalScript",
 			"Cheat",
 			[[
 			local lp = game.Players.LocalPlayer
+			if lp.Name ~= "Mallory" then return end
+			local plate = workspace.Baseplate
+			plate:GetPropertyChangedSignal("Color"):Connect(function() _G.localChange = true end)
 			lp:SetAttribute("Money", 999999)
-			workspace.Baseplate.Color = Color3.new(1, 0, 0)
+			plate.Color = Color3.new(1, 0, 0)
+			plate.Position = Vector3.new(0, 100, 0)
 			local mine = Instance.new("Part")
 			mine.Parent = workspace
 			mine.Color = Color3.new(0, 1, 0)
 			workspace.CurrentCamera.FieldOfView = 50
+			_G.seen = { lp:GetAttribute("Money"), plate.Color, plate.Position.Y, lp:GetAttributes().Money }
+		]],
+		},
+		{
+			"StarterPlayer.StarterPlayerScripts",
+			"LocalScript",
+			"Observer",
+			[[
+			if game.Players.LocalPlayer.Name ~= "Bob" then return end
+			task.wait(0.1)
+			_G.otherSees = { workspace.Baseplate.Color, game.Players.Mallory:GetAttribute("Money") }
 		]],
 		},
 	})
-	sim:Create("Part", { Name = "Baseplate" }, sim.workspace)
+	local plate = sim:Create("Part", { Name = "Baseplate", Color = roblox.Color3.new(0.5, 0.5, 0.5) }, sim.workspace)
 	sim:StartServer()
-	sim:AddPlayer({ Name = "Mallory" })
-	sim:Advance(0.2)
+	local mallory = sim:AddPlayer({ Name = "Mallory" })
+	sim:AddPlayer({ Name = "Bob" })
+	mallory:SetAttribute("Money", 10)
+	sim:Advance(0.3)
+	local seen = sim:Globals(mallory).seen
+	t.eq(seen[1], 999999, "the client sees its own write")
+	t.eq(seen[2], roblox.Color3.new(1, 0, 0))
+	t.eq(seen[3], 100)
+	t.eq(seen[4], 999999)
+	t.eq(sim:Globals(mallory).localChange, true, "local change events fire on that client")
+	t.eq(mallory:GetAttribute("Money"), 10, "the server never sees it")
+	t.eq(plate.Color, roblox.Color3.new(0.5, 0.5, 0.5))
+	t.eq(plate.Position.Y, 0)
+	t.eq(sim:Globals().serverSawChange, false)
+	local other = sim:Find("Players.Bob")
+	t.eq(sim:Globals(other).otherSees, { roblox.Color3.new(0.5, 0.5, 0.5), 10 }, "other clients do not see it")
 	local props = {}
 	for _, w in sim.ClientWrites do
 		props[w.property] = w.context
 	end
 	t.eq(props["@Money"], "client:Mallory")
 	t.eq(props.Color, "client:Mallory")
+	t.eq(props.CFrame, "client:Mallory")
 	t.eq(props.FieldOfView, nil, "camera is client-owned")
-	t.eq(#sim.ClientWrites, 2)
+	t.eq(#sim.ClientWrites, 3)
+	sim:AssertNoErrors()
 	local strict = build(t, {
-		{ "StarterPlayer.StarterPlayerScripts", "LocalScript", "Cheat", "game.Players.LocalPlayer:SetAttribute('Money', 1)" },
+		{
+			"StarterPlayer.StarterPlayerScripts",
+			"LocalScript",
+			"Cheat",
+			"game.Players.LocalPlayer:SetAttribute('Money', 1)",
+		},
 	}, { strictReplication = true })
 	strict:StartServer()
 	strict:AddPlayer()
@@ -720,10 +771,6 @@ tests["deterministic Random, math.random and HttpService"] = function(t)
 	t.eq(a.decoded, { n = { 1, 2, 3 }, s = "y" })
 	t.eq(a.empty, "[]")
 	local r = run(1)
-	local values = {}
-	for _ = 1, 3 do
-		table.insert(values, r.values[1])
-	end
 	t.ok(r.values[2] >= 0 and r.values[2] < 1)
 	t.ok(r.values[3] >= 1 and r.values[3] <= 6)
 end

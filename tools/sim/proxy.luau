@@ -74,6 +74,10 @@ function Proxy.new(sim)
 	self.createdBy = setmetatable({}, { __mode = "k" }) -- raw -> client ctx that created it
 	-- >0 while destroying: queued handlers still run although Destroy disconnects them
 	self.forceDepth = 0
+	-- client-local values: writes by a client to instances it does not own stay
+	-- visible to that client only (ctx -> { [raw] = { [key] = value } })
+	self.overlays = setmetatable({}, { __mode = "k" })
+	self.overlayCount = 0
 
 	local realOf = self.realOf
 
@@ -101,13 +105,29 @@ function Proxy.new(sim)
 			elseif kind == "signal" then
 				return self:getSignal(real, key, def):facade()
 			elseif kind == "callback" then
-				error(string.format("%s is a callback member of %s; you can only set the callback value, get is not available", key, cls), 2)
+				error(
+					string.format(
+						"%s is a callback member of %s; you can only set the callback value, get is not available",
+						key,
+						cls
+					),
+					2
+				)
+			end
+		end
+		if self.overlayCount > 0 then
+			local found, lv = self:overlayValue(real, key)
+			if found then
+				return self:toScript(lv)
 			end
 		end
 		local ok, v = pcall(rawGet, real, key)
 		if not ok then
 			local msg = Util.cleanError(v)
-			if string.find(msg, "missing default value", 1, true) then
+			if
+				string.find(msg, "missing default value", 1, true)
+				or string.find(msg, "malformed property info", 1, true)
+			then
 				return sim.members:defaultValue(cls, key)
 			end
 			error(notMember(key, cls, real), 2)
@@ -413,23 +433,25 @@ end
 
 -- Property writes -------------------------------------------------------------------------
 
-function Proxy:emitChanged(real, key: string, newValue)
+-- filter (optional) restricts delivery to some contexts (client-local changes).
+function Proxy:emitChanged(real, key: string, newValue, filter)
 	local sigs = self.signals[real]
 	if sigs == nil then
 		return
 	end
+	local force = self.forceDepth > 0
 	local s = sigs["prop:" .. key]
 	if s then
-		self:_fireSig(s)
+		s:_dispatch(false, filter, force)
 	end
 	local c = sigs.Changed
 	if c then
 		if VALUE_BASE[self:className(real)] then
 			if key == "Value" then
-				self:_fireSig(c, self:toScript(newValue))
+				c:_dispatch(false, filter, force, self:toScript(newValue))
 			end
 		else
-			self:_fireSig(c, key)
+			c:_dispatch(false, filter, force, key)
 		end
 	end
 end
@@ -439,21 +461,93 @@ function Proxy:isWatched(real, key: string): boolean
 	return sigs ~= nil and (sigs.Changed ~= nil or sigs["prop:" .. key] ~= nil)
 end
 
--- Generic write of a real (reflected) property with Roblox-like coercions.
-function Proxy:setProperty(real, key: string, value)
-	local raw = self:unwrap(value)
-	if key == "Parent" then
-		return self:setParent(real, raw)
+-- Client-local overlays ---------------------------------------------------------------------
+
+local NIL = table.freeze({})
+Proxy.NIL = NIL
+
+function Proxy:overlayFor(ctx, real, create: boolean?)
+	local per = self.overlays[ctx]
+	if per == nil then
+		if not create then
+			return nil
+		end
+		per = setmetatable({}, { __mode = "k" })
+		self.overlays[ctx] = per
 	end
-	self.sim:_checkClientWrite(real, key)
-	local watched = self:isWatched(real, key)
-	local old
-	if watched then
+	local o = per[real]
+	if o == nil and create then
+		o = {}
+		per[real] = o
+		self.overlayCount += 1
+	end
+	return o
+end
+
+-- (found, value) of a client-local value for the running client context.
+function Proxy:overlayValue(real, key: string)
+	if self.overlayCount == 0 then
+		return false, nil
+	end
+	local ctx = self:clientContext()
+	local o = ctx and self:overlayFor(ctx, real, false)
+	local v = o and o[key]
+	if v == nil then
+		return false, nil
+	end
+	if v == NIL then
+		return true, nil
+	end
+	return true, v
+end
+
+-- Overlay-aware raw read (no member emulation).
+function Proxy:get(real, key: string)
+	local found, v = self:overlayValue(real, key)
+	if found then
+		return v
+	end
+	return real[key]
+end
+
+function Proxy:dropOverlays(ctx)
+	local per = self.overlays[ctx]
+	if per then
+		for _ in per do
+			self.overlayCount -= 1
+		end
+		self.overlays[ctx] = nil
+	end
+end
+
+-- Stores a client-local value and fires change events for that client only.
+function Proxy:setLocal(ctx, real, key: string, value, eventKey: string?)
+	local o = self:overlayFor(ctx, real, true)
+	local prev = o[key]
+	local before
+	if prev ~= nil then
+		before = if prev == NIL then nil else prev
+	else
 		local ok, v = pcall(rawGet, real, key)
-		if ok then
-			old = v
+		before = ok and v or nil
+	end
+	o[key] = if value == nil then NIL else value
+	if before ~= value then
+		local filter = function(c)
+			return c == ctx
+		end
+		if string.sub(key, 1, 1) == "@" then
+			local name = string.sub(key, 2)
+			self:fireFiltered(real, "attr:" .. name, filter)
+			self:fireFiltered(real, "AttributeChanged", filter, name)
+		else
+			self:emitChanged(real, eventKey or key, value, filter)
 		end
 	end
+end
+
+-- Assigns a reflected property on the raw instance with Roblox-like coercions.
+local function assignRaw(self, real, key: string, raw)
 	local ok, err = pcall(rawSet, real, key, raw)
 	if not ok then
 		local msg = Util.cleanError(err)
@@ -469,6 +563,36 @@ function Proxy:setProperty(real, key: string, value)
 			error(string.format("Unable to assign property %s. %s", key, Util.cleanError(err)), 0)
 		end
 	end
+end
+
+-- Generic write of a real (reflected) property with Roblox-like coercions.
+function Proxy:setProperty(real, key: string, value)
+	local raw = self:unwrap(value)
+	if key == "Parent" then
+		return self:setParent(real, raw)
+	end
+	local localCtx = self.sim:_clientLocal(real, key)
+	if localCtx then
+		-- validate/coerce through a temporary write, keep the value client-local
+		local okOld, old = pcall(rawGet, real, key)
+		local normalized = raw
+		if okOld then
+			assignRaw(self, real, key, raw)
+			normalized = rawGet(real, key)
+			rawSet(real, key, old)
+		end
+		self:setLocal(localCtx, real, key, normalized)
+		return
+	end
+	local watched = self:isWatched(real, key)
+	local old
+	if watched then
+		local ok, v = pcall(rawGet, real, key)
+		if ok then
+			old = v
+		end
+	end
+	assignRaw(self, real, key, raw)
 	if key == "Name" then
 		local parent = real.Parent
 		if parent ~= nil then

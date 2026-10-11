@@ -172,7 +172,8 @@ function DataStore:_write(id: string, key: string, json: string, userIds, metada
 		e.userIds = userIds or e.userIds
 		e.metadata = metadata or e.metadata
 	else
-		entries[key] = { json = json, version = 1, created = now, updated = now, userIds = userIds, metadata = metadata }
+		entries[key] =
+			{ json = json, version = 1, created = now, updated = now, userIds = userIds, metadata = metadata }
 	end
 	return entries[key]
 end
@@ -218,9 +219,13 @@ function DataStore:_request(op: string, real, key: string, isWrite: boolean)
 	if ctx.kind ~= "server" then
 		error("DataStoreService: requests can only be made from the server", 0)
 	end
-	table.insert(self.Calls, { op = op, store = info.name, scope = info.scope, key = key, time = sched.clock })
+	local call = { op = op, store = info.name, scope = info.scope, key = key, time = sched.clock }
+	table.insert(self.Calls, call)
 	if not self.enabled then
-		error("502: API Services rejected request with error. HTTP 403 (Forbidden) - Studio access to APIs is not allowed.", 0)
+		error(
+			"502: API Services rejected request with error. HTTP 403 (Forbidden) - Studio access to APIs is not allowed.",
+			0
+		)
 	end
 	local canYield = sched:inSimThread()
 	if canYield and self.latency > 0 then
@@ -246,12 +251,12 @@ function DataStore:_request(op: string, real, key: string, isWrite: boolean)
 	for i, f in self.failQueue do
 		if f.ops == nil or f.ops[op] then
 			table.remove(self.failQueue, i)
-			self.Calls[#self.Calls].failed = true
+			call.failed = true
 			error(f.message, 0)
 		end
 	end
 	if self.failRate > 0 and sim.rng:NextNumber() < self.failRate then
-		self.Calls[#self.Calls].failed = true
+		call.failed = true
 		error(self.failRateMessage, 0)
 	end
 	return info

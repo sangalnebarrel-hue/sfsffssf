@@ -157,7 +157,8 @@ end
 
 -- Queues a signal handler invocation (deferred) or runs it right away (immediate).
 function Scheduler:invoke(conn, args, force: boolean, immediate: boolean)
-	local item = { kind = "call", fn = conn.fn, ctx = conn.ctx, script = conn.script, conn = conn, force = force, args = args }
+	local item =
+		{ kind = "call", fn = conn.fn, ctx = conn.ctx, script = conn.script, conn = conn, force = force, args = args }
 	if immediate then
 		self:_runItem(item)
 	else
@@ -167,7 +168,10 @@ end
 
 -- Queues an internal function to run in a fresh thread during the next flush.
 function Scheduler:queueFn(fn, ctx, ...)
-	table.insert(self.deferred, { kind = "call", fn = fn, ctx = ctx or self.sim.serverCtx, script = nil, force = true, args = table.pack(...) })
+	table.insert(
+		self.deferred,
+		{ kind = "call", fn = fn, ctx = ctx or self.sim.serverCtx, script = nil, force = true, args = table.pack(...) }
+	)
 end
 
 function Scheduler:_runItem(item)
@@ -212,7 +216,11 @@ function Scheduler:flush()
 		end
 		if count > MAX_FLUSH_ITEMS then
 			self.deferred = {}
-			self.sim:_recordError(self.sim.serverCtx, "RbxSim: deferred event re-entrancy limit exceeded (handlers keep re-triggering each other)", "")
+			self.sim:_recordError(
+				self.sim.serverCtx,
+				"RbxSim: deferred event re-entrancy limit exceeded (handlers keep re-triggering each other)",
+				""
+			)
 			break
 		end
 	end

@@ -249,7 +249,7 @@ function Remotes:_call(cb, invokingCtx, ...)
 		invokingCtx.invokeTokens[token] = true
 	end
 	self:_later(function()
-		table.insert(sched.deferred, { kind = "resume", co = co, args = table.pack() })
+		table.insert(sched.deferred, { kind = "resume", co = co, args = { n = 0 } })
 	end)
 	local r = sched:suspend(token)
 	if invokingCtx then

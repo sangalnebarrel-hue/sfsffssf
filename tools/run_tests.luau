@@ -7,8 +7,11 @@
 -- its own Lune process (fresh sims, fresh module caches). A test file returns
 -- either { [name] = function(t) ... end } or a list of { name = ..., fn = ... }
 -- (or { "name", fn }). Filters are plain substrings matched against
--- "tests/file.luau::test name"; a test runs if any filter matches.
--- Exit code is non-zero when any test fails or a file crashes.
+-- "tests/file.luau::test name" and "file::test name"; a test runs if any
+-- filter matches (a filter matching a file path runs the whole file).
+-- Exit code is non-zero when any test fails or a file crashes. Each file has a
+-- wall-clock limit (SIM_TEST_TIMEOUT seconds, default 600). LUNE_BIN overrides
+-- the Lune executable used for child processes.
 
 local fs = require("@lune/fs")
 local process = require("@lune/process")
@@ -29,6 +32,9 @@ end
 local ROOT = dirname(dirname(scriptPath()))
 local SELF = ROOT .. "/tools/run_tests.luau"
 local LUNE = process.env.LUNE_BIN or "/opt/tools/l11/lune"
+-- Per-file wall-clock limit (a script stuck in a loop without yielding would hang).
+local FILE_TIMEOUT = tonumber(process.env.SIM_TEST_TIMEOUT) or 600
+local TIMEOUT_BIN = if fs.isFile("/usr/bin/timeout") then "/usr/bin/timeout" else nil
 
 -- Assertions ----------------------------------------------------------------------------------
 
@@ -116,10 +122,28 @@ local function makeT(ctx)
 		elseif typeof(a) == typeof(b) and (typeof(a) == "Vector3" or typeof(a) == "Vector2") then
 			d = (a - b).Magnitude
 		else
-			fail(string.format("%scannot compare %s and %s with near()", msg and (msg .. ": ") or "", typeof(a), typeof(b)), 1)
+			fail(
+				string.format(
+					"%scannot compare %s and %s with near()",
+					msg and (msg .. ": ") or "",
+					typeof(a),
+					typeof(b)
+				),
+				1
+			)
 		end
 		if d > eps then
-			fail(string.format("%sexpected %s ~= %s (eps %g, diff %g)", msg and (msg .. ": ") or "", tostring(a), tostring(b), eps, d), 1)
+			fail(
+				string.format(
+					"%sexpected %s ~= %s (eps %g, diff %g)",
+					msg and (msg .. ": ") or "",
+					tostring(a),
+					tostring(b),
+					eps,
+					d
+				),
+				1
+			)
 		end
 	end
 
@@ -202,13 +226,19 @@ local function normalizeSuite(suite)
 	return list
 end
 
-local function matchesFilters(id: string, filters)
+-- A test matches when a filter is a substring of "tests/file.luau::name",
+-- "file::name" (stem without .luau) or the test name itself.
+local function matchesFilters(rel: string, name: string, filters)
 	if #filters == 0 then
 		return true
 	end
+	local stem = string.match(rel, "([^/]+)%.luau$") or rel
+	local ids = { rel .. "::" .. name, stem .. "::" .. name }
 	for _, f in filters do
-		if string.find(id, f, 1, true) then
-			return true
+		for _, id in ids do
+			if string.find(id, f, 1, true) then
+				return true
+			end
 		end
 	end
 	return false
@@ -250,8 +280,7 @@ local function runFile(rel: string, filters, report)
 		return
 	end
 	for _, item in list do
-		local id = rel .. "::" .. item.name
-		if matchesFilters(id, filters) then
+		if matchesFilters(rel, item.name, filters) then
 			local ctx = { sims = {} }
 			local t = makeT(ctx)
 			local start = os.clock()
@@ -274,7 +303,11 @@ local function runFile(rel: string, filters, report)
 				end
 				for i, s in ctx.sims do
 					if #s.Errors > 0 then
-						msg ..= string.format("\n  sim #%d captured script errors:\n%s", i, (string.gsub(s:FormatErrors(), "([^\n]+)", "    %1")))
+						msg ..= string.format(
+							"\n  sim #%d captured script errors:\n%s",
+							i,
+							(string.gsub(s:FormatErrors(), "([^\n]+)", "    %1"))
+						)
 					end
 				end
 				report({ kind = "result", file = rel, name = item.name, status = "fail", ms = ms, message = msg })
@@ -375,7 +408,13 @@ for _, rel in files do
 		for _, f in fileFilters do
 			table.insert(childArgs, f)
 		end
-		local res = process.exec(LUNE, childArgs, { cwd = ROOT })
+		local program = LUNE
+		if TIMEOUT_BIN then
+			table.insert(childArgs, 1, LUNE)
+			table.insert(childArgs, 1, tostring(FILE_TIMEOUT))
+			program = TIMEOUT_BIN
+		end
+		local res = process.exec(program, childArgs, { cwd = ROOT })
 		local gotResult = false
 		local otherOutput = {}
 		for line in string.gmatch(res.stdout, "[^\n]*") do
@@ -391,8 +430,11 @@ for _, rel in files do
 		end
 		if not res.ok then
 			failed += 1
-			table.insert(failures, rel .. " (crashed)")
-			print(string.format("FAIL %s (process exited with code %d)", rel, res.code))
+			local why = if TIMEOUT_BIN and res.code == 124
+				then string.format("timed out after %ds", FILE_TIMEOUT)
+				else "process exited with code " .. res.code
+			table.insert(failures, rel .. " (" .. why .. ")")
+			print(string.format("FAIL %s (%s)", rel, why))
 			local tail = res.stderr ~= "" and res.stderr or table.concat(otherOutput, "\n")
 			print("  " .. (string.gsub(string.sub(tail, -3000), "\n", "\n  ")))
 		elseif not gotResult and #fileFilters == 0 then
@@ -402,6 +444,10 @@ for _, rel in files do
 end
 
 print(string.format("\n%d passed, %d failed, %d skipped", passed, failed, skipped))
+if passed + failed + skipped == 0 then
+	print("No tests matched" .. (if #filters > 0 then " the filters: " .. table.concat(filters, ", ") else ""))
+	process.exit(1)
+end
 if failed > 0 then
 	print("Failures:")
 	for _, f in failures do

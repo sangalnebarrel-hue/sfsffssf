@@ -17,13 +17,20 @@ function Runtime.new(sim)
 	self.bytecode = {} -- source -> bytecode
 	self.loadingIn = setmetatable({}, { __mode = "k" }) -- thread -> module entry it is loading
 	self.waitingOn = setmetatable({}, { __mode = "k" }) -- thread -> module entry it waits for
+	self.batchDepth = 0
+	self.pending = {}
 	return self
 end
 
 function Runtime:record(s)
 	local rec = self.records[s]
 	if rec == nil then
-		rec = { ran = setmetatable({}, { __mode = "k" }), threads = setmetatable({}, { __mode = "k" }), conns = {}, dead = false }
+		rec = {
+			ran = setmetatable({}, { __mode = "k" }),
+			threads = setmetatable({}, { __mode = "k" }),
+			conns = {},
+			dead = false,
+		}
 		self.records[s] = rec
 	end
 	return rec
@@ -191,6 +198,18 @@ end
 
 -- Called after an instance subtree was parented somewhere new.
 function Runtime:onInstanceMoved(real)
+	if self.batchDepth > 0 then
+		-- defer until the whole batch of copies is in place
+		if real:IsA("BaseScript") then
+			table.insert(self.pending, real)
+		end
+		for _, d in real:GetDescendants() do
+			if d:IsA("BaseScript") then
+				table.insert(self.pending, d)
+			end
+		end
+		return
+	end
 	if real:IsA("BaseScript") then
 		self:maybeRun(real)
 	end
@@ -198,6 +217,25 @@ function Runtime:onInstanceMoved(real)
 		if d:IsA("BaseScript") then
 			self:maybeRun(d)
 		end
+	end
+end
+
+-- Runs fn while deferring script starts; scripts parented meanwhile start
+-- afterwards in order (Roblox copies StarterPlayerScripts/StarterGui contents
+-- completely before their LocalScripts run).
+function Runtime:batch(fn)
+	self.batchDepth += 1
+	local ok, err = pcall(fn)
+	self.batchDepth -= 1
+	if self.batchDepth == 0 and #self.pending > 0 then
+		local pending = self.pending
+		self.pending = {}
+		for _, s in pending do
+			self:maybeRun(s)
+		end
+	end
+	if not ok then
+		error(err, 0)
 	end
 end
 
@@ -278,7 +316,13 @@ function Runtime:require(target, ctxOverride)
 	local sched = sim.sched
 	local ctx = ctxOverride or sched:context()
 	if ctx.kind == "client" and proxy:isServerOnly(real) then
-		error(string.format("RbxSim: a client cannot require %s (server-only containers do not replicate)", Util.fullName(real)), 2)
+		error(
+			string.format(
+				"RbxSim: a client cannot require %s (server-only containers do not replicate)",
+				Util.fullName(real)
+			),
+			2
+		)
 	end
 	local cache = ctx.modules
 	local co = coroutine.running()
@@ -315,7 +359,10 @@ function Runtime:require(target, ctxOverride)
 	end
 	self.loadingIn[co] = entry.parent
 	if results[1] and results.n ~= 2 then
-		results = table.pack(false, { msg = Util.fullName(real) .. ": Module code did not return exactly one value", tb = "" })
+		results = table.pack(
+			false,
+			{ msg = Util.fullName(real) .. ": Module code did not return exactly one value", tb = "" }
+		)
 	end
 	if results[1] then
 		entry.state = "done"
@@ -334,7 +381,13 @@ function Runtime:require(target, ctxOverride)
 	end
 	entry.waiters = {}
 	if entry.state == "error" then
-		error("Requested module experienced an error while loading: " .. Util.fullName(real) .. ": " .. tostring(entry.err.msg), 2)
+		error(
+			"Requested module experienced an error while loading: "
+				.. Util.fullName(real)
+				.. ": "
+				.. tostring(entry.err.msg),
+			2
+		)
 	end
 	return entry.value
 end
