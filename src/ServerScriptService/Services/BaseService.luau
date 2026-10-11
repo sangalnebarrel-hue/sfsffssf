@@ -1,0 +1,500 @@
+--!strict
+--[[
+	BaseService — базы игроков (Этап 1).
+
+	Что делает:
+	  1. При старте сервера клонирует шаблон ServerStorage.BaseTemplate в каждый слот
+	     Workspace.Map.BaseSlots (8 штук) и красит базу в свой цвет из BaseConfig.Colors.
+	     Красятся детали шаблона с атрибутом Accent = true (флаг, крыша будки, площадка и т.д.).
+	  2. Выдаёт игроку свободную базу при входе и освобождает её при выходе.
+	     Если свободных баз нет — игрок ждёт на хабе и получает первую освободившуюся.
+	  3. Сам спаунит персонажей (Players.CharacterAutoLoads = false): персонаж появляется
+	     на площадке своей базы, после смерти — снова там через BaseConfig.RespawnDelay секунд.
+	  4. Обрабатывает кнопку «Домой» (RemoteEvent RequestHome) с серверным кулдауном.
+
+	Состояние для клиентов (атрибуты реплицируются автоматически):
+	  Player: BaseIndex (0 — ждёт базу), BaseColorName, BaseColor
+	  Модель базы (Workspace.Bases.Base_N): BaseIndex, ColorId, ColorName, Color, OwnerUserId (0 — свободна), OwnerName
+
+	API для других сервисов:
+	  BaseService:GetBase(player) -> Base?
+	  BaseService:GetBases() -> { Base }
+	  BaseService:GetBaseFromInstance(instance) -> Base?   -- по любой детали внутри базы
+	  BaseService:GetSpawnCFrame(base) -> CFrame
+	  BaseService:TeleportHome(player) -> boolean
+	  BaseService.BaseAssigned  -- Signal (player, base)
+	  BaseService.BaseReleased  -- Signal (player, base)
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+local ServerStorage = game:GetService("ServerStorage")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage.Shared
+local BaseConfig = require(Shared.Config.BaseConfig)
+local Cooldown = require(Shared.Util.Cooldown)
+local Net = require(Shared.Net)
+local Signal = require(Shared.Util.Signal)
+local Trove = require(Shared.Util.Trove)
+local Notify = require(ServerScriptService.Lib.Notify)
+
+export type Base = {
+	Index: number,
+	Model: Model,
+	ColorId: string,
+	ColorName: string,
+	Color: Color3,
+	Owner: Player?,
+	-- Ключевые детали базы (для следующих этапов: рыбалка, садок, кража).
+	SpawnPad: BasePart,
+	FishingSpot: BasePart,
+	Tank: Model,
+	TankGlass: BasePart,
+	TankPromptAttachment: Attachment,
+	AlarmLamp: BasePart,
+	Dog: Model,
+	OwnerLabel: TextLabel,
+}
+
+type PlayerState = {
+	Base: Base?,
+	Trove: Trove.Trove, -- соединения, живущие пока игрок в игре
+	CharacterTrove: Trove.Trove, -- соединения текущего персонажа
+	Spawning: boolean,
+	RespawnThread: thread?,
+}
+
+local BaseService = {
+	BaseAssigned = Signal.new(),
+	BaseReleased = Signal.new(),
+}
+
+local bases: { Base } = {}
+local baseByModel: { [Model]: Base } = {}
+local states: { [Player]: PlayerState } = {}
+local waitQueue: { Player } = {} -- игроки без базы, по порядку входа
+local homeCooldown = Cooldown.new(BaseConfig.HomeCooldown)
+local rng = Random.new()
+
+--------------------------------------------------------------------------------
+-- Создание баз
+--------------------------------------------------------------------------------
+
+-- Находит обязательную деталь шаблона по пути и проверяет её класс.
+local function findRequired(root: Instance, path: { string }, className: string): any
+	local current: Instance = root
+	for _, name in path do
+		local child = current:FindFirstChild(name)
+		if not child then
+			error(`[BaseService] в {root:GetFullName()} нет {table.concat(path, ".")}`)
+		end
+		current = child
+	end
+	if not current:IsA(className) then
+		error(`[BaseService] {current:GetFullName()} должен быть {className}, а это {current.ClassName}`)
+	end
+	return current
+end
+
+local function getSlots(): { BasePart }
+	local map = Workspace:FindFirstChild("Map")
+	local slotFolder = map and map:FindFirstChild("BaseSlots")
+	assert(slotFolder, "[BaseService] нет Workspace.Map.BaseSlots")
+
+	local slots: { BasePart } = {}
+	for _, child in slotFolder:GetChildren() do
+		if child:IsA("BasePart") and typeof(child:GetAttribute("Index")) == "number" then
+			table.insert(slots, child)
+		end
+	end
+	table.sort(slots, function(a, b)
+		return (a:GetAttribute("Index") :: number) < (b:GetAttribute("Index") :: number)
+	end)
+	return slots
+end
+
+local function updateSign(base: Base)
+	local owner = base.Owner
+	base.OwnerLabel.Text = if owner then owner.DisplayName else "Свободно"
+end
+
+local function createBase(template: Model, slot: BasePart, index: number, parent: Instance): Base
+	local colors = BaseConfig.Colors
+	local colorDef = colors[(index - 1) % #colors + 1]
+
+	local model = template:Clone()
+	model.Name = `Base_{index}`
+	model:PivotTo(slot.CFrame)
+
+	-- Красим акцентные детали в цвет базы.
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") and descendant:GetAttribute("Accent") == true then
+			descendant.Color = colorDef.Color
+		end
+	end
+
+	model:SetAttribute("BaseIndex", index)
+	model:SetAttribute("ColorId", colorDef.Id)
+	model:SetAttribute("ColorName", colorDef.Name)
+	model:SetAttribute("Color", colorDef.Color)
+	model:SetAttribute("OwnerUserId", 0)
+	model:SetAttribute("OwnerName", "")
+
+	local base: Base = {
+		Index = index,
+		Model = model,
+		ColorId = colorDef.Id,
+		ColorName = colorDef.Name,
+		Color = colorDef.Color,
+		Owner = nil,
+		SpawnPad = findRequired(model, { "SpawnPad" }, "BasePart"),
+		FishingSpot = findRequired(model, { "FishingSpot" }, "BasePart"),
+		Tank = findRequired(model, { "Tank" }, "Model"),
+		TankGlass = findRequired(model, { "Tank", "Glass" }, "BasePart"),
+		TankPromptAttachment = findRequired(model, { "Tank", "Glass", "PromptAttachment" }, "Attachment"),
+		AlarmLamp = findRequired(model, { "Alarm", "Lamp" }, "BasePart"),
+		Dog = findRequired(model, { "Dog" }, "Model"),
+		OwnerLabel = findRequired(model, { "Flag", "Pole", "SignAttachment", "OwnerSign", "OwnerLabel" }, "TextLabel"),
+	}
+
+	local baseLabel: TextLabel =
+		findRequired(model, { "Flag", "Pole", "SignAttachment", "OwnerSign", "BaseLabel" }, "TextLabel")
+	baseLabel.Text = `{colorDef.Name} база`
+	baseLabel.TextColor3 = colorDef.Color
+	updateSign(base)
+
+	model.Parent = parent
+	return base
+end
+
+--------------------------------------------------------------------------------
+-- Спаун персонажей
+--------------------------------------------------------------------------------
+
+function BaseService:GetSpawnCFrame(base: Base): CFrame
+	local pad = base.SpawnPad
+	return pad.CFrame * CFrame.new(0, pad.Size.Y / 2 + BaseConfig.SpawnHeight, 0)
+end
+
+-- Ставит персонажа на площадку его базы (если база есть).
+local function placeCharacter(player: Player, character: Model)
+	local state = states[player]
+	if not state or not state.Base then
+		return
+	end
+	local root = character:FindFirstChild("HumanoidRootPart") or character:WaitForChild("HumanoidRootPart", 5)
+	-- Пока ждали, игрок мог выйти, умереть и возродиться или потерять базу.
+	local base = state.Base
+	if not root or not base or states[player] ~= state or player.Character ~= character or not character.Parent then
+		return
+	end
+	character:PivotTo(BaseService:GetSpawnCFrame(base))
+end
+
+-- LoadCharacterAsync — новое имя LoadCharacter (старое помечено устаревшим).
+-- Если движок старый и нового метода нет — используем старый.
+local function loadCharacter(player: Player): (boolean, any)
+	local ok, err = pcall(function()
+		player:LoadCharacterAsync()
+		return nil
+	end)
+	if not ok and string.find(tostring(err), "not a valid member", 1, true) then
+		ok, err = pcall(function()
+			(player :: any):LoadCharacter()
+			return nil
+		end)
+	end
+	return ok, err
+end
+
+-- Создаёт персонажа (Players.CharacterAutoLoads выключен) и ставит его на базу.
+local function spawnCharacter(player: Player)
+	local state = states[player]
+	if not state or state.Spawning or player.Parent ~= Players then
+		return
+	end
+	state.Spawning = true
+	-- Ждёт, пока персонаж появится. Без базы он встанет на HubSpawn в центре.
+	local ok, err = loadCharacter(player)
+	state.Spawning = false
+	if not ok then
+		warn(`[BaseService] LoadCharacter({player.Name}) не удался: {err}`)
+		return
+	end
+	if states[player] ~= state then
+		return -- игрок вышел, пока персонаж создавался
+	end
+	local character = player.Character
+	if character then
+		placeCharacter(player, character)
+	end
+end
+
+local function scheduleRespawn(player: Player, state: PlayerState, character: Model)
+	local previous = state.RespawnThread
+	if previous and coroutine.status(previous) == "suspended" then
+		task.cancel(previous)
+	end
+	state.RespawnThread = task.delay(BaseConfig.RespawnDelay, function()
+		state.RespawnThread = nil
+		-- Возрождаем, только если это всё ещё тот же игрок и тот же (мёртвый) персонаж.
+		if states[player] == state and player.Character == character then
+			spawnCharacter(player)
+		end
+	end)
+end
+
+local function onCharacterAdded(player: Player, state: PlayerState, character: Model)
+	state.CharacterTrove:Clean()
+
+	-- Персонажа создал не spawnCharacter (например, кто-то вызвал LoadCharacter сам) — всё равно ставим на базу.
+	if not state.Spawning then
+		task.defer(placeCharacter, player, character)
+	end
+
+	local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", 10)
+	if not humanoid or not humanoid:IsA("Humanoid") then
+		return
+	end
+	if states[player] ~= state or player.Character ~= character then
+		return -- пока ждали Humanoid, игрок вышел или персонаж сменился
+	end
+	state.CharacterTrove:Connect(humanoid.Died, function()
+		scheduleRespawn(player, state, character)
+	end)
+end
+
+--------------------------------------------------------------------------------
+-- Выдача и освобождение баз
+--------------------------------------------------------------------------------
+
+local function pickFreeBase(): Base?
+	local free: { Base } = {}
+	for _, base in bases do
+		if base.Owner == nil then
+			table.insert(free, base)
+		end
+	end
+	if #free == 0 then
+		return nil
+	end
+	if BaseConfig.RandomAssignment then
+		return free[rng:NextInteger(1, #free)]
+	end
+	return free[1]
+end
+
+local function assignBase(player: Player, state: PlayerState, base: Base)
+	base.Owner = player
+	state.Base = base
+
+	base.Model:SetAttribute("OwnerUserId", player.UserId)
+	base.Model:SetAttribute("OwnerName", player.DisplayName)
+	-- Сначала цвет и имя, потом индекс: клиент обновляет плашку по смене BaseIndex.
+	player:SetAttribute("BaseColorName", base.ColorName)
+	player:SetAttribute("BaseColor", base.Color)
+	player:SetAttribute("BaseIndex", base.Index)
+	updateSign(base)
+
+	BaseService.BaseAssigned:Fire(player, base)
+end
+
+-- Раздаёт освободившиеся базы игрокам из очереди.
+local function serveQueue()
+	while #waitQueue > 0 do
+		local base = pickFreeBase()
+		if not base then
+			return
+		end
+		local player = table.remove(waitQueue, 1) :: Player
+		local state = states[player]
+		if state and not state.Base and player.Parent == Players then
+			assignBase(player, state, base)
+			Notify.Send(
+				player,
+				`Освободилась база! Теперь твоя — {base.ColorName}`,
+				"success"
+			)
+			local character = player.Character
+			if character then
+				task.spawn(placeCharacter, player, character)
+			else
+				task.spawn(spawnCharacter, player)
+			end
+		end
+	end
+end
+
+local function releaseBase(player: Player, state: PlayerState)
+	local base = state.Base
+	if not base then
+		return
+	end
+	state.Base = nil
+	base.Owner = nil
+
+	base.Model:SetAttribute("OwnerUserId", 0)
+	base.Model:SetAttribute("OwnerName", "")
+	updateSign(base)
+
+	BaseService.BaseReleased:Fire(player, base)
+	-- Отдаём базу ждущему игроку чуть позже, чтобы обработчики BaseReleased успели прибраться.
+	task.defer(serveQueue)
+end
+
+local function onPlayerAdded(player: Player)
+	if states[player] then
+		return -- уже обработан (цикл по уже вошедшим игрокам + событие PlayerAdded)
+	end
+
+	local state: PlayerState = {
+		Base = nil,
+		Trove = Trove.new(),
+		CharacterTrove = Trove.new(),
+		Spawning = false,
+		RespawnThread = nil,
+	}
+	states[player] = state
+	state.Trove:Add(state.CharacterTrove)
+
+	state.Trove:Connect(player.CharacterAdded, function(character: Model)
+		onCharacterAdded(player, state, character)
+	end)
+	state.Trove:Connect(player.CharacterRemoving, function()
+		state.CharacterTrove:Clean()
+	end)
+
+	local base = pickFreeBase()
+	if base then
+		assignBase(player, state, base)
+		Notify.Send(player, `Твоя база — {base.ColorName}!`, "success")
+	else
+		player:SetAttribute("BaseIndex", 0)
+		table.insert(waitQueue, player)
+		Notify.Send(
+			player,
+			"Все базы заняты. Как только одна освободится — она твоя!",
+			"warning"
+		)
+	end
+
+	spawnCharacter(player)
+end
+
+local function onPlayerRemoving(player: Player)
+	local state = states[player]
+	if not state then
+		return
+	end
+	states[player] = nil
+
+	local queueIndex = table.find(waitQueue, player)
+	if queueIndex then
+		table.remove(waitQueue, queueIndex)
+	end
+
+	local respawnThread = state.RespawnThread
+	if respawnThread and coroutine.status(respawnThread) == "suspended" then
+		task.cancel(respawnThread)
+	end
+	state.RespawnThread = nil
+
+	state.Trove:Clean()
+	homeCooldown:Clear(player)
+	releaseBase(player, state)
+end
+
+--------------------------------------------------------------------------------
+-- Публичное API
+--------------------------------------------------------------------------------
+
+function BaseService:GetBase(player: Player): Base?
+	local state = states[player]
+	return state and state.Base
+end
+
+function BaseService:GetBases(): { Base }
+	return bases
+end
+
+function BaseService:GetBaseFromInstance(instance: Instance): Base?
+	local current: Instance? = instance
+	while current do
+		if current:IsA("Model") then
+			local base = baseByModel[current]
+			if base then
+				return base
+			end
+		end
+		current = current.Parent
+	end
+	return nil
+end
+
+-- Телепортирует живого персонажа на площадку его базы.
+function BaseService:TeleportHome(player: Player): boolean
+	local base = self:GetBase(player)
+	local character = player.Character
+	if not base or not character or not character.Parent then
+		return false
+	end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 or not character:FindFirstChild("HumanoidRootPart") then
+		return false
+	end
+	if humanoid.Sit then
+		humanoid.Sit = false
+	end
+	character:PivotTo(self:GetSpawnCFrame(base))
+	return true
+end
+
+--------------------------------------------------------------------------------
+-- Жизненный цикл сервиса
+--------------------------------------------------------------------------------
+
+function BaseService:Init()
+	-- Спауном управляем сами (см. spawnCharacter). В Place1.rbxl это тоже выключено.
+	Players.CharacterAutoLoads = false
+
+	local template = ServerStorage:FindFirstChild("BaseTemplate")
+	assert(template and template:IsA("Model"), "[BaseService] нет ServerStorage.BaseTemplate (Model)")
+	assert(template.PrimaryPart, "[BaseService] у BaseTemplate не задан PrimaryPart")
+
+	local folder = Workspace:FindFirstChild("Bases") or Instance.new("Folder")
+	folder.Name = "Bases"
+	folder.Parent = Workspace
+
+	for index, slot in getSlots() do
+		local base = createBase(template, slot, index, folder)
+		table.insert(bases, base)
+		baseByModel[base.Model] = base
+	end
+	assert(
+		#bases > 0,
+		"[BaseService] не создано ни одной базы — проверь Workspace.Map.BaseSlots"
+	)
+	print(`[BaseService] создано баз: {#bases}`)
+end
+
+function BaseService:Start()
+	Players.PlayerAdded:Connect(onPlayerAdded)
+	Players.PlayerRemoving:Connect(onPlayerRemoving)
+	-- Игроки, которые успели зайти до запуска скрипта (бывает в Studio).
+	for _, player in Players:GetPlayers() do
+		task.spawn(onPlayerAdded, player)
+	end
+
+	Net.Event("RequestHome").OnServerEvent:Connect(function(player: Player)
+		if not states[player] or not homeCooldown:TryUse(player) then
+			return
+		end
+		if not self:TeleportHome(player) then
+			Notify.Send(player, "Сейчас нельзя вернуться домой", "warning")
+		end
+	end)
+end
+
+return BaseService
