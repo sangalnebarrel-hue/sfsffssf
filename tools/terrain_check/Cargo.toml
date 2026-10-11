@@ -1,0 +1,28 @@
+[package]
+name = "terrain_check"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Decode, validate and sample Roblox Terrain.SmoothGrid / PhysicsGrid blobs"
+
+# The vendored reference codec (see src/rbx_terrain/lib.rs).
+[lib]
+name = "rbx_terrain"
+path = "src/rbx_terrain/lib.rs"
+
+[[bin]]
+name = "terrain_check"
+path = "src/main.rs"
+
+[[bin]]
+name = "terrain_demo"
+path = "src/bin/terrain_demo.rs"
+
+[dependencies]
+thiserror = "2"
+rbx_binary = "3"
+rbx_dom_weak = "4"
+sha2 = "0.10"
+
+[profile.dev]
+opt-level = 2

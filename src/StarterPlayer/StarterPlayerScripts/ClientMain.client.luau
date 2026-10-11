@@ -15,6 +15,7 @@ local controllers = script.Parent:WaitForChild("Controllers")
 local ORDER = {
 	"NotifyController",
 	"HudController",
+	"AmbientController",
 }
 
 local hud = player:WaitForChild("PlayerGui"):WaitForChild("HUD")

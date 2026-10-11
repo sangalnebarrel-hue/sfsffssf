@@ -23,6 +23,7 @@ local roblox = require("@lune/roblox")
 local serde = require("@lune/serde")
 
 local U = require("./builder/Util")
+local Bake = require("./terrain/Bake")
 local buildMap = require("./builder/Map")
 local buildBaseTemplate = require("./builder/BaseTemplate")
 local buildGui = require("./builder/Gui")
@@ -69,7 +70,8 @@ end
 --------------------------------------------------------------------------------
 
 local workspace = game:GetService("Workspace")
--- Small map (~1k parts): stream everything, so client code never waits for missing parts.
+-- Parts stay a few thousand and the terrain is compact: replicate everything up front, so
+-- client code never waits for streamed-out bases/tanks.
 workspace.StreamingEnabled = false
 
 -- The HUD is laid out for landscape (sizes follow screen height) — like most action games.
@@ -79,36 +81,65 @@ local players = game:GetService("Players")
 players.CharacterAutoLoads = false -- BaseService spawns characters on their base
 players.RespawnTime = BaseConfig.RespawnDelay
 
+-- Terrain: bake the procedural valley (lake, beaches, hills, mountains, rivers) into voxels.
 local terrain = workspace:FindFirstChildOfClass("Terrain")
-if terrain then
-	terrain.WaterColor = rgb(25, 150, 205)
-	terrain.WaterTransparency = 0.6
-	terrain.WaterReflectance = 0.35
-	terrain.WaterWaveSize = 0.1
-	terrain.WaterWaveSpeed = 8
-	terrain.Decoration = false
-end
+assert(terrain, "place has no Terrain")
+local baked = Bake.run(MapConfig)
+terrain.SmoothGrid = baked.smoothGrid
+terrain.PhysicsGrid = baked.physicsGrid
+terrain.WaterColor = rgb(30, 145, 185)
+terrain.WaterTransparency = 0.72
+terrain.WaterReflectance = 0.55
+terrain.WaterWaveSize = 0.12
+terrain.WaterWaveSpeed = 9
+terrain.Decoration = true -- animated grass blades (auto-disabled on low graphics quality)
+local clouds = terrain:FindFirstChildOfClass("Clouds") or U.new("Clouds", { Name = "Clouds" }, terrain)
+clouds.Cover = 0.55
+clouds.Density = 0.7
+clouds.Color = rgb(255, 255, 255)
 
+-- Lighting: warm sunny afternoon with depth haze so the big valley reads well.
 local lighting = game:GetService("Lighting")
-lighting.TimeOfDay = "14:30:00"
-lighting.OutdoorAmbient = rgb(140, 140, 150)
+lighting.TimeOfDay = "14:40:00"
+lighting.Brightness = 2.6
+lighting.Ambient = rgb(95, 95, 110)
+lighting.OutdoorAmbient = rgb(150, 150, 165)
+lighting.EnvironmentDiffuseScale = 1
+lighting.EnvironmentSpecularScale = 1
+lighting.GlobalShadows = true
 -- Depth of field is a full-screen blur pass — too heavy for phones.
 local dof = lighting:FindFirstChildOfClass("DepthOfFieldEffect")
 if dof then
 	dof:Destroy()
 end
 local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
-if atmosphere then
-	atmosphere.Density = 0.25
-	atmosphere.Haze = 0.6
-	atmosphere.Glare = 0
-end
+	or U.new("Atmosphere", { Name = "Atmosphere" }, lighting)
+atmosphere.Density = 0.33
+atmosphere.Offset = 0.2
+atmosphere.Color = rgb(199, 220, 255)
+atmosphere.Decay = rgb(106, 120, 145)
+atmosphere.Glare = 0.35
+atmosphere.Haze = 1.4
+local bloom = lighting:FindFirstChildOfClass("BloomEffect") or U.new("BloomEffect", { Name = "Bloom" }, lighting)
+bloom.Intensity = 0.55
+bloom.Size = 24
+bloom.Threshold = 1.6
+local sunRays = lighting:FindFirstChildOfClass("SunRaysEffect")
+	or U.new("SunRaysEffect", { Name = "SunRays" }, lighting)
+sunRays.Intensity = 0.06
+sunRays.Spread = 0.55
+local grade = lighting:FindFirstChildOfClass("ColorCorrectionEffect")
+	or U.new("ColorCorrectionEffect", { Name = "ColorCorrection" }, lighting)
+grade.Saturation = 0.14
+grade.Contrast = 0.07
+grade.Brightness = 0.02
+grade.TintColor = rgb(255, 251, 243)
 
 --------------------------------------------------------------------------------
 -- 3-6. Generated content
 --------------------------------------------------------------------------------
 
-local mapResult = buildMap(game, MapConfig)
+local mapResult = buildMap(game, MapConfig, baked.gen)
 local templateResult = buildBaseTemplate(game, MapConfig)
 
 local replicatedStorage = game:GetService("ReplicatedStorage")
@@ -191,13 +222,18 @@ end
 
 local checkTemplate = check:GetService("ServerStorage"):FindFirstChild("BaseTemplate")
 expect(checkTemplate ~= nil and checkTemplate.PrimaryPart ~= nil, "BaseTemplate.PrimaryPart not saved")
-expectAttachment(checkTemplate, { "Flag", "Pole", "SignAttachment" }, U.Vector3.new(0, 9.6, 0))
-expectAttachment(checkTemplate, { "Tank", "Glass", "PromptAttachment" }, U.Vector3.new(0, -1, 3.9))
-expectAttachment(
-	check:GetService("Workspace"),
-	{ "Map", "Hub", "Shop", "Counter", "ShopPromptAttachment" },
-	U.Vector3.new(0, 0.6, 1.4)
-)
+-- Builders report the attachments they placed: { root = "template"|"workspace", path = {...}, offset = Vector3 }.
+local expectations = {}
+for _, list in { templateResult.expectedAttachments or {}, mapResult.expectedAttachments or {} } do
+	for _, item in list do
+		table.insert(expectations, item)
+	end
+end
+expect(#expectations > 0, "builders reported no attachments to verify")
+for _, item in expectations do
+	local root = if item.root == "template" then checkTemplate else check:GetService("Workspace")
+	expectAttachment(root, item.path, item.offset)
+end
 local accents = 0
 for _, d in (if checkTemplate then checkTemplate:GetDescendants() else {}) do
 	if d:GetAttribute("Accent") == true then
@@ -208,6 +244,9 @@ expect(accents >= 8, `only {accents} Accent parts in BaseTemplate`)
 local slotsFolder = find(check:GetService("Workspace"), { "Map", "BaseSlots" })
 expect(slotsFolder ~= nil and #slotsFolder:GetChildren() == MapConfig.BaseCount, "BaseSlots count mismatch")
 expect(check:GetService("Players").CharacterAutoLoads == false, "CharacterAutoLoads not saved")
+local checkTerrain = check:GetService("Workspace"):FindFirstChildOfClass("Terrain")
+expect(checkTerrain ~= nil and checkTerrain.SmoothGrid == baked.smoothGrid, "Terrain.SmoothGrid not saved")
+expect(checkTerrain ~= nil and checkTerrain.PhysicsGrid == baked.physicsGrid, "Terrain.PhysicsGrid not saved")
 expect(check:GetService("Workspace").StreamingEnabled == false, "StreamingEnabled not saved")
 local pivotsSaved = 0
 for _, d in find(check:GetService("Workspace"), { "Map" }):GetDescendants() do
@@ -241,16 +280,22 @@ local function countParts(root: any): number
 end
 
 local mapParts = countParts(mapResult.map)
-local waterParts = countParts(mapResult.map:FindFirstChild("Water"))
-local runtimeParts = mapParts - waterParts + templateResult.partCount * MapConfig.BaseCount
+local runtimeParts = mapParts + templateResult.partCount * MapConfig.BaseCount
 print(`Built {output} from {input} (self-check passed)`)
-print(`  map parts: {mapParts} (incl. {waterParts} water volumes removed at runtime)`)
+print(
+	`  terrain: SmoothGrid {#baked.smoothGrid} B, PhysicsGrid {#baked.physicsGrid} B `
+		.. `(heightfield {string.format("%.1f", baked.timing.heightfield)} s, voxels {string.format(
+			"%.1f",
+			baked.timing.voxels
+		)} s)`
+)
+print(`  map parts: {mapParts}`)
 print(`  base template parts: {templateResult.partCount} × {MapConfig.BaseCount} bases`)
 print(`  ≈ parts at runtime: {runtimeParts}`)
-print(`  scripts: {scriptCount}, remotes: {#remotes:GetChildren()}`)
-local cells = {}
-for cls, n in mapResult.cellCounts do
-	table.insert(cells, `{cls}={n}`)
+local nature = {}
+for kind, count in mapResult.natureCounts or {} do
+	table.insert(nature, `{kind}={count}`)
 end
-table.sort(cells)
-print(`  merged ground rects: {table.concat(cells, ", ")}`)
+table.sort(nature)
+print(`  nature: {table.concat(nature, ", ")}; road lamps: {mapResult.lamps}`)
+print(`  scripts: {scriptCount}, remotes: {#remotes:GetChildren()}`)

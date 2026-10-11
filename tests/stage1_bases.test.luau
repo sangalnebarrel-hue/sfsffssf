@@ -104,7 +104,7 @@ end
 
 local tests = {}
 
-tests["server boots: 8 coloured bases placed on their slots, water filled"] = function(t)
+tests["server boots: 8 coloured bases placed on their slots"] = function(t)
 	local sim = boot(t)
 	local ws = sim.game:GetService("Workspace")
 	local folder = bases(sim)
@@ -125,8 +125,8 @@ tests["server boots: 8 coloured bases placed on their slots, water filled"] = fu
 		t.eq(sign.OwnerLabel.Text, "Свободно")
 		t.eq(sign.BaseLabel.Text, `{BaseConfig.Colors[i].Name} база`)
 	end
-	t.ok(ws.Map:FindFirstChild("Water") == nil, "water stand-in parts removed")
-	t.ok(#sim.TerrainOps >= 1, "terrain water filled")
+	-- Terrain is baked into the place (tests/worldgen.test.luau covers it); no water stand-ins.
+	t.ok(ws.Map:FindFirstChild("Water") == nil, "no water stand-in parts")
 	t.eq(sim.game:GetService("Players").CharacterAutoLoads, false)
 	sim:AssertNoErrors()
 end

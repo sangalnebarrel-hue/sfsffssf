@@ -502,5 +502,13 @@ return function(game: any, mapCfg: any)
 			count += 1
 		end
 	end
-	return { template = template, partCount = count }
+	return {
+		template = template,
+		partCount = count,
+		-- Verified by the post-build self-check in tools/build.luau (path from the template root).
+		expectedAttachments = {
+			{ root = "template", path = { "Flag", "Pole", "SignAttachment" }, offset = Vector3.new(0, 9.6, 0) },
+			{ root = "template", path = { "Tank", "Glass", "PromptAttachment" }, offset = Vector3.new(0, -1, 3.9) },
+		},
+	}
 end

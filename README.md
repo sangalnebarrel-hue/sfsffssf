@@ -10,33 +10,42 @@ Rojo не нужен. Папки `src/` и `tools/` — исходники и с
 
 <sub>Превью отрисованы из `Place1.rbxl` скриптом `tools/preview` (вода в игре — настоящая вода Terrain).</sub>
 
+## Мир «Рыбацкая долина»
+
+Огромное озеро (радиус 220 studs) в кольце снежных гор до ~230 studs высотой, остров-деревня в центре
+(магазин, мастерская, скупка рыбы, маяк, причалы), 8 баз по берегу с длинными пирсами и аквариумами,
+4 моста на остров, кольцевая дорога с фонарями, леса, три реки с водопадами со скал, облака и атмосфера.
+Рельеф — настоящий Terrain, «запечённый» прямо в файл (видно в Studio без запуска).
+
 ## Что внутри Place1.rbxl
 
 ```
 Workspace
-  Map                      карта: берег, хаб, мосты, декор (статичные детали)
-    Ground / Seabed        суша и дно (заблокированы от случайного выделения)
-    Water                  полупрозрачные блоки = где будет вода (при запуске → вода Terrain)
-    Hub                    центральный остров: Shop (ShopPromptAttachment), Fountain, HubSpawn
-    Bridges, Decor         мосты, пальмы, скалы, маяк, пляж, костёр
+  Terrain                  рельеф: озеро, пляжи, луга, горы, реки (генератор — ServerStorage.WorldGen)
+  Map                      детали поверх рельефа
     BaseSlots              8 невидимых меток: где встанут базы (атрибут Index)
+    Hub                    остров-деревня: Shop, Workshop, FishMarket, маяк, фонтан, причалы, HubSpawn
+    Bridges, Waterfalls    мосты на остров и через реки, водопады
+    Nature, Road, Lake     леса, фонари и указатели вдоль дороги, лодки и буйки
+    Boundaries             невидимая стена перед горами
   Bases                    (появляется в игре) Base_1 … Base_8 — клоны шаблона
 ServerStorage
-  BaseTemplate             ОДНА база-шаблон: пирс, садок, лампа тревоги, будка + собака, флаг, площадка спауна
+  BaseTemplate             ОДНА база-шаблон: пирс с беседкой, аквариум, сирена, будка + собака, флаг, ворота
+  WorldGen                 генератор рельефа (используется сборщиком и как запасной вариант сервером)
 ReplicatedStorage
   Shared
     Config                 ← ЧИСЛА БАЛАНСА: BaseConfig, UIConfig (дальше Fish/Economy/Theft/Upgrades)
-                             MapConfig — только для сборщика карты (см. комментарий внутри)
+                             MapConfig — раскладка мира (для генератора, см. комментарий внутри)
     Util                   Signal, Trove (уборка соединений), Cooldown
     Net, RemoteNames       доступ к RemoteEvent'ам и их список
   Remotes                  RemoteEvent / RemoteFunction
 ServerScriptService
   Main                     точка входа сервера: Init/Start всех сервисов по порядку
-  Services                 MapService, BaseService (+ следующие этапы)
+  Services                 MapService (проверка рельефа), BaseService (+ следующие этапы)
   Lib/Notify               уведомления игрокам
 StarterPlayer.StarterPlayerScripts
   ClientMain               точка входа клиента
-  Controllers              NotifyController, HudController (+ следующие этапы)
+  Controllers              NotifyController, HudController, AmbientController (рыбы, чайки)
 StarterGui
   HUD                      интерфейс (всё в Scale, под телефоны, ландшафтная ориентация)
 ```
