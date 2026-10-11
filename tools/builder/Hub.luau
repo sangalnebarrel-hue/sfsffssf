@@ -294,13 +294,13 @@ local function planter(parent: any, ground: any, flowers: { any })
 	end
 end
 
--- Palm: 3 bending trunk segments leaning towards cf's +Z, 5 drooping leaves, coconuts.
+-- Palm: 2 bending trunk segments leaning towards cf's +Z, 5 drooping leaves, coconuts.
 local function palm(parent: any, ground: any, yaw: number, scale: number)
 	local m = U.model(parent, "Palm")
 	local s = scale
 	local cf = CFrame.new(ground) * CFrame.Angles(0, rad(yaw), 0) * CFrame.new(0, -1.5 * s, 0)
-	local lengths, widths, tilts = { 6, 5.5, 5 }, { 1.6, 1.4, 1.2 }, { 5, 9, 13 }
-	for i = 1, 3 do
+	local lengths, widths, tilts = { 7.5, 7 }, { 1.6, 1.3 }, { 6, 12 }
+	for i = 1, 2 do
 		cf = cf * CFrame.Angles(rad(tilts[i]), 0, 0)
 		local L = lengths[i] * s
 		blk(m, "Trunk", V(widths[i] * s, L + 0.3 * s, widths[i] * s), cf * CFrame.new(0, L / 2, 0), C.trunk, M.Wood)
@@ -491,7 +491,6 @@ local function buildShop(hub: any, F: any)
 	wdg(m, "Gable", V(22.6, 7, 7.3), at(0, 22.1, 3.65) * CFrame.Angles(0, pi, 0), C.plaster)
 	for _, sx in { -1, 1 } do
 		cyl(m, "GableWindow", 2.6, 0.3, at(sx * 11.35, 21.3, 0), C.beam, nil, SMALL)
-		cyl(m, "GableGlass", 1.8, 0.3, at(sx * 11.45, 21.3, 0), C.glass, nil, SMALL)
 	end
 	for _, sz in { -1, 1 } do
 		local _, frameAt =
@@ -505,7 +504,7 @@ local function buildShop(hub: any, F: any)
 	blk(m, "ChimneyCap", V(3, 0.6, 3), at(6.5, 28.4, 3.6), C.stoneDark, nil, SMALL)
 
 	-- Roof sign and the giant fish on the ridge (seen from the plaza and from the lake).
-	blk(m, "SignBacker", V(16.8, 5.2, 0.4), at(0, 23, -5.15), C.beam, M.Wood)
+	blk(m, "SignBacker", V(16.8, 5.2, 0.4), at(0, 23, -5.15), C.gold, M.Neon) -- glowing frame
 	local sign = blk(m, "Sign", V(16, 4.4, 0.6), at(0, 23, -5.6), C.blue)
 	signText(sign, Enum.NormalId.Front, "МАГАЗИН", C.yellow, C.navy)
 	blk(m, "FishPost", V(0.8, 3, 0.8), at(0, 27.6, 0), C.beam, nil, SMALL)
@@ -617,15 +616,13 @@ local function buildWorkshop(hub: any, F: any)
 	blk(m, "Ridge", V(1.8, 0.8, 20), at(0, 25, 0), C.roofTealDark)
 
 	-- Sign board and windows on the upper floor.
-	blk(m, "SignBacker", V(13.8, 3.8, 0.3), at(0, 13.6, -8.3), C.beam, M.Wood)
+	blk(m, "SignBacker", V(13.8, 3.8, 0.3), at(0, 13.6, -8.3), C.orange, M.Neon) -- glowing frame
 	local sign = blk(m, "Sign", V(13, 3, 0.5), at(0, 13.6, -8.45), C.navy)
 	signText(sign, Enum.NormalId.Front, "МАСТЕРСКАЯ", C.yellow, C.beam)
 	for _, sx in { -1, 1 } do
 		blk(m, "WindowFrame", V(2.2, 3, 0.4), at(sx * 8.4, 13.6, -8.3), C.beam, M.Wood, SMALL)
 		blk(m, "WindowGlass", V(1.6, 2.4, 0.4), at(sx * 8.4, 13.6, -8.4), C.glass, nil, SMALL)
 	end
-	blk(m, "SideWindowFrame", V(0.4, 3, 2.4), at(-10.3, 13.6, -2), C.beam, M.Wood, SMALL)
-	blk(m, "SideWindowGlass", V(0.4, 2.4, 1.8), at(-10.4, 13.6, -2), C.glass, nil, SMALL)
 
 	-- Big gear on the ridge with a crossed fishing rod and wrench.
 	local gear = at(0, 29.4, -6)
@@ -697,7 +694,7 @@ local function buildWorkshop(hub: any, F: any)
 	end
 
 	-- Lumber, barrel and crates on the left side (the +X walkway side).
-	for _, p in { { -12.2, 0.2 }, { -13.5, 0.2 }, { -12.85, 0.8 } } do
+	for _, p in { { -12.2, 0.2 }, { -12.85, 0.8 } } do
 		blk(m, "Lumber", V(1.2, 0.6, 7), at(p[1], p[2], 1), C.woodLight, M.Wood)
 	end
 	barrel(m, at(-12.4, 0, -4))
@@ -825,34 +822,24 @@ local function buildFountain(hub: any, G: number)
 	cylUp(m, "Column", 2.2, 2, O * CFrame.new(0, 4.5, 0), C.stoneLight, M.Slate)
 	cylUp(m, "ColumnCap", 3, 0.5, O * CFrame.new(0, 5.6, 0), C.gold, M.Metal)
 
-	-- Golden fish leaping up (head +X of its frame, tilted 60° up), broadside towards ±Z.
-	local fish = O * CFrame.new(0, 9.2, 0) * CFrame.Angles(0, 0, rad(60))
-	local GOLD = { Reflectance = 0.15 }
-	local function fp(n: string, size: any, cf: any, color: any, material: any?, extra: any?)
-		return blk(m, n, size, fish * cf, color, material, extra or GOLD)
-	end
-	local body = fp("FishBody", V(5.6, 3.4, 2), CFrame.new(0, 0, 0), C.gold)
-	fp("FishHead", V(2.4, 2.8, 1.8), CFrame.new(3.8, 0, 0), C.gold)
-	fp("FishSnout", V(1.1, 1.8, 1.5), CFrame.new(5.4, -0.1, 0), C.gold)
-	fp("FishBelly", V(5.8, 1, 2.1), CFrame.new(0.3, -1.25, 0), C.goldLight)
-	fp("FishTailBase", V(1.8, 2, 1.6), CFrame.new(-3.4, 0, 0), C.gold)
-	fp("FishTail", V(3, 1.5, 1), CFrame.new(-4.9, 1.1, 0) * CFrame.Angles(0, 0, rad(-35)), C.gold, M.Neon, SMALL)
-	fp("FishTail", V(3, 1.5, 1), CFrame.new(-4.9, -1.1, 0) * CFrame.Angles(0, 0, rad(35)), C.gold, M.Neon, SMALL)
-	wdg(m, "FishFin", V(1, 1.8, 3.4), fish * CFrame.new(-0.2, 2.4, 0) * CFrame.Angles(0, rad(90), 0), C.gold, M.Neon, SMALL)
-	for _, sz in { -1, 1 } do
-		fp("FishPectoral", V(1.6, 0.9, 0.3), CFrame.new(1.4, -0.9, sz * 1.1) * CFrame.Angles(0, 0, rad(-30)), C.gold, M.Neon, SMALL)
-	end
-	ball(m, "FishEye", 2, fish * CFrame.new(4.1, 0.6, 0), C.white, nil, SMALL)
-	fp("FishPupil", V(0.8, 0.8, 2.2), CFrame.new(4.35, 0.6, 0), C.ink, nil, SMALL)
+	-- Golden fish leaping out of the bowl (head towards +X, tilted 60° up), broadside towards ±Z.
+	local fish = O * CFrame.new(2, 10.2, 0) * CFrame.Angles(0, 0, rad(60))
+	local body = signFish(m, fish, 1, {
+		body = C.gold,
+		belly = C.goldLight,
+		fins = C.gold,
+		finMaterial = M.Neon,
+		extra = { Reflectance = 0.15 },
+	})
 	pointLight(body, C.goldLight, 14, 1.4)
 
 	-- Water jet from the mouth arcing into the pool, with a splash.
-	local mouth = (fish * CFrame.new(6.1, -0.1, 0)).Position
+	local mouth = (fish * CFrame.new(6.7, -0.3, 0)).Position
 	local pts = {
 		mouth,
-		mouth + V(1.2, 1.3, 0),
-		mouth + V(2.6, 1.3, 0),
-		mouth + V(3.6, -1.6, 0),
+		mouth + V(0.6, 1.3, 0),
+		mouth + V(1.4, 1.5, 0),
+		mouth + V(2.0, 0.2, 0),
 		V(7.2, G + 1.0, 0),
 	}
 	for i = 1, #pts - 1 do
@@ -875,8 +862,8 @@ local function buildLighthouse(hub: any, F: any)
 	end
 	cylUp(m, "Podium", 15, 11.5, at(0, -5.85, 0), C.stone, M.Cobblestone)
 	local cap = cylUp(m, "PodiumCap", 15.8, 0.6, at(0, 0.2, 0), C.stoneLight, M.Slate)
-	for i, r in { { -10, 7.5, 3, V(5, 4, 4.5) }, { 9, 7.8, 0.5, V(4.5, 3.5, 5) }, { 0.5, 9, -1, V(6, 3, 4) } } do
-		blk(m, "Rock", r[4], at(r[1], -2.6 + r[3] * 0.1, r[2]) * CFrame.Angles(rad(8 * i), rad(37 * i), rad(-6 * i)), C.stoneDark, M.Slate)
+	for _, r in { { -9.5, 7.2, V(5, 4.4, 4.5), 20, 35, -14 }, { 8.6, 7.8, V(4.5, 3.6, 5.5), -16, -28, 12 } } do
+		blk(m, "Rock", r[3], at(r[1], -2.4, r[2]) * CFrame.Angles(rad(r[4]), rad(r[5]), rad(r[6])), C.stoneDark, M.Slate)
 	end
 	-- Tower: 6 tapering bands.
 	local y = 0.5
@@ -887,8 +874,17 @@ local function buildLighthouse(hub: any, F: any)
 	end
 	blk(m, "DoorFrame", V(3.4, 5, 0.5), at(0, 3, -4.8), C.white, nil, SMALL)
 	blk(m, "Door", V(2.6, 4.4, 0.8), at(0, 2.7, -4.75), C.woodDark, M.WoodPlanks, SMALL)
-	for _, w in { { 13.5, 30, 4.45 }, { 23, -50, 4.15 }, { 29, 160, 3.85 } } do
-		blk(m, "Window", V(1.2, 1.8, 0.6), at(0, 0, 0) * CFrame.Angles(0, rad(w[2]), 0) * CFrame.new(0, w[1], -w[3]), C.navy, nil, SMALL)
+	for _, w in { { 2, 30 }, { 3, -50 }, { 4, 160 } } do
+		local radius = (10 - w[1] * 0.6) / 2
+		blk(
+			m,
+			"Window",
+			V(1.2, 1.8, 0.6),
+			at(0, 0, 0) * CFrame.Angles(0, rad(w[2]), 0) * CFrame.new(0, 0.5 + 5.6 * (w[1] + 0.5), -(radius + 0.1)),
+			C.navy,
+			nil,
+			SMALL
+		)
 	end
 	-- Gallery with a railing.
 	local top = y -- 34.1
@@ -962,6 +958,30 @@ local function boat(parent: any, B: any, hull: any, trim: any, fishing: boolean)
 	return m
 end
 
+-- Angler sitting on the edge of a dock (A: on the deck surface, facing A's −Z over the water).
+local function angler(parent: any, A: any, waterBelow: number)
+	local m = U.model(parent, "Angler")
+	local function p(n: string, size: any, x: number, y: number, z: number, color: any, extra: any?)
+		return blk(m, n, size, A * CFrame.new(x, y, z), color, nil, extra)
+	end
+	p("Thighs", V(2, 1, 2), 0, 0.5, -0.5, C.navy)
+	p("Shins", V(2, 2.2, 1), 0, -0.6, -1, C.navy, SMALL)
+	local torso = p("Torso", V(2, 2, 1), 0, 2, 0.2, C.green)
+	p("ArmLeft", V(1, 1, 2), -1.5, 2.6, -0.6, C.green, SMALL)
+	p("ArmRight", V(1, 1, 2), 1.5, 2.6, -0.6, C.green, SMALL)
+	p("Head", V(1.6, 1.6, 1.6), 0, 3.8, 0.2, C.skin)
+	p("HatBrim", V(2.8, 0.25, 2.8), 0, 4.72, 0.2, C.yellow, SMALL)
+	p("HatTop", V(1.6, 0.7, 1.6), 0, 5.15, 0.2, C.yellow, SMALL)
+	p("Bucket", V(1.1, 1.2, 1.1), -1.9, 0.6, 0.8, C.teal, SMALL)
+	local hands = (A * CFrame.new(0, 2.6, -1.7)).Position
+	local tip = (A * CFrame.new(0, 7.8, -7.6)).Position
+	local bob = (A * CFrame.new(0, waterBelow + 0.15, -8.4)).Position
+	beam(m, "Rod", hands, tip, 0.22, C.red, nil, SMALL)
+	beam(m, "Line", tip, bob, 0.06, C.white, nil, GHOST)
+	ball(m, "Bobber", 0.6, CFrame.new(bob), C.red, nil, GHOST)
+	m.PrimaryPart = torso
+end
+
 -- Dock from radius r0 (on the beach) to r1 (over the water) along `angle`. Returns its frame.
 local function dock(parent: any, angle: number, r0: number, r1: number, deckTop: number, fancy: boolean): any
 	local m = U.model(parent, "Dock")
@@ -1021,16 +1041,8 @@ return function(parent: any, cfg: any, gen: any?)
 	local plaza = U.model(hub, "Plaza")
 	cylUp(plaza, "PavingBorder", 40, 0.5, CFrame.new(0, G - 0.17, 0), C.pavingDark, M.Slate, SMALL)
 	cylUp(plaza, "Paving", 38, 0.5, CFrame.new(0, G - 0.13, 0), C.paving, M.Pavement, SMALL)
-	for k = 0, 7 do
-		blk(
-			plaza,
-			"Ray",
-			V(1.6, 0.4, 7.4),
-			U.polarCFrame(k * 45, 14.2, G - 0.04),
-			if k % 2 == 0 then C.terracotta else C.teal,
-			M.Pavement,
-			SMALL
-		)
+	for k = 0, 3 do
+		blk(plaza, "Ray", V(1.6, 0.4, 7.4), U.polarCFrame(45 + k * 90, 14.2, G - 0.04), C.terracotta, M.Pavement, SMALL)
 	end
 	for _, a in cfg.BridgeAngles do
 		blk(plaza, "WalkwayBorder", V(10.6, 0.5, 24.4), U.polarCFrame(a, 31.5, G - 0.19), C.pavingDark, M.Slate, SMALL)
@@ -1069,17 +1081,15 @@ return function(parent: any, cfg: any, gen: any?)
 	------------------------------------------------------------------ street furniture
 	local street = U.model(hub, "Street")
 	for _, a in cfg.BridgeAngles do
-		local tangent = V(math.cos(rad(a)), 0, -math.sin(rad(a)))
-		for _, s in { -1, 1 } do
-			lampPost(street, U.polar(a, 41, G - 0.2) + tangent * (s * 7.8), s == 1)
-		end
+		gateArch(street, a, 40, G)
 	end
+	-- Around the fountain on the diagonals: bench facing the water, lamp and planter at its ends.
 	for k = 0, 3 do
 		local a = 45 + k * 90
-		bench(street, U.polarCFrame(a, 15.4, G + 0.1))
-		if a ~= 225 then
-			planter(street, U.polar(a, 19.6, G), { C.pink, C.yellow, C.purple })
-		end
+		local cf = U.polarCFrame(a, 15.4, G + 0.1)
+		bench(street, cf)
+		lampPost(street, (cf * CFrame.new(-4.1, -0.3, 0.2)).Position, true)
+		planter(street, (cf * CFrame.new(4.4, -0.1, 0.3)).Position, if k % 2 == 0 then { C.pink, C.yellow } else { C.purple, C.white })
 	end
 
 	-- Café terrace and notice board between the −Z and −X walkways.
@@ -1121,10 +1131,10 @@ return function(parent: any, cfg: any, gen: any?)
 
 	------------------------------------------------------------------ beach: palms, rocks
 	local beach = U.model(hub, "Beach")
-	for _, spec in { { 14, 51, 1.0 }, { 34, 52, 0.9 }, { 62, 51, 1.05 }, { 77, 50, 0.9 }, { 104, 51, 1.0 }, { 152, 51, 1.05 }, { 166, 50, 0.9 }, { 248, 50, 1.0 }, { 284, 51, 1.05 }, { 300, 52, 0.9 } } do
+	for _, spec in { { 15, 51, 1.0 }, { 33, 52, 0.9 }, { 75, 50, 0.95 }, { 106, 51, 1.05 }, { 152, 51, 1.0 }, { 166, 50, 0.9 }, { 249, 50, 1.05 }, { 290, 51, 1.0 } } do
 		palm(beach, groundPoint(spec[1], spec[2], 0), spec[1], spec[3])
 	end
-	for i, spec in { { 120, 56, V(4, 2.6, 3.4) }, { 128, 57.5, V(2.6, 1.8, 2.4) }, { 290, 57, V(3.6, 2.4, 3) }, { 52, 57, V(3, 2, 2.8) } } do
+	for i, spec in { { 122, 56, V(4, 2.6, 3.4) }, { 300, 57, V(3.6, 2.4, 3) } } do
 		local g = groundPoint(spec[1], spec[2], 0.5)
 		blk(beach, "Rock", spec[3], CFrame.new(g + V(0, spec[3].Y / 2 - 0.4, 0)) * CFrame.Angles(rad(6 * i), rad(53 * i), rad(-4 * i)), C.stone, M.Slate)
 	end
@@ -1134,11 +1144,12 @@ return function(parent: any, cfg: any, gen: any?)
 	local deckTop = cfg.WaterTop + 1.2
 	local d1 = dock(harbour, 200, 54, 76, deckTop, true)
 	local d2 = dock(harbour, 338, 54, 70, deckTop, false)
+	angler(harbour, d1 * CFrame.new(-0.6, deckTop, 10.4) * CFrame.Angles(0, pi, 0), cfg.WaterTop - deckTop)
 	local boatA = d1 * CFrame.new(-5, 0, 3)
 	boat(harbour, boatA, C.red, C.white, true)
 	local boatB = d1 * CFrame.new(5, 0, 1) * CFrame.Angles(0, pi, 0)
 	boat(harbour, boatB, C.teal, C.yellow, false)
-	local boatC = d2 * CFrame.new(-5, 0, 2.5) * CFrame.Angles(0, rad(180 - 6), 0)
+	local boatC = d2 * CFrame.new(-5, 0, 4.5) * CFrame.Angles(0, rad(180 - 6), 0)
 	boat(harbour, boatC, C.yellow, C.blue, false)
 	local function mooring(B: any, bowZ: number, post: any)
 		beam(harbour, "MooringRope", (B * CFrame.new(0, 1.6, bowZ)).Position, post, 0.15, C.rope, nil, GHOST)

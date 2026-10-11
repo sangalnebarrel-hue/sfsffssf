@@ -52,9 +52,11 @@ local function regenerate(terrain: Terrain)
 	for bz = -n, n - 1, BLOCK do
 		for bx = -n, n - 1, BLOCK do
 			local sizeX, sizeZ = math.min(BLOCK, n - bx), math.min(BLOCK, n - bz)
-			local materials, occupancies = {}, {}
+			local materials: { { { Enum.Material } } } = {}
+			local occupancies: { { { number } } } = {}
 			for x = 1, sizeX do
-				local mx, ox = table.create(height), table.create(height)
+				local mx: { { Enum.Material } } = {}
+				local ox: { { number } } = {}
 				for y = 1, height do
 					mx[y] = table.create(sizeZ, Enum.Material.Air)
 					ox[y] = table.create(sizeZ, 0)

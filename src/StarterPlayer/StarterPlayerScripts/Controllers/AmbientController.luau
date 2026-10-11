@@ -137,7 +137,7 @@ function AmbientController:Start(_hud: ScreenGui)
 			table.insert(allParts, part)
 		end
 	end
-	local cframes: { CFrame } = table.create(#allParts)
+	local cframes: { CFrame } = table.create(#allParts, CFrame.identity)
 
 	local accumulator = 0
 	local interval = 1 / AMBIENT.UpdateRate
