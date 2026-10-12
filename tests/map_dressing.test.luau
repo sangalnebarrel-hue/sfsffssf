@@ -1,6 +1,6 @@
 --[[
 	Map dressing (tools/builder/Map.luau and its modules) invariants — pure Lune, no sim:
-	part / light budget, the expected models, a spinning windmill, a clear promenade walkway,
+	part / light budget (and Nature's guaranteed share), the expected models, a spinning windmill, a clear promenade walkway,
 	clear water in front of the piers and along the bridges, deterministic output.
 
 	Run: lune run tools/run_tests.luau map_dressing
@@ -45,7 +45,7 @@ end
 
 local tests = {}
 
-tests["dressing stays within 4000 parts and 40 PointLights"] = function(t)
+tests["dressing stays within its part / PointLight budget and Nature gets its minimum"] = function(t)
 	local parts = dressingParts()
 	local lights = 0
 	for _, child in map:GetChildren() do
@@ -58,8 +58,16 @@ tests["dressing stays within 4000 parts and 40 PointLights"] = function(t)
 			end
 		end
 	end
-	t.ok(#parts <= 4000, `dressing parts {#parts} <= 4000`)
-	t.ok(lights <= 40, `dressing lights {lights} <= 40`)
+	local budget = result.budget
+	t.ok(#parts <= budget.dressing, `dressing parts {#parts} <= {budget.dressing}`)
+	t.ok(lights <= budget.lights, `dressing lights {lights} <= {budget.lights}`)
+	local nature = 0
+	for _, d in map.Nature:GetDescendants() do
+		if d:IsA("BasePart") then
+			nature += 1
+		end
+	end
+	t.ok(nature >= budget.natureMin, `Nature parts {nature} >= {budget.natureMin}`)
 end
 
 tests["all dressing groups are there"] = function(t)
@@ -95,7 +103,7 @@ tests["all dressing groups are there"] = function(t)
 	for _ in map.Nature.Trees:GetChildren() do
 		trees += 1
 	end
-	t.ok(trees >= 60, `forests on the hills ({trees} trees)`)
+	t.ok(trees >= 200, `forests on the hills ({trees} trees)`)
 end
 
 tests["the windmill blades spin (Spin attribute on a Model with a pivot)"] = function(t)
