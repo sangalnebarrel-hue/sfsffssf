@@ -95,7 +95,6 @@ local C = {
 -- Accent parts get this (shaded) grey in the template; BaseService repaints them.
 local ACCENT_DEFAULT = rgb(200, 200, 200)
 local WHITE = Color3.new(1, 1, 1)
-local BLACK = Color3.new(0, 0, 0)
 
 -- Floor layers: the world's grass is at y = 0; no two floor layers are coplanar, and thin
 -- decorative slabs lying on another slab stand >= 0.15 above it (no shimmer from across the lagoon).
@@ -126,12 +125,17 @@ local function merge(a: { [string]: any }?, b: { [string]: any }?): { [string]: 
 	return out
 end
 
--- Same rule as BaseService: shade > 0 lerps towards white, < 0 towards black.
+-- Same rule as BaseService: shade > 0 lerps towards white, < 0 darkens in HSV.
 local function shadeColor(color: any, shade: number): any
 	if shade > 0 then
 		return color:Lerp(WHITE, math.min(shade, 1))
 	elseif shade < 0 then
-		return color:Lerp(BLACK, math.min(-shade, 1))
+		local amount = math.min(-shade, 1)
+		local h, s, v = color:ToHSV()
+		if h > 0.02 and h < 0.2 then
+			h -= 0.04 * amount
+		end
+		return U.Color3.fromHSV(h, math.min(1, s * (1 + 0.15 * amount)), v * (1 - 0.6 * amount))
 	end
 	return color
 end

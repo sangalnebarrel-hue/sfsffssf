@@ -232,14 +232,22 @@ local function readBaseColors(): ({ any }, string)
 	return colors, "BaseConfig"
 end
 
--- Mirrors BaseService: AccentShade > 0 lerps the base colour towards white, < 0 towards black.
+-- Mirrors BaseService: AccentShade > 0 lerps the base colour towards white; < 0 darkens in HSV
+-- (value down, saturation up, warm hues towards red).
 local WHITE = Color3.new(1, 1, 1)
-local BLACK = Color3.new(0, 0, 0)
 local function accentColor(baseColor: any, shade: any): any
 	if type(shade) ~= "number" or shade == 0 then
 		return baseColor
 	end
-	return baseColor:Lerp(if shade > 0 then WHITE else BLACK, math.clamp(math.abs(shade), 0, 1))
+	local amount = math.clamp(math.abs(shade), 0, 1)
+	if shade > 0 then
+		return baseColor:Lerp(WHITE, amount)
+	end
+	local h, s, v = baseColor:ToHSV()
+	if h > 0.02 and h < 0.2 then
+		h -= 0.04 * amount
+	end
+	return Color3.fromHSV(h, math.min(1, s * (1 + 0.15 * amount)), v * (1 - 0.6 * amount))
 end
 
 ------------------------------------------------------------------------------------------

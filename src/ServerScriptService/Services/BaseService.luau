@@ -94,7 +94,6 @@ local homeCooldown = Cooldown.new(math.max(0, BaseConfig.HomeCooldown - HOME_COO
 local rng = Random.new()
 
 local WHITE = Color3.new(1, 1, 1)
-local BLACK = Color3.new(0, 0, 0)
 
 --------------------------------------------------------------------------------
 -- Создание баз
@@ -157,13 +156,23 @@ local function updateSign(base: Base)
 	end
 end
 
--- Цвет акцентной детали: цвет базы, осветлённый (AccentShade > 0) или затемнённый (< 0).
+-- Цвет акцентной детали: цвет базы, осветлённый (AccentShade > 0, к белому) или затемнённый
+-- (< 0). Затемняем через HSV, а не к чёрному: яркость ниже, насыщенность чуть выше, тёплые тона
+-- уходят к красному — жёлтый становится янтарным, а не оливковым, красный — не бордовым.
+-- (Та же формула в tools/preview/export_parts.luau, tools/builder/BaseTemplate.luau и тестах.)
 local function shadeColor(color: Color3, shade: any): Color3
 	if typeof(shade) ~= "number" or shade == 0 then
 		return color
 	end
-	local target = if shade > 0 then WHITE else BLACK
-	return color:Lerp(target, math.clamp(math.abs(shade), 0, 1))
+	local amount = math.clamp(math.abs(shade), 0, 1)
+	if shade > 0 then
+		return color:Lerp(WHITE, amount)
+	end
+	local h, s, v = color:ToHSV()
+	if h > 0.02 and h < 0.2 then
+		h -= 0.04 * amount
+	end
+	return Color3.fromHSV(h, math.min(1, s * (1 + 0.15 * amount)), v * (1 - 0.6 * amount))
 end
 
 local function createBase(template: Model, slot: BasePart, index: number, parent: Instance): Base

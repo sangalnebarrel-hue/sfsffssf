@@ -19,7 +19,7 @@ local BaseConfig = {
 		{ Id = "Red", Name = "Красная", Color = Color3.fromRGB(232, 65, 58) },
 		{ Id = "Orange", Name = "Оранжевая", Color = Color3.fromRGB(245, 145, 40) },
 		{ Id = "Yellow", Name = "Жёлтая", Color = Color3.fromRGB(250, 208, 45) },
-		{ Id = "Green", Name = "Изумрудная", Color = Color3.fromRGB(16, 160, 104) }, -- темнее травы
+		{ Id = "Green", Name = "Изумрудная", Color = Color3.fromRGB(30, 190, 112) }, -- холоднее и ярче травы
 		{ Id = "Cyan", Name = "Бирюзовая", Color = Color3.fromRGB(40, 200, 210) },
 		{ Id = "Blue", Name = "Синяя", Color = Color3.fromRGB(50, 120, 235) },
 		{ Id = "Purple", Name = "Фиолетовая", Color = Color3.fromRGB(150, 85, 225) },

@@ -66,14 +66,21 @@ local function distance(a: any, b: any): number
 	return (a - b).Magnitude
 end
 
--- BaseService rule for Accent parts: the base colour, lerped towards white (AccentShade > 0)
--- or black (AccentShade < 0) by |AccentShade|.
+-- BaseService rule for Accent parts: the base colour, lerped towards white (AccentShade > 0) by
+-- |AccentShade|, or darkened in HSV (AccentShade < 0: value down, saturation up, warm hues redder).
 local function shaded(color: any, shade: any): any
 	if typeof(shade) ~= "number" or shade == 0 then
 		return color
 	end
-	local target = if shade > 0 then roblox.Color3.new(1, 1, 1) else roblox.Color3.new(0, 0, 0)
-	return color:Lerp(target, math.clamp(math.abs(shade), 0, 1))
+	local amount = math.clamp(math.abs(shade), 0, 1)
+	if shade > 0 then
+		return color:Lerp(roblox.Color3.new(1, 1, 1), amount)
+	end
+	local h, s, v = color:ToHSV()
+	if h > 0.02 and h < 0.2 then
+		h -= 0.04 * amount
+	end
+	return roblox.Color3.fromHSV(h, math.min(1, s * (1 + 0.15 * amount)), v * (1 - 0.6 * amount))
 end
 
 local function luminance(c: any): number

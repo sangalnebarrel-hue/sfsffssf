@@ -22,20 +22,32 @@ local CAP = 4
 local MAX_SPAN = 240 -- columns per rectangle side (part size limit 2048)
 
 -- kind -> { cap = Color3?, body = Color3, name }
-local GRASS_SHADES = { rgb(124, 222, 66), rgb(106, 206, 56), rgb(146, 234, 82) }
+-- Grass: two close shades in broad noise patches (calm lawns, not a contour-map quilt) and a
+-- light highlight on high ground.
+local GRASS_A, GRASS_B, GRASS_HIGH = rgb(118, 218, 66), rgb(128, 226, 74), rgb(146, 234, 82)
+local HIGH_GROUND = 40
+-- Tall cliff bodies are split into horizontal strata (absolute y bands) of 2-3 shades.
+local STRATUM = 8
+local STRATA = {
+	Dirt = { rgb(206, 148, 88), rgb(186, 128, 74) },
+	Mountainside = { rgb(168, 174, 192), rgb(150, 156, 176) },
+	Stone = { rgb(168, 174, 192), rgb(150, 156, 176) },
+	Snow = { rgb(224, 236, 252), rgb(206, 220, 240) },
+	Sandstone = { rgb(232, 178, 112), rgb(214, 150, 92), rgb(246, 206, 150) },
+}
 local DIRT = rgb(206, 148, 88)
 local KIND_STYLE = {
-	grass = { body = DIRT, name = "Grass" }, -- cap shade by terrace level
-	meadow = { cap = rgb(170, 240, 96), body = DIRT, name = "Meadow" },
-	path = { cap = rgb(240, 204, 138), body = DIRT, name = "Path" },
+	grass = { body = DIRT, name = "Grass", strata = "Dirt" }, -- cap shade by noise patch
+	meadow = { cap = rgb(170, 240, 96), body = DIRT, name = "Meadow", strata = "Dirt" },
+	path = { cap = rgb(240, 204, 138), body = DIRT, name = "Path", strata = "Dirt" },
 	sand = { cap = rgb(255, 230, 156), body = rgb(240, 206, 132), name = "Sand" },
 	shallow = { body = rgb(250, 226, 156), name = "Shallows" },
 	seabed = { body = rgb(200, 226, 170), name = "Seabed" },
 	deep = { body = rgb(112, 208, 198), name = "DeepSeabed" },
-	stone = { cap = rgb(206, 210, 222), body = rgb(168, 174, 192), name = "Stone" },
-	snow = { cap = rgb(250, 252, 255), body = rgb(224, 236, 252), name = "Snow" },
-	grassRock = { body = rgb(168, 174, 192), name = "Mountainside" }, -- grass cap, stone body
-	mesa = { body = rgb(222, 170, 116), name = "Sandstone" }, -- grass cap, warm cliff
+	stone = { cap = rgb(206, 210, 222), body = rgb(168, 174, 192), name = "Stone", strata = "Stone" },
+	snow = { cap = rgb(250, 252, 255), body = rgb(224, 236, 252), name = "Snow", strata = "Snow" },
+	grassRock = { body = rgb(168, 174, 192), name = "Mountainside", strata = "Mountainside" }, -- grass cap
+	mesa = { body = rgb(222, 170, 116), name = "Sandstone", strata = "Sandstone" }, -- grass cap, warm cliff
 }
 
 -- Sea floor colour by depth: bright sand in the shallows, turquoise lagoon, deep-blue ocean.
@@ -137,7 +149,10 @@ return function(parent: any, world: any): { parts: number, rects: number }
 				local folder = if underwater then folders.water else folders.land
 				local capColor = style.cap
 				if kind == "grass" or kind == "grassRock" or kind == "mesa" then
-					capColor = GRASS_SHADES[(top // 4) % 3 + 1]
+					capColor = if top > HIGH_GROUND
+						then GRASS_HIGH
+						elseif world:noise(cx / 192 + 3.7, cz / 192 - 1.3) > 0 then GRASS_A
+						else GRASS_B
 				end
 				local bodyColor = style.body
 				if underwater then
@@ -154,16 +169,50 @@ return function(parent: any, world: any): { parts: number, rects: number }
 				}
 				-- a body only where the drop is deeper than the cap (or for the single-part sea floor)
 				if bodyTop > bodyBottom and (not capColor or low < top - CAP) then
-					U.part(
-						folder,
-						style.name .. (if capColor then "Side" else ""),
-						Vector3.new(w, bodyTop - bodyBottom, d),
-						CFrame.new(cx, (bodyTop + bodyBottom) / 2, cz),
-						bodyColor,
-						Enum.Material.SmoothPlastic,
-						extra
-					)
-					parts += 1
+					local strata = not underwater and style.strata and STRATA[style.strata]
+					local visibleBottom = math.max(bodyBottom, waterTop - 2) -- strata only above the water
+					if strata and bodyTop - visibleBottom > 2 * STRATUM then
+						-- horizontal bands on absolute y, so neighbouring cliffs line up
+						if visibleBottom > bodyBottom then
+							U.part(
+								folder,
+								style.name .. "Side",
+								Vector3.new(w, visibleBottom - bodyBottom, d),
+								CFrame.new(cx, (visibleBottom + bodyBottom) / 2, cz),
+								bodyColor,
+								Enum.Material.SmoothPlastic,
+								extra
+							)
+							parts += 1
+						end
+						local y1 = bodyTop
+						while y1 > visibleBottom do
+							local band = math.floor((y1 - 0.01) / STRATUM)
+							local y0 = math.max(visibleBottom, band * STRATUM)
+							U.part(
+								folder,
+								style.name .. "Side",
+								Vector3.new(w, y1 - y0, d),
+								CFrame.new(cx, (y1 + y0) / 2, cz),
+								strata[band % #strata + 1],
+								Enum.Material.SmoothPlastic,
+								extra
+							)
+							parts += 1
+							y1 = y0
+						end
+					else
+						U.part(
+							folder,
+							style.name .. (if capColor then "Side" else ""),
+							Vector3.new(w, bodyTop - bodyBottom, d),
+							CFrame.new(cx, (bodyTop + bodyBottom) / 2, cz),
+							bodyColor,
+							Enum.Material.SmoothPlastic,
+							extra
+						)
+						parts += 1
+					end
 				end
 				if capColor then
 					U.part(

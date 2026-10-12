@@ -109,9 +109,10 @@ local lighting = game:GetService("Lighting")
 -- three-tone voxel shading (a midday sun would light only the tops).
 lighting.GeographicLatitude = 35
 lighting.TimeOfDay = "14:30:00"
-lighting.Brightness = 3
-lighting.Ambient = rgb(138, 136, 146)
-lighting.OutdoorAmbient = rgb(192, 186, 178)
+lighting.Brightness = 2.6
+-- Cool lilac shadow sides against the warm sun: saturated colours stay saturated in the shade.
+lighting.Ambient = rgb(110, 112, 132)
+lighting.OutdoorAmbient = rgb(150, 162, 205)
 lighting.ColorShift_Top = rgb(255, 244, 226)
 lighting.ColorShift_Bottom = rgb(0, 0, 0)
 lighting.EnvironmentDiffuseScale = 1
@@ -126,24 +127,25 @@ if dof then
 end
 local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
 	or U.new("Atmosphere", { Name = "Atmosphere" }, lighting)
-atmosphere.Density = 0.2
-atmosphere.Offset = 0.12
-atmosphere.Color = rgb(206, 232, 255)
-atmosphere.Decay = rgb(150, 196, 255)
-atmosphere.Glare = 0.15
-atmosphere.Haze = 0.25
+atmosphere.Density = 0.24
+atmosphere.Offset = 0.1
+atmosphere.Color = rgb(172, 214, 255)
+atmosphere.Decay = rgb(110, 170, 255)
+atmosphere.Glare = 0.2
+atmosphere.Haze = 0.35
 local bloom = lighting:FindFirstChildOfClass("BloomEffect") or U.new("BloomEffect", { Name = "Bloom" }, lighting)
-bloom.Intensity = 0.45
-bloom.Size = 22
-bloom.Threshold = 1.35
+-- Only Neon blooms (sunlit cream/white surfaces stay crisp).
+bloom.Intensity = 0.8
+bloom.Size = 24
+bloom.Threshold = 2
 local sunRays = lighting:FindFirstChildOfClass("SunRaysEffect")
 	or U.new("SunRaysEffect", { Name = "SunRays" }, lighting)
 sunRays.Intensity = 0.04
 sunRays.Spread = 0.5
 local grade = lighting:FindFirstChildOfClass("ColorCorrectionEffect")
 	or U.new("ColorCorrectionEffect", { Name = "ColorCorrection" }, lighting)
-grade.Saturation = 0.25
-grade.Contrast = 0.1
+grade.Saturation = 0.2
+grade.Contrast = 0.12
 grade.Brightness = 0.03
 grade.TintColor = rgb(255, 252, 246)
 

@@ -369,8 +369,8 @@ function VoxelWorld:pathDistance(x: number, z: number): number
 		end
 		local reach = if site.name == "Waterfall"
 			then site.pondR - site.pondRadius
-			elseif site.name == "Windmill" then site.radius - site.hillRadius + 4
-			elseif site.name == "GiantTree" then site.radius - site.plateauRadius + 4
+			elseif site.name == "Windmill" then site.radius - site.hillRadius - 4 -- the hill's own steps take over
+			elseif site.name == "GiantTree" then site.radius - site.plateauRadius - 6 -- the stair props take over
 			else site.radius - site.mountainRadius + 12
 		local lx, lz = radialLocal(x, z, site.angle, c.PromenadeRadius + c.PromenadeWidth)
 		local along = clamp(lz, 0, reach - (c.PromenadeRadius + c.PromenadeWidth))
@@ -493,6 +493,10 @@ function VoxelWorld:landmarkShape(x: number, z: number, flat: number, mflat: num
 				local shape = t ^ 1.35 + 0.08 * self:noise(mx / 40 + 5, mz / 40 + 9) * t
 				-- the mountain foot never spills into plots or paths
 				local h = (site.top - 4) * clamp(shape, 0, 1) * smoothstep(0, 30, mflat)
+				if site.summitTop then
+					-- nothing outside the flat summit may rise above it
+					h = min(h, site.summitTop - self.cfg.GroundTop - 4)
+				end
 				if not best or h > best then
 					best, bestKind = h, nil
 				end
@@ -686,6 +690,53 @@ function VoxelWorld:build()
 	end
 	self:relaxBlocks(hill)
 	self:relaxSlopes(locked)
+	self:fillPits()
+end
+
+--[[
+	Pit filling: a dry column sunk 4+ studs below at least 6 of its 8 neighbours (left over where
+	landmark shapes, paths and relaxed hills meet) is raised to the lowest of those neighbours.
+]]
+function VoxelWorld:fillPits()
+	local size = self.size
+	local tops, kinds = self.top, self.kind
+	for _ = 1, 4 do
+		local changed = false
+		for iz = 1, size - 2 do
+			for ix = 1, size - 2 do
+				local i = iz * size + ix
+				local h = buffer.readi16(tops, i * 2)
+				if h >= 2 then
+					local higher, lowest = 0, math.huge
+					for dz = -1, 1 do
+						for dx = -1, 1 do
+							if dx ~= 0 or dz ~= 0 then
+								local hj = buffer.readi16(tops, (i + dz * size + dx) * 2)
+								if hj >= h + 4 then
+									higher += 1
+									lowest = min(lowest, hj)
+								end
+							end
+						end
+					end
+					if higher >= 6 then
+						buffer.writei16(tops, i * 2, lowest)
+						-- take the look of a raised neighbour (grass/meadow/stone…)
+						for _, j in { i - 1, i + 1, i - size, i + size } do
+							if buffer.readi16(tops, j * 2) == lowest then
+								buffer.writeu8(kinds, i, buffer.readu8(kinds, j))
+								break
+							end
+						end
+						changed = true
+					end
+				end
+			end
+		end
+		if not changed then
+			break
+		end
+	end
 end
 
 --[[
@@ -930,6 +981,18 @@ function VoxelWorld:isReserved(x: number, z: number, margin: number?): boolean
 		return true
 	end
 	for _, site in self.landmarks do
+		if site.trail then
+			-- the carved peak trail and the flat summit stay clear
+			if sqrt((x - site.x) ^ 2 + (z - site.z) ^ 2) < site.summitRadius + m then
+				return true
+			end
+			local d2max = (TRAIL_HALF_WIDTH + m) ^ 2
+			for _, p in site.trail do
+				if (x - p[1]) ^ 2 + (z - p[2]) ^ 2 < d2max then
+					return true
+				end
+			end
+		end
 		local siteRadius = if site.name == "Waterfall"
 			then nil
 			elseif site.name == "Windmill" then site.topRadius + 4
