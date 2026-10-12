@@ -18,8 +18,9 @@
 	               (SurfaceGui with OwnerLabel / BaseLabel on both faces) and a gold fish on top
 	  lz 20..50    front yard: spawn pad on an Accent ring, flag with the owner billboard, siren
 	               tower (Alarm), vegetable beds (left), doghouse + guard dog (right)
-	  lz 54..130   aquarium plaza, a raised Accent stage: the big central tank (Tank.Glass)
-	               between two rows of six display pedestals facing it (Tank.Slots.Slot_1..12;
+	  lz 54..130   aquarium plaza, a raised Accent stage: the big central tank (Tank.Glass, a lit
+	               voxel reef inside on a Neon plinth band) between two rows of six display
+	               pedestals facing it (Tank.Slots.Slot_1..12;
 	               odd numbers on the -X row, even on the +X row, slots 1-2 nearest the gate),
 	               flower fields and big trees in the side lawns
 	  lz 133..168  the owner's cottage with a porch, a duck pond (left), a campfire with a tent
@@ -81,7 +82,18 @@ local C = {
 	Cream = rgb(255, 244, 220),
 	Glass = rgb(150, 230, 255),
 	Water = rgb(70, 196, 255),
-	TankWater = rgb(96, 206, 255), -- aquarium glass tint: reads as water, shows the decor
+	TankWater = rgb(186, 236, 255), -- aquarium glass: a light tint, so the decor keeps its colours
+	Reef = rgb(36, 150, 232), -- aquarium backdrop: deep sea blue behind the corals
+	ReefLight = rgb(140, 230, 255), -- the tank's PointLight
+	CoralPink = rgb(255, 150, 206), -- coral arms (lighter than the base) and their Neon tips
+	CoralPinkTip = rgb(255, 196, 232),
+	CoralLilac = rgb(198, 150, 255),
+	CoralLilacTip = rgb(230, 204, 255),
+	CoralOrange = rgb(255, 184, 84),
+	CoralOrangeTip = rgb(255, 226, 120),
+	CastleStone = rgb(214, 206, 246),
+	Bubble = rgb(205, 245, 255),
+	GoldGlow = rgb(255, 222, 90),
 	Gold = rgb(255, 200, 40),
 	Lamp = rgb(255, 238, 170), -- neon lantern light
 	Flame = rgb(255, 120, 30),
@@ -356,8 +368,8 @@ local function buildWalls(template: any, plot: any)
 	wall(-hw + 2.8, -gateHalf, front, front + 2.8) -- front, left of the gate
 	wall(gateHalf, hw - 2.8, front, front + 2.8) -- front, right of the gate
 
-	-- Lantern pillars: corners, side middles and a front pair. Centres sit 2.4 inside the plot
-	-- edge so the pillar tops never cross it.
+	-- Lantern pillars: corners and side middles (the gate pillars carry the front's lanterns).
+	-- Centres sit 2.4 inside the plot edge so the pillar tops never cross it.
 	local e = hw - 2.4
 	local zf, zb = front + 2.4, back - 2.4
 	for _, p in
@@ -368,8 +380,6 @@ local function buildWalls(template: any, plot: any)
 			{ e, zb },
 			{ -e, 92 },
 			{ e, 92 },
-			{ -42, zf },
-			{ 42, zf },
 		}
 	do
 		pillar(walls, p[1], p[2], 7.4)
@@ -525,7 +535,6 @@ local function buildYardDecor(template: any)
 	-- Mailbox next to the gate.
 	span(yard, "MailPost", 14.6, 15.4, LAWN - 0.1, 3.6, 25.6, 26.4, C.Wood)
 	span(yard, "Mailbox", 13.9, 16.1, 3.6, 5.4, 24.6, 27.4, 0)
-	span(yard, "MailFlag", 16.1, 16.4, 4.4, 6.0, 26.2, 27.0, C.Red, DECOR)
 	-- Lamp posts flanking the steps up to the aquarium stage.
 	for _, sx in { -1, 1 } do
 		lampPost(yard, sx * 16.5, 51.5, LAWN)
@@ -546,17 +555,16 @@ local SLOT_Z0, SLOT_PITCH = 64, 11
 local function buildTank(template: any): (any, { any })
 	local tank = U.model(template, "Tank")
 	local hx = TANK_HALF_X
-	local zc = (TANK_Z0 + TANK_Z1) / 2
 	local expected = {}
 
-	-- Plinth: dark Accent step, white band.
+	-- Plinth: dark Accent step, a glowing Neon band in the base colour (like the slot plates).
 	span(tank, "Plinth", -hx - 2, hx + 2, FIELD - 0.1, TANK_BASE - 0.6, TANK_Z0 - 2, TANK_Z1 + 2, -0.35)
-	span(tank, "PlinthTrim", -hx - 1.2, hx + 1.2, TANK_BASE - 0.6, TANK_BASE, TANK_Z0 - 1.2, TANK_Z1 + 1.2, C.White)
+	span(tank, "PlinthTrim", -hx - 1.2, hx + 1.2, TANK_BASE - 0.6, TANK_BASE, TANK_Z0 - 1.2, TANK_Z1 + 1.2, 0.35, NEON)
 
 	-- The glass (one part = the whole water volume; fish swim inside it later).
 	local glass = span(tank, "Glass", -hx, hx, TANK_BASE, TANK_TOP, TANK_Z0, TANK_Z1, C.TankWater, {
 		Material = M.Glass,
-		Transparency = 0.55,
+		Transparency = 0.6,
 		CastShadow = false,
 	})
 	tank.PrimaryPart = glass
@@ -564,30 +572,96 @@ local function buildTank(template: any): (any, { any })
 	local _, promptOffset = attachAt(glass, "PromptAttachment", at(0, FIELD + 3, TANK_Z0 - 3))
 	table.insert(expected, { root = "template", path = { "Tank", "Glass", "PromptAttachment" }, offset = promptOffset })
 
-	-- Sand bed and decor inside.
-	local sandTop = TANK_BASE + 1.2
-	span(tank, "Sand", -hx + 0.2, hx - 0.2, TANK_BASE, sandTop, TANK_Z0 + 0.2, TANK_Z1 - 0.2, C.Sand, DECOR)
-	local decor = {
-		-- name, x, z, sx, sy, sz, colour
-		{ "Coral", -7, 79, 3.2, 5.6, 3.2, C.Pink },
-		{ "Coral", -5, 81.4, 2, 3.2, 2, C.Pink },
-		{ "Coral", 7.4, 93, 2.4, 7, 2.4, C.Orange },
-		{ "Coral", -6.5, 104, 3.2, 4.4, 3.2, C.Purple },
-		{ "Rock", 4, 80, 3.6, 2, 3, C.StoneLight },
-		{ "Weed", -9.4, 90, 1, 6.6, 1, C.Leaf3 },
-		{ "Weed", 9.4, 84, 1, 5.4, 1, C.Lime },
-		{ "Chest", -1, 96, 3.2, 2, 2.4, C.Wood },
-	}
-	for _, d in decor do
-		local x, z, sx, sy, sz = d[2], d[3], d[4], d[5], d[6]
-		span(tank, d[1], x - sx / 2, x + sx / 2, sandTop - 0.2, sandTop + sy, z - sz / 2, z + sz / 2, d[7], DECOR)
+	-- Inside: a sand bed and a deep-blue backdrop wall along the middle, so each long side reads as
+	-- a lit reef aquarium (also when no fish are on display); on each side chunky branching corals
+	-- with glowing Neon tips, wavy kelp, a treasure chest / a little castle, rising Neon bubbles and
+	-- a voxel fish. A cyan PointLight on the backdrop lights it all.
+	local s = TANK_BASE + 1.2 -- sand top
+	span(tank, "Sand", -hx + 0.2, hx - 0.2, TANK_BASE, s, TANK_Z0 + 0.2, TANK_Z1 - 0.2, C.Sand, DECOR)
+	local backdrop =
+		span(tank, "Backdrop", -0.3, 0.3, s - 0.2, TANK_TOP - 0.6, TANK_Z0 + 0.4, TANK_Z1 - 0.4, C.Reef, DECOR)
+	U.new("PointLight", { Range = 16, Brightness = 1.2, Color = C.ReefLight, Shadows = false }, backdrop)
+	local function piece(
+		name: string,
+		x0: number,
+		x1: number,
+		y0: number,
+		y1: number,
+		z0: number,
+		z1: number,
+		paint: any
+	)
+		span(tank, name, x0, x1, s + y0, s + y1, z0, z1, paint, DECOR)
 	end
-	span(tank, "ChestLid", -2.7, 0.7, sandTop + 1.8, sandTop + 2.6, 94.7, 97.3, C.Gold, DECOR)
+	local function glow(
+		name: string,
+		x0: number,
+		x1: number,
+		y0: number,
+		y1: number,
+		z0: number,
+		z1: number,
+		paint: any
+	)
+		span(tank, name, x0, x1, s + y0, s + y1, z0, z1, paint, NEON_DECOR)
+	end
+	-- Branching coral: a fat base (w x 0.9w), a tall and a short arm in a lighter shade, a Neon tip
+	-- on the tall arm. (x, z) = the base's -X/-Z corner; flip puts the tall arm on the +X side.
+	local function coral(x: number, z: number, w: number, high: number, base: any, arm: any, tip: any, flip: boolean)
+		local d = w * 0.9
+		local a = if flip then w - 2.3 else 0.3 -- tall arm (2 wide)
+		local b = if flip then 0.4 else w - 2.0 -- short arm (1.6 wide)
+		piece("Coral", x, x + w, -0.2, 2.6, z, z + d, base)
+		piece("CoralArm", x + a, x + a + 2, 2.6, high, z + 0.8, z + 2.8, arm)
+		piece("CoralArm", x + b, x + b + 1.6, 2.6, high - 2.6, z + d - 2, z + d - 0.4, arm)
+		glow("CoralTip", x + a - 0.5, x + a + 2.5, high, high + 1.2, z + 0.3, z + 3.3, tip)
+	end
+	-- Wavy kelp: three stacked blocks shifted back and forth, nearly up to the water line.
+	local function kelp(x: number, z: number, dx: number)
+		piece("Kelp", x, x + 1.6, -0.2, 3.4, z, z + 1.6, C.Leaf2)
+		piece("Kelp", x + dx, x + dx + 1.6, 3.2, 6.4, z + 0.4, z + 2, C.Leaf3)
+		piece("Kelp", x - dx * 0.5, x - dx * 0.5 + 1.6, 6.2, 9.2, z - 0.2, z + 1.4, C.Lime)
+	end
+	-- Voxel fish: body, a tall tail fin behind it and a dark eye on the side the visitors see
+	-- (dir = +1 swims towards +Z, -1 towards -Z; side = -1 / +1: the -X / +X side).
+	local function fish(x: number, y: number, z: number, dir: number, side: number, body: any, tail: any)
+		piece("Fish", x - 1.1, x + 1.1, y - 1, y + 1, z - 1.6, z + 1.6, body)
+		local tz = z - dir * 2.3
+		piece("FishTail", x - 0.25, x + 0.25, y - 1.2, y + 1.2, tz - 0.7, tz + 0.7, tail)
+		local ex, ez = x + side * 1.15, z + dir * 0.9
+		piece("FishEye", ex - 0.15, ex + 0.15, 0.15 + y, 0.75 + y, ez - 0.3, ez + 0.3, C.Ink)
+	end
+	local function bubbles(x: number, z: number, list: { { number } })
+		for _, bub in list do
+			ball(tank, "Bubble", bub[2], at(x, s + bub[1], z), C.Bubble, NEON_DECOR)
+		end
+	end
 
-	-- Chunky Accent frame: corner + middle posts, light top rim.
+	-- -X side (seen from the odd slot row): pink coral, bubbles, kelp, goldfish, treasure chest
+	-- with an open lid and glowing gold, a purple sea fan.
+	coral(-10, 75.5, 5, 8.4, C.Pink, C.CoralPink, C.CoralPinkTip, false)
+	bubbles(-2.4, 80, { { 2.6, 1 }, { 5.4, 1.3 }, { 8.2, 1.6 } })
+	kelp(-3.6, 86.5, 0.4)
+	fish(-6.5, 7.6, 90, -1, -1, C.Orange, C.Yellow)
+	piece("Chest", -10, -5.4, -0.2, 2.6, 94.5, 98.3, C.Wood)
+	piece("ChestLid", -5.8, -5, 2.6, 6, 94.3, 98.5, C.Gold) -- open, standing at the back
+	glow("ChestGold", -9.6, -5.8, 2.4, 3.4, 94.9, 97.9, C.GoldGlow)
+	piece("SeaFan", -8.4, -7.6, -0.2, 7, 101.5, 108.5, C.Purple)
+	-- +X side (seen from the even slot row): kelp, a little castle, orange coral, blue tang,
+	-- bubbles, a yellow brain coral.
+	kelp(1.8, 75.8, -0.4)
+	piece("Castle", 5, 10, -0.2, 6.6, 82.5, 87.5, C.CastleStone)
+	piece("CastleRoof", 4.5, 10.5, 6.6, 8.8, 82, 88, C.Red)
+	piece("CastleDoor", 10, 10.2, 0, 3.2, 84.2, 85.8, C.Ink)
+	coral(4.8, 94, 5, 7.6, C.Orange, C.CoralOrange, C.CoralOrangeTip, true)
+	bubbles(2.4, 101.5, { { 3, 1.1 }, { 5.8, 1.4 }, { 8.4, 1.6 } })
+	fish(6.5, 8.2, 102, 1, 1, C.Blue, C.Yellow)
+	piece("BrainCoral", 6, 10.2, -0.2, 2.6, 104.5, 108.5, C.Yellow)
+
+	-- Chunky Accent frame: corner posts (the long sides stay open for the view), light top rim.
 	local postTop = TANK_TOP + 1
 	for _, sx in { -1, 1 } do
-		for _, z in { TANK_Z0, zc, TANK_Z1 } do
+		for _, z in { TANK_Z0, TANK_Z1 } do
 			span(tank, "Post", sx * hx - 0.9, sx * hx + 0.9, TANK_BASE, postTop, z - 0.9, z + 0.9, 0)
 		end
 		span(tank, "Rim", sx * hx - 0.8, sx * hx + 0.8, TANK_TOP, TANK_TOP + 0.8, TANK_Z0, TANK_Z1, 0.2)
@@ -679,9 +753,8 @@ local function buildDogHouse(template: any)
 	box(house, "Roof", f, 0, 8, 0, 3.2, 1.2, 8, 0.2)
 	local plate = box(house, "NamePlate", f, 0, 4.6, -3.35, 3.4, 1.1, 0.3, C.White, DECOR)
 	plainText(plate, Enum.NormalId.Front, "ГАВ!", C.Ink, false)
-	-- Bowl and a bone.
+	-- A food bowl.
 	cylY(house, "Bowl", 1.9, 0.7, f * at(2.8, 0.35, -5), 0, DECOR)
-	box(house, "Bone", f, -2.6, 0.3, -5.2, 2, 0.5, 0.6, C.White, DECOR)
 end
 
 -- Cute blocky shiba guarding the entrance; local -Z = where it looks.
@@ -763,9 +836,10 @@ local function buildHouse(template: any)
 	end
 	span(house, "Ridge", x0 - 3, x1 + 3, roofY, roofY + 0.9, zc - 1.2, zc + 1.2, C.White)
 
-	-- Dormer with a window on the front slope (above the porch awning).
+	-- Dormer with a window on the front slope (above the porch awning); its top sinks 0.1 into its
+	-- roof so it never shares the plane of the roof step below.
 	local dy0 = wallTop + 1.4
-	span(house, "Dormer", -5, 5, dy0, dy0 + 6.6, z0 - 0.2, z0 + 7, C.Cream)
+	span(house, "Dormer", -5, 5, dy0, dy0 + 6.7, z0 - 0.2, z0 + 7, C.Cream)
 	span(house, "DormerWindow", -3, 3, dy0 + 1.2, dy0 + 5.4, z0 - 0.6, z0, C.Glass, {
 		Material = M.Glass,
 		Transparency = 0.25,
@@ -780,7 +854,6 @@ local function buildHouse(template: any)
 	-- Front (-Z): door with a frame, two windows with flower boxes.
 	span(house, "DoorFrame", -3.8, 3.8, base, base + 9.2, z0 - 0.4, z0, C.Wood)
 	span(house, "Door", -2.8, 2.8, base, base + 8.2, z0 - 0.6, z0 - 0.2, -0.25)
-	ball(house, "DoorKnob", 0.6, at(1.8, base + 4, z0 - 0.75), C.Gold, DECOR)
 	for _, sx in { -1, 1 } do
 		local x = sx * 11
 		span(house, "WindowFrame", x - 3.6, x + 3.6, base + 3.2, base + 10, z0 - 0.4, z0, C.Wood)
@@ -869,7 +942,8 @@ end
 local function buildCampfire(template: any): any
 	local camp = U.model(template, "Campfire")
 	local fx, fz = 44, 146
-	span(camp, "Patch", fx - 9, fx + 9, 0, 0.4, fz - 9, fz + 9, C.Sand)
+	-- (the sand patch stands 0.15 above the mowed stripes it covers: no shimmer from the hills)
+	span(camp, "Patch", fx - 9, fx + 9, 0, STRIPE + 0.15, fz - 9, fz + 9, C.Sand)
 	span(camp, "FirePit", fx - 2.6, fx + 2.6, 0.3, 1.1, fz - 2.6, fz + 2.6, C.StoneLight)
 	local spin = CFrame.Angles(0, rad(45), 0)
 	local logs = make(camp, "Logs", Vector3.new(3.6, 0.8, 1), at(fx, 1.4, fz) * spin, C.WoodDark, DECOR)
@@ -895,18 +969,20 @@ local function buildCampfire(template: any): any
 	span(camp, "LogSeat", fx - 3.5, fx + 3.5, 0.3, 1.9, fz - 6.6, fz - 5, C.Wood)
 	span(camp, "LogSeat", fx - 6.6, fx - 5, 0.3, 1.9, fz - 3.5, fz + 3.5, C.Wood)
 	span(camp, "LogSeat", fx + 5, fx + 6.6, 0.3, 1.9, fz - 3.5, fz + 3.5, C.Wood)
-	-- Tent behind the fire (two Accent wedges, opening towards the fire).
-	local t = facing(fx, 0.4, fz + 10, 0)
-	local tent = Vector3.new(4, 5.6, 7)
-	make(camp, "Tent", tent, t * at(-2, 2.8, 0) * CFrame.Angles(0, rad(90), 0), 0, { wedge = true, CastShadow = true })
+	-- A-frame tent behind the fire: two Accent wedges back to back (their upright backs meet at
+	-- the ridge, so no faces overlap), a dark doorway towards the fire.
+	local t = facing(fx, 0.15, fz + 10, 0)
+	local tent = Vector3.new(6, 5.4, 3.6)
 	make(
 		camp,
 		"Tent",
 		tent,
-		t * at(2, 2.8, 0) * CFrame.Angles(0, rad(-90), 0),
-		0.25,
+		t * at(-1.8, 2.7, 0) * CFrame.Angles(0, rad(90), 0),
+		0,
 		{ wedge = true, CastShadow = true }
 	)
+	make(camp, "Tent", tent, t * at(1.8, 2.7, 0) * CFrame.Angles(0, rad(-90), 0), 0.25, { wedge = true })
+	box(camp, "TentDoor", t, 0, 1.75, -3.05, 1.6, 2.8, 0.3, C.Ink, DECOR)
 	return sparksOffset
 end
 
@@ -946,16 +1022,13 @@ local function buildGreenery(template: any)
 	-- Flower fields in the side lawns.
 	flowerField(green, -62, 74, 104, 0)
 	flowerField(green, 49, 74, 104, 2)
-	-- Big trees in the side lawns (an apple and an orange tree among them), at the front corner,
-	-- beside the house and behind the campfire.
+	-- Big trees in the side lawns (an apple and an orange tree among them) and beside the house.
 	tree(green, -56, 62, 1.6, 11, "green", C.Red)
 	tree(green, 56, 62, 1.55, 12, "mint")
 	tree(green, -56, 117, 1.65, 13, "mint")
 	tree(green, 56, 117, 1.6, 14, "green", C.Orange)
-	tree(green, 58, 27, 1.35, 17, "green")
 	tree(green, -30, 160, 1.3, 15, "green")
 	tree(green, 30, 160, 1.3, 16, "mint")
-	tree(green, 58, 159, 1.2, 18, "green")
 	-- Bushes flanking the steps up to the stage.
 	for _, p in { { -20, 49 }, { 20, 49 } } do
 		bush(green, p[1], p[2], 1.1)
@@ -970,10 +1043,10 @@ local PIER_HALF = 8 -- walkway deck x = ±8
 local PIER_END = -70 -- walkway ends, platform begins
 local PLAT_HALF = 20 -- platform x = ±20
 
--- Deck slab with raised plank strips (4 studs wide, every 8; 0.1 short of the deck's ends): along
--- Z for the walkway, across (along X) for the platform. z0 < z1.
-local function deck(parent: any, halfWidth: number, z0: number, z1: number, across: boolean)
-	span(parent, "Deck", -halfWidth, halfWidth, DECK - 1.2, DECK, z0, z1, C.WoodLight)
+-- Deck slab (top at `top`) with raised plank strips (4 studs wide, every 8; 0.1 short of the
+-- deck's ends): along Z for the walkway, across (along X) for the platform. z0 < z1.
+local function deck(parent: any, halfWidth: number, z0: number, z1: number, across: boolean, top: number)
+	span(parent, "Deck", -halfWidth, halfWidth, DECK - 1.2, top, z0, z1, C.WoodLight)
 	local flat = { CastShadow = false }
 	if across then
 		local z = z0 + 2
@@ -993,20 +1066,21 @@ end
 local function buildPier(template: any, pierEnd: number, pileBottom: number)
 	local pier = U.model(template, "Pier")
 	local hw = PIER_HALF
-	deck(pier, hw, PIER_END, 0, false)
+	-- (the walkway slab sits 0.14 under the promenade tiles it runs into: no shared plane)
+	deck(pier, hw, PIER_END, 0, false, DECK - 0.1)
 	-- Accent kerbs along both edges.
 	for _, sx in { -1, 1 } do
 		span(pier, "Kerb", sx * hw, sx * (hw + 1.2), DECK - 1.4, DECK + 0.6, PIER_END, 0, -0.3)
 	end
-	-- Posts double as piles; every other one carries a lantern.
+	-- Posts double as piles; the two end pairs carry lanterns.
 	local px = hw + 0.6
 	local zs = { -3, -17, -31, -45, -59 }
 	for i, z in zs do
-		local lantern = i % 2 == 1
+		local lantern = i == 1 or i == #zs
 		local top = if lantern then DECK + 6 else DECK + 4.2
 		for _, sx in { -1, 1 } do
 			local x = sx * px
-			span(pier, "Post", x - 1, x + 1, pileBottom, top, z - 1, z + 1, C.WoodDark)
+			span(pier, "Post", x - 1, x + 1, pileBottom, top, z - 1, z + 1, C.Wood)
 			if lantern then
 				span(pier, "Lantern", x - 0.9, x + 0.9, top, top + 1.8, z - 0.9, z + 0.9, C.Lamp, NEON_DECOR)
 				span(pier, "LanternCap", x - 1.3, x + 1.3, top + 1.8, top + 2.4, z - 1.3, z + 1.3, 0, DECOR)
@@ -1023,7 +1097,7 @@ local function buildPier(template: any, pierEnd: number, pileBottom: number)
 	-- End platform (its front kerb ends exactly at the end of the pier corridor).
 	local plat = U.model(template, "Platform")
 	local z0, z1 = pierEnd + 1.2, PIER_END
-	deck(plat, PLAT_HALF, z0, z1, true)
+	deck(plat, PLAT_HALF, z0, z1, true, DECK)
 	local e = PLAT_HALF
 	span(plat, "Kerb", -e - 1.2, e + 1.2, DECK - 1.4, DECK + 0.6, pierEnd, z0, -0.3)
 	for _, sx in { -1, 1 } do
@@ -1045,7 +1119,7 @@ local function buildPier(template: any, pierEnd: number, pileBottom: number)
 			{ 9, zf },
 		}
 	do
-		span(plat, "Post", p[1] - 1, p[1] + 1, pileBottom, DECK + 4.2, p[2] - 1, p[2] + 1, C.WoodDark)
+		span(plat, "Post", p[1] - 1, p[1] + 1, pileBottom, DECK + 4.2, p[2] - 1, p[2] + 1, C.Wood)
 	end
 	for _, sx in { -1, 1 } do
 		span(plat, "Rail", sx * pe - 0.5, sx * pe + 0.5, DECK + 3.2, DECK + 4, zf, z1 - 1, 0)

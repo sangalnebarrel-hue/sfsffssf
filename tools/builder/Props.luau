@@ -32,7 +32,7 @@
 
 	Catalogue (parts per instance):
 	  trees      oakTree 13-16, roundTree 13-16, cherryTree 15, autumnTree 15,
-	             birchTree 12, pineTree 11-14, palmTree 16, giantTree 72 (landmark)
+	             birchTree 12, pineTree 11-14, palmTree 16, giantTree 94 (landmark)
 	  plants     bush 4-7, flowerPatch 12, mushroom 7, giantMushroom 14-16, lilyPad 2-4,
 	             reeds 7, stump 4-6, log 3
 	  rocks      rock 1-4, boulder 5-6, crystalCluster 10, rockArch 23-33
@@ -103,11 +103,12 @@ local C: { [string]: any } = {
 	Wood = rgb(204, 138, 78),
 	WoodDark = rgb(150, 94, 52),
 	WoodLight = rgb(236, 184, 120),
-	-- foliage is cooler and >= 15% darker than the yellow-green grass, so trees, hedges and bushes
-	-- stand out against the lawns and hills (only the small tips/caps get close to it)
-	Leaf1 = rgb(44, 150, 72),
-	Leaf2 = rgb(66, 178, 84),
-	Leaf3 = rgb(108, 208, 98),
+	-- foliage: bright candy greens (hue ~115-128°, the grass is ~100°), a step darker and less
+	-- yellow than the grass, so trees, hedges and bushes stand out against the lawns and hills
+	-- without reading as dark teal blobs (only the small tips/caps get close to the grass)
+	Leaf1 = rgb(58, 166, 64),
+	Leaf2 = rgb(84, 194, 76),
+	Leaf3 = rgb(116, 216, 98),
 	Pine1 = rgb(36, 140, 84),
 	Pine2 = rgb(50, 166, 96),
 	Pine3 = rgb(76, 192, 110),
@@ -128,21 +129,21 @@ local C: { [string]: any } = {
 	Glass = rgb(150, 230, 255),
 
 	-- extra shades
-	Leaf0 = rgb(30, 122, 62), -- deepest foliage shade (undersides)
+	Leaf0 = rgb(46, 146, 56), -- deepest foliage shade (undersides)
 	LeafLight = rgb(150, 228, 112), -- sunlit tips (small pieces only)
-	Mint1 = rgb(34, 146, 110), -- blue-green broadleaf variety
-	Mint2 = rgb(58, 180, 128),
-	Mint3 = rgb(112, 212, 150),
-	BirchLeaf1 = rgb(50, 156, 88), -- fresh but still darker than the grass
-	BirchLeaf2 = rgb(80, 186, 98),
-	BirchLeaf3 = rgb(122, 208, 108),
-	Pine0 = rgb(26, 116, 72),
+	Mint1 = rgb(44, 164, 92), -- jade broadleaf variety (a touch cooler than Leaf)
+	Mint2 = rgb(72, 198, 112),
+	Mint3 = rgb(136, 228, 150),
+	BirchLeaf1 = rgb(60, 166, 70), -- fresh but still darker than the grass
+	BirchLeaf2 = rgb(92, 196, 84),
+	BirchLeaf3 = rgb(140, 222, 112),
+	Pine0 = rgb(32, 132, 80), -- conifers (Pine0-3) are the only cool, deep greens
 	PineLight = rgb(112, 206, 124), -- young fir tips
 	Blossom0 = rgb(240, 110, 172), -- deep pink (undersides)
 	Autumn0 = rgb(240, 96, 40), -- red-orange (undersides)
-	Palm1 = rgb(36, 156, 78),
-	Palm2 = rgb(58, 186, 88),
-	Palm3 = rgb(112, 216, 100),
+	Palm1 = rgb(40, 164, 72),
+	Palm2 = rgb(70, 196, 80),
+	Palm3 = rgb(124, 224, 100),
 	Bark = rgb(164, 104, 60),
 	BarkDark = rgb(124, 78, 46),
 	CutWood = rgb(255, 214, 150), -- fresh cut faces of stumps/logs
@@ -1121,7 +1122,8 @@ function Props.palmTree(parent: any, cf: any, opts: { [string]: any }?): any
 			local reach = L + 1.2
 			local sx = if d[1] ~= 0 then 3.0 else 1.8
 			local sz = if d[2] ~= 0 then 3.0 else 1.8
-			local top = y + 0.62 - (i % 2) * 0.05
+			-- (its top sits 0.1+ inside the blade above it: FrondX starts at y + 0.55, FrondZ at + 0.6)
+			local top = y + 0.75 - (i % 2) * 0.05
 			b:vox(`FrondTip{i}`, tx + d[1] * reach, top - 0.65, d[2] * reach, sx, 1.3, sz, shade(pal[2], 0.86), FOLIAGE)
 		end
 		for i, d in if o.lite then {} else { { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do
@@ -1156,145 +1158,167 @@ function Props.palmTree(parent: any, cf: any, opts: { [string]: any }?): any
 end
 
 --[[
-	giantTree: landmark tree, ~59 studs tall: massive trunk with bark ridges, 4 stepped roots,
-	branches, a wide 3-shade layered canopy (~36 studs) with bumps, a treehouse platform with a
-	hut, railing, a climbable ladder (invisible TrussPart + rails and rungs), a rope swing and
-	glowing lanterns hanging from the branches. 72 parts.
-	opts: leaves = {dark, mid, light}, treehouse = false (no platform/hut/ladder),
+	giantTree: the landmark tree, ~82 studs tall at scale 1 (Landmarks scales it up): a massive
+	10-stud trunk with bark ridges and stepped roots, three branches tucked under a huge, bright
+	4-layer canopy (~58 studs, ~70 with its bumps) with pink blossom clusters and 8 Neon lanterns
+	hanging on cords under its rim. A treehouse deck wraps the trunk at y 28 with a hut (glowing
+	windows, stepped roof) on the front (-Z), right under the canopy; a chunky stair of 20 steps
+	wraps once round the trunk from the front-right corner up to the deck, and a long rope swing
+	hangs under the deck. 94 parts.
+	opts: leaves = {dark, mid, light}, treehouse = false (no deck/hut/stair/swing),
 	roof = colour (hut roof).
 ]]
 
 function Props.giantTree(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "GiantTree", cf, opts, 47)
 	local o = b.opts
-	local pal = o.leaves or { C.Leaf1, C.Leaf2, C.Leaf3 }
+	-- a brighter palette than the woods: it lights up from across the lagoon
+	local pal = o.leaves or { C.Leaf1, C.Leaf2, rgb(132, 228, 92) }
 	local dark, mid, lightC = pal[1], pal[2], pal[3]
 	local bark, barkDark = C.Bark, C.BarkDark
+	local T = 5 -- trunk half-width
 
-	-- trunk
-	local trunk = b:span("Trunk", -4, -2, -4, 4, 34, 4, bark)
-	b:span("TrunkUpper", -3, 33.9, -3, 3, 42, 3, shade(bark, 1.06))
+	-- trunk (up into the canopy) with bark ridges
+	local trunk = b:span("Trunk", -T, -2, -T, T, 46, T, bark)
 	for i, f in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
-		local off = 4.05
-		local sx = if f[1] ~= 0 then 0.5 else 1.4
-		local sz = if f[2] ~= 0 then 0.5 else 1.4
-		local shift = (i - 2.5) * 0.9
+		local off = T + 0.05
+		local sx = if f[1] ~= 0 then 0.5 else 1.6
+		local sz = if f[2] ~= 0 then 0.5 else 1.6
+		local shift = (i - 2.5) * 1.2
 		b:vox(
 			`Ridge{i}`,
 			f[1] * off + (if f[1] == 0 then shift else 0),
-			12 + i * 2,
+			14 + i * 2,
 			f[2] * off + (if f[2] == 0 then shift else 0),
 			sx,
-			18,
+			16,
 			sz,
 			barkDark,
 			NOSHADOW
 		)
 	end
-	-- roots: two steps out on each side
-	for i, f in { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 } } do
-		local inner = if f[1] ~= 0 then Vector3.new(3, 5, 3.2) else Vector3.new(3.2, 5, 3)
-		local outer = if f[1] ~= 0 then Vector3.new(3, 2.6, 2.4) else Vector3.new(2.4, 2.6, 3)
-		local shift = if i % 2 == 0 then 0.8 else -0.8
-		b:vox(
-			`RootIn{i}`,
-			f[1] * 5.2 + (if f[1] == 0 then shift else 0),
-			1.0,
-			f[2] * 5.2 + (if f[2] == 0 then shift else 0),
-			inner.X,
-			inner.Y,
-			inner.Z,
-			bark
-		)
-		b:vox(
-			`RootOut{i}`,
-			f[1] * 7.8 + (if f[1] == 0 then shift else 0),
-			0.1,
-			f[2] * 7.8 + (if f[2] == 0 then shift else 0),
-			outer.X,
-			outer.Y,
-			outer.Z,
-			barkDark
-		)
-	end
-	-- bumps around the canopy edge (low = dark, high = light); branches reach the low ones
-	local bumps = {
-		{ 17.5, 37, 5, 10, dark },
-		{ -16.5, 38, -7, 9, dark },
-		{ 4, 36.5, 18, 9, dark },
-		{ -9, 45, 16, 9, mid },
-		{ 12.5, 50.5, -10, 8.5, lightC },
-		{ -14.5, 50, 4, 8, lightC },
-		-- more lumps on the front (-Z, towards the path) and the back, so no side reads as a flat wall
-		{ 2, 42, -18.6, 9, mid },
-		{ -7, 35.5, -14.5, 8, dark },
-		{ 9, 47, 14, 8, lightC },
-	}
-	for i = 1, 3 do
-		local c = bumps[i]
-		local cx, cz = c[1] * 0.85, c[3] * 0.85
-		local cy = 30.6
-		if math.abs(cx) > math.abs(cz) then
-			b:span(`Branch{i}`, 0, cy - 1.1, cz - 1.1, cx, cy + 1.1, cz + 1.1, bark, NOSHADOW)
-		else
-			b:span(`Branch{i}`, cx - 1.1, cy - 1.1, 0, cx + 1.1, cy + 1.1, cz, bark, NOSHADOW)
+	-- roots: two steps out on three sides (the stair starts on the +X side)
+	for i, f in { { 0, 1 }, { -1, 0 }, { 0, -1 } } do
+		local shift = if i % 2 == 0 then 1 else -1
+		local function root(name: string, out: number, y: number, depth: number, w: number, h: number, color: any)
+			local x = f[1] * out + (if f[1] == 0 then shift else 0)
+			local z = f[2] * out + (if f[2] == 0 then shift else 0)
+			local sx = if f[1] ~= 0 then depth else w
+			local sz = if f[2] ~= 0 then depth else w
+			b:vox(name, x, y, z, sx, h, sz, color)
 		end
+		root(`RootIn{i}`, T + 1.5, 1.5, 3.4, 4, 6, bark)
+		root(`RootOut{i}`, T + 4.4, 0, 3, 3.2, 3, barkDark)
 	end
-	-- canopy: a big voxel ball of rounded layers
-	b:cross("CanopyLow", 0, 31.5, 0, 38, 28, 28, 0.7, dark, FOLIAGE)
-	b:cross("Canopy", 0.5, 37.6, -0.5, 48, 36, 36, 0.72, mid, FOLIAGE_SHADOW)
-	b:cross("CanopyTop", 1.5, 47.6, -1.25, 54, 27, 27, 0.7, lightC, FOLIAGE)
-	b:cross("CanopyCrown", 0, 53.6, 1, 57.4, 15, 15, 0.68, lerpColor(lightC, C.White, 0.08), FOLIAGE)
-	b:span("Cap", -2.5, 57, -2, 3.5, 59.2, 4, lerpColor(lightC, C.White, 0.2), FOLIAGE)
+	-- three thick branches reaching out under the canopy (none on the front: the hut is there)
+	b:span("Branch1", T - 0.2, 40.6, -1.2, 21, 43, 1.2, bark, NOSHADOW)
+	b:span("Branch2", -21, 40.6, -1.2, -T + 0.2, 43, 1.2, bark, NOSHADOW)
+	b:span("Branch3", -1.2, 40.6, T - 0.2, 1.2, 43, 21, bark, NOSHADOW)
+
+	-- canopy: a big voxel ball of rounded layers, dark underside to a light crown
+	b:cross("CanopyLow", 0, 42, 0, 51, 44, 44, 0.7, dark, FOLIAGE)
+	b:cross("Canopy", 0.5, 50.6, -0.5, 64, 58, 58, 0.72, mid, FOLIAGE_SHADOW)
+	b:cross("CanopyTop", 1.5, 63.6, -1.2, 73, 44, 44, 0.7, lightC, FOLIAGE)
+	b:cross("CanopyCrown", 0, 72.6, 1, 79, 26, 26, 0.68, lerpColor(lightC, C.White, 0.1), FOLIAGE)
+	b:span("Cap", -3, 78.6, -2.5, 4, 82, 4.5, lerpColor(lightC, C.White, 0.25), FOLIAGE)
+	-- bumps round the canopy edge (low = dark on the sides, mid on the corners, light up high);
+	-- they leave the 8 lantern spots under the rim free
+	local bumps = {
+		{ 28, 48, 0, 12, dark },
+		{ -28, 49, 1, 12, dark },
+		{ 0, 47.5, 28, 11, dark },
+		{ -1, 48, -27.5, 12, dark },
+		{ 23, 57, 23, 11, mid },
+		{ -23, 58, -23, 11, mid },
+		{ 23.5, 57.5, -22.5, 11, mid },
+		{ 18, 68, -8, 10, C.Blossom1 }, -- two of the high bumps are blossom puffs
+		{ -17, 67, 8, 10, lightC },
+		{ 6, 69, 18, 9, C.Blossom2 },
+	}
 	for i, c in bumps do
 		b:vox(`Bump{i}`, c[1], c[2], c[3], c[4], c[4] * 0.9, c[4], c[5], FOLIAGE)
 	end
+	-- pink blossom clusters on the crown and the canopy sides (the "magic" touch)
+	local blossoms = {
+		{ 11.5, 73.4, -11.5, 4.5, 1.8, 4.5 },
+		{ -13, 73.4, 11, 4.5, 1.8, 4.5 },
+		{ 24.2, 68, 5, 2.4, 3.6, 4.4 },
+		{ -29.2, 56, 12, 2.4, 3.6, 4.4 },
+		{ -11, 59, -30.2, 4.4, 3.6, 2.4 },
+		{ 12, 57, 29.2, 4.4, 3.6, 2.4 },
+	}
+	for i, c in blossoms do
+		b:vox(`Blossom{i}`, c[1], c[2], c[3], c[4], c[5], c[6], if i % 2 == 1 then C.Blossom1 else C.Blossom2, FOLIAGE)
+	end
+	-- 8 glowing lanterns on short cords under the wide middle layer, round the rim
+	for i = 0, 7 do
+		local a = RAD(22.5 + 45 * i)
+		local lx, lz = 25 * math.sin(a), 25 * math.cos(a)
+		b:span(`LanternCord{i + 1}`, lx - 0.15, 48.8, lz - 0.15, lx + 0.15, 50.8, lz + 0.15, C.Rope, DECOR)
+		b:vox(`Lantern{i + 1}`, lx, 47.6, lz, 2, 2.4, 2, C.Glow, NEON_DECOR)
+	end
 
 	if o.treehouse ~= false then
-		local py = 17
-		-- platform (bigger on +X where the hut stands) + two support beams
-		b:span("Platform", -9, py, -9, 15, py + 1, 9, C.WoodLight)
-		b:span("Beam1", -9, py - 1.2, -0.8, 15, py, 0.8, C.WoodDark)
-		b:span("Beam2", 9.2, py - 1.2, -9, 10.8, py, 9, C.WoodDark)
-		b:span("Support", 9.4, -1, -0.6, 10.6, py - 1.2, 0.6, C.WoodDark)
-		-- railing (front split for the ladder)
-		local rc = C.Wood
-		b:span("RailBack", -9, py + 1, 8.4, 15, py + 2.6, 9, rc)
-		b:span("RailLeft", -9, py + 1, -9, -8.4, py + 2.6, 9, rc)
-		b:span("RailFrontA", -9, py + 1, -9, -3, py + 2.6, -8.4, rc)
-		b:span("RailFrontB", 1, py + 1, -9, 15, py + 2.6, -8.4, rc)
-		-- hut
+		-- the deck: four slabs round the trunk; the stair comes up through the gap on the
+		-- right-back (x 0..14, z -0.7..14)
+		local deckY = 28
+		local d0 = deckY - 1.2
+		b:span("Deck", -14, d0, -17, 14, deckY, -T, C.WoodLight) -- front, carries the hut
+		b:span("DeckLeft", -14, d0, -T, -T, deckY, 14, C.WoodLight)
+		b:span("DeckBack", -T, d0, T, 0, deckY, 14, C.WoodLight)
+		b:span("DeckRight", T, d0, -T, 14, deckY, -0.7, C.WoodLight)
+		b:span("Beam1", -14, d0 - 1.2, -11.5, 14, d0, -9.5, C.Wood, NOSHADOW)
+		b:span("Beam2", -14, d0 - 1.2, -1, 14, d0, 1, C.Wood, NOSHADOW)
+		b:span("RailLeft", -14, deckY, -17, -13.2, deckY + 1.8, 14, C.Wood)
+		b:span("RailBack", -13.2, deckY, 13.2, 0, deckY + 1.8, 14, C.Wood)
+		b:span("RailRight", 13.2, deckY, -17, 14, deckY + 1.8, -0.7, C.Wood)
+		-- the hut on the front of the deck, facing the lagoon: glowing windows, a stepped roof
+		-- just under the canopy, the door on its right side (towards the stair)
 		local roofC = o.roof or C.Red
-		b:span("HutWalls", 6, py + 1, -5, 14, py + 7, 5, C.Cream)
-		b:span("HutRoof1", 5, py + 7, -6, 15, py + 8.4, 6, roofC)
-		b:span("HutRoof2", 6.5, py + 8.4, -4.5, 13.5, py + 9.6, 4.5, lerpColor(roofC, C.White, 0.2))
-		b:span("HutRoof3", 8, py + 9.6, -2.5, 12, py + 10.6, 2.5, roofC)
-		b:span("HutDoor", 8.6, py + 1, -5.3, 11.4, py + 5.4, -4.9, C.Blue)
-		b:span("HutWindow", 14, py + 3.2, -1.4, 14.3, py + 5.4, 1.4, C.Glow, NEON_DECOR)
-		-- ladder at the front gap: an invisible TrussPart (2 studs, from the ground to 3 studs
-		-- above the deck) that the Humanoid climbs, dressed as side rails with dense rungs on its
-		-- outer face; the rails reach back to the platform edge
-		local lz0 = -9 - 2 / b.s -- the truss' outer face (it is 2 studs deep)
-		b:truss("LadderTruss", -1, (lz0 - 9) / 2, -1, py + 1 + 3 / b.s)
-		for i, x in { -2.6, 0.6 } do
-			b:span(`LadderRail{i}`, x - 0.3, -1, lz0, x + 0.3, py + 2.8, -9, C.WoodDark)
+		b:span("HutWalls", -9, deckY, -16, 9, deckY + 8, -7.5, C.Cream)
+		b:span("HutRoof1", -10.5, deckY + 8, -17.5, 10.5, deckY + 9.4, -6, roofC)
+		b:span("HutRoof2", -8.5, deckY + 9.4, -16, 8.5, deckY + 10.8, -7.5, lerpColor(roofC, C.White, 0.25))
+		b:span("HutRoof3", -5.5, deckY + 10.8, -14.5, 5.5, deckY + 12, -9, roofC)
+		b:span("HutDoor", 9, deckY, -13.6, 9.4, deckY + 5.6, -10, C.Orange)
+		for i, x in { -4.3, 4.3 } do
+			b:span(`HutWindow{i}`, x - 1.8, deckY + 3, -16.3, x + 1.8, deckY + 6, -16, C.Glow, NEON_DECOR)
 		end
-		local rungs = math.floor((py + 1) / 1.35)
-		for k = 1, rungs do
-			local yy = k * (py + 1) / (rungs + 1)
-			b:span(`Rung{k}`, -2.4, yy - 0.2, lz0, 0.4, yy + 0.2, lz0 + 0.4, C.WoodLight, DECOR)
+		-- the stair: 20 chunky steps (1.4 up each, 3.1 apart) on a square loop 5..10.5 out from
+		-- the trunk centre, once round the trunk; the top step is flush with the deck
+		local c = 7.75
+		local corners = {
+			Vector3.new(c, 0, -c),
+			Vector3.new(-c, 0, -c),
+			Vector3.new(-c, 0, c),
+			Vector3.new(c, 0, c),
+		}
+		local function along(s: number): (any, any)
+			local p = Vector3.new(c, 0, -2)
+			local i = 1
+			while true do
+				local seg = corners[(i - 1) % 4 + 1] - p
+				if s <= seg.Magnitude then
+					return p + seg.Unit * s, seg.Unit
+				end
+				s -= seg.Magnitude
+				p += seg
+				i += 1
+			end
 		end
-		-- rope swing hanging from branch 2 (-X side)
-		local sx, sz = -9.5, -6
-		b:span("SwingRopeA", sx - 1.4, 8, sz - 0.1, sx - 1.2, 29.7, sz + 0.1, C.Rope, DECOR)
-		b:span("SwingRopeB", sx + 1.2, 8, sz - 0.1, sx + 1.4, 29.7, sz + 0.1, C.Rope, DECOR)
-		b:span("SwingSeat", sx - 1.8, 7.6, sz - 0.7, sx + 1.8, 8.1, sz + 0.7, C.Red)
+		for k = 0, 19 do
+			local p, dir = along(k * 3.1)
+			local alongX = math.abs(dir.X) > 0.5
+			local sx = if alongX then 3.6 else 5.5
+			local sz = if alongX then 5.5 else 3.6
+			local top = 1.4 * (k + 1)
+			b:vox(`Step{k + 1}`, p.X, top - 0.7, p.Z, sx, 1.4, sz, if k % 2 == 0 then C.WoodLight else C.Wood, NOSHADOW)
+		end
+		-- a long rope swing under the left side of the deck
+		local sx, sz = -12, 3
+		b:span("SwingRopeA", sx - 1.4, 2, sz - 0.1, sx - 1.2, d0, sz + 0.1, C.Rope, DECOR)
+		b:span("SwingRopeB", sx + 1.2, 2, sz - 0.1, sx + 1.4, d0, sz + 0.1, C.Rope, DECOR)
+		b:span("SwingSeat", sx - 1.8, 1.6, sz - 0.7, sx + 1.8, 2.1, sz + 0.7, C.Red)
 	end
-	-- glowing lanterns hanging from the branch tips (the first one on a short cord)
-	for i, p in { { 13.4, 28.2, 4.25 }, { 4, 29.2, 15 }, { -14, 30.2, -7 } } do
-		b:vox(`Lantern{i}`, p[1], p[2], p[3], 1.3, 1.5, 1.3, C.Glow, NEON_DECOR)
-	end
-	b:span("LanternCord1", 13.3, 28.9, 4.15, 13.5, 29.7, 4.35, C.Rope, DECOR)
 	return b:finish(trunk)
 end
 
@@ -2775,18 +2799,22 @@ function Props.bridge(parent: any, fromPos: any, toPos: any, opts: { [string]: a
 	local hw = W / 2
 	local deckT = 1.2
 
-	local deckA, deckB, kerbC, postC, railC, pileC, roofC, archC
+	-- colours: the walked-on frame (kerbs, stringers, posts, rails) stays light and warm; the dark
+	-- shade is kept for the piles under the deck; the pile caps take a pastel of the roof colour
+	local deckA, deckB, kerbC, postC, railC, pileC, capC, roofC, archC
 	if stone then
 		deckA = o.color or C.StoneLight
 		deckB = lerpColor(deckA, C.Stone, 0.45)
 		kerbC, postC, railC, pileC = C.Stone, C.Stone, C.StoneLight, C.StoneDark
 		roofC = o.roof or C.Blue
+		capC = C.Stone
 		archC = C.StoneLight
 	else
 		deckA = o.color or C.WoodLight
 		deckB = lerpColor(deckA, C.Wood, 0.45)
-		kerbC, postC, railC, pileC = C.WoodDark, C.WoodDark, C.Wood, C.WoodDark
+		kerbC, postC, railC, pileC = C.Wood, C.White, C.Wood, C.WoodDark
 		roofC = o.roof or C.Red
+		capC = lerpColor(roofC, C.White, 0.6)
 		archC = C.Wood
 	end
 
@@ -2801,7 +2829,7 @@ function Props.bridge(parent: any, fromPos: any, toPos: any, opts: { [string]: a
 	end
 	-- kerbs on the deck edges and stringers under them
 	for i, sx in { -1, 1 } do
-		b:span(`Kerb{i}`, sx * hw - sx * 1.1, -0.05, -L / 2 + 0.1, sx * hw + sx * 0.25, 0.55, L / 2 - 0.1, kerbC)
+		b:span(`Kerb{i}`, sx * hw - sx * 1.1, -0.15, -L / 2 + 0.1, sx * hw + sx * 0.25, 0.55, L / 2 - 0.1, kerbC)
 		b:span(
 			`Stringer{i}`,
 			sx * hw - sx * 1.6,
@@ -2810,7 +2838,7 @@ function Props.bridge(parent: any, fromPos: any, toPos: any, opts: { [string]: a
 			sx * hw - sx * 0.2,
 			-deckT + 0.01,
 			L / 2 - 0.2,
-			pileC
+			kerbC
 		)
 	end
 
@@ -2823,13 +2851,13 @@ function Props.bridge(parent: any, fromPos: any, toPos: any, opts: { [string]: a
 		local capTop = -deckT - 1.2
 		if stone then
 			b:span(`Pier{k}`, -hw * 0.55, bedLocal, z - 1.8, hw * 0.55, capTop - 1.2, z + 1.8, pileC)
-			b:span(`PierCap{k}`, -hw - 0.6, capTop - 1.25, z - 2.2, hw + 0.6, capTop + 0.01, z + 2.2, postC)
+			b:span(`PierCap{k}`, -hw - 0.6, capTop - 1.25, z - 2.2, hw + 0.6, capTop + 0.01, z + 2.2, capC)
 		else
 			for i, sx in { -1, 1 } do
 				local x = sx * (hw - 1.2)
 				b:span(`Pile{k}_{i}`, x - 0.9, bedLocal, z - 0.9, x + 0.9, capTop - 1.0, z + 0.9, pileC)
 			end
-			b:span(`Cap{k}`, -hw - 0.6, capTop - 1.05, z - 1.0, hw + 0.6, capTop + 0.01, z + 1.0, postC)
+			b:span(`Cap{k}`, -hw - 0.6, capTop - 1.05, z - 1.0, hw + 0.6, capTop + 0.01, z + 1.0, capC)
 		end
 	end
 
@@ -3130,12 +3158,13 @@ function Props.windmill(parent: any, cf: any, opts: { [string]: any }?): any
 	b:span("HubCap", -0.6, -0.6, -1.9, 0.6, 0.6, -1.25, C.Gold, DECOR)
 	b:span("ArmX", -13, -0.45, -1.0, 13, 0.45, -0.3, C.WoodDark, NOSHADOW)
 	b:span("ArmY", -0.45, -13, -1.05, 0.45, 13, -0.25, C.WoodDark, NOSHADOW)
-	-- each sail on the trailing side of its arm, with a lattice bar across it
+	-- each sail on the trailing side of its arm (its inner edge tucked 0.1 into the arm, so it
+	-- stays attached while it turns), with a lattice bar across it
 	local sails = {
-		{ 2.4, 12.5, 0.6, 3.6, "x" },
-		{ -12.5, -2.4, -3.6, -0.6, "x" },
-		{ -3.6, -0.6, 2.4, 12.5, "y" },
-		{ 0.6, 3.6, -12.5, -2.4, "y" },
+		{ 2.4, 12.5, 0.35, 3.6, "x" },
+		{ -12.5, -2.4, -3.6, -0.35, "x" },
+		{ -3.6, -0.35, 2.4, 12.5, "y" },
+		{ 0.35, 3.6, -12.5, -2.4, "y" },
 	}
 	for i, s in sails do
 		b:span(`Sail{i}`, s[1], s[3], -0.85, s[2], s[4], -0.5, C.White, FOLIAGE)
