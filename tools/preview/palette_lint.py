@@ -13,8 +13,9 @@ plus its four sides; underwater ground and invisible parts are skipped):
   * per group (Map.<child>.<child> and the bases), the share of loud and grey area, mean value,
     and the biggest loud parts.
 Targets (art direction v4): loud 1–4 % of the map (accents exist, nothing big is candy), grey <= 9 %.
-Exit code 1 when a single loud part is larger than --max-loud-part studs² (default 400), when the
-whole map is louder than 6 % or greyer than 12 %.
+Exit code 1 when a single loud part is larger than --max-loud-part studs² (default 400, parts with
+the attribute-free name list HERO exempt), when the whole map is louder than 5 %, duller than 0.8 %
+(bright but not garish is a band) or greyer than 12 %.
 """
 
 import argparse
@@ -24,6 +25,7 @@ import sys
 from collections import defaultdict
 
 LOUD_S, LOUD_V = 0.6, 0.8
+HERO = ("Hub.FishTower.GoldenFish.",)  # the one hero accent allowed to be big and saturated
 GREY_S, WHITE_V = 0.15, 0.92
 
 
@@ -78,7 +80,8 @@ def main(argv=None):
         elif s > LOUD_S and v > LOUD_V:
             loud += a
             g[1] += a
-            louds.append((a, path, p["size"], p["color"]))
+            if not any(h in path for h in HERO):
+                louds.append((a, path, p["size"], p["color"]))
         elif s < GREY_S and v <= WHITE_V and p.get("material") != "Glass" and p.get("transparency", 0) < 0.3:
             grey += a
             g[3] += a
@@ -101,14 +104,15 @@ def main(argv=None):
     if worst > args.max_loud_part:
         print(f"\nFAIL: a loud part covers {worst:.0f} studs² (> {args.max_loud_part:g})")
         status = 1
-    if not args.only and loud / T > 0.06:
-        print(f"FAIL: the map is too loud ({100 * loud / T:.1f}% > 6%)")
+    if not args.only and loud / T > 0.05:
+        print(f"FAIL: the map is too loud ({100 * loud / T:.1f}% > 5%)")
         status = 1
     if not args.only and grey / T > 0.12:
         print(f"FAIL: the map is too grey ({100 * grey / T:.1f}% > 12%)")
         status = 1
-    if not args.only and loud / T < 0.01:
-        print(f"WARN: hardly any accent colour ({100 * loud / T:.2f}% < 1%) — is the map getting dull?")
+    if not args.only and loud / T < 0.008:
+        print(f"FAIL: hardly any accent colour ({100 * loud / T:.2f}% < 0.8%) — the map is getting dull")
+        status = 1
     if status == 0:
         print("\nOK")
     return status

@@ -13,8 +13,8 @@
 	  * One building = one wall colour + one roof colour + one trim colour (+ wood / stone).
 	  * Neon only for lamp cores, glowing crystals and the like — small and few.
 	  * No people, no animals standing around as decoration (the base dog is a gameplay upgrade).
-	Lighting (tools/build.luau) is neutral: no extra saturation in the colour grading, a light
-	bloom only for Neon, so these colours are what the player sees.
+	Lighting (tools/build.luau): warm sun, neutral-warm shadow fill, light haze, a gentle +0.1
+	saturation in the grading and a light bloom only for Neon.
 ]]
 
 local U = require("./Util")
@@ -22,9 +22,9 @@ local rgb = U.rgb
 
 local P: { [string]: any } = {
 	-- ground (Ground.luau uses the same values)
-	GrassTop = rgb(110, 178, 70),
-	GrassTop2 = rgb(96, 162, 62),
-	GrassTop3 = rgb(130, 190, 84),
+	GrassTop = rgb(116, 188, 72),
+	GrassTop2 = rgb(102, 172, 64),
+	GrassTop3 = rgb(136, 200, 88),
 	Dirt = rgb(160, 112, 74),
 	DirtDark = rgb(128, 88, 60),
 	Sand = rgb(232, 212, 160),
@@ -35,14 +35,14 @@ local P: { [string]: any } = {
 	StoneDark = rgb(122, 110, 98),
 	StoneLight = rgb(214, 202, 178),
 	-- cool slate: mountains and cliffs only (recedes behind the warm village)
-	Slate = rgb(136, 144, 162),
-	SlateDark = rgb(118, 126, 146),
+	Slate = rgb(150, 156, 172),
+	SlateDark = rgb(130, 138, 156),
 	SlateLight = rgb(168, 176, 192),
 	Snow = rgb(238, 242, 246),
 
 	-- wood and building materials
 	Wood = rgb(176, 122, 78),
-	WoodDark = rgb(126, 84, 54),
+	WoodDark = rgb(150, 104, 70),
 	WoodLight = rgb(206, 162, 112),
 	Plank = rgb(194, 150, 104), -- decks, piers, boardwalks
 	Plaster = rgb(236, 226, 204), -- house walls
@@ -57,8 +57,8 @@ local P: { [string]: any } = {
 	RoofTerracotta = rgb(190, 100, 66),
 	RoofBlue = rgb(72, 104, 150),
 	RoofGreen = rgb(76, 128, 84),
-	RoofSlate = rgb(84, 92, 110),
-	RoofBrown = rgb(122, 82, 58),
+	RoofSlate = rgb(96, 108, 132),
+	RoofBrown = rgb(146, 100, 68),
 
 	-- foliage: natural greens a step darker than the lawns
 	Leaf0 = rgb(62, 136, 60),
@@ -72,7 +72,7 @@ local P: { [string]: any } = {
 	BirchLeaf1 = rgb(72, 146, 68),
 	BirchLeaf2 = rgb(100, 170, 80),
 	BirchLeaf3 = rgb(140, 192, 104),
-	Pine0 = rgb(46, 118, 72),
+	Pine0 = rgb(56, 128, 80),
 	Pine1 = rgb(56, 130, 78),
 	Pine2 = rgb(70, 146, 86),
 	Pine3 = rgb(80, 152, 90),
@@ -120,7 +120,7 @@ local P: { [string]: any } = {
 	Iron = rgb(90, 98, 112),
 	Navy = rgb(52, 66, 100),
 	Dark = rgb(40, 40, 48),
-	WindowBlue = rgb(88, 132, 180),
+	WindowBlue = rgb(132, 186, 222),
 	Rope = rgb(214, 188, 136),
 	Canvas = rgb(232, 218, 186),
 	Sail = rgb(244, 240, 230),
@@ -137,14 +137,14 @@ local P: { [string]: any } = {
 	CloudShade = rgb(222, 234, 248),
 
 	-- lists
-	Flowers = {
-		rgb(206, 72, 72), -- red
-		rgb(232, 196, 84), -- yellow
-		rgb(222, 130, 166), -- pink
-		rgb(146, 112, 196), -- violet
-		rgb(240, 238, 232), -- white
-		rgb(226, 140, 70), -- orange
-		rgb(96, 140, 206), -- blue
+	Flowers = { -- jewel tones: small parts only, they are the map's colour pops
+		rgb(226, 54, 64), -- red
+		rgb(248, 200, 52), -- yellow
+		rgb(238, 98, 154), -- pink
+		rgb(152, 88, 220), -- violet
+		rgb(246, 244, 238), -- white
+		rgb(244, 138, 44), -- orange
+		rgb(64, 132, 234), -- blue
 	},
 	BoatPaint = {
 		rgb(196, 72, 64), -- red

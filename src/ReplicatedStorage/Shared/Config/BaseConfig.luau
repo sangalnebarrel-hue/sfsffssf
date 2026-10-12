@@ -15,15 +15,16 @@ export type BaseColor = {
 }
 
 local BaseConfig = {
+	-- Соседние базы чередуют тёплые и холодные цвета, чтобы их было легко различить издалека.
 	Colors = {
 		{ Id = "Red", Name = "Красная", Color = Color3.fromRGB(212, 74, 64) },
-		{ Id = "Orange", Name = "Оранжевая", Color = Color3.fromRGB(226, 136, 56) },
-		{ Id = "Yellow", Name = "Жёлтая", Color = Color3.fromRGB(228, 188, 62) },
-		{ Id = "Green", Name = "Изумрудная", Color = Color3.fromRGB(50, 156, 110) }, -- холоднее травы
-		{ Id = "Cyan", Name = "Бирюзовая", Color = Color3.fromRGB(48, 156, 170) },
 		{ Id = "Blue", Name = "Синяя", Color = Color3.fromRGB(62, 114, 200) },
+		{ Id = "Yellow", Name = "Жёлтая", Color = Color3.fromRGB(230, 190, 62) },
 		{ Id = "Purple", Name = "Фиолетовая", Color = Color3.fromRGB(128, 92, 192) },
+		{ Id = "Orange", Name = "Оранжевая", Color = Color3.fromRGB(226, 136, 56) },
+		{ Id = "Cyan", Name = "Лазурная", Color = Color3.fromRGB(40, 160, 214) },
 		{ Id = "Pink", Name = "Розовая", Color = Color3.fromRGB(210, 108, 158) },
+		{ Id = "Green", Name = "Изумрудная", Color = Color3.fromRGB(50, 156, 110) },
 	} :: { BaseColor },
 
 	-- Спокойные тона стен домов (по номеру базы), чтобы 8 участков не были одинаковыми.

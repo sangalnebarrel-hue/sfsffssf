@@ -252,8 +252,8 @@ local function accentColor(baseColor: any, shade: any): any
 		return baseColor:Lerp(WHITE, amount)
 	end
 	local h, s, v = baseColor:ToHSV()
-	if h > 0.02 and h < 0.2 then
-		h -= 0.04 * amount
+	if h > 0.02 and h < 0.2 and amount > 0.3 then
+		h -= 0.04 * (amount - 0.3) / 0.7 -- light shades keep their hue (yellow stays yellow)
 	end
 	return Color3.fromHSV(h, math.min(1, s * (1 + 0.15 * amount)), v * (1 - 0.6 * amount))
 end

@@ -24,8 +24,8 @@ local MAX_SPAN = 240 -- columns per rectangle side (part size limit 2048)
 -- kind -> { cap = Color3?, body = Color3, name }
 -- Grass (Palette.luau GrassTop*): close shades in broad noise patches (calm lawns, not a contour-map quilt) and a
 -- light highlight on high ground.
-local GRASS_LIME, GRASS_FOREST, GRASS_MEADOW = rgb(110, 178, 70), rgb(96, 164, 62), rgb(128, 188, 82)
-local GRASS_HIGH = rgb(102, 170, 66) -- slightly deeper on high ground
+local GRASS_LIME, GRASS_FOREST, GRASS_MEADOW = rgb(116, 188, 72), rgb(102, 172, 64), rgb(136, 198, 86)
+local GRASS_HIGH = rgb(108, 180, 68) -- slightly deeper on high ground
 local HIGH_GROUND = 40
 local FAR = 780 -- beyond the boundary: one tint (bigger merged rectangles)
 -- Tall cliff bodies are split into horizontal strata (absolute y bands) of 2-3 shades.
@@ -33,8 +33,8 @@ local STRATUM = 12
 local STRATA = {
 	Dirt = { rgb(166, 118, 78), rgb(148, 104, 70) },
 	-- cool slate in two bands: mountains recede behind the warm village
-	Mountainside = { rgb(136, 144, 162), rgb(118, 126, 146) }, -- cool slate (Palette.Slate*)
-	Stone = { rgb(136, 144, 162), rgb(118, 126, 146) },
+	Mountainside = { rgb(150, 156, 172), rgb(130, 138, 156) }, -- cool slate (Palette.Slate*)
+	Stone = { rgb(150, 156, 172), rgb(130, 138, 156) },
 	Snow = { rgb(230, 238, 250), rgb(218, 228, 244) },
 	-- red-rock mesas: terracotta bands with a cream band every fourth stratum
 	Redrock = { rgb(190, 108, 78), rgb(206, 130, 92), rgb(222, 170, 124), rgb(232, 200, 160) },
@@ -49,9 +49,9 @@ local KIND_STYLE = {
 	shallow = { body = rgb(230, 212, 156), name = "Shallows" },
 	seabed = { body = rgb(178, 212, 176), name = "Seabed" },
 	deep = { body = rgb(70, 160, 182), name = "DeepSeabed" },
-	stone = { cap = rgb(168, 176, 192), body = rgb(136, 144, 162), name = "Stone", strata = "Stone" },
+	stone = { cap = rgb(176, 184, 198), body = rgb(150, 156, 172), name = "Stone", strata = "Stone" },
 	snow = { cap = rgb(246, 249, 252), body = rgb(230, 238, 250), name = "Snow" }, -- one icy body, no bands
-	grassRock = { body = rgb(136, 144, 162), name = "Mountainside", strata = "Mountainside" }, -- grass cap
+	grassRock = { body = rgb(150, 156, 172), name = "Mountainside", strata = "Mountainside" }, -- grass cap
 	redrock = { body = rgb(190, 108, 78), name = "RedRock", strata = "Redrock" }, -- ochre/grass cap
 	mesa = { body = rgb(204, 160, 112), name = "Sandstone", strata = "Sandstone" }, -- grass cap, warm cliff
 }

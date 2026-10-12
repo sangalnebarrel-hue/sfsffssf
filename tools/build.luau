@@ -110,12 +110,12 @@ local lighting = game:GetService("Lighting")
 lighting.GeographicLatitude = 35
 lighting.TimeOfDay = "14:30:00"
 lighting.Brightness = 2.3
--- Soft, slightly cool shadow sides against the warm sun.
-lighting.Ambient = rgb(112, 112, 120)
-lighting.OutdoorAmbient = rgb(138, 146, 168)
-lighting.ColorShift_Top = rgb(255, 240, 220)
+-- Warm sun, neutral-warm shadow fill: shaded gold, plaster and wood keep their colour.
+lighting.Ambient = rgb(130, 124, 118)
+lighting.OutdoorAmbient = rgb(152, 148, 146)
+lighting.ColorShift_Top = rgb(255, 236, 208)
 lighting.ColorShift_Bottom = rgb(0, 0, 0)
-lighting.EnvironmentDiffuseScale = 0.6
+lighting.EnvironmentDiffuseScale = 0.4
 lighting.EnvironmentSpecularScale = 0.15 -- less plastic sky reflection on the blocks
 lighting.ExposureCompensation = 0
 lighting.GlobalShadows = true
@@ -127,12 +127,12 @@ if dof then
 end
 local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
 	or U.new("Atmosphere", { Name = "Atmosphere" }, lighting)
-atmosphere.Density = 0.22
+atmosphere.Density = 0.16
 atmosphere.Offset = 0.25
-atmosphere.Color = rgb(198, 222, 248)
-atmosphere.Decay = rgb(104, 150, 210)
+atmosphere.Color = rgb(205, 226, 248)
+atmosphere.Decay = rgb(96, 150, 214)
 atmosphere.Glare = 0
-atmosphere.Haze = 0.2
+atmosphere.Haze = 0.05
 local bloom = lighting:FindFirstChildOfClass("BloomEffect") or U.new("BloomEffect", { Name = "Bloom" }, lighting)
 -- Only Neon blooms (sunlit cream/white surfaces stay crisp).
 bloom.Intensity = 0.35

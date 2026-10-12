@@ -18,7 +18,7 @@ Colour rules (measured by `tools/preview/palette_lint.py`, "loud" = HSV S > 0.6 
   fences use Palette materials (GrassTop*, Dirt, Stone*, Sand*, Wood*, Plank, Plaster, Brick,
   Cobble, Roof*). No loud part bigger than ~400 studs² of visible area.
 * **Accents are small**: flowers, flags, awnings, trims, lanterns, signs, boat paint. The whole
-  map stays under ~4 % loud area.
+  map sits in a 0.8–5 % loud-area band.
 * **Team colour on a plot** (the base's own colour, `Accent`) only on the flag, the roof (or roof
   trim), awnings/banners, the gate sign and a few small trims — never on lawns, fences, decks,
   platforms or whole walls.
@@ -63,9 +63,15 @@ Cobble/CobbleDark, RoofRed/RoofTerracotta/RoofBlue/RoofGreen/RoofSlate/RoofBrown
 parts only): Red, Orange, Yellow, Lime, Cyan, Blue, Purple, Pink, Gold, White, Cream, Navy, Iron.
 Lists: Flowers, BoatPaint, Festive. Light: Glow, LightColor, Flame*.
 
-Lighting (build.luau): sunny 14:30, Brightness 2.3, neutral ambient with slightly cool
-shadows, atmosphere haze 0.6, ColorCorrection saturation +0.04 / contrast +0.04, Bloom 0.35
-(threshold 2.2, only Neon). Terrain water (44,150,180), transparency 0.55.
+Lighting (build.luau): sunny 14:30, Brightness 2.3, warm sun (ColorShift_Top 255,236,208),
+neutral-warm shadow fill (Ambient 130,124,118, OutdoorAmbient 152,148,146, EnvironmentDiffuseScale
+0.4), light atmosphere (Density 0.16, Haze 0.05), ColorCorrection saturation +0.1 / contrast +0.06,
+Bloom 0.35 (threshold 2.2, only Neon). Terrain water (36,156,186), transparency 0.55.
+Colour band (palette_lint): loud area 0.8–5 % of the map (bright accents exist, nothing big is
+candy; the hub's golden fish is the one big hero accent), grey <= 9 %.
+Team colours alternate warm/cool around the ring (BaseConfig.Colors); hub and gateway buildings
+avoid saturated team hues on big roofs (slate, brown, straw, wood) so every sector's strongest
+roof colour is its own base.
 
 ## 2. The world (top view, studs; angle θ → (r·sin θ, y, r·cos θ), θ = 0 is +Z)
 
