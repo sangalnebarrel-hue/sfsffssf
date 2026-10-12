@@ -5,10 +5,11 @@
 	(flowers, flags, lanterns), no figures.
 
 	  Waterfall  a three-tier cascade off the mesa's lagoon-facing cliff, each tier 5-6 studs
-	             narrower than the one above (three water columns of different blues and depths
-	             under staggered streaks, ragged foam crests, spill columns down the rock beside
-	             them, two solid mossy sandstone shelves) into the pond, a foam slab, a ring and a
-	             heap of foam cubes where it lands; foam particles off every lip, spray and mist
+	             narrower than the one above (staggered curtains of light-blue columns 2-6 wide at
+	             different depths with pale streaks, ragged lips of warm stone with lumps of white
+	             foam breaking over them, two solid mossy sandstone shelves) into the pond: foam
+	             patches, bubbling foam cubes and splash rocks in rings of foam where it lands,
+	             rocks and reeds round the pool's rim; foam particles off every lip, spray and mist
 	             over the pool, the roar of the water (a looped 3D sound); solid sandstone stairs
 	             right of the fall (two flights along the foot of the face where it steps back,
 	             the upper one against clean cut walls in the cliff's strata, light stone treads,
@@ -27,23 +28,22 @@
 	             balcony): a walk-through room on the ground floor (front and back doors, a
 	             millstone, sacks, a lantern), a ladder up the back to the balcony (a 5-stud
 	             walkway, parapet, bench, telescope, petals drifting off it); planted beds on every
-	             other terrace ring all round (tulips at the front, lavender and sunflowers on the
-	             sides, wheat and pumpkins at the back) and a little farm on the back (hay bales, a
-	             beehive, a hand cart); chunky 2-stud stairs up the front (invisible ramps over
-	             them), a timber rail fence round the top meadow.
+	             other terrace ring all round (tulip clumps in segments with grass between at the
+	             front, lavender and sunflowers on the sides, wheat at the back), bush clumps and
+	             rocks on the lawn rings' risers, a little farm on the back (hay bales, a beehive);
+	             chunky 2-stud stairs up the front (invisible ramps over them), a timber rail
+	             fence round the top meadow.
 	  GiantTree  Props.giantTree (treehouse, swing, lanterns) on the meadow plateau, scaled to a
 	             real giant, with a long slide from the treehouse deck down to the meadow (the fun
 	             way down); steps up from the path with grassy cheek blocks filling the plateau's
-	             jagged edge beside them; glowing giant mushrooms with fireflies, lantern posts, a
-	             picnic table.
+	             jagged edge beside them; a glowing giant mushroom with fireflies, lantern posts.
 	  Peaks      the main Peak is climbed by the spiral trail VoxelWorld carves into it, walkable
 	             all the way: a path-tan wedge ramp on every riser. A base camp on a flat pad beside
-	             the end of its path (tents, a smoking fire ring with sparks), a signpost, a
-	             roofed «ВЕРШИНА» gate where the trail leaves the path, lantern posts, pennants,
-	             leafy curtains with blooms on the inner rock wall and a rest bench along it, and a
-	             lookout deck flush on the flat snowy summit, open towards the trail's end (big flag
-	             with gold sparkles, telescope, a board under a little roof, a stone cairn on the
-	             snow). The other mountains are
+	             the end of its path (tents, a smoking fire ring with sparks), a roofed «ВЕРШИНА»
+	             gate where the trail leaves the path, lantern posts, pennants, leafy curtains with
+	             blooms on the inner rock wall and a rest bench along it, and a lookout deck flush
+	             on the flat snowy summit, open towards the trail's end (big flag with gold
+	             sparkles, telescope, a board under a little roof). The other mountains are
 	             scenery nobody can climb, so they carry no flags. The pines on the slopes come
 	             from Nature.
 
@@ -67,7 +67,12 @@ local Landmarks = {}
 local WATER_SHEET = { CanCollide = false, CastShadow = false, CanQuery = false } -- opaque stream/pool sheets
 local BRASS = mix(C.Gold, C.WoodDark, 0.3) -- telescopes, finials
 local INK = Kit.shade(C.WoodDark, 0.7) -- dark brown sign text on cream boards
-local DEEP = mix(C.Water, C.Navy, 0.3) -- deep water in pools
+-- falling and shallow water: light, so the falls read as white water, not panels of glass
+local FALL_A = U.rgb(120, 196, 226)
+local FALL_B = U.rgb(150, 210, 234)
+local STREAK = U.rgb(200, 234, 246)
+local FOAM = U.rgb(240, 248, 252)
+local DEEP = mix(FALL_A, C.Water, 0.45) -- deeper water in pools
 
 -- A wedge in a builder's frame (its tall face at local +Z, the slope falling towards -Z).
 local function wedge(b: any, name: string, size: any, lcf: any, color: any, extra: any?): any
@@ -139,7 +144,6 @@ local STRATUM = 12
 local TREAD = mix(C.Cream, C.SandDark, 0.5) -- light stone stair treads on the sandstone
 -- falling water and foam: opaque (colour does the work; transparent layers would sort-flicker)
 local WATER = { CanCollide = false, CastShadow = false, CanQuery = false }
-local FOAM = WATER
 
 -- Block from y0 to y1 (absolute y; the builder's frame sits at y = 0) split into the mesa's
 -- strata bands, so built rock lines up with the cliff behind it.
@@ -181,30 +185,30 @@ local function railRun(b: any, name: string, a: any, c: any, posts: string?)
 end
 
 --[[
-	The falls (site frame, y absolute): three tiers of falling water, each 5-6 studs narrower than
-	the one above, stepping out over two solid sandstone rock shelves (mossy shoulders) from the lip
-	into the pond. Each tier is an opaque sheet of mid blue covered in staggered white and pale
-	blue streaks of different widths and lengths (falling water, not a glass front); where it tips
-	over, a ragged crest of three foam blocks (different widths, heights and overhangs); beside
-	the sheets shorter spill columns run down the rock; foam runs over the shelves; where it lands
-	a white foam slab on a wider ring, a heap of foam cubes. Particles: foam tumbling off every lip,
-	spray and mist over the pool. Nothing is transparent (no sorting flicker) and no two faces
-	share a plane. fmin / fmax: the jagged cliff face (lz) behind the fall, lipLz: where the
-	stream reaches the lip, W: the width of the fall at the top.
+	The falls (site frame, y absolute): three tiers of falling water, each narrower than the one
+	above, stepping out over two solid sandstone rock shelves from the lip into the pond. Each
+	tier is a staggered curtain of columns 2-6 studs wide, at different depths (up to 1.8 out)
+	and in two light blues, some starting a little under the lip, with a few pale streaks of
+	faster water 0.35 proud of them; the water runs over each shelf top to its edge. Every lip is
+	ragged: rocks of warm stone (two shades) flank the water, one stands in the top lip's flow,
+	and irregular white foam caps (different widths, heights and overhangs, 1-2 studs out over
+	the edge) mark where it breaks over. Where it lands: overlapping foam patches of different
+	sizes, a few bubbling foam cubes, two splash rocks each in a ring of foam. Particles: foam
+	tumbling off every lip, spray and mist over the pool. Nothing is transparent (no sorting
+	flicker) and no two faces share a plane. fmin / fmax: the jagged cliff face (lz) behind the
+	fall, lipLz: where the stream reaches the lip, W: the width of the fall at the top.
 ]]
 local function cascade(parent: any, site: any, frame: any, fmin: number, fmax: number, lipLz: number, W: number)
 	local b = Kit.builder(parent, "Waterfall", frame)
 	local r = Kit.rng(4507)
 	local top = site.cliffTop + 0.9 -- over the stream sheet
-	local body = C.Water
-	local white, pale = C.Foam, C.WaterLight
+	local blues = { FALL_A, FALL_B }
 	local hw1 = W / 2
 	-- the rock shelves: the upper one is a solid block from the lower shelf up out of the cliff
 	-- (the narrower middle tier falls down its face), the lower one stands in the pond
 	local s1 = { z0 = -12, z1 = fmax + 1, y0 = 18.9, y1 = 38.4, hw = hw1 + 3 }
 	local s2 = { z0 = -23, z1 = fmin + 2, y0 = -7.5, y1 = 19.4, hw = hw1 + 4 }
-	-- tiers: top y, bottom y, front lz, back lz, half width (each from the edge above down to the
-	-- next shelf, 5-6 studs narrower than the tier above: a tapering cascade framed by mossy rock)
+	-- tiers: top y, bottom y, front lz, back lz, half width
 	local tiers = {
 		{ top, s1.y1 - 0.3, fmin - 3, lipLz, hw1 },
 		{ s1.y1 + 0.5, s2.y1 - 0.3, s1.z0 - 3, s1.z0 + 0.6, hw1 - 3 },
@@ -215,7 +219,7 @@ local function cascade(parent: any, site: any, frame: any, fmin: number, fmax: n
 		-- moss on the shoulders either side of the water running over it
 		local w = tiers[i + 1][5]
 		for k, sx in { -1, 1 } do
-			local x0, x1 = sx * (w - 0.5), sx * (s.hw + 0.4)
+			local x0, x1 = sx * (w + 1.5), sx * (s.hw + 0.4)
 			b:box(
 				`Moss{i}_{k}`,
 				min(x0, x1),
@@ -228,115 +232,178 @@ local function cascade(parent: any, site: any, frame: any, fmin: number, fmax: n
 				Kit.NOSHADOW
 			)
 		end
-		-- the water runs over the shelf top to its front edge (0.15 over the tier below's top)
-		b:box(`ShelfFoam{i}`, -w + 0.5, s.y1 - 0.2, s.z0 - 0.2, w - 0.5, s.y1 + 0.65, s.z0 + 9, C.Foam, FOAM)
+		-- the water running over the shelf top to its front edge
+		b:box(`ShelfWater{i}`, -w + 0.3, s.y1 - 0.2, s.z0 - 0.3, w - 0.3, s.y1 + 0.45, s.z0 + 9, FALL_B, WATER)
 	end
 	for t, tier in tiers do
 		local y1, y0, f, k, hw = tier[1], tier[2], tier[3], tier[4], tier[5]
 		local h = y1 - y0
-		-- the sheet: three columns of water side by side, of different widths, blues and depths
-		-- (the middle one bulging furthest out), so the fall has body, not a flat glass front
-		local cols = { -hw, -hw + 2 * hw * r(0.27, 0.37), -hw + 2 * hw * r(0.63, 0.73), hw }
-		local bulge = { r(0, 0.3), r(0.8, 1.2), r(0.3, 0.6) }
-		local blues = { body, mix(C.Water, C.Navy, 0.12), mix(C.Water, C.WaterLight, 0.35) }
-		local function front(x: number): number -- the front of the column at x
-			for c = 1, 3 do
-				if x <= cols[c + 1] then
-					return f - bulge[c]
+		-- the curtain: columns 2-6 wide across the tier, each at its own depth and blue, some
+		-- starting a little under the lip
+		local cols = {}
+		local x = -hw
+		while x < hw - 0.5 do
+			local w = r(2, 6)
+			if hw - (x + w) < 2 then
+				w = hw - x
+			end
+			table.insert(cols, { x, x + w })
+			x += w
+		end
+		local fronts = {}
+		for c, q in cols do
+			local out = floor(r(0, 3.99)) * 0.6 + (c % 2) * 0.05
+			local drop = if r() < 0.35 then r(0.6, 1.6) else 0
+			fronts[c] = f - out
+			b:box(`Curtain{t}_{c}`, q[1], y0, f - out, q[2], y1 - drop, k, blues[(c + t) % 2 + 1], WATER)
+		end
+		-- streaks of faster water down the columns: thin white threads and pale ribbons of
+		-- different lengths, each in its own slot across the tier
+		local ns = 5 - t
+		for i = 1, ns do
+			local slot = 2 * hw / ns
+			local sx0 = -hw + (i - 1) * slot
+			local sw = r(0.8, 1.6)
+			local sx = sx0 + r(0.3, max(slot - sw - 0.3, 0.4))
+			local c = 1
+			for ci, q in cols do
+				if sx + sw / 2 >= q[1] and sx + sw / 2 < q[2] then
+					c = ci
 				end
 			end
-			return f
-		end
-		for c = 1, 3 do
-			b:box(`Sheet{t}_{c}`, cols[c], y0, f - bulge[c], cols[c + 1], y1, k, blues[(c + t) % 3 + 1], WATER)
-		end
-		-- streaks: 6 across the sheet, 40-100 % of the tier tall, each in its own slot with a
-		-- random offset (so no streak lines up with the tier above), 0.4-0.6 proud of the column
-		-- it runs down, in three kinds: thin white threads, pale ribbons and broad light-blue
-		-- sheets of faster water
-		local n = 6
-		for i = 1, n do
-			local slot = 2 * hw / n
-			local kind = (i + t) % 3
-			local sw = if kind == 0 then r(0.8, 1.3) elseif kind == 1 then r(1.4, 2.2) else r(2.6, 3.8)
-			local x = -hw + (i - 0.5) * slot + r(-0.3, 0.3) * max(slot - sw, 0)
-			local len = h * r(0.4, 1)
-			local yt = y1 - 1 - r(0, 1) * (h - 1 - len)
-			local zf = min(front(x - sw / 2), front(x + sw / 2)) - 0.4 - (i % 2) * 0.2
+			local zf = min(fronts[c], fronts[min(c + 1, #cols)], fronts[max(c - 1, 1)]) - 0.35
+			local len = h * r(0.3, 0.9)
+			local yt = y1 - r(0.8, 3)
 			b:box(
 				`Streak{t}_{i}`,
-				x - sw / 2,
+				sx,
 				max(yt - len, y0 + 0.3),
 				zf,
-				x + sw / 2,
+				sx + sw,
 				yt,
 				f + 0.5,
-				if kind == 0 then white elseif kind == 1 then pale else mix(C.WaterLight, C.Water, 0.3),
+				if i % 2 == 0 then FOAM else STREAK,
 				WATER
 			)
 		end
-		-- the foam roll where the tier tips over: three blocks of different widths, heights and
-		-- overhangs (0.5-1.4 over the lip) in two whites, overlapping a little — a ragged crest,
-		-- not a kerb; foam particles tumble off the widest
-		local cuts = { -hw - 0.3, -hw + 2 * hw * r(0.24, 0.38), -hw + 2 * hw * r(0.6, 0.76), hw + 0.3 }
-		local crest, widest = nil, 0
-		for i = 1, 3 do
-			local x0, x1 = cuts[i] - (if i > 1 then 0.3 else 0), cuts[i + 1]
-			local over, lift = r(0.5, 1.4), r(0.2, 1.1)
+		-- foam where it breaks over the lip: lumps of white of different sizes along the edge,
+		-- at different heights and overhangs (0.3-1.6 out over it), with gaps where the blue
+		-- water pours through (not a bar); foam particles tumble off the biggest
+		local crest, biggest = nil, 0
+		local cx = -hw + r(0, 1)
+		local nf = 0
+		while cx < hw - 1 do
+			nf += 1
+			local w = min(r(2.4, 4.2), hw + 0.4 - cx)
+			local hgt = r(1.2, 2.4)
+			-- (overhangs and tops never on a column's front or top plane)
+			local over = floor(r(0, 2.99)) * 0.6 + 0.3 + (nf % 3) * 0.07
+			local yb = y1 - r(0.6, 1.4)
+			if abs(yb + hgt - y1) < 0.15 then
+				hgt += 0.3
+			end
 			local p = b:box(
-				`Crest{t}_{i}`,
-				x0,
-				y1 - 1.3 - r(0, 0.6),
-				f - 1.2 - over - (i % 2) * 0.12,
-				x1,
-				y1 + lift,
+				`Foam{t}_{nf}`,
+				cx,
+				yb,
+				f - over,
+				cx + w,
+				yb + hgt,
 				f + 2.4,
-				if (i + t) % 2 == 0 then white else C.Foam,
+				if nf % 2 == 0 then FOAM else mix(FOAM, STREAK, 0.4),
 				WATER
 			)
-			if x1 - x0 > widest then
-				crest, widest = p, x1 - x0
+			if w * hgt > biggest then
+				crest, biggest = p, w * hgt
 			end
+			cx += w + (if r() < 0.45 then r(0.8, 2.2) else -0.2)
 		end
 		Kit.foam(crest, Enum.NormalId.Bottom, { box = true, rate = 2 + hw * 0.4, size = 1.6, grow = 2.6 })
-		-- a spill: a narrower, shorter column of paler water running down the rock beside the
-		-- sheet (alternate sides, both on the top tier), so the silhouette is ragged
-		local sides = if t == 1 then { -1, 1 } elseif t == 2 then { 1 } else { -1 }
-		for i, side in sides do
-			local len = h * r(0.45, 0.8)
-			local xa, xb = side * (hw - 0.4), side * (hw + 1.9)
+		-- the ragged rock lip: a rock of warm stone either side of the water, the top lip with a
+		-- third standing in the flow
+		for i, sx in { -1, 1 } do
+			local rw, rh = r(3.2, 4.6), r(2.4, 3.6)
+			local x0 = sx * (hw - 0.6)
+			local x1 = x0 + sx * rw
 			b:box(
-				`Spill{t}_{i}`,
-				min(xa, xb),
-				max(y1 - len, y0 + 0.3),
-				f + 0.6,
-				max(xa, xb),
-				y1 - 0.2,
-				k - 0.2,
-				C.WaterLight,
-				WATER
+				`LipRock{t}_{i}`,
+				min(x0, x1),
+				y1 - 1.6,
+				f - r(0.4, 1.4),
+				max(x0, x1),
+				y1 + rh - 1.6,
+				f + 4,
+				if (i + t) % 2 == 0 then C.Stone else C.StoneDark
 			)
 		end
+		if t == 1 then
+			local mx = r(-0.4, -0.15) * hw
+			b:box("FlowRock", mx - 1.6, y1 - 1.4, f - 1.2, mx + 1.6, y1 + 1.6, f + 3, C.StoneDark)
+		end
 	end
-	-- where it lands: a foam slab on a wider ring, a heap of foam cubes where the water hits
+	-- where it lands: overlapping foam patches round the impact, bubbling foam cubes, two splash
+	-- rocks each in a ring of foam
 	local hw3 = tiers[3][5]
 	local zf = s2.z0 - 3
-	local foam = b:box("Splash", -hw3 - 3, -0.3, zf - 10, hw3 + 3, 0.5, zf + 2, mix(C.Foam, C.WaterLight, 0.3), WATER)
-	b:box("Ring", -hw3 - 6, -0.5, zf - 13, hw3 + 6, 0.3, s2.z0 + 4, C.Foam, WATER)
-	for i = 1, 6 do
-		local s = r(2.5, 5)
-		local x = -hw3 - 2 + (i - 0.5) * (2 * hw3 + 4) / 6 + r(-0.8, 0.8)
-		local z = zf - 1 - r(0, 6)
-		local hgt = floor(r(1, 6)) * 0.5 + i * 0.07 -- (no two tops level)
+	local foam = b:box("Splash", -hw3 - 1, -0.3, zf - 8, hw3 + 1, 0.5, zf + 2.5, FOAM, WATER)
+	for i, q in
+		{
+			{ -hw3 - 4.5, -hw3 + 3, -5, 1.5, 0.35 },
+			{ hw3 - 4, hw3 + 4, -11, -2, 0.25 },
+			{ -4, 6, -14, -6, 0.15 },
+		}
+	do
+		local c = if i == 2 then mix(FOAM, FALL_B, 0.3) else FOAM
+		b:box(`FoamPatch{i}`, q[1], -0.4, zf + q[3], q[2], q[5], zf + q[4], c, WATER)
+	end
+	for i = 1, 3 do
+		local sz = r(2.2, 3.6)
+		local x = -hw3 + (i - 0.5) * (2 * hw3) / 3 + r(-1, 1)
+		local z = zf - 1.5 - r(0, 4)
 		b:box(
 			`FoamCube{i}`,
-			x - s / 2,
+			x - sz / 2,
 			0.2,
-			z - s / 2,
-			x + s / 2,
-			0.5 + hgt,
-			z + s / 2,
-			if i % 3 == 1 then pale else white,
+			z - sz / 2,
+			x + sz / 2,
+			0.6 + sz * 0.45 + i * 0.07,
+			z + sz / 2,
+			FOAM,
+			WATER
+		)
+	end
+	for i, q in { { -hw3 - 7, zf - 12, 4.2, 3 }, { hw3 + 4.5, zf - 15, 3.4, 2.4 } } do
+		local x, z, w, h = q[1], q[2], q[3], q[4]
+		b:box(
+			`SplashRock{i}`,
+			x - w / 2,
+			-2,
+			z - w / 2,
+			x + w / 2,
+			h,
+			z + w / 2,
+			if i == 1 then C.StoneDark else C.Stone
+		)
+		b:box(
+			`SplashRockTop{i}`,
+			x - w / 2 + 0.6,
+			h,
+			z - w / 2 + 0.5,
+			x + w / 2 - 0.4,
+			h + 0.9,
+			z + w / 2 - 0.7,
+			C.Stone,
+			Kit.NOSHADOW
+		)
+		b:box(
+			`FoamRing{i}`,
+			x - w / 2 - 1.2,
+			-0.3,
+			z - w / 2 - 1.2,
+			x + w / 2 + 1.2,
+			0.25 + i * 0.05,
+			z + w / 2 + 1.2,
+			FOAM,
 			WATER
 		)
 	end
@@ -597,7 +664,7 @@ end
 local function mesaStream(parent: any, world: any, site: any, frame: any, lipLz: number, W: number)
 	local top = site.cliffTop
 	local b = Kit.builder(parent, "Stream", frame)
-	local water = C.Water
+	local water = FALL_A
 	local deep = DEEP
 	local sand, sandDark = C.Sand, C.SandDark
 	local SAND_TOP, WATER_TOP = top + 0.25, top + 0.5
@@ -621,7 +688,7 @@ local function mesaStream(parent: any, world: any, site: any, frame: any, lipLz:
 	end
 	-- white water where the stream breaks over the lip into the fall
 	for i, q in { { -8, -2.2, 0.9 }, { 2.5, 8.5, 1.3 } } do
-		b:box(`LipFoam{i}`, q[1], top - 0.2, lipLz - 1.4, q[2], WATER_TOP + q[3], lipLz + 2.6, C.Foam, WATER_SHEET)
+		b:box(`LipFoam{i}`, q[1], top - 0.2, lipLz - 1.4, q[2], WATER_TOP + q[3], lipLz + 2.6, FOAM, WATER_SHEET)
 	end
 	-- the spring pool: two overlapping sheets for a rounded voxel outline on a sand rim, a
 	-- deeper middle (each sheet >= 0.12 above the one under it)
@@ -680,8 +747,8 @@ local function mesaGarden(parent: any, world: any, site: any, frame: any, lipLz:
 	Kit.sign(board, Enum.NormalId.Front, "РОДНИК", INK, nil, { pps = 30 })
 	g:box("VineL", px - 13, top + 1.5, gz - 0.5, px - 10.5, top + 8.2, gz - 0.1, C.Leaf2, Kit.DECOR)
 	g:box("VineR", px + 9, top + 3, gz - 0.5, px + 11, top + 8.2, gz - 0.1, C.Leaf1, Kit.DECOR)
-	g:box("Spout", px - 2.5, top + 0.3, gz - 4, px + 2.5, top + 1.1, gz + 0.2, C.WaterLight, Kit.DECOR)
-	g:box("SpoutFoam", px - 3.5, top + 0.55, gz - 5, px + 3.5, top + 1.5, gz - 3, C.Foam, Kit.DECOR)
+	g:box("Spout", px - 2.5, top + 0.3, gz - 4, px + 2.5, top + 1.1, gz + 0.2, FALL_B, Kit.DECOR)
+	g:box("SpoutFoam", px - 3.5, top + 0.55, gz - 5, px + 3.5, top + 1.5, gz - 3, FOAM, Kit.DECOR)
 	g:finish(rock)
 	local crystal = Kit.prop("crystalCluster", g.model, place(px + 1, gz + 7.5) * CFrame.new(0, 18, 0), {
 		color = "cyan",
@@ -925,6 +992,59 @@ local function buildWaterfall(root: any, cfg: any, world: any, site: any)
 		local x, z = W(lx, f - p[3] / 2 - p[5])
 		boulder2(model, Kit.ground(world, x, z, site.angle + i * 7), p[2], p[3], p[4])
 	end
+	-- the plunge pool's rim broken by rocks half in the water (the left and the front: the
+	-- boardwalk runs round the right), reeds between them
+	local pz0 = site.pondR - site.radius -- the pond centre (lz)
+	for i, p in { { -27, pz0 + 12, 6, 3.4, 20 }, { -30, pz0 - 8, 5, 2.6, -15 }, { -19, pz0 - 25, 6.5, 3, 35 } } do
+		local x, z = W(p[1], p[2])
+		local g = max(world:heightAt(x, z), -1.5)
+		local cf = CFrame.new(x, g, z) * CFrame.Angles(0, rad(site.angle + p[5]), 0)
+		local rb = Kit.builder(model, "PoolRock", cf)
+		local w = p[3]
+		local rock = rb:box(
+			"Rock",
+			-w / 2,
+			-1,
+			-w * 0.4,
+			w / 2,
+			2.4 - g + p[4] * 0.3,
+			w * 0.4,
+			if i == 2 then C.StoneDark else C.Stone
+		)
+		rb:box(
+			"RockTop",
+			-w / 2 + 0.7,
+			2.3 - g + p[4] * 0.3,
+			-w * 0.4 + 0.5,
+			w / 2 - 1.1,
+			3.2 - g + p[4] * 0.3,
+			w * 0.4 - 0.4,
+			C.StoneLight,
+			Kit.NOSHADOW
+		)
+		rb:finish(rock)
+	end
+	do
+		local x, z = W(-25, pz0 - 17)
+		local rb = Kit.builder(model, "Reeds", CFrame.new(x, 0, z) * CFrame.Angles(0, rad(site.angle), 0))
+		local first = nil
+		for i, q in { { -1.2, -0.4, 5.2 }, { 0.3, 0.6, 6.4 }, { 1.4, -0.6, 4.4 } } do
+			local blade = rb:box(
+				`Blade{i}`,
+				q[1] - 0.25,
+				-1.5,
+				q[2] - 0.25,
+				q[1] + 0.25,
+				q[3],
+				q[2] + 0.25,
+				if i == 2 then C.Leaf1 else C.Leaf2,
+				Kit.DECOR
+			)
+			first = first or blade
+		end
+		rb:box("Cattail", -0.05, 4.4, 0.25, 0.65, 6, 0.95, C.WoodDark, Kit.DECOR)
+		rb:finish(first)
+	end
 
 	-- solid stairs up the cliff right of the fall, the upper flight hugging the face where it
 	-- steps back (lx 23 to the mesa's side); the bastion at their top is the lookout
@@ -1022,15 +1142,16 @@ end
 	corners short ones). Every other ring stays lawn, so the hill reads as terraced garden beds
 	with grass between, and every row is green leaves with its colour on top, narrower (a planted
 	bed, not a painted plank). By the cell's direction from the mill:
-	  front (towards the lagoon and the stairs)  tulips: a strip of green stems under separate
-	                                             bloom clumps in two tints, red, pink, yellow and
-	                                             violet by ring
-	  sides                                      lavender (grey-green mounds with purple spikes)
-	                                             on one side, tall sunflowers (stems, straw-gold
-	                                             heads) on the other
-	  back                                       golden wheat and pumpkin rows (leafy vines, the
-	                                             pumpkins along the middle) by turns; the rings
-	                                             between hold the farm (see hillFarm)
+	  front (towards the lagoon and the stairs)  tulips on the two lower rings: segments of two
+	                                             or three square bloom bunches (2.4, 1 apart, zig-
+	                                             zag, two tints, two heights) on a strip of green
+	                                             stems, 5-7 studs of grass between the segments;
+	                                             pink, yellow by ring; the top ring stays lawn
+	  sides                                      lavender (grey-green mounds with separate purple
+	                                             spike tufts) on one side, tall sunflowers (a stem
+	                                             hedge with separate straw-gold heads) on the other
+	  back                                       golden wheat on every other planted ring; the
+	                                             rings between hold the farm (see hillFarm)
 	Lone cells on the sides and the back stay grass (a row needs two cells). Returns the cells
 	left free on the back's farm rings: { x, z, h, d, a } (a: degrees from straight back).
 ]]
@@ -1040,7 +1161,7 @@ local function hillFields(parent: any, world: any, site: any, corridor: (number,
 	local tulips = { C.Flowers[1], C.Flowers[3], C.Flowers[2], C.Flowers[4] }
 	local lavenderLeaf = mix(C.Leaf1, C.StoneLight, 0.3)
 	local lavender = mix(C.Purple, C.Cream, 0.12)
-	local pumpkin = mix(C.Orange, C.WoodDark, 0.22)
+	local rr = Kit.rng(1351)
 	local towards = Vector3.new(-site.x, 0, -site.z).Unit -- the lagoon direction
 	local R = site.hillRadius
 	local G = world.cfg.GroundTop
@@ -1118,57 +1239,96 @@ local function hillFields(parent: any, world: any, site: any, corridor: (number,
 			local ex, ez = if axis == "x" then 0.9 else 1.4, if axis == "z" then 0.9 else 1.4
 			local x0, x1, z0, z1 = ax0 + ex, ax1 - ex, az0 + ez, az1 - ez
 			local lv = (level :: number) // 2
-			-- the row's narrower top: inset across the row (its long sides), not along it
-			local inX, inZ = if axis == "x" then 0 else 1, if axis == "x" then 1 else 0
+			-- along the row (a) and across it (b)
+			local A0, A1 = if axis == "x" then x0 else z0, if axis == "x" then x1 else z1
+			local B0, B1 = if axis == "x" then z0 else x0, if axis == "x" then z1 else x1
+			local function strip(
+				name: string,
+				a0: number,
+				a1: number,
+				b0: number,
+				b1: number,
+				y0: number,
+				y1: number,
+				colour: any
+			)
+				if axis == "x" then
+					row(name, a0, b0, a1, b1, y0, y1, colour)
+				else
+					row(name, b0, a0, b1, a1, y0, y1, colour)
+				end
+			end
 			if zone == "front" then
-				-- a continuous green stem row, the blooms on it in separate clumps (about 10
-				-- long, 1.5 apart, at least two on a row longer than 12) in two tints and two
-				-- heights by turns: tulips, not a plank
-				row("Stems", x0 + 0.3, z0 + 0.3, x1 - 0.3, z1 - 0.3, h - 0.2, h + 1.4, C.Leaf1)
+				-- tulips in segments of two or three square bunches (2.4, 1 apart, zig-zag, two
+				-- tints and two heights by turns) on a strip of green stems, 5-7 studs of grass
+				-- between the segments: planted clumps, not stripes. The top ring stays lawn.
+				if lv >= 3 then
+					continue
+				end
 				local c1 = tulips[lv % #tulips + 1]
 				local c2 = mix(c1, C.White, 0.22)
-				local a0, a1 = if axis == "x" then x0 else z0, if axis == "x" then x1 else z1
-				local clumps = Kit.clumps(a0 + 0.6, a1 - 0.6, 10, 2)
-				if #clumps == 1 and a1 - a0 > 12 then
-					clumps = Kit.clumps(a0, a1, (a1 - a0 - 1.5) / 2, 1.5)
+				local segs, pos = {}, A0 + 0.3
+				while true do
+					local room = A1 - 0.3 - pos
+					local k = if room >= 9.8 then 3 elseif room >= 6.4 then 2 elseif room >= 3 then 1 else 0
+					if k == 0 then
+						break
+					end
+					local len = k * 3.4 - 0.4
+					table.insert(segs, { pos, pos + len, k })
+					pos += len + rr(5, 7)
 				end
-				for k, q in clumps do
-					local top = h + 2.3 + (k % 2) * 0.4
-					local col = if k % 2 == 1 then c1 else c2
-					if axis == "x" then
-						row("Tulips", q[1], z0 + 1, q[2], z1 - 1, h + 1.2, top, col)
-					else
-						row("Tulips", x0 + 1, q[1], x1 - 1, q[2], h + 1.2, top, col)
+				local shift = if #segs > 0 then (A1 - 0.3 - segs[#segs][2]) / 2 else 0
+				for si, sg in segs do
+					local s0, s1 = sg[1] + shift, sg[2] + shift
+					local bm = (B0 + B1) / 2
+					strip("Stems", s0, s1, bm - 1.9, bm + 1.9, h - 0.2, h + 1.4, C.Leaf1)
+					for k = 1, sg[3] do
+						local c0 = s0 + 0.3 + (k - 1) * 3.4
+						local odd = (k + si) % 2 == 1
+						local top = h + 2.3 + (if odd then 0 else 0.6) + (k % 3) * 0.12
+						local zig = if k % 2 == 0 then 0.45 else -0.45
+						strip(
+							"Tulips",
+							c0,
+							c0 + 2.4,
+							bm + zig - 1.2,
+							bm + zig + 1.2,
+							h + 1.2,
+							top,
+							if odd then c1 else c2
+						)
 					end
 				end
-			elseif zone == "side" and side == 1 then
-				row("Lavender", x0 + 0.4, z0 + 0.4, x1 - 0.4, z1 - 0.4, h - 0.2, h + 1.8, lavenderLeaf)
-				local a = 1.3
-				local lx0, lz0, lx1, lz1 =
-					x0 + 0.9 + inX * a, z0 + 0.9 + inZ * a, x1 - 0.9 - inX * a, z1 - 0.9 - inZ * a
-				row("LavenderSpikes", lx0, lz0, lx1, lz1, h + 1.6, h + 2.7, lavender)
 			elseif zone == "side" then
-				row("SunStems", x0 + 0.6, z0 + 0.6, x1 - 0.6, z1 - 0.6, h - 0.2, h + 2.9, C.Leaf1)
-				local a = 0.9
-				row("Sunflowers", x0 + inX * a, z0 + inZ * a, x1 - inX * a, z1 - inZ * a, h + 2.8, h + 4, C.Straw)
-			elseif lv % 2 == 0 then
-				row("Wheat", x0 + 0.2, z0 + 0.2, x1 - 0.2, z1 - 0.2, h - 0.2, h + 2.6, C.Straw)
-			else
-				row("Vines", x0 + 0.4, z0 + 0.4, x1 - 0.4, z1 - 0.4, h - 0.2, h + 0.9, C.Leaf2)
-				-- the pumpkins: separate chunky ones along the middle of the vines (two at most)
-				local a0, a1 = if axis == "x" then x0 else z0, if axis == "x" then x1 else z1
-				local mid = if axis == "x" then (z0 + z1) / 2 else (x0 + x1) / 2
-				local count = min(2, floor((a1 - a0) / 12))
-				for k = 1, count do
-					local c = a0 + (a1 - a0) * (k - 0.5) / count + (if k % 2 == 0 then 1.5 else -1)
-					local ps = if k % 2 == 0 then 1.2 else 1.5
-					local m = mid + (if k % 2 == 0 then 0.5 else -0.4)
-					if axis == "x" then
-						row("Pumpkin", c - ps - 0.2, m - ps, c + ps + 0.2, m + ps, h + 0.6, h + 0.7 + ps * 1.4, pumpkin)
+				-- lavender (a grey-green mound with separate purple spike tufts) on one side,
+				-- sunflowers (a stem hedge with separate gold heads) on the other
+				local lav = side == 1
+				local inset = if lav then 0.4 else 0.6
+				strip(
+					if lav then "Lavender" else "SunStems",
+					A0 + inset,
+					A1 - inset,
+					B0 + inset,
+					B1 - inset,
+					h - 0.2,
+					h + (if lav then 1.8 else 2.9),
+					if lav then lavenderLeaf else C.Leaf1
+				)
+				local k = math.clamp(floor((A1 - A0) / 6), 1, 2)
+				for t = 1, k do
+					local c = A0 + (A1 - A0) * (t - 0.5) / k + (if t % 2 == 0 then 0.4 else -0.3)
+					if lav then
+						local hi = h + 2.9 + (t % 2) * 0.4
+						strip("LavenderSpikes", c - 1.1, c + 1.1, B0 + 1.6, B1 - 1.6, h + 1.6, hi, lavender)
 					else
-						row("Pumpkin", m - ps, c - ps - 0.2, m + ps, c + ps + 0.2, h + 0.6, h + 0.7 + ps * 1.4, pumpkin)
+						local hi = h + 4.1 + (t % 2) * 0.4
+						strip("Sunflower", c - 1.2, c + 1.2, B0 + 1.1, B1 - 1.1, h + 2.7, hi, C.Straw)
 					end
 				end
+			elseif lv % 2 == 0 then
+				-- golden wheat on the back (the rings between stay lawn or hold the farm)
+				row("Wheat", x0 + 0.2, z0 + 0.2, x1 - 0.2, z1 - 0.2, h - 0.2, h + 2.6, C.Straw)
 			end
 		end
 	end
@@ -1202,6 +1362,93 @@ local function hillFields(parent: any, world: any, site: any, corridor: (number,
 	return farm
 end
 
+--[[
+	Bush clumps and rocks at the foot of the windmill hill's risers on the lawn rings (the rings
+	between the planted ones) at the front and the sides: their backs 0.3 into the riser towards
+	the mill, a spread-out pick (22+ apart) of up to n, clear of the stairs. 2-3 parts each.
+]]
+local function hillDressing(parent: any, world: any, site: any, corridor: (number, number) -> boolean, n: number)
+	local model = U.model(parent, "Dressing")
+	local cell = world.cell
+	local G = world.cfg.GroundTop
+	local towards = Vector3.new(-site.x, 0, -site.z).Unit
+	local r = Kit.rng(1871)
+	local R = site.hillRadius
+	local spots = {}
+	for iz = floor((site.z - R) / cell), floor((site.z + R) / cell) do
+		for ix = floor((site.x - R) / cell), floor((site.x + R) / cell) do
+			local x, z = (ix + 0.5) * cell, (iz + 0.5) * cell
+			local dx, dz = x - site.x, z - site.z
+			local d = sqrt(dx * dx + dz * dz)
+			local h = world:heightAt(x, z)
+			if d > site.topRadius + 6 and d < R - 4 and h > G and not corridor(x, z) then
+				local facing = (dx * towards.X + dz * towards.Z) / d
+				if floor((h - G) / 4) % 2 == 1 and facing > -0.3 then
+					local ux, uz = 0, 0
+					if abs(dx) > abs(dz) then
+						ux = if dx > 0 then -1 else 1
+					else
+						uz = if dz > 0 then -1 else 1
+					end
+					if world:heightAt(x + ux * cell, z + uz * cell) == h + 4 then
+						table.insert(spots, { x = x, z = z, h = h, ux = ux, uz = uz, score = r() })
+					end
+				end
+			end
+		end
+	end
+	table.sort(spots, function(a, b)
+		return a.score > b.score
+	end)
+	local placed = {}
+	for _, s in spots do
+		if #placed >= n then
+			break
+		end
+		local ok = true
+		for _, o in placed do
+			if (o[1] - s.x) ^ 2 + (o[2] - s.z) ^ 2 < 22 * 22 then
+				ok = false
+				break
+			end
+		end
+		if ok then
+			table.insert(placed, { s.x, s.z })
+			local wx, wz = s.x + s.ux * (cell / 2 + 0.3), s.z + s.uz * (cell / 2 + 0.3)
+			local cf = CFrame.new(wx, s.h, wz) * CFrame.Angles(0, math.atan2(s.ux, s.uz), 0)
+			local o = r(-1.5, 1.5)
+			local kind = #placed % 3
+			if kind == 0 then
+				local b = Kit.builder(model, "Rocks", cf)
+				local w = r(3, 4.2)
+				local stone = b:box("Rock", o - w / 2, -0.6, -2.6, o + w / 2, r(1.8, 2.6), 0, C.Stone)
+				b:box(
+					"RockTop",
+					o - w / 2 + 0.5,
+					1.2,
+					-2,
+					o + w / 2 - 0.9,
+					r(2.8, 3.3),
+					0.1,
+					C.StoneLight,
+					Kit.NOSHADOW
+				)
+				b:finish(stone)
+			else
+				local b = Kit.builder(model, "Bush", cf)
+				local w = r(4, 5.4)
+				local bush = b:box("Leaves", o - w / 2, -0.4, -3, o + w / 2, r(2.8, 3.4), 0, C.Leaf1, Kit.DECOR)
+				b:box("Top", o - w / 2 + 0.8, 2.2, -2.3, o + w / 2 - 1.2, r(3.9, 4.4), 0.1, C.Leaf3, Kit.DECOR)
+				if kind == 1 then
+					b:box("Bloom", o + w / 2 - 2.1, 2.3, -3.3, o + w / 2 - 0.8, 3.6, -2, C.Pink, Kit.DECOR)
+				end
+				b:finish(bush)
+			end
+		end
+	end
+	return model
+end
+
 -- Beehive on a little stand (4 parts): legs, a straw hive with an amber band, a plank roof.
 local function beehive(parent: any, cf: any)
 	local b = Kit.builder(parent, "Beehive", cf)
@@ -1212,28 +1459,9 @@ local function beehive(parent: any, cf: any)
 	return b:finish(stand)
 end
 
--- Hand cart (6 parts): a plank bed on two wheels, a pull bar, a load of two pumpkins. Front = -Z.
-local function handCart(parent: any, cf: any)
-	local b = Kit.builder(parent, "Cart", cf)
-	local bed = b:box("Bed", -1.8, 1.6, -3, 1.8, 2.6, 3, C.Wood)
-	for i, sx in { -1, 1 } do
-		b:block(
-			`Wheel{i}`,
-			Vector3.new(0.6, 3, 3),
-			CFrame.new(sx * 2.1, 1.5, 0.6),
-			C.WoodDark,
-			{ Shape = Enum.PartType.Cylinder, CastShadow = false }
-		)
-	end
-	b:box("Bar", -0.25, 2, -6, 0.25, 2.5, -2.9, C.WoodDark, Kit.NOSHADOW)
-	b:box("Pumpkin1", -1.5, 2.6, -2.4, 0.3, 4.2, -0.6, C.Orange, Kit.NOSHADOW)
-	b:box("Pumpkin2", 0, 2.6, 0.2, 1.6, 4, 1.8, C.Autumn1, Kit.NOSHADOW)
-	return b:finish(bed)
-end
-
 --[[
 	The little farm on the back of the windmill hill, on the free rings between the crop rows:
-	hay bales, a beehive, a hand cart with pumpkins. Each piece
+	hay bales and a beehive. Each piece
 	takes the free cell nearest its spot (degrees from straight back, distance from the mill).
 ]]
 local function hillFarm(parent: any, site: any, cells: { any })
@@ -1241,7 +1469,6 @@ local function hillFarm(parent: any, site: any, cells: { any })
 	local pieces = {
 		{ "hay", -22, 50 },
 		{ "hive", 24, 50 },
-		{ "cart", 12, 74 },
 	}
 	local taken: { [any]: boolean } = {}
 	for i, p in pieces do
@@ -1264,8 +1491,6 @@ local function hillFarm(parent: any, site: any, cells: { any })
 		local cf = CFrame.new(best.x, best.h, best.z) * CFrame.Angles(0, rad(yaw), 0)
 		if p[1] == "hive" then
 			beehive(model, cf)
-		elseif p[1] == "cart" then
-			handCart(model, cf)
 		else
 			Kit.prop("hayBale", model, cf * CFrame.new(-1.6, 0, -0.4), { seed = i })
 			Kit.prop("hayBale", model, cf * CFrame.new(2.2, 0, 0.6) * CFrame.Angles(0, rad(90), 0), { seed = i + 7 })
@@ -1471,6 +1696,7 @@ local function buildWindmill(root: any, cfg: any, world: any, site: any)
 	-- the hero mill on the meadow, its open doorway facing the stairs (the plinth is a 1-stud step)
 	local mill = heroMill(model, Kit.facing(site.x, topY, site.z, 0, 0), 20)
 	hillFarm(model, site, hillFields(model, world, site, corridor))
+	hillDressing(model, world, site, corridor, 5)
 	-- stairs from the hill foot up to the top meadow (Kit.stairs adds a first step if needed):
 	-- chunky 2-stud steps, an invisible ramp over their nosings so the climb is a walk
 	local foot = Vector3.new(site.x - ux * (site.hillRadius + 4), 0, site.z - uz * (site.hillRadius + 4))
@@ -1666,8 +1892,8 @@ local function buildGiantTree(root: any, cfg: any, world: any, site: any)
 		cheeks:box(`CheekTop{i}`, min(x0, x1), topY - 1.4, -along + 8, max(x0, x1), topY - 0.4, 0, C.GrassTop3)
 	end
 	cheeks:finish()
-	-- glowing giant mushrooms round the tree, a fairy ring of small ones
-	for i, spec in { { 35, 62, true }, { 32, -70, true } } do
+	-- a glowing giant mushroom beside the tree
+	for i, spec in { { 33, -66, true } } do
 		local m = Kit.prop("giantMushroom", model, at(spec[1], spec[2]), {
 			glow = true,
 			light = spec[3],
@@ -1683,11 +1909,10 @@ local function buildGiantTree(root: any, cfg: any, world: any, site: any)
 			Kit.sparkles(cap, mix(C.Glow, C.Lime, 0.4), { rate = 2, size = 0.6, lifetime = 6, speed = 0.6, box = true })
 		end
 	end
-	-- lantern posts lining the way in, a picnic table, flowers
+	-- lantern posts lining the way in, flowers
 	for _, spec in { { 40, -13 }, { 40, 13 } } do
 		lanternPost(model, at(spec[1], spec[2]), 4)
 	end
-	Kit.prop("picnicTable", model, at(26, 105, 90), { cloth = C.Red })
 	Kit.flowerMeadow(model, at(36, -40), 3)
 	Kit.claim(site.x, site.z, site.plateauRadius + 2)
 	-- the steps and their cheek blocks (no flowers growing through them)
@@ -1740,15 +1965,6 @@ local function bigFlag(parent: any, cf: any, h: number, w: number, fh: number, c
 	b:box("Stripe", 1.0, h - fh * 0.62 - 0.4, -0.42, 0.8 + w, h - fh * 0.38 - 0.4, 0.42, C.Cream, Kit.DECOR)
 	b:box("Tail", 0.9 + w, h - fh * 0.8 - 0.4, -0.3, 2.6 + w, h - fh * 0.2 - 0.4, 0.3, color, Kit.DECOR)
 	return b:finish(foot)
-end
-
--- Summit cairn: three stacked stones, each a little smaller and turned. 3 parts.
-local function cairn(parent: any, cf: any)
-	local b = Kit.builder(parent, "Cairn", cf)
-	local base = b:box("Stone1", -2.2, -0.4, -2, 2.2, 1.8, 2, C.Stone)
-	b:block("Stone2", Vector3.new(3.2, 1.8, 2.8), CFrame.new(0.2, 2.7, 0) * CFrame.Angles(0, rad(25), 0), C.StoneLight)
-	b:block("Stone3", Vector3.new(2, 1.5, 1.8), CFrame.new(-0.1, 4.3, 0.1) * CFrame.Angles(0, rad(-15), 0), C.Stone)
-	return b:finish(base)
 end
 
 -- the ramps on the trail's risers: a shade under Ground.luau's path cap
@@ -2085,9 +2301,9 @@ end
 
 -- Summit lookout deck on the flat snowy summit (cf: its centre on the snow, front = -Z towards
 -- where the trail arrives): a stone plinth and a plank deck flush on the snow, timber rails with
--- an opening (lantern posts) at the front, a big flag, a stone cairn on the snow, a telescope at
+-- an opening (lantern posts) at the front, a big flag, a telescope at
 -- the front corner and a «ВЕРШИНА» board under a little roof at the back facing the arrival.
-local function summitDeck(parent: any, world: any, cf: any, D: number)
+local function summitDeck(parent: any, _world: any, cf: any, D: number)
 	local b = Kit.builder(parent, "SummitDeck", cf)
 	local y = 0.9 -- deck top above the snow (two 0.45 steps)
 	b:box("Plinth", -D - 1.2, -1.4, -D - 1.2, D + 1.2, 0.45, D + 1.2, C.StoneLight)
@@ -2127,38 +2343,6 @@ local function summitDeck(parent: any, world: any, cf: any, D: number)
 	end
 	local flag = bigFlag(b.model, on(D - 4, D - 4.5, 0), 24, 10, 6, C.Red)
 	Kit.sparkles(flag.Top, C.GoldLight, { rate = 3, size = 0.8, lifetime = 3, speed = 2 }) -- the goal glints
-	-- the cairn stands on the snow beside the deck, on the first spot whose whole footprint is
-	-- the flat summit (never over the trail's last bend)
-	local snowTop = cf.Position.Y
-	local function flat(lx: number, lz: number, r: number): boolean
-		for _, c in { { -r, -r }, { r, -r }, { r, r }, { -r, r }, { 0, 0 } } do
-			local w = (cf * CFrame.new(lx + c[1], 0, lz + c[2])).Position
-			if world:heightAt(w.X, w.Z) ~= snowTop then
-				return false
-			end
-		end
-		return true
-	end
-	local function onSnow(spots: { { number } }, r: number): any?
-		for _, p in spots do
-			if flat(p[1], p[2], r) then
-				return on(p[1], p[2], p[3]) * CFrame.new(0, -y, 0)
-			end
-		end
-		return nil
-	end
-	local o = D + 4
-	local sm = onSnow({
-		{ o, -D + 3, -30 },
-		{ o, -D + 6, -40 },
-		{ o, 0, -60 },
-		{ -o, -D + 3, 30 },
-		{ -o, 0, 60 },
-		{ o, D - 3, -120 },
-	}, 2.4)
-	if sm then
-		cairn(b.model, sm)
-	end
 	return b.model
 end
 
@@ -2273,16 +2457,6 @@ local function buildPeaks(root: any, cfg: any, world: any)
 		local wx, wz = Kit.radial(site.angle, site.radius, padLx, padLz)
 		Kit.claim(wx, wz, 20)
 	end
-	-- the signpost at the path's end, pointing up the trail
-	local sx, sz = Kit.radial(site.angle, site.radius, -side * 9.5, endLz - 20)
-	Kit.prop("signpost", camp, Kit.ground(world, sx, sz, site.angle), {
-		text = "ВЕРШИНА",
-		width = 9,
-		color = C.Cream,
-		trim = C.WoodDark,
-		arrow = if side > 0 then "right" else "left",
-	})
-
 	-- the carved trail and the summit deck flush on the flat snowy summit, open towards where
 	-- the trail arrives (without a trail: on the highest block, open towards the lagoon)
 	local cx, cz, topY, half
