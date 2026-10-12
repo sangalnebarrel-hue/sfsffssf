@@ -4,8 +4,9 @@
 	strongest sightline of the map (bridge → welcome arch → plaza) leads somewhere.
 	Each Map.Gateways.Gateway_N has:
 	  • a big welcome arch over the coral entry road with a name board («СЕВЕРНЫЕ ВОРОТА» …) in
-	    the gateway colour, lanterns on the cream pillars, a stepped roof with a theme topper
-	    (star, flower, golden fish, pine);
+	    the gateway colour, each with its own silhouette (see ARCHES): a rainbow arch with a
+	    spinning pinwheel, a hedge arch with giant tulips, a harbour arch of masts with a hanging
+	    anchor, a log arch with totem heads;
 	  • warm two-tone paving in its own footprint, and its own layout — the axis from the arch
 	    to the hill path stays open, the centrepiece stands off it (decorated on every side);
 	    every stall and board faces the plaza:
@@ -23,11 +24,13 @@
 	                                ice cream stall; stone steps up a little farm (long crop
 	                                beds, a red barn, a scarecrow) to a lookout deck with a long
 	                                slide down
-	      west  (270) picnic camp   a meadow with a paved path and a round fire circle off the
-	                                axis: totem (carved on the back too), campfire, log seats;
-	                                picnic tables and the souvenir stall on a plank patio; plank
-	                                stairs zigzag up past a camp (tents, a fire ring, a blanket)
-	                                to a picnic lookout with a flag and a telescope off the axis
+	      west  (270) picnic camp   a meadow with a paved path and a camp off the axis: a sand
+	                                clearing round the fire circle (totem carved on the back too,
+	                                a smoking campfire, log seats), two tents facing the fire, an
+	                                upturned canoe on its trestle; a picnic table and the souvenir
+	                                stall on a plank patio; plank stairs zigzag up past a camp
+	                                (tents, a smoking fire ring, a blanket) to a picnic lookout
+	                                with a flag and a telescope off the axis
 	  • the climb from the back of the plaza up the terraces to the viewpoint (Kit.stairs 1-stud
 	    steps, or Kit.rampPath slabs and wedge ramps), lantern posts beside it; the viewpoint
 	    stands on a solid plinth on the hilltop. District pieces stand only where the ground
@@ -79,57 +82,158 @@ local function disc(b: any, name: string, x: number, z: number, r: number, y0: n
 	end
 end
 
--- The theme topper on the arch roof (local frame of the arch, standing on y).
-local function topper(b: any, kind: string, y: number)
-	if kind == "garden" then -- a flower: petal cross and a yellow heart
-		b:box("Petals", -2.6, y + 1.2, -0.5, 2.6, y + 3.6, 0.5, C.Pink, Kit.NEON_DECOR)
-		b:box("Petals2", -1.2, y, -0.45, 1.2, y + 4.8, 0.45, C.Pink, Kit.NEON_DECOR)
-		b:box("Heart", -0.9, y + 1.5, -0.7, 0.9, y + 3.3, 0.7, C.Yellow, Kit.NEON_DECOR)
-	elseif kind == "market" then -- a golden fish sitting on the roof
-		b:box("Fish", -2.4, y - 0.1, -0.5, 1.6, y + 2.7, 0.5, C.Gold, Kit.NEON_DECOR)
-		b:box("Tail", 1.5, y - 0.1, -0.4, 3.1, y + 3.1, 0.4, C.Gold, Kit.NEON_DECOR)
-		b:box("Eye", -1.9, y + 1.5, -0.6, -1.3, y + 2.1, 0.6, C.Navy, Kit.DECOR)
-	elseif kind == "picnic" then -- a little pine
-		b:box("Pine", -2.2, y, -0.6, 2.2, y + 1.6, 0.6, C.Lime, Kit.NEON_DECOR)
-		b:box("Pine2", -1.4, y + 1.6, -0.55, 1.4, y + 3, 0.55, C.Lime, Kit.NEON_DECOR)
-		b:box("Pine3", -0.6, y + 3, -0.5, 0.6, y + 4.4, 0.5, C.Gold, Kit.NEON_DECOR)
-	else -- a star
-		b:box("Star", -1.2, y, -0.5, 1.2, y + 3.2, 0.5, C.Gold, Kit.NEON_DECOR)
-		b:box("StarX", -2.4, y + 1, -0.45, 2.4, y + 2.2, 0.45, C.Gold, Kit.NEON_DECOR)
+--[[
+	The welcome arches: every gateway has its own silhouette, not just its own colour (local frame
+	of the arch: y = 0 on the paving, front = -Z towards the bridge, the road between x = ±9; the
+	pillars stand at |x| 12..16). Each builds its name board; 17-19 parts.
+	  playground  a rainbow arch: pillars of stacked rainbow cubes, a stepped rainbow over the
+	              board, a pinwheel on top that spins (attribute Spin)
+	  garden      a flower arch: green hedge pillars in white planters with blooms stuck on them,
+	              a giant tulip on each, a leafy beam with flowers over the board
+	  market      a harbour arch: two wooden masts on crates, a yard across them, the board hanging
+	              from it on ropes, an anchor hanging under it, a lifebuoy on a mast, a golden fish
+	              on the yard
+	  picnic      a camp arch: log pillars on stones with a carved totem head on each (beak and
+	              eyes), a log lintel over the board, a little pine on top
+]]
+local function pillarSpan(sx: number): (number, number, number)
+	local x0, x1 = sx * 12, sx * 16
+	return min(x0, x1), max(x0, x1), (x0 + x1) / 2
+end
+
+local function nameBoard(b: any, text: string, x: number, y0: number, y1: number, d: number, color: any)
+	local board = b:box("Board", -x, y0, -d, x, y1, d, color)
+	Kit.sign(board, Enum.NormalId.Front, text, C.White, C.Navy, { pps = 24 })
+	Kit.sign(board, Enum.NormalId.Back, text, C.White, C.Navy, { pps = 24 })
+	return board
+end
+
+local ARCHES = {}
+
+ARCHES.playground = function(b: any, text: string, color: any)
+	local bands = { C.Red, C.Orange, C.Yellow, C.Lime, C.Cyan, C.Blue }
+	for i, sx in { -1, 1 } do
+		local lo, hi = pillarSpan(sx)
+		b:box(`Plinth{i}`, lo - 0.8, -0.5, -2.8, hi + 0.8, 1.6, 2.8, C.White)
+		-- three 6-stud cubes, every other one 0.3 proud (chunky stacked blocks), rainbow order
+		for k = 1, 3 do
+			local o = (k % 2) * 0.3
+			local c = bands[(k - 1) * 2 + i]
+			b:box(`Block{i}_{k}`, lo - o, 1.6 + (k - 1) * 6, -2 - o, hi + o, 1.6 + k * 6, 2 + o, c)
+		end
+	end
+	nameBoard(b, text, 14.5, 13.6, 19.6, 1.2, color)
+	-- the rainbow over the board: three bands, each a step narrower and thinner
+	for k, c in { C.Red, C.Yellow, C.Cyan } do
+		local w, d = 16.6 - (k - 1) * 2.4, 2.2 - (k - 1) * 0.2
+		b:box(`Rainbow{k}`, -w, 19.6 + (k - 1) * 1.6, -d, w, 19.6 + k * 1.6, d, c)
+	end
+	b:box("Stick", -0.3, 24.4, -0.3, 0.3, 29.4, 0.3, C.White, Kit.NOSHADOW)
+	-- the pinwheel: four blades round a hub, each offset along its arm (the swirl); it spins about
+	-- its hub (the pivot's LookVector points down the road), no collisions
+	local hubCF = b.cf * CFrame.new(0, 29.4, -0.95)
+	local pw = Kit.builder(b.model, "Pinwheel", hubCF)
+	pw.model:SetAttribute("Spin", 80)
+	local hub = pw:box("Hub", -0.8, -0.8, -0.65, 0.8, 0.8, 0.65, C.White, Kit.DECOR)
+	for k, c in { C.Red, C.Yellow, C.Lime, C.Blue } do
+		local lcf = CFrame.Angles(0, 0, rad(k * 90)) * CFrame.new(2.6, 1.05, -0.1)
+		pw:block(`Blade{k}`, Vector3.new(4.4, 2.1, 0.4), lcf, c, Kit.DECOR)
+	end
+	pw.model.PrimaryPart = hub
+	hub.PivotOffset = hub.CFrame:Inverse() * hubCF
+end
+
+ARCHES.garden = function(b: any, text: string, color: any)
+	local tips = Kit.lerpColor(color, C.White, 0.35)
+	for i, sx in { -1, 1 } do
+		local lo, hi, xm = pillarSpan(sx)
+		b:box(`Planter{i}`, lo - 1, -0.5, -3, hi + 1, 2.4, 3, C.White)
+		b:box(`Hedge{i}`, lo, 2.4, -2, hi, 18, 2, C.Leaf2)
+		-- a bloom stuck through the hedge (shows on both faces)
+		local y = if i == 1 then 7 else 10
+		b:box(
+			`Bloom{i}`,
+			lo - 0.4,
+			y,
+			-2.4,
+			lo + 2.2,
+			y + 2.4,
+			2.4,
+			if i == 1 then C.Yellow else C.Blossom1,
+			Kit.NOSHADOW
+		)
+		-- the giant tulip: a leafy collar, the cup, two petal tips with a notch between
+		b:box(`Collar{i}`, xm - 1.6, 18, -1.6, xm + 1.6, 19.4, 1.6, C.Leaf1, Kit.NOSHADOW)
+		b:box(`Cup{i}`, xm - 2.4, 19.4, -2.4, xm + 2.4, 23.8, 2.4, color)
+		b:box(`TipL{i}`, xm - 2.4, 23.8, -1.8, xm - 0.8, 25.6, 1.8, tips, Kit.NOSHADOW)
+		b:box(`TipR{i}`, xm + 0.8, 23.8, -1.8, xm + 2.4, 25.6, 1.8, tips, Kit.NOSHADOW)
+	end
+	b:box("Beam", -14, 16, -1.6, 14, 18.4, 1.6, C.Leaf1)
+	nameBoard(b, text, 13.5, 10.4, 16, 1.1, color)
+	for k, p in { { -7, C.Yellow }, { 0.5, C.Red }, { 7.5, C.Purple } } do
+		b:box(`BeamBloom{k}`, p[1] - 1.3, 18.2, -1.3, p[1] + 1.3, 20.4, 1.3, p[2], Kit.NOSHADOW)
 	end
 end
 
-local function welcomeArch(parent: any, cf: any, text: string, color: any, kind: string)
-	-- cream candy-striped pillars (bands in the gateway colour), lanterns on top, a big board
-	-- in the gateway colour between Neon rims, a stepped roof with the theme topper
-	local b = Kit.builder(parent, "WelcomeArch", cf)
-	local dark = Kit.shade(color, 0.78)
-	local light = Kit.lerpColor(color, C.White, 0.4)
-	for _, sx in { -1, 1 } do
-		local x0, x1 = sx * 12, sx * 16
-		local lo, hi = math.min(x0, x1), math.max(x0, x1)
-		local xm = (lo + hi) / 2
-		b:box("Plinth", lo - 0.8, -0.5, -2.8, hi + 0.8, 2.4, 2.8, C.White)
-		b:box("Pillar", lo, 2.4, -2, hi, 20, 2, C.Cream)
-		for k, y in { 6.2, 13.2 } do
-			b:box(`Band{k}`, lo - 0.25, y, -2.25, hi + 0.25, y + 2.2, 2.25, color, Kit.NOSHADOW)
-		end
-		b:box("Capital", lo - 0.7, 20, -2.7, hi + 0.7, 21.4, 2.7, color)
-		local glow = b:box("Lantern", xm - 1.5, 21.4, -1.5, xm + 1.5, 24.4, 1.5, C.Glow, Kit.NEON)
-		b:box("LanternCap", xm - 2.1, 24.4, -2.1, xm + 2.1, 25.3, 2.1, dark, Kit.NOSHADOW)
-		if sx > 0 then
-			Kit.light(glow, 16, 1.2)
+ARCHES.market = function(b: any, text: string, color: any)
+	for i, sx in { -1, 1 } do
+		local _, _, xm = pillarSpan(sx)
+		b:box(`Crate{i}`, xm - 2.8, -0.5, -2.8, xm + 2.8, 3.4, 2.8, C.WoodLight)
+		b:pole(`Mast{i}`, 2.2, xm, 0, 3.4, 27, C.Wood)
+	end
+	b:box("Yard", -18, 22.6, -0.9, 18, 24, 0.9, C.WoodDark)
+	for k, x in { -9, 9 } do
+		b:box(`Rope{k}`, x - 0.2, 20.2, -0.2, x + 0.2, 22.6, 0.2, C.Rope, Kit.DECOR)
+	end
+	nameBoard(b, text, 11, 14.2, 20.2, 1, color)
+	-- the anchor hanging under the board: shank, stock, crown, two flukes
+	local navy = C.Navy
+	b:box("Shank", -0.45, 7.6, -0.45, 0.45, 14.2, 0.45, navy)
+	b:box("Stock", -2.2, 12.2, -0.4, 2.2, 13, 0.4, navy, Kit.NOSHADOW)
+	b:box("Crown", -3.2, 7.6, -0.4, 3.2, 8.4, 0.4, navy, Kit.NOSHADOW)
+	b:box("FlukeL", -3.2, 8.4, -0.4, -2.4, 10.2, 0.4, navy, Kit.NOSHADOW)
+	b:box("FlukeR", 2.4, 8.4, -0.4, 3.2, 10.2, 0.4, navy, Kit.NOSHADOW)
+	-- a lifebuoy on the left mast (red and white quarters round the mast's front)
+	local _, _, lx = pillarSpan(-1)
+	for k, q in
+		{
+			{ -1.9, 10.4, 1.9, 11.4, C.Red },
+			{ -1.9, 6.6, 1.9, 7.6, C.Red },
+			{ -1.9, 7.6, -0.9, 10.4, C.White },
+			{ 0.9, 7.6, 1.9, 10.4, C.White },
+		}
+	do
+		b:box(`Buoy{k}`, lx + q[1], q[2], -1.7, lx + q[3], q[4], -1.1, q[5], Kit.NOSHADOW)
+	end
+	-- a golden fish on the yard
+	b:box("Fish", -2.4, 24, -0.5, 1.6, 26.8, 0.5, C.Gold, Kit.NEON_DECOR)
+	b:box("Tail", 1.5, 24.2, -0.4, 3.1, 27.2, 0.4, C.Gold, Kit.NEON_DECOR)
+	b:box("Eye", -1.9, 25.6, -0.6, -1.3, 26.2, 0.6, C.Navy, Kit.DECOR)
+end
+
+ARCHES.picnic = function(b: any, text: string, color: any)
+	for i, sx in { -1, 1 } do
+		local lo, hi, xm = pillarSpan(sx)
+		b:box(`Stone{i}`, lo - 0.8, -0.5, -2.8, hi + 0.8, 1.4, 2.8, C.StoneLight)
+		b:box(`Log{i}`, lo, 1.4, -2, hi, 17, 2, C.Bark)
+		b:box(`Ring{i}`, lo - 0.25, 6.6, -2.25, hi + 0.25, 7.8, 2.25, C.WoodDark, Kit.NOSHADOW)
+		-- the totem head: a carved block, a yellow beak, two white eyes
+		b:box(`Head{i}`, lo - 0.3, 17, -2.3, hi + 0.3, 21.8, 2.3, if i == 1 then color else C.Autumn1)
+		b:box(`Beak{i}`, xm - 0.8, 17.8, -3.5, xm + 0.8, 19.4, -2.3, C.Yellow, Kit.DECOR)
+		for k, ex in { -1.1, 1.1 } do
+			b:box(`Eye{i}_{k}`, xm + ex - 0.55, 19.8, -2.45, xm + ex + 0.55, 20.9, -2.3, C.White, Kit.DECOR)
 		end
 	end
-	b:box("BoardFrame", -16.4, 13.4, -1.0, 16.4, 22.2, 1.0, C.White)
-	local board = b:box("Board", -15.4, 14.2, -1.25, 15.4, 21.4, 1.25, color)
-	Kit.sign(board, Enum.NormalId.Front, text, C.White, C.Navy, { pps = 24 })
-	Kit.sign(board, Enum.NormalId.Back, text, C.White, C.Navy, { pps = 24 })
-	b:box("RimBottom", -16.4, 12.8, -1.1, 16.4, 13.4, 1.1, C.Yellow, Kit.NEON)
-	b:box("RimTop", -16.4, 22.2, -1.1, 16.4, 22.8, 1.1, C.Yellow, Kit.NEON)
-	b:box("Roof1", -10, 22.8, -1.8, 10, 24.2, 1.8, light)
-	b:box("Roof2", -5.5, 24.2, -1.4, 5.5, 25.4, 1.4, color)
-	topper(b, kind, 25.4)
+	b:box("Lintel", -16.6, 14.2, -1.7, 16.6, 16.6, 1.7, C.Wood)
+	nameBoard(b, text, 13.6, 9.2, 14.2, 1.1, color)
+	b:box("Pine", -2.4, 16.6, -1, 2.4, 18.2, 1, C.Pine2, Kit.NOSHADOW)
+	b:box("Pine2", -1.5, 18.2, -0.8, 1.5, 19.8, 0.8, C.Pine3, Kit.NOSHADOW)
+	b:box("Pine3", -0.6, 19.8, -0.6, 0.6, 21.2, 0.6, C.Gold, Kit.NEON_DECOR)
+end
+
+local function welcomeArch(parent: any, cf: any, text: string, color: any, kind: string)
+	local b = Kit.builder(parent, "WelcomeArch", cf)
+	ARCHES[kind](b, text, color)
 	return b:finish()
 end
 
@@ -190,7 +294,7 @@ local function stall(parent: any, cf: any, text: string, color: any, goods: stri
 	return b:finish(counter)
 end
 
--- Wooden notice board with coloured notes under a little roof (front = -Z). 11 parts.
+-- Wooden notice board with coloured notes under a little roof (front = -Z). 9 parts.
 local function noticeBoard(parent: any, cf: any, color: any)
 	local b = Kit.builder(parent, "NoticeBoard", cf)
 	local post = b:box("PostL", -4.2, -0.5, -0.5, -3.2, 8.2, 0.5, C.WoodDark)
@@ -201,7 +305,7 @@ local function noticeBoard(parent: any, cf: any, color: any)
 	Kit.sign(header, Enum.NormalId.Front, "ОБЪЯВЛЕНИЯ", rgb(96, 56, 30), nil, { pps = 40 })
 	b:box("Roof", -4.8, 8.2, -1.4, 4.8, 9.0, 1.4, color)
 	b:box("Roof2", -3.4, 9.0, -0.9, 3.4, 9.6, 0.9, Kit.lerpColor(color, C.White, 0.3))
-	for i, n in { { -1.8, 5.2, C.White }, { 0.4, 4.6, C.Yellow }, { 2.0, 5.4, C.Pink }, { -0.6, 3.4, C.Cyan } } do
+	for i, n in { { -1.4, 4.9, C.Yellow }, { 1.4, 3.9, C.Pink } } do
 		local front = -0.6 - (i % 3) * 0.1 -- overlapping notes never share a plane
 		b:box(`Note{i}`, n[1] - 0.8, n[2] - 0.9, front, n[1] + 0.8, n[2] + 0.9, -0.42, n[3], Kit.DECOR)
 	end
@@ -398,7 +502,12 @@ local function campCircle(parent: any, cf: any, color: any)
 	end
 	b:box("TotemTop", -1.4, 12, -1.4, 1.4, 13.4, 1.4, C.Gold)
 	b:finish(t)
-	Kit.prop("campfire", b.model, cf * CFrame.new(0, 0, -10), { light = true })
+	local fire = Kit.prop("campfire", b.model, cf * CFrame.new(0, 0, -10), { light = true })
+	local flame = fire:FindFirstChild("Flame")
+	if flame then
+		Kit.smoke(flame)
+		Kit.sparkles(flame, C.Autumn2, { rate = 4, size = 0.4, lifetime = 1.4, speed = 5, drift = 2 })
+	end
 	for i, p in { { -6, -10, 90 }, { 6, -10, 90 }, { 0, -16, 0 }, { 0, -4.6, 0 } } do
 		Kit.prop("log", b.model, cf * CFrame.new(p[1], 0, p[2]) * CFrame.Angles(0, rad(p[3]), 0), { seed = i })
 	end
@@ -539,7 +648,7 @@ end
 local function blanket(parent: any, cf: any, color: any)
 	local b = Kit.builder(parent, "Blanket", cf)
 	local cloth = b:box("Cloth", -3.5, -0.2, -3, 3.5, 0.25, 3, color, Kit.NOSHADOW)
-	b:box("Stripe", -3.5, -0.18, -0.7, 3.5, 0.4, 0.7, C.White, Kit.DECOR)
+	b:box("Stripe", -3.6, -0.18, -0.7, 3.6, 0.4, 0.7, C.White, Kit.DECOR) -- 0.1 past the cloth's ends
 	return b:finish(cloth)
 end
 
@@ -571,7 +680,8 @@ local function fireRing(parent: any, cf: any)
 	local ring = b:box("Stones", -2.4, -0.4, -2.4, 2.4, 0.7, 2.4, C.StoneLight)
 	b:box("LogA", -1.9, 0.7, -0.45, 1.9, 1.5, 0.45, C.Bark)
 	b:box("LogB", -0.45, 1.5, -1.9, 0.45, 2.2, 1.9, C.Bark)
-	b:box("Flame", -0.8, 1.4, -0.8, 0.8, 3.4, 0.8, C.Flame, Kit.NEON_DECOR)
+	local flame = b:box("Flame", -0.8, 1.4, -0.8, 0.8, 3.4, 0.8, C.Flame, Kit.NEON_DECOR)
+	Kit.smoke(flame, { rate = 2 })
 	return b:finish(ring)
 end
 
@@ -912,15 +1022,18 @@ local function picnicPlaza(model: any, at: any, paving: any, view: any, h: any):
 	-- tables on the grass
 	paving:box("Path", -6, -0.6, -35.8, 6, FLOOR, 38, PAVE, Kit.NOSHADOW)
 	paving:box("PathEdge", -7, -0.65, -36.3, 7, FLOOR - 0.15, 38.3, PAVE2, Kit.NOSHADOW)
-	disc(paving, "Circle", -15, 4, 19, -0.55, FLOOR + 0.12, PAVE2)
-	disc(paving, "Hearth", -15, 4, 9.3, -0.5, FLOOR + 0.24, PAVE)
-	-- a plank patio under the picnic tables and the stall (nothing stands on the bare grass)
+	-- the camp: a big trodden sand clearing round the fire circle, two tents facing the fire, an
+	-- upturned canoe on its trestle
+	disc(paving, "Clearing", -17, 5, 22, -0.55, FLOOR + 0.12, rgb(240, 210, 150))
+	disc(paving, "Hearth", -15, 4, 9.3, -0.5, FLOOR + 0.24, PAVE2)
+	-- a plank patio under the picnic table and the stall (nothing stands on the bare grass)
 	paving:box("Patio", 12, -0.6, -31, 33, FLOOR, 23, rgb(232, 186, 128), Kit.NOSHADOW)
 	campCircle(model, at(-15, 14), color)
-	Kit.prop("picnicTable", model, at(20, -8, 70), { cloth = C.Red })
-	Kit.prop("picnicTable", model, at(22, 14, -70), { cloth = C.Yellow })
+	tent(model, at(-31, 0, -90), C.Orange)
+	tent(model, at(-24, 21, -30), C.Blue)
+	boatYard(model, at(-27, -15, 0), C.Red)
+	Kit.prop("picnicTable", model, at(21, 4, 70), { cloth = C.Red })
 	stall(model, at(27, -24, 90), "СУВЕНИРЫ", color, "souvenirs")
-	Kit.flowerMeadow(model, h.origin * CFrame.new(-31, 0, -22), 61)
 	-- a picnic lookout on the hill (off the axis, where the zigzag path arrives): a striped pergola
 	-- over a picnic table, a telescope, a flag
 	local z0 = h.deckZ0
