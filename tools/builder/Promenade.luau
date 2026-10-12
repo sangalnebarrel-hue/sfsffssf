@@ -9,9 +9,12 @@
 	                  posts and kerbs, a chunky top rail in the gateway's colour (pastel mid rail
 	                  and pile caps; dark wood only on the piles under the deck), lanterns in the
 	                  gateway's colour, a landing plate where the deck meets the promenade and a
-	                  mid-span lookout: bump-outs on both sides with benches facing the water, a
-	                  lamp and a flag each, bunting across the deck between the flags, a
+	                  mid-span lookout: bump-outs on both sides with a lamp and a flag each,
+	                  bunting across the deck between the flags; on the left (deeper) one a sell
+	                  kiosk «ПРОДАТЬ РЫБУ» (SellKiosk.Scales.SellPromptAttachment, bound by the
+	                  server like the hub market's), on the right a bench facing the water and a
 	                  telescope. Pile bents buried in the sand at the two ends are left out.
+	                  buildBridges returns the kiosks' attachments for the build's self-check.
 	  Map.Promenade   the ring walk r 312..330 on flat GroundTop: warm sand paving with darker
 	                  joint strips, a smooth coral middle band and white kerbs (open where the
 	                  gateway roads and landmark paths leave the ring); a sea wall on the lagoon
@@ -72,43 +75,104 @@ local DECK_TOP = 0.64 -- above GroundTop: a hair above the bridge and pier decks
 -- Bridges
 --------------------------------------------------------------------------------------------
 
--- Half length (studs, along the bridge) of the mid-span lookout and how far it sticks out.
+-- Half length (studs, along the bridge) of the mid-span lookout and how far it sticks out (the
+-- left wing, with the sell kiosk, sticks out further).
 local LOOKOUT_HALF = 10
 local LOOKOUT_OUT = 6.5
+local KIOSK_OUT = 9
+
+-- Path of the sell kiosk's scales under a bridge model, and its prompt attachment's offset in
+-- the Scales part (like the hub's FishMarket.Scales: in front of the counter, over the deck).
+local KIOSK_PROMPT_OFFSET = Vector3.new(0, -0.7, -2.3)
+local SKIN = rgb(255, 206, 160)
+local ICE = rgb(222, 246, 255)
+
+--[[
+	Sell kiosk «ПРОДАТЬ РЫБУ» on a lookout wing (24 parts), standing on `cf` (y = 0 the wing's
+	deck top, front -Z towards the bridge deck, local X along the bridge): a white counter with a
+	panel in the gateway's colour and an ice top with two fish, red scales (Scales part with the
+	SellPromptAttachment the server binds, like the hub market's), a fishmonger in an apron and
+	a bucket hat behind it, four posts under a striped awning with a white valance and a yellow
+	board on top. Everything stays within 3 studs in front of / 4.2 behind cf and ±7 along X.
+	Returns the Scales part.
+]]
+local function sellKiosk(parent: any, cf: any, theme: any, k: number): any
+	local b = Kit.builder(parent, "SellKiosk", cf)
+	local color = theme.color
+	local shirts = { C.Cyan, C.Blue, C.Red, C.Orange }
+	-- counter: white body, a panel in the gateway's colour (the sign) and an ice top with fish
+	local counter = b:box("Counter", -5.5, -0.05, -2.8, 5.5, 3.2, -1.4, C.White)
+	local panel = b:box("Panel", -5.0, 0.5, -2.95, 5.0, 2.7, -2.75, color, Kit.NOSHADOW)
+	Kit.sign(panel, U.Enum.NormalId.Front, "ПРОДАТЬ РЫБУ", C.White, C.Navy, { pps = 24 })
+	b:box("Ice", -5.8, 3.2, -3.1, 5.8, 3.7, -1.2, ICE)
+	b:box("FishA", -4.7, 3.7, -2.55, -2.3, 4.3, -1.75, C.Orange, Kit.DECOR)
+	b:box("FishATail", -2.35, 3.75, -2.45, -1.75, 4.25, -1.85, C.Yellow, Kit.DECOR)
+	b:box("FishB", 2.3, 3.7, -2.65, 4.7, 4.3, -1.85, C.Pink, Kit.DECOR)
+	b:box("FishBTail", 1.75, 3.75, -2.55, 2.35, 4.25, -1.95, C.Purple, Kit.DECOR)
+	-- the scales in the middle of the counter (low: the fishmonger's face shows above them)
+	local scales = b:box("Scales", -1.1, 3.7, -2.6, 1.1, 4.5, -1.6, C.Red)
+	b:box("ScalesDial", -0.7, 4.5, -2.35, 0.7, 5.6, -1.85, C.White)
+	b:box("ScalesPan", -1.4, 5.6, -2.75, 1.4, 5.85, -1.45, C.Yellow, Kit.NOSHADOW)
+	U.new("Attachment", { Name = "SellPromptAttachment", CFrame = CFrame.new(KIOSK_PROMPT_OFFSET) }, scales)
+	-- the fishmonger
+	b:box("Body", -1.0, -0.05, -0.6, 1.0, 4.9, 0.8, shirts[(k - 1) % #shirts + 1])
+	b:box("Apron", -0.8, 2.2, -0.75, 0.8, 4.6, -0.5, C.White, Kit.NOSHADOW)
+	b:box("Head", -0.85, 4.9, -0.65, 0.85, 6.5, 0.95, SKIN)
+	b:box("EyeL", -0.55, 5.7, -0.75, -0.25, 6.05, -0.6, C.Dark, Kit.DECOR)
+	b:box("EyeR", 0.25, 5.7, -0.75, 0.55, 6.05, -0.6, C.Dark, Kit.DECOR)
+	b:box("Hat", -1.1, 6.4, -0.9, 1.1, 7.1, 1.2, C.Yellow, Kit.NOSHADOW)
+	-- four posts under a striped awning, a valance along its front and a board on top
+	for i, p in { { -6.3, -2.6 }, { 5.7, -2.6 }, { -6.3, 3.4 }, { 5.7, 3.4 } } do
+		b:box(`Post{i}`, p[1], -0.05, p[2], p[1] + 0.6, 7.6, p[2] + 0.6, C.White)
+	end
+	b:box("Awning", -7, 7.6, -3.9, 7, 8.4, 4.4, color)
+	b:box("AwningStripeA", -4.4, 8.35, -3.75, -2.2, 8.7, 4.25, C.White, Kit.NOSHADOW)
+	b:box("AwningStripeB", 2.2, 8.35, -3.75, 4.4, 8.7, 4.25, C.White, Kit.NOSHADOW)
+	b:box("Valance", -7.15, 6.9, -4.1, 7.15, 7.65, -3.75, C.White, Kit.NOSHADOW)
+	local board = b:box("Board", -4.2, 8.3, 0.0, 4.2, 11.3, 0.6, C.Yellow)
+	Kit.sign(board, U.Enum.NormalId.Front, "РЫБА", C.Navy, nil, { pps = 24 })
+	Kit.sign(board, U.Enum.NormalId.Back, "РЫБА", C.Navy, nil, { pps = 24 })
+	b:finish(counter)
+	return scales
+end
 
 -- Mid-span lookout of a bridge (Props.bridge local frame `cf`: y = 0 is the deck top, local -Z
 -- runs from the hub to the promenade, ±hw are the deck edges): a bump-out on both sides in the
--- gateway's colour with a thick railing, a bench facing the water, a lamp and a flag on the
--- outer corners, a stone pier under each, and a telescope. The bridge's own railing is cut
--- open there (see buildBridges). ~48 parts.
-local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme: any)
+-- gateway's colour with a thick railing, a lamp and a flag on the outer corners, a stone pier
+-- under each; the left wing (deeper) carries the sell kiosk, the right one a bench facing the
+-- water and a telescope. The bridge's own railing is cut open there (see buildBridges). ~65
+-- parts.
+local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme: any, k: number)
 	local b = Kit.builder(bridge, "Lookout", cf)
 	local zh = LOOKOUT_HALF
 	local deckC = Kit.lerpColor(theme.color, C.White, 0.55)
 	local railC = theme.color
 	local first
+	local flagX = {}
 	for i, sx in { -1, 1 } do
-		local x0, x1 = sx * (hw + 0.25), sx * (hw + LOOKOUT_OUT)
+		local out = if i == 1 then KIOSK_OUT else LOOKOUT_OUT
+		local x0, x1 = sx * (hw + 0.25), sx * (hw + out)
 		local lo, hi = math.min(x0, x1), math.max(x0, x1)
 		local deck = b:box(`Deck{i}`, lo, -1.2, -zh, hi, 0, zh, deckC)
 		first = first or deck
 		-- one stone pier under the bump-out
-		local px0, px1 = sx * (hw + 1.4), sx * (hw + LOOKOUT_OUT - 1)
+		local px0, px1 = sx * (hw + 1.4), sx * (hw + out - 1)
 		b:box(`Pier{i}`, math.min(px0, px1), bedLocal, -3, math.max(px0, px1), -1.2, 3, C.StoneLight)
 		-- railing: the outer rail and two end rails, on posts at the corners
 		-- (rails 1.5 thick, inner posts 1.8: their faces stay clear of the lamp posts' 1.1)
-		local ox = sx * (hw + LOOKOUT_OUT - 0.75)
+		local ox = sx * (hw + out - 0.75)
 		b:box(`Rail{i}`, ox - 0.75, 3.0, -zh + 0.75, ox + 0.75, 4.4, zh - 0.75, railC, Kit.NOSHADOW)
 		for j, sz in { -1, 1 } do
 			local z = sz * (zh - 0.75)
 			local ix = sx * (hw - 0.45)
+			-- (the end rails' tops 0.1 under the side rails': no shared top face)
 			b:box(
 				`EndRail{i}_{j}`,
 				math.min(ix, ox),
 				3.0,
 				z - 0.75,
 				math.max(ix, ox),
-				4.4,
+				4.3,
 				z + 0.75,
 				railC,
 				Kit.NOSHADOW
@@ -121,12 +185,19 @@ local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme
 		b:pole(`FlagPole{i}`, 0.7, ox, zh - 0.75, -0.05, 13, C.White)
 		local fx0, fx1 = ox + sx * 0.3, ox + sx * 5.3
 		b:box(`Flag{i}`, math.min(fx0, fx1), 9.4, zh - 0.9, math.max(fx0, fx1), 12.6, zh - 0.6, theme.color, Kit.DECOR)
-		-- a chunky bench facing the water
-		local bx = sx * (hw + 3.6)
-		local backX0, backX1 = bx - sx * 1.5, bx - sx * 1.0
-		b:box(`BenchBase{i}`, bx - 0.7, -0.05, -2.2, bx + 0.7, 1.5, 2.2, C.Wood)
-		b:box(`BenchSeat{i}`, bx - 1.2, 1.5, -3, bx + 1.2, 2.1, 3, C.WoodLight)
-		b:box(`BenchBack{i}`, math.min(backX0, backX1), 2.1, -3, math.max(backX0, backX1), 4.0, 3, theme.color)
+		flagX[i] = ox
+		if i == 1 then
+			-- the sell kiosk, its counter at the wing's inner edge facing the bridge deck
+			local kx = sx * (hw + 3.2)
+			sellKiosk(b.model, cf * CFrame.new(kx, 0, 0) * CFrame.Angles(0, math.rad(90 * sx), 0), theme, k)
+		else
+			-- a chunky bench facing the water
+			local bx = sx * (hw + 3.6)
+			local backX0, backX1 = bx - sx * 1.5, bx - sx * 1.0
+			b:box(`BenchBase{i}`, bx - 0.7, -0.05, -2.2, bx + 0.7, 1.5, 2.2, C.Wood)
+			b:box(`BenchSeat{i}`, bx - 1.2, 1.5, -3, bx + 1.2, 2.1, 3, C.WoodLight)
+			b:box(`BenchBack{i}`, math.min(backX0, backX1), 2.1, -3, math.max(backX0, backX1), 4.0, 3, theme.color)
+		end
 	end
 	-- a telescope on the right-hand bump-out, looking out over the lagoon
 	local tx = hw + LOOKOUT_OUT - 2.4
@@ -135,21 +206,23 @@ local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme
 	b:box("ScopeLens", tx + 1.9, 3.45, 5.8, tx + 2.2, 4.85, 7.2, C.Glass, Kit.NOSHADOW)
 	-- bunting across the deck between the two flag poles (well above the players' heads)
 	local fz = zh - 0.75
-	local fx = hw + LOOKOUT_OUT - 0.75
 	Kit.prop(
 		"bunting",
 		b.model,
-		(cf * CFrame.new(-fx, 12.2, fz)).Position,
-		(cf * CFrame.new(fx, 12.2, fz)).Position,
+		(cf * CFrame.new(flagX[1], 12.2, fz)).Position,
+		(cf * CFrame.new(flagX[2], 12.2, fz)).Position,
 		{ seed = 3, count = 4, sag = 1.6, name = "Bunting" }
 	)
 	b:finish(first)
 	return b.model
 end
 
-function Promenade.buildBridges(map: any, cfg: any, world: any)
+-- Returns the attachments it placed (the sell kiosks' prompts) for the build's self-check:
+-- { { root = "workspace", path = {...}, offset = Vector3 }, ... }.
+function Promenade.buildBridges(map: any, cfg: any, world: any): { any }
 	local bridges = U.model(map, "Bridges")
 	local top = cfg.GroundTop + DECK_TOP
+	local attachments = {}
 	for i, angle in cfg.BridgeAngles do
 		local theme = Promenade.Themes[angle % 360] or Promenade.Themes[0]
 		local from = U.polar(angle, cfg.HubPlazaRadius - 6, 0)
@@ -228,7 +301,12 @@ function Promenade.buildBridges(map: any, cfg: any, world: any)
 				d.Color = C.Wood
 			end
 		end
-		lookout(bridge, cf, hw, -cfg.LagoonDepth - deckY, theme)
+		lookout(bridge, cf, hw, -cfg.LagoonDepth - deckY, theme, i)
+		table.insert(attachments, {
+			root = "workspace",
+			path = { "Map", "Bridges", bridge.Name, "Lookout", "SellKiosk", "Scales", "SellPromptAttachment" },
+			offset = KIOSK_PROMPT_OFFSET,
+		})
 		-- landing plate where the deck meets the promenade: it covers the deck end and the tile
 		-- edge (their tops are only 0.04-0.16 apart) with one clear top 0.1 above the tiles
 		local land = U.polar(angle, cfg.PromenadeRadius + 0.6, 0)
@@ -242,6 +320,7 @@ function Promenade.buildBridges(map: any, cfg: any, world: any)
 			FLAT
 		)
 	end
+	return attachments
 end
 
 --------------------------------------------------------------------------------------------
@@ -387,7 +466,7 @@ local function planter(parent: any, cf: any, boxColor: any, c1: any, c2: any)
 	local box = b:box("Box", -2.4, -0.2, -1.4, 2.4, 1.2, 1.4, boxColor)
 	b:box("Greens", -2.05, 0.9, -1.05, 2.05, 2.2, 1.05, C.Leaf2, Kit.DECOR)
 	b:box("Bloom1", -1.6, 2.0, -0.65, -0.5, 3.1, 0.45, c1, Kit.DECOR)
-	b:box("Bloom2", 0.45, 2.3, -0.4, 1.55, 3.4, 0.7, c2, Kit.DECOR)
+	b:box("Bloom2", 0.45, 2.05, -0.4, 1.55, 3.35, 0.7, c2, Kit.DECOR)
 	return b:finish(box)
 end
 
@@ -510,8 +589,10 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	end
 
 	local posts = {}
+	-- (the end posts stand 0.75 inside the run, so their sides stay clear of the coping's end)
+	local inset = math.deg(0.75 / postR)
 	for _, run in railRuns(cfg) do
-		local a0, a1 = run[1], run[2]
+		local a0, a1 = run[1] + inset, run[2] - inset
 		-- posts at the run ends and on the 3.75° grid between them
 		local list = { a0 }
 		local g = math.ceil(a0 / step + 0.01) * step

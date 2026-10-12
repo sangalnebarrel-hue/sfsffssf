@@ -102,7 +102,7 @@ return function(game: any, cfg: any, world: any)
 	local hub = buildHub(map, cfg, world)
 
 	Kit.resetClaims()
-	Promenade.buildBridges(map, cfg, world)
+	local kioskAttachments = Promenade.buildBridges(map, cfg, world)
 	local lamps = Promenade.buildPromenade(map, cfg, world)
 	Gateways.build(map, cfg, world)
 	Landmarks.build(map, cfg, world)
@@ -150,12 +150,27 @@ return function(game: any, cfg: any, world: any)
 		error(`Nature got only {natureParts} parts (< {NATURE_MIN})`)
 	end
 
+	-- The generator owns every part of the map: lock them all, so a stray click-drag in Studio
+	-- cannot move one (the client's Spin / Bob animation is unaffected).
+	for _, d in map:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Locked = true
+		end
+	end
+
+	-- attachments the server binds prompts to (checked by the build's self-check): the hub's
+	-- shops and the sell kiosks on the bridges
+	local expected = table.clone(hub.expectedAttachments or {})
+	for _, item in kioskAttachments or {} do
+		table.insert(expected, item)
+	end
+
 	return {
 		map = map,
 		groundParts = ground.parts,
 		natureCounts = natureCounts,
 		budget = { dressing = DRESSING_BUDGET, lights = LIGHT_BUDGET, natureMin = NATURE_MIN },
 		lamps = lamps,
-		expectedAttachments = hub.expectedAttachments or {},
+		expectedAttachments = expected,
 	}
 end

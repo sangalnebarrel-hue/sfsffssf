@@ -279,8 +279,9 @@ local function surfRock(parent: any, cf: any, bed: number, s: number, seed: numb
 	local main = b:box("Rock", -w / 2, -0.6, -d / 2, w / 2, h, d / 2, BEACH_ROCK)
 	local ox = r(-0.1, 0.1) * w
 	b:box("RockTop", ox - w * 0.3, h - 0.3, -d * 0.3, ox + w * 0.3, h + r(0.9, 1.4) * s, d * 0.3, C.Leaf2)
+	-- (the foam ring floats 0.15-0.35 over the water plane: the terrain's waves never flood it)
 	local fw, fd = w / 2 + r(1.0, 1.6), d / 2 + r(1.0, 1.6)
-	b:box("Foam", -fw, -bed - 0.05, -fd, fw, -bed + 0.2, fd, FOAM, FOLIAGE)
+	b:box("Foam", -fw, -bed + 0.15, -fd, fw, -bed + 0.35, fd, FOAM, FOLIAGE)
 	if r() < 0.6 then
 		local ps = r(1.4, 2.0) * s
 		b:box("Pebble", w / 2 + 1.4, -0.6, -ps / 2, w / 2 + 1.4 + ps, -bed + 0.6, ps / 2, Kit.shade(BEACH_ROCK, 0.88))
@@ -331,7 +332,7 @@ local function scarecrow(parent: any, cf: any, seed: number): any
 	local r = Kit.rng(seed)
 	local b = Kit.builder(parent, "Scarecrow", cf)
 	local post = b:box("Post", -0.3, -0.5, -0.3, 0.3, 5.0, 0.3, C.Wood)
-	b:box("Arms", -2.6, 3.7, -0.25, 2.6, 4.2, 0.25, C.Wood, Kit.NOSHADOW)
+	b:box("Arms", -2.6, 3.7, -0.18, 2.6, 4.2, 0.18, C.Wood, Kit.NOSHADOW)
 	b:box("Shirt", -1.0, 2.6, -0.6, 1.0, 4.6, 0.6, if r() < 0.5 then C.Blue else C.Red)
 	b:box("Head", -0.7, 4.55, -0.7, 0.7, 5.95, 0.7, HAY[2])
 	b:box("Hat", -1.15, 5.9, -1.15, 1.15, 6.6, 1.15, C.WoodDark)
@@ -339,13 +340,14 @@ local function scarecrow(parent: any, cf: any, seed: number): any
 end
 
 -- Picnic spot (5 parts): a red blanket with two white stripes and a basket with its lid.
+-- (the stripes stand 0.06 proud of the cloth on every face: no shared plane)
 local function picnic(parent: any, cf: any, seed: number): any
 	local r = Kit.rng(seed)
 	local b = Kit.builder(parent, "Picnic", turned(cf, r))
 	local col = if r() < 0.5 then C.Red else C.Blue
 	local blanket = b:box("Blanket", -3.2, -0.1, -2.6, 3.2, 0.14, 2.6, col, Kit.NOSHADOW)
-	b:box("StripeA", -1.6, 0.05, -2.62, -0.8, 0.2, 2.62, C.White, FOLIAGE)
-	b:box("StripeB", 0.8, 0.05, -2.62, 1.6, 0.2, 2.62, C.White, FOLIAGE)
+	b:box("StripeA", -1.6, 0.05, -2.66, -0.8, 0.2, 2.66, C.White, FOLIAGE)
+	b:box("StripeB", 0.8, 0.05, -2.66, 1.6, 0.2, 2.66, C.White, FOLIAGE)
 	b:box("Basket", 1.9, 0.1, -1.9, 3.7, 1.3, -0.7, C.Wood)
 	b:box("Lid", 1.75, 1.25, -2.05, 3.85, 1.6, -0.55, C.WoodLight)
 	return b:finish(blanket)
@@ -392,6 +394,52 @@ local function mushrooms(parent: any, cf: any, seed: number): any
 	return b:finish(first)
 end
 
+--[[
+	Raised flower bed (8 parts at 8 studs, 11 at 12): a green hedge rim, a soil mound on it and
+	two or three leafy rows, each with two clumps of blooms in its own bright colour (at two
+	heights, a gap between them: flowers, not a bar), lined up with cf (rows along local X): a
+	big tidy splash of colour that reads from the promenade.
+]]
+local BED_SOIL = U.rgb(170, 116, 70)
+local BED_RIM = U.rgb(84, 194, 76)
+local function flowerBed(parent: any, cf: any, size: number, seed: number): any
+	local r = Kit.rng(seed)
+	local b = Kit.builder(parent, "FlowerBed", cf)
+	local h = size / 2
+	local rim = b:box("Rim", -h, -0.4, -h, h, 1.1, h, BED_RIM)
+	b:box("Soil", -h + 0.8, 0.9, -h + 0.8, h - 0.8, 1.45, h - 0.8, BED_SOIL, Kit.NOSHADOW)
+	local rows = if size >= 11 then 3 else 2
+	local pitch = (size - 1.6) / rows
+	local len = size - 2.4
+	local c = BLOOMS[floor(r(1, #BLOOMS + 0.99))]
+	for i = 1, rows do
+		local z = -h + 0.8 + pitch * (i - 0.5)
+		b:box(`Leaves{i}`, -len / 2, 1.35, z - 0.6, len / 2, 2.5, z + 0.6, C.Leaf1, FOLIAGE)
+		local split = r(-0.12, 0.12) * len
+		local hi = if i % 2 == 0 then 0.4 else 0
+		b:box(`BloomsA{i}`, -len / 2 + 0.3, 2.3, z - 0.85, split - 0.45, 3.5 + hi, z + 0.85, c, FOLIAGE)
+		b:box(`BloomsB{i}`, split + 0.45, 2.3, z - 0.8, len / 2 - 0.3, 3.9 - hi, z + 0.9, c, FOLIAGE)
+		c = other(BLOOMS, c, r())
+	end
+	return b:finish(rim)
+end
+
+-- Bush clump (5 parts, 6 with blossoms): a big leafy block with a darker one and a lighter low
+-- one merged into its sides and a light top — one ~10-stud shrub mass instead of a dot.
+local function bushClump(parent: any, cf: any, s: number, seed: number, bloom: any?): any
+	local r = Kit.rng(seed)
+	local b = Kit.builder(parent, "BushClump", turned(cf, r))
+	local main = b:box("Bush", -3.2 * s, -0.3, -2.6 * s, 2.4 * s, 4.2 * s, 2.4 * s, BUSH[2], CANOPY)
+	b:box("Side", 1.6 * s, -0.35, -1.8 * s, 4.6 * s, 3.0 * s, 1.6 * s, BUSH[1], FOLIAGE)
+	b:box("Low", -4.6 * s, -0.4, -0.6 * s, -2.2 * s, 2.2 * s, 2.9 * s, BUSH[3], FOLIAGE)
+	b:box("Front", -1.4 * s, -0.45, -3.6 * s, 1.0 * s, 2.6 * s, -1.6 * s, BUSH[1], FOLIAGE)
+	b:box("Top", -2.0 * s, 4.0 * s, -1.6 * s, 1.2 * s, 5.4 * s, 1.4 * s, BUSH[3], FOLIAGE)
+	if bloom then
+		b:box("Blossoms", -0.9 * s, 3.4 * s, -2.9 * s, 0.5 * s, 4.6 * s, -2.3 * s, bloom, FOLIAGE)
+	end
+	return b:finish(main)
+end
+
 -- Beach props: a parasol with a towel (4 parts), a sandcastle with a flag (4), a towel with a
 -- beach ball (3), driftwood (2), a starfish (2).
 local function beachProp(parent: any, cf: any, kind: string, seed: number): any
@@ -414,46 +462,87 @@ local function beachProp(parent: any, cf: any, kind: string, seed: number): any
 	elseif kind == "towel" then
 		local col = if r() < 0.5 then C.Pink else C.Cyan
 		first = b:box("Towel", -1.4, 0, -2.6, 1.4, 0.16, 2.6, col, FOLIAGE)
-		b:box("Stripe", -1.55, 0.04, -0.4, 1.55, 0.24, 0.4, C.White, FOLIAGE)
+		b:box("Stripe", -1.55, -0.1, -0.4, 1.55, 0.24, 0.4, C.White, FOLIAGE)
 		b:box("Ball", 2.0, -0.1, -0.8, 3.4, 1.3, 0.6, if col == C.Pink then C.Yellow else C.Red, FOLIAGE)
 	elseif kind == "driftwood" then
 		first = b:box("Log", -3.4, -0.3, -0.7, 3.4, 0.9, 0.7, Kit.lerpColor(C.WoodLight, C.White, 0.25))
 		b:box("Branch", 0.6, -0.2, 0.6, 1.5, 0.7, 2.8, Kit.lerpColor(C.WoodLight, C.White, 0.2))
 	else
 		local col = if r() < 0.5 then C.Pink else C.Orange
-		first = b:box("ArmA", -1.3, 0, -0.4, 1.3, 0.3, 0.4, col, FOLIAGE)
-		b:box("ArmB", -0.4, 0.02, -1.3, 0.4, 0.32, 1.3, col, FOLIAGE)
+		first = b:box("ArmA", -1.3, -0.1, -0.4, 1.3, 0.3, 0.4, col, FOLIAGE)
+		b:box("ArmB", -0.4, -0.1, -1.3, 0.4, 0.42, 1.3, col, FOLIAGE)
 	end
 	return b:finish(first)
 end
 
--- Coral cluster (2-3 parts) on the lagoon bed (cf at the bed, y `bed`): a head, a branch
--- beside it in another colour and sometimes a fan on top; everything stays under the water.
+--[[
+	Coral reef patch (11 parts) on the lagoon bed (cf at the bed, y `bed` <= -4): a bright sand
+	pad (13 x 13) with a tight cluster on it in two or three coral colours — three branching
+	stacks (2-3 blocks narrowing upwards, the tallest reaching 0.7-1.4 under the surface so it
+	shows through the water), a low brain-coral head, a fan — and one glowing Neon tip.
+]]
+-- (warm colours: the turquoise water would swallow blues and greens)
 local CORAL = {
 	U.rgb(255, 120, 120),
-	U.rgb(255, 180, 60),
-	U.rgb(170, 96, 255),
+	U.rgb(255, 170, 50),
 	U.rgb(255, 224, 80),
 	U.rgb(255, 104, 184),
+	U.rgb(255, 92, 64),
 }
-local function coral(parent: any, cf: any, bed: number, r: (number?, number?) -> number): any
-	local b = Kit.builder(parent, "Coral", cf)
+local CORAL_ACCENT = U.rgb(186, 110, 255)
+local REEF_GLOW = { U.rgb(255, 120, 200), U.rgb(80, 230, 255) }
+local REEF_SAND = U.rgb(255, 244, 200)
+local function reefPatch(parent: any, cf: any, bed: number, seed: number): any
+	local r = Kit.rng(seed)
+	local b = Kit.builder(parent, "Reef", cf * CFrame.Angles(0, rad(r(-20, 20)), 0))
+	local surface = -bed -- (the water plane above the bed, local)
+	local pad = b:box("Sand", -6.5, -0.6, -6.5, 6.5, 0.3, 6.5, REEF_SAND, Kit.NOSHADOW)
 	local c1 = CORAL[floor(r(1, #CORAL + 0.99))]
 	local c2 = other(CORAL, c1, r())
-	local w, d = r(4.5, 7), r(3.5, 5.5)
-	local top = -bed - 0.6 -- (highest top above the bed: 0.6 under the surface)
-	local h1 = if bed <= -14 then r(5, 8) elseif bed <= -6 then r(2, 3.2) else r(0.6, 1.0)
-	local main = b:box("Head", -w / 2, -0.4, -d / 2, w / 2, h1, d / 2, c1, FOLIAGE)
-	local s = r(2.2, 3.2) -- (always narrower than the head: no side faces in one plane)
-	local ox = w / 2 + s / 2 - 0.6
-	local h2 = min(h1 * (if r() < 0.5 then r(0.5, 0.8) else r(1.15, 1.35)), top)
-	b:box("Branch", ox - s / 2, -0.6, -s / 2, ox + s / 2, h2, s / 2, c2, FOLIAGE)
-	if r() < 0.45 and h1 + 1.2 < top then
-		local t = r(1.0, 1.5)
-		local h3 = min(h1 + r(1, 2.5), top - 0.4)
-		b:box("Fan", -w / 4 - t / 2, h1 - 0.3, -t / 2, -w / 4 + t / 2, h3, t / 2, other(CORAL, c1, r()), FOLIAGE)
+	local c3 = if r() < 0.4 then CORAL_ACCENT else other(CORAL, c2, r())
+	-- branching stacks: { x, z, base width, colour, top below the surface }; each block narrower
+	-- than the one under it (no side faces in one plane)
+	local stacks = {
+		{ -1.6, 0.8, 3.4, c1, r(0.7, 1.1), 3 },
+		{ 2.6, -1.8, 2.8, c2, r(1.4, 2.4), 2 },
+		{ -3.4, -3.0, 2.4, c3, r(2.4, 3.4), 2 },
+	}
+	local tipTop, tipX, tipZ, tipW = nil, 0, 0, 0
+	for i, st in stacks do
+		local x, z, w, col, below, n = st[1], st[2], st[3], st[4], st[5], st[6]
+		local top = surface - below
+		local y = 0.1
+		for j = 1, n do
+			local hw = w / 2 * (1 - (j - 1) * 0.28)
+			local y1 = if j == n then top else y + (top - 0.1) / n + 0.3
+			local ox, oz = (j - 1) * r(-0.4, 0.4), (j - 1) * r(-0.4, 0.4)
+			b:box(`Coral{i}_{j}`, x + ox - hw, y, z + oz - hw, x + ox + hw, y1, z + oz + hw, col, FOLIAGE)
+			if i == 1 and j == n then
+				tipTop, tipX, tipZ, tipW = y1, x + ox, z + oz, hw
+			end
+			y = y1 - 0.3
+		end
 	end
-	return b:finish(main)
+	-- a low brain-coral head and a thin fan
+	b:box("Head", 1.0, 0.1, 1.8, 4.6, 0.1 + r(1.4, 2.0), 4.8, c3, FOLIAGE)
+	local fh = min(surface - 1.6, r(3.2, 4.4))
+	b:box("Fan", -5.2, 0.1, 2.2, -2.6, fh, 2.7, c2, FOLIAGE)
+	-- the glowing tip on the tallest stack
+	if tipTop then
+		local g = min(0.6, tipW * 0.7)
+		b:box(
+			"Glow",
+			tipX - g,
+			tipTop - 0.2,
+			tipZ - g,
+			tipX + g,
+			tipTop + 0.25,
+			tipZ + g,
+			REEF_GLOW[floor(r(1, 2.99))],
+			Kit.NEON_DECOR
+		)
+	end
+	return b:finish(pad)
 end
 
 --------------------------------------------------------------------------------------------
@@ -491,7 +580,7 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	local counts: { [string]: number } = {}
 	local G = cfg.GroundTop
 	local inner = cfg.PromenadeRadius + cfg.PromenadeWidth + 6
-	local maxR = cfg.RingOuterRadius + 80
+	local maxR = cfg.RingOuterRadius + 140 -- (the outer mountains reach r ~730)
 	local partsBefore = U.partCount
 	local function spentAll(): number
 		return U.partCount - partsBefore
@@ -781,7 +870,7 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		if not affordable(COST[level]) or not freeLand(x, z, canopy) then
 			return 0
 		end
-		local h = flatAt(x, z, TRUNK_R[level] * s)
+		local h = flatAt(x, z, TRUNK_R[level] * s + 0.4) -- (trunk sides clear of any riser)
 		if not h or not fits(x, z, canopy, 0, fam) or not clearCanopy(x, z, h, canopy, bottom) then
 			return 0
 		end
@@ -1029,24 +1118,32 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		end
 		return used
 	end
-	-- One cheap decor group at (x, z) on ground h: a tuft, a bush (sometimes with berries), a
-	-- rock group, two tufts, or on the low lawns hay bales or a short fence run.
+	-- One cheap decor group at (x, z) on ground h: a flower bush, a leafy bush (sometimes with
+	-- berries), a rock group, two flower bushes, or on the low lawns hay bales or a short fence
+	-- run; on the mountains' flanks only rocks and bushes. Everything is sized to read from the
+	-- promenade (no 2-stud dots: the same parts, bigger).
 	local drng = Kit.rng(6060)
 	local function decorGroup(x: number, z: number, h: number, margin: number): number
 		local roll = drng()
 		local farm = h <= G + 16
+		if h >= G + 28 and nearPeak(x, z, 10) then
+			if roll < 0.55 then
+				return rockGroup(x, z, drng(1.1, 1.5), margin, drng)
+			end
+			return small(x, z, "shrub", { scale = drng(1.3, 1.7), margin = margin })
+		end
 		if roll < 0.32 then
-			return small(x, z, "tuft", { scale = drng(1.0, 1.4), margin = margin })
+			return small(x, z, "tuft", { scale = drng(1.5, 1.9), margin = margin })
 		elseif roll < 0.55 then
 			local berry = if drng() < 0.5 then BLOOMS[floor(drng(1, #BLOOMS + 0.99))] else nil
-			return small(x, z, "shrub", { scale = drng(1.0, 1.4), margin = margin, berry = berry })
+			return small(x, z, "shrub", { scale = drng(1.3, 1.7), margin = margin, berry = berry })
 		elseif roll < 0.7 then
-			return rockGroup(x, z, drng(0.9, 1.3), margin, drng)
+			return rockGroup(x, z, drng(1.0, 1.4), margin, drng)
 		elseif roll < 0.8 then
-			local used = small(x, z, "tuft", { scale = drng(1.0, 1.3), margin = margin })
+			local used = small(x, z, "tuft", { scale = drng(1.4, 1.7), margin = margin })
 			if used > 0 then
 				local a = drng(0, 2 * math.pi)
-				used += small(x + 5.5 * sin(a), z + 5.5 * cos(a), "tuft", { scale = drng(0.8, 1.1), margin = margin })
+				used += small(x + 7.5 * sin(a), z + 7.5 * cos(a), "tuft", { scale = drng(1.1, 1.4), margin = margin })
 			end
 			return used
 		elseif roll < 0.9 and farm then
@@ -1056,55 +1153,198 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 			local yaw = deg(atan2(x, z)) + drng(-20, 20)
 			return small(x, z, "fence", { margin = margin + 1, yaw = yaw, white = drng() < 0.4 })
 		end
-		return small(x, z, "shrub", { scale = drng(1.1, 1.5), margin = margin })
+		return small(x, z, "shrub", { scale = drng(1.4, 1.8), margin = margin })
 	end
 
 	--------------------------------------------------------------------------------------------
-	-- Pass 0: coral reefs on the lagoon bed (2-3 blocks each in coral colours, seen through the
-	-- water from the piers, bridges and the promenade); the water in front of the piers and
-	-- along the bridges stays clear
+	-- Pass 0: coral reefs — 12 tight patches on the lagoon's sandy slope (bed -6: r ~197-215
+	-- along the hub beach, r ~266-284 along the promenade), where players look down on them: one
+	-- beside each pier on the side away from its bridge (r ~275) and one beside each bridge
+	-- (r ~206); open water between them. The water in front of the piers and along the bridges
+	-- stays clear, and so do the boats
 	--------------------------------------------------------------------------------------------
 	do
 		local reef = U.model(nature, "Reef")
 		local function clear(x: number, z: number): boolean
 			for i = 1, cfg.BaseCount do
 				local lx, lz = world:toBaseLocal(i, x, z)
-				if abs(lx) < 29 and lz > -(cfg.PierLength or 92) - 3 and lz < 3 then
+				if abs(lx) < 32 and lz > -(cfg.PierLength or 72) - 20 and lz < 3 then
 					return false
 				end
 			end
 			for _, a in cfg.BridgeAngles do
 				local ux, uz = sin(rad(a)), cos(rad(a))
-				if x * ux + z * uz > cfg.HubPlazaRadius - 10 and abs(x * uz - z * ux) < cfg.BridgeWidth / 2 + 13 then
+				if x * ux + z * uz > cfg.HubPlazaRadius - 10 and abs(x * uz - z * ux) < cfg.BridgeWidth / 2 + 16 then
 					return false
 				end
 			end
-			return world:isWater(x, z)
+			return true
 		end
-		local step = 30
-		local r0, r1 = cfg.HubRadius + 12, cfg.LagoonRadius - 10
-		for gz = -r1, r1, step do
-			for gx = -r1, r1, step do
-				-- (one generator per grid cell: a cluster never shifts its neighbours)
-				local r = Kit.rng(8086 + (gx + 1000) * 7919 + (gz + 1000) * 31)
-				r()
-				local x, z = gx + r(-9, 9), gz + r(-9, 9)
-				local roll = r()
-				local d = sqrt(x * x + z * z)
-				local bed = world:heightAt(x, z)
-				if
-					d < r0
-					or d > r1
-					or bed > -2
-					or roll > 0.5
-					or not affordable(3)
-					or not clear(x, z)
-					or blocked(x, z, 5, bed, 0)
-				then
-					continue
+		-- the whole pad on one bed column top at -4 or deeper (the slope band)
+		local function bedAt(x: number, z: number): number?
+			local h = world:heightAt(x, z)
+			if h > -4 or h < -8 then
+				return nil
+			end
+			for _, d in DIRS8 do
+				if world:heightAt(x + d[1] * 7, z + d[2] * 7) ~= h then
+					return nil
 				end
-				coral(reef, CFrame.new(x, bed, z) * CFrame.Angles(0, rad(r(0, 90)), 0), bed, r)
-				count("coral")
+			end
+			return h
+		end
+		local spots = {}
+		local landmarkSide = { 33.75, 56.25 } -- beside the piers at 22.5 / 67.5, towards θ 45
+		for q = 0, 3 do
+			for _, a in landmarkSide do
+				table.insert(spots, { a = a + q * 90, r = 275 })
+			end
+			table.insert(spots, { a = q * 90 + (if q % 2 == 0 then 11.25 else -11.25), r = 206 })
+		end
+		for n, spot in spots do
+			-- the first clear, flat spot along the band (radius and angle nudged a little)
+			for _, dr in { 0, 3, -3, 6, -6 } do
+				local done = false
+				for _, da in { 0, 2.5, -2.5, 5, -5 } do
+					local p = U.polar(spot.a + da, spot.r + dr, 0)
+					local bed = bedAt(p.X, p.Z)
+					if bed and affordable(12) and clear(p.X, p.Z) and not blocked(p.X, p.Z, 8, bed, 1) then
+						reefPatch(
+							reef,
+							CFrame.new(p.X, bed, p.Z) * CFrame.Angles(0, rad(spot.a + da), 0),
+							bed,
+							8086 + n * 31
+						)
+						count("reef")
+						done = true
+						break
+					end
+				end
+				if done then
+					break
+				end
+			end
+		end
+	end
+
+	--------------------------------------------------------------------------------------------
+	-- Pass 0b: showcase lawns — the wedges between two plots at the landmark paths that are no
+	-- landmark site themselves (the peak trail, the giant tree's meadow) are the first thing
+	-- seen from the promenade: a pine avenue framing the peak trail, then set pieces of 8-16
+	-- studs lined up with the path (raised flower beds, bush clumps, boulders with a bush and
+	-- flowers) instead of scattered dots
+	--------------------------------------------------------------------------------------------
+	do
+		local srng = Kit.rng(2468)
+		local outerR = cfg.PromenadeRadius + cfg.PromenadeWidth
+		-- one set piece standing on cf (radial frame) with footprint half-width `half`
+		local function piece(x: number, z: number, half: number, yaw: number, kind: string): number
+			if not affordable(14) or not offPath(x, z, half + 2) then
+				return 0
+			end
+			if world:isReserved(x, z, 2) or Kit.isClaimed(x, z, half + 1) then
+				return 0
+			end
+			local h = flatAt(x, z, half)
+			if not h or not fits(x, z, 0, half + 4, "show") or blocked(x, z, half + 1, h + 0.2, h + 8) then
+				return 0
+			end
+			local before = U.partCount
+			local cf = CFrame.new(x, h, z) * CFrame.Angles(0, rad(yaw), 0)
+			local seed = floor(srng(1, 1e6))
+			if kind == "bed12" then
+				flowerBed(groups.plants, cf, 12, seed)
+			elseif kind == "bed8" then
+				flowerBed(groups.plants, cf, 8, seed)
+			elseif kind == "clump" then
+				local bloom = if srng() < 0.6 then BLOOMS[floor(srng(1, #BLOOMS + 0.99))] else nil
+				bushClump(groups.plants, cf, srng(1.0, 1.2), seed, bloom)
+			else
+				-- a big mossy boulder with a bush clump behind it and a flower tuft in front
+				rock(groups.rocks, cf, srng(1.5, 1.8), seed, { cap = "moss" })
+				bushClump(groups.plants, cf * CFrame.new(-4.5, 0, 4.5), 0.75, seed + 1, nil)
+				tuft(groups.plants, cf * CFrame.new(4.2, 0, -3.6), 1.2, seed + 2)
+			end
+			addPlaced(x, z, 0, half + 1, "show")
+			count(kind)
+			return U.partCount - before
+		end
+		local KINDS = { "bed12", "clump", "boulder", "bed8", "clump", "bed12", "boulder", "bed8" }
+		for _, name in { "Peak", "GiantTree" } do
+			local site = world.landmarks[name]
+			if not site then
+				continue
+			end
+			local a = site.angle
+			-- the peak trail: a pine avenue up to the mountain's foot on both sides, each pine on
+			-- the first spot out from the path where it fits (the terraces beside the cut)
+			if name == "Peak" then
+				-- (from 28 studs out: the path mouth by the promenade stays open)
+				local foot = site.radius - site.mountainRadius - outerR
+				for lz = 28, foot - 6, 20 do
+					for _, side in { -1, 1 } do
+						local s = srng(1.5, 1.75)
+						local ok = false
+						for _, dz in { 0, 5, -5 } do
+							for lx = 14, 30, 3 do
+								local x, z = Kit.radial(a, outerR, side * lx, lz + dz)
+								if tree(x, z, "pine", "far", "avenue", s) > 0 then
+									ok = true
+									break
+								end
+							end
+							if ok then
+								break
+							end
+						end
+					end
+				end
+			end
+			-- set pieces: candidate spots on a 6-stud grid of the wedge (path-local lx, lz),
+			-- nearest to the promenade first, at least 24 studs apart
+			local cands = {}
+			for lz = 12, 140, 6 do
+				for lx = -96, 96, 6 do
+					if abs(lx) >= 22 then
+						local x, z = Kit.radial(a, outerR, lx + srng(-1.5, 1.5), lz + srng(-1.5, 1.5))
+						if not world:isReserved(x, z, 2) then
+							table.insert(cands, { x = x, z = z, score = lz + abs(lx) * 0.35 + srng(0, 10) })
+						end
+					end
+				end
+			end
+			table.sort(cands, function(p, q)
+				if p.score ~= q.score then
+					return p.score < q.score
+				end
+				return p.x + p.z * 1e-3 < q.x + q.z * 1e-3
+			end)
+			local n = 0
+			local done = {}
+			for _, c in cands do
+				if n >= 10 then
+					break
+				end
+				local near = false
+				for _, o in done do
+					if (o[1] - c.x) ^ 2 + (o[2] - c.z) ^ 2 < 24 * 24 then
+						near = true
+						break
+					end
+				end
+				if not near then
+					-- (on the voxel grid like the terraces they stand on)
+					local kind = KINDS[n % #KINDS + 1]
+					local half = if kind == "bed12"
+						then 6.5
+						elseif kind == "bed8" then 4.5
+						elseif kind == "clump" then 5.5
+						else 8
+					if piece(c.x, c.z, half, 0, kind) > 0 then
+						n += 1
+						table.insert(done, { c.x, c.z })
+					end
+				end
 			end
 		end
 	end
@@ -1181,12 +1421,28 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		end)
 		local props = { "parasol", "sandcastle", "towel", "driftwood", "parasol", "starfish" }
 		local nProps = 0
-		-- a rock on the shallow bed past the sand (or the cliff foot) in a ring of foam
+		-- a rock on the shallow bed past the sand (or the cliff foot) in a ring of foam, in open
+		-- water all round (never half inside a cliff)
+		local function openWater(x: number, z: number): boolean
+			for _, d in DIRS8 do
+				if not world:isWater(x + d[1] * 5, z + d[2] * 5) then
+					return false
+				end
+			end
+			return true
+		end
 		local function foamRock(smp: any, from: number, to: number): number
 			for r = from, to, 2 do
 				local x, z = r * smp.ux, r * smp.uz
 				local h, _, water = world:surfaceAt(x, z)
-				if water and h >= -4 and h <= -2 and affordable(4) and fits(x, z, 0, 4.5, "rock") then
+				if
+					water
+					and h >= -4
+					and h <= -2
+					and affordable(4)
+					and openWater(x, z)
+					and fits(x, z, 0, 4.5, "rock")
+				then
 					if blocked(x, z, 4, h, 4) then
 						return 0
 					end
