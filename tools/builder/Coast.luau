@@ -7,11 +7,12 @@
 	              clear (lagoonClear).
 	  Map.Ocean   decorated islets (world.islets): a lighthouse on a stone foundation, a pirate
 	              hideout with a hut, a treasure chest and a flag, a palm grove, the big island
-	              with palms round its beach, a pine wood, boulders and a fisherman's hut, a
+	              with palms on its beach, pines, a boulder and a fisherman's hut, a
 	              cherry-blossom island (far islets use Nature.farTree: 5 parts a tree); a
 	              shipwreck in an islet's shallows, a rock arch and a whale between the coast and
-	              the boundary wall, two big sailboats far out at sea.
-	  Map.Sky     15 voxel clouds (Props.cloud) at y 180-320 over the island and the ocean.
+	              the boundary wall, a ring of red / yellow marker buoys just inside the wall
+	              (the swim limit), two big sailboats far out at sea.
+	  Map.Sky     12 voxel clouds (Props.cloud) at y 180-320 over the island and the ocean.
 ]]
 
 local U = require("./Util")
@@ -317,6 +318,9 @@ local function buildOcean(map: any, cfg: any, world: any)
 				isletSpot(world, isle, s * 0.42, home + 70),
 				{ seed = 11, scale = 1.4, lite = true }
 			)
+			-- two cheap palms beside it: a little grove on the side facing the swimmers
+			Nature.farTree(m, isletSpot(world, isle, s * 0.62, home + 98), "palm", 2.0, 13)
+			Nature.farTree(m, isletSpot(world, isle, s * 0.6, home + 42), "palm", 1.8, 14)
 			Kit.prop("rock", m, isletSpot(world, isle, s * 0.55, home - 60), { seed = 12, scale = 1.6 })
 		elseif i == 3 then
 			-- pirate hideout
@@ -336,6 +340,8 @@ local function buildOcean(map: any, cfg: any, world: any)
 				isletSpot(world, isle, s * 0.5, home + 110),
 				{ seed = 31, scale = 1.4, lite = true }
 			)
+			Nature.farTree(m, isletSpot(world, isle, s * 0.58, home + 150), "palm", 1.9, 32)
+			Nature.farTree(m, isletSpot(world, isle, s * 0.6, home + 75), "palm", 1.7, 33)
 		elseif i == 5 then
 			Kit.prop("palmTree", m, isletSpot(world, isle, s * 0.2, home + 40), { seed = 51, scale = 1.5, lite = true })
 			Kit.prop(
@@ -357,23 +363,24 @@ local function buildOcean(map: any, cfg: any, world: any)
 				Kit.prop("rock", m, CFrame.new(site.x, site.h, site.z), { seed = 22, scale = 1.5, moss = true })
 			end)
 		elseif i == 4 then
-			-- the big one: palms round the beach, a pine wood on the upper terraces, mossy
-			-- boulders and a fisherman's hut with a blue roof facing the main island
+			-- the big one (far out, mostly seen through the haze, so lean): palms on the beach,
+			-- pines on the upper terraces, a mossy boulder and a fisherman's hut with a blue roof
+			-- facing the main island
 			local cx, cz = isle.x - s * 0.25 * sin(rad(home + 180)), isle.z - s * 0.25 * cos(rad(home + 180))
 			local hutCf = Kit.ground(world, cx, cz, home)
 			hut(m, hutCf, C.Blue)
 			foundation(m, world, hutCf, 4.9, hutCf.Position.Y - 1, C.WoodDark)
 			table.insert(taken, { cx, cz })
-			plant(world, sites, taken, 6, 26, 3, 41, function(site)
+			plant(world, sites, taken, 4, 30, 3, 41, function(site)
 				return site.h >= isle.height * 0.5
-			end, farTree("pine", 1.9, 2.5, 41))
-			plant(world, sites, taken, 8, 22, 3, 42, function(site)
+			end, farTree("pine", 2.1, 2.6, 41))
+			plant(world, sites, taken, 4, 26, 3, 42, function(site)
 				return site.kind == "sand" or site.h <= 12
-			end, farTree("palm", 1.7, 2.2, 42))
-			plant(world, sites, taken, 4, 24, 3, 43, function(site)
+			end, farTree("palm", 1.9, 2.3, 42))
+			plant(world, sites, taken, 2, 28, 3, 43, function(site)
 				return site.kind ~= "sand" and site.h < isle.height * 0.5
-			end, farTree("green", 1.9, 2.4, 43))
-			plant(world, sites, taken, 3, 20, 5, 44, land, function(site, k)
+			end, farTree("green", 2.1, 2.5, 43))
+			plant(world, sites, taken, 1, 20, 5, 44, land, function(site, k)
 				Kit.prop("boulder", m, CFrame.new(site.x, site.h, site.z), { seed = 44 + k, moss = true })
 			end)
 		elseif i == 6 then
@@ -393,6 +400,34 @@ local function buildOcean(map: any, cfg: any, world: any)
 	Kit.prop("rockArch", ocean, onWater(66, ra, 66), { seed = 3 })
 	local wa = openSea(cfg, world, 160, 22)
 	Kit.prop("whale", ocean, onWater(160, wa, tangent(160, true)), { seed = 4 })
+	-- the swim limit: a ring of red and yellow marker buoys just inside the invisible boundary
+	-- wall, so swimmers heading for the islets see where the sea ends (1 part each; they bob
+	-- round the arch and the whale)
+	local line = U.model(ocean, "BuoyLine")
+	local R = cfg.BoundaryRadius - 10
+	local keepOff = { U.polar(66, ra, 0), U.polar(160, wa, 0) }
+	local count = 72
+	for k = 0, count - 1 do
+		local a = (k + 0.5) * 360 / count
+		local p = U.polar(a, R, 0)
+		local clear = world:isWater(p.X, p.Z)
+		for _, q in keepOff do
+			if (p - q).Magnitude < 36 then
+				clear = false
+			end
+		end
+		if clear then
+			U.part(
+				line,
+				"Buoy",
+				Vector3.new(3.6, 3.6, 3.6),
+				CFrame.new(p.X, 0.5, p.Z),
+				if k % 2 == 0 then C.Red else C.Yellow,
+				nil,
+				{ Shape = U.Enum.PartType.Ball, CanCollide = false, CanQuery = false, CastShadow = false }
+			)
+		end
+	end
 	-- two big sailboats far out at sea (beyond the wall, seen from the coast and the peaks)
 	Kit.prop("sailboat", ocean, onWater(124, 930, tangent(124, true)), { seed = 21, scale = 1.6, color = C.Yellow })
 	Kit.prop("sailboat", ocean, onWater(302, 960, tangent(302, false)), { seed = 22, scale = 1.6, color = C.Red })
@@ -418,11 +453,8 @@ local function buildSky(map: any, cfg: any)
 		{ 300, 460 },
 		{ 340, 640 },
 		{ 230, 900 },
-		{ 10, 940 },
-		{ 290, 980 },
 		{ 95, 860 },
 		{ 145, 760 },
-		{ 185, 1000 },
 		{ 330, 820 },
 	}
 	for i, s in spots do

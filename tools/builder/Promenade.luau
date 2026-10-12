@@ -5,18 +5,23 @@
 	  Map.Bridges     Bridge_1..4 at θ = BridgeAngles: chunky Props.bridge from the hub plaza
 	                  (r ≈ 118) to the promenade (r ≈ 312), deck top GroundTop + 0.6, no end
 	                  arches (the hub's avenue gates and the gateway arches frame the crossing);
-	                  planks in two woods with every fourth one in the gateway's pastel, a chunky
-	                  top rail, lanterns in the gateway's colour and a mid-span lookout: bump-outs
-	                  on both sides with benches facing the water, a lamp and a flag each, a
-	                  telescope
+	                  planks in two woods with every fourth one in the gateway's pastel, white
+	                  posts and kerbs, a chunky top rail in the gateway's colour (pastel mid rail
+	                  and pile caps; dark wood only on the piles under the deck), lanterns in the
+	                  gateway's colour, a landing plate where the deck meets the promenade and a
+	                  mid-span lookout: bump-outs on both sides with benches facing the water, a
+	                  lamp and a flag each, bunting across the deck between the flags, a
+	                  telescope. Pile bents buried in the sand at the two ends are left out.
 	  Map.Promenade   the ring walk r 312..330 on flat GroundTop: paving tiles in two warm
-	                  shades with a coral middle band and white kerbs; a sea wall on the lagoon
+	                  sand shades with a coral middle band and white kerbs (open where the
+	                  gateway roads and landmark paths leave the ring); a sea wall on the lagoon
 	                  side (light stone face from the beach up, white coping) with a low white
-	                  railing and a blue rail on it, open at the 8 pier entrances (base ± 6°), the
-	                  4 bridge landings and 4 sand steps down to the beach (between two plots);
-	                  chunky lamps (caps in the colour of the nearest gateway: each quarter of
-	                  the ring has its own), bunting, benches and flower boxes in front of the
-	                  plots, big billboards at the landmark paths.
+	                  railing and a blue rail on it, open at the 8 pier entrances (base ± 6°, with
+	                  two broad sand steps down to the beach on both sides of the pier) and 4
+	                  sand steps down to the beach (between two plots); chunky lamps (caps in the
+	                  colour of the nearest gateway: each quarter of the ring has its own),
+	                  bunting, benches and planters in front of the plots and along the stretches
+	                  between them, big billboards at the landmark paths.
 
 	Nothing is placed on the walking surface except along its two edges, so players can run
 	all the way round. Returns { lamps = number }.
@@ -67,12 +72,12 @@ local LOOKOUT_OUT = 6.5
 -- runs from the hub to the promenade, ±hw are the deck edges): a bump-out on both sides in the
 -- gateway's colour with a thick railing, a bench facing the water, a lamp and a flag on the
 -- outer corners, a stone pier under each, and a telescope. The bridge's own railing is cut
--- open there (see buildBridges). ~38 parts.
+-- open there (see buildBridges). ~48 parts.
 local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme: any)
 	local b = Kit.builder(bridge, "Lookout", cf)
 	local zh = LOOKOUT_HALF
 	local deckC = Kit.lerpColor(theme.color, C.White, 0.55)
-	local railC = C.Wood
+	local railC = theme.color
 	local first
 	for i, sx in { -1, 1 } do
 		local x0, x1 = sx * (hw + 0.25), sx * (hw + LOOKOUT_OUT)
@@ -100,7 +105,7 @@ local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme
 				railC,
 				Kit.NOSHADOW
 			)
-			b:box(`InnerPost{i}_{j}`, ix - 0.9, -0.05, z - 0.9, ix + 0.9, 4.8, z + 0.9, C.WoodDark)
+			b:box(`InnerPost{i}_{j}`, ix - 0.9, -0.05, z - 0.9, ix + 0.9, 4.8, z + 0.9, C.White)
 		end
 		-- a lamp (theme-coloured caps) on one outer corner, a flag on the other
 		local lampCf = cf * CFrame.new(ox, 0, -(zh - 0.75))
@@ -111,7 +116,7 @@ local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme
 		-- a chunky bench facing the water
 		local bx = sx * (hw + 3.6)
 		local backX0, backX1 = bx - sx * 1.5, bx - sx * 1.0
-		b:box(`BenchBase{i}`, bx - 0.7, -0.05, -2.2, bx + 0.7, 1.5, 2.2, C.WoodDark)
+		b:box(`BenchBase{i}`, bx - 0.7, -0.05, -2.2, bx + 0.7, 1.5, 2.2, C.Wood)
 		b:box(`BenchSeat{i}`, bx - 1.2, 1.5, -3, bx + 1.2, 2.1, 3, C.WoodLight)
 		b:box(`BenchBack{i}`, math.min(backX0, backX1), 2.1, -3, math.max(backX0, backX1), 4.0, 3, theme.color)
 	end
@@ -120,16 +125,27 @@ local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme
 	b:box("ScopeStand", tx - 0.4, -0.05, 6.1, tx + 0.4, 3.6, 6.9, C.Navy)
 	b:box("ScopeTube", tx - 1.2, 3.6, 5.95, tx + 1.9, 4.7, 7.05, C.Gold)
 	b:box("ScopeLens", tx + 1.9, 3.45, 5.8, tx + 2.2, 4.85, 7.2, C.Glass, Kit.NOSHADOW)
+	-- bunting across the deck between the two flag poles (well above the players' heads)
+	local fz = zh - 0.75
+	local fx = hw + LOOKOUT_OUT - 0.75
+	Kit.prop(
+		"bunting",
+		b.model,
+		(cf * CFrame.new(-fx, 12.2, fz)).Position,
+		(cf * CFrame.new(fx, 12.2, fz)).Position,
+		{ seed = 3, count = 5, sag = 1.6, name = "Bunting" }
+	)
 	b:finish(first)
 	return b.model
 end
 
-function Promenade.buildBridges(map: any, cfg: any)
+function Promenade.buildBridges(map: any, cfg: any, world: any)
 	local bridges = U.model(map, "Bridges")
+	local top = cfg.GroundTop + DECK_TOP
 	for i, angle in cfg.BridgeAngles do
 		local theme = Promenade.Themes[angle % 360] or Promenade.Themes[0]
 		local from = U.polar(angle, cfg.HubPlazaRadius - 6, 0)
-		-- the deck runs 0.4 stud under the promenade tiles
+		-- the deck runs 0.4 stud under the promenade tiles (the landing plate covers the seam)
 		local to = U.polar(angle, cfg.PromenadeRadius + 0.4, 0)
 		local deckY = cfg.GroundTop + 0.6
 		local width = cfg.BridgeWidth
@@ -138,7 +154,7 @@ function Promenade.buildBridges(map: any, cfg: any)
 			deckY = deckY,
 			width = width,
 			bedY = -cfg.LagoonDepth,
-			plankLength = 8,
+			plankLength = 10,
 			postSpacing = 16,
 			bentSpacing = 48,
 			roof = theme.color,
@@ -155,6 +171,7 @@ function Promenade.buildBridges(map: any, cfg: any)
 		local L = (c - a).Magnitude
 		local inv = cf:Inverse()
 		local pastel = Kit.lerpColor(theme.color, C.White, 0.6)
+		local honey = Kit.lerpColor(C.Wood, C.WoodLight, 0.45)
 		local open = LOOKOUT_HALF - 0.75 -- rails end inside the lookout's inner corner posts
 		for _, d in bridge:GetChildren() do
 			if not d:IsA("BasePart") then
@@ -163,14 +180,15 @@ function Promenade.buildBridges(map: any, cfg: any)
 			local name = d.Name
 			local lp = (inv * d.CFrame).Position
 			if string.match(name, "^Deck%d+$") then
-				-- planks: light / mid wood, every fourth one in the gateway's pastel
+				-- planks: light / honey wood, every fourth one in the gateway's pastel
 				local k = tonumber(string.sub(name, 5)) :: number
-				d.Color = if k % 4 == 3 then pastel elseif k % 2 == 1 then C.WoodLight else C.Wood
+				d.Color = if k % 4 == 3 then pastel elseif k % 2 == 1 then C.WoodLight else honey
 			elseif string.match(name, "^TopRail") or string.match(name, "^MidRail") then
-				-- split round the lookout; the top rail gets chunkier (1.2 x 1.4)
-				local top = string.match(name, "^TopRail") ~= nil
-				local size = if top then Vector3.new(1.2, 1.4, 0) else Vector3.new(d.Size.X, d.Size.Y, 0)
-				local y = if top then 3.7 else lp.Y
+				-- split round the lookout; the top rail gets chunkier (1.2 x 1.4) and the
+				-- gateway's colour, the mid rail its pastel
+				local isTop = string.match(name, "^TopRail") ~= nil
+				local size = if isTop then Vector3.new(1.2, 1.4, 0) else Vector3.new(d.Size.X, d.Size.Y, 0)
+				local y = if isTop then 3.7 else lp.Y
 				for j, seg in { { open, L / 2 }, { -L / 2, -open } } do
 					local len = seg[2] - seg[1]
 					U.part(
@@ -178,18 +196,43 @@ function Promenade.buildBridges(map: any, cfg: any)
 						`{name}_{j}`,
 						Vector3.new(size.X, size.Y, len),
 						cf * CFrame.new(lp.X, y, (seg[1] + seg[2]) / 2),
-						d.Color,
+						if isTop then theme.color else pastel,
 						nil,
-						if top then nil else Kit.NOSHADOW
+						if isTop then nil else Kit.NOSHADOW
 					)
 				end
 				d:Destroy()
 			elseif math.abs(lp.Z) < LOOKOUT_HALF + 0.5 and math.abs(lp.X) > hw - 2 and lp.Y > -0.2 and d.Size.Z < 4 then
 				-- posts and lanterns in the opening
 				d:Destroy()
+			elseif string.match(name, "^Pile") or string.match(name, "^Cap%d") then
+				-- dark wood stays on the piles under the deck; the end bents stand in the sand
+				-- (hub plaza / beach) and are never seen
+				local p = d.CFrame.Position
+				if world and world:heightAt(p.X, p.Z) >= p.Y + d.Size.Y / 2 - 0.25 then
+					d:Destroy()
+				elseif string.match(name, "^Cap") then
+					d.Color = pastel
+				end
+			elseif string.match(name, "^Post") or string.match(name, "^LampPost") or string.match(name, "^Kerb") then
+				d.Color = C.White
+			elseif string.match(name, "^Stringer") then
+				d.Color = C.Wood
 			end
 		end
 		lookout(bridge, cf, hw, -cfg.LagoonDepth - deckY, theme)
+		-- landing plate where the deck meets the promenade: it covers the deck end and the tile
+		-- edge (their tops are only 0.04-0.16 apart) with one clear top 0.1 above the tiles
+		local land = U.polar(angle, cfg.PromenadeRadius + 0.6, 0)
+		U.part(
+			bridge,
+			"Landing",
+			Vector3.new(width + 1.2, 0.7, 3.4),
+			CFrame.new(land.X, top + 0.22 - 0.35, land.Z) * CFrame.Angles(0, math.rad(angle), 0),
+			pastel,
+			nil,
+			FLAT
+		)
 	end
 end
 
@@ -219,17 +262,18 @@ local function ringPiece(
 	return U.part(parent, name, Vector3.new(length, y1 - y0, r1 - r0), cf, color, nil, extra)
 end
 
--- Railing gaps: piers (base angle ± PierGap), bridge landings (± BridgeGap) and the sand steps
--- down to the beach (± STEP_GAP at STEP_ANGLES, between two plots).
-local PIER_GAP = 6
-local BRIDGE_GAP = 3
-local STEP_GAP = 1.3
-local STEP_ANGLES = { 45, 135, 225, 315 }
-
 -- The sea wall: its lagoon face (r = WALL_IN) hides the beach/grass step under the promenade's
 -- lagoon edge; open only where a pier or bridge deck meets the promenade (± DECK_HALF studs).
 local WALL_IN = 308.2
 local DECK_HALF = 10
+
+-- Railing gaps: piers (base angle ± PIER_GAP: the pier deck plus a broad flight of sand steps
+-- on each side), bridge landings (the deck only: the railing runs right up to the bridge) and
+-- the sand steps down to the beach (± STEP_GAP at STEP_ANGLES, between two plots).
+local PIER_GAP = 6
+local BRIDGE_GAP = math.deg(math.asin(DECK_HALF / WALL_IN))
+local STEP_GAP = 1.3
+local STEP_ANGLES = { 45, 135, 225, 315 }
 
 local function inGap(cfg: any, a: number): boolean
 	for i = 1, cfg.BaseCount do
@@ -328,6 +372,17 @@ local function quarterColor(a: number): any
 	return color
 end
 
+-- Chunky planter (4 parts): a bright box (4.8 along the ring), a leafy mound and two blooms in
+-- two colours poking out of it at different heights. Stands on cf (local X along the ring).
+local function planter(parent: any, cf: any, boxColor: any, c1: any, c2: any)
+	local b = Kit.builder(parent, "Planter", cf)
+	local box = b:box("Box", -2.4, -0.2, -1.4, 2.4, 1.3, 1.4, boxColor)
+	b:box("Greens", -2.05, 1.0, -1.05, 2.05, 2.6, 1.05, C.Leaf2, Kit.DECOR)
+	b:box("Bloom1", -1.65, 2.2, -0.7, -0.35, 3.5, 0.6, c1, Kit.DECOR)
+	b:box("Bloom2", 0.35, 2.6, -0.55, 1.65, 3.9, 0.75, c2, Kit.DECOR)
+	return b:finish(box)
+end
+
 function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	local promenade = U.model(map, "Promenade")
 	local G = cfg.GroundTop
@@ -335,10 +390,10 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	local outer = inner + cfg.PromenadeWidth
 	local top = G + DECK_TOP
 
-	-- Paving: 48 tiles (7.5°) in two warm shades at two heights 0.12 apart (the chord
+	-- Paving: 48 tiles (7.5°) in two warm sand shades at two heights 0.12 apart (the chord
 	-- rectangles overlap near the inner edge), a coral middle band and white kerbs.
 	local paving = U.model(promenade, "Paving")
-	local tiles = { rgb(255, 238, 206), rgb(255, 214, 168) }
+	local tiles = { rgb(246, 214, 160), rgb(236, 196, 140) }
 	local step = 360 / 96 -- railing post grid (3.75°)
 	for k = 0, 47 do
 		local a0 = k * 2 * step
@@ -351,20 +406,35 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 		local a0 = k * step * 2
 		ringPiece(paving, "Band", a0, a0 + 2 * step, mid - 2.2, mid + 2.2, top, top + 0.28, bandColor, Kit.NOSHADOW)
 	end
-	local N = 96
 	-- outer kerb (0.5 high: walkable) between the plots; in front of a plot its own front wall
-	-- already edges the walk
-	for k = 0, N / 2 - 1 do
-		local a0 = k * step * 2
-		local nearPlot = false
-		for i = 1, cfg.BaseCount do
-			local base = cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount
-			if Kit.angleDistance(a0 + step, base) < 11 then
-				nearPlot = true
+	-- already edges the walk, and it opens where the gateway roads (± 9 studs) and the landmark
+	-- paths (± 6) leave the ring. It overhangs the tiles' outer face by 0.1 (no shimmer).
+	local roadGap = math.deg(math.asin(11 / outer))
+	local pathGap = math.deg(math.asin(8 / outer))
+	for _, run in
+		runs(cfg, function(a)
+			for i = 1, cfg.BaseCount do
+				if Kit.angleDistance(a, cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount) < 11 then
+					return "open"
+				end
 			end
-		end
-		if not nearPlot then
-			ringPiece(paving, "KerbOuter", a0, a0 + 2 * step, outer - 1.4, outer, top, top + 0.5, C.White, FLAT)
+			for _, b in cfg.BridgeAngles do
+				if Kit.angleDistance(a, b) < roadGap then
+					return "open"
+				end
+			end
+			for _, s in STEP_ANGLES do
+				if Kit.angleDistance(a, s) < pathGap then
+					return "open"
+				end
+			end
+			return "kerb"
+		end)
+	do
+		if run[3] == "kerb" then
+			for _, pc in pieces(run[1], run[2], 7.5) do
+				ringPiece(paving, "KerbOuter", pc[1], pc[2], outer - 1.4, outer + 0.1, top, top + 0.5, C.White, FLAT)
+			end
 		end
 	end
 
@@ -404,14 +474,12 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 				ringPiece(seaWall, "Coping", pc[1], pc[2], WALL_IN, inner + 1.6, top - 0.2, top + 0.6, C.White, FLAT)
 			else
 				ringPiece(seaWall, "Wall", pc[1], pc[2], WALL_IN, inner + 0.3, 1.5, top - 0.12, stone, FLAT)
+				-- two sand steps down to the beach along the whole opening (beside the piers and
+				-- at the step gaps between two plots): no ledge to jump back up
+				ringPiece(seaWall, "Step1", pc[1], pc[2], WALL_IN - 2.8, WALL_IN + 0.1, 1.5, 3.85, C.Cream, FLAT)
+				ringPiece(seaWall, "Step2", pc[1], pc[2], WALL_IN - 5.6, WALL_IN - 2.8, 1.5, 2.95, C.SandDark, FLAT)
 			end
 		end
-	end
-	-- two sand steps down to the beach at each step gap
-	for _, sa in STEP_ANGLES do
-		local h = math.deg(math.asin(4 / WALL_IN))
-		ringPiece(seaWall, "Step1", sa - h, sa + h, WALL_IN - 2.8, WALL_IN + 0.1, 1.5, 3.85, C.Cream, FLAT)
-		ringPiece(seaWall, "Step2", sa - h, sa + h, WALL_IN - 5.6, WALL_IN - 2.8, 1.5, 2.95, C.SandDark, FLAT)
 	end
 
 	local posts = {}
@@ -462,6 +530,13 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 			table.insert(posts, a)
 		end
 	end
+	-- life rings on the lagoon side of the posts next to the sand steps (one beside each flight)
+	for k, sa in STEP_ANGLES do
+		local a = sa + (if k % 2 == 0 then step else -step)
+		local p = U.polar(a, postR - 0.95, 0)
+		-- (front, local -Z, towards the lagoon)
+		Kit.prop("lifebuoy", railing, CFrame.new(p.X, top + 2.3, p.Z) * CFrame.Angles(0, rad(a), 0), { seed = k })
+	end
 
 	-- Bunting between the first two lamps after each pier (lantern tops ~ y + 11).
 	local bunting = U.model(promenade, "Bunting")
@@ -472,9 +547,24 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 		Kit.prop("bunting", bunting, pa, pb, { seed = i * 7, count = 4, sag = 2.4, name = "Bunting" })
 	end
 
-	-- A bench facing the lagoon and flower boxes on both sides of each plot's gate.
+	-- A bench facing the lagoon and planters on both sides of each plot's gate; more planters
+	-- along the land edge of the stretches between two plots (both sides of the gateway road
+	-- or landmark path), so something colourful passes by every ~35 studs. The lagoon edge keeps
+	-- its lamps only: the running lane stays clear.
 	local furniture = U.model(promenade, "Furniture")
 	local boxColors = { C.Red, C.Blue, C.Yellow, C.Pink, C.Purple, C.Orange }
+	local n = 0
+	local function planterAt(a: number, r: number)
+		n += 1
+		local q = U.polar(a, r, 0)
+		planter(
+			furniture,
+			CFrame.new(q.X, top, q.Z) * CFrame.Angles(0, rad(a), 0),
+			boxColors[n % #boxColors + 1],
+			C.Flowers[(n * 3) % #C.Flowers + 1],
+			C.Flowers[(n * 3 + 2) % #C.Flowers + 1]
+		)
+	end
 	for i = 1, cfg.BaseCount do
 		local base = cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount
 		local ab = base + 9
@@ -484,14 +574,13 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 			color = C.WoodLight,
 			seed = i * 2,
 		})
-		for j, sgn in { -1, 1 } do
-			local af = base + sgn * 5.6
-			local q = U.polar(af, outer - 2.2, 0)
-			Kit.prop("flowerBox", furniture, CFrame.new(q.X, top, q.Z) * CFrame.Angles(0, rad(af), 0), {
-				length = 6,
-				color = boxColors[(i + j) % #boxColors + 1],
-				seed = i * 5 + j,
-			})
+		for _, sgn in { -1, 1 } do
+			planterAt(base + sgn * 5.6, outer - 2.6)
+		end
+		-- the stretch from this plot to the next one (centre = base + 22.5)
+		local gap = base + 180 / cfg.BaseCount
+		for _, off in { -6.2, 6.2 } do
+			planterAt(gap + off, outer - 2.6)
 		end
 	end
 
