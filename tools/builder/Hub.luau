@@ -23,17 +23,18 @@
 	               streams of water down their faces, a coral-and-cream spire with gold stripes and
 	               a glowing gold ring, and on top a huge crowned golden fish riding a water spout
 	               and slowly circling (Spin attribute, turned by the client's AmbientController);
-	               sparkles, spray and splashes as particles; a round paved plaza (r 66, a warm sand
-	               checker round the basin), benches and lamps 22.5° off the avenues and the shop
-	               diagonals (clear walkways to every bridge and counter), flower planters on the
-	               plaza rim
+	               sparkles, spray and splashes as particles; a round paved plaza (r 66, warm sand)
+	               with a mosaic at the tower's feet: a gold eight-point star in a white outline
+	               round the basin, gold rays to the shop porches and the fun fair and a turquoise
+	               octagon band; benches and lamps 22.5° off the avenues and the shop diagonals
+	               (clear walkways to every bridge and counter), flower planters on the plaza rim
 	  avenues      θ = 0/90/180/270, 25 wide: coral bricks between white kerbs from the plaza to
-	               the bridge (r 62..153) and a light coral runner from the basin to the bridge,
-	               two lamp pairs with bunting, flowering hedges, a low welcome gate «ОСТРОВ
-	               РЫБАКОВ» (inner side «ХОРОШЕГО КЛЁВА!») at r 140 in the district colour of its
-	               bridge and gateway with theme toppers (pinwheels, tulips, golden fish, lanterns),
-	               tall palms beside the bridge landing; HubSpawn on the θ 180 avenue at r 100,
-	               facing the tower
+	               the bridge (r 62..153) and a light coral runner from the plaza star to the
+	               bridge, two lamp pairs with bunting, hedges with bloom clumps, a low welcome
+	               gate «ОСТРОВ РЫБАКОВ» (inner side «ХОРОШЕГО КЛЁВА!») at r 140 in the district
+	               colour of its bridge and gateway with theme toppers (pinwheels, tulips, golden
+	               fish, lanterns), tall palms on the sand beside the bridge landing; HubSpawn on
+	               the θ 180 avenue at r 100, facing the tower
 	  shops        built 1.2× (modelled at 1/1.2), facing the tower from r 76 (porches on the
 	               plaza rim, customers stand on the porch):
 	    θ 45       Shop «УДОЧКИ» — yellow/red shop, giant rod with a hooked fish twirling on the
@@ -46,7 +47,8 @@
 	  θ 225        fun fair: an entrance arch «АТТРАКЦИОНЫ» on the plaza rim, a path lined by three
 	               food kiosks with giant treats and a picnic table, a big Ferris wheel (its
 	               spinning parts never collide) and a rainbow balloon tethered behind it
-	  gardens      a tulip field on every base lane (r 94..128), its rows pointing at the tower
+	  gardens      a flower field on every base lane (r 97..125): rows of two-tone bloom clumps
+	               pointing at the tower
 	  second ring  r ≈ 125..150: «ИГРЫ» game booth behind the Shop and «СЦЕНА» stage behind the
 	               Workshop, both facing the lagoon and the bases; 8 pastel cottages in pairs
 	               flanking the lanes (doors towards the beach), a garden (θ 32), a boat yard
@@ -63,7 +65,7 @@
 	Every building is modelled in a local frame (origin = front centre at ground level, local −Z
 	towards the tower), so the customer side of every counter is local −Z; prompts sit about
 	3.5 studs above the porch, just in front of the counter.
-	Budget: ≤ 2100 parts and ≤ 12 PointLights (DESIGN.md §3; the build fails above either).
+	Budget: ≤ 2200 parts and ≤ 12 PointLights (DESIGN.md §3; the build fails above either).
 ]]
 
 local U = require("./Util")
@@ -108,7 +110,6 @@ local L = {
 
 local H = {
 	tileA = rgb(246, 214, 160), -- plaza paving (warm sand: cream/white stay for kerbs and trims)
-	tileB = rgb(236, 196, 140), -- plaza checker (a shade darker)
 	brick = rgb(242, 126, 96), -- avenue bricks (coral)
 	brickLight = rgb(255, 160, 124),
 	skin = rgb(255, 206, 158),
@@ -1023,11 +1024,21 @@ end
 
 local BASIN_R = 23 -- outer face of the tower's basin walls (its corners reach r ≈ 30)
 
+-- Mosaic at the tower's feet: a gold eight-point star of two squares (half size STAR, one turned
+-- 45°) in a white outline STAR_EDGE wide. Its axis points reach r ≈ 42 under the avenue runners,
+-- its diagonal points run on as rays to the shop porches and the fun fair.
+local STAR, STAR_EDGE = 28, 1.8
+local STAR_TIP = (STAR + STAR_EDGE) * sqrt(2) -- outline point on every axis and diagonal
+local RAY_W = 6 -- gold ray width (the white edges add STAR_EDGE on each side)
+
 --[[
-	Round plaza: rows of 8 studs in warm sand out to PLAZA_R, and a checker of darker 8-stud tiles
-	in a ring round the basin (r 32..54). The tile grid is centred on the axes and leaves the axis
-	cells free: the avenues' coral runners (buildAvenues) cross the plaza there, from the basin to
-	every bridge.
+	Round plaza: rows of 8 studs in warm sand out to PLAZA_R and a mosaic round the basin, the
+	bright pattern at the hero tower's feet: the gold star in its white outline, gold rays with
+	white edges from its diagonal points to the shop porches and the fun fair arch, and a
+	turquoise octagon band (r 47..52) crossing under the rays and the runners. The avenues' coral
+	runners (buildAvenues) start on the star's axis points and carry the walk on to every bridge.
+	Each layer stands at least 0.12 above the one under it (paving 0.2, band 0.32, outline 0.44,
+	gold 0.56, runner 0.7), so no two colours share a plane. 31 parts.
 ]]
 local function buildPlaza(hub: any, G: number)
 	local F = newFrame(U.model(hub, "Plaza"), CFrame.new(0, G, 0))
@@ -1053,14 +1064,30 @@ local function buildPlaza(hub: any, G: number)
 		end
 		z0 = z1
 	end
-	for gz = -7, 7 do
-		for gx = -7, 7 do
-			local cx, cz = gx * 8, gz * 8
-			local r = sqrt(cx * cx + cz * cz)
-			if gx ~= 0 and gz ~= 0 and (gx + gz) % 2 ~= 0 and r > 32 and r < 54 then
-				F:box("Tile", cx - 4, 0.1, cz - 4, cx + 4, 0.35, cz + 4, H.tileB, FLAT)
-			end
+	-- the star: white outline squares under gold squares (the parts under the basin are hidden)
+	for _, layer in { { "StarEdge", STAR + STAR_EDGE, 0.44, C.White }, { "Star", STAR, 0.56, C.Gold } } do
+		local h, top = layer[2], layer[3]
+		for k, yaw in { 0, 45 } do
+			local S = newFrame(F.model, F.cf * CFrame.Angles(0, rad(yaw), 0))
+			S:box(`{layer[1]}{k}`, -h, top - 0.5, -h, h, top, h, layer[4], FLAT)
 		end
+	end
+	-- rays from the star's diagonal points (each starts inside the point) to the shop porches
+	-- (r ≈ 65) and the fun fair arch; the white edge ends where the fair path starts
+	local rayIn, rayOut = STAR * sqrt(2) - 4, PLAZA_R - 1 - STAR_EDGE
+	for k = 0, 3 do
+		local R = radialFrame(F.model, 45 + k * 90, G)
+		local e = RAY_W / 2 + STAR_EDGE
+		R:box(`RayEdge{k + 1}`, -e, -0.06, rayIn, e, 0.44, rayOut + STAR_EDGE, C.White, FLAT)
+		R:box(`Ray{k + 1}`, -RAY_W / 2, 0.06, rayIn, RAY_W / 2, 0.56, rayOut, C.Gold, FLAT)
+	end
+	-- turquoise octagon band: one chord per axis and diagonal (the chords overlap in thin
+	-- wedges at the inner corners, all one colour)
+	local b0, b1 = 47, 52
+	local len = 2 * b1 * math.tan(rad(22.5)) + 0.1
+	for k = 0, 7 do
+		local R = radialFrame(F.model, k * 45, G)
+		R:box(`Band{k + 1}`, -len / 2, -0.18, b0, len / 2, 0.32, b1, C.Cyan, FLAT)
 	end
 end
 
@@ -1160,7 +1187,8 @@ local function buildTower(hub: any, G: number)
 		for i, d in AXES do
 			along(d, -cw, cw, w + 0.05, w + 0.55, poolBelow - 0.2, y1 - 0.6, `Tier{k}Curtain{i}`, H.cascade, FLOW)
 			if k == 1 then
-				local foam = along(d, -cw - 0.6, cw + 0.6, w - 0.4, w + 2.2, 2.4, 3.3, `Foam{i}`, white, DECOR)
+				-- the foam's bottom stays 0.12 above the curtain's (no shared plane in the pool)
+				local foam = along(d, -cw - 0.6, cw + 0.6, w - 0.4, w + 2.2, 2.52, 3.3, `Foam{i}`, white, DECOR)
 				emitter(foam, "Mist", {
 					rate = 3,
 					life = { 1.2, 1.8 },
@@ -1323,7 +1351,7 @@ local SPAWN_Z = -100
 local function buildSpawn(hub: any, G: number)
 	local z = SPAWN_Z
 	local F = newFrame(U.model(hub, "SpawnPad"), CFrame.new(0, G, z))
-	local frame = F:box("SpawnFrame", -5.2, -0.2, -5.2, 5.2, 0.8, 5.2, C.Gold, FLAT)
+	local frame = F:box("SpawnFrame", -5.2, -0.2, -5.2, 5.2, 0.85, 5.2, C.Gold, FLAT)
 	emitter(frame, "Glints", {
 		rate = 3,
 		life = { 1.5, 2.2 },
@@ -1349,7 +1377,7 @@ local function buildSpawn(hub: any, G: number)
 	U.new("SpawnLocation", {
 		Name = "HubSpawn",
 		Size = V(8, 0.8, 8),
-		CFrame = CFrame.new(0, G + 0.55, z) * CFrame.Angles(0, math.pi, 0), -- the part's −Z faces +Z
+		CFrame = CFrame.new(0, G + 0.6, z) * CFrame.Angles(0, math.pi, 0), -- the part's −Z faces +Z
 		Anchored = true,
 		Neutral = true,
 		Duration = 0, -- no ForceField
@@ -1369,7 +1397,7 @@ end
 	A ring of benches (facing the tower) and lamps round the basin, alternating every 45° and set
 	22.5° off the avenues and the shop diagonals: the walkways from the tower and HubSpawn to every
 	bridge and every counter stay clear, and nothing hides a shopkeeper. Flower planters stand on
-	the plaza rim on every other base lane (the tulip fields carry all eight lanes on outwards).
+	the plaza rim on every other base lane (the flower fields carry all eight lanes on outwards).
 ]]
 local function buildPlazaFurniture(hub: any, G: number)
 	local m = U.model(hub, "PlazaFurniture")
@@ -1411,7 +1439,7 @@ local function gateTopper(m: any, kind: string, x: number, y: number, z: number,
 		m:box("PinBladeY", x - 0.65, y + 1.7, z - 0.45, x + 0.65, y + 7.1, z + 0.45, C.Cyan, DECOR)
 	elseif kind == "tulip" then
 		m:box("TulipStem", x - 0.35, y, z - 0.35, x + 0.35, y + 3.8, z + 0.35, C.Leaf2, DECOR)
-		m:box("TulipLeaf", x - 1.4, y + 1.2, z - 0.4, x + 1.4, y + 1.8, z + 0.4, C.Leaf3, DECOR)
+		m:box("TulipLeaf", x - 1.4, y + 1.2, z - 0.5, x + 1.4, y + 1.8, z + 0.5, C.Leaf3, DECOR)
 		m:box("TulipBloom", x - 1.3, y + 3.6, z - 1.3, x + 1.3, y + 6.4, z + 1.3, C.Red, DECOR)
 	elseif kind == "fish" then
 		m:box("FishBody", x - 1.9, y, z - 0.6, x + 1.9, y + 2.4, z + 0.6, C.Gold, DECOR)
@@ -1460,22 +1488,23 @@ local function welcomeGate(F: any, z: number, accent: any, topper: string)
 	)
 end
 
-local function buildAvenues(hub: any, cfg: any, world: any, G: number)
+local function buildAvenues(hub: any, cfg: any, G: number)
 	local root = U.model(hub, "Avenues")
 	local endZ, gateZ = L.avenueEnd, L.gate
 	for i, angle in cfg.BridgeAngles do
 		local F = radialFrame(U.model(root, `Avenue{i}`), angle, G)
 		local theme = Promenade.Themes[angle % 360]
 		local accent = if theme then theme.color else C.Orange
-		-- paving: coral bricks, light cross bands up to the gate, a light runner from the basin to
-		-- the bridge (it crosses the plaza on the free axis cells of its checker), white kerbs;
-		-- each layer stands 0.15 above the one under it (no shimmer from the bridges)
+		-- paving: coral bricks, light cross bands up to the gate, a light runner from the plaza
+		-- star to the bridge, white kerbs; each layer stands 0.15+ above the one under it (no
+		-- shimmer from the bridges)
 		F:box("Bricks", -11, -0.3, AVENUE_START, 11, 0.35, endZ, H.brick, FLAT)
 		for z = AVENUE_START + 14, gateZ - 8, 24 do
 			F:box("Band", -10.9, 0.1, z, 10.9, 0.5, z + 2, H.brickLight, FLAT)
 		end
-		-- the runner stops just short of the bridge deck (its top would sit 0.05 above the planks)
-		F:box("Runner", -4, 0.05, BASIN_R + 0.6, 4, 0.65, endZ - 1.2, H.brickLight, FLAT)
+		-- the runner starts on the plaza star's axis point (over its gold, see buildPlaza) and
+		-- stops just short of the bridge deck (its top would sit 0.1 above the planks)
+		F:box("Runner", -4, 0.1, STAR_TIP - 4, 4, 0.7, endZ - 1.2, H.brickLight, FLAT)
 		for j, sx in { -1, 1 } do
 			F:box(`Kerb{j}`, sx * 11, -0.3, AVENUE_START + 4, sx * 12.4, 0.8, endZ, C.White, FLAT)
 		end
@@ -1488,23 +1517,23 @@ local function buildAvenues(hub: any, cfg: any, world: any, G: number)
 			end
 			Props.bunting(F.model, tops[1], tops[2], { seed = i * 7 + k, sag = 1.8, count = 3 })
 		end
-		-- flowering hedge rows outside the kerbs, between the lamps
+		-- flowering hedge rows outside the kerbs, between the lamps: separate bloom clumps on the
+		-- hedge (one per ~8 studs, two tones, two heights), not one long cap
 		for j, sx in { -1, 1 } do
 			for k, zz in { { 70, 82 }, { 90, 114 }, { 122, 134 } } do
-				local bloom = BLOOMS[(i * 2 + j + k) % #BLOOMS + 1]
 				F:box(`Hedge{j}_{k}`, sx * 15, -0.3, zz[1], sx * 17.6, 2.4, zz[2], C.Leaf1)
-				F:box(`HedgeTop{j}_{k}`, sx * 15.4, 2.4, zz[1] + 0.4, sx * 17.2, 3.0, zz[2] - 0.4, bloom, DECOR)
+				local n = floor((zz[2] - zz[1]) / 8 + 0.5)
+				local step = (zz[2] - zz[1]) / n
+				for c = 1, n do
+					local z = zz[1] + (c - 0.5) * step
+					local bloom = BLOOMS[(i * 2 + j + k + (c % 2) * 2) % #BLOOMS + 1]
+					local top = 3.4 + (c % 2) * 0.4
+					F:box(`HedgeBloom{j}_{k}_{c}`, sx * 15.3, 2.1, z - 1.5, sx * 17.3, top, z + 1.5, bloom, DECOR)
+				end
 			end
 		end
 		welcomeGate(F, gateZ, accent, AVENUE_TOPPER[angle % 360] or "pinwheel")
-		-- tall palms framing the bridge landing, 14 studs past the gate and leaning away from it
-		-- (their fronds point along the diagonals): no frond reaches the gate or the view of the
-		-- tower down the avenue
-		for j, sx in { -1, 1 } do
-			local p = F:point(sx * 24, 0, gateZ + 14)
-			local cf = CFrame.new(p.X, world:heightAt(p.X, p.Z), p.Z) * CFrame.Angles(0, rad(angle - 90 + sx * 45), 0)
-			Props.palmTree(F.model, cf, { seed = i * 31 + j, scale = 1.5, lite = true })
-		end
+		-- (the tall palms framing the bridge landing come with the beach: buildLandingPalms)
 	end
 end
 
@@ -1601,7 +1630,7 @@ local function buildFair(hub: any, G: number)
 	local F = radialFrame(m, 225, G)
 	local wheelR, scale = 108, 1.45
 	local deckFront = wheelR - 8 * scale
-	F:box("Path", -6, -0.3, PLAZA_R - 3, 6, 0.35, deckFront + 1, H.tileA, FLAT)
+	F:box("Path", -6, -0.3, PLAZA_R - 1, 6, 0.35, deckFront + 1, H.tileA, FLAT)
 	for j, sx in { -1, 1 } do
 		F:box(`PathEdge{j}`, sx * 6, -0.3, PLAZA_R - 1, sx * 7.4, 0.5, deckFront + 1, H.brick, FLAT)
 	end
@@ -1773,29 +1802,52 @@ local COTTAGES = { -- angle, wall, roof (pairs between a shop / the fair and the
 }
 
 --[[
-	Flower field (a garden plot on the lawn): a soil bed and n rows of tulips along local Z, each
-	a green stem strip under a strip of blooms (like the Windmill's tulip terraces), soil between
-	them. Centre (cx, cz), d = length of the rows; rows 3.2 wide every 4.8. 1 + 2n parts.
+	Flower field (a garden plot on the lawn): a soil bed and n rows along local Z, every ROW_PITCH.
+	Each row is a low green stem hedge carrying `clumps` separate bloom blocks in its two tones
+	(alternating, at two heights) with two small leaf cubes poking out of the hedge in the gaps;
+	neighbouring rows are staggered by half a clump step, so the field reads as a checker of
+	flowers rather than a stack of bars. Centre (cx, cz), d = row length, tones = one {a, b} pair
+	per row. 1 + n·(3 + clumps) parts.
 ]]
-local function flowerField(F: any, cx: number, cz: number, n: number, d: number, colors: { any })
-	local w = n * 4.8 - 1.6
+local ROW_PITCH = 6
+local function flowerField(F: any, cx: number, cz: number, n: number, d: number, clumps: number, tones: { any })
+	local w = (n - 1) * ROW_PITCH + 3.2
 	F:box("Bed", cx - w / 2 - 1.2, -0.3, cz - d / 2 - 1.2, cx + w / 2 + 1.2, 0.5, cz + d / 2 + 1.2, C.Dirt, FLAT)
+	local step = d / clumps
 	for k = 1, n do
-		local x = cx - w / 2 + (k - 1) * 4.8 + 1.6
-		F:box(`Stems{k}`, x - 1.3, 0.4, cz - d / 2 + 0.3, x + 1.3, 1.6, cz + d / 2 - 0.3, C.Leaf1, DECOR)
-		local top = 2.9 + (k % 2) * 0.3
-		F:box(`Tulips{k}`, x - 1.6, 1.5, cz - d / 2, x + 1.6, top, cz + d / 2, colors[(k - 1) % #colors + 1], DECOR)
+		local x = cx - w / 2 + 1.6 + (k - 1) * ROW_PITCH
+		F:box(`Stems{k}`, x - 1.3, 0.4, cz - d / 2, x + 1.3, 1.6, cz + d / 2, C.Leaf1, DECOR)
+		local pair = tones[k]
+		local shift = (if k % 2 == 0 then 1 else -1) * step / 4
+		for j = 1, clumps do
+			local z = cz - d / 2 + (j - 0.5) * step + shift
+			local top = 3.2 + ((j + k) % 2) * 0.6 -- bottoms sink into the stem hedge (top 1.6)
+			F:box(`Bloom{k}_{j}`, x - 1.5, 1.2, z - 1.5, x + 1.5, top, z + 1.5, pair[(j - 1) % 2 + 1], DECOR)
+			-- leaf cubes in the first and the last gap, on opposite sides of the hedge
+			if j == 1 or j == clumps - 1 then
+				local lz = z + step / 2
+				local lx = x + (if j == 1 then -1.45 else 1.45)
+				F:box(`Leaf{k}_{j}`, lx - 0.75, 0.9, lz - 0.75, lx + 0.75, 2.4, lz + 0.75, C.Leaf3, DECOR)
+			end
+		end
 	end
 end
 
--- tulip colours of the lawn fields (each field takes 4 in a row, starting further on)
-local TULIPS = { C.Red, C.Orange, C.Yellow, C.Pink, C.Purple, rgb(255, 72, 140), C.White, rgb(255, 120, 60) }
+-- two-tone bloom pairs of the lawn fields (each field takes 3 in a row, starting further on)
+local BLOOM_PAIRS = {
+	{ C.Red, C.Pink },
+	{ C.Yellow, C.Orange },
+	{ C.Purple, H.lilac },
+	{ rgb(255, 72, 140), C.White },
+	{ rgb(255, 120, 60), C.Yellow },
+	{ C.Pink, C.White },
+}
 
 --[[
-	A tulip field on every base's line of sight (θ = 22.5 + k·45, r 94..128, between the plaza
-	ring and the cottages): low rows pointing at the tower like the rays of a star, so the lawns
-	between the avenues and the shops turn into gardens and the lanes stay open. Each field
-	stands off-centre, away from the shop / fun fair beside its lane. 9 parts each.
+	A flower field on every base's line of sight (θ = 22.5 + k·45, r 97..125, between the plaza
+	ring and the cottages): low rows of bloom clumps pointing at the tower like the rays of a star,
+	so the lawns between the avenues and the shops turn into gardens and the lanes stay open. Each
+	field stands off-centre, away from the shop / fun fair beside its lane. 22 parts each.
 ]]
 local function buildGardens(hub: any, G: number)
 	local m = U.model(hub, "Gardens")
@@ -1803,32 +1855,37 @@ local function buildGardens(hub: any, G: number)
 		local F = radialFrame(U.model(m, "TulipField"), 22.5 + k * 45, G)
 		-- the shops / fun fair stand at +X of the even lanes and at −X of the odd ones
 		local side = if k % 2 == 0 then 1 else -1
-		local colors = {}
-		for j = 1, 4 do
-			colors[j] = TULIPS[(k * 3 + j - 1) % #TULIPS + 1]
+		local tones = {}
+		for j = 1, 3 do
+			tones[j] = BLOOM_PAIRS[(k * 2 + j - 1) % #BLOOM_PAIRS + 1]
 		end
-		flowerField(F, -side * 5, 111, 4, 31.6, colors)
+		flowerField(F, -side * 5, 111, 3, 27, 4, tones)
 	end
 end
 
 --[[
 	Koi pond on the lawn between the fish market and the harbour boardwalk (θ 302, r 137): a white
-	stone rim round opaque pond water, three lily pads (one in bloom) and two big koi. 9 parts.
+	stone rim of four kerbs round opaque pond water sunk 0.3 below them (no white face lies under
+	the water), three lily pads (one in bloom) and two big koi breaking the surface. 12 parts.
 ]]
 local function koiPond(parent: any, G: number)
 	local F = newFrame(U.model(parent, "KoiPond"), U.polarCFrame(302, 137, G))
-	local rim = F:box("PondRim", -10, -0.3, -6.5, 10, 0.8, 6.5, C.White, FLAT)
-	F:box("PondWater", -8.6, 0.4, -5.1, 8.6, 0.85, 5.1, H.water, FLOW)
+	local rim
+	for i, sz in { -1, 1 } do
+		rim = F:box(`PondRim{i}`, -10, -0.3, sz * 5.1, 10, 0.9, sz * 6.5, C.White, FLAT)
+		F:box(`PondRimEnd{i}`, sz * 8.6, -0.3, -5.1, sz * 10, 0.9, 5.1, C.White, FLAT)
+	end
+	F:box("PondWater", -8.6, -0.3, -5.1, 8.6, 0.6, 5.1, H.water, FLOW)
 	for i, p in { { -5.4, -2.2, 3.2 }, { 5.2, 2.6, 2.6 }, { 1.2, -3.2, 2.0 } } do
 		local w = p[3] / 2
-		F:box(`LilyPad{i}`, p[1] - w, 0.82, p[2] - w, p[1] + w, 1.0, p[2] + w, C.Leaf2, DECOR)
+		F:box(`LilyPad{i}`, p[1] - w, 0.5, p[2] - w, p[1] + w, 0.72, p[2] + w, C.Leaf2, DECOR)
 	end
-	F:box("LilyBloom", -5.9, 0.95, -2.7, -4.9, 1.75, -1.7, C.Pink, DECOR)
+	F:box("LilyBloom", -5.9, 0.67, -2.7, -4.9, 1.47, -1.7, C.Pink, DECOR)
 	for i, k in { { -1.6, 2.0, C.Orange, 1 }, { 3.0, -0.8, C.Red, -1 } } do
-		F:box(`Koi{i}`, k[1] - 1.6, 0.55, k[2] - 0.65, k[1] + 1.6, 1.1, k[2] + 0.65, k[3], DECOR)
+		F:box(`Koi{i}`, k[1] - 1.6, 0.3, k[2] - 0.65, k[1] + 1.6, 0.85, k[2] + 0.65, k[3], DECOR)
 		local t0 = k[1] + k[4] * 1.6
 		local t1 = t0 + k[4] * 1.3
-		F:box(`KoiTail{i}`, math.min(t0, t1), 0.6, k[2] - 0.8, math.max(t0, t1), 1.05, k[2] + 0.8, C.White, DECOR)
+		F:box(`KoiTail{i}`, math.min(t0, t1), 0.35, k[2] - 0.8, math.max(t0, t1), 0.8, k[2] + 0.8, C.White, DECOR)
 	end
 	F.model.PrimaryPart = rim
 end
@@ -1904,6 +1961,62 @@ local function buildTerrace(hub: any, cfg: any, G: number)
 		if not bridges[a] and not onBoardwalk then
 			local cf = U.polarCFrame(a, (rIn + rOut) / 2, G - 1.6)
 			U.part(m, "Step", V(len, 1.2, rOut - rIn), cf, C.Sand, nil, FLAT)
+		end
+	end
+end
+
+--[[
+	Tall palms framing every bridge landing (in Avenues.AvenueN), leaning away from the welcome
+	gate (their fronds point along the diagonals), so no frond reaches the gate or the view of the
+	tower down the avenue. Each trunk stands on one level surface: from 14 studs past the gate it
+	moves out towards the water until its whole foot (a 2.4-stud circle) is clear of the terrace
+	steps (Hub parts, built first: their own extents, not the voxel ground) and on level sand above
+	the water, so no step cuts through it. The build fails if a landing has no such spot.
+]]
+local function buildLandingPalms(hub: any, cfg: any, world: any, G: number)
+	local steps = {}
+	for _, s in hub:FindFirstChild("BeachTerrace"):GetChildren() do
+		if s:IsA("BasePart") then
+			table.insert(steps, s)
+		end
+	end
+	local water = cfg.WaterTop or 0
+	-- ground top under the whole foot at (x, z), or nil when it is uneven, wet or on a step
+	local function footTop(x: number, z: number): number?
+		local top
+		for k = 0, 8 do
+			local a = rad(k * 45)
+			local q = if k == 0 then V(x, 0, z) else V(x + 2.4 * math.sin(a), 0, z + 2.4 * math.cos(a))
+			for _, s in steps do
+				local l = s.CFrame:PointToObjectSpace(V(q.X, s.CFrame.Position.Y, q.Z))
+				if abs(l.X) <= s.Size.X / 2 and abs(l.Z) <= s.Size.Z / 2 then
+					return nil
+				end
+			end
+			local h = world:heightAt(q.X, q.Z)
+			if h <= water or (top and h ~= top) then
+				return nil
+			end
+			top = h
+		end
+		return top
+	end
+	for i, angle in cfg.BridgeAngles do
+		local avenue = hub:FindFirstChild("Avenues"):FindFirstChild(`Avenue{i}`)
+		local F = radialFrame(avenue, angle, G)
+		for j, sx in { -1, 1 } do
+			local placed = false
+			for dz = 0, 24 do
+				local p = F:point(sx * 24, 0, L.gate + 14 + dz)
+				local top = footTop(p.X, p.Z)
+				if top then
+					local cf = CFrame.new(p.X, top, p.Z) * CFrame.Angles(0, rad(angle - 90 + sx * 45), 0)
+					Props.palmTree(avenue, cf, { seed = i * 31 + j, scale = 1.5, lite = true })
+					placed = true
+					break
+				end
+			end
+			assert(placed, `no level sand for the landing palm {j} of the θ {angle} bridge`)
 		end
 	end
 end
@@ -2219,7 +2332,7 @@ return function(parent: any, cfg: any, world: any)
 	buildFishMarket(hub, U.polarCFrame(315, SHOP_R, G))
 	buildWorkshop(hub, U.polarCFrame(135, SHOP_R, G))
 
-	buildAvenues(hub, cfg, world, G)
+	buildAvenues(hub, cfg, G)
 	buildFair(hub, G)
 	-- the game booth and the stage stand behind the Shop and the Workshop, facing the lagoon and
 	-- the bases (their audience on the lawn by the beach terrace)
@@ -2228,6 +2341,7 @@ return function(parent: any, cfg: any, world: any)
 	buildLawns(hub, G)
 	buildGardens(hub, G)
 	buildTerrace(hub, cfg, G)
+	buildLandingPalms(hub, cfg, world, G)
 	buildBeach(hub, world)
 	buildHarbour(hub, cfg, world)
 
