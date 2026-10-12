@@ -13,7 +13,7 @@
 	Calling convention (all small props):
 		Props.<name>(parent, cframe, opts?) -> Model
 	  cframe  ground point + facing: the prop stands on cframe.Position, its front is
-	          cframe.LookVector (local -Z). Boats, buoys, lily pads, whales, arches: cframe.Position
+	          cframe.LookVector (local -Z). Boats, buoys, lily pads, arches: cframe.Position
 	          is on the water surface. Floating things (cloud, hotAirBalloon): their bottom.
 	  opts    optional table:
 	          seed     number, deterministic variation (default: hashed from the position)
@@ -36,7 +36,7 @@
 	Catalogue (parts per instance):
 	  trees      oakTree 13-16, roundTree 13-16, cherryTree 15, autumnTree 15,
 	             birchTree 12, pineTree 11-14, palmTree 16, giantTree 101 (landmark)
-	  plants     bush 4-7, flowerPatch 12, flowerBed 3 + 2 per flower (6×3 bed: 15), mushroom 7,
+	  plants     bush 4-7, flowerPatch 12, flowerBed 3 + 2 per flower (6×3 bed: 9), mushroom 7,
 	             giantMushroom 14-16, lilyPad 2-4,
 	             reeds 7, stump 4-6, log 3, flowerClump 3, berryBush 3 (cheap decor)
 	  rocks      rock 1-4 (3-4 by default), boulder 5-6, rockPair 3, crystalCluster 10,
@@ -46,8 +46,8 @@
 	             billboard 9, flowerBox 7, planter 6-8, bunting <= 16, flagPole 6, campfire 10,
 	             parasol 6, beachChair 7, cooler 4, treasureChest 7-9, anchor 10,
 	             fishStatue 18, lifebuoy 4, fishingRodRack 11
-	  water      rowboat 14, sailboat 21, motorboat 17, buoy 4, dockSegment 9-11, shipwreck 63,
-	             whale 44
+	  water      rowboat 14, sailboat 21, motorboat 17, buoy 4, dockSegment 9-11, shipwreck 63
+	             (no animals: DESIGN.md §1)
 	  big        bridge (~8 per 10 studs + ~30), waterfall 12-22, lighthouse 28, windmill 40
 	             (spinning "Blades"), watchtower 43, ferrisWheel 105 (spinning "Wheel"),
 	             hotAirBalloon 19, cloud 7-8
@@ -69,7 +69,7 @@
 	Bobbing: rowboat, sailboat, motorboat and buoy standing on the water get the Model attributes
 	Bob (amplitude) and BobPeriod; the client (AmbientController) lifts and rolls them gently.
 	Particles (no parts): campfire embers + smoke, crystal glints, glowing giant mushrooms' and
-	the giant tree's fireflies, its blossom petals, the whale's spout spray, the balloon burner
+	the giant tree's fireflies, its blossom petals, the balloon burner
 	flame, the open treasure chest's glints, the waterfall's mist and foam.
 
 	No randomness from math.random: variation comes from a small Park–Miller generator seeded
@@ -580,7 +580,7 @@ end
 	texture); smoke and mist use the soft built-in smoke puff, sparkles the built-in star.
 	kinds:
 	  smoke      soft white-grey puffs drifting up and downwind (chimneys, campfires)   rate 2
-	  spray      water droplets shot up that fall back (fountains, spouts, whales)      rate 16
+	  spray      water droplets shot up that fall back (fountains, spouts, surf)        rate 16
 	  foam       white cubes churning at a waterline (falls, rapids, splashes)          rate 8
 	  mist       big soft white puffs (the foot of a waterfall)                         rate 5
 	  sparkle    glinting stars (gold, crystals, magic)                                 rate 3
@@ -1750,7 +1750,9 @@ Props.bloomPairs = BLOOM_PAIRS
 	opts: width (6), depth (3), colors = {c1, c2} (default: a pair from bloomPairs),
 	kerb = colour or false (default Limestone), leaves (colour), spacing (1.8),
 	stems = false (blooms sit on the mound: 1 part per flower), max (flower count cap, 12).
-	Parts: 3 (2 without kerb) + flowers × 2 (× 1 without stems). A 6×3 bed = 3 + 6×2 = 15.
+	Parts: 3 (2 without kerb) + flowers × 2 (× 1 without stems); flowers = floor((width - 0.4) /
+	spacing) per row × floor((depth - 0.4) / spacing) rows, at most `max`: a 6×3 bed has one row
+	of 3 (9 parts), a 6×4.5 bed two rows (15).
 ]]
 function Props.flowerBed(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "FlowerBed", cf, opts, 263)
@@ -1788,13 +1790,16 @@ function Props.flowerBed(parent: any, cf: any, opts: { [string]: any }?): any
 			-- rows offset by half a step: a staggered, planted look
 			local x = (ix - (nx + 1) / 2) * sp + (if iz % 2 == 0 then sp * 0.25 else -sp * 0.25) + b:range(-0.15, 0.15)
 			local z = (iz - (nz + 1) / 2) * sp + b:range(-0.15, 0.15)
-			local h = 1.55 + b:range(-0.3, 0.45)
+			-- short stems: the blooms nestle just over the leaves at staggered heights (a planted
+			-- bed, not lollipops), each bloom a little different in size
+			local h = 1.2 + b:range(0, 0.5)
+			local bw, bh = b:range(0.95, 1.2), b:range(0.6, 0.8)
 			local col = if (ix + iz) % 2 == 0 then c1 else c2
 			if o.stems ~= false then
-				b:span(`Stem{n}`, x - 0.15, 1.0, z - 0.15, x + 0.15, h, z + 0.15, C.Leaf2, DECOR)
-				b:vox(`Bloom{n}`, x, h + 0.35, z, 1.0, 0.7, 1.0, col, DECOR)
+				b:span(`Stem{n}`, x - 0.16, 0.95, z - 0.16, x + 0.16, h, z + 0.16, C.Leaf2, DECOR)
+				b:vox(`Bloom{n}`, x, h + bh / 2 - 0.05, z, bw, bh, bw, col, DECOR)
 			else
-				b:vox(`Bloom{n}`, x, 1.25, z, 0.9, 0.6, 0.9, col, DECOR)
+				b:vox(`Bloom{n}`, x, 1.25, z, bw * 0.9, 0.6, bw * 0.9, col, DECOR)
 			end
 		end
 	end
@@ -3112,88 +3117,6 @@ function Props.shipwreck(parent: any, cf: any, opts: { [string]: any }?): any
 	return b:finish(keel)
 end
 
---[[
-	whale: big friendly cartoon whale surfacing (~32 studs long): body with a darker back and a
-	cream belly, head and snout, smile, big eyes, pink cheeks, flippers at the waterline, spots,
-	a water spout from the blowhole, the tail raised behind with its flukes up, foam cubes
-	around. 44 parts. cframe on the water surface, head towards -Z. opts: color (body).
-]]
-function Props.whale(parent: any, cf: any, opts: { [string]: any }?): any
-	local b = begin(parent, "Whale", cf, opts, 197)
-	local o = b.opts
-	local col = o.color or PAINT_BLUE
-	local back = shade(col, 0.8)
-	local lightC = lerpColor(col, C.White, 0.35)
-	local belly = C.Cream
-
-	-- body (head towards -Z); the waterline (y = 0) is at about a third of the body height
-	local body = b:span("Body", -5, -3.2, -9, 5, 4.6, 9, col)
-	b:span("Back", -4.2, 4.5, -7.6, 4.2, 5.5, 7.4, back)
-	b:span("Head", -4.7, -2.8, -12.8, 4.7, 4.2, -8.8, col)
-	b:span("HeadTop", -3.9, 4.1, -12.2, 3.9, 5.0, -8.7, back)
-	b:span("Snout", -4.1, -2.2, -13.8, 4.1, 3.4, -12.7, lerpColor(col, C.White, 0.1))
-	b:span("Belly", -4.5, -4.2, -13.2, 4.5, -1.2, 7, belly)
-	-- face on both sides: smile, big eye with a pupil, pink cheek
-	for i, sx in { -1, 1 } do
-		b:span(`Mouth{i}`, sx * 4.6, 0.3, -13.0, sx * 4.85, 0.8, -9.6, C.Navy, DECOR)
-		b:span(`Eye{i}`, sx * 4.62, 1.2, -12.2, sx * 4.92, 3.6, -9.9, C.White, DECOR)
-		b:span(`Pupil{i}`, sx * 4.88, 1.7, -11.5, sx * 5.02, 3.1, -10.4, C.Dark, DECOR)
-		b:span(`Cheek{i}`, sx * 4.62, 0.9, -9.7, sx * 4.86, 1.5, -8.85, C.Pink, DECOR)
-		-- flipper lying at the waterline
-		b:span(`Flipper{i}`, sx * 5, -0.5, -6.2, sx * 8.8, 0.45, -2.6, back)
-	end
-	b:span("Dorsal", -0.8, 5.4, 3.5, 0.8, 6.6, 6.6, back)
-	for i, p in { { -2, -4 }, { 1.8, 0.5 }, { -0.6, 4.8 } } do
-		b:span(`Spot{i}`, p[1] - 0.8, 5.48, p[2] - 0.8, p[1] + 0.8, 5.62, p[2] + 0.8, lightC, DECOR)
-	end
-	-- blowhole with a water spout
-	b:span("Blowhole", -0.55, 4.96, -10.7, 0.55, 5.1, -9.7, C.Navy, DECOR)
-	local spout = merge(DECOR, { Transparency = 0.1 })
-	-- spout: a column, a white head and four jets falling outwards, droplets below them
-	local sz0 = -10.2
-	b:span("Spout", -0.7, 5.05, sz0 - 0.7, 0.7, 9.8, sz0 + 0.7, C.WaterLight, spout)
-	local head = b:vox("SpoutHead", 0, 10.2, sz0, 2.0, 1.4, 2.0, C.Foam, spout)
-	-- droplets keep spurting out of the spout head and rain down round it
-	Props.fx(head, "spray", { rate = 14, size = 1.3 * b.s, spread = 35, speed = NR.new(7, 11) })
-	for i, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
-		local sx = if d[1] ~= 0 then 1.8 else 1.0
-		local sz = if d[2] ~= 0 then 1.8 else 1.0
-		b:vox(
-			`Jet{i}`,
-			d[1] * 1.7,
-			9.6,
-			sz0 + d[2] * 1.7,
-			sx,
-			0.9,
-			sz,
-			if i % 2 == 0 then C.WaterLight else C.Foam,
-			spout
-		)
-		b:vox(`Drop{i}`, d[1] * 3.1, 8.2 + (i % 2) * 0.4, sz0 + d[2] * 3.1, 0.8, 0.8, 0.8, C.Foam, DECOR)
-	end
-	-- tail rising out of the water behind, flukes up
-	b:span("TailStock", -2.8, -1.8, 8.8, 2.8, 3.4, 13.5, col)
-	b:span("TailRise", -1.8, 2.8, 12.2, 1.8, 8.2, 15.2, col)
-	b:span("Flukes", -6.8, 7.8, 12.4, 6.8, 9.2, 16.4, back)
-	b:span("FlukeTipL", -8.4, 8.6, 12.8, -5.8, 10.2, 16.0, back)
-	b:span("FlukeTipR", 5.8, 8.6, 12.8, 8.4, 10.2, 16.0, back)
-	-- foam cubes around the body at the waterline
-	local foam = {
-		{ -6.4, -8, 2.2 },
-		{ 6.3, -9.5, 1.8 },
-		{ -6.0, 2, 1.6 },
-		{ 6.2, 4, 2.0 },
-		{ -3.5, 10.5, 1.6 },
-		{ 3.8, 11, 1.8 },
-		{ 0.5, -15, 2.0 },
-		{ -3.8, -14, 1.4 },
-	}
-	for i, f in foam do
-		b:vox(`Foam{i}`, f[1], 0.2, f[2], f[3], f[3] * 0.55, f[3], C.Foam, DECOR)
-	end
-	return b:finish(body)
-end
-
 --------------------------------------------------------------------------------------------
 -- BIG PIECES
 --------------------------------------------------------------------------------------------
@@ -3845,27 +3768,31 @@ function Props.hotAirBalloon(parent: any, cf: any, opts: { [string]: any }?): an
 end
 
 --[[
-	cloud: big floating voxel cloud — a flat rounded white body with a light-blue shaded
-	underside, two puffs on top and puffs at the ends. cframe = bottom centre. 7-8 parts,
-	CanCollide/CastShadow/CanQuery = false.
+	cloud: big floating voxel cloud — a flat rounded body in cool white (Palette Cloud) with a
+	faintly blue, slightly see-through underside (CloudShade), two puffs on top and puffs at the
+	ends. cframe = bottom centre. 7-8 parts, CanCollide/CastShadow/CanQuery = false (no shadow
+	blotches on the island).
 	opts: size (length along local X, default 36 by seed 30..44).
 ]]
+local CLOUD = merge(DECOR, { CastShadow = false })
+local CLOUD_UNDER = merge(CLOUD, { Transparency = 0.1 })
 function Props.cloud(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Cloud", cf, opts, 241)
 	local o = b.opts
 	local L = o.size or b:range(30, 44)
 	local D = L * b:range(0.42, 0.52)
 	local h = L * 0.1
+	local white = C.Cloud
 	-- flat white body (rounded "plus") with a shaded underside, rounded puffs on top, end puffs
-	local base = b:cross("Body", -L * 0.01, 0, 0, h * 1.3, L * 0.78, D * 0.82, 0.72, C.White, DECOR)
-	b:span("Under", -L * 0.3, -h * 0.3, -D * 0.28, L * 0.28, 0.05, D * 0.28, C.CloudShade, DECOR)
+	local base = b:cross("Body", -L * 0.01, 0, 0, h * 1.3, L * 0.78, D * 0.82, 0.72, white, CLOUD)
+	b:span("Under", -L * 0.3, -h * 0.3, -D * 0.28, L * 0.28, 0.05, D * 0.28, C.CloudShade, CLOUD_UNDER)
 	local x1 = b:range(-0.2, -0.08) * L
-	b:cross("Puff1", x1, h * 1.2, D * 0.01, h * 1.2 + L * 0.15, L * 0.38, D * 0.7, 0.7, C.White, DECOR)
+	b:cross("Puff1", x1, h * 1.2, D * 0.01, h * 1.2 + L * 0.15, L * 0.38, D * 0.7, 0.7, white, CLOUD)
 	local x2 = b:range(0.12, 0.2) * L
-	b:span("Puff2", x2 - L * 0.14, h * 1.15, -D * 0.26, x2 + L * 0.14, h * 1.15 + L * 0.1, D * 0.28, C.White, DECOR)
-	b:span("PuffEndL", -L * 0.5, h * 0.2, -D * 0.22, -L * 0.36, h * 1.15, D * 0.2, C.White, DECOR)
+	b:span("Puff2", x2 - L * 0.14, h * 1.15, -D * 0.26, x2 + L * 0.14, h * 1.15 + L * 0.1, D * 0.28, white, CLOUD)
+	b:span("PuffEndL", -L * 0.5, h * 0.2, -D * 0.22, -L * 0.36, h * 1.15, D * 0.2, white, CLOUD)
 	if b:chance(0.6) then
-		b:span("PuffEndR", L * 0.34, h * 0.25, -D * 0.18, L * 0.48, h * 1.1, D * 0.22, C.White, DECOR)
+		b:span("PuffEndR", L * 0.34, h * 0.25, -D * 0.18, L * 0.48, h * 1.1, D * 0.22, white, CLOUD)
 	end
 	return b:finish(base)
 end
