@@ -28,7 +28,8 @@
 	               slots 1-2 nearest the gate), flower fields and big trees in the side lawns
 	  lz 133..168  the owner's cottage (tall stepped roof, smoking chimney) with a porch, a duck
 	               pond (left), a campfire with a tent (right)
-	  lz 0..-50    plank pier with block rails and lanterns, a moored boat that bobs
+	  lz 0..-50    plank pier with block rails and lanterns, a moored boat that bobs (its bow line
+	               tied to the last pier post)
 	  lz -50..-72  end platform (22 deep): the FishingSpot under open sky at its front edge
 	               (glints rise off it), a shelter with a bench over the rod rack on the -X side,
 	               crates, barrel, lifebuoy
@@ -112,6 +113,7 @@ local C = {
 	Dog = rgb(240, 150, 70),
 	DogCream = rgb(255, 242, 222),
 	Tongue = rgb(255, 120, 150),
+	Rope = Props.Colors.Rope,
 }
 
 -- Accent parts get this (shaded) grey in the template; BaseService repaints them.
@@ -657,10 +659,11 @@ local function buildTank(template: any): (any, { any })
 			piece("FishEye", x - 1.25, x + 1.25, y + 0.15, y + 0.75, ez - 0.3, ez + 0.3, C.Ink)
 		end
 	end
-	-- A column of bubbles rising off the sand (particles: they move and cost no parts).
+	-- A column of bubbles rising off the sand (particles: they move and cost no parts). They live
+	-- at most 3 s (at most 2.8 studs/s), so they fade out under the glass top.
 	local function bubbles(name: string, x: number, z: number)
 		local attachment, offset = attachAt(sand, name, at(x, s + 0.4, z))
-		Props.fx(attachment, "bubbles", { rate = 3, size = 1.5 })
+		Props.fx(attachment, "bubbles", { rate = 3, size = 1.5, lifetime = U.roblox.NumberRange.new(2.6, 3) })
 		table.insert(expected, { root = "template", path = { "Tank", "Sand", name }, offset = offset })
 	end
 
@@ -911,7 +914,8 @@ local function buildHouse(template: any): any
 	end
 
 	-- Porch: deck (ends at the foundation's edge, its top 0.06 above the foundation's: no shared
-	-- top face), two posts with lanterns, Accent awning.
+	-- top face), two posts with lanterns, Accent awning (its back end sinks 0.1 into the wall, so
+	-- its end face never shares the wall plane with the window frames it overlaps).
 	local pz0 = 133.4
 	span(house, "Porch", -9, 9, 0, base + 0.06, pz0, z0 - 1, C.WoodLight)
 	for _, sx in { -1, 1 } do
@@ -923,7 +927,7 @@ local function buildHouse(template: any): any
 			U.new("PointLight", { Range = 14, Brightness = 1.1, Color = C.Lamp, Shadows = false }, lamp)
 		end
 	end
-	span(house, "Awning", -10, 10, base + 9.4, base + 10.4, pz0 - 0.6, z0, -0.3, { CastShadow = true })
+	span(house, "Awning", -10, 10, base + 9.4, base + 10.4, pz0 - 0.6, z0 + 0.1, -0.3, { CastShadow = true })
 	span(house, "AwningTop", -9.4, 9.4, base + 10.4, base + 11.2, pz0 + 0.4, z0, 0.15)
 	return smokeOffset
 end
@@ -1101,7 +1105,8 @@ local function deck(parent: any, halfWidth: number, z0: number, z1: number, acro
 	end
 end
 
-local function buildPier(template: any, pierEnd: number, pileBottom: number)
+-- Returns the z of the walkway's last post pair (the boat's bow line is tied to it).
+local function buildPier(template: any, pierEnd: number, pileBottom: number): number
 	local PIER_END = pierEnd + PLATFORM_DEPTH -- walkway ends, platform begins
 	local pier = U.model(template, "Pier")
 	local hw = PIER_HALF
@@ -1148,15 +1153,16 @@ local function buildPier(template: any, pierEnd: number, pileBottom: number)
 		span(plat, "Kerb", sx * e, sx * (e + 1.2), DECK - 1.4, DECK + 0.6, z0, z1, -0.3)
 		span(plat, "Kerb", sx * (hw + 1.2), sx * (e + 1.2), DECK - 1.4, DECK + 0.6, z1, z1 + 1.2, -0.3)
 	end
-	-- Piles and rails (the front middle stays open for casting).
+	-- Piles and rails (the front middle stays open for casting). The back corner piles stop 0.1
+	-- short of the deck's and side kerbs' back ends (no shared end planes).
 	local pe = e + 0.6
-	local zf = z0 + 0.4
+	local zf, zb = z0 + 0.4, z1 - 1.1
 	for _, p in
 		{
 			{ -pe, zf },
 			{ pe, zf },
-			{ -pe, z1 - 1 },
-			{ pe, z1 - 1 },
+			{ -pe, zb },
+			{ pe, zb },
 			{ -pe, (zf + z1) / 2 },
 			{ pe, (zf + z1) / 2 },
 			{ -9, zf },
@@ -1166,9 +1172,10 @@ local function buildPier(template: any, pierEnd: number, pileBottom: number)
 		span(plat, "Post", p[1] - 1, p[1] + 1, pileBottom, DECK + 4.2, p[2] - 1, p[2] + 1, C.Wood)
 	end
 	for _, sx in { -1, 1 } do
-		span(plat, "Rail", sx * pe - 0.5, sx * pe + 0.5, DECK + 3.2, DECK + 4, zf, z1 - 1, 0)
+		span(plat, "Rail", sx * pe - 0.5, sx * pe + 0.5, DECK + 3.2, DECK + 4, zf, zb, 0)
 		span(plat, "Rail", sx * 9, sx * pe, DECK + 3.2, DECK + 4, zf - 0.5, zf + 0.5, 0)
 	end
+	return zs[n]
 end
 
 -- The fishing spot sits in the open middle of the platform's front edge: nothing hangs over the
@@ -1267,10 +1274,11 @@ local function buildPierProps(template: any, pierEnd: number)
 	end
 end
 
--- Little rowing boat moored at the right side of the pier, halfway out. It bobs on the water: the
--- client (AmbientController) lifts and rolls every Model with a number attribute Bob about its
--- pivot (here the hull's centre on the waterline).
-local function buildBoat(template: any, waterY: number)
+-- Little rowing boat moored at the right side of the pier, halfway out, its bow line tied to the
+-- pier's last post. It bobs on the water: the client (AmbientController) lifts and rolls every
+-- Model with a number attribute Bob about its pivot (here the hull's centre on the waterline); the
+-- line bobs with it, its far end sunk 0.5 into the post, so it slides along the post's face.
+local function buildBoat(template: any, waterY: number, postZ: number)
 	local boat = U.model(template, "Boat")
 	local f = facing(15, waterY, -34, 4)
 	boat.PrimaryPart = box(boat, "Hull", f, 0, 0, 0, 4.6, 1.6, 10, C.WoodLight)
@@ -1279,11 +1287,17 @@ local function buildBoat(template: any, waterY: number)
 	for _, sx in { -1, 1 } do
 		box(boat, "Side", f, sx * 2.7, 0.9, 0.3, 0.8, 2.4, 10.6, 0)
 	end
-	box(boat, "Stern", f, 0, 0.9, 5.2, 4.6, 2.4, 0.8, 0)
+	-- (the stern's ends sink into the sides: no end face shares the hull's side planes)
+	box(boat, "Stern", f, 0, 0.9, 5.2, 5.4, 2.4, 0.8, 0)
 	box(boat, "Bow", f, 0, 0.9, -5.6, 3.6, 2.4, 1.6, -0.25)
 	box(boat, "BowTip", f, 0, 1.1, -6.8, 2, 2.2, 1, -0.25)
 	box(boat, "Seat", f, 0, 1.3, 1.6, 4.6, 0.5, 1.6, C.White)
 	box(boat, "Oar", f, 0.6, 1.0, -1.8, 0.4, 0.3, 7, C.Wood, DECOR)
+	-- Bow line from the bow tip to the pier post's outer face, under the kerb.
+	local from = (f * at(-0.5, 1.9, -6.6)).Position
+	local to = Vector3.new(PIER_HALF + 1.1, waterY + 2.75, postZ)
+	local line = CFrame.lookAt((from + to) / 2, to)
+	make(boat, "BowLine", Vector3.new(0.25, 0.25, (to - from).Magnitude), line, C.Rope, DECOR)
 end
 
 ------------------------------------------------------------------------------------------
@@ -1322,10 +1336,10 @@ return function(game: any, mapCfg: any)
 	buildPond(template)
 	local sparksOffset = buildCampfire(template)
 	buildGreenery(template)
-	buildPier(template, pierEnd, pileBottom)
+	local lastPostZ = buildPier(template, pierEnd, pileBottom)
 	buildPavilion(template, pierEnd)
 	buildPierProps(template, pierEnd)
-	buildBoat(template, waterY)
+	buildBoat(template, waterY, lastPostZ)
 
 	local count = 0
 	for _, d in template:GetDescendants() do
