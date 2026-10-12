@@ -12,29 +12,34 @@
 	    every stall and board faces the plaza:
 	      north (180) fish market   a square market (checker paving): two stalls (fish, tackle),
 	                                the golden fish fountain off the axis, a barrel, a notice
-	                                board; wooden steps up the fishermen's slope (drying racks
-	                                with fish, upturned boats, fishers' huts) to a deck beside
-	                                the lighthouse (rails, bench, telescope)
+	                                board; wooden steps up the fishermen's slope (a drying rack
+	                                with fish, upturned and beached boats, fishers' huts, a net
+	                                rack, crates, palms) to a deck beside the lighthouse (rails,
+	                                bench, telescope)
 	      east  (90)  flower garden round plaza with hedge beds round a cross of paths, the giant
 	                                flower on its bed off the axis (petals both sides), a flower
 	                                arch over the axis, a photo frame, the flower stall; a ramped
-	                                garden path between long tulip terraces to a pink gazebo
+	                                garden path between tulip terraces (bloom clumps), hedge mazes
+	                                and clipped topiaries to a pink gazebo
 	      south (0)   playground    round plaza with a blue play mat: play tower with a slide
 	                                off the axis, a sandpit with a castle, swings, a seesaw, the
-	                                ice cream stall; stone steps up a little farm (long crop
-	                                beds, a red barn, a scarecrow) to a lookout deck with a long
+	                                ice cream stall; a stone ramp path up a little farm (crop beds
+	                                with tall corn among them, a red barn, a scarecrow, haystacks,
+	                                a pumpkin patch, an orchard) to a lookout deck with a long
 	                                slide down
 	      west  (270) picnic camp   a meadow with a paved path and a camp off the axis: a sand
 	                                clearing round the fire circle (totem carved on the back too,
-	                                a smoking campfire, log seats), two tents facing the fire, an
-	                                upturned canoe on its trestle; a picnic table and the souvenir
-	                                stall on a plank patio; plank stairs zigzag up past a camp
-	                                (tents, a smoking fire ring, a blanket) to a picnic lookout
-	                                with a flag and a telescope off the axis
+	                                a smoking campfire, log seats), two tents facing the fire; the
+	                                souvenir stall, an upturned canoe on its trestle, a picnic
+	                                table, firewood and a lantern on a plank patio; plank stairs
+	                                zigzag up past a camp (tents, a smoking fire ring, a blanket,
+	                                firewood, pines) to a picnic lookout with a flag and a
+	                                telescope off the axis
 	  • the climb from the back of the plaza up the terraces to the viewpoint (Kit.stairs 1-stud
-	    steps, or Kit.rampPath slabs and wedge ramps), lantern posts beside it; the viewpoint
+	    steps, or Kit.rampPath slabs and wedge ramps), a lantern post beside it; the viewpoint
 	    stands on a solid plinth on the hilltop. District pieces stand only where the ground
-	    under their whole footprint is flat.
+	    under their whole footprint is flat (nudged up to 8 studs to find such a spot); the
+	    theme's chunky trees (Kit.voxelTree) stand in groves on the terraces round them.
 
 	Local frame of a plaza: origin at its centre on the ground, +Z away from the lagoon (like a
 	base slot's frame), so the entry road comes in from -Z.
@@ -122,7 +127,8 @@ ARCHES.playground = function(b: any, text: string, color: any)
 			b:box(`Block{i}_{k}`, lo - o, 1.6 + (k - 1) * 6, -2 - o, hi + o, 1.6 + k * 6, 2 + o, c)
 		end
 	end
-	nameBoard(b, text, 14.5, 13.6, 19.6, 1.2, color)
+	-- (the board's top 0.1 into the rainbow: not level with the proud cubes' tops beside it)
+	nameBoard(b, text, 14.5, 13.6, 19.7, 1.2, color)
 	-- the rainbow over the board: three bands, each a step narrower and thinner
 	for k, c in { C.Red, C.Yellow, C.Cyan } do
 		local w, d = 16.6 - (k - 1) * 2.4, 2.2 - (k - 1) * 0.2
@@ -365,8 +371,8 @@ local function giantFlower(parent: any, cf: any, color: any)
 	b:box("RimB", -6, 0.02, -9.6, 6, 1.62, 9.6, C.White)
 	b:box("Grass", -8.8, 1.2, -5.2, 8.8, 1.95, 5.2, C.GrassTop, Kit.NOSHADOW)
 	b:box("GrassB", -5.2, 1.22, -8.8, 5.2, 1.97, 8.8, C.GrassTop, Kit.NOSHADOW)
-	for k = 0, 5 do
-		local a = k * math.pi / 3 + 0.5
+	for k = 0, 3 do
+		local a = k * math.pi / 2 + 0.5
 		local x, z = math.sin(a) * 6.4, math.cos(a) * 6.4
 		local top = 4.6 + (k % 2) * 1.2
 		b:box(`Stem{k + 1}`, x - 0.3, 1.9, z - 0.3, x + 0.3, top - 1.6, z + 0.3, C.Leaf1, Kit.DECOR)
@@ -501,16 +507,24 @@ local function campCircle(parent: any, cf: any, color: any)
 		end
 	end
 	b:box("TotemTop", -1.4, 12, -1.4, 1.4, 13.4, 1.4, C.Gold)
-	b:finish(t)
-	local fire = Kit.prop("campfire", b.model, cf * CFrame.new(0, 0, -10), { light = true })
-	local flame = fire:FindFirstChild("Flame")
-	if flame then
-		Kit.smoke(flame)
-		Kit.sparkles(flame, C.Autumn2, { rate = 4, size = 0.4, lifetime = 1.4, speed = 5, drift = 2 })
-	end
+	-- the campfire in front of it (a stone ring, crossed logs, a flame with smoke and sparks) and
+	-- four chunky log seats round it
+	b:box("FireStones", -2.6, -0.4, -12.6, 2.6, 0.7, -7.4, C.StoneLight)
+	b:box("FireLogA", -2, 0.7, -10.45, 2, 1.5, -9.55, C.Bark)
+	b:box("FireLogB", -0.45, 1.5, -12, 0.45, 2.2, -8, C.Bark)
+	local flame = b:box("Flame", -0.9, 1.4, -10.9, 0.9, 3.6, -9.1, C.Flame, Kit.NEON_DECOR)
+	Kit.light(flame, 14, 1.4)
+	Kit.smoke(flame)
+	Kit.sparkles(flame, C.Autumn2, { rate = 4, size = 0.4, lifetime = 1.4, speed = 5, drift = 2 })
 	for i, p in { { -6, -10, 90 }, { 6, -10, 90 }, { 0, -16, 0 }, { 0, -4.6, 0 } } do
-		Kit.prop("log", b.model, cf * CFrame.new(p[1], 0, p[2]) * CFrame.Angles(0, rad(p[3]), 0), { seed = i })
+		b:block(
+			`Seat{i}`,
+			Vector3.new(6.4, 1.7, 1.7),
+			CFrame.new(p[1], 0.6, p[2]) * CFrame.Angles(0, rad(p[3]), 0),
+			C.Bark
+		)
 	end
+	b:finish(t)
 end
 
 -- Flower arch: two leafy posts, a blossom beam and blooms on top. 6 parts. Spans 10 studs.
@@ -575,13 +589,15 @@ local function lantern(parent: any, cf: any, color: any)
 end
 
 -- Crop bed w x d (4 parts): a soil bed with three chunky rows of one bright crop along X
--- (walk-through), the Grow-a-Garden look on a terrace.
-local function cropBed(parent: any, cf: any, w: number, d: number, crop: any)
+-- (walk-through), the Grow-a-Garden look on a terrace; tall (rows `tall` high, default 1.3)
+-- reads as corn or sunflowers.
+local function cropBed(parent: any, cf: any, w: number, d: number, crop: any, tall: number?)
 	local b = Kit.builder(parent, "CropBed", cf)
 	local soil = b:box("Soil", -w / 2, -0.6, -d / 2, w / 2, 0.6, d / 2, rgb(170, 112, 66))
 	for i = 1, 3 do
 		local z = -d / 2 + (i - 0.5) * d / 3
-		b:box(`Row{i}`, -w / 2 + 1, 0.6, z - 1.1, w / 2 - 1, 1.9, z + 1.1, crop, Kit.DECOR)
+		local top = 0.6 + (tall or 1.3) + (if tall then (i % 2) * 0.5 else 0)
+		b:box(`Row{i}`, -w / 2 + 1, 0.6, z - 1.1, w / 2 - 1, top, z + 1.1, crop, Kit.DECOR)
 	end
 	return b:finish(soil)
 end
@@ -609,14 +625,20 @@ local function scarecrow(parent: any, cf: any)
 	return b:finish(post)
 end
 
--- Flower bed w x d (4 parts): two strips of blooms on green stems along X (rows of tulips).
+-- Flower bed w x d (2 + about w / 5 parts): two rows of tulips along X, each a green stem strip
+-- with the blooms on it in separate clumps (two tints, two heights by turns), not a plank.
 local function tulipBed(parent: any, cf: any, w: number, d: number, c1: any, c2: any)
 	local b = Kit.builder(parent, "TulipBed", cf)
 	local first = nil
 	for i, z in { -d / 4, d / 4 } do
 		local stems = b:box(`Stems{i}`, -w / 2 + 0.4, -0.3, z - 1.6, w / 2 - 0.4, 1.2, z + 1.6, C.Leaf1, Kit.DECOR)
 		first = first or stems
-		b:box(`Blooms{i}`, -w / 2, 1.1, z - 1.9, w / 2, 2.7, z + 1.9, if i == 1 then c1 else c2, Kit.DECOR)
+		local c = if i == 1 then c1 else c2
+		for k, q in Kit.clumps(-w / 2, w / 2, 8.5, 1.5) do
+			local top = 2.7 + ((k + i) % 2) * 0.6
+			local tint = if k % 2 == 0 then Kit.lerpColor(c, C.White, 0.38) else c
+			b:box(`Blooms{i}_{k}`, q[1], 1.1, z - 1.9, q[2], top, z + 1.9, tint, Kit.DECOR)
+		end
 	end
 	return b:finish(first)
 end
@@ -674,6 +696,84 @@ local function tent(parent: any, cf: any, color: any)
 	return b:finish(base)
 end
 
+-- Haystack (2 parts): a big straw block with a smaller lighter one on top.
+local function hayStack(parent: any, cf: any)
+	local b = Kit.builder(parent, "HayStack", cf)
+	local bale = b:box("Bale", -3.2, -0.5, -2.2, 3.2, 3.2, 2.2, C.Straw)
+	b:box("Top", -2.2, 3.2, -1.5, 2, 5.4, 1.7, C.StrawLight, Kit.NOSHADOW)
+	return b:finish(bale)
+end
+
+-- Pumpkin patch w x d (1 + 4 parts): a leafy vine bed with four chunky pumpkins of three sizes.
+local function pumpkinPatch(parent: any, cf: any, w: number, d: number)
+	local b = Kit.builder(parent, "PumpkinPatch", cf)
+	local bed = b:box("Vines", -w / 2, -0.4, -d / 2, w / 2, 0.7, d / 2, C.Leaf2, Kit.NOSHADOW)
+	for i, p in { { -0.32, -0.2, 3 }, { -0.05, 0.22, 2.4 }, { 0.2, -0.18, 3.4 }, { 0.38, 0.24, 2.2 } } do
+		local x, z, s = p[1] * w, p[2] * d, p[3]
+		b:box(
+			`Pumpkin{i}`,
+			x - s / 2,
+			0.2,
+			z - s / 2,
+			x + s / 2,
+			0.2 + s * 0.8,
+			z + s / 2,
+			if i % 2 == 0 then C.Autumn1 else C.Orange
+		)
+	end
+	return b:finish(bed)
+end
+
+-- Hedge maze 14 x 14 (7 parts, fits on one terrace): clipped walls in two greens (the lighter a
+-- little lower), a way in at the front, a baffle inside, a bright flower urn in the middle.
+local function hedgeMaze(parent: any, cf: any, color: any)
+	local b = Kit.builder(parent, "HedgeMaze", cf)
+	local dark, mid = C.Leaf1, C.Leaf2
+	local first = b:box("WallW", -7, -0.4, -7, -5.5, 3.6, 7, dark)
+	b:box("WallE", 5.5, -0.4, -7, 7, 3.6, 7, dark)
+	b:box("WallN", -5.5, -0.4, 5.5, 5.5, 3.2, 7, mid)
+	b:box("WallS1", -5.5, -0.4, -7, -1.8, 3.2, -5.5, mid)
+	b:box("WallS2", 1.8, -0.4, -7, 5.5, 3.2, -5.5, mid)
+	b:box("Baffle", -3.2, -0.4, -2.6, 5.5, 3.4, -1.2, dark)
+	b:box("Urn", -1.3, -0.4, 1.4, 1.3, 2.4, 4, color)
+	return b:finish(first)
+end
+
+-- Fishing-net rack (3 parts): two posts and a teal net hung between them with a float line.
+local function netRack(parent: any, cf: any)
+	local b = Kit.builder(parent, "NetRack", cf)
+	local post = b:box("PostL", -5.4, -0.5, -0.45, -4.5, 6.2, 0.45, C.WoodDark)
+	b:box("PostR", 4.5, -0.5, -0.45, 5.4, 6.2, 0.45, C.WoodDark)
+	b:box("Net", -4.6, 1.6, -0.2, 4.6, 5.8, 0.2, rgb(52, 176, 170), Kit.DECOR)
+	return b:finish(post)
+end
+
+-- Two stacked crates (2 parts), the top one turned and smaller.
+local function crates(parent: any, cf: any, color: any)
+	local b = Kit.builder(parent, "Crates", cf)
+	local base = b:box("Crate", -1.8, -0.5, -1.8, 1.8, 3.1, 1.8, C.WoodLight)
+	b:block("Crate2", Vector3.new(2.6, 2.6, 2.6), CFrame.new(0.2, 4.4, -0.1) * CFrame.Angles(0, rad(20), 0), color)
+	return b:finish(base)
+end
+
+-- Firewood pile (2 parts): a wide stack of logs with a narrower layer on top.
+local function logPile(parent: any, cf: any)
+	local b = Kit.builder(parent, "LogPile", cf)
+	local pile = b:box("Logs", -2.6, -0.4, -1.8, 2.6, 1.8, 1.8, C.Bark)
+	b:box("LogsTop", -2.3, 1.8, -0.9, 2.3, 3, 0.9, Kit.shade(C.Bark, 1.15), Kit.NOSHADOW)
+	return b:finish(pile)
+end
+
+-- Rowboat pulled up on the grass (3 parts): a hull in the theme colour, the plank floor inside,
+-- a seat across it. Front = -Z.
+local function beachedBoat(parent: any, cf: any, color: any)
+	local b = Kit.builder(parent, "Rowboat", cf)
+	local hull = b:box("Hull", -2.4, -0.4, -5, 2.4, 1.8, 5, color)
+	b:box("Floor", -1.7, 1.8, -4.2, 1.7, 1.9, 4.2, C.WoodLight, Kit.DECOR)
+	b:box("Seat", -2.5, 1.8, -0.6, 2.5, 2.5, 0.6, C.White, Kit.NOSHADOW)
+	return b:finish(hull)
+end
+
 -- Fire ring (4 parts): a stone ring, two crossed logs, a Neon flame.
 local function fireRing(parent: any, cf: any)
 	local b = Kit.builder(parent, "FireRing", cf)
@@ -688,58 +788,67 @@ end
 --[[
 	Per theme: the climb ("steps" stone stairs, "wood" plank stairs, "ramps" a paved path with
 	wedge ramps, "switchback" plank stairs in three legs to a deck off the axis), the lantern
-	spots beside it, and the district pieces { kind, x, z, w, d, yaw, ... } on the terraces either
-	side (dropped where the ground under them is not flat).
+	spots beside it, the district pieces { kind, x, z, w, d, yaw, ... } on the terraces either
+	side (nudged to a flat spot nearby, dropped where there is none) and the trees { kind,
+	scale, seed, groves = { { x, z, count }, ... } } (see buildDistrict).
 ]]
 local DISTRICTS = {
-	-- south: a little farm — long crop beds on the terraces, a red barn, a scarecrow
+	-- south: a little farm — crop beds on the terraces (tall corn among them), a red barn, a
+	-- scarecrow, haystacks, a pumpkin patch, an orchard of fruit trees either side
 	playground = {
-		climb = "steps",
-		lanterns = { { -5.6, 66 }, { 5.6, 106 } },
+		climb = "ramps",
+		lanterns = { { 5.6, 66 } },
 		pieces = {
-			{ "crop", -32, 52, 28, 12, 0, C.Lime },
+			{ "crop", -32, 52, 28, 12, 0, C.Lime, 3.2 },
 			{ "crop", 32, 52, 28, 12, 0, C.Orange },
 			{ "crop", -40, 68, 40, 12, 0, C.Red },
-			{ "crop", 40, 68, 40, 12, 0, C.Yellow },
-			{ "crop", 40, 84, 40, 12, 0, rgb(186, 110, 255) },
+			{ "crop", 40, 68, 40, 12, 0, rgb(236, 220, 70), 3.4 },
 			{ "barn", -40, 100, 14, 12, -90 },
 			{ "scarecrow", -30, 84, 5, 3, 60 },
+			{ "hay", -58, 100, 7, 5, 20 },
+			{ "hay", 26, 100, 7, 5, -15 },
+			{ "pumpkins", 52, 100, 14, 8, 0 },
 		},
+		trees = { kind = "fruit", scale = 1.6, seed = 11, groves = { { -72, 64, 2 }, { 74, 72, 2 } } },
 	},
-	-- east: long flower terraces either side of a ramped garden path
+	-- east: a flower garden — tulip terraces either side of a ramped garden path, a hedge maze,
+	-- clipped topiary trees
 	garden = {
 		climb = "ramps",
-		lanterns = { { 5.6, 58 }, { -5.6, 90 } },
+		lanterns = { { 5.6, 58 } },
 		pieces = {
 			{ "tulips", -32, 52, 28, 12, 0, C.Red, C.Yellow },
 			{ "tulips", 32, 52, 28, 12, 0, C.Purple, C.Pink },
 			{ "tulips", -40, 68, 40, 12, 0, C.Orange, C.Blossom1 },
-			{ "tulips", 40, 68, 40, 12, 0, C.Yellow, C.Red },
-			{ "tulips", -40, 84, 40, 12, 0, C.Blue, C.Pink },
+			{ "maze", 40, 68, 14, 14, 0, C.Pink },
+			{ "maze", -40, 100, 14, 14, 90, C.Yellow },
 		},
+		trees = { kind = "topiary", scale = 1.5, seed = 23, groves = { { -70, 70, 2 }, { 70, 96, 2 } } },
 	},
-	-- north: the fishermen's slope — fish-drying racks, upturned boats, fishers' huts
+	-- north: the fishermen's slope — fish-drying racks, upturned and beached boats, fishers'
+	-- huts, a net rack, crates, palms
 	market = {
 		climb = "wood",
-		lanterns = { { 5.6, 58 }, { -5.6, 88 } },
+		lanterns = { { 5.6, 58 } },
 		pieces = {
-			{ "clearing", -32, 52, 28, 13, 0, rgb(236, 214, 170) },
-			{ "clearing", 32, 52, 28, 13, 0, rgb(236, 214, 170) },
 			{ "rack", -30, 52, 12, 3, 0 },
-			{ "rack", 30, 66, 12, 3, 0 },
 			{ "boat", 32, 52, 15, 12, 90 },
 			{ "boat", -36, 68, 15, 12, -70 },
 			{ "hut", -40, 84, 14, 11, -90 },
 			{ "hut", 40, 84, 14, 11, 90 },
+			{ "net", -56, 60, 12, 3, 20 },
+			{ "crates", 22, 84, 5, 5, 0, C.Cyan },
+			{ "rowboat", 60, 72, 6, 11, -30, C.Red },
 		},
+		trees = { kind = "palm", scale = 1.5, seed = 31, groves = { { -70, 78, 2 }, { 68, 98, 2 } } },
 	},
-	-- west: a camp — tents round a fire ring, blankets; the path zigzags up to a lookout off
-	-- the axis
+	-- west: a camp — tents round a fire ring, a blanket, firewood, pines; the path zigzags up to a
+	-- lookout off the axis
 	picnic = {
 		climb = "switchback",
 		deckX = -24,
 		turnZ = 80,
-		lanterns = { { 5.6, 62 }, { -29.6, 104 } },
+		lanterns = { { 5.6, 62 } },
 		pieces = {
 			{ "clearing", 32, 52, 30, 13, 0, rgb(232, 200, 140) },
 			{ "tent", 23, 52, 10, 10, -60, C.Orange },
@@ -747,14 +856,36 @@ local DISTRICTS = {
 			{ "fire", 32.5, 52, 6, 6, 0 },
 			{ "blanket", 44, 70, 8, 8, 20, C.Red },
 			{ "tent", -24, 52, 10, 10, 70, C.Yellow },
-			{ "tent", -42, 68, 10, 10, 100, rgb(186, 110, 255) },
+			{ "logs", 22, 66, 6, 4, 10 },
 		},
+		trees = { kind = "pine", scale = 1.6, seed = 47, groves = { { 66, 70, 2 }, { -66, 96, 2 } } },
 	},
 }
 
 local PIECES = {
 	crop = function(parent: any, cf: any, q: any)
-		cropBed(parent, cf, q[4], q[5], q[7])
+		cropBed(parent, cf, q[4], q[5], q[7], q[8])
+	end,
+	hay = function(parent: any, cf: any)
+		hayStack(parent, cf)
+	end,
+	pumpkins = function(parent: any, cf: any, q: any)
+		pumpkinPatch(parent, cf, q[4], q[5])
+	end,
+	maze = function(parent: any, cf: any, q: any)
+		hedgeMaze(parent, cf, q[7])
+	end,
+	net = function(parent: any, cf: any)
+		netRack(parent, cf)
+	end,
+	crates = function(parent: any, cf: any, q: any)
+		crates(parent, cf, q[7])
+	end,
+	rowboat = function(parent: any, cf: any, q: any)
+		beachedBoat(parent, cf, q[7])
+	end,
+	logs = function(parent: any, cf: any)
+		logPile(parent, cf)
 	end,
 	barn = function(parent: any, cf: any)
 		barn(parent, cf)
@@ -798,7 +929,12 @@ local PIECES = {
 }
 
 -- Builds the district of a theme on the hill behind its plaza (origin: the plaza frame on the
--- ground at GroundTop G). Each piece stands where the ground under its whole footprint is flat.
+-- ground at GroundTop G). Each piece stands where the ground under its whole footprint is flat:
+-- at its spot, or the nearest spot up to 8 studs off it that is flat, clear of the climb (open,
+-- |x| > 9) and of the pieces placed before it. Then the theme's trees (Kit.voxelTree, an orchard,
+-- topiaries, palms or pines) in groves round their centres { x, z, count }: each tree on the
+-- free spot nearest its grove's centre whose ground under the trunk is flat and not claimed
+-- (the plaza, the climb, the viewpoint, the pieces), at least 14 studs from the other trees.
 local function buildDistrict(parent: any, world: any, origin: any, G: number, d: any, color: any)
 	local model = U.model(parent, "District")
 	local function ground(x: number, z: number): number
@@ -818,8 +954,33 @@ local function buildDistrict(parent: any, world: any, origin: any, G: number, d:
 		end
 		return h
 	end
+	local placed: { { number } } = {} -- footprints {x0, z0, x1, z1}
+	local function free(x: number, z: number, w: number, dd: number): boolean
+		if math.abs(x) - w / 2 < 9 then
+			return false
+		end
+		for _, r in placed do
+			if x + w / 2 > r[1] - 1 and x - w / 2 < r[3] + 1 and z + dd / 2 > r[2] - 1 and z - dd / 2 < r[4] + 1 then
+				return false
+			end
+		end
+		return true
+	end
+	local NUDGE = {}
+	for _, dx in { 0, 4, -4, 8, -8 } do
+		for _, dz in { 0, 4, -4, 8, -8 } do
+			table.insert(NUDGE, { dx, dz })
+		end
+	end
+	table.sort(NUDGE, function(a, b)
+		local da, db = a[1] * a[1] + a[2] * a[2], b[1] * b[1] + b[2] * b[2]
+		if da ~= db then
+			return da < db
+		end
+		return a[1] * 100 + a[2] > b[1] * 100 + b[2]
+	end)
 	for _, q in d.pieces do
-		local x, z, yaw = q[2], q[3], q[6]
+		local yaw = q[6]
 		-- the footprint: w x d, turned a quarter (or any other angle: its bounding square)
 		local w, dd = q[4], q[5]
 		if yaw % 180 == 90 then
@@ -828,15 +989,88 @@ local function buildDistrict(parent: any, world: any, origin: any, G: number, d:
 			w = max(w, dd)
 			dd = w
 		end
-		local h = flat(x, z, w, dd)
+		local x, z, h = q[2], q[3], nil
+		for _, n in NUDGE do
+			local tx, tz = q[2] + n[1], q[3] + n[2]
+			local th = if free(tx, tz, w, dd) then flat(tx, tz, w, dd) else nil
+			if th then
+				x, z, h = tx, tz, th
+				break
+			end
+		end
 		if h then
 			PIECES[q[1]](model, origin * CFrame.new(x, h - G, z) * CFrame.Angles(0, rad(yaw), 0), q, color)
+			if q[1] ~= "clearing" then -- (a clearing is the floor under the pieces on it)
+				table.insert(placed, { x - w / 2, z - dd / 2, x + w / 2, z + dd / 2 })
+			end
 			-- claims along the long side (Nature keeps its trees off the beds)
 			local long, short = max(w, dd), min(w, dd)
 			for t = -long / 2 + short / 2, long / 2 - short / 2 + 0.01, short do
 				local lx, lz = if w >= dd then x + t else x, if w >= dd then z else z + t
 				local p = (origin * CFrame.new(lx, 0, lz)).Position
 				Kit.claim(p.X, p.Z, short * 0.72 + 2)
+			end
+		end
+	end
+	-- the groves
+	local t = d.trees
+	if t then
+		local r = Kit.rng(t.seed)
+		local spots = {}
+		for gz = 42, 140, 6 do
+			for gx = -104, 104, 6 do
+				local x, z = gx + r(-2, 2), gz + r(-2, 2)
+				local p = (origin * CFrame.new(x, 0, z)).Position
+				local h = ground(x, z)
+				local ok = math.abs(x) > 14
+					and h > G
+					and world:kindAt(p.X, p.Z) ~= "sand"
+					and not world:isReserved(p.X, p.Z, 4)
+					and not Kit.isClaimed(p.X, p.Z, 6)
+					and flat(x, z, 3, 3) == h
+				if ok then
+					table.insert(spots, { x = x, z = z, h = h })
+				end
+			end
+		end
+		local trees: { { number } } = {}
+		local left = {}
+		for gi, g in t.groves do
+			left[gi] = g[3]
+		end
+		-- round robin over the groves, each taking its nearest free spot
+		local more = true
+		while more do
+			more = false
+			for gi, g in t.groves do
+				if left[gi] > 0 then
+					local best, bd = nil, math.huge
+					for _, s in spots do
+						local dist = (s.x - g[1]) ^ 2 + (s.z - g[2]) ^ 2
+						if dist < bd then
+							local clear = true
+							for _, o in trees do
+								if (s.x - o[1]) ^ 2 + (s.z - o[2]) ^ 2 < 14 * 14 then
+									clear = false
+									break
+								end
+							end
+							if clear then
+								best, bd = s, dist
+							end
+						end
+					end
+					if best then
+						table.insert(trees, { best.x, best.z })
+						left[gi] -= 1
+						more = more or left[gi] > 0
+						local yaw = math.floor(r(0, 3.99)) * 90 + r(-15, 15)
+						local cf = origin * CFrame.new(best.x, best.h - G, best.z) * CFrame.Angles(0, rad(yaw), 0)
+						Kit.voxelTree(model, cf, t.kind, { scale = t.scale * r(0.9, 1.1) })
+						local p = cf.Position
+						Kit.claim(p.X, p.Z, 6)
+					end
+				end
 			end
 		end
 	end
@@ -1022,17 +1256,19 @@ local function picnicPlaza(model: any, at: any, paving: any, view: any, h: any):
 	-- tables on the grass
 	paving:box("Path", -6, -0.6, -35.8, 6, FLOOR, 38, PAVE, Kit.NOSHADOW)
 	paving:box("PathEdge", -7, -0.65, -36.3, 7, FLOOR - 0.15, 38.3, PAVE2, Kit.NOSHADOW)
-	-- the camp: a big trodden sand clearing round the fire circle, two tents facing the fire, an
-	-- upturned canoe on its trestle
+	-- the camp: a big trodden sand clearing round the fire circle, two tents facing the fire
 	disc(paving, "Clearing", -17, 5, 22, -0.55, FLOOR + 0.12, rgb(240, 210, 150))
 	disc(paving, "Hearth", -15, 4, 9.3, -0.5, FLOOR + 0.24, PAVE2)
-	-- a plank patio under the picnic table and the stall (nothing stands on the bare grass)
-	paving:box("Patio", 12, -0.6, -31, 33, FLOOR, 23, rgb(232, 186, 128), Kit.NOSHADOW)
+	-- a plank patio by the path (nothing stands on the bare grass): the souvenir stall, the canoe
+	-- upturned on its trestle with crates, a picnic table, firewood, a lantern post
+	paving:box("Patio", 12, -0.6, -31, 33, FLOOR, 9, rgb(232, 186, 128), Kit.NOSHADOW)
 	campCircle(model, at(-15, 14), color)
 	tent(model, at(-31, 0, -90), C.Orange)
 	tent(model, at(-24, 21, -30), C.Blue)
-	boatYard(model, at(-27, -15, 0), C.Red)
-	Kit.prop("picnicTable", model, at(21, 4, 70), { cloth = C.Red })
+	boatYard(model, at(24, -11, -90), C.Red)
+	Kit.prop("picnicTable", model, at(21, 3, 70), { cloth = C.Red })
+	logPile(model, at(29.5, 4.5, 80))
+	lantern(model, at(14.2, -15), color)
 	stall(model, at(27, -24, 90), "СУВЕНИРЫ", color, "souvenirs")
 	-- a picnic lookout on the hill (off the axis, where the zigzag path arrives): a striped pergola
 	-- over a picnic table, a telescope, a flag
@@ -1135,11 +1371,12 @@ local function buildGateway(parent: any, cfg: any, world: any, gw: any)
 	local z1 = deckZ0 + 1.5
 	local route = { { 0, 40.5 }, { 0, z1 } } -- for the claims
 	if district.climb == "ramps" then
-		-- a garden path: paved runs on the terraces, wedge ramps up every riser
+		-- a paved path: runs on the terraces, wedge ramps up every riser (the farm's in stone)
+		local stone = details.kind == "playground"
 		Kit.rampPath(model, world, P(0, 40.5), P(0, z1), {
 			width = 7,
-			color = PAVE,
-			color2 = light,
+			color = if stone then C.StoneLight else PAVE,
+			color2 = if stone then C.White else light,
 			top = top,
 			name = "HillPath",
 		})
@@ -1166,8 +1403,6 @@ local function buildGateway(parent: any, cfg: any, world: any, gw: any)
 			name = "HillPath",
 		})
 	end
-	buildDistrict(model, world, origin, G, district, color)
-
 	-- (the market's square paving reaches into the corners)
 	Kit.claim(gw.x, gw.z, (gw.radius or 40) + (if details.kind == "market" then 15 else 4))
 	for k = 1, #route - 1 do
@@ -1182,6 +1417,8 @@ local function buildGateway(parent: any, cfg: any, world: any, gw: any)
 	end
 	local deck = (viewOrigin * CFrame.new(0, 0, deckZ0 + 8)).Position
 	Kit.claim(deck.X, deck.Z, 18)
+	-- the district last: its trees keep off everything claimed above
+	buildDistrict(model, world, origin, G, district, color)
 	return model
 end
 
