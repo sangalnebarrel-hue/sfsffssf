@@ -4,26 +4,29 @@
 	  Map.Lagoon  sailboats, rowboats, a motorboat (Palette boat paint), a ring of red and yellow
 	              buoys, lily pads near both shores, a log raft with a parasol, a wooden diving
 	              platform on drums, a sandbar island with a palm and two small ones (the coral
-	              reefs on the bed are Nature's). The
+	              reefs on the bed and the houseboats, fish farms and rocky islets are Nature's).
+	              The
 	              water in front of every pier (base-local lz -(PierLength + 16)..0, |lx| <= 26)
 	              and along the bridges stays clear (lagoonClear); boats keep out of every pier's
 	              whole casting cone (|lx| <= 40, lz -150..0): they sail half-way between piers.
 	  Map.Ocean   decorated islets (world.islets, all beyond the boundary wall, seen through the
 	              haze, so lean: Nature.farTree palms / pines / cherries at 5 parts a tree): a
-	              lighthouse on a stone foundation, a pirate hideout with a hut and a flag, a palm
-	              grove with a beach hut and a red-white parasol, the big island, a
-	              cherry-blossom island, an island with a cheap shipwreck along its shore and a
-	              weathered sandstone sea stack off its corner; a sand atoll round a shallow
-	              pool; a rock arch and a slate-grey whale (spouting spray, no cartoon face)
-	              between the coast and the boundary wall, a ring of red / cream marker buoys
-	              just inside the wall (the swim limit), a big sailboat far out at sea. Calm,
-	              natural colours from Palette.luau (DESIGN.md §1): strong colour only on small
-	              accents. Parts beyond the wall neither collide nor cast shadows.
+	              lighthouse on a stone foundation, a fisherman's hut with a jetty and a dinghy,
+	              a palm grove with a beach hut and a red-white parasol, the big island with a
+	              ruined stone tower on its summit, a cherry-blossom island, an island with a cheap
+	              shipwreck off its shore and a weathered sandstone sea stack; a sand atoll round a
+	              shallow pool; a rock arch and a rock stack with a red-and-white beacon and a buoy
+	              between the coast and the boundary wall, a ring of red / cream marker buoys just
+	              inside the wall (the swim limit), a big sailboat far out at sea. The islets'
+	              outlines are irregular: every set piece finds its ground (and the shore it faces)
+	              by sampling world:surfaceAt along rays from the islet's centre. No animals or
+	              figures. Calm, natural colours from Palette.luau (DESIGN.md §1): strong colour only
+	              on small accents. Parts beyond the wall neither collide nor cast shadows.
 	  Map.Sky     voxel clouds (Props.cloud): a ring of 8 big ones low over the open ocean
 	              (r 1020-1260, y 130-190: one on the horizon of every outward view) and three
 	              high ones over the hills.
 
-	Boats, buoys, the raft, the swim platform and the whale carry the attribute Bob (amplitude
+	Boats, buoys, the raft and the swim platform carry the attribute Bob (amplitude
 	in studs, BobPeriod in seconds): AmbientController rocks them on the waves on the client.
 	Their floors sit 0.5+ above the water plane (waves never flood them).
 ]]
@@ -83,8 +86,8 @@ local function lagoonClear(cfg: any, world: any, x: number, z: number, pad: numb
 	for _, a in cfg.BridgeAngles do
 		local ux, uz = sin(rad(a)), cos(rad(a))
 		local along = x * ux + z * uz
-		local side = abs(x * uz - z * ux)
-		if along > cfg.HubPlazaRadius - 10 and side < cfg.BridgeWidth / 2 + 10 + pad then
+		local across = abs(x * uz - z * ux)
+		if along > cfg.HubPlazaRadius - 10 and across < cfg.BridgeWidth / 2 + 10 + pad then
 			return false
 		end
 	end
@@ -304,17 +307,60 @@ local function atoll(parent: any, cf: any)
 	return b.model
 end
 
--- Ground CFrame on the islet's square sand rim, on the side facing `towards` degrees: `inset`
--- studs in from the water's edge, `off` studs along that side.
-local function rimSpot(world: any, isle: any, towards: number, inset: number, off: number, yaw: number?): any
-	local ux, uz = sin(rad(towards)), cos(rad(towards))
-	local x, z
-	if abs(ux) >= abs(uz) then
-		x, z = isle.x + (if ux > 0 then 1 else -1) * (isle.size - inset), isle.z + off
-	else
-		x, z = isle.x + off, isle.z + (if uz > 0 then 1 else -1) * (isle.size - inset)
+-- Radius (from the islet's centre along `angle`) of its outermost dry column: the shore on that
+-- side (the outlines are irregular, so it is sampled from the sea inwards).
+local function shoreRadius(world: any, isle: any, angle: number): number
+	local ux, uz = sin(rad(angle)), cos(rad(angle))
+	for r = isle.size * 1.6, 0, -2 do
+		local _, _, water = world:surfaceAt(isle.x + r * ux, isle.z + r * uz)
+		if not water then
+			return r
+		end
 	end
-	return Kit.ground(world, x, z, yaw)
+	return 0
+end
+
+-- Ground CFrame on an islet along `angle`, `frac` of the way from its centre to its shore but at
+-- least `margin` studs inside the shore (turned by yaw).
+local function landSpot(world: any, isle: any, frac: number, angle: number, yaw: number?, margin: number?): any
+	local shore = shoreRadius(world, isle, angle)
+	local r = math.max(0, math.min(shore * frac, shore - (margin or 6)))
+	return Kit.ground(world, isle.x + r * sin(rad(angle)), isle.z + r * cos(rad(angle)), yaw)
+end
+
+-- Ground CFrame of the first spot along `angle`, from `inset` studs inside the shore inwards,
+-- where a square footprint of half-width `half` (turned by yaw) is one flat column top; nil when
+-- there is none on that ray.
+local function flatSpot(world: any, isle: any, angle: number, inset: number, half: number, yaw: number?): any
+	local ux, uz = sin(rad(angle)), cos(rad(angle))
+	for r = shoreRadius(world, isle, angle) - inset, 0, -2 do
+		local x, z = isle.x + r * ux, isle.z + r * uz
+		local cf = Kit.ground(world, x, z, yaw)
+		local h = cf.Position.Y
+		local flat = h >= 2
+		for _, fx in { -1, 0, 1 } do
+			for _, fz in { -1, 0, 1 } do
+				local q = cf * Vector3.new(fx * half, 0, fz * half)
+				if world:heightAt(q.X, q.Z) ~= h then
+					flat = false
+				end
+			end
+		end
+		if flat then
+			return cf
+		end
+	end
+	return nil
+end
+
+-- Is the sea at least `depth` deep (bed at -depth or lower) at every point of the list?
+local function openWater(world: any, points: { any }, depth: number): boolean
+	for _, q in points do
+		if world:heightAt(q.X, q.Z) > -depth then
+			return false
+		end
+	end
+	return true
 end
 
 -- A cheap shipwreck (16 parts; it is seen from 200+ studs through the haze): a dark hull with
@@ -343,13 +389,6 @@ local function wreck(parent: any, cf: any)
 	s:box("ForeMast", -0.6, 5.0, -10.6, 0.6, 23, -9.4, C.WoodDark)
 	s:box("Flag", 0.6, 19.6, -10.1, 5.4, 22.6, -9.9, C.Dark, Kit.DECOR)
 	return b:finish(keel)
-end
-
--- Ground CFrame on an islet, `r` studs from its centre towards `towards` degrees.
-local function isletSpot(world: any, isle: any, r: number, a: number, yaw: number?): any
-	local x = isle.x + r * sin(rad(a))
-	local z = isle.z + r * cos(rad(a))
-	return Kit.ground(world, x, z, yaw)
 end
 
 -- A foundation under the square footprint (half-width `half`) of a prop standing on `cf`
@@ -470,28 +509,65 @@ local function openSea(cfg: any, world: any, angle: number, clear: number): numb
 	return limit
 end
 
--- A real whale's colours: slate-grey back, a pale grey belly; no cartoon face (the smile, the
--- pink cheeks and the white eyes go, a small dark eye stays). DESIGN.md §1: nature, not a mascot.
-local WHALE = Kit.lerpColor(C.RoofSlate, C.Navy, 0.3)
+--[[
+	A rock stack with a navigation beacon (10 parts; it replaces the old decorative whale: no
+	animals on the map): three weathered strata narrowing upwards on the sea floor, a grassy cap,
+	a red-and-white iron beacon with a small glowing lamp, a ring of foam. cf on the water
+	surface; the bed `bed` studs down.
+]]
+local function beaconRock(parent: any, cf: any, bed: number)
+	local b = Kit.builder(parent, "BeaconRock", cf)
+	local base = b:box("Rock1", -8, -bed, -6.5, 7.5, 3.5, 6, STRATA[1])
+	b:box("Rock2", -5.5, 3.3, -4.5, 5, 9, 4.2, STRATA[2])
+	b:box("Rock3", -3.6, 8.8, -3.2, 2.6, 12.6, 2.6, STRATA[3])
+	b:box("Cap", -3.8, 12.5, -3.4, 2.8, 13.3, 2.8, GRASS_TOP, Kit.NOSHADOW)
+	b:box("BeaconFoot", -1.4, 13.2, -1.3, 0.6, 14.4, 0.7, C.Iron)
+	b:box("BeaconPole", -0.8, 14.3, -0.7, 0.0, 22.2, 0.1, C.White)
+	b:box("BeaconBand", -0.95, 17.0, -0.85, 0.15, 19.2, 0.25, C.RoofRed, Kit.NOSHADOW)
+	b:box("BeaconLamp", -1.1, 22.1, -1.0, 0.3, 23.5, 0.4, C.Glow, Kit.NEON)
+	b:box("BeaconCap", -1.3, 23.45, -1.2, 0.5, 24.1, 0.6, C.RoofRed, Kit.NOSHADOW)
+	b:box("Foam", -11, 0.1, -9.5, 10.5, 0.3, 9, C.Foam, Kit.DECOR)
+	return b:finish(base)
+end
 
-local function naturalWhale(whale: any)
-	if not whale then
-		return
+--[[
+	A fisherman's jetty (8 parts) from the beach out over the water: a plank deck on two pairs of
+	piles, a bollard at its end and a little dinghy (hull, inner, seat) tied up beside it. cf on
+	the shore at the water's edge (y = 0 the sand top), local -Z out to sea.
+]]
+local function jetty(parent: any, cf: any, sand: number, paint: any)
+	local b = Kit.builder(parent, "Jetty", cf)
+	local top = 0.7 -- (over the sand; the deck reaches 18 studs out over the water)
+	local deck = b:box("Deck", -2.2, top - 0.6, -18, 2.2, top, 5, C.Plank)
+	for i, z in { -8, -16.5 } do
+		b:box(`Piles{i}`, -2.0, -sand - 4, z - 0.6, 2.0, top - 0.55, z + 0.6, C.WoodDark)
 	end
-	for _, d in whale:GetDescendants() do
-		if not d:IsA("BasePart") then
-			continue
-		end
-		local name = d.Name
-		if string.match(name, "^Mouth") or string.match(name, "^Cheek") or string.match(name, "^Pupil") then
-			d:Destroy()
-		elseif string.match(name, "^Eye") then
-			d.Color = C.Dark
-			d.Size = Vector3.new(d.Size.X, d.Size.Y * 0.35, d.Size.Z * 0.35)
-		elseif name == "Belly" then
-			d.Color = Kit.lerpColor(C.StoneLight, C.Cream, 0.3)
-		end
-	end
+	b:box("Bollard", 1.0, top - 0.05, -17.6, 2.0, top + 1.3, -16.6, C.WoodDark, Kit.NOSHADOW)
+	-- the dinghy floats on the water (y = -sand) beside the deck's end
+	local w = -sand
+	b:box("Dinghy", 3.0, w - 0.6, -17.5, 6.2, w + 0.9, -11.0, paint)
+	b:box("DinghyInner", 3.5, w + 0.2, -17.0, 5.7, w + 0.95, -11.5, C.WoodLight, Kit.NOSHADOW)
+	b:box("DinghySeat", 3.4, w + 0.5, -14.6, 5.8, w + 1.05, -13.8, C.Wood, Kit.NOSHADOW)
+	return b:finish(deck)
+end
+
+--[[
+	A ruined stone tower (8 parts) on a summit: a plinth, four broken walls of a square keep at
+	different heights (the highest with a window gap made by two piers), rubble at its foot, moss
+	on the stump. cf on the ground.
+]]
+local function ruinedTower(parent: any, cf: any)
+	local b = Kit.builder(parent, "RuinedTower", cf)
+	local wall, dark = C.Stone, C.StoneDark
+	local base = b:box("Plinth", -7, -3, -7, 7, 1.5, 7, dark)
+	b:box("WallN", -5.5, 1.5, 3.5, 5.5, 22, 5.5, wall)
+	b:box("WallE", 3.5, 1.5, -5.5, 5.5, 15, 3.4, Kit.shade(wall, 0.94))
+	b:box("WallS", -5.5, 1.5, -5.5, 3.4, 8, -3.5, wall)
+	b:box("WallW", -5.5, 1.5, -3.4, -3.5, 12, 3.4, Kit.shade(wall, 0.94))
+	b:box("Moss", -5.7, 7.9, -5.7, 0.5, 8.6, -3.3, C.GrassTop2, Kit.NOSHADOW)
+	b:box("RubbleA", -10, -1, -9, -6, 2.2, -5.5, dark)
+	b:box("RubbleB", 6, -1, -10, 9, 1.6, -7, wall)
+	return b:finish(base)
 end
 
 local function buildOcean(map: any, cfg: any, world: any)
@@ -500,7 +576,6 @@ local function buildOcean(map: any, cfg: any, world: any)
 		local m = U.model(ocean, `Islet_{i}`)
 		-- the side facing the main island
 		local home = math.deg(math.atan2(-isle.x, -isle.z))
-		local s = isle.size
 		local sites = isletSites(world, isle)
 		local taken = {}
 		local function land(site: any): boolean
@@ -515,41 +590,71 @@ local function buildOcean(map: any, cfg: any, world: any)
 		if i == 1 then
 			-- the lighthouse on the top terrace, on a stone foundation down to the lower one (no
 			-- PointLight: the sun never sets), a little grove of cheap palms beside it
-			local cf = isletSpot(world, isle, 0, 0, home)
+			-- (the highest column whose footprint nothing rises above: the foundation fills the
+			-- steps below it)
+			local best = nil
+			for _, site in sites do
+				if not best or site.h > best.h or (site.h == best.h and site.d < best.d) then
+					local ok = true
+					for _, d in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 }, { 0, 1 }, { 0, -1 }, { 1, 0 }, { -1, 0 } } do
+						if world:heightAt(site.x + d[1] * 8.7, site.z + d[2] * 8.7) > site.h then
+							ok = false
+						end
+					end
+					if ok then
+						best = site
+					end
+				end
+			end
+			local cf = if best
+				then CFrame.new(best.x, best.h, best.z) * CFrame.Angles(0, rad(home), 0)
+				else landSpot(world, isle, 0, 0, home)
 			local top = cf.Position.Y
 			Kit.prop("lighthouse", m, cf, { scale = 1.3, light = false, stripe = C.RoofRed })
 			foundation(m, world, cf, 8.7, top - 2.4, C.Stone)
-			Nature.farTree(m, isletSpot(world, isle, s * 0.42, home + 70), "palm", 2.2, 11)
-			Nature.farTree(m, isletSpot(world, isle, s * 0.62, home + 98), "palm", 2.0, 13)
+			Nature.farTree(m, landSpot(world, isle, 0.55, home + 70, nil, 8), "palm", 2.2, 11)
+			Nature.farTree(m, landSpot(world, isle, 0.75, home + 98, nil, 7), "palm", 2.0, 13)
 		elseif i == 3 then
-			-- pirate hideout: a red-roofed hut, a black flag and palms
-			local hutCf = isletSpot(world, isle, s * 0.15, home + 20, home)
+			-- a fisherman's hut with its door to a jetty on the shore facing the main island, a
+			-- dinghy tied up at the jetty's end, palms behind the hut
+			local hutCf = landSpot(world, isle, 0.15, home + 20, home + 180, 10)
 			hut(m, hutCf, C.RoofRed)
 			foundation(m, world, hutCf, 4.9, hutCf.Position.Y - 1, C.WoodDark)
-			Kit.prop(
-				"flagPole",
-				m,
-				isletSpot(world, isle, s * 0.3, home - 70),
-				{ color = C.Dark, stripe = C.White, height = 14 }
-			)
-			Nature.farTree(m, isletSpot(world, isle, s * 0.5, home + 110), "palm", 2.1, 31)
-			Nature.farTree(m, isletSpot(world, isle, s * 0.58, home + 150), "palm", 1.9, 32)
-		elseif i == 5 then
-			Nature.farTree(m, isletSpot(world, isle, s * 0.2, home + 40), "palm", 2.3, 51)
-			Nature.farTree(m, isletSpot(world, isle, s * 0.35, home - 50), "palm", 2.0, 52)
-			-- shipwreck lying along the side facing the main island (clear of the square island's
-			-- edge), a red-rock sea stack off the corner beside it (the square reaches s / cos 45°
-			-- along its diagonals)
+			local shore = shoreRadius(world, isle, home)
 			local ux, uz = sin(rad(home)), cos(rad(home))
-			local wx, wz, yaw
-			if abs(ux) >= abs(uz) then
-				wx, wz, yaw = isle.x + (if ux > 0 then 1 else -1) * (s + 16), isle.z + 18, 12
-			else
-				wx, wz, yaw = isle.x + 18, isle.z + (if uz > 0 then 1 else -1) * (s + 16), 102
+			local jx, jz = isle.x + (shore + 2) * ux, isle.z + (shore + 2) * uz
+			local sand = world:heightAt(isle.x + shore * ux, isle.z + shore * uz)
+			jetty(m, CFrame.new(jx, sand, jz) * CFrame.Angles(0, rad(home + 180), 0), sand, C.BoatPaint[2])
+			Nature.farTree(m, landSpot(world, isle, 0.6, home + 150, nil, 7), "palm", 2.1, 31)
+			Nature.farTree(m, landSpot(world, isle, 0.65, home + 200, nil, 7), "palm", 1.9, 32)
+		elseif i == 5 then
+			Nature.farTree(m, landSpot(world, isle, 0.25, home + 40, nil, 8), "palm", 2.3, 51)
+			Nature.farTree(m, landSpot(world, isle, 0.4, home - 50, nil, 8), "palm", 2.0, 52)
+			-- a shipwreck lying off the shore facing the main island (in open water all along its
+			-- hull: pushed out until it is), a sea stack off the shore beside it
+			local ux, uz = sin(rad(home)), cos(rad(home))
+			local tx, tz = cos(rad(home)), -sin(rad(home)) -- (along the shore)
+			local shore = shoreRadius(world, isle, home)
+			local wcf = nil
+			for out = 18, 60, 4 do
+				local cx, cz = isle.x + (shore + out) * ux + 10 * tx, isle.z + (shore + out) * uz + 10 * tz
+				local hull = {}
+				for _, d in { -26, -13, 0, 13, 24 } do
+					for _, side in { -10, 0, 10 } do
+						table.insert(hull, Vector3.new(cx + d * tx + side * ux, 0, cz + d * tz + side * uz))
+					end
+				end
+				if openWater(world, hull, 4) then
+					wcf = CFrame.new(cx, 0, cz) * CFrame.Angles(0, rad(home + 90 + 12), 0)
+					break
+				end
 			end
-			wreck(m, CFrame.new(wx, 0, wz) * CFrame.Angles(0, rad(yaw), 0))
-			local sd = s * 1.42 + 22
-			local sx, sz = isle.x + sd * sin(rad(home - 45)), isle.z + sd * cos(rad(home - 45))
+			if wcf then
+				wreck(m, wcf)
+			end
+			local sa = home - 45
+			local sr = shoreRadius(world, isle, sa) + 22
+			local sx, sz = isle.x + sr * sin(rad(sa)), isle.z + sr * cos(rad(sa))
 			seaStack(
 				m,
 				CFrame.new(sx, 0, sz) * CFrame.Angles(0, rad(home + 10), 0),
@@ -558,12 +663,50 @@ local function buildOcean(map: any, cfg: any, world: any)
 		elseif i == 2 then
 			-- a palm grove (cheap far palms: it is seen through the haze) and, on the beach facing
 			-- the main island, a beach hut with a red-white parasol beside it
-			hut(m, rimSpot(world, isle, home, 14, 12, home), C.RoofTerracotta, 1.4)
-			Kit.prop("parasol", m, rimSpot(world, isle, home, 10, -10), { color = C.Red, scale = 1.6 })
-			plant(world, sites, taken, 3, 16, 3, 21, land, farTree("palm", 1.7, 2.2, 21))
+			local hutCf = flatSpot(world, isle, home - 8, 10, 7.5, home + 180)
+			if not hutCf then
+				-- the flat column nearest the shore facing the main island
+				local ux, uz = sin(rad(home)), cos(rad(home))
+				local order = table.clone(sites)
+				table.sort(order, function(a, b)
+					return (a.x - isle.x) * ux + (a.z - isle.z) * uz > (b.x - isle.x) * ux + (b.z - isle.z) * uz
+				end)
+				for _, site in order do
+					local cf = CFrame.new(site.x, site.h, site.z) * CFrame.Angles(0, rad(home + 180), 0)
+					local flat = true
+					for _, d in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
+						local q = cf * Vector3.new(d[1] * 7.5, 0, d[2] * 7.5)
+						if world:heightAt(q.X, q.Z) ~= site.h then
+							flat = false
+						end
+					end
+					if flat then
+						hutCf = cf
+						break
+					end
+				end
+			end
+			if hutCf then
+				hut(m, hutCf, C.RoofTerracotta, 1.4)
+				table.insert(taken, { hutCf.Position.X, hutCf.Position.Z })
+			end
+			Kit.prop("parasol", m, landSpot(world, isle, 1, home + 9, nil, 9), { color = C.Red, scale = 1.6 })
+			plant(world, sites, taken, 5, 15, 3, 21, land, farTree("palm", 1.7, 2.3, 21))
 		elseif i == 4 then
-			-- the big one (far out, mostly seen through the haze, so lean): a palm on the beach and
-			-- a pine on the upper terraces
+			-- the big one (far out, mostly seen through the haze, so lean): a ruined stone tower on
+			-- its summit (a silhouette on the horizon), a pine below it and a palm on the beach
+			local summit = nil
+			for _, site in sites do
+				if not summit or site.h > summit.h or (site.h == summit.h and site.d < summit.d) then
+					summit = site
+				end
+			end
+			if summit then
+				local tcf = CFrame.new(summit.x, summit.h, summit.z) * CFrame.Angles(0, rad(home + 15), 0)
+				ruinedTower(m, tcf)
+				foundation(m, world, tcf, 7, summit.h - 2.9, C.StoneDark)
+				table.insert(taken, { summit.x, summit.z })
+			end
 			plant(world, sites, taken, 1, 30, 3, 41, function(site)
 				return site.h >= isle.height * 0.5
 			end, farTree("pine", 2.2, 2.7, 41))
@@ -581,40 +724,18 @@ local function buildOcean(map: any, cfg: any, world: any)
 	-- a white-sand atoll with a turquoise pool out between the lighthouse and the palm grove
 	local ap = U.polar(62, 900, 0)
 	atoll(ocean, CFrame.new(ap.X, 0, ap.Z) * CFrame.Angles(0, rad(80), 0))
-	-- a rock arch (its opening facing the island) and a whale in open water between the coast
-	-- and the boundary wall, where they are seen from the outer beaches
+	-- a rock arch (its opening facing the island) and a rock stack with a navigation beacon and
+	-- a bobbing buoy in open water between the coast and the boundary wall, where they are seen
+	-- from the outer beaches
 	local ra = openSea(cfg, world, 66, 24)
 	Kit.prop("rockArch", ocean, onWater(66, ra, 66), { seed = 3 })
 	local wa = openSea(cfg, world, 160, 22)
-	local whale =
-		bob(Kit.prop("whale", ocean, onWater(160, wa, tangent(160, true)), { seed = 4, color = WHALE }), 0.4, 5.5)
-	naturalWhale(whale)
-	-- a puff of spray from the blowhole every second or so (particles: no parts)
-	local blow = whale:FindFirstChild("SpoutHead") or whale:FindFirstChild("Blowhole")
-	if blow then
-		U.new("ParticleEmitter", {
-			Name = "Spray",
-			Rate = 5,
-			Lifetime = U.roblox.NumberRange.new(0.9, 1.4),
-			Speed = U.roblox.NumberRange.new(9, 13),
-			SpreadAngle = U.Vector2.new(14, 14),
-			Size = U.roblox.NumberSequence.new({
-				U.roblox.NumberSequenceKeypoint.new(0, 1.2),
-				U.roblox.NumberSequenceKeypoint.new(1, 2.6),
-			}),
-			Transparency = U.roblox.NumberSequence.new({
-				U.roblox.NumberSequenceKeypoint.new(0, 0.2),
-				U.roblox.NumberSequenceKeypoint.new(1, 1),
-			}),
-			Color = U.roblox.ColorSequence.new(C.White, C.WaterLight),
-			Acceleration = Vector3.new(0, -18, 0),
-			LightEmission = 0.2,
-			EmissionDirection = U.Enum.NormalId.Top,
-		}, blow)
-	end
+	local wp = U.polar(160, wa, 0)
+	beaconRock(ocean, onWater(160, wa, 160 + 25), math.max(4, -world:heightAt(wp.X, wp.Z)))
+	bob(Kit.prop("buoy", ocean, onWater(162.2, wa + 6, 0), { seed = 4, color = C.BoatPaint[1] }), 0.3, 2.6)
 	-- the swim limit: a ring of red and cream marker buoys (every 15°, ~200 studs apart) just
 	-- inside the invisible boundary wall, so swimmers heading for the islets see where the sea
-	-- ends (1 part each, bobbing; they keep clear of the arch and the whale)
+	-- ends (1 part each, bobbing; they keep clear of the arch and the beacon rock)
 	local line = U.model(ocean, "BuoyLine")
 	local R = cfg.BoundaryRadius - 10
 	local keepOff = { U.polar(66, ra, 0), U.polar(160, wa, 0) }

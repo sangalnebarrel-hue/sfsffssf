@@ -36,10 +36,12 @@
 	mesas (at most MESA_TREES on each ochre top, with a few cacti and terracotta boulders).
 
 	Passes, each with its share of the budget (unspent parts carry over to the next one):
-	  reef    12 coral reef patches on the lagoon's sandy slope beside the piers and bridges
-	          (sand pad, branching stacks in warm coral colours rising close under the surface,
-	          a glowing tip, bubbles); the water in front of the piers and along the bridges
-	          stays clear
+	  lagoon  12 calm coral patches on the lagoon's sandy slope beside the piers and bridges
+	          (an irregular sand pad, coral fingers in terracotta / sand / sage, seaweed, a rock, a
+	          starfish, one small pink tip, bubbles; nothing above y -4), then 2-3 surface
+	          features a quadrant: a moored houseboat, a floating fish-farm ring, a rocky islet
+	          with a perch; the water in front of the piers and along the bridges stays clear,
+	          the surface features keep out of every pier's casting cone
 	  show    the lawns between two plots at the peak trail and the giant tree (seen first from
 	          the promenade): an avenue of detailed pines framing the peak trail, then raised
 	          flower beds (one colour pair each), bush clumps and boulder groups on the voxel grid
@@ -73,6 +75,8 @@
 	          wherever nothing (Nature or other dressing) is within 34 / 26 studs — a copse of up
 	          to three trees on the big gaps, a bush or a rock group on the rest (no flowers);
 	          more groves with what is left
+	The far woods beyond FAR_R (behind the plots and the peaks) are thinned by a quarter with
+	bigger trees for the same cover, so the budget stays with the near hills.
 	Level of detail by distance to the play area: full Props trees (13-16 parts) only right beside
 	the landmark paths (at most FULL_CAP), compact Props lite trees (6-10) within ~50 studs of the
 	play area, the 5-part trees built here everywhere else (Coast.luau uses them on the islets
@@ -106,14 +110,21 @@ local SHARE = {
 }
 -- Most full Props trees (13-16 parts): only the ones right beside the paths and plazas.
 local FULL_CAP = 16
+-- The far back belt (beyond FAR_R from the centre: behind the plots and the peaks, seen across
+-- the whole island) is thinned by a quarter (one spot in four stays open) with bigger cheap
+-- trees for the same cover, so the budget stays with the near hills, where players look.
+local FAR_R = 520
+local FAR_SCALE = 1.15
+local THINNED = { pines = false, crest = false, palm = false }
 
 local FOLIAGE = Kit.DECOR
 local CANOPY = { CanCollide = false, CanQuery = false, CastShadow = true } -- the one shadow block
 local lerp = Kit.lerpColor
 -- Every colour is a Palette token or derived from one (DESIGN.md §1).
 local BEACH_ROCK = lerp(C.StoneLight, C.SandDark, 0.4) -- warm light rocks on the sand
-local ROCK = lerp(C.RockMid, C.RockLight, 0.45) -- warm greys with a moss cap
-local ROCK_DARK = C.RockDark
+-- warm stone (the Palette's Stone tokens: never a flat grey) with a moss cap
+local ROCK = lerp(C.Stone, C.StoneLight, 0.35)
+local ROCK_DARK = C.StoneDark
 local HAY = { C.Straw, C.StrawLight }
 local FOAM = C.Foam
 local PAINT_BLUE = lerp(C.Blue, C.Stone, 0.3) -- a weathered blue (blankets, parasols)
@@ -132,8 +143,13 @@ local PAL = {
 	birch = { C.BirchLeaf1, C.BirchLeaf2, C.BirchLeaf3 },
 	lime = { C.Leaf2, C.Leaf3, C.LeafLight },
 	cherry = { C.Blossom0, C.Blossom1, C.Blossom2 },
-	autumn = { C.Autumn0, C.Autumn1, C.Autumn2 },
-	gold = { Kit.shade(lerp(C.Autumn1, C.Autumn2, 0.4), 0.95), C.Autumn2, lerp(C.Autumn2, C.Straw, 0.5) },
+	autumn = { C.Autumn0, Kit.shade(C.Autumn1, 0.88), lerp(C.Autumn2, C.StrawLight, 0.5) },
+	-- (golden but mellow: the big canopies stay under the loud threshold of DESIGN.md §1)
+	gold = {
+		Kit.shade(lerp(C.Autumn1, C.Autumn2, 0.4), 0.86),
+		lerp(C.Straw, C.Autumn2, 0.1),
+		lerp(C.Autumn2, C.StrawLight, 0.5),
+	},
 	palm = { C.Palm1, C.Palm2, C.Palm3 },
 }
 -- Accent foliage: tree kinds that are not green (they count against ACCENT_CAP).
@@ -192,12 +208,6 @@ end
 local function smooth(e0: number, e1: number, x: number): number
 	local t = math.clamp((x - e0) / (e1 - e0), 0, 1)
 	return t * t * (3 - 2 * t)
-end
-
--- A colour from `list` other than `c`.
-local function other(list: { any }, c: any, roll: number): any
-	local i = table.find(list, c) or 1
-	return list[(i + floor(roll * (#list - 1)) % (#list - 1)) % #list + 1]
 end
 
 --------------------------------------------------------------------------------------------
@@ -315,7 +325,7 @@ local function rock(parent: any, cf: any, s: number, seed: number, o: { [string]
 	local r = Kit.rng(seed)
 	local b = Kit.builder(parent, "Rock", turned(cf, r))
 	local body = o.color or ROCK
-	local light = lerp(body, C.White, 0.22)
+	local light = lerp(body, C.Limestone, 0.45)
 	local w, d, h = r(3.2, 4.4) * s, r(2.8, 3.8) * s, r(1.8, 2.6) * s
 	local main = b:box("Rock", -w / 2, -0.6, -d / 2, w / 2, h, d / 2, body)
 	local ox, oz = r(-0.12, 0.12) * w, r(-0.12, 0.12) * d
@@ -489,10 +499,11 @@ local function mushrooms(parent: any, cf: any, seed: number): any
 end
 
 --[[
-	Raised flower bed (8 parts at 8 studs, 11 at 12): a clipped hedge rim, a soil mound on it and
-	two or three leafy rows, each with two clumps of blooms (at two heights, a gap between them:
-	flowers, not a bar), the rows alternating the two colours of one harmonious pair, lined up
-	with cf (rows along local X): a tidy patch of colour that reads from the promenade.
+	Raised flower bed (10 parts at 8 studs, 14 at 12): a clipped hedge rim, a soil mound on it and
+	two or three leafy rows, each with three separate bloom clumps poking out of the leaves at
+	staggered heights and spacings (flowers, not a bar of colour), the rows alternating the two
+	colours of one harmonious pair, lined up with cf (rows along local X): a tidy, planted patch
+	of colour that reads from the promenade.
 ]]
 local BED_SOIL = C.Dirt
 local BED_RIM = C.Leaf0
@@ -509,11 +520,16 @@ local function flowerBed(parent: any, cf: any, size: number, seed: number): any
 	for i = 1, rows do
 		local c = pair[(i - 1) % 2 + 1]
 		local z = -h + 0.8 + pitch * (i - 0.5)
-		b:box(`Leaves{i}`, -len / 2, 1.35, z - 0.6, len / 2, 2.5, z + 0.6, C.Leaf1, FOLIAGE)
-		local split = r(-0.12, 0.12) * len
-		local hi = if i % 2 == 0 then 0.4 else 0
-		b:box(`BloomsA{i}`, -len / 2 + 0.3, 2.3, z - 0.85, split - 0.45, 3.5 + hi, z + 0.85, c, FOLIAGE)
-		b:box(`BloomsB{i}`, split + 0.45, 2.3, z - 0.8, len / 2 - 0.3, 3.9 - hi, z + 0.9, c, FOLIAGE)
+		b:box(`Leaves{i}`, -len / 2, 1.35, z - 0.6, len / 2, 2.4, z + 0.6, C.Leaf1, FOLIAGE)
+		-- three clumps along the row, each 1.2-1.6 wide, sunk into the leaves
+		local step = len / 3
+		for j = 1, 3 do
+			local x = -len / 2 + step * (j - 0.5) + r(-0.25, 0.25) * step
+			local w = r(1.2, 1.6)
+			local top = 2.9 + r(0, 0.7) + (if (i + j) % 2 == 0 then 0.3 else 0)
+			local dz = r(-0.2, 0.2)
+			b:box(`Blooms{i}_{j}`, x - w / 2, 2.0, z + dz - 0.75, x + w / 2, top, z + dz + 0.75, c, FOLIAGE)
+		end
 	end
 	return b:finish(rim)
 end
@@ -596,83 +612,175 @@ local function beachProp(parent: any, cf: any, kind: string, seed: number): any
 end
 
 --[[
-	Coral reef patch (11 parts) on the lagoon bed (cf at the bed, y `bed` <= -4): a bright sand
-	pad (13 x 13) with a tight cluster on it in two or three coral colours — three branching
-	stacks (2-3 blocks narrowing upwards, the tallest reaching 0.7-1.4 under the surface so it
-	shows through the water), a low brain-coral head, a fan — and one glowing Neon tip.
+	Coral reef patch (14 parts) on the lagoon bed (cf at the bed, y `bed` <= -6), calm and sunk
+	(nothing above y -4: shapes on the bed, seen through the water, not bricks in a pool): an
+	irregular pad of pale sand (two slabs crossing at an angle), five coral fingers 1-2 studs wide
+	and of mixed heights in terracotta, sand and sage, a low brain-coral head, two seaweed strips,
+	a rock, a starfish (two crossed arms) and one small pink tip as the patch's only accent.
 ]]
--- (warm colours: the turquoise water would swallow blues and greens)
-local CORAL = { C.Red, C.Orange, C.Yellow, C.Pink, lerp(C.Red, C.Orange, 0.5) }
-local CORAL_ACCENT = C.Purple
-local REEF_GLOW = { C.Pink, C.Cyan }
-local REEF_SAND = C.Sand
+local REEF_CORAL = {
+	lerp(C.RoofTerracotta, C.Sand, 0.25), -- terracotta
+	lerp(C.SandDark, C.Cream, 0.2), -- sand
+	lerp(C.Mint2, C.Stone, 0.35), -- sage
+	lerp(C.Brick, C.Sand, 0.4), -- dusty rose-brown
+}
+local REEF_SAND = lerp(C.Sand, C.Cream, 0.3)
+local REEF_WEED = lerp(C.Seaweed, C.Stone, 0.2)
+local REEF_STAR = lerp(C.Orange, C.RoofTerracotta, 0.5)
 local function reefPatch(parent: any, cf: any, bed: number, seed: number): any
 	local r = Kit.rng(seed)
 	local b = Kit.builder(parent, "Reef", cf * CFrame.Angles(0, rad(r(-20, 20)), 0))
-	local surface = -bed -- (the water plane above the bed, local)
-	local pad = b:box("Sand", -6.5, -0.6, -6.5, 6.5, 0.3, 6.5, REEF_SAND, Kit.NOSHADOW)
+	local lim = max(1.4, -4 - bed) -- (the tallest top, local: y -4 in the world)
+	local pad = b:box("Sand", -5.5, -0.6, -3.5, 4.5, 0.25, 3.0, REEF_SAND, Kit.NOSHADOW)
+	b:block(
+		"SandB",
+		Vector3.new(6.5, 0.75, 8),
+		CFrame.new(1.2, -0.2, -0.8) * CFrame.Angles(0, rad(r(25, 40)), 0),
+		REEF_SAND,
+		Kit.NOSHADOW
+	)
 	-- a few bubbles rising from the reef (they fade before the surface)
 	emitter(pad, "Bubbles", {
-		Rate = 1.2,
+		Rate = 1.0,
 		Lifetime = U.roblox.NumberRange.new(2.0, 2.8),
 		Speed = U.roblox.NumberRange.new(1.2, 1.8),
 		SpreadAngle = U.Vector2.new(6, 6),
 		Size = seq(0.25, 0.5),
-		Transparency = seq(0.25, 0.9),
+		Transparency = seq(0.3, 0.9),
 		Color = U.roblox.ColorSequence.new(C.Foam),
 		LightEmission = 0.3,
 	})
-	local c1 = CORAL[floor(r(1, #CORAL + 0.99))]
-	local c2 = other(CORAL, c1, r())
-	local c3 = if r() < 0.4 then CORAL_ACCENT else other(CORAL, c2, r())
-	-- branching stacks: { x, z, base width, colour, top below the surface }; each block narrower
-	-- than the one under it (no side faces in one plane)
-	local stacks = {
-		{ -1.6, 0.8, 3.4, c1, r(0.7, 1.1), 3 },
-		{ 2.6, -1.8, 2.8, c2, r(1.4, 2.4), 2 },
-		{ -3.4, -3.0, 2.4, c3, r(2.4, 3.4), 2 },
-	}
-	local tipTop, tipX, tipZ, tipW = nil, 0, 0, 0
-	for i, st in stacks do
-		local x, z, w, col, below, n = st[1], st[2], st[3], st[4], st[5], st[6]
-		local top = surface - below
-		local y = 0.1
-		local px, pz, phw = x, z, w / 2
-		for j = 1, n do
-			local hw = w / 2 * (1 - (j - 1) * 0.28)
-			local y1 = if j == n then top else y + (top - 0.1) / n + 0.3
-			-- (each block off-centre on the one under it, its sides >= 0.15 inside that one's)
-			local slack = max(0, phw - hw - 0.15)
-			local cx = px + (if j > 1 then r(-1, 1) * slack else 0)
-			local cz = pz + (if j > 1 then r(-1, 1) * slack else 0)
-			b:box(`Coral{i}_{j}`, cx - hw, y, cz - hw, cx + hw, y1, cz + hw, col, FOLIAGE)
-			if i == 1 and j == n then
-				tipTop, tipX, tipZ, tipW = y1, cx, cz, hw
-			end
-			y = y1 - 0.3
-			px, pz, phw = cx, cz, hw
+	-- coral fingers round the middle, the tallest first (its tip gets the pink accent)
+	local a0 = r(0, 2 * math.pi)
+	local tallest = nil
+	for i = 1, 5 do
+		local a = a0 + i * 1.25 + r(-0.3, 0.3)
+		local d = r(0.8, 3.2)
+		local x, z = d * cos(a), d * sin(a)
+		local w = r(1.0, 2.0)
+		local h = if i == 1 then lim else lim * r(0.45, 0.9)
+		local col = REEF_CORAL[(i + floor(r(0, 3.99))) % #REEF_CORAL + 1]
+		b:box(`Coral{i}`, x - w / 2, 0.1, z - w / 2, x + w / 2, h, z + w / 2, col, FOLIAGE)
+		if i == 1 then
+			tallest = { x, z, w, h }
 		end
 	end
-	-- a low brain-coral head and a thin fan
-	b:box("Head", 1.0, -0.1, 1.8, 4.6, 0.1 + r(1.4, 2.0), 4.8, c3, FOLIAGE)
-	local fh = min(surface - 1.6, r(3.2, 4.4))
-	b:box("Fan", -5.2, 0.0, 2.2, -2.6, fh, 2.7, c2, FOLIAGE)
-	-- the glowing tip on the tallest stack
-	if tipTop then
-		local g = min(0.6, tipW * 0.7)
-		b:box(
-			"Glow",
-			tipX - g,
-			tipTop - 0.2,
-			tipZ - g,
-			tipX + g,
-			tipTop + 0.25,
-			tipZ + g,
-			REEF_GLOW[floor(r(1, 2.99))],
-			Kit.NEON_DECOR
-		)
+	if tallest then
+		local x, z, w, h = tallest[1], tallest[2], tallest[3] * 0.32, tallest[4]
+		b:box("Tip", x - w, h - 0.35, z - w, x + w, h + 0.05, z + w, lerp(C.Pink, C.Cream, 0.15), FOLIAGE)
 	end
+	-- a low brain-coral head, two seaweed strips, a rock, a starfish
+	local hx, hz = r(-3.5, -2), r(1, 2.2)
+	b:box("Head", hx - 1.3, 0.05, hz - 1.1, hx + 1.3, min(lim, r(0.6, 1.0)), hz + 1.1, REEF_CORAL[1], FOLIAGE)
+	for i, p in { { 3.4, -2.2 }, { -4.4, -1.6 } } do
+		local h = lim * r(0.7, 1.0)
+		b:box(`Weed{i}`, p[1] - 0.2, 0.1, p[2] - 0.5, p[1] + 0.2, h, p[2] + 0.5, REEF_WEED, FOLIAGE)
+	end
+	b:box("Rock", 2.0, -0.2, 1.2, 4.0, 1.1, 2.9, C.Stone)
+	local sx, sz = r(-1.5, 1.5), r(-3.0, -2.2)
+	b:box("StarA", sx - 0.9, 0.2, sz - 0.25, sx + 0.9, 0.45, sz + 0.25, REEF_STAR, FOLIAGE)
+	b:box("StarB", sx - 0.25, 0.18, sz - 0.9, sx + 0.25, 0.5, sz + 0.9, REEF_STAR, FOLIAGE)
 	return b:finish(pad)
+end
+
+--------------------------------------------------------------------------------------------
+-- Lagoon surface features (2-3 a quadrant): a moored houseboat, a floating fish-farm ring, a
+-- rocky islet with a perch; cf on the water surface (y = 0), `bed` the depth below it
+--------------------------------------------------------------------------------------------
+
+--[[
+	Houseboat (11 parts, bobbing gently): a painted hull with a plank deck, a cream cabin with
+	windows on both sides and a door at the bow, a roof in two steps, a stovepipe, a flower box
+	on the foredeck; its mooring post (2 parts, a rope to the deck) stands beside it on the bed.
+	Along local Z (bow -Z).
+]]
+local function houseboat(parent: any, cf: any, bed: number, seed: number): any
+	local r = Kit.rng(seed)
+	local m = U.model(parent, "Houseboat")
+	local paint = C.BoatPaint[floor(r(1, #C.BoatPaint + 0.99))]
+	if paint == C.BoatPaint[5] then
+		paint = C.BoatPaint[2] -- (a white hull would vanish against the cabin)
+	end
+	local roof = if r() < 0.5 then C.RoofRed else C.RoofTerracotta
+	local b = Kit.builder(m, "Boat", cf)
+	local hull = b:box("Hull", -3.5, -0.9, -8, 3.5, 0.8, 8, paint)
+	b:box("Deck", -3.2, 0.75, -7.7, 3.2, 1.05, 7.7, C.Plank)
+	b:box("Cabin", -2.6, 1.0, -4.0, 2.6, 4.8, 4.6, C.Plaster)
+	b:box("Roof", -3.3, 4.75, -4.7, 3.3, 5.35, 5.3, roof)
+	b:box("RoofTop", -2.3, 5.3, -3.6, 2.3, 5.9, 4.2, Kit.shade(roof, 0.88), Kit.NOSHADOW)
+	b:box("WindowL", -2.78, 2.4, -2.4, -2.55, 3.8, 2.9, C.WindowBlue, FOLIAGE)
+	b:box("WindowR", 2.55, 2.4, -2.4, 2.78, 3.8, 2.9, C.WindowBlue, FOLIAGE)
+	b:box("Door", -0.8, 1.0, -4.18, 0.8, 3.9, -3.95, C.WoodDark, Kit.NOSHADOW)
+	b:box("Pipe", 1.2, 5.85, 2.0, 1.8, 7.4, 2.6, C.Iron, Kit.NOSHADOW)
+	b:box("FlowerBox", -2.4, 1.0, -7.3, -0.4, 1.7, -6.3, C.Wood, Kit.NOSHADOW)
+	b:box("Blooms", -2.2, 1.65, -7.1, -0.6, 2.35, -6.5, pairOf(r())[1], FOLIAGE)
+	b:finish(hull)
+	b.model:SetAttribute("Bob", 0.15)
+	b.model:SetAttribute("BobPeriod", 4.6)
+	-- the mooring post on the shore side (+X) and a rope from it to the deck
+	local post = U.part(
+		m,
+		"MooringPost",
+		Vector3.new(0.9, bed + 3.2, 0.9),
+		cf * CFrame.new(5.4, (3.2 - bed) / 2, -1.5),
+		C.WoodDark,
+		nil,
+		Kit.NOSHADOW
+	)
+	local a, c = (cf * CFrame.new(5.4, 2.6, -1.5)).Position, (cf * CFrame.new(3.0, 1.3, -3.5)).Position
+	U.part(m, "Rope", Vector3.new(0.2, 0.2, (c - a).Magnitude), CFrame.lookAt((a + c) / 2, c), C.Rope, nil, FOLIAGE)
+	m.PrimaryPart = post
+	return m
+end
+
+--[[
+	Floating fish-farm ring (13 parts): a square collar of dark floating pipe with plank walkways
+	along two sides, a dark net just under the surface inside it, a float on every corner (orange
+	and cream) and a feeder post with a hopper box on one corner. Bobbing gently.
+]]
+local FARM_COLLAR = lerp(C.Iron, C.Navy, 0.3)
+local FARM_NET = lerp(C.Seaweed, C.Navy, 0.55)
+local function fishFarm(parent: any, cf: any, seed: number): any
+	local b = Kit.builder(parent, "FishFarm", cf)
+	local R, w = 7, 1.0
+	local first = b:box("CollarN", -R, -0.3, R - w, R, 0.5, R, FARM_COLLAR)
+	b:box("CollarS", -R, -0.3, -R, R, 0.5, -R + w, FARM_COLLAR)
+	b:box("CollarW", -R, -0.25, -R + w, -R + w, 0.45, R - w, FARM_COLLAR)
+	b:box("CollarE", R - w, -0.25, -R + w, R, 0.45, R - w, FARM_COLLAR)
+	-- plank walkways along two sides
+	b:box("WalkN", -R + 0.6, 0.5, R - 1.6, R - 0.6, 0.8, R + 0.4, C.Plank, Kit.NOSHADOW)
+	b:box("WalkS", -R + 0.6, 0.5, -R - 0.4, R - 0.6, 0.8, -R + 1.6, C.Plank, Kit.NOSHADOW)
+	b:box("Net", -R + w, -0.65, -R + w, R - w, -0.2, R - w, FARM_NET, FOLIAGE)
+	for i, p in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
+		local x, z = p[1] * (R + 0.3), p[2] * (R + 0.3)
+		b:box(`Float{i}`, x - 0.75, -0.3, z - 0.75, x + 0.75, 1.0, z + 0.75, if i % 2 == 1 then C.Orange else C.Cream)
+	end
+	b:box("FeederPost", R - 2.2, 0.45, -R + 0.15, R - 1.5, 4.0, -R + 0.85, C.WoodDark, Kit.NOSHADOW)
+	b:box("FeederBox", R - 2.6, 3.9, -R - 0.25, R - 1.1, 5.0, -R + 1.25, C.WoodLight, Kit.NOSHADOW)
+	b:finish(first)
+	b.model:SetAttribute("Bob", 0.12)
+	b.model:SetAttribute("BobPeriod", 3.8 + (seed % 5) * 0.2)
+	return b.model
+end
+
+--[[
+	A small rocky islet with a perch (9 parts): two warm rocks and a darker one rising from the bed,
+	a moss cap and a tuft, a wooden perch post with a crossbar and a little pennant on top, a ring
+	of foam.
+]]
+local function rockyIslet(parent: any, cf: any, bed: number, seed: number): any
+	local r = Kit.rng(seed)
+	local b = Kit.builder(parent, "RockyIslet", cf * CFrame.Angles(0, rad(90 * floor(r(0, 3.99))), 0))
+	local first = b:box("Rock1", -5.5, -bed, -4, 4.5, 2.2, 4.5, ROCK)
+	b:box("Rock2", -2.5, 2.0, -2.5, 3.0, 4.4, 2.0, lerp(ROCK, C.Limestone, 0.45))
+	b:box("Rock3", 3.8, -bed, -5.5, 7.2, 1.3, -2.0, ROCK_DARK)
+	b:box("Moss", -2.2, 4.3, -2.2, 1.6, 4.8, 1.2, C.Leaf2, Kit.NOSHADOW)
+	b:box("Tuft", -5.0, 2.1, 1.4, -2.9, 3.3, 3.8, C.Leaf1, FOLIAGE)
+	b:box("Perch", 1.8, 4.3, 0.6, 2.4, 10.5, 1.2, C.WoodDark)
+	b:box("Crossbar", 0.8, 9.9, 0.7, 3.4, 10.35, 1.1, C.Wood, Kit.NOSHADOW)
+	b:box("Pennant", 2.4, 8.4, 0.8, 4.2, 9.5, 1.0, C.BoatPaint[1], FOLIAGE)
+	b:box("Foam", -8, 0.1, -7.5, 8.5, 0.3, 6.5, FOAM, FOLIAGE)
+	return b:finish(first)
 end
 
 --------------------------------------------------------------------------------------------
@@ -1012,6 +1120,21 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 			s = seedRng(1.6, 2.5)
 		end
 		s = scale or s
+		if
+			level == "far"
+			and x * x + z * z > FAR_R * FAR_R
+			and THINNED[fam] ~= false
+			and string.sub(fam, 1, 4) ~= "belt"
+			and string.sub(fam, 1, 5) ~= "wedge"
+		then
+			-- the far belt (the woods there; not the plots' tree lines, the gateway wedges, the
+			-- skyline crests, the mountains' own trees or the beach palms): one spot in four stays
+			-- open, the others get a bigger tree
+			if (floor(x / 6) * 73 + floor(z / 6) * 151) % 4 == 0 then
+				return 0
+			end
+			s *= FAR_SCALE
+		end
 		local seed = floor(seedRng(1, 1e6))
 		if kind == "snowPine" then
 			-- snow-dusted pines only on the snowy mountains
@@ -1114,7 +1237,12 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 			elseif kind == "palm" then
 				m = Kit.prop("palmTree", groups.trees, cf, { seed = seed, scale = s * 0.85, lite = lite })
 			else
-				m = Kit.prop("autumnTree", groups.trees, cf, { seed = seed, scale = s, lite = lite, compact = lite })
+				m = Kit.prop(
+					"autumnTree",
+					groups.trees,
+					cf,
+					{ seed = seed, scale = s, lite = lite, compact = lite, leaves = PAL.autumn }
+				)
 			end
 			settleLitter(m)
 			shadows(m)
@@ -1385,11 +1513,13 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	end
 
 	--------------------------------------------------------------------------------------------
-	-- Pass 0: coral reefs — 12 tight patches on the lagoon's sandy slope (bed -6: r ~197-215
-	-- along the hub beach, r ~266-284 along the promenade), where players look down on them: one
-	-- beside each pier on the side away from its bridge (r ~275) and one beside each bridge
-	-- (r ~206); open water between them. The water in front of the piers and along the bridges
-	-- stays clear, and so do the boats
+	-- Pass 0: the lagoon — 12 calm coral patches on its sandy slope (bed -6: r ~197-215 along the
+	-- hub beach, r ~266-284 along the promenade), where players look down on them: one beside
+	-- each pier on the side away from its bridge (r ~275) and one beside each bridge (r ~206);
+	-- then 2-3 features on the surface of every quadrant (a moored houseboat near the promenade
+	-- beach, a fish-farm ring beside a bridge, a rocky islet with a perch off the hub beach).
+	-- The water in front of the piers and along the bridges stays clear, the surface features
+	-- keep out of every pier's whole casting cone (like the boats) and off the other water decor
 	--------------------------------------------------------------------------------------------
 	do
 		local reef = U.model(nature, "Reef")
@@ -1408,10 +1538,11 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 			end
 			return true
 		end
-		-- the whole pad on one bed column top at -4 or deeper (the slope band)
+		-- the whole pad on one bed column top at -6 to -8 (the slope band: everything stays under
+		-- y -4)
 		local function bedAt(x: number, z: number): number?
 			local h = world:heightAt(x, z)
-			if h > -4 or h < -8 then
+			if h > -6 or h < -8 then
 				return nil
 			end
 			for _, d in DIRS8 do
@@ -1436,7 +1567,7 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 				for _, da in { 0, 2.5, -2.5, 5, -5 } do
 					local p = U.polar(spot.a + da, spot.r + dr, 0)
 					local bed = bedAt(p.X, p.Z)
-					if bed and affordable(12) and clear(p.X, p.Z) and not blocked(p.X, p.Z, 8, bed, 1) then
+					if bed and affordable(14) and clear(p.X, p.Z) and not blocked(p.X, p.Z, 8, bed, 1) then
 						reefPatch(
 							reef,
 							CFrame.new(p.X, bed, p.Z) * CFrame.Angles(0, rad(spot.a + da), 0),
@@ -1450,6 +1581,75 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 				end
 				if done then
 					break
+				end
+			end
+		end
+
+		-- surface features: out of every pier's casting cone (40 studs either side of its axis,
+		-- 150 out) and clear of the bridges, in open water all round, off the other water decor
+		local surface = U.model(nature, "Lagoon")
+		local function free(x: number, z: number, pad: number): boolean
+			for i = 1, cfg.BaseCount do
+				local lx, lz = world:toBaseLocal(i, x, z)
+				if abs(lx) < 40 + pad and lz > -150 - pad and lz < pad then
+					return false
+				end
+			end
+			for _, a in cfg.BridgeAngles do
+				local ux, uz = sin(rad(a)), cos(rad(a))
+				if
+					x * ux + z * uz > cfg.HubPlazaRadius - 10
+					and abs(x * uz - z * ux) < cfg.BridgeWidth / 2 + 10 + pad
+				then
+					return false
+				end
+			end
+			for _, d in DIRS8 do
+				if not world:isWater(x + d[1] * pad, z + d[2] * pad) then
+					return false
+				end
+			end
+			return world:isWater(x, z) and not blocked(x, z, pad, -16, 12) and fits(x, z, 0, pad, "lagoon")
+		end
+		-- per quadrant (from the bridge at 90q): the features and their candidate spots
+		-- { angle offset, radius }; odd quadrants mirror the offsets
+		local SETS = {
+			[0] = { "houseboat", "farm", "islet" },
+			[1] = { "farm", "islet" },
+			[2] = { "houseboat", "farm", "islet" },
+			[3] = { "houseboat", "islet" },
+		}
+		local SPOTS = {
+			houseboat = { { 57, 270 }, { 33, 270 }, { 59, 262 }, { 31, 262 }, { 55, 278 } },
+			farm = { { 8, 246 }, { 82, 246 }, { 8, 234 }, { 82, 234 }, { 45, 246 } },
+			islet = { { 45, 196 }, { 39, 204 }, { 51, 204 }, { 40, 232 }, { 50, 232 }, { 45, 250 } },
+		}
+		local PAD = { houseboat = 11, farm = 10, islet = 9 }
+		local COST_OF = { houseboat = 13, farm = 13, islet = 9 }
+		local lrng = Kit.rng(5577)
+		for q = 0, 3 do
+			for k, kind in SETS[q] do
+				for _, sp in SPOTS[kind] do
+					-- (the fish farms all sit on the same side of their bridge)
+					local off = if q % 2 == 1 and kind ~= "farm" then 90 - sp[1] else sp[1]
+					local a = q * 90 + off
+					local p = U.polar(a, sp[2], 0)
+					if affordable(COST_OF[kind]) and free(p.X, p.Z, PAD[kind]) then
+						local bed = max(2, -world:heightAt(p.X, p.Z))
+						local seed = floor(lrng(1, 1e6))
+						if kind == "houseboat" then
+							-- along the shore (bow pointing round the ring), its mooring post on the
+							-- promenade side
+							houseboat(surface, CFrame.new(p.X, 0, p.Z) * CFrame.Angles(0, rad(a + 90), 0), bed, seed)
+						elseif kind == "farm" then
+							fishFarm(surface, CFrame.new(p.X, 0, p.Z) * CFrame.Angles(0, rad(a + 12), 0), seed)
+						else
+							rockyIslet(surface, CFrame.new(p.X, 0, p.Z) * CFrame.Angles(0, rad(a), 0), bed, seed)
+						end
+						addPlaced(p.X, p.Z, 0, PAD[kind], "lagoon")
+						count(kind)
+						break
+					end
 				end
 			end
 		end

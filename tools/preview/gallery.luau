@@ -10,7 +10,7 @@
 
 	Layout (top view, +X right, +Z down): rows of trees, plants, rocks and furniture on a
 	checkered bright-green ground (top at y = 0); a water channel (Workspace.Map.Water stand-in,
-	surface y = 0) with boats, docks, buoys, a shipwreck, a whale, a rock arch, two bridges and a
+	surface y = 0) with boats, docks, buoys, a shipwreck, a rock arch, two bridges and a
 	waterfall off a cliff; a row of landmarks; a balloon and clouds in the sky. Props face +Z
 	(towards the default iso camera). The script prints a zoom target for every section and
 	fails if a public Props constructor is not shown.
@@ -282,8 +282,6 @@ end
 -- big water props
 place("shipwreck", 140, WATER_Z0 + 64, { seed = 1 })
 table.insert(sections, { "shipwreck", 140, WATER_Z0 + 64, 40 })
-place("whale", 205, WATER_Z0 + 62, { seed = 1 })
-table.insert(sections, { "whale", 205, WATER_Z0 + 62, 24 })
 place("rockArch", 260, WATER_Z0 + 64, { seed = 1 })
 table.insert(sections, { "rockArch", 260, WATER_Z0 + 64, 32 })
 

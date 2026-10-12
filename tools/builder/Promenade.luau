@@ -17,22 +17,27 @@
 	                  telescope and the district's touch (a crate of glass floats, a flower box,
 	                  an anchor, a picnic basket). Pile bents buried in the sand are left out.
 	                  buildBridges returns the kiosks' attachments for the build's self-check.
-	  Map.Promenade   the ring walk r 312..330 on flat GroundTop: light sandstone flags with
-	                  darker joints, a clay-brick runner down the middle and light stone kerbs
-	                  (open where the gateway roads and landmark paths leave the ring); a
-	                  sandstone sea wall on the lagoon side (two shades by turns, a pale coping)
-	                  with a low parapet between pale stone pillars, open at the 8 pier entrances
-	                  (base ± 6°, with two broad steps down to the beach on both sides of the
-	                  pier) and 4 steps down to the beach (between two plots); dark iron lamps on
-	                  every other pillar, two-tone bunting in the colour of each quarter, wooden
-	                  benches and planters in front of the plots and along the stretches between
-	                  them, wooden direction signs at the landmark paths, and a small stall on
-	                  every stretch from a base's gate to its bridge (Stops: an ice-cream cart, a
-	                  fish smokehouse, a lemonade stall, a fishing spot on the sea wall, a boat
-	                  hire, a bait shed, an island map board, a flower cart) — real little
-	                  buildings with plinths, framed walls, doors, windows, gabled roofs and
-	                  signs; the base's own colour only on small accents (awning stripes,
-	                  shutters, a valance). No people.
+	  Map.Promenade   the ring walk r 312..330 on flat GroundTop: warm honey sandstone flags
+	                  with darker flagstone joints, a terracotta brick runner down the middle
+	                  and cream limestone kerbs (open where the gateway roads and landmark paths
+	                  leave the ring); a warm sandstone sea wall on the lagoon side (two shades by
+	                  turns, a cream coping) with a low seat-high parapet between pale stone
+	                  pillars (the lagoon, the coping ledge and the beach stay in view from the
+	                  walk), open at the 8 pier entrances (base ± 6°, with two broad steps down
+	                  to the beach on both sides of the pier) and 4 steps down to the beach
+	                  (between two plots); slim iron lamps on every other pillar, two-tone bunting
+	                  in the colour of each quarter, wooden benches and planters in front of the
+	                  plots and along the stretches between them, wooden direction signs at the
+	                  landmark paths, and a small stall on every stretch from a base's gate to its
+	                  bridge (Stops: an ice-cream cart, a fish smokehouse, a lemonade stall, a
+	                  fishing spot on the sea wall, a boat hire, a bait shed, an island map board,
+	                  a flower cart) — real little buildings with plinths, framed walls, doors,
+	                  windows, gabled roofs and signs; the base's own colour only on small accents
+	                  (awning stripes, shutters, a valance). On the lagoon side, every ~22°, a
+	                  fishing vignette (Vignettes): an upturned rowboat on the sand, a rod rack
+	                  and bait bucket or crates of the catch or lobster pots on the coping ledge,
+	                  a net laid over the parapet to dry, a beach parasol with a towel and a
+	                  cooler, a fish drying rack. No people, no animals.
 
 	Nothing is placed on the walking surface except along its two edges (the stops stand on
 	its outer half: ~10 studs of lane stay free), so players can run all the way round.
@@ -41,6 +46,7 @@
 
 local U = require("./Util")
 local Kit = require("./MapKit")
+local Props = require("./Props")
 
 local Vector3 = U.Vector3
 local CFrame = U.CFrame
@@ -85,14 +91,19 @@ Promenade.Themes = {
 	},
 }
 
--- Materials of the walk (calm, large surfaces: DESIGN.md §1).
-local WALK = lerp(C.StoneLight, C.Sand, 0.45) -- light sandstone flags
-local JOINT = lerp(C.Cobble, C.SandDark, 0.3) -- the joints between them
-local RUNNER = lerp(C.Brick, C.CobbleDark, 0.5) -- the clay-brick runner down the middle
-local KERB = C.StoneLight
-local WALL = { lerp(C.StoneLight, C.SandDark, 0.3), lerp(C.Stone, C.SandDark, 0.3) } -- sea wall blocks
-local COPING = lerp(C.StoneLight, C.White, 0.35)
-local PARAPET_TOP = 2.4 -- the parapet's top over the walk (its foot on the coping, 0.6)
+-- Materials of the walk (calm, large surfaces: DESIGN.md §1): warm honey sandstone flags
+-- (~222, 202, 158), darker flagstone joints (~200, 173, 134) and a terracotta brick runner
+-- (~183, 97, 68) that reads as a red line round the lagoon from the overview.
+local WALK = lerp(lerp(C.Sand, C.Flagstone, 0.5), C.Limestone, 0.2)
+local JOINT = lerp(C.FlagstoneDark, C.Limestone, 0.1)
+local RUNNER = lerp(C.Brick, C.RoofTerracotta, 0.6)
+local KERB = C.Limestone
+-- sea wall blocks: warm sandstone in two shades by turns, under a cream limestone coping
+local WALL = { lerp(C.Flagstone, C.StoneLight, 0.3), lerp(C.FlagstoneDark, C.Stone, 0.35) }
+local COPING = lerp(C.Limestone, C.Cream, 0.3)
+-- the parapet's top over the walk (its foot on the coping, 0.6): a low seat wall, so the lagoon,
+-- the coping ledge and the beach stay in view from the walk
+local PARAPET_TOP = 1.6
 local PILLAR_TOP = 3.6
 local ICE = lerp(C.WaterLight, C.White, 0.65)
 local SILVER = lerp(C.Iron, C.Glass, 0.55) -- fish on ice, fish on the line
@@ -630,14 +641,32 @@ local function quarterColor(a: number): any
 	return color
 end
 
--- Wooden planter (4 parts): a plank box (4.8 along the ring), a leafy mound and two blooms in
--- two colours poking out of it at different heights. Stands on cf (local X along the ring).
-local function planter(parent: any, cf: any, c1: any, c2: any)
+--[[
+	Iron lamp on a parapet pillar (3 parts, the lean sibling of Kit.lamp for the 32 lamps of the
+	ring): a slim post, a glowing Neon lantern and a dark cap with an overhang; every fourth one
+	carries a PointLight. Stands on cf (the pillar top).
+]]
+local function pillarLamp(parent: any, cf: any, light: boolean)
+	local b = Kit.builder(parent, "Lamp", cf)
+	local post = b:box("Post", -0.5, -0.4, -0.5, 0.5, 5.0, 0.5, C.Iron)
+	local glow = b:box("Glow", -0.95, 4.95, -0.95, 0.95, 7.2, 0.95, C.Glow, Kit.NEON)
+	b:box("Cap", -1.45, 7.15, -1.45, 1.45, 7.95, 1.45, C.Navy, Kit.NOSHADOW)
+	if light then
+		Kit.light(glow, 16, 1.3)
+	end
+	b:finish(post)
+end
+
+-- Wooden planter (5 parts): a plank box (4.8 along the ring) of leafy greens with three clumps
+-- of blooms half sunk into them at different heights, in one harmonious colour pair (the
+-- partner in the middle). Stands on cf (local X along the ring).
+local function planter(parent: any, cf: any, pair: { any })
 	local b = Kit.builder(parent, "Planter", cf)
 	local box = b:box("Box", -2.4, -0.2, -1.4, 2.4, 1.2, 1.4, C.Wood)
-	b:box("Greens", -2.05, 0.9, -1.05, 2.05, 2.2, 1.05, C.Leaf2, Kit.DECOR)
-	b:box("Bloom1", -1.6, 2.0, -0.65, -0.5, 3.1, 0.45, c1, Kit.DECOR)
-	b:box("Bloom2", 0.45, 2.05, -0.4, 1.55, 3.35, 0.7, c2, Kit.DECOR)
+	b:box("Greens", -2.05, 0.9, -1.05, 2.05, 2.1, 1.05, C.Leaf2, Kit.DECOR)
+	b:box("Bloom1", -1.85, 1.75, -0.75, -0.85, 2.6, 0.25, pair[1], Kit.DECOR)
+	b:box("Bloom2", -0.45, 1.85, -0.2, 0.55, 2.9, 0.8, pair[2], Kit.DECOR)
+	b:box("Bloom3", 0.9, 1.7, -0.7, 1.85, 2.55, 0.25, pair[1], Kit.DECOR)
 	return b:finish(box)
 end
 
@@ -709,8 +738,15 @@ local function iceCreamStop(b: any, color: any)
 		b:box(`Pole{i}`, p[1], 3.95, p[2], p[1] + 0.3, 8.2, p[2] + 0.3, C.Cream, Kit.NOSHADOW)
 	end
 	awning(b, -3.6, 3.6, -1.5, 2.2, 8.2, color)
-	b:box("Cone", -0.45, 8.85, 0.0, 0.45, 9.9, 0.9, C.WoodLight, Kit.DECOR)
-	b:box("Scoop", -0.8, 9.8, -0.35, 0.8, 11.0, 1.25, C.Blossom1, Kit.DECOR)
+	-- the sign on top: a wafer cone (an inverted stepped cone of three thin layers) under two
+	-- stacked scoops getting smaller and a cherry
+	for i, w in { 0.25, 0.45, 0.65 } do
+		local y = 8.7 + (i - 1) * 0.55
+		b:box(`Cone{i}`, -w, y, 0.45 - w, w, y + 0.6, 0.45 + w, if i == 2 then C.Wood else C.WoodLight, Kit.DECOR)
+	end
+	b:box("ScoopA", -0.85, 10.3, -0.4, 0.85, 11.6, 1.3, C.Blossom1, Kit.DECOR)
+	b:box("ScoopB", -0.6, 11.55, -0.15, 0.6, 12.55, 1.05, C.Cream, Kit.DECOR)
+	b:box("Cherry", -0.25, 12.5, 0.2, 0.25, 13.0, 0.7, C.Red, Kit.DECOR)
 	return body
 end
 
@@ -900,6 +936,169 @@ local function flowerCartStop(b: any, color: any)
 	return bed
 end
 
+--------------------------------------------------------------------------------------------
+-- Fishing vignettes on the lagoon side, every ~22° of the ring: the life of a fishing village
+-- on the beach under the sea wall and on the coping ledge beside the parapet (the walk itself
+-- stays clear)
+--------------------------------------------------------------------------------------------
+
+--[[
+	Two frames, both with local -Z towards the lagoon and X along the ring (parallel to the sea
+	wall's face):
+	  beach  cf on the sand at the foot of the wall (y = 0 the sand top, z = 0 the coping's
+	         lagoon edge; the wall's face 0.2 behind it, the coping top at y 3.24, the sand
+	         reaching `depth` studs out to the waterline)
+	  ledge  cf on the coping top at its lagoon edge (z = 0 the edge; the parapet's pillars from
+	         z ~ 4.4: everything stays within z 0.2 .. 4)
+	Each builder returns its first part and costs 6-9 parts. `paint` is a Palette boat paint.
+]]
+local NETS = { lerp(C.RoofGreen, C.Rope, 0.25), lerp(C.RoofBlue, C.Rope, 0.3) }
+local PARASOLS = { C.RoofRed, lerp(C.Blue, C.Stone, 0.3), C.RoofGreen, C.RoofTerracotta }
+
+-- A thin block from (y0, z0) to (y1, z1) at x (oars and poles leaning on the wall).
+local function lean(
+	b: any,
+	name: string,
+	x: number,
+	y0: number,
+	z0: number,
+	y1: number,
+	z1: number,
+	w: number,
+	d: number,
+	color: any,
+	extra: any?
+): any
+	local dy, dz = y1 - y0, z1 - z0
+	local len = math.sqrt(dy * dy + dz * dz)
+	return b:block(
+		name,
+		Vector3.new(w, len, d),
+		CFrame.new(x, (y0 + y1) / 2, (z0 + z1) / 2) * CFrame.Angles(math.atan2(dz, dy), 0, 0),
+		color,
+		extra
+	)
+end
+
+-- Upturned rowboat (8 parts, beach, depth >= 6): a painted hull keel-up on two log rests, its
+-- bottom boards in a darker shade, a dark keel, a tapered bow; an oar leaning on the wall.
+local function upturnedBoat(b: any, paint: any): any
+	local first = b:box("RestA", -2.9, -0.3, -5.2, -1.9, 0.5, -0.9, C.Bark)
+	b:box("RestB", 1.7, -0.3, -5.2, 2.7, 0.5, -0.9, C.Bark)
+	b:box("Hull", -4.2, 0.45, -4.7, 3.8, 1.9, -1.3, paint)
+	b:box("Bow", 3.75, 0.7, -4.05, 5.1, 1.8, -1.95, paint)
+	b:box("Bottom", -3.7, 1.85, -4.25, 3.4, 2.45, -1.75, lerp(paint, C.WoodDark, 0.4))
+	b:box("Keel", -4.4, 2.4, -3.2, 4.7, 2.8, -2.8, C.WoodDark, Kit.NOSHADOW)
+	lean(b, "Oar", -6.2, -0.2, -1.7, 4.4, 0.45, 0.35, 0.3, C.WoodLight, Kit.DECOR)
+	lean(b, "OarBlade", -6.2, -0.2, -1.75, 1.6, -0.9, 0.9, 0.2, C.WoodLight, Kit.DECOR)
+	return first
+end
+
+-- Rod rack (8 parts, ledge): a dark plank base, two posts and a bar against the parapet, three
+-- rods standing in it (well over the parapet: seen from the walk), a bait bucket.
+local function rodRack(b: any, paint: any): any
+	local first = b:box("RackBase", -2.7, -0.05, 1.4, 2.7, 0.5, 2.9, C.WoodDark)
+	for i, x in { -2.6, 2.0 } do
+		b:box(`RackPost{i}`, x, 0.5, 2.2, x + 0.6, 4.4, 2.8, C.Wood)
+	end
+	b:box("RackBar", -2.7, 3.5, 1.8, 2.7, 4.0, 2.2, C.Wood, Kit.NOSHADOW)
+	for i, x in { -1.3, 0, 1.3 } do
+		local h = 8.6 - (i % 2) * 0.9
+		b:box(`Rod{i}`, x - 0.13, 0.45, 1.5, x + 0.13, h, 1.76, if i == 2 then paint else C.WoodDark, Kit.DECOR)
+	end
+	b:pole("Bucket", 1.5, 3.9, 1.1, -0.05, 1.4, lerp(C.Iron, C.Glass, 0.3))
+	return first
+end
+
+-- Crates of the catch (7 parts, ledge): two crates against the parapet with fish on top, a
+-- painted crate of ice beside them, a barrel.
+local function catchCrates(b: any, paint: any): any
+	local first = b:box("CrateA", -2.7, -0.05, 0.6, -0.5, 2.1, 2.9, C.Wood)
+	b:box("CrateB", -0.3, -0.05, 0.8, 1.9, 1.8, 3.0, C.WoodLight)
+	b:box("FishA", -2.4, 2.05, 0.9, -0.8, 2.5, 2.6, SILVER, Kit.DECOR)
+	b:box("FishB", 0.0, 1.75, 1.1, 1.6, 2.2, 2.8, SALMON, Kit.DECOR)
+	b:box("IceCrate", 2.3, -0.05, 0.6, 4.5, 1.2, 2.4, paint)
+	b:box("Ice", 2.5, 1.15, 0.8, 4.3, 1.5, 2.2, ICE, Kit.DECOR)
+	b:pole("Barrel", 1.9, -4.0, 1.7, -0.05, 2.6, C.Wood)
+	return first
+end
+
+-- Fishing net laid over the low parapet to dry (8 parts, parapet frame: cf on the coping top at
+-- the parapet's centre line, the parapet filling z -0.6 .. 0.6 and y 0 .. 1, the walk on its +Z
+-- side): the net over the top and hanging down both faces to the coping, spread out on the
+-- coping's lagoon side, a dark cord down its walk side and three cork floats along the top.
+local function parapetNet(b: any, paint: any, k: number): any
+	local net = NETS[k % #NETS + 1]
+	local cord = Kit.shade(net, 0.72)
+	local first = b:box("NetTop", -3.4, 0.98, -0.78, 3.4, 1.14, 0.78, net, Kit.DECOR)
+	b:box("NetLagoon", -3.4, 0.05, -0.92, 3.4, 1.12, -0.76, net, Kit.DECOR)
+	b:box("NetCoping", -3.1, 0.02, -2.6, 2.9, 0.16, -0.8, net, Kit.DECOR)
+	b:box("NetWalk", -3.4, 0.05, 0.76, 3.4, 1.12, 0.92, net, Kit.DECOR)
+	b:box("NetCord", -0.15, 0.05, 0.86, 0.1, 1.2, 1.02, cord, Kit.DECOR)
+	for i, x in { -2.6, 0, 2.5 } do
+		b:box(`Cork{i}`, x - 0.35, 1.1, -0.28, x + 0.35, 1.6, 0.28, if i == 2 then C.Cream else C.Orange, Kit.DECOR)
+	end
+	return first
+end
+
+-- Beach parasol with a towel and a cooler (8 parts, beach, depth >= 7): a stepped canopy in a
+-- calm paint with a cream band, a striped towel, a cooler.
+local function beachParasol(b: any, paint: any, k: number): any
+	local canopy = PARASOLS[k % #PARASOLS + 1]
+	local first = b:pole("ParasolPole", 0.4, -0.8, -4.2, -0.5, 7.9, C.Cream, Kit.NOSHADOW)
+	b:box("Canopy", -4.1, 6.1, -7.5, 2.5, 6.7, -0.9, canopy)
+	b:box("CanopyMid", -3.0, 6.65, -6.4, 1.4, 7.25, -2.0, C.Cream, Kit.NOSHADOW)
+	b:box("CanopyTop", -1.9, 7.2, -5.3, 0.3, 7.8, -3.1, canopy, Kit.NOSHADOW)
+	b:box("Towel", 1.2, -0.05, -6.6, 3.8, 0.12, -1.8, lerp(paint, C.Cream, 0.25), Kit.DECOR)
+	b:box("TowelStripe", 1.1, -0.1, -4.6, 3.9, 0.2, -3.9, C.Cream, Kit.DECOR)
+	b:box("Cooler", -4.6, -0.3, -3.0, -2.6, 1.2, -1.6, C.RoofBlue)
+	b:box("CoolerLid", -4.7, 1.15, -3.1, -2.5, 1.55, -1.5, C.White, Kit.NOSHADOW)
+	return first
+end
+
+-- Fish drying rack (9 parts, beach): two posts and a bar, three fish hanging from it head down,
+-- each with its tail.
+local function dryingRack(b: any, paint: any): any
+	local first = b:box("RackPostA", -3.0, -0.4, -3.0, -2.5, 4.8, -2.5, C.WoodDark)
+	b:box("RackPostB", 2.5, -0.4, -3.0, 3.0, 4.8, -2.5, C.WoodDark)
+	b:box("RackBar", -3.2, 4.2, -2.95, 3.2, 4.6, -2.55, C.Wood, Kit.NOSHADOW)
+	for i, x in { -1.4, 0, 1.4 } do
+		local y0 = 2.2 + (i % 2) * 0.3
+		local col = if i == 1 then SILVER elseif i == 2 then C.Gold else SALMON
+		b:box(`Fish{i}`, x - 0.32, y0, -2.92, x + 0.32, 4.25, -2.58, col, Kit.DECOR)
+		b:box(`Tail{i}`, x - 0.55, y0 - 0.5, -2.88, x + 0.55, y0 + 0.05, -2.62, Kit.shade(col, 0.82), Kit.DECOR)
+	end
+	return first
+end
+
+-- Lobster pots and a marker float (8 parts, ledge): three pots of green or blue netting with dark
+-- wooden tops (two side by side, one on them), a coil of rope with an orange float on it.
+local function lobsterPots(b: any, paint: any, k: number): any
+	local net = NETS[(k + 1) % #NETS + 1]
+	local top = C.WoodDark
+	local first = b:box("PotA", -2.8, -0.05, 0.7, -0.8, 1.4, 2.9, net)
+	b:box("PotATop", -2.95, 1.35, 0.6, -0.65, 1.7, 3.0, top, Kit.NOSHADOW)
+	b:box("PotB", -0.5, -0.05, 0.8, 1.5, 1.3, 2.95, net)
+	b:box("PotBTop", -0.65, 1.25, 0.7, 1.65, 1.6, 3.05, top, Kit.NOSHADOW)
+	b:box("PotC", -1.8, 1.7, 1.0, 0.2, 3.1, 2.8, net)
+	b:box("PotCTop", -1.95, 3.05, 0.9, 0.35, 3.4, 2.9, top, Kit.NOSHADOW)
+	b:box("RopeCoil", 1.9, -0.05, -0.3, 3.5, 0.75, 1.3, C.Rope, Kit.DECOR)
+	b:box("Float", 2.35, 0.7, 0.15, 3.05, 1.4, 0.85, paint, Kit.DECOR)
+	return first
+end
+
+-- The vignettes round the ring in this order (neighbours differ): { builder, frame, the sand
+-- depth it needs (beach) }.
+local VIGNETTES = {
+	{ name = "UpturnedBoat", build = upturnedBoat, frame = "beach", depth = 6 },
+	{ name = "RodRack", build = rodRack, frame = "ledge" },
+	{ name = "BeachParasol", build = beachParasol, frame = "beach", depth = 8 },
+	{ name = "CatchCrates", build = catchCrates, frame = "ledge" },
+	{ name = "ParapetNet", build = parapetNet, frame = "parapet" },
+	{ name = "LobsterPots", build = lobsterPots, frame = "ledge" },
+	{ name = "DryingRack", build = dryingRack, frame = "beach", depth = 4 },
+}
+
 local STOPS = {
 	{ name = "IceCreamCart", build = iceCreamStop },
 	{ name = "Smokehouse", build = smokehouseStop },
@@ -1048,6 +1247,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 
 	-- (the end pillars stand 0.95 inside the run, so their sides stay clear of the coping's end)
 	local inset = math.deg(0.95 / postR)
+	local parapets = {} -- { a0, a1 } of the parapet chords (pillar to pillar)
 	local node = 2 * step -- pillar grid (7.5°): every lamp angle is on it
 	for _, run in railRuns(cfg) do
 		local a0, a1 = run[1] + inset, run[2] - inset
@@ -1071,16 +1271,12 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 			)
 			if isLamp(a) then
 				-- an iron lamp on the pillar
-				Kit.lamp(lampModel, CFrame.new(p.X, top + PILLAR_TOP, p.Z) * turn, {
-					height = 5,
-					post = C.Iron,
-					trim = C.Navy,
-					light = lamps % 4 == 0,
-				})
+				pillarLamp(lampModel, CFrame.new(p.X, top + PILLAR_TOP, p.Z) * turn, lamps % 4 == 0)
 				lamps += 1
 			end
 			if j > 1 then
 				-- the parapet between this pillar and the last one: a chord into both pillars
+				table.insert(parapets, { list[j - 1], a })
 				local q = U.polar(list[j - 1], postR, 0)
 				local d = Vector3.new(p.X - q.X, 0, p.Z - q.Z)
 				local m = (p + q) / 2
@@ -1088,7 +1284,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 				U.part(
 					railing,
 					"Parapet",
-					Vector3.new(0.9, PARAPET_TOP - 0.6, d.Magnitude),
+					Vector3.new(1.2, PARAPET_TOP - 0.6, d.Magnitude),
 					CFrame.lookAt(Vector3.new(m.X, y, m.Z), Vector3.new(p.X, y, p.Z)),
 					WALL[1]
 				)
@@ -1100,7 +1296,8 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 		local a = sa + (if k % 2 == 0 then step else -step)
 		local p = U.polar(a, postR - 1.25, 0)
 		-- (front, local -Z, towards the lagoon)
-		Kit.prop("lifebuoy", railing, CFrame.new(p.X, top + 2.3, p.Z) * CFrame.Angles(0, rad(a), 0), { seed = k })
+		-- (standing on the coping, leaning on the low parapet)
+		Kit.prop("lifebuoy", railing, CFrame.new(p.X, top + 2.25, p.Z) * CFrame.Angles(0, rad(a), 0), { seed = k })
 	end
 
 	-- The bridge landing at angle a (within 1°), if any.
@@ -1134,7 +1331,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 		local pb = U.polar(base + 15, postR, top + 10.9)
 		offsetFlags(Kit.prop("bunting", bunting, pa, pb, {
 			seed = i * 7,
-			count = 4,
+			count = 3,
 			sag = 2.4,
 			name = "Bunting",
 			colors = twoTone(quarterColor(base + 11)),
@@ -1147,15 +1344,14 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	-- its lamps only: the running lane stays clear.
 	local furniture = U.model(promenade, "Furniture")
 	local n = 0
-	local flowers = C.Flowers
+	local bloomPairs = Props.bloomPairs
 	local function planterAt(a: number, r: number)
 		n += 1
 		local q = U.polar(a, r, 0)
 		planter(
 			furniture,
 			CFrame.new(q.X, top, q.Z) * CFrame.Angles(0, rad(a), 0),
-			flowers[(n * 2) % #flowers + 1],
-			flowers[(n * 2 + 3) % #flowers + 1]
+			bloomPairs[(n * 3) % #bloomPairs + 1]
 		)
 	end
 	for i = 1, cfg.BaseCount do
@@ -1186,6 +1382,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	-- bridge, between the lamps; the fishing spot is on the sea wall's coping instead, half-way
 	-- between two lamps.
 	local stops = U.model(promenade, "Stops")
+	local fishingAt = nil -- (the fishing-spot stop counts as a lagoon-side vignette)
 	for i = 1, cfg.BaseCount do
 		local base = cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount
 		local half = 180 / cfg.BaseCount
@@ -1199,6 +1396,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 		local b
 		if spec.seaWall then
 			local a = bridge + dir * 11.25
+			fishingAt = a
 			local edge = copingEdge(a) or WALL_IN
 			local cf = U.polarCFrame(a, edge + 1.4, top + 0.6)
 			b = Kit.builder(stops, spec.name, cf)
@@ -1207,6 +1405,82 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 			local a = bridge + dir * 5.5
 			b = Kit.builder(stops, spec.name, U.polarCFrame(a, outer - 4.1, top))
 			b:finish(spec.build(b, color))
+		end
+	end
+
+	-- Fishing vignettes on the lagoon side, two on every stretch between a pier and the next
+	-- beach steps or bridge landing (~22° apart; the fishing-spot stop takes one place): on the
+	-- sand under the sea wall, or on the coping ledge beside the parapet when the beach there is
+	-- too narrow for the scene. Each is squared to the sea wall's face (the coping piece's chord).
+	local vignettes = U.model(promenade, "Vignettes")
+	local function pieceAt(a: number): { number }?
+		local na = (a - cfg.BaseAngleOffset) % 360 + cfg.BaseAngleOffset
+		for _, pc in copings do
+			if na >= pc[1] and na <= pc[2] then
+				return { pc[1], pc[2], na }
+			end
+		end
+		return nil
+	end
+	-- How far the dry sand reaches out from the wall's foot across the frame's width (studs).
+	local function sandDepth(cf: any, half: number): number
+		local depth = 14
+		for _, x in { -half, 0, half } do
+			for z = 0.5, 14, 0.5 do
+				local p = cf * Vector3.new(x, 0, -z)
+				local h, _, water = world:surfaceAt(p.X, p.Z)
+				if water or h < 2 then
+					depth = math.min(depth, z - 0.5)
+					break
+				end
+			end
+		end
+		return depth
+	end
+	local nV = 0
+	for k = 0, 3 do
+		for _, off in { 11, 34, 56, 79 } do
+			local a = k * 90 + off
+			local pc = if fishingAt and Kit.angleDistance(a, fishingAt) < 6 then nil else pieceAt(a)
+			if not pc then
+				continue
+			end
+			local na = pc[3]
+			local am = (pc[1] + pc[2]) / 2
+			local edge = copingEdge(na) or WALL_IN
+			local p = U.polar(na, edge, 0)
+			local turn = CFrame.Angles(0, rad(am), 0)
+			local q = U.polar(na, edge - 1, 0) -- (the sand just in front of the wall)
+			local beachCf = CFrame.new(p.X, world:heightAt(q.X, q.Z), p.Z) * turn
+			local depth = sandDepth(beachCf, 6)
+			-- the parapet chord across this ray (the net hangs over it)
+			local wallCf = nil
+			for _, pp in parapets do
+				if na >= pp[1] + 1 and na <= pp[2] - 1 then
+					local pm, half = (pp[1] + pp[2]) / 2, rad(pp[2] - pp[1]) / 2
+					local w = U.polar(na, postR * cos(half) / cos(rad(na - pm)), 0)
+					wallCf = CFrame.new(w.X, top + 0.6, w.Z) * CFrame.Angles(0, rad(pm), 0)
+				end
+			end
+			-- the scheduled scene, or the next one that fits the beach here
+			for t = 0, #VIGNETTES - 1 do
+				local spec = VIGNETTES[(nV + t) % #VIGNETTES + 1]
+				local fits = if spec.frame == "beach"
+					then depth >= spec.depth
+					elseif spec.frame == "parapet" then wallCf ~= nil
+					else true
+				if fits then
+					local cf = if spec.frame == "ledge"
+						then CFrame.new(p.X, top + 0.6, p.Z) * turn
+						elseif spec.frame == "parapet" then wallCf
+						else beachCf
+					local b = Kit.builder(vignettes, spec.name, cf)
+					local paint = C.BoatPaint[(nV * 3) % #C.BoatPaint + 1]
+					b:finish(spec.build(b, paint, nV))
+					break
+				end
+			end
+			nV += 1
 		end
 	end
 
