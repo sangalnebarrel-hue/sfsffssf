@@ -1,9 +1,10 @@
 --[[
 	Coast — everything on the water and in the sky (World v3, DESIGN.md §6):
 
-	  Map.Lagoon  sailboats, rowboats, a motorboat, a ring of buoys, lily pads near both shores, a
-	              floating raft with a parasol, a swim platform with a slide, a sandbar island
-	              with a palm and two small ones (the coral reefs on the bed are Nature's). The
+	  Map.Lagoon  sailboats, rowboats, a motorboat (Palette boat paint), a ring of red and yellow
+	              buoys, lily pads near both shores, a log raft with a parasol, a wooden diving
+	              platform on drums, a sandbar island with a palm and two small ones (the coral
+	              reefs on the bed are Nature's). The
 	              water in front of every pier (base-local lz -(PierLength + 16)..0, |lx| <= 26)
 	              and along the bridges stays clear (lagoonClear); boats keep out of every pier's
 	              whole casting cone (|lx| <= 40, lz -150..0): they sail half-way between piers.
@@ -12,11 +13,12 @@
 	              lighthouse on a stone foundation, a pirate hideout with a hut and a flag, a palm
 	              grove with a beach hut and a red-white parasol, the big island, a
 	              cherry-blossom island, an island with a cheap shipwreck along its shore and a
-	              red-rock sea stack off its corner; a white-sand atoll with a turquoise pool; a
-	              rock arch and a whale (spouting spray) between the coast and the boundary
-	              wall, a ring of red / yellow marker buoys just inside the wall (the swim
-	              limit), a big sailboat far out at sea. Parts beyond the wall neither collide
-	              nor cast shadows.
+	              weathered sandstone sea stack off its corner; a sand atoll round a shallow
+	              pool; a rock arch and a slate-grey whale (spouting spray, no cartoon face)
+	              between the coast and the boundary wall, a ring of red / cream marker buoys
+	              just inside the wall (the swim limit), a big sailboat far out at sea. Calm,
+	              natural colours from Palette.luau (DESIGN.md §1): strong colour only on small
+	              accents. Parts beyond the wall neither collide nor cast shadows.
 	  Map.Sky     voxel clouds (Props.cloud): a ring of 8 big ones low over the open ocean
 	              (r 1020-1260, y 130-190: one on the horizon of every outward view) and three
 	              high ones over the hills.
@@ -105,10 +107,10 @@ local function raft(parent: any, cf: any)
 			Kit.NOSHADOW
 		)
 	end
-	b:box("Towel", -2.6, 0.75, -2.5, 0.2, 0.85, 1.5, C.Pink, Kit.DECOR)
-	b:box("TowelStripe", -2.75, 0.7, -1.0, 0.35, 0.97, -0.2, C.White, Kit.DECOR)
+	b:box("Towel", -2.6, 0.75, -2.5, 0.2, 0.85, 1.5, C.Cream, Kit.DECOR)
+	b:box("TowelStripe", -2.75, 0.7, -1.0, 0.35, 0.97, -0.2, C.Blue, Kit.DECOR)
 	b:finish(deck)
-	Kit.prop("parasol", b.model, cf * CFrame.new(2, 0.75, 1.5), { color = C.Cyan })
+	Kit.prop("parasol", b.model, cf * CFrame.new(2, 0.75, 1.5), { color = C.Red })
 	return b.model
 end
 
@@ -122,12 +124,7 @@ local function sandbar(parent: any, cf: any)
 	b:finish(base)
 	Nature.farTree(b.model, cf * CFrame.new(1, 1.6, 0), "palm", 1.7, 5)
 	Kit.prop("rock", b.model, cf * CFrame.new(-7, 0.7, 4), { seed = 6, count = 3, color = BEACH_ROCK, moss = true })
-	Kit.prop(
-		"beachChair",
-		b.model,
-		cf * CFrame.new(-2.5, 1.6, -1) * CFrame.Angles(0, rad(200), 0),
-		{ color = C.Orange }
-	)
+	Kit.prop("beachChair", b.model, cf * CFrame.new(-2.5, 1.6, -1) * CFrame.Angles(0, rad(200), 0), { color = C.Blue })
 	return b.model
 end
 
@@ -148,21 +145,18 @@ local function islandlet(parent: any, cf: any, towel: any)
 	return b.model
 end
 
--- Floating swim platform (7 parts): a white deck on yellow floats with a cyan rim, a slide
--- tower on one corner and a yellow chute down into the water.
+-- Wooden diving platform (7 parts): a plank deck with a dark rim on two iron drums, a plank
+-- tower on one corner with a deck on top and a springboard out over the water.
 local function swimPlatform(parent: any, cf: any)
 	local b = Kit.builder(parent, "SwimPlatform", cf)
-	local deck = b:box("Deck", -6, 0.3, -6, 6, 1.1, 6, C.White)
-	b:box("Rim", -6.4, -0.3, -6.4, 6.4, 0.5, 6.4, C.Cyan, Kit.NOSHADOW)
-	b:box("FloatA", -5.6, -1.4, -5.6, -3.4, -0.25, 5.6, C.Yellow, Kit.NOSHADOW)
-	b:box("FloatB", 3.4, -1.4, -5.6, 5.6, -0.25, 5.6, C.Yellow, Kit.NOSHADOW)
-	b:box("Tower", 2.0, 1.1, 2.0, 6.0, 6.6, 6.0, C.Cyan)
-	b:box("TowerTop", 1.6, 6.6, 1.6, 6.4, 7.4, 6.4, C.Pink)
-	b:finish(deck)
-	local a = cf * Vector3.new(4.0, 6.6, 5.6)
-	local c = cf * Vector3.new(4.0, -0.2, 16.5)
-	Kit.ramp(b.model, a, c, { width = 3.6, thick = 0.8, color = C.Yellow, name = "Slide" })
-	return b.model
+	local deck = b:box("Deck", -6, 0.3, -6, 6, 1.1, 6, C.Plank)
+	b:box("Rim", -6.4, -0.3, -6.4, 6.4, 0.5, 6.4, C.WoodDark, Kit.NOSHADOW)
+	b:box("FloatA", -5.6, -1.4, -5.6, -3.4, -0.25, 5.6, C.Iron, Kit.NOSHADOW)
+	b:box("FloatB", 3.4, -1.4, -5.6, 5.6, -0.25, 5.6, C.Iron, Kit.NOSHADOW)
+	b:box("Tower", 2.2, 1.1, 2.2, 5.8, 5.6, 5.8, C.Wood)
+	b:box("TowerTop", 1.8, 5.6, 1.8, 6.2, 6.2, 6.2, C.Plank)
+	b:box("Springboard", 3.3, 5.75, 6.2, 4.7, 6.1, 12.5, C.WoodLight, Kit.NOSHADOW)
+	return b:finish(deck)
 end
 
 local function buildLagoon(map: any, cfg: any, world: any)
@@ -180,17 +174,23 @@ local function buildLagoon(map: any, cfg: any, world: any)
 	-- boats sailing round the lagoon (half-way between two piers, away from the bridges),
 	-- rocking on the waves (the rowboats' and the motorboat's floors lifted to 0.55-0.6 above the
 	-- water)
-	bob(place("sailboat", 45, 226, tangent(45, true), { seed = 1, color = C.Red, stripe = C.Yellow }, 10), 0.35, 4.2)
-	bob(place("sailboat", 226, 238, tangent(226, false), { seed = 2, color = C.Blue, stripe = C.White }, 10), 0.35, 4.8)
+	-- (hulls in the Palette's boat paint: red, white with a blue sail stripe, teal, green)
+	local paint = C.BoatPaint
+	bob(place("sailboat", 45, 226, tangent(45, true), { seed = 1, color = paint[1] }, 10), 0.35, 4.2)
 	bob(
-		place("motorboat", 133, 202, tangent(133, true), { seed = 3, color = C.White, stripe = C.Red }, 8, 0.3),
+		place("sailboat", 226, 238, tangent(226, false), { seed = 2, color = paint[5], stripe = paint[3] }, 10),
+		0.35,
+		4.8
+	)
+	bob(
+		place("motorboat", 133, 202, tangent(133, true), { seed = 3, color = paint[5], stripe = paint[2] }, 8, 0.3),
 		0.3,
 		3.4
 	)
-	bob(place("rowboat", 314, 196, tangent(314, false) + 25, { seed = 4, color = C.Yellow }, 6, 0.35), 0.25, 3.0)
-	bob(place("rowboat", 128, 270, tangent(128, true) - 20, { seed = 5, color = C.BoatPaint[2] }, 6, 0.35), 0.25, 3.2)
-	-- buoys on a ring between the shores (bobbing faster than the boats)
-	local colors = { C.Red, C.Yellow, C.Orange, C.Pink }
+	bob(place("rowboat", 314, 196, tangent(314, false) + 25, { seed = 4, color = paint[6] }, 6, 0.35), 0.25, 3.0)
+	bob(place("rowboat", 128, 270, tangent(128, true) - 20, { seed = 5, color = paint[2] }, 6, 0.35), 0.25, 3.2)
+	-- buoys on a ring between the shores (bobbing faster than the boats): red and yellow markers
+	local colors = { paint[1], paint[4] }
 	for k = 0, 7 do
 		local a = k * 45 + 11.25 + (k % 2) * 22.5
 		bob(
@@ -221,7 +221,7 @@ local function buildLagoon(map: any, cfg: any, world: any)
 	if lagoonClear(cfg, world, sp.X, sp.Z, 14) then
 		sandbar(lagoon, CFrame.new(sp.X, 0, sp.Z) * CFrame.Angles(0, rad(138), 0))
 	end
-	for _, s in { { 318, 252, C.Pink }, { 222, 214, C.Blue } } do
+	for _, s in { { 318, 252, C.BoatPaint[1] }, { 222, 214, C.Blue } } do
 		local p = U.polar(s[1], s[2], 0)
 		if lagoonClear(cfg, world, p.X, p.Z, 12) then
 			islandlet(lagoon, CFrame.new(p.X, 0, p.Z) * CFrame.Angles(0, rad(s[1] + 30), 0), s[3])
@@ -234,7 +234,7 @@ end
 -- Ocean
 --------------------------------------------------------------------------------------------
 
--- A hut (7 parts, scaled by `s`): a plank floor, cream walls, a stepped roof, door and window.
+-- A hut (7 parts, scaled by `s`): a plank floor, plaster walls, a stepped roof, door and window.
 local function hut(parent: any, cf: any, roof: any, s: number?)
 	local k = s or 1
 	local b = Kit.builder(parent, "Hut", cf)
@@ -242,34 +242,39 @@ local function hut(parent: any, cf: any, roof: any, s: number?)
 		return b:box(name, x0 * k, y0 * k, z0 * k, x1 * k, y1 * k, z1 * k, color, extra)
 	end
 	local base = box("Floor", -5, -1, -4.5, 5, 0.6, 4.5, C.WoodDark)
-	box("Walls", -4.2, 0.6, -3.8, 4.2, 6, 3.8, C.Cream)
+	box("Walls", -4.2, 0.6, -3.8, 4.2, 6, 3.8, C.Plaster)
 	box("Roof1", -5.4, 6, -5, 5.4, 7.4, 5, roof)
-	box("Roof2", -3.8, 7.4, -3.6, 3.8, 8.6, 3.6, Kit.lerpColor(roof, C.White, 0.2))
+	box("Roof2", -3.8, 7.4, -3.6, 3.8, 8.6, 3.6, Kit.lerpColor(roof, C.Plaster, 0.2))
 	box("Roof3", -2, 8.6, -2, 2, 9.6, 2, roof)
-	box("Door", -1.2, 0.6, -3.95, 1.2, 4.4, -3.7, C.Blue, Kit.NOSHADOW)
+	box("Door", -1.2, 0.6, -3.95, 1.2, 4.4, -3.7, C.WoodDark, Kit.NOSHADOW)
 	box("Window", 2.0, 2.6, -3.95, 3.4, 4.0, -3.7, C.WindowBlue, Kit.DECOR)
 	return b:finish(base)
 end
 
--- Red-rock strata (the mesas' colours) for the sea stack.
-local STRATA = { U.rgb(226, 110, 72), U.rgb(242, 142, 90), U.rgb(252, 190, 130) }
-local CREAM_BAND = U.rgb(255, 226, 170)
-local OCHRE = U.rgb(250, 206, 130)
+-- Weathered sandstone strata for the sea stack (Palette rock tones warmed with sand), pale
+-- bands between them and a grassy top.
+local STRATA = {
+	Kit.lerpColor(C.RockDark, C.SandDark, 0.3),
+	Kit.lerpColor(C.RockMid, C.SandDark, 0.35),
+	Kit.lerpColor(C.RockLight, C.Sand, 0.35),
+}
+local PALE_BAND = Kit.lerpColor(C.StoneLight, C.Sand, 0.5)
+local GRASS_TOP = C.GrassTop2
 
 --[[
-	A red-rock sea stack (9 parts + a palm): three terracotta strata narrowing upwards, each off
-	the centre of the one under it, with a cream band between them (a lip, like the mesas'
-	strata), an ochre top with a palm, two boulders at its foot in a ring of foam. cf on the
+	A sandstone sea stack (9 parts + a palm): three weathered strata narrowing upwards, each
+	off the centre of the one under it, with a pale band between them (a lip, like the mesas'
+	strata), a grassy top with a palm, two boulders at its foot in a ring of foam. cf on the
 	water surface; it stands on the sea floor `bed` studs down.
 ]]
 local function seaStack(parent: any, cf: any, bed: number)
 	local b = Kit.builder(parent, "SeaStack", cf)
 	local base = b:box("Rock1", -11, -bed, -9, 11, 14, 9, STRATA[1])
-	b:box("Band1", -11.3, 14, -9.3, 10.4, 17, 8.4, CREAM_BAND)
+	b:box("Band1", -11.3, 14, -9.3, 10.4, 17, 8.4, PALE_BAND)
 	b:box("Rock2", -9, 17, -7.5, 8, 30, 7, STRATA[2])
-	b:box("Band2", -9.3, 30, -7.8, 7.4, 32.5, 6.4, CREAM_BAND)
+	b:box("Band2", -9.3, 30, -7.8, 7.4, 32.5, 6.4, PALE_BAND)
 	b:box("Rock3", -7.5, 32.5, -6, 5.6, 44, 5.4, STRATA[1])
-	b:box("Top", -7.8, 44, -6.3, 5.9, 46, 5.7, OCHRE)
+	b:box("Top", -7.8, 44, -6.3, 5.9, 46, 5.7, GRASS_TOP)
 	b:box("BoulderA", 10, -bed, 2, 16, 3.5, 8, STRATA[2])
 	b:box("BoulderB", -15, -bed, -8, -9.5, 2.2, -2.6, STRATA[3])
 	b:box("Foam", -17, 0.1, -12, 18, 0.3, 12, C.Foam, Kit.DECOR)
@@ -278,17 +283,19 @@ local function seaStack(parent: any, cf: any, bed: number)
 	return b.model
 end
 
--- A white-sand atoll (6 parts + three palms): a square ring of sand (two sides a little lower)
--- round a bright turquoise inner pool, in a ring of foam. cf on the water surface.
+-- A sand atoll (6 parts + three palms): a square ring of sand (two sides a little lower) round
+-- a shallow pool (light sea green, calm), in a ring of foam. cf on the water surface.
+local SHALLOW = Kit.lerpColor(C.WaterLight, C.Cyan, 0.35)
+
 local function atoll(parent: any, cf: any)
 	local b = Kit.builder(parent, "Atoll", cf)
-	local sand = U.rgb(255, 246, 220)
+	local sand = Kit.lerpColor(C.Sand, C.Cream, 0.3)
 	local R, w = 36, 11
 	local first = b:box("RingN", -R, -6, R - w, R, 1.6, R, sand)
 	b:box("RingS", -R, -6, -R, R, 1.6, -R + w, sand)
 	b:box("RingW", -R, -6, -R + w, -R + w, 1.2, R - w, sand)
 	b:box("RingE", R - w, -6, -R + w, R, 1.2, R - w, sand)
-	b:box("Pool", -R + w, -3, -R + w, R - w, 0.35, R - w, U.rgb(70, 226, 214), Kit.NOSHADOW)
+	b:box("Pool", -R + w, -3, -R + w, R - w, 0.35, R - w, SHALLOW, Kit.NOSHADOW)
 	b:box("Foam", -R - 4, 0.05, -R - 4, R + 4, 0.25, R + 4, C.Foam, Kit.DECOR)
 	b:finish(first)
 	for i, p in { { -R + w / 2, R - w / 2 - 2, 2.3 }, { R - w / 2, -R + w / 2 + 8, 2.0 }, { R - 20, R - w / 2, 1.8 } } do
@@ -311,18 +318,18 @@ local function rimSpot(world: any, isle: any, towards: number, inset: number, of
 end
 
 -- A cheap shipwreck (16 parts; it is seen from 200+ studs through the haze): a dark hull with
--- a red band, half sunk and listing in a ring of foam, a stepped bow with a bowsprit, a stern
+-- a faded red band, half sunk and listing in a ring of foam, a stepped bow with a bowsprit, a stern
 -- castle, a broken main mast with a torn sail on its yard and a fore mast with a black flag.
 -- cf on the water surface, bow = -Z.
 local function wreck(parent: any, cf: any)
 	local b = Kit.builder(parent, "Shipwreck", cf)
-	local hull, hullDark = U.rgb(150, 96, 62), U.rgb(116, 72, 46)
+	local hull, hullDark = C.Bark, C.BarkDark
 	b:box("FoamA", -9, -0.3, -24, 9, 0.35, -16, C.Foam, Kit.DECOR)
 	b:box("FoamB", -10, -0.3, 10, 10, 0.3, 20, C.Foam, Kit.DECOR)
 	-- the ship: sunk 2.6 and listed (rolled to starboard, bow up)
 	local s = Kit.builder(b.model, "Ship", cf * CFrame.new(0, -2.6, 0) * CFrame.Angles(rad(-5), 0, rad(-9)))
 	local keel = s:box("Hull", -6.5, -5, -13, 6.5, 5.5, 22, hull)
-	s:box("Band", -6.6, 3.9, -13.1, 6.6, 4.8, 22.1, C.Red, Kit.NOSHADOW)
+	s:box("Band", -6.6, 3.9, -13.1, 6.6, 4.8, 22.1, C.RoofRed, Kit.NOSHADOW)
 	s:box("Deck", -5.7, 5.5, -12, 5.7, 6.1, 11, C.WoodLight)
 	s:box("Bow1", -4.9, -4, -17, 4.9, 6.1, -12.9, hull)
 	s:box("Bow2", -3.1, -2, -20, 3.1, 6.7, -16.9, hullDark)
@@ -463,6 +470,30 @@ local function openSea(cfg: any, world: any, angle: number, clear: number): numb
 	return limit
 end
 
+-- A real whale's colours: slate-grey back, a pale grey belly; no cartoon face (the smile, the
+-- pink cheeks and the white eyes go, a small dark eye stays). DESIGN.md §1: nature, not a mascot.
+local WHALE = Kit.lerpColor(C.RoofSlate, C.Navy, 0.3)
+
+local function naturalWhale(whale: any)
+	if not whale then
+		return
+	end
+	for _, d in whale:GetDescendants() do
+		if not d:IsA("BasePart") then
+			continue
+		end
+		local name = d.Name
+		if string.match(name, "^Mouth") or string.match(name, "^Cheek") or string.match(name, "^Pupil") then
+			d:Destroy()
+		elseif string.match(name, "^Eye") then
+			d.Color = C.Dark
+			d.Size = Vector3.new(d.Size.X, d.Size.Y * 0.35, d.Size.Z * 0.35)
+		elseif name == "Belly" then
+			d.Color = Kit.lerpColor(C.StoneLight, C.Cream, 0.3)
+		end
+	end
+end
+
 local function buildOcean(map: any, cfg: any, world: any)
 	local ocean = U.model(map, "Ocean")
 	for i, isle in world.islets do
@@ -486,14 +517,14 @@ local function buildOcean(map: any, cfg: any, world: any)
 			-- PointLight: the sun never sets), a little grove of cheap palms beside it
 			local cf = isletSpot(world, isle, 0, 0, home)
 			local top = cf.Position.Y
-			Kit.prop("lighthouse", m, cf, { scale = 1.3, light = false })
+			Kit.prop("lighthouse", m, cf, { scale = 1.3, light = false, stripe = C.RoofRed })
 			foundation(m, world, cf, 8.7, top - 2.4, C.Stone)
 			Nature.farTree(m, isletSpot(world, isle, s * 0.42, home + 70), "palm", 2.2, 11)
 			Nature.farTree(m, isletSpot(world, isle, s * 0.62, home + 98), "palm", 2.0, 13)
 		elseif i == 3 then
 			-- pirate hideout: a red-roofed hut, a black flag and palms
 			local hutCf = isletSpot(world, isle, s * 0.15, home + 20, home)
-			hut(m, hutCf, C.Red)
+			hut(m, hutCf, C.RoofRed)
 			foundation(m, world, hutCf, 4.9, hutCf.Position.Y - 1, C.WoodDark)
 			Kit.prop(
 				"flagPole",
@@ -527,7 +558,7 @@ local function buildOcean(map: any, cfg: any, world: any)
 		elseif i == 2 then
 			-- a palm grove (cheap far palms: it is seen through the haze) and, on the beach facing
 			-- the main island, a beach hut with a red-white parasol beside it
-			hut(m, rimSpot(world, isle, home, 14, 12, home), C.Orange, 1.4)
+			hut(m, rimSpot(world, isle, home, 14, 12, home), C.RoofTerracotta, 1.4)
 			Kit.prop("parasol", m, rimSpot(world, isle, home, 10, -10), { color = C.Red, scale = 1.6 })
 			plant(world, sites, taken, 3, 16, 3, 21, land, farTree("palm", 1.7, 2.2, 21))
 		elseif i == 4 then
@@ -555,7 +586,9 @@ local function buildOcean(map: any, cfg: any, world: any)
 	local ra = openSea(cfg, world, 66, 24)
 	Kit.prop("rockArch", ocean, onWater(66, ra, 66), { seed = 3 })
 	local wa = openSea(cfg, world, 160, 22)
-	local whale = bob(Kit.prop("whale", ocean, onWater(160, wa, tangent(160, true)), { seed = 4 }), 0.4, 5.5)
+	local whale =
+		bob(Kit.prop("whale", ocean, onWater(160, wa, tangent(160, true)), { seed = 4, color = WHALE }), 0.4, 5.5)
+	naturalWhale(whale)
 	-- a puff of spray from the blowhole every second or so (particles: no parts)
 	local blow = whale:FindFirstChild("SpoutHead") or whale:FindFirstChild("Blowhole")
 	if blow then
@@ -573,13 +606,13 @@ local function buildOcean(map: any, cfg: any, world: any)
 				U.roblox.NumberSequenceKeypoint.new(0, 0.2),
 				U.roblox.NumberSequenceKeypoint.new(1, 1),
 			}),
-			Color = U.roblox.ColorSequence.new(C.White, U.rgb(170, 235, 255)),
+			Color = U.roblox.ColorSequence.new(C.White, C.WaterLight),
 			Acceleration = Vector3.new(0, -18, 0),
 			LightEmission = 0.2,
 			EmissionDirection = U.Enum.NormalId.Top,
 		}, blow)
 	end
-	-- the swim limit: a ring of red and yellow marker buoys (every 15°, ~200 studs apart) just
+	-- the swim limit: a ring of red and cream marker buoys (every 15°, ~200 studs apart) just
 	-- inside the invisible boundary wall, so swimmers heading for the islets see where the sea
 	-- ends (1 part each, bobbing; they keep clear of the arch and the whale)
 	local line = U.model(ocean, "BuoyLine")
@@ -602,7 +635,7 @@ local function buildOcean(map: any, cfg: any, world: any)
 				"Float",
 				Vector3.new(3.6, 3.6, 3.6),
 				CFrame.new(p.X, 0.5, p.Z),
-				if k % 2 == 0 then C.Red else C.Yellow,
+				if k % 2 == 0 then C.BoatPaint[1] else C.Cream,
 				nil,
 				{ Shape = U.Enum.PartType.Ball, CanCollide = false, CanQuery = false, CastShadow = false }
 			)
@@ -612,7 +645,12 @@ local function buildOcean(map: any, cfg: any, world: any)
 	end
 	-- a big sailboat far out at sea (beyond the wall, seen from the coast and the peaks)
 	bob(
-		Kit.prop("sailboat", ocean, onWater(302, 960, tangent(302, false)), { seed = 22, scale = 1.6, color = C.Red }),
+		Kit.prop(
+			"sailboat",
+			ocean,
+			onWater(302, 960, tangent(302, false)),
+			{ seed = 22, scale = 1.6, color = C.BoatPaint[5], stripe = C.BoatPaint[1] }
+		),
 		0.4,
 		5.0
 	)
