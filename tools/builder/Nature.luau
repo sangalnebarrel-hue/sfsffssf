@@ -15,14 +15,20 @@
 	trunks and of each other.
 
 	Most of the budget goes into cheap pieces (2-5 parts) so the land reads full: 5-part voxel
-	trees (Nature.farTree), 3-part flower tufts, 2-3 part bushes, 3-4 part rocks (warm light
-	greys with a moss cap, always with a tuft or a bush beside them), hay bales, short fence
-	runs, and set-pieces of 5-10 parts (pumpkin patch with a scarecrow, picnic blanket, bee
-	boxes, log pile, mushroom ring).
+	trees (Nature.farTree), 3-part flower bushes, 2-3 part bushes, 3-4 part rocks (warm light
+	greys with a moss cap, always with a flower bush or a bush beside them), hay bales, short
+	fence runs, and set-pieces of 5-11 parts (pumpkin patch with a scarecrow, picnic blanket,
+	bee boxes, log pile, mushroom ring, raised flower beds, bush clumps); all of them sized to
+	read from the promenade, not as 2-stud dots.
 
 	Passes, each with its share of the budget (unspent parts carry over to the next one):
-	  reef    coral clusters (2-3 blocks in coral colours) on the lagoon bed, seen through the
-	          water; the water in front of the piers and along the bridges stays clear
+	  reef    12 coral reef patches on the lagoon's sandy slope beside the piers and bridges
+	          (sand pad, branching stacks in warm coral colours rising close under the surface,
+	          a glowing tip, bubbles); the water in front of the piers and along the bridges
+	          stays clear
+	  show    the lawns between two plots at the peak trail and the giant tree (seen first from
+	          the promenade): a pine avenue framing the peak trail, then raised flower beds,
+	          bush clumps and boulder groups on the voxel grid
 	  coast   a pair of palms every ~65 studs of the outer beaches; between the pairs, by turns,
 	          a beach set (parasol with a towel, sandcastle, towel and ball, driftwood) and a rock
 	          group at the waterline in a ring of foam; foamy rocks in the surf below the cliffs
@@ -35,9 +41,10 @@
 	          22.5°, most visible first); one family per grove by height and a ~260-stud biome
 	          noise: cherry (pink), autumn (orange / gold), mixed green, pines up high, blossom
 	          on the waterfall mesa
-	  decor   cheap colour where people walk: tufts, bushes, rock groups and fences along both
-	          sides of the paths, round the plots, plazas and landmark sites, on the terrace lips
-	          facing the promenade; flower meadows on the waterfall mesa and the giant tree's lawn
+	  decor   cheap colour where people walk: flower bushes, bushes, rock groups and fences along
+	          both sides of the paths, round the plots, plazas and landmark sites, on the terrace
+	          lips facing the promenade (only rocks and bushes on the mountains' flanks); flower
+	          meadows on the waterfall mesa and the giant tree's lawn
 	  sets    set-pieces on the biggest open lawns, spread over the sectors
 	  fill    coverage: rounds over every land spot, most visible first, each placing something
 	          wherever nothing (Nature or other dressing) is within 30 / 22 / 16 studs — a tree
@@ -53,6 +60,7 @@ local U = require("./Util")
 local Kit = require("./MapKit")
 
 local CFrame = U.CFrame
+local Vector3 = U.Vector3
 local C = Kit.C
 
 local sqrt, deg, atan2, floor, abs, min, max = math.sqrt, math.deg, math.atan2, math.floor, math.abs, math.min, math.max
@@ -118,6 +126,24 @@ local TRUNK_R = { full = 2.6, lite = 1.6, far = 1.4 }
 
 -- Bright bloom colours for flowers (no white: it reads as sugar lumps).
 local BLOOMS = { C.Red, C.Yellow, C.Pink, C.Purple, C.Orange, C.Blue }
+
+-- NumberSequence from a to b.
+local function seq(a: number, b: number): any
+	return U.roblox.NumberSequence.new({
+		U.roblox.NumberSequenceKeypoint.new(0, a),
+		U.roblox.NumberSequenceKeypoint.new(1, b),
+	})
+end
+
+-- A ParticleEmitter (no parts: spray, bubbles) on `part`, emitting from its top face; low rates
+-- (phones), never lit, no shadows.
+local function emitter(part: any, name: string, props: { [string]: any }): any
+	local p = table.clone(props)
+	p.Name = name
+	p.EmissionDirection = p.EmissionDirection or U.Enum.NormalId.Top
+	p.LightEmission = p.LightEmission or 0.15
+	return U.new("ParticleEmitter", p, part)
+end
 
 local function smooth(e0: number, e1: number, x: number): number
 	local t = math.clamp((x - e0) / (e1 - e0), 0, 1)
@@ -281,7 +307,18 @@ local function surfRock(parent: any, cf: any, bed: number, s: number, seed: numb
 	b:box("RockTop", ox - w * 0.3, h - 0.3, -d * 0.3, ox + w * 0.3, h + r(0.9, 1.4) * s, d * 0.3, C.Leaf2)
 	-- (the foam ring floats 0.15-0.35 over the water plane: the terrain's waves never flood it)
 	local fw, fd = w / 2 + r(1.0, 1.6), d / 2 + r(1.0, 1.6)
-	b:box("Foam", -fw, -bed + 0.15, -fd, fw, -bed + 0.35, fd, FOAM, FOLIAGE)
+	local foam = b:box("Foam", -fw, -bed + 0.15, -fd, fw, -bed + 0.35, fd, FOAM, FOLIAGE)
+	-- now and then a puff of spray where the waves hit the rock
+	emitter(foam, "Spray", {
+		Rate = 1.5,
+		Lifetime = U.roblox.NumberRange.new(0.7, 1.1),
+		Speed = U.roblox.NumberRange.new(3, 5),
+		SpreadAngle = U.Vector2.new(25, 25),
+		Size = seq(0.9, 2.2),
+		Transparency = seq(0.35, 1),
+		Color = U.roblox.ColorSequence.new(C.White),
+		Acceleration = Vector3.new(0, -9, 0),
+	})
 	if r() < 0.6 then
 		local ps = r(1.4, 2.0) * s
 		b:box("Pebble", w / 2 + 1.4, -0.6, -ps / 2, w / 2 + 1.4 + ps, -bed + 0.6, ps / 2, Kit.shade(BEACH_ROCK, 0.88))
@@ -497,6 +534,17 @@ local function reefPatch(parent: any, cf: any, bed: number, seed: number): any
 	local b = Kit.builder(parent, "Reef", cf * CFrame.Angles(0, rad(r(-20, 20)), 0))
 	local surface = -bed -- (the water plane above the bed, local)
 	local pad = b:box("Sand", -6.5, -0.6, -6.5, 6.5, 0.3, 6.5, REEF_SAND, Kit.NOSHADOW)
+	-- a few bubbles rising from the reef (they fade before the surface)
+	emitter(pad, "Bubbles", {
+		Rate = 1.2,
+		Lifetime = U.roblox.NumberRange.new(2.0, 2.8),
+		Speed = U.roblox.NumberRange.new(1.2, 1.8),
+		SpreadAngle = U.Vector2.new(6, 6),
+		Size = seq(0.25, 0.5),
+		Transparency = seq(0.25, 0.9),
+		Color = U.roblox.ColorSequence.new(U.rgb(235, 252, 255)),
+		LightEmission = 0.3,
+	})
 	local c1 = CORAL[floor(r(1, #CORAL + 0.99))]
 	local c2 = other(CORAL, c1, r())
 	local c3 = if r() < 0.4 then CORAL_ACCENT else other(CORAL, c2, r())
@@ -512,21 +560,26 @@ local function reefPatch(parent: any, cf: any, bed: number, seed: number): any
 		local x, z, w, col, below, n = st[1], st[2], st[3], st[4], st[5], st[6]
 		local top = surface - below
 		local y = 0.1
+		local px, pz, phw = x, z, w / 2
 		for j = 1, n do
 			local hw = w / 2 * (1 - (j - 1) * 0.28)
 			local y1 = if j == n then top else y + (top - 0.1) / n + 0.3
-			local ox, oz = (j - 1) * r(-0.4, 0.4), (j - 1) * r(-0.4, 0.4)
-			b:box(`Coral{i}_{j}`, x + ox - hw, y, z + oz - hw, x + ox + hw, y1, z + oz + hw, col, FOLIAGE)
+			-- (each block off-centre on the one under it, its sides >= 0.15 inside that one's)
+			local slack = max(0, phw - hw - 0.15)
+			local cx = px + (if j > 1 then r(-1, 1) * slack else 0)
+			local cz = pz + (if j > 1 then r(-1, 1) * slack else 0)
+			b:box(`Coral{i}_{j}`, cx - hw, y, cz - hw, cx + hw, y1, cz + hw, col, FOLIAGE)
 			if i == 1 and j == n then
-				tipTop, tipX, tipZ, tipW = y1, x + ox, z + oz, hw
+				tipTop, tipX, tipZ, tipW = y1, cx, cz, hw
 			end
 			y = y1 - 0.3
+			px, pz, phw = cx, cz, hw
 		end
 	end
 	-- a low brain-coral head and a thin fan
-	b:box("Head", 1.0, 0.1, 1.8, 4.6, 0.1 + r(1.4, 2.0), 4.8, c3, FOLIAGE)
+	b:box("Head", 1.0, -0.1, 1.8, 4.6, 0.1 + r(1.4, 2.0), 4.8, c3, FOLIAGE)
 	local fh = min(surface - 1.6, r(3.2, 4.4))
-	b:box("Fan", -5.2, 0.1, 2.2, -2.6, fh, 2.7, c2, FOLIAGE)
+	b:box("Fan", -5.2, 0.0, 2.2, -2.6, fh, 2.7, c2, FOLIAGE)
 	-- the glowing tip on the tallest stack
 	if tipTop then
 		local g = min(0.6, tipW * 0.7)
@@ -2008,6 +2061,99 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		local left = budget - spentAll()
 		if left > 20 then
 			groves(left - 10)
+		end
+	end
+
+	--------------------------------------------------------------------------------------------
+	-- Last: two neighbouring pieces whose side faces happen to share a plane (two canopies of a
+	-- grove, a bloom against a rock) would flicker; the later one moves 0.15 stud away. Nature
+	-- turns its pieces by quarter turns only, so every part is a box on the world axes.
+	--------------------------------------------------------------------------------------------
+	do
+		local boxes = {}
+		local cells: { [number]: { number } } = {}
+		for gi, group in { groups.trees, groups.plants, groups.rocks, groups.sets } do
+			for mi, model in group:GetChildren() do
+				local id = gi * 100000 + mi
+				for _, p in model:GetDescendants() do
+					if p:IsA("BasePart") then
+						local cf, size = p.CFrame, p.Size
+						local pos = cf.Position
+						local rx, ry, rz = cf.RightVector, cf.UpVector, cf.LookVector
+						local ex = (abs(rx.X) * size.X + abs(ry.X) * size.Y + abs(rz.X) * size.Z) / 2
+						local ey = (abs(rx.Y) * size.X + abs(ry.Y) * size.Y + abs(rz.Y) * size.Z) / 2
+						local ez = (abs(rx.Z) * size.X + abs(ry.Z) * size.Y + abs(rz.Z) * size.Z) / 2
+						local box =
+							{ pos.X - ex, pos.X + ex, pos.Y - ey, pos.Y + ey, pos.Z - ez, pos.Z + ez, id, model }
+						table.insert(boxes, box)
+						for ix = floor(box[1] / OB), floor(box[2] / OB) do
+							for iz = floor(box[5] / OB), floor(box[6] / OB) do
+								local k = (ix + 200) * 1000 + iz + 200
+								cells[k] = cells[k] or {}
+								table.insert(cells[k], #boxes)
+							end
+						end
+					end
+				end
+			end
+		end
+		local function overlap(a0: number, a1: number, b0: number, b1: number): boolean
+			return min(a1, b1) - max(a0, b0) > 0.05
+		end
+		local conflicts = {}
+		local seen = {}
+		for _, list in cells do
+			for i = 1, #list do
+				for j = i + 1, #list do
+					local a, b = boxes[list[i]], boxes[list[j]]
+					local key = min(list[i], list[j]) * 1e6 + max(list[i], list[j])
+					if a[7] ~= b[7] and not seen[key] then
+						seen[key] = true
+						-- the later model of the pair moves
+						local later = if a[7] > b[7] then a else b
+						local other = if later == a then b else a
+						local dx, dz = 0, 0
+						if
+							(abs(a[1] - b[1]) < 0.06 or abs(a[2] - b[2]) < 0.06)
+							and overlap(a[3], a[4], b[3], b[4])
+							and overlap(a[5], a[6], b[5], b[6])
+						then
+							dx = if (later[1] + later[2]) >= (other[1] + other[2]) then 0.15 else -0.15
+						elseif
+							(abs(a[5] - b[5]) < 0.06 or abs(a[6] - b[6]) < 0.06)
+							and overlap(a[3], a[4], b[3], b[4])
+							and overlap(a[1], a[2], b[1], b[2])
+						then
+							dz = if (later[5] + later[6]) >= (other[5] + other[6]) then 0.15 else -0.15
+						end
+						if dx ~= 0 or dz ~= 0 then
+							table.insert(conflicts, { later[7], dx, dz, later[8] })
+						end
+					end
+				end
+			end
+		end
+		-- (sorted: the result never depends on the hash's iteration order)
+		table.sort(conflicts, function(p, q)
+			if p[1] ~= q[1] then
+				return p[1] < q[1]
+			elseif p[2] ~= q[2] then
+				return p[2] < q[2]
+			end
+			return p[3] < q[3]
+		end)
+		local moved = {}
+		for _, c in conflicts do
+			if not moved[c[1]] then
+				moved[c[1]] = true
+				counts.nudged = (counts.nudged or 0) + 1
+				local d = Vector3.new(c[2], 0, c[3])
+				for _, p in c[4]:GetDescendants() do
+					if p:IsA("BasePart") then
+						p.CFrame = p.CFrame + d
+					end
+				end
+			end
 		end
 	end
 

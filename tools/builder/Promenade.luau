@@ -44,16 +44,28 @@ local Promenade = {}
 
 -- Gateway themes by bridge angle (shared with Gateways.luau): name, colour (and the bridge's
 -- accent plank when the pastel would read as water: white on the blue bridge).
+-- `accent`: the lookout's theme accent (wingAccent), matching the gateway district behind.
 Promenade.Themes = {
-	[0] = { gate = "ЮЖНЫЕ ВОРОТА", bridge = "ЮЖНЫЙ МОСТ", color = C.Orange },
-	[90] = { gate = "ВОСТОЧНЫЕ ВОРОТА", bridge = "ВОСТОЧНЫЙ МОСТ", color = C.Pink },
+	[0] = { gate = "ЮЖНЫЕ ВОРОТА", bridge = "ЮЖНЫЙ МОСТ", color = C.Orange, accent = "balloons" },
+	[90] = {
+		gate = "ВОСТОЧНЫЕ ВОРОТА",
+		bridge = "ВОСТОЧНЫЙ МОСТ",
+		color = C.Pink,
+		accent = "flowers",
+	},
 	[180] = {
 		gate = "СЕВЕРНЫЕ ВОРОТА",
 		bridge = "СЕВЕРНЫЙ МОСТ",
 		color = C.Blue,
 		plank = C.White,
+		accent = "anchor",
 	},
-	[270] = { gate = "ЗАПАДНЫЕ ВОРОТА", bridge = "ЗАПАДНЫЙ МОСТ", color = rgb(64, 196, 92) },
+	[270] = {
+		gate = "ЗАПАДНЫЕ ВОРОТА",
+		bridge = "ЗАПАДНЫЙ МОСТ",
+		color = rgb(64, 196, 92),
+		accent = "picnic",
+	},
 }
 
 -- Landmark path mouths on the promenade's land side: a big billboard beside each path, on the
@@ -136,6 +148,54 @@ local function sellKiosk(parent: any, cf: any, theme: any, k: number): any
 	return scales
 end
 
+--[[
+	The right wing's accent in the theme of the gateway district behind the bridge, so the four
+	crossings tell themselves apart (4-10 parts; lookout builder frame, the bench at x = bx,
+	seat z -3..3, its back on the deck side, the outer rail at ox): balloons tied to the bench
+	(playground), a flower box on the outer rail and a planter by the bench (garden), an anchor
+	leaning on the rail and a lifebuoy hung on it (fish market), a picnic basket on a checked
+	cloth on the bench (picnic).
+]]
+local function wingAccent(b: any, theme: any, bx: number, ox: number)
+	local kind = theme.accent
+	if kind == "balloons" then
+		-- three balloons tied along the outer rail
+		for i, p in { { -6.2, 8.4, C.Red }, { -4.2, 9.3, C.Yellow }, { -2.2, 8.7, C.Blue } } do
+			local z, y = p[1], p[2]
+			b:box(`String{i}`, ox - 0.07, 4.3, z - 0.07, ox + 0.07, y + 0.1, z + 0.07, C.White, Kit.DECOR)
+			b:box(`Balloon{i}`, ox - 0.8, y, z - 0.8, ox + 0.8, y + 1.9, z + 0.8, p[3], Kit.DECOR)
+		end
+	elseif kind == "flowers" then
+		-- a flower box along the top of the outer rail, a planter at the bench's end
+		b:box("RailBox", ox - 0.65, 4.35, -6.5, ox + 0.65, 5.2, 4.5, theme.color)
+		b:box("RailGreens", ox - 0.45, 5.1, -6.2, ox + 0.45, 5.9, 4.2, C.Leaf2, Kit.DECOR)
+		b:box("RailBloomsA", ox - 0.55, 5.6, -5.8, ox + 0.55, 6.6, -1.2, C.Yellow, Kit.DECOR)
+		b:box("RailBloomsB", ox - 0.58, 5.7, -0.4, ox + 0.58, 6.5, 3.8, C.Purple, Kit.DECOR)
+		b:box("Planter", bx - 1.3, -0.05, -6.6, bx + 1.3, 1.5, -4.0, C.White)
+		b:box("PlanterGreens", bx - 1.0, 1.4, -6.3, bx + 1.0, 2.6, -4.3, C.Leaf2, Kit.DECOR)
+		b:box("PlanterBloom", bx - 0.7, 2.4, -5.9, bx + 0.6, 3.5, -4.7, C.Red, Kit.DECOR)
+	elseif kind == "anchor" then
+		-- an anchor leaning on the outer rail (shank, stock, arms, flukes, ring) and a lifebuoy
+		local x, z = ox - 1.3, -5.2
+		b:box("AnchorShank", x - 0.35, -0.05, z - 0.35, x + 0.35, 5.6, z + 0.35, C.Navy)
+		b:box("AnchorStock", x - 0.25, 4.5, z - 1.7, x + 0.25, 5.0, z + 1.7, C.Navy, Kit.NOSHADOW)
+		b:box("AnchorArms", x - 0.45, 0.4, z - 2.0, x + 0.45, 1.1, z + 2.0, C.Navy, Kit.NOSHADOW)
+		b:box("AnchorFlukeA", x - 0.55, 1.0, z - 2.1, x + 0.55, 2.1, z - 1.3, C.Navy, Kit.NOSHADOW)
+		b:box("AnchorFlukeB", x - 0.55, 1.0, z + 1.3, x + 0.55, 2.1, z + 2.1, C.Navy, Kit.NOSHADOW)
+		b:box("AnchorRing", x - 0.2, 5.55, z - 0.6, x + 0.2, 6.6, z + 0.6, C.Gold, Kit.NOSHADOW)
+		-- (the lifebuoy hangs on the hub-side end rail, facing along the wing)
+		local endZ = -(LOOKOUT_HALF - 0.75) + 0.75 + 0.4
+		Kit.prop("lifebuoy", b.model, b.cf * CFrame.new(ox - 3.4, 2.6, endZ), {})
+	elseif kind == "picnic" then
+		-- a red cloth with a white check on the bench and a basket on it
+		b:box("Cloth", bx - 0.95, 2.05, -2.9, bx + 1.05, 2.2, -0.2, C.Red, Kit.DECOR)
+		b:box("ClothCheck", bx - 0.5, 2.1, -1.2, bx + 0.5, 2.3, -0.45, C.White, Kit.DECOR)
+		b:box("Basket", bx - 0.7, 2.15, -2.6, bx + 0.6, 3.3, -1.5, C.Wood)
+		b:box("BasketLid", bx - 0.8, 3.25, -2.7, bx + 0.7, 3.6, -1.4, C.WoodLight, Kit.NOSHADOW)
+		b:box("BasketHandle", bx - 0.15, 3.55, -2.25, bx + 0.05, 4.4, -1.85, C.WoodDark, Kit.DECOR)
+	end
+end
+
 -- Mid-span lookout of a bridge (Props.bridge local frame `cf`: y = 0 is the deck top, local -Z
 -- runs from the hub to the promenade, ±hw are the deck edges): a bump-out on both sides in the
 -- gateway's colour with a thick railing, a lamp and a flag on the outer corners, a stone pier
@@ -197,6 +257,7 @@ local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme
 			b:box(`BenchBase{i}`, bx - 0.7, -0.05, -2.2, bx + 0.7, 1.5, 2.2, C.Wood)
 			b:box(`BenchSeat{i}`, bx - 1.2, 1.5, -3, bx + 1.2, 2.1, 3, C.WoodLight)
 			b:box(`BenchBack{i}`, math.min(backX0, backX1), 2.1, -3, math.max(backX0, backX1), 4.0, 3, theme.color)
+			wingAccent(b, theme, bx, ox)
 		end
 	end
 	-- a telescope on the right-hand bump-out, looking out over the lagoon
