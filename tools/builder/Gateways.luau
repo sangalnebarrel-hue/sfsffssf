@@ -3,21 +3,27 @@
 	radius 40, flat GroundTop), each with a way up the hill behind it to a viewpoint, so the
 	strongest sightline of the map (bridge → welcome arch → plaza) leads somewhere.
 	Each Map.Gateways.Gateway_N has:
-	  • round voxel paving (stepped rectangles): a cream pad, a ring in the gateway colour, a
-	    light middle, the entry road from the promenade and a path stub at the back;
-	  • a big welcome arch over the entry road with a name board («СЕВЕРНЫЕ ВОРОТА» …) in the
-	    gateway colour, lanterns on the cream pillars, a stepped roof with a gold star;
-	  • its own theme and layout:
-	      north (180) fish market   golden fish fountain, fish and tackle stalls, crates and
-	                                barrels, a notice board; a lighthouse on the hill
-	      east  (90)  flower garden giant flower on a round bed, planted beds (blooms on
-	                                stems), a flower arch, a photo frame, the flower stall; a
+	  • a big welcome arch over the coral entry road with a name board («СЕВЕРНЫЕ ВОРОТА» …) in
+	    the gateway colour, lanterns on the cream pillars, a stepped roof with a theme topper
+	    (star, flower, golden fish, pine);
+	  • warm two-tone paving in its own footprint, and its own layout — the axis from the arch
+	    to the hill path stays open, the centrepiece stands off it (decorated on every side):
+	      north (180) fish market   a square market (checker paving): three stalls in a U
+	                                (fish, tackle, bait), the golden fish fountain off the axis,
+	                                crates and barrels, a notice board; up the hill a deck beside
+	                                the lighthouse (rails, bench, telescope)
+	      east  (90)  flower garden round plaza with four hedge beds round a cross of paths, the
+	                                giant flower on its bed off the axis (petals both sides), a
+	                                flower arch over the axis, a photo frame, the flower stall; a
 	                                pink gazebo on the hill
-	      south (0)   playground    play tower with a slide, swings, a seesaw, the ice cream
-	                                stall; a lookout deck on the hill with a long slide down
-	      west  (270) picnic camp   totem and campfire with a ring of logs, picnic tables,
-	                                the souvenir stall; a picnic lookout with a flag and a
-	                                telescope on the hill
+	      south (0)   playground    round plaza with a blue play mat: play tower with a slide
+	                                off the axis, a sandpit with a castle, swings, a seesaw, the
+	                                ice cream stall; a lookout deck on the hill with a long slide
+	                                down
+	      west  (270) picnic camp   a meadow with a paved path and a round fire circle off the
+	                                axis: totem (carved on the back too), campfire, log seats;
+	                                picnic tables on the grass, the souvenir stall; a picnic
+	                                lookout with a flag and a telescope on the hill
 	  • a paved stair path (Kit.stairs, 1-stud steps) from the back of the plaza up the terraces
 	    to the viewpoint, which stands on a solid plinth on the hilltop.
 
@@ -40,6 +46,10 @@ local rad, max, min = math.rad, math.max, math.min
 local Gateways = {}
 
 local FLOOR = 0.35 -- plaza paving top above GroundTop
+local PAVE = rgb(246, 214, 160) -- warm mid-tone paving ...
+local PAVE2 = rgb(236, 196, 140) -- ... and its second tone
+local CORAL = rgb(255, 128, 104) -- entry roads and stripes
+local ROAD_TOP = 0.79 -- the entry road: a clear step over the promenade tiles (GroundTop + 0.64)
 
 -- Per-gateway details (keyed by bridge angle).
 local THEMES = {
@@ -54,18 +64,38 @@ local THEMES = {
 --------------------------------------------------------------------------------------------
 
 -- A voxel "circle" of radius r from overlapping rectangles (4 for big ones, 3 for small).
-local function disc(b: any, name: string, r: number, y0: number, y1: number, color: any)
+local function disc(b: any, name: string, x: number, z: number, r: number, y0: number, y1: number, color: any)
 	local rects = if r > 30
 		then { { 1, 0.35 }, { 0.35, 1 }, { 0.85, 0.6 }, { 0.6, 0.85 } }
 		else { { 1, 0.4 }, { 0.4, 1 }, { 0.77, 0.77 } }
 	for i, q in rects do
-		b:box(`{name}{i}`, -r * q[1], y0, -r * q[2], r * q[1], y1, r * q[2], color, Kit.NOSHADOW)
+		b:box(`{name}{i}`, x - r * q[1], y0, z - r * q[2], x + r * q[1], y1, z + r * q[2], color, Kit.NOSHADOW)
 	end
 end
 
-local function welcomeArch(parent: any, cf: any, text: string, color: any)
+-- The theme topper on the arch roof (local frame of the arch, standing on y).
+local function topper(b: any, kind: string, y: number)
+	if kind == "garden" then -- a flower: petal cross and a yellow heart
+		b:box("Petals", -2.6, y + 1.2, -0.5, 2.6, y + 3.6, 0.5, C.Pink, Kit.NEON_DECOR)
+		b:box("Petals2", -1.2, y, -0.45, 1.2, y + 4.8, 0.45, C.Pink, Kit.NEON_DECOR)
+		b:box("Heart", -0.9, y + 1.5, -0.7, 0.9, y + 3.3, 0.7, C.Yellow, Kit.NEON_DECOR)
+	elseif kind == "market" then -- a golden fish
+		b:box("Fish", -2.4, y + 0.6, -0.5, 1.6, y + 3.4, 0.5, C.Gold, Kit.NEON_DECOR)
+		b:box("Tail", 1.5, y + 0.2, -0.4, 3.1, y + 3.8, 0.4, C.Gold, Kit.NEON_DECOR)
+		b:box("Eye", -1.9, y + 2.2, -0.6, -1.3, y + 2.8, 0.6, C.Navy, Kit.DECOR)
+	elseif kind == "picnic" then -- a little pine
+		b:box("Pine", -2.2, y, -0.6, 2.2, y + 1.6, 0.6, C.Lime, Kit.NEON_DECOR)
+		b:box("Pine2", -1.4, y + 1.6, -0.55, 1.4, y + 3, 0.55, C.Lime, Kit.NEON_DECOR)
+		b:box("Pine3", -0.6, y + 3, -0.5, 0.6, y + 4.4, 0.5, C.Gold, Kit.NEON_DECOR)
+	else -- a star
+		b:box("Star", -1.2, y, -0.5, 1.2, y + 3.2, 0.5, C.Gold, Kit.NEON_DECOR)
+		b:box("StarX", -2.4, y + 1, -0.45, 2.4, y + 2.2, 0.45, C.Gold, Kit.NEON_DECOR)
+	end
+end
+
+local function welcomeArch(parent: any, cf: any, text: string, color: any, kind: string)
 	-- cream candy-striped pillars (bands in the gateway colour), lanterns on top, a big board
-	-- in the gateway colour between Neon rims, a stepped roof with a gold star
+	-- in the gateway colour between Neon rims, a stepped roof with the theme topper
 	local b = Kit.builder(parent, "WelcomeArch", cf)
 	local dark = Kit.shade(color, 0.78)
 	local light = Kit.lerpColor(color, C.White, 0.4)
@@ -75,8 +105,8 @@ local function welcomeArch(parent: any, cf: any, text: string, color: any)
 		local xm = (lo + hi) / 2
 		b:box("Plinth", lo - 0.8, -0.5, -2.8, hi + 0.8, 2.4, 2.8, C.White)
 		b:box("Pillar", lo, 2.4, -2, hi, 20, 2, C.Cream)
-		for k, y in { 5.2, 10.2, 15.2 } do
-			b:box(`Band{k}`, lo - 0.25, y, -2.25, hi + 0.25, y + 1.8, 2.25, color, Kit.NOSHADOW)
+		for k, y in { 6.2, 13.2 } do
+			b:box(`Band{k}`, lo - 0.25, y, -2.25, hi + 0.25, y + 2.2, 2.25, color, Kit.NOSHADOW)
 		end
 		b:box("Capital", lo - 0.7, 20, -2.7, hi + 0.7, 21.4, 2.7, color)
 		local glow = b:box("Lantern", xm - 1.5, 21.4, -1.5, xm + 1.5, 24.4, 1.5, C.Glow, Kit.NEON)
@@ -93,8 +123,7 @@ local function welcomeArch(parent: any, cf: any, text: string, color: any)
 	b:box("RimTop", -16.4, 22.2, -1.1, 16.4, 22.8, 1.1, C.Yellow, Kit.NEON)
 	b:box("Roof1", -10, 22.8, -1.8, 10, 24.2, 1.8, light)
 	b:box("Roof2", -5.5, 24.2, -1.4, 5.5, 25.4, 1.4, color)
-	b:box("Star", -1.2, 25.4, -0.5, 1.2, 28.6, 0.5, C.Gold, Kit.NEON_DECOR)
-	b:box("StarX", -2.4, 26.4, -0.45, 2.4, 27.6, 0.45, C.Gold, Kit.NEON_DECOR)
+	topper(b, kind, 25.4)
 	return b:finish()
 end
 
@@ -128,6 +157,12 @@ local function stall(parent: any, cf: any, text: string, color: any, goods: stri
 			local x = -3 + (i - 1) * 3
 			b:box(`Rod{i}`, x - 0.2, 3.7, -2.2, x + 0.2, 8.2, -1.8, c, Kit.DECOR)
 			b:box(`Reel{i}`, x - 0.6, 4.6, -2.7, x + 0.6, 5.4, -2.2, C.White, Kit.DECOR)
+		end
+	elseif goods == "bait" then
+		for i, c in { C.Pink, C.Lime, C.Orange } do
+			local x = -3 + (i - 1) * 3
+			b:box(`Jar{i}`, x - 0.8, 3.7, -2.6, x + 0.8, 5.3, -1.2, C.Glass, { Transparency = 0.3, CanCollide = false })
+			b:box(`Lid{i}`, x - 0.9, 5.3, -2.7, x + 0.9, 5.8, -1.1, c, Kit.DECOR)
 		end
 	elseif goods == "icecream" then
 		for i, c in { C.Pink, C.Cream, rgb(140, 90, 60) } do
@@ -213,7 +248,8 @@ local function fountain(parent: any, cf: any, color: any)
 	})
 end
 
--- Giant flower on a round raised bed with a ring of blooms on stems (about 24 studs tall).
+-- Giant flower on a round raised bed with a ring of blooms on stems (about 24 studs tall); the
+-- petal disc has petals on both faces, so it reads from the hill path too.
 local function giantFlower(parent: any, cf: any, color: any)
 	local b = Kit.builder(parent, "GiantFlower", cf)
 	local rim = b:box("Rim", -9.6, 0, -6, 9.6, 1.6, 6, C.White)
@@ -230,10 +266,11 @@ local function giantFlower(parent: any, cf: any, color: any)
 	b:box("Stem", -0.8, 1.9, -0.8, 0.8, 15, 0.8, C.Leaf1)
 	b:box("LeafL", -4.6, 6, -0.5, -0.8, 7.2, 0.5, C.Leaf2, Kit.NOSHADOW)
 	b:box("LeafR", 0.8, 9, -0.5, 4.4, 10.2, 0.5, C.Leaf2, Kit.NOSHADOW)
-	b:box("Petals", -6, 14.4, -1.6, 6, 21, 1.0, color)
-	b:box("PetalsB", -2.4, 11.8, -1.5, 2.4, 23.6, 0.9, color)
-	b:box("PetalTips", -4.2, 12.6, -1.4, 4.2, 22.8, 0.65, Kit.lerpColor(color, C.White, 0.35), Kit.NOSHADOW)
-	b:box("Centre", -2.2, 15.6, -2.2, 2.2, 19.8, -1.2, C.Yellow, Kit.NOSHADOW)
+	b:box("Petals", -6, 14.4, -1.6, 6, 21, 1.6, color)
+	b:box("PetalsB", -2.4, 11.8, -1.5, 2.4, 23.6, 1.5, color)
+	local tips = Kit.lerpColor(color, C.White, 0.35)
+	b:box("PetalTips", -4.2, 12.6, -1.75, 4.2, 22.8, 1.75, tips, Kit.NOSHADOW)
+	b:box("Centre", -2.2, 15.6, -2.2, 2.2, 19.8, 2.2, C.Yellow, Kit.NOSHADOW)
 	return b:finish(rim)
 end
 
@@ -304,17 +341,55 @@ local function seesaw(parent: any, cf: any)
 	return b:finish(base)
 end
 
--- Campfire circle: a carved totem, the campfire, a ring of four logs.
+-- Sandpit: a wooden frame round sand, a sand castle, a bucket and a spade. 7 parts.
+local function sandpit(parent: any, cf: any)
+	local b = Kit.builder(parent, "Sandpit", cf)
+	local frame = b:box("Frame", -6.5, -0.3, -5, 6.5, 1.2, 5, C.WoodLight)
+	b:box("Sand", -5.6, -0.2, -4.1, 5.6, 1.45, 4.1, C.Sand, Kit.NOSHADOW)
+	b:box("Castle", -3.6, 1.45, -1.4, 0.4, 3.6, 1.6, C.SandDark)
+	b:box("Tower", -2.6, 3.6, -0.6, -0.6, 5.2, 1, C.SandDark, Kit.NOSHADOW)
+	b:box("Flag", -1.75, 5.2, 0.15, -1.45, 6.8, 0.25, C.Red, Kit.DECOR)
+	b:box("Bucket", 2.2, 1.45, -2.6, 3.8, 3.2, -1, C.Red, Kit.NOSHADOW)
+	b:box("Spade", 3, 1.45, 1.2, 4.6, 1.8, 2, C.Yellow, Kit.DECOR)
+	return b:finish(frame)
+end
+
+-- Campfire circle: a carved totem (faces on the front and the back), the campfire in front of
+-- it, a ring of four logs round the fire.
 local function campCircle(parent: any, cf: any, color: any)
 	local b = Kit.builder(parent, "Camp", cf)
 	local t = b:box("TotemBase", -2.2, -0.5, -2.2, 2.2, 4, 2.2, C.Wood)
 	b:box("Totem2", -2, 4, -2, 2, 8, 2, color)
 	b:box("Totem3", -2.2, 8, -2.2, 2.2, 12, 2.2, C.Autumn1)
 	b:box("Wings", -5, 9.6, -1, 5, 10.8, 1, C.Red, Kit.NOSHADOW)
-	b:box("Beak", -0.8, 9.2, -3.2, 0.8, 10.4, -2.1, C.Yellow, Kit.DECOR)
-	for i, x in { -1, 1 } do
-		b:box(`Eye{i}`, x - 0.5, 10.6, -2.35, x + 0.5, 11.6, -2.15, C.White, Kit.DECOR)
-		b:box(`Face{i}`, x - 0.6, 5.4, -2.15, x + 0.6, 6.6, -1.95, C.Dark, Kit.DECOR)
+	for _, sz in { -1, 1 } do
+		local f = sz * 2.1 -- the face plane, just outside the block
+		b:box(`Beak{sz}`, -0.8, 9.2, min(f, f + sz * 1.1), 0.8, 10.4, max(f, f + sz * 1.1), C.Yellow, Kit.DECOR)
+		for i, x in { -1, 1 } do
+			b:box(
+				`Eye{sz}_{i}`,
+				x - 0.5,
+				10.6,
+				min(f + sz * 0.25, f),
+				x + 0.5,
+				11.6,
+				max(f + sz * 0.25, f),
+				C.White,
+				Kit.DECOR
+			)
+			local g = sz * 2.0
+			b:box(
+				`Face{sz}_{i}`,
+				x - 0.6,
+				5.4,
+				min(g, g + sz * 0.15),
+				x + 0.6,
+				6.6,
+				max(g, g + sz * 0.15),
+				C.Dark,
+				Kit.DECOR
+			)
+		end
 	end
 	b:box("TotemTop", -1.4, 12, -1.4, 1.4, 13.4, 1.4, C.Gold)
 	b:finish(t)
@@ -372,6 +447,216 @@ local function telescope(b: any, x: number, y: number, z: number)
 end
 
 --------------------------------------------------------------------------------------------
+-- The plazas
+--------------------------------------------------------------------------------------------
+
+-- Each theme gets the plaza model, `at(x, z, yaw)` (local CFrame on the paving; yaw in degrees
+-- or "centre"), the paving builder, the viewpoint builder and its hill info { world, origin,
+-- deckZ0, color }; returns the viewpoint's plinth top (local y).
+
+local function marketPlaza(model: any, at: any, paving: any, view: any, h: any): number
+	local color = h.color
+	-- a square market: light paving with a checker of darker tiles, a coral border
+	paving:box("Square", -36, -0.6, -36, 36, FLOOR, 36, PAVE, Kit.NOSHADOW)
+	paving:box("Border", -38, -0.7, -38, 38, FLOOR - 0.15, 38, CORAL, Kit.NOSHADOW)
+	for i = 0, 3 do
+		for j = 0, 3 do
+			if (i + j) % 2 == 0 then
+				local x0, z0 = -36 + i * 18, -36 + j * 18
+				paving:box(`Tile{i}_{j}`, x0, -0.5, z0, x0 + 18, FLOOR + 0.12, z0 + 18, PAVE2, Kit.NOSHADOW)
+			end
+		end
+	end
+	-- the fountain off the axis (front right), three stalls in a U round the square
+	fountain(model, at(13, -8), color)
+	stall(model, at(-24, -10, 90), "РЫБА", color, "fish")
+	stall(model, at(-20, 22, 150), "НАЖИВКА", C.Lime, "bait")
+	stall(model, at(26, 18, -120), "СНАСТИ", C.Orange, "tackle")
+	noticeBoard(model, at(-28, 8, 90), color)
+	Kit.prop("barrel", model, at(-30, -20), { color = C.Blue })
+	Kit.bench(model, at(14, 28, 180), { length = 7, color = C.Cream, legs = color })
+	-- up the hill: a fenced deck beside the lighthouse (rails, bench, telescope)
+	local z0 = h.deckZ0
+	local top = plinth(view, h.world, h.origin, -17, z0, 17, z0 + 20, PAVE)
+	Kit.prop("lighthouse", view.model, h.origin * CFrame.new(-9, top, z0 + 11), { stripe = C.Blue })
+	local railC = C.Red
+	view:box("RailFront", 4, top + 2.6, z0, 17, top + 3.4, z0 + 0.8, railC, Kit.NOSHADOW)
+	view:box("RailR", 16.2, top + 2.6, z0, 17, top + 3.4, z0 + 20, railC, Kit.NOSHADOW)
+	view:box("RailBack", -2, top + 2.6, z0 + 19.2, 17, top + 3.4, z0 + 20, railC, Kit.NOSHADOW)
+	for i, p in { { 4, z0 }, { 16, z0 }, { 16, z0 + 19 } } do
+		view:box(`RailPost{i}`, p[1] - 0.1, top, p[2] - 0.1, p[1] + 1.1, top + 3.9, p[2] + 1.1, C.White)
+	end
+	telescope(view, 13, top, z0 + 3.5)
+	Kit.bench(view.model, h.origin * CFrame.new(7, top, z0 + 12), { length = 7 })
+	return top
+end
+
+local function gardenPlaza(model: any, at: any, paving: any, view: any, h: any): number
+	local color = h.color
+	-- a round plaza with four hedge beds round a cross of paths (the paths in the second tone)
+	disc(paving, "Pad", 0, 0, 40, -0.6, FLOOR, PAVE)
+	paving:box("PathX", -38, -0.5, -4.5, 38, FLOOR + 0.12, 4.5, PAVE2, Kit.NOSHADOW)
+	paving:box("PathZ", -4.5, -0.5, -38, 4.5, FLOOR + 0.12, 38, PAVE2, Kit.NOSHADOW)
+	for i, p in { { -17, -17, 1 }, { 17, -17, 2 }, { -17, 17, 3 } } do
+		Kit.flowerBed(model, at(p[1], p[2], if p[1] < 0 then 90 else -90), {
+			width = 16,
+			depth = 9,
+			count = 3,
+			height = 1.6,
+			seed = i + 30,
+			box = C.Leaf1,
+			name = "HedgeBed",
+		})
+	end
+	-- the giant flower stands in the fourth bed (back right, off the axis); a flower arch spans
+	-- the axis, the stall and the photo frame on the cross paths
+	giantFlower(model, at(17, 17), color)
+	flowerArch(model, at(0, 30), color)
+	stall(model, at(-27, 1, 90), "ЦВЕТЫ", color, "flowers")
+	photoFrame(model, at(27, 1, -90), color)
+	Kit.flowerMeadow(model, h.origin * CFrame.new(-31, 0, -27), 41)
+	Kit.flowerMeadow(model, h.origin * CFrame.new(31, 0, -27), 42)
+	Kit.bench(model, at(-9, -26, 0), { length = 7, color = C.White, legs = color })
+	-- a gazebo on the hill
+	local z0 = h.deckZ0
+	local top = plinth(view, h.world, h.origin, -8, z0, 8, z0 + 16, C.White)
+	local za, zb = z0 + 1.5, z0 + 14.5
+	for i, p in { { -6, za }, { 6, za }, { 6, zb }, { -6, zb } } do
+		view:box(`Post{i}`, p[1] - 0.7, top, p[2] - 0.7, p[1] + 0.7, top + 9, p[2] + 0.7, C.White)
+	end
+	local zc = (za + zb) / 2
+	view:box("Roof1", -8.6, top + 9, zc - 8.6, 8.6, top + 10.4, zc + 8.6, color)
+	view:box("Roof2", -6, top + 10.4, zc - 6, 6, top + 11.8, zc + 6, Kit.lerpColor(color, C.White, 0.45))
+	view:box("Roof3", -3.4, top + 11.8, zc - 3.4, 3.4, top + 13.2, zc + 3.4, color)
+	view:box("Finial", -1, top + 13.2, zc - 1, 1, top + 15, zc + 1, C.Gold, Kit.NEON_DECOR)
+	Kit.bench(view.model, h.origin * CFrame.new(0, top, zb - 2), { length = 7, color = C.White, legs = color })
+	return top
+end
+
+local function playgroundPlaza(model: any, at: any, paving: any, view: any, h: any): number
+	local color = h.color
+	-- a round plaza: a blue play mat on the left under the tower and the swings, a path in the
+	-- second tone along the axis
+	disc(paving, "Pad", 0, 0, 40, -0.6, FLOOR, PAVE)
+	paving:box("Axis", -5, -0.5, -38, 5, FLOOR + 0.12, 38, PAVE2, Kit.NOSHADOW)
+	paving:box("PlayMat", -34, -0.5, -18, -8, FLOOR + 0.14, 24, rgb(96, 190, 255), Kit.NOSHADOW)
+	paving:box("PlayMatRim", -35, -0.55, -19, -7, FLOOR + 0.07, 25, C.White, Kit.NOSHADOW)
+	playTower(model, at(-19, 10), color)
+	swings(model, at(-21, -12, 0), C.Blue)
+	sandpit(model, at(19, 10, -15))
+	seesaw(model, at(24, -12, 60))
+	stall(model, at(27, 26, -135), "МОРОЖЕНОЕ", color, "icecream")
+	Kit.bench(model, at(14, -27, 0), { length = 7, color = C.Yellow, legs = color })
+	Kit.flowerMeadow(model, h.origin * CFrame.new(-29, 0, 30), 51)
+	-- a lookout deck on the hill and a long slide back down beside the stairs
+	local z0 = h.deckZ0
+	local top = plinth(view, h.world, h.origin, -8, z0, 15, z0 + 12, Kit.lerpColor(color, C.White, 0.3))
+	rails(view, -8, 15, z0, z0 + 12, top, color)
+	Kit.prop("flagPole", view.model, h.origin * CFrame.new(-5.5, top, z0 + 9), { height = 14, color = C.Yellow })
+	local origin, world = h.origin, h.world
+	local sx = 11
+	local foot = (origin * CFrame.new(sx, 0.6, 46)).Position
+	local baseY = origin.Position.Y
+	local startY = baseY + top + 1.4 -- world y of the chute's top
+	local sideV = (origin * CFrame.new(1, 0, 0)).Position - origin.Position
+	-- lift the chute so it clears every terrace edge under it
+	local p0 = (origin * CFrame.new(sx, 0, z0 + 1)).Position
+	for k = 1, 40 do
+		local t = k / 40
+		local q = foot:Lerp(p0, t)
+		for _, dx in { -2.4, 0, 2.4 } do
+			local g = world:heightAt(q.X + sideV.X * dx, q.Z + sideV.Z * dx) + 0.6
+			local yAt = foot.Y + (startY - foot.Y) * t
+			if g > yAt then
+				startY = max(startY, foot.Y + (g - foot.Y) / t)
+			end
+		end
+	end
+	local topPt = Vector3.new(p0.X, startY, p0.Z)
+	Kit.ramp(view.model, topPt, foot, { width = 4.4, thick = 0.8, color = C.Yellow, name = "Slide" })
+	for i, s in { -1, 1 } do
+		local off = sideV * (s * 2.5) + Vector3.new(0, 1, 0)
+		Kit.ramp(view.model, topPt + off, foot + off, {
+			width = 0.6,
+			thick = 1.8,
+			color = C.Orange,
+			name = `SlideWall{i}`,
+			extra = Kit.NOSHADOW,
+		})
+	end
+	-- the chute rests on a few posts where it runs high
+	for i, t in { 0.3, 0.6, 0.85 } do
+		local q = foot:Lerp(topPt, t)
+		local g = world:heightAt(q.X, q.Z)
+		if q.Y - 1 - g > 1.5 then
+			U.part(
+				view.model,
+				`SlidePost{i}`,
+				Vector3.new(1.2, q.Y - 1 - g + 1, 1.2),
+				CFrame.new(q.X, (q.Y - 1 + g - 1) / 2, q.Z) * CFrame.Angles(0, rad(h.angle), 0),
+				C.White
+			)
+		end
+	end
+	-- the top of the chute sits on the deck: a little start platform where it is higher
+	if startY - baseY - top > 0.6 then
+		view:box("SlideStart", sx - 2.4, top, z0, sx + 2.4, startY - baseY, z0 + 3, color)
+	end
+	return top
+end
+
+local function picnicPlaza(model: any, at: any, paving: any, view: any, h: any): number
+	local color = h.color
+	-- a meadow: a paved path along the axis and a round fire circle off it (left), the picnic
+	-- tables on the grass
+	paving:box("Path", -6, -0.6, -36, 6, FLOOR, 38, PAVE, Kit.NOSHADOW)
+	paving:box("PathEdge", -7, -0.65, -36, 7, FLOOR - 0.15, 38, PAVE2, Kit.NOSHADOW)
+	disc(paving, "Circle", -15, 4, 19, -0.55, FLOOR + 0.12, PAVE2)
+	disc(paving, "Hearth", -15, 4, 9, -0.5, FLOOR + 0.24, PAVE)
+	campCircle(model, at(-15, 14), color)
+	Kit.prop("picnicTable", model, at(20, -8, 70), { cloth = C.Red })
+	Kit.prop("picnicTable", model, at(22, 16, -70), { cloth = C.Yellow })
+	stall(model, at(27, -24, -90), "СУВЕНИРЫ", color, "souvenirs")
+	Kit.flowerMeadow(model, h.origin * CFrame.new(-31, 0, -22), 61)
+	Kit.flowerMeadow(model, h.origin * CFrame.new(-27, 0, 30), 62)
+	-- a picnic lookout on the hill: a striped pergola over a picnic table, a telescope, a flag
+	local z0 = h.deckZ0
+	local top = plinth(view, h.world, h.origin, -9, z0, 9, z0 + 14, rgb(214, 168, 118))
+	rails(view, -9, 9, z0, z0 + 14, top, C.Red)
+	telescope(view, -6, top, z0 + 3)
+	local zc = z0 + 8
+	for i, p in { { -5, -4 }, { 5, -4 }, { 5, 4 }, { -5, 4 } } do
+		view:box(`PergolaPost{i}`, p[1] - 0.6, top, zc + p[2] - 0.6, p[1] + 0.6, top + 8.5, zc + p[2] + 0.6, C.White)
+	end
+	for k = 0, 3 do
+		local x0 = -6.6 + k * 3.3
+		view:box(
+			`Canopy{k + 1}`,
+			x0,
+			top + 8.5,
+			zc - 5.6,
+			x0 + 3.3,
+			top + 9.5,
+			zc + 5.6,
+			if k % 2 == 0 then color else C.White
+		)
+	end
+	view:box("CanopyTop", -3.6, top + 9.5, zc - 3, 3.6, top + 10.6, zc + 3, color)
+	Kit.prop("flagPole", view.model, h.origin * CFrame.new(6.5, top, z0 + 2.5), { height = 18, color = C.Yellow })
+	Kit.prop("picnicTable", view.model, h.origin * CFrame.new(0, top, zc) * CFrame.Angles(0, rad(90), 0), {
+		cloth = C.Red,
+	})
+	return top
+end
+
+local PLAZAS = {
+	market = marketPlaza,
+	garden = gardenPlaza,
+	playground = playgroundPlaza,
+	picnic = picnicPlaza,
+}
+
+--------------------------------------------------------------------------------------------
 
 local function buildGateway(parent: any, cfg: any, world: any, gw: any)
 	local angle = gw.angle % 360
@@ -388,17 +673,13 @@ local function buildGateway(parent: any, cfg: any, world: any, gw: any)
 	end
 	local light = Kit.lerpColor(color, C.White, 0.55)
 
-	-- paving: a round cream pad, a ring in the gateway colour, a light middle, the entry road
-	-- and a path stub towards the hill (every layer 0.15 above the one under it)
+	-- the coral entry road from the promenade (a clear step over its tiles) and the path stub
+	-- towards the hill; the theme lays the rest of the paving
 	local paving = Kit.builder(model, "Paving", origin)
-	disc(paving, "Pad", 40, -0.6, FLOOR, rgb(255, 238, 206))
-	disc(paving, "Ring", 23, -0.5, FLOOR + 0.15, light)
-	disc(paving, "Middle", 13, -0.4, FLOOR + 0.3, rgb(255, 248, 232))
-	paving:box("Road", -9, -0.45, -43, 9, FLOOR + 0.15, -36.5, rgb(255, 128, 104), Kit.NOSHADOW)
-	paving:box("Back", -5, -0.45, 35.5, 5, FLOOR + 0.15, 43, rgb(255, 128, 104), Kit.NOSHADOW)
-	paving:finish()
+	paving:box("Road", -9, -0.45, -43, 9, ROAD_TOP, -36.5, CORAL, Kit.NOSHADOW)
+	paving:box("Back", -5, -0.45, 35.5, 5, FLOOR + 0.3, 43, CORAL, Kit.NOSHADOW)
 
-	welcomeArch(model, at(0, -34), theme.gate, color)
+	welcomeArch(model, at(0, -34), theme.gate, color, details.kind)
 
 	-- the hill behind: find the hilltop along the axis, a solid plinth for the viewpoint there
 	local function groundAt(z: number): number
@@ -414,153 +695,14 @@ local function buildGateway(parent: any, cfg: any, world: any, gw: any)
 	end
 	local deckZ0 = topZ - 2 -- the plinth's front edge
 	local view = Kit.builder(model, "Viewpoint", origin)
-	local viewTop = 0 -- the plinth top (local y), set by the theme below
-
-	if details.kind == "market" then
-		fountain(model, at(0, 0), color)
-		stall(model, at(-25, -4, "centre"), details.stall, color, details.goods)
-		stall(model, at(25, -4, "centre"), "СНАСТИ", C.Orange, "tackle")
-		noticeBoard(model, at(20, 22, "centre"), color)
-		Kit.prop("barrel", model, at(-30, 4), { color = C.Blue })
-		Kit.prop("crate", model, at(30, 5, 20), { color = C.Cyan, size = 3 })
-		Kit.prop("bench", model, at(-18, 22, "centre"), { seed = 3, length = 7 })
-		-- a lighthouse on the hill
-		local top = plinth(view, world, origin, -9, deckZ0, 9, deckZ0 + 18, C.StoneLight)
-		viewTop = top
-		Kit.prop("lighthouse", view.model, origin * CFrame.new(0, top, deckZ0 + 9), { stripe = C.Blue })
-	elseif details.kind == "garden" then
-		giantFlower(model, at(0, 2), color)
-		for i, p in { { -15, -14, 35 }, { 15, -14, -35 } } do
-			Kit.flowerBed(model, at(p[1], p[2], p[3]), {
-				width = 9,
-				count = 4,
-				seed = i + 30,
-				box = C.White,
-			})
-		end
-		Kit.flowerMeadow(model, origin * CFrame.new(-26.5, 0, 18), 41)
-		Kit.flowerMeadow(model, origin * CFrame.new(26.5, 0, 18), 42)
-		stall(model, at(-26, -4, "centre"), details.stall, color, details.goods)
-		photoFrame(model, at(25, 2, "centre"), color)
-		flowerArch(model, at(0, 30), color)
-		Kit.prop("bench", model, at(-14, 24, "centre"), { seed = 7, length = 7 })
-		-- a gazebo on the hill
-		local top = plinth(view, world, origin, -8, deckZ0, 8, deckZ0 + 16, C.White)
-		viewTop = top
-		local z0, z1 = deckZ0 + 1.5, deckZ0 + 14.5
-		for i, p in { { -6, z0 }, { 6, z0 }, { 6, z1 }, { -6, z1 } } do
-			view:box(`Post{i}`, p[1] - 0.7, top, p[2] - 0.7, p[1] + 0.7, top + 9, p[2] + 0.7, C.White)
-		end
-		local zc = (z0 + z1) / 2
-		view:box("Roof1", -8.6, top + 9, zc - 8.6, 8.6, top + 10.4, zc + 8.6, color)
-		view:box("Roof2", -6, top + 10.4, zc - 6, 6, top + 11.8, zc + 6, Kit.lerpColor(color, C.White, 0.45))
-		view:box("Roof3", -3.4, top + 11.8, zc - 3.4, 3.4, top + 13.2, zc + 3.4, color)
-		view:box("Finial", -1, top + 13.2, zc - 1, 1, top + 15, zc + 1, C.Gold, Kit.NEON_DECOR)
-		Kit.prop("bench", view.model, origin * CFrame.new(0, top, z1 - 2), { seed = 9, length = 7 })
-	elseif details.kind == "playground" then
-		playTower(model, at(0, 6), color)
-		swings(model, at(-24, 8, "centre"), C.Blue)
-		seesaw(model, at(23, 12, 60))
-		stall(model, at(-24, -12, "centre"), details.stall, color, details.goods)
-		Kit.prop("bench", model, at(16, 24, "centre"), { seed = 6, length = 7 })
-		Kit.flowerMeadow(model, origin * CFrame.new(-29, 0, 24), 51)
-		-- a lookout deck on the hill and a long slide back down beside the stairs
-		local top = plinth(view, world, origin, -8, deckZ0, 15, deckZ0 + 12, Kit.lerpColor(color, C.White, 0.3))
-		viewTop = top
-		rails(view, -8, 15, deckZ0, deckZ0 + 12, top, color)
-		Kit.prop("flagPole", view.model, origin * CFrame.new(-5.5, top, deckZ0 + 9), { height = 14, color = C.Yellow })
-		local sx = 11
-		local foot = (origin * CFrame.new(sx, 0.6, 46)).Position
-		local baseY = origin.Position.Y
-		local startY = baseY + top + 1.4 -- world y of the chute's top
-		local sideV = (origin * CFrame.new(1, 0, 0)).Position - origin.Position
-		-- lift the chute so it clears every terrace edge under it
-		local p0 = (origin * CFrame.new(sx, 0, deckZ0 + 1)).Position
-		for k = 1, 40 do
-			local t = k / 40
-			local q = foot:Lerp(p0, t)
-			for _, dx in { -2.4, 0, 2.4 } do
-				local g = world:heightAt(q.X + sideV.X * dx, q.Z + sideV.Z * dx) + 0.6
-				local yAt = foot.Y + (startY - foot.Y) * t
-				if g > yAt then
-					startY = max(startY, foot.Y + (g - foot.Y) / t)
-				end
-			end
-		end
-		local topPt = Vector3.new(p0.X, startY, p0.Z)
-		Kit.ramp(view.model, topPt, foot, { width = 4.4, thick = 0.8, color = C.Yellow, name = "Slide" })
-		for i, s in { -1, 1 } do
-			local off = sideV * (s * 2.5) + Vector3.new(0, 1, 0)
-			Kit.ramp(view.model, topPt + off, foot + off, {
-				width = 0.6,
-				thick = 1.8,
-				color = C.Orange,
-				name = `SlideWall{i}`,
-				extra = Kit.NOSHADOW,
-			})
-		end
-		-- the chute rests on a few posts where it runs high
-		for i, t in { 0.3, 0.6, 0.85 } do
-			local q = foot:Lerp(topPt, t)
-			local g = world:heightAt(q.X, q.Z)
-			if q.Y - 1 - g > 1.5 then
-				U.part(
-					view.model,
-					`SlidePost{i}`,
-					Vector3.new(1.2, q.Y - 1 - g + 1, 1.2),
-					CFrame.new(q.X, (q.Y - 1 + g - 1) / 2, q.Z) * CFrame.Angles(0, rad(gw.angle), 0),
-					C.White
-				)
-			end
-		end
-		-- the top of the chute sits on the deck: a little start platform where it is higher
-		if startY - baseY - top > 0.6 then
-			view:box("SlideStart", sx - 2.4, top, deckZ0, sx + 2.4, startY - baseY, deckZ0 + 3, color)
-		end
-	else -- picnic
-		campCircle(model, at(0, 4), color)
-		Kit.prop("picnicTable", model, at(-22, 10, 70), { cloth = C.Red })
-		Kit.prop("picnicTable", model, at(22, 10, -70), { cloth = C.Yellow })
-		stall(model, at(25, -8, "centre"), details.stall, color, details.goods)
-		Kit.flowerMeadow(model, origin * CFrame.new(-29, 0, -18), 61)
-		Kit.flowerMeadow(model, origin * CFrame.new(-27, 0, 26), 62)
-		-- a picnic lookout on the hill: a striped pergola over a picnic table, a telescope, a flag
-		local top = plinth(view, world, origin, -9, deckZ0, 9, deckZ0 + 14, rgb(214, 168, 118))
-		viewTop = top
-		rails(view, -9, 9, deckZ0, deckZ0 + 14, top, C.Red)
-		telescope(view, -6, top, deckZ0 + 3)
-		local zc = deckZ0 + 8
-		for i, p in { { -5, -4 }, { 5, -4 }, { 5, 4 }, { -5, 4 } } do
-			view:box(
-				`PergolaPost{i}`,
-				p[1] - 0.6,
-				top,
-				zc + p[2] - 0.6,
-				p[1] + 0.6,
-				top + 8.5,
-				zc + p[2] + 0.6,
-				C.White
-			)
-		end
-		for k = 0, 3 do
-			local x0 = -6.6 + k * 3.3
-			view:box(
-				`Canopy{k + 1}`,
-				x0,
-				top + 8.5,
-				zc - 5.6,
-				x0 + 3.3,
-				top + 9.5,
-				zc + 5.6,
-				if k % 2 == 0 then color else C.White
-			)
-		end
-		view:box("CanopyTop", -3.6, top + 9.5, zc - 3, 3.6, top + 10.6, zc + 3, color)
-		Kit.prop("flagPole", view.model, origin * CFrame.new(6.5, top, deckZ0 + 2.5), { height = 18, color = C.Yellow })
-		Kit.prop("picnicTable", view.model, origin * CFrame.new(0, top, zc) * CFrame.Angles(0, rad(90), 0), {
-			cloth = C.Red,
-		})
-	end
+	local viewTop = PLAZAS[details.kind](model, at, paving, view, {
+		world = world,
+		origin = origin,
+		deckZ0 = deckZ0,
+		color = color,
+		angle = gw.angle,
+	})
+	paving:finish()
 	view:finish()
 
 	-- the stair path from the back of the plaza up to the viewpoint
@@ -569,16 +711,17 @@ local function buildGateway(parent: any, cfg: any, world: any, gw: any)
 	Kit.stairs(model, world, Vector3.new(a.X, 0, a.Z), Vector3.new(bTop.X, 0, bTop.Z), {
 		width = 7,
 		color = light,
-		color2 = rgb(255, 238, 206),
+		color2 = PAVE,
 		pave = true,
 		top = G + viewTop - 0.15, -- hidden in the plinth, a 0.15 step onto it
 		name = "HillPath",
 	})
 
-	Kit.claim(gw.x, gw.z, (gw.radius or 40) + 4)
+	-- (the market's square paving reaches into the corners)
+	Kit.claim(gw.x, gw.z, (gw.radius or 40) + (if details.kind == "market" then 15 else 4))
 	for z = 50, deckZ0 + 10, 16 do
 		local p = (origin * CFrame.new(0, 0, z)).Position
-		Kit.claim(p.X, p.Z, if z >= deckZ0 - 8 then 16 else 8)
+		Kit.claim(p.X, p.Z, if z >= deckZ0 - 8 then 18 else 8)
 	end
 	return model
 end
