@@ -30,9 +30,9 @@ local BaseConfig = {
 	-- Красятся детали шаблона с атрибутом WallTone = true (оттенок — атрибут WallShade, как AccentShade).
 	WallTones = {
 		Color3.fromRGB(238, 226, 200), -- сливочный
-		Color3.fromRGB(214, 224, 196), -- шалфей
+		Color3.fromRGB(206, 222, 180), -- шалфей
 		Color3.fromRGB(232, 210, 170), -- песочный
-		Color3.fromRGB(208, 218, 226), -- голубовато-серый
+		Color3.fromRGB(196, 214, 230), -- голубоватый
 		Color3.fromRGB(244, 240, 230), -- белёный
 		Color3.fromRGB(222, 196, 160), -- светлое дерево
 		Color3.fromRGB(236, 214, 204), -- розоватый
