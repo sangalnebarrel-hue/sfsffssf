@@ -19,6 +19,7 @@
 	          name     Model name override
 	          lite     trees only: fewer parts for background forests (oak/cherry/autumn/round
 	                   8, birch 8, pine 8-10, palm 10)
+	          compact  broadleaf trees: dark/light canopy layers as single blocks (-2 parts)
 	          colour overrides: see each constructor (color, leaves, trunk, ...)
 	The returned Model has PrimaryPart set to its main part, and PrimaryPart.PivotOffset is set so
 	that the model pivot is exactly `cframe` (Model:PivotTo(newGroundCFrame) works at runtime).
@@ -31,7 +32,7 @@
 
 	Catalogue (parts per instance):
 	  trees      oakTree 13-16, roundTree 13-16, cherryTree 15, autumnTree 15,
-	             birchTree 12, pineTree 11-14, palmTree 16, giantTree 60 (landmark)
+	             birchTree 12, pineTree 11-14, palmTree 16, giantTree 72 (landmark)
 	  plants     bush 4-7, flowerPatch 12, mushroom 7, giantMushroom 14-16, lilyPad 2-4,
 	             reeds 7, stump 4-6, log 3
 	  rocks      rock 1-4, boulder 5-6, crystalCluster 10, rockArch 23-33
@@ -43,10 +44,11 @@
 	  water      rowboat 14, sailboat 21, motorboat 17, buoy 4, dockSegment 9-11, shipwreck 63,
 	             whale 44
 	  big        bridge (~8 per 10 studs + ~30), waterfall 12-22, lighthouse 28, windmill 29
-	             (spinning "Blades"), watchtower 37, ferrisWheel 104 (spinning "Wheel"),
-	             hotAirBalloon 17, cloud 7-8
+	             (spinning "Blades"), watchtower 43, ferrisWheel 104 (spinning "Wheel"),
+	             hotAirBalloon 19, cloud 7-8
 	  helpers    Props.Colors (shared palette, DESIGN.md §1 names), Props.makeRng(seed),
-	             Props.shade(c, f), Props.lerpColor(a, b, t), Props.tones(c) -> {dark, mid, light}
+	             Props.shade(c, f), Props.lerpColor(a, b, t), Props.tones(c) -> {dark, mid, light},
+	             Props.groundAt = function(x, z) -> y (optional ground probe, see broadleaf)
 
 	Spinning parts: windmill and ferrisWheel put the moving geometry in a child Model ("Blades",
 	"Wheel") with a number attribute Spin (degrees per second). Its pivot is the hub; the spin
@@ -57,11 +59,12 @@
 
 	No randomness from math.random: variation comes from a small Park–Miller generator seeded
 	by opts.seed or by the position, so rebuilding the place gives identical output.
-	Foliage and tiny details have CanCollide = CastShadow = CanQuery = false. PointLights (Range
+	Foliage and tiny details have CanCollide = CastShadow = CanQuery = false, except the biggest
+	canopy / frond blocks of each tree, which cast the tree's shadow. PointLights (Range
 	<= 16, no shadows) only where documented: lamps/torches/campfires with opts.light, crystals
 	with opts.light, the lighthouse, glowing giant mushrooms and some bridge lanterns.
 	Every prop runs a z-fight guard when finished (see deconflict below): coplanar faces of
-	differently coloured overlapping blocks are nudged apart by 0.06 stud.
+	differently coloured overlapping blocks are nudged apart by 0.1 stud.
 ]]
 
 local U = require("./Util")
@@ -76,14 +79,18 @@ local roblox = U.roblox
 
 local Props = {}
 
+-- Optional ground probe function(x, z) -> top y of the ground (e.g. VoxelWorld:heightAt), set
+-- once by the map builder: trees then drop fallen-leaf litter that would hang over a step.
+Props.groundAt = nil :: ((number, number) -> number)?
+
 --------------------------------------------------------------------------------------------
 -- Palette (DESIGN.md §1 names first; extra shades and legacy names below)
 --------------------------------------------------------------------------------------------
 
 local C: { [string]: any } = {
-	GrassTop = rgb(104, 214, 72),
-	GrassTop2 = rgb(88, 198, 62),
-	GrassTop3 = rgb(124, 226, 86),
+	GrassTop = rgb(124, 222, 66), -- the ground's grass caps (Ground.luau)
+	GrassTop2 = rgb(106, 206, 56),
+	GrassTop3 = rgb(146, 234, 82),
 	Dirt = rgb(170, 116, 70),
 	DirtDark = rgb(136, 90, 56),
 	Sand = rgb(255, 228, 152),
@@ -96,9 +103,11 @@ local C: { [string]: any } = {
 	Wood = rgb(204, 138, 78),
 	WoodDark = rgb(150, 94, 52),
 	WoodLight = rgb(236, 184, 120),
-	Leaf1 = rgb(62, 176, 64),
-	Leaf2 = rgb(88, 204, 72),
-	Leaf3 = rgb(132, 228, 92),
+	-- foliage is cooler and >= 15% darker than the yellow-green grass, so trees, hedges and bushes
+	-- stand out against the lawns and hills (only the small tips/caps get close to it)
+	Leaf1 = rgb(44, 150, 72),
+	Leaf2 = rgb(66, 178, 84),
+	Leaf3 = rgb(108, 208, 98),
 	Pine1 = rgb(36, 140, 84),
 	Pine2 = rgb(50, 166, 96),
 	Pine3 = rgb(76, 192, 110),
@@ -119,14 +128,21 @@ local C: { [string]: any } = {
 	Glass = rgb(150, 230, 255),
 
 	-- extra shades
-	Leaf0 = rgb(44, 150, 58), -- deepest foliage shade (undersides)
-	LeafLight = rgb(176, 240, 110), -- sunlit tips
+	Leaf0 = rgb(30, 122, 62), -- deepest foliage shade (undersides)
+	LeafLight = rgb(150, 228, 112), -- sunlit tips (small pieces only)
+	Mint1 = rgb(34, 146, 110), -- blue-green broadleaf variety
+	Mint2 = rgb(58, 180, 128),
+	Mint3 = rgb(112, 212, 150),
+	BirchLeaf1 = rgb(50, 156, 88), -- fresh but still darker than the grass
+	BirchLeaf2 = rgb(80, 186, 98),
+	BirchLeaf3 = rgb(122, 208, 108),
 	Pine0 = rgb(26, 116, 72),
+	PineLight = rgb(112, 206, 124), -- young fir tips
 	Blossom0 = rgb(240, 110, 172), -- deep pink (undersides)
 	Autumn0 = rgb(240, 96, 40), -- red-orange (undersides)
-	Palm1 = rgb(48, 176, 76),
-	Palm2 = rgb(78, 204, 82),
-	Palm3 = rgb(140, 232, 96),
+	Palm1 = rgb(36, 156, 78),
+	Palm2 = rgb(58, 186, 88),
+	Palm3 = rgb(112, 216, 100),
 	Bark = rgb(164, 104, 60),
 	BarkDark = rgb(124, 78, 46),
 	CutWood = rgb(255, 214, 150), -- fresh cut faces of stumps/logs
@@ -289,6 +305,9 @@ end
 -- Common property sets (passed as `extra`; Material in extra overrides SmoothPlastic).
 local DECOR = { CanCollide = false, CastShadow = false, CanQuery = false } -- tiny, non-walkable details
 local FOLIAGE = DECOR -- leaves, petals, sails, flags
+-- the biggest canopy / frond blocks of a tree: still not walkable, but they cast the shadow that
+-- grounds the tree (one or two parts per tree, cheap with ShadowMap lighting)
+local FOLIAGE_SHADOW = { CanCollide = false, CastShadow = true, CanQuery = false }
 local NOSHADOW = { CastShadow = false }
 local NEON = { Material = Mat.Neon, CastShadow = false }
 local NEON_DECOR = merge(DECOR, { Material = Mat.Neon })
@@ -470,6 +489,25 @@ function Ctx:beam(name: string, a: any, b: any, w: number, h: number, color: any
 	return self:block(name, Vector3.new(w, h, dir.Magnitude), frameZ((a + b) / 2, dir, upHint), color, nil, extra)
 end
 
+--[[
+	Invisible climbable TrussPart (the Humanoid climbs it; the visible ladder is decoration).
+	Roblox snaps truss sizes to 2-stud steps, so its world size is exactly 2 x 2n x 2 whatever
+	the prop's scale: (x, z) = local centre of the footprint, from local y0 up to at least y1.
+]]
+function Ctx:truss(name: string, x: number, z: number, y0: number, y1: number): any
+	local s = self.s
+	local len = math.max(2, math.ceil((y1 - y0) * s / 2 - 1e-6) * 2)
+	return self:_add(
+		"TrussPart",
+		name,
+		Vector3.new(2 / s, len / s, 2 / s),
+		CFrame.new(x, y0 + len / s / 2, z),
+		C.Wood,
+		nil,
+		{ Transparency = 1, CastShadow = false }
+	)
+end
+
 -- "Plus" shaped pair of blocks: a rounded-corner voxel slab (canopies, balloon, tiers).
 -- (x, z) centre, y0..y1 height, w = full width, k = how much the corners are cut (0..1).
 function Ctx:cross(
@@ -494,13 +532,13 @@ end
 	Z-fight guard: overlapping blocks of one prop that share a face plane pointing the same way
 	and look different (colour / material / transparency) flicker in Roblox. Random jitter makes
 	such coincidences rare but not impossible, so after building, the shared face of the smaller
-	block of every such pair is pushed 0.06 stud outwards (the block grows on that side only, so
+	block of every such pair is pushed 0.1 stud outwards (the block grows on that side only, so
 	it never starts overlapping its other neighbours). Only blocks axis-aligned with `frame` are
 	checked (rotating groups are skipped); contacts thinner than 0.12 stud are ignored; the
 	PrimaryPart of a child model (spinning group hub, gondola pin) is never moved.
 ]]
-local NUDGE = 0.06
-local TOUCH = 0.04 -- faces closer than this count as coplanar
+local NUDGE = 0.1
+local TOUCH = 0.07 -- faces closer than this count as coplanar
 local MIN_OVERLAP = 0.12
 local function deconflict(model: any, frame: any)
 	local boxes = {}
@@ -668,8 +706,12 @@ end
 --[[
 	Shared broadleaf tree: square trunk with root blocks and a branch, and a voxel "ball" canopy:
 	three rounded ("plus"-shaped) layers — dark bottom, wide mid, light top — a cap and two bumps
-	(one low and dark, one high and light) that break the silhouette. With opts.lite the roots,
-	bumps, branch, fruit and litter are left out (8 parts: trunk + canopy only).
+	(one low and dark, one high and light) that break the silhouette. The wide mid layer casts the
+	tree's shadow. With opts.lite the roots, bumps, branch and litter are left out (8 parts: trunk
+	+ canopy only; fruit only when opts.fruit asks for it). opts.compact: the dark and the light
+	layer are single blocks instead of "plus" pairs (2 parts fewer, e.g. lite + compact = 6).
+	Fallen leaves sit close to the trunk and are dropped where Props.groundAt (when set) says the
+	ground under them is not at the tree's foot.
 	p: trunkW, trunkH (canopy bottom), R (canopy half-width), H (canopy height),
 	   pal {dark, mid, light}, trunk, trunkDark, fruit (colour | nil), litter (colour of fallen
 	   leaves/petals | nil), crownScale, branch = false.
@@ -700,15 +742,25 @@ local function broadleaf(b: any, p: { [string]: any }): any
 	local function jit(): number
 		return b:range(-0.45, 0.45)
 	end
+	local compact = b.opts.compact == true
+	-- a layer: a rounded "plus" pair, or one block cut to the plus' inner square when compact
+	local function layer(name: string, x: number, ya: number, z: number, yb: number, w: number, k: number, col: any)
+		if compact then
+			local h = w * (1 + k) / 4
+			b:span(name, x - h, ya, z - h, x + h, yb, z + h, col, FOLIAGE)
+		else
+			b:cross(name, x, ya, z, yb, w, w, k, col, FOLIAGE)
+		end
+	end
 	local ax, az = jit(), jit()
-	b:cross("CanopyLow", ax, y0, az, y0 + hA + 0.3, 2 * R * 0.8, 2 * R * 0.8, 0.7, dark, FOLIAGE)
+	layer("CanopyLow", ax, y0, az, y0 + hA + 0.3, 2 * R * 0.8, 0.7, dark)
 	local bx, bz = jit(), jit()
 	local yB0, yB1 = y0 + hA, y0 + hA + hB
-	b:cross("Canopy", bx, yB0, bz, yB1, 2 * R, 2 * R, 0.72, mid, FOLIAGE)
+	b:cross("Canopy", bx, yB0, bz, yB1, 2 * R, 2 * R, 0.72, mid, FOLIAGE_SHADOW)
 	local cx, cz = bx + jit(), bz + jit()
 	local wc = 2 * R * (p.crownScale or 0.74)
 	local yC1 = yB1 + hC
-	b:cross("CanopyTop", cx, yB1 - 0.25, cz, yC1, wc, wc, 0.7, lightC, FOLIAGE)
+	layer("CanopyTop", cx, yB1 - 0.25, cz, yC1, wc, 0.7, lightC)
 	local capW = wc * 0.48
 	local kx, kz = cx + jit(), cz + jit()
 	b:span(
@@ -733,7 +785,24 @@ local function broadleaf(b: any, p: { [string]: any }): any
 		b:vox(`Bump{i}`, bx + d * math.sin(a), bm[2], bz + d * math.cos(a), s, hB * 0.62, s, bm[3], FOLIAGE)
 	end
 
+	-- fruit: small bright cubes on the faces of the middle layer
+	local function addFruit()
+		local spots = { { 1, 0.35 }, { -0.4, 1 }, { -1, -0.5 } }
+		for i, sp in spots do
+			local fx, fz
+			if math.abs(sp[1]) == 1 then
+				fx, fz = bx + sp[1] * (R + 0.15), bz + sp[2] * R * 0.55
+			else
+				fx, fz = bx + sp[1] * R * 0.55, bz + sp[2] * (R + 0.15)
+			end
+			b:vox(`Fruit{i}`, fx, yB0 + hB * (0.3 + 0.2 * i), fz, 1.1, 1.1, 1.1, p.fruit, DECOR)
+		end
+	end
+
 	if lite then
+		if p.fruit and b.opts.fruit then
+			addFruit()
+		end
 		return trunk
 	end
 
@@ -752,26 +821,21 @@ local function broadleaf(b: any, p: { [string]: any }): any
 		end
 	end
 
-	-- fruit: small bright cubes on the faces of the middle layer
 	if p.fruit then
-		local spots = { { 1, 0.35 }, { -0.4, 1 }, { -1, -0.5 } }
-		for i, sp in spots do
-			local fx, fz
-			if math.abs(sp[1]) == 1 then
-				fx, fz = bx + sp[1] * (R + 0.15), bz + sp[2] * R * 0.55
-			else
-				fx, fz = bx + sp[1] * R * 0.55, bz + sp[2] * (R + 0.15)
-			end
-			b:vox(`Fruit{i}`, fx, yB0 + hB * (0.3 + 0.2 * i), fz, 1.1, 1.1, 1.1, p.fruit, DECOR)
-		end
+		addFruit()
 	end
 
-	-- litter: fallen petals / leaves on the ground
+	-- litter: fallen petals / leaves on the ground under the canopy, near the trunk
 	if p.litter then
+		local footY = b.cf.Position.Y
 		for i = 1, 2 do
 			local a = RAD(a0 + 70 + i * 150)
-			local d = R * b:range(0.6, 1.1)
-			b:vox(`Litter{i}`, d * math.sin(a), 0.07, d * math.cos(a), 1.6, 0.14, 1.6, p.litter, DECOR)
+			local d = tw / 2 + b:range(0.8, 1.4) -- right beside the trunk, between the roots
+			local lx, lz = d * math.sin(a), d * math.cos(a)
+			local wp = b:worldPoint(Vector3.new(lx, 0, lz))
+			if not Props.groundAt or math.abs(Props.groundAt(wp.X, wp.Z) - footY) < 0.25 then
+				b:vox(`Litter{i}`, lx, 0.07, lz, 1.6, 0.14, 1.6, p.litter, DECOR)
+			end
 		end
 	end
 	return trunk
@@ -853,15 +917,16 @@ end
 
 local ROUND_PALETTES = {
 	green = { C.Leaf1, C.Leaf2, C.Leaf3 },
+	mint = { C.Mint1, C.Mint2, C.Mint3 },
 	autumn = { C.Autumn0, C.Autumn1, C.Autumn2 },
 	blossom = { C.Blossom0, C.Blossom1, C.Blossom2 },
-	lime = { C.Leaf2, C.Lime, C.LeafLight },
+	lime = { C.Leaf2, C.Lime, C.LeafLight }, -- close to the grass: only for small accents
 }
 
 --[[
 	roundTree (v2 name): a broadleaf voxel tree with a named palette. 13-16 parts.
-	opts: palette = "green" (default) | "autumn" | "blossom" | "lime" | "mixed" (mostly green,
-	sometimes lime/autumn by seed), leaves = {dark, mid, light}, trunk, fruit.
+	opts: palette = "green" (default) | "mint" | "autumn" | "blossom" | "lime" | "mixed" (mostly
+	green, sometimes mint/autumn by seed), leaves = {dark, mid, light}, trunk, fruit.
 ]]
 function Props.roundTree(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "RoundTree", cf, opts, 23)
@@ -869,7 +934,7 @@ function Props.roundTree(parent: any, cf: any, opts: { [string]: any }?): any
 	local palName = o.palette or "green"
 	if palName == "mixed" then
 		local r = b.rand()
-		palName = if r < 0.6 then "green" elseif r < 0.8 then "lime" else "autumn"
+		palName = if r < 0.6 then "green" elseif r < 0.8 then "mint" else "autumn"
 	end
 	treeSize(b)
 	local trunk = broadleaf(b, {
@@ -888,13 +953,13 @@ end
 
 --[[
 	birchTree: tall slim white trunk with dark bark marks, a narrow three-layer canopy in fresh
-	light greens. 12 parts. opts: leaves = {dark, mid, light}, trunk.
+	greens (the mid layer casts the shadow). 12 parts. opts: leaves = {dark, mid, light}, trunk.
 ]]
 function Props.birchTree(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "BirchTree", cf, opts, 43)
 	local o = b.opts
 	treeSize(b)
-	local pal = o.leaves or { C.Leaf2, C.Lime, C.LeafLight }
+	local pal = o.leaves or { C.BirchLeaf1, C.BirchLeaf2, C.BirchLeaf3 }
 	local tw = b:range(1.6, 1.9)
 	local th = b:range(8, 9.5) -- canopy bottom
 	local trunk = b:span("Trunk", -tw / 2, -1, -tw / 2, tw / 2, th + 2.5, tw / 2, pickColor(o, "trunk", C.Birch))
@@ -924,7 +989,7 @@ function Props.birchTree(parent: any, cf: any, opts: { [string]: any }?): any
 	local y0 = th
 	b:cross("CanopyLow", 0, y0, 0, y0 + 2.6, 2 * R * 0.82, 2 * R * 0.82, 0.7, pal[1], FOLIAGE)
 	local ox, oz = b:range(-0.4, 0.4), b:range(-0.4, 0.4)
-	b:cross("Canopy", ox, y0 + 2.3, oz, y0 + 6.6, 2 * R, 2 * R, 0.72, pal[2], FOLIAGE)
+	b:cross("Canopy", ox, y0 + 2.3, oz, y0 + 6.6, 2 * R, 2 * R, 0.72, pal[2], FOLIAGE_SHADOW)
 	local tx, tz = ox + b:range(-0.4, 0.4), oz + b:range(-0.4, 0.4)
 	b:cross("CanopyTop", tx, y0 + 6.4, tz, y0 + 9.2, 2 * R * 0.72, 2 * R * 0.72, 0.7, pal[3], FOLIAGE)
 	b:span(
@@ -947,13 +1012,13 @@ local PINE_VARIANTS = {
 	-- medium pine
 	{ h = 21, w = 9.4, layers = 4, trunk = 1.8, colors = { "Pine1", "Pine2", "Pine3" } },
 	-- young bright fir
-	{ h = 15, w = 7.6, layers = 3, trunk = 1.5, colors = { "Pine1", "Pine2", "LeafLight" } },
+	{ h = 15, w = 7.6, layers = 3, trunk = 1.5, colors = { "Pine1", "Pine2", "PineLight" } },
 }
 
 --[[
 	pineTree: voxel conifer — layers of a wide dark rounded "skirt" with a narrower body on top,
-	getting smaller and lighter towards the tip, so the silhouette zig-zags like branch tiers.
-	11-14 parts. opts: variant 1..3 (tall dark / medium / young bright), snow = true (white
+	getting smaller and lighter towards the tip, so the silhouette zig-zags like branch tiers; the
+	bottom skirt casts the shadow. 11-14 parts. opts: variant 1..3 (tall dark / medium / young bright), snow = true (white
 	skirts = snow on the branches, for the mountains), leaves = { skirt, body, top } colours,
 	trunk = colour.
 ]]
@@ -977,13 +1042,14 @@ function Props.pineTree(parent: any, cf: any, opts: { [string]: any }?): any
 		local skirtC = if o.snow then lerpColor(C.Snow, C.Glass, 0.15) else shade(leaves[1], 1 + 0.12 * t)
 		local bodyC = lerpColor(leaves[2], leaves[3], t)
 		local hs = math.max(1.2, layerH * 0.34)
+		local skirtX = if i == 0 then FOLIAGE_SHADOW else FOLIAGE -- the widest skirt casts the shadow
 		if o.lite then
 			local sw = w * 0.88
-			b:span(`Skirt{i + 1}`, ox - sw / 2, y, oz - sw / 2, ox + sw / 2, y + hs, oz + sw / 2, skirtC, FOLIAGE)
+			b:span(`Skirt{i + 1}`, ox - sw / 2, y, oz - sw / 2, ox + sw / 2, y + hs, oz + sw / 2, skirtC, skirtX)
 		else
-			b:cross(`Skirt{i + 1}`, ox, y, oz, y + hs, w, w, 0.66, skirtC, FOLIAGE)
+			b:cross(`Skirt{i + 1}`, ox, y, oz, y + hs, w, w, 0.66, skirtC, skirtX)
 		end
-		local bw = w * 0.7
+		local bw = w * 0.76 -- clear of the skirt cross's narrow block (no near-coplanar sides)
 		b:span(
 			`Body{i + 1}`,
 			ox - bw / 2,
@@ -1004,7 +1070,7 @@ end
 
 --[[
 	palmTree: segmented trunk of 3 offset blocks bending to one side (alternating two shades), a
-	dark crown block, block fronds and two coconuts. 16 parts. opts: variant = 1 ("umbrella":
+	dark crown block, block fronds (the two long ones cast the shadow) and two coconuts. 16 parts. opts: variant = 1 ("umbrella":
 	a plus of long fronds with drooping tips + 4 light diagonal fronds) | 2 ("arched": 4 fronds
 	stepping down twice, light -> dark), default by seed; leaves = {dark, mid, light},
 	trunk = colour, lean = studs the crown is offset sideways (default 1.4..2.2).
@@ -1048,8 +1114,8 @@ function Props.palmTree(parent: any, cf: any, opts: { [string]: any }?): any
 	if variant == 1 then
 		-- "umbrella": the plus of two long fronds, drooping tips, light diagonal fronds
 		local L = b:range(4.4, 5.0)
-		b:span("FrondX", tx - L, y + 0.55, -fw / 2, tx + L, y + 0.55 + ft, fw / 2, pal[2], FOLIAGE)
-		b:span("FrondZ", tx - fw / 2, y + 0.6, -L, tx + fw / 2, y + 0.6 + ft, L, pal[2], FOLIAGE)
+		b:span("FrondX", tx - L, y + 0.55, -fw / 2, tx + L, y + 0.55 + ft, fw / 2, pal[2], FOLIAGE_SHADOW)
+		b:span("FrondZ", tx - fw / 2, y + 0.6, -L, tx + fw / 2, y + 0.6 + ft, L, pal[2], FOLIAGE_SHADOW)
 		for i, d in dirs do
 			-- drooping tip: hangs from the end of the blade, one step lower
 			local reach = L + 1.2
@@ -1059,14 +1125,15 @@ function Props.palmTree(parent: any, cf: any, opts: { [string]: any }?): any
 			b:vox(`FrondTip{i}`, tx + d[1] * reach, top - 0.65, d[2] * reach, sx, 1.3, sz, shade(pal[2], 0.86), FOLIAGE)
 		end
 		for i, d in if o.lite then {} else { { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do
-			local dd = L * 0.6
-			b:vox(`FrondDiag{i}`, tx + d[1] * dd, y + 0.35 - (i % 2) * 0.12, d[2] * dd, 2.6, 0.8, 2.6, pal[3], FOLIAGE)
+			-- grows out of the crown's corner (its inner corner sits inside the crown)
+			local dd = 2.7
+			b:vox(`FrondDiag{i}`, tx + d[1] * dd, y + 0.35 - (i % 2) * 0.12, d[2] * dd, 3.0, 0.8, 3.0, pal[3], FOLIAGE)
 		end
 	else
 		-- "arched": short light plus, then two steps down per frond (mid green, dark tip)
 		local L = b:range(3.0, 3.4)
-		b:span("FrondX", tx - L, y + 0.55, -fw / 2, tx + L, y + 0.55 + ft, fw / 2, pal[3], FOLIAGE)
-		b:span("FrondZ", tx - fw / 2, y + 0.6, -L, tx + fw / 2, y + 0.6 + ft, L, pal[3], FOLIAGE)
+		b:span("FrondX", tx - L, y + 0.55, -fw / 2, tx + L, y + 0.55 + ft, fw / 2, pal[3], FOLIAGE_SHADOW)
+		b:span("FrondZ", tx - fw / 2, y + 0.6, -L, tx + fw / 2, y + 0.6 + ft, L, pal[3], FOLIAGE_SHADOW)
 		for i, d in dirs do
 			local lift = (i % 2) * 0.05
 			local function seg(name: string, from: number, len: number, w: number, top: number, col: any)
@@ -1091,7 +1158,8 @@ end
 --[[
 	giantTree: landmark tree, ~59 studs tall: massive trunk with bark ridges, 4 stepped roots,
 	branches, a wide 3-shade layered canopy (~36 studs) with bumps, a treehouse platform with a
-	hut, railing, ladder, a rope swing and glowing lanterns. 60 parts.
+	hut, railing, a climbable ladder (invisible TrussPart + rails and rungs), a rope swing and
+	glowing lanterns hanging from the branches. 72 parts.
 	opts: leaves = {dark, mid, light}, treehouse = false (no platform/hut/ladder),
 	roof = colour (hut roof).
 ]]
@@ -1157,6 +1225,10 @@ function Props.giantTree(parent: any, cf: any, opts: { [string]: any }?): any
 		{ -9, 45, 16, 9, mid },
 		{ 12.5, 50.5, -10, 8.5, lightC },
 		{ -14.5, 50, 4, 8, lightC },
+		-- more lumps on the front (-Z, towards the path) and the back, so no side reads as a flat wall
+		{ 2, 42, -18.6, 9, mid },
+		{ -7, 35.5, -14.5, 8, dark },
+		{ 9, 47, 14, 8, lightC },
 	}
 	for i = 1, 3 do
 		local c = bumps[i]
@@ -1170,8 +1242,8 @@ function Props.giantTree(parent: any, cf: any, opts: { [string]: any }?): any
 	end
 	-- canopy: a big voxel ball of rounded layers
 	b:cross("CanopyLow", 0, 31.5, 0, 38, 28, 28, 0.7, dark, FOLIAGE)
-	b:cross("Canopy", 0.5, 37.6, -0.5, 48, 36, 36, 0.72, mid, FOLIAGE)
-	b:cross("CanopyTop", 1.5, 47.6, -1, 54, 27, 27, 0.7, lightC, FOLIAGE)
+	b:cross("Canopy", 0.5, 37.6, -0.5, 48, 36, 36, 0.72, mid, FOLIAGE_SHADOW)
+	b:cross("CanopyTop", 1.5, 47.6, -1.25, 54, 27, 27, 0.7, lightC, FOLIAGE)
 	b:cross("CanopyCrown", 0, 53.6, 1, 57.4, 15, 15, 0.68, lerpColor(lightC, C.White, 0.08), FOLIAGE)
 	b:span("Cap", -2.5, 57, -2, 3.5, 59.2, 4, lerpColor(lightC, C.White, 0.2), FOLIAGE)
 	for i, c in bumps do
@@ -1199,24 +1271,30 @@ function Props.giantTree(parent: any, cf: any, opts: { [string]: any }?): any
 		b:span("HutRoof3", 8, py + 9.6, -2.5, 12, py + 10.6, 2.5, roofC)
 		b:span("HutDoor", 8.6, py + 1, -5.3, 11.4, py + 5.4, -4.9, C.Blue)
 		b:span("HutWindow", 14, py + 3.2, -1.4, 14.3, py + 5.4, 1.4, C.Glow, NEON_DECOR)
-		-- ladder at the front gap
+		-- ladder at the front gap: an invisible TrussPart (2 studs, from the ground to 3 studs
+		-- above the deck) that the Humanoid climbs, dressed as side rails with dense rungs on its
+		-- outer face; the rails reach back to the platform edge
+		local lz0 = -9 - 2 / b.s -- the truss' outer face (it is 2 studs deep)
+		b:truss("LadderTruss", -1, (lz0 - 9) / 2, -1, py + 1 + 3 / b.s)
 		for i, x in { -2.6, 0.6 } do
-			b:span(`LadderRail{i}`, x - 0.3, -1, -10.2, x + 0.3, py + 2.8, -9.6, C.WoodDark)
+			b:span(`LadderRail{i}`, x - 0.3, -1, lz0, x + 0.3, py + 2.8, -9, C.WoodDark)
 		end
-		for k = 1, 6 do
-			local yy = k * (py + 1) / 7
-			b:span(`Rung{k}`, -2.4, yy - 0.2, -10.1, 0.4, yy + 0.2, -9.7, C.WoodLight, NOSHADOW)
+		local rungs = math.floor((py + 1) / 1.35)
+		for k = 1, rungs do
+			local yy = k * (py + 1) / (rungs + 1)
+			b:span(`Rung{k}`, -2.4, yy - 0.2, lz0, 0.4, yy + 0.2, lz0 + 0.4, C.WoodLight, DECOR)
 		end
-		-- rope swing under branch 2 (-X side)
+		-- rope swing hanging from branch 2 (-X side)
 		local sx, sz = -9.5, -6
-		b:span("SwingRopeA", sx - 1.4, 8, sz - 0.1, sx - 1.2, 28, sz + 0.1, C.Rope, DECOR)
-		b:span("SwingRopeB", sx + 1.2, 8, sz - 0.1, sx + 1.4, 28, sz + 0.1, C.Rope, DECOR)
+		b:span("SwingRopeA", sx - 1.4, 8, sz - 0.1, sx - 1.2, 29.7, sz + 0.1, C.Rope, DECOR)
+		b:span("SwingRopeB", sx + 1.2, 8, sz - 0.1, sx + 1.4, 29.7, sz + 0.1, C.Rope, DECOR)
 		b:span("SwingSeat", sx - 1.8, 7.6, sz - 0.7, sx + 1.8, 8.1, sz + 0.7, C.Red)
 	end
-	-- glowing lanterns hanging under the canopy
-	for i, p in { { 15, 29.4, 5 }, { 4, 29.2, 15 }, { -14, 30.2, -7 } } do
+	-- glowing lanterns hanging from the branch tips (the first one on a short cord)
+	for i, p in { { 13.4, 28.2, 4.25 }, { 4, 29.2, 15 }, { -14, 30.2, -7 } } do
 		b:vox(`Lantern{i}`, p[1], p[2], p[3], 1.3, 1.5, 1.3, C.Glow, NEON_DECOR)
 	end
+	b:span("LanternCord1", 13.3, 28.9, 4.15, 13.5, 29.7, 4.35, C.Rope, DECOR)
 	return b:finish(trunk)
 end
 
@@ -1558,7 +1636,7 @@ function Props.rockArch(parent: any, cf: any, opts: { [string]: any }?): any
 		local foot = b:span(`Foot{i}`, inner - sgn * 1.2, -14, -D / 2 - 1.6, outer + sgn * 1.8, 2.2, D / 2 + 1.4, t[1])
 		first = first or foot
 		b:span(`Lower{i}`, inner, 2.0, -D / 2, outer, 11, D / 2, t[2])
-		b:span(`Upper{i}`, inner + sgn * 0.8, 10.8, -D / 2 + 0.7, outer + sgn * 0.8, 19, D / 2 - 0.5, t[2])
+		b:span(`Upper{i}`, inner + sgn * 0.8, 10.8, -D / 2 + 0.7, outer + sgn * 0.8, 20.6, D / 2 - 0.5, t[2])
 		-- a light ledge on the outside
 		b:span(`Ledge{i}`, outer - sgn * 1.5, 6, -D / 2 + 1.5, outer + sgn * 1.8, 9.5, D / 2 - 2.5, mid2)
 		b:span(`Moss{i}`, outer - sgn * 1.3, 9.45, -D / 2 + 1.8, outer + sgn * 1.6, 9.9, D / 2 - 3.2, C.GrassTop, DECOR)
@@ -1577,7 +1655,7 @@ function Props.rockArch(parent: any, cf: any, opts: { [string]: any }?): any
 		b:vox(`FoamA{i}`, outer + sgn * 2.8, 0.2, -2, 2.2, 1.0, 2.6, C.Foam, DECOR)
 		b:vox(`FoamB{i}`, inner - sgn * 2.0, 0.15, D / 2 + 0.7, 1.8, 0.9, 2.0, C.Foam, DECOR)
 		-- two corbel steps under the lintel round the opening
-		b:span(`Corbel{i}`, inner - sgn * 2.6, 16.5, -D / 2 + 0.9, inner + sgn * 0.2, 20.6, D / 2 - 0.9, t[2])
+		b:span(`Corbel{i}`, inner - sgn * 2.6, 16.5, -D / 2 + 0.9, inner + sgn * 1.0, 20.6, D / 2 - 0.9, t[2])
 		b:span(`Corbel2{i}`, inner - sgn * 4.8, 18.8, -D / 2 + 1.2, inner - sgn * 2.4, 20.6, D / 2 - 1.2, t[2])
 	end
 	-- lintel, its lighter top and a dark chunk
@@ -1765,7 +1843,7 @@ function Props.crateStack(parent: any, cf: any, opts: { [string]: any }?): any
 	local painted = o.color or b:pick({ C.Cyan, C.Red, C.Blue, C.Yellow })
 	local main = framedCrate(b, "CrateA", -1.6, 0, 0, 3, C.WoodLight)
 	framedCrate(b, "CrateB", 1.5, 0, 0.3, 2.6, painted)
-	framedCrate(b, "CrateTop", -1.3, 3, 0.15, 2.2, shade(C.WoodLight, 0.94))
+	framedCrate(b, "CrateTop", -1.2, 3, 0.15, 2.2, shade(C.WoodLight, 0.94))
 	return b:finish(main)
 end
 
@@ -2331,7 +2409,8 @@ function Props.sailboat(parent: any, cf: any, opts: { [string]: any }?): any
 	for i = 1, 4 do
 		local len = 7.8 * (1 - (i - 1) * 0.24)
 		local col = if i == 2 then stripe else sail
-		b:span(`Sail{i}`, -0.12, sy, mz + 0.35, 0.12, sy + stepH + 0.02, mz + 0.35 + len, col, FOLIAGE)
+		local th = if i % 2 == 0 then 0.18 else 0.12 -- neighbours never share a side plane
+		b:span(`Sail{i}`, -th, sy, mz + 0.35, th, sy + stepH + 0.02, mz + 0.35 + len, col, FOLIAGE)
 		sy += stepH
 	end
 	-- jib: 3 steps in front of the mast
@@ -2358,8 +2437,8 @@ function Props.motorboat(parent: any, cf: any, opts: { [string]: any }?): any
 	local stripe = o.stripe or (if paint == C.White then C.Blue else C.White)
 	local L, W = 12, 5
 	local floor = voxelHull(b, L, W, -0.9, 0.3, 1.5, paint, C.White)
-	b:span("StripeL", -W / 2 - 0.06, 0.1, -L / 2 + 3.4, -W / 2 + 0.2, 0.7, L / 2 + 0.06, stripe, DECOR)
-	b:span("StripeR", W / 2 - 0.2, 0.1, -L / 2 + 3.4, W / 2 + 0.06, 0.7, L / 2 + 0.06, stripe, DECOR)
+	b:span("StripeL", -W / 2 - 0.12, 0.1, -L / 2 + 3.4, -W / 2 + 0.2, 0.7, L / 2 + 0.12, stripe, DECOR)
+	b:span("StripeR", W / 2 - 0.2, 0.1, -L / 2 + 3.4, W / 2 + 0.12, 0.7, L / 2 + 0.12, stripe, DECOR)
 	b:span("FrontDeck", -W / 2 + 0.3, 1.2, -L / 2 + 1.6, W / 2 - 0.3, 1.7, -1.2, C.White)
 	b:span(
 		"Windshield",
@@ -2503,18 +2582,18 @@ function Props.shipwreck(parent: any, cf: any, opts: { [string]: any }?): any
 	local old = b:push(CFrame.new(0, -sink, 0) * rot(-5, 0, -9))
 	local zb = -L / 2 + 9 -- bow start
 	local y0, deckY, rimY = -5, 3, 5.5
-	local keel = b:span("Hull", -hw + 0.6, y0, zb, hw - 0.6, deckY - 0.6, L / 2 - 6, hullD)
+	local keel = b:span("Hull", -hw + 0.6, y0, zb + 0.1, hw - 0.6, deckY - 0.6, L / 2 - 6, hullD)
 	-- port side wall: full, with the painted band
 	b:span("SidePort", -hw, y0 + 0.5, zb, -hw + 0.8, rimY, L / 2, hullC)
-	b:span("BandPort", -hw - 0.1, rimY - 1.6, zb - 0.1, -hw + 0.9, rimY - 0.7, L / 2 + 0.1, band, NOSHADOW)
+	b:span("BandPort", -hw - 0.1, rimY - 1.6, zb - 0.1, -hw + 0.9, rimY - 0.7, L / 2 + 0.2, band, NOSHADOW)
 	-- starboard side wall: broken into pieces of uneven height with a hole in the middle
 	b:span("SideStbd1", hw - 0.8, y0 + 0.5, zb, hw, rimY, zb + 9, hullC)
 	b:span("SideStbd2", hw - 0.8, y0 + 0.5, zb + 9, hw, rimY - 3.2, zb + 13, hullC)
 	b:span("SideStbd3", hw - 0.8, y0 + 0.5, zb + 13, hw, 0.4, zb + 18, hullC)
 	b:span("SideStbd4", hw - 0.8, y0 + 0.5, zb + 18, hw, rimY - 1.8, zb + 22, hullC)
 	b:span("SideStbd5", hw - 0.8, y0 + 0.5, zb + 22, hw, rimY, L / 2, hullC)
-	b:span("BandStbd1", hw - 0.9, rimY - 1.6, zb - 0.1, hw + 0.1, rimY - 0.7, zb + 9, band, NOSHADOW)
-	b:span("BandStbd2", hw - 0.9, rimY - 1.6, zb + 22, hw + 0.1, rimY - 0.7, L / 2 + 0.1, band, NOSHADOW)
+	b:span("BandStbd1", hw - 0.9, rimY - 1.6, zb - 0.1, hw + 0.1, rimY - 0.7, zb + 9.1, band, NOSHADOW)
+	b:span("BandStbd2", hw - 0.9, rimY - 1.6, zb + 21.9, hw + 0.1, rimY - 0.7, L / 2 + 0.2, band, NOSHADOW)
 	-- planks sticking out of the hole
 	b:span("BrokenPlank1", hw - 0.3, 0.2, zb + 13.5, hw + 1.4, 0.8, zb + 15.5, hullC, NOSHADOW)
 	b:span("BrokenPlank2", hw - 0.4, -1.8, zb + 15.8, hw + 1.1, -1.2, zb + 17.5, hullD, NOSHADOW)
@@ -2522,7 +2601,7 @@ function Props.shipwreck(parent: any, cf: any, opts: { [string]: any }?): any
 	b:span("DeckA", -hw + 0.8, deckY - 0.6, zb - 1, hw - 0.8, deckY, zb + 12, deckC)
 	b:span("DeckB", -hw + 0.8, deckY - 0.6, zb + 16, hw - 0.8, deckY, L / 2 - 0.8, shade(deckC, 0.92))
 	-- stern transom
-	b:span("Transom", -hw, y0 + 0.5, L / 2 - 0.8, hw, rimY + 6, L / 2, hullC)
+	b:span("Transom", -hw, y0 + 0.5, L / 2 - 0.8, hw, rimY + 6, L / 2 + 0.1, hullC)
 	-- bow: three steps + bowsprit + figure trim
 	b:span("Bow1", -hw * 0.75, y0 + 1, zb - 4, hw * 0.75, rimY + 0.6, zb + 0.5, hullC)
 	b:span("Bow2", -hw * 0.48, y0 + 2, zb - 7, hw * 0.48, rimY + 1.2, zb - 3.8, hullC)
@@ -2722,7 +2801,7 @@ function Props.bridge(parent: any, fromPos: any, toPos: any, opts: { [string]: a
 	end
 	-- kerbs on the deck edges and stringers under them
 	for i, sx in { -1, 1 } do
-		b:span(`Kerb{i}`, sx * hw - sx * 1.1, -0.05, -L / 2, sx * hw + sx * 0.25, 0.55, L / 2, kerbC)
+		b:span(`Kerb{i}`, sx * hw - sx * 1.1, -0.05, -L / 2 + 0.1, sx * hw + sx * 0.25, 0.55, L / 2 - 0.1, kerbC)
 		b:span(
 			`Stringer{i}`,
 			sx * hw - sx * 1.6,
@@ -2782,11 +2861,11 @@ function Props.bridge(parent: any, fromPos: any, toPos: any, opts: { [string]: a
 		for i, sx in { -1, 1 } do
 			local x = sx * (hw - 0.45)
 			if isLantern then
-				b:span(`LampPost{k}_{i}`, x - 0.8, -0.05, z - 0.8, x + 0.8, railH + 2.0, z + 0.8, postC)
+				b:span(`LampPost{k}_{i}`, x - 0.8, 0, z - 0.8, x + 0.8, railH + 2.0, z + 0.8, postC)
 				local withLight = lightsOn and i == 1 and lanternCount % 2 == 1
 				cubeLantern(b, `L{k}_{i}`, x, railH + 1.95, z, 0.85, roofC, withLight, true)
 			else
-				b:span(`Post{k}_{i}`, x - 0.7, -0.05, z - 0.7, x + 0.7, railH + 1.2, z + 0.7, postC)
+				b:span(`Post{k}_{i}`, x - 0.7, 0, z - 0.7, x + 0.7, railH + 1.2, z + 0.7, postC)
 			end
 		end
 	end
@@ -2820,7 +2899,8 @@ function Props.bridge(parent: any, fromPos: any, toPos: any, opts: { [string]: a
 					C.StoneLight
 				)
 				b:span(`ArchPillar{e}_{i}`, sx * px - 1.2, 1.2, z - 1.2, sx * px + 1.2, 11.6, z + 1.2, archC)
-				b:vox(`ArchLamp{e}_{i}`, sx * (px - 1.9), 8.6, z, 1.0, 1.4, 1.0, C.Glow, NEON_DECOR)
+				-- lantern tucked into the corner of the pillar and the tie beam (touching both)
+				b:vox(`ArchLamp{e}_{i}`, sx * (px - 1.7), 8.75, z, 1.1, 1.4, 1.0, C.Glow, NEON_DECOR)
 			end
 			b:span(`ArchBeam{e}`, -px - 2.2, 10.4, z - 1.6, px + 2.2, 12.2, z + 1.6, roofC)
 			b:span(`ArchTie{e}`, -px + 1.2, 9.4, z - 0.9, px - 1.2, 10.45, z + 0.9, archC, NOSHADOW)
@@ -2961,7 +3041,8 @@ function Props.lighthouse(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Lighthouse", cf, opts, 223)
 	local o = b.opts
 	local red = o.stripe or C.Red
-	local plinth = b:span("Plinth", -7, -2, -7, 7, 1, 7, C.StoneLight)
+	-- the plinth reaches well below the ground, so it also fills a terrace step under one side
+	local plinth = b:span("Plinth", -7, -6.5, -7, 7, 1, 7, C.StoneLight)
 	b:span("Base", -5.6, 0.9, -5.6, 5.6, 3, 5.6, C.Stone)
 	local y = 3
 	local bandH = 4.5
@@ -3074,8 +3155,9 @@ end
 
 --[[
 	watchtower: four thick legs with a brace ring, a plank platform with a parapet (gap for the
-	ladder), corner posts carrying a stepped roof with a flag, a hanging lantern, and a ladder
-	with rungs. 37 parts. opts: roof = colour (default Blue), height (platform, 14).
+	ladder), corner posts carrying a stepped roof with a flag, a lantern on a cord, and a climbable
+	ladder (invisible TrussPart + rails and rungs). 44 parts at the default height.
+	opts: roof = colour (default Blue), height (platform, 14).
 ]]
 function Props.watchtower(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Watchtower", cf, opts, 229)
@@ -3084,7 +3166,8 @@ function Props.watchtower(parent: any, cf: any, opts: { [string]: any }?): any
 	local roof = o.roof or C.Blue
 	local first
 	for i, p in { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } } do
-		local leg = b:vox(`Leg{i}`, p[1] * 3.8, (H - 1) / 2, p[2] * 3.8, 1.4, H + 1, 1.4, C.WoodDark)
+		-- legs reach 5 studs into the ground, so a leg over a terrace step still stands on it
+		local leg = b:vox(`Leg{i}`, p[1] * 3.8, (H - 5) / 2, p[2] * 3.8, 1.4, H + 5, 1.4, C.WoodDark)
 		first = first or leg
 		b:vox(`Foot{i}`, p[1] * 3.8, 0, p[2] * 3.8, 2.2, 1.2, 2.2, C.StoneLight, NOSHADOW)
 	end
@@ -3114,14 +3197,19 @@ function Props.watchtower(parent: any, cf: any, opts: { [string]: any }?): any
 	b:span("FlagPole", -0.2, ry + 4.6, -0.2, 0.2, ry + 8.4, 0.2, C.White, DECOR)
 	b:span("Flag", 0.2, ry + 6.4, -0.1, 3.0, ry + 8.2, 0.1, C.Red, FOLIAGE)
 	b:vox("Lantern", 0, ry - 1.2, 0, 1.2, 1.4, 1.2, C.Glow, NEON_DECOR)
-	-- ladder at the front
-	for i, x in { -1.0, 1.0 } do
-		b:span(`LadderRail{i}`, x - 0.2, -0.3, -6.1, x + 0.2, H + 2.6, -5.7, C.WoodDark, NOSHADOW)
+	b:span("LanternCord", -0.1, ry - 0.55, -0.1, 0.1, ry + 0.1, 0.1, C.Iron, DECOR)
+	-- ladder at the front gap: an invisible TrussPart (2 studs, from the ground to 3 studs above
+	-- the deck) that the Humanoid climbs, dressed as rails reaching back to the platform edge and
+	-- dense rungs on its outer face
+	local lz0 = -5.2 - 2 / b.s -- the truss' outer face (it is 2 studs deep)
+	b:truss("LadderTruss", 0, (lz0 - 5.2) / 2, -0.3, H + 0.8 + 3 / b.s)
+	for i, x in { -1.25, 1.25 } do
+		b:span(`LadderRail{i}`, x - 0.2, -0.3, lz0, x + 0.2, H + 2.6, -5.2, C.WoodDark, NOSHADOW)
 	end
-	local rungs = math.max(3, math.floor(H / 2.4))
+	local rungs = math.max(3, math.floor((H + 0.8) / 1.5))
 	for k = 1, rungs do
-		local yy = k * (H + 1) / (rungs + 1)
-		b:span(`Rung{k}`, -0.9, yy - 0.15, -6.05, 0.9, yy + 0.15, -5.75, C.WoodLight, DECOR)
+		local yy = k * (H + 0.8) / (rungs + 1)
+		b:span(`Rung{k}`, -1.05, yy - 0.15, lz0, 1.05, yy + 0.15, lz0 + 0.35, C.WoodLight, DECOR)
 	end
 	return b:finish(first)
 end
@@ -3167,10 +3255,13 @@ function Props.ferrisWheel(parent: any, cf: any, opts: { [string]: any }?): any
 		local th = (k + 0.5) * 2 * math.pi / N
 		local col = C.Festive[(math.floor(k / 2)) % #C.Festive + 1]
 		local pos = Vector3.new(R * math.cos(th), R * math.sin(th), 0)
+		-- neighbouring segments overlap at the joints: odd ones are 0.2 thicker, so their front
+		-- and back faces never share a plane with the even ones (no flicker on the turning wheel)
+		local thick = if k % 2 == 1 then 1.0 else 0.8
 		for j, sz in { -1, 1 } do
 			b:block(
 				`Rim{k}_{j}`,
-				Vector3.new(segLen, 1.2, 0.8),
+				Vector3.new(segLen, 1.2, thick),
 				CFrame.new(pos + Vector3.new(0, 0, sz * depth)) * CFrame.Angles(0, 0, th + math.pi / 2),
 				col,
 				nil,
@@ -3225,7 +3316,7 @@ end
 --[[
 	hotAirBalloon: floating decor — a rainbow-striped voxel envelope (rounded "plus" tiers), ropes,
 	a wicker basket with a rim and a glowing burner. cframe = bottom of the basket (in the air).
-	17 parts, all non-colliding. opts: colors (list, bottom to top).
+	19 parts, all non-colliding. opts: colors (list, bottom to top).
 ]]
 function Props.hotAirBalloon(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "HotAirBalloon", cf, opts, 239)
@@ -3255,8 +3346,11 @@ function Props.hotAirBalloon(parent: any, cf: any, opts: { [string]: any }?): an
 		)
 	end
 	b:vox("Burner", 0, 4.4, 0, 1.0, 1.2, 1.0, C.Flame, NEON_DECOR)
+	-- two thin diagonal bars from rope to rope hold the burner
+	b:beam("BurnerBarA", Vector3.new(-1.7, 4.4, -1.7), Vector3.new(1.7, 4.4, 1.7), 0.2, 0.2, C.Iron, DECOR)
+	b:beam("BurnerBarB", Vector3.new(-1.7, 4.4, 1.7), Vector3.new(1.7, 4.4, -1.7), 0.2, 0.2, C.Iron, DECOR)
 	b:span("Neck", -2.0, 8.4, -2.0, 2.0, 10.2, 2.0, cs[1], DECOR)
-	local tiers = { { 10, 13, 8 }, { 13, 17.5, 12 }, { 17.5, 21.5, 11.4 }, { 21.5, 23.8, 8 } }
+	local tiers = { { 10, 13, 8 }, { 13, 17.5, 12 }, { 17.5, 21.5, 11.4 }, { 21.5, 23.8, 8.4 } }
 	for i, t in tiers do
 		b:cross(`Tier{i}`, 0, t[1], 0, t[2], t[3], t[3], 0.7, cs[i + 1], DECOR)
 	end
