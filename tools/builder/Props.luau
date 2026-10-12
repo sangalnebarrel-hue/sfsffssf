@@ -855,6 +855,11 @@ local FX = {
 	},
 }
 
+-- Default instance name for an effect: "Smoke", "Fireflies", ...
+local function fxName(kind: string, opts: { [string]: any }?): string
+	return (opts and opts.name) or (kind:sub(1, 1):upper() .. kind:sub(2))
+end
+
 function Props.fx(parent: any, kind: string, opts: { [string]: any }?): any
 	local spec = FX[kind]
 	assert(spec, `Props.fx: unknown kind {kind}`)
@@ -864,7 +869,7 @@ function Props.fx(parent: any, kind: string, opts: { [string]: any }?): any
 	local color = o.color or spec.Color
 	local spread = o.spread or spec.Spread
 	return U.new("ParticleEmitter", {
-		Name = o.name or (kind:sub(1, 1):upper() .. kind:sub(2)),
+		Name = fxName(kind, o),
 		Texture = spec.Texture,
 		Rate = o.rate or spec.Rate,
 		Lifetime = o.lifetime or spec.Lifetime,
@@ -885,7 +890,7 @@ end
 -- Props.fx on a new Attachment of `part` at the world CFrame (or point) `at`; returns the emitter.
 function Props.fxAt(part: any, at: any, kind: string, opts: { [string]: any }?): any
 	local cf = if typeof(at) == "Vector3" then CFrame.new(at) else at
-	local name = (opts and opts.name or kind) .. "Attachment"
+	local name = fxName(kind, opts) .. "Attachment"
 	local attachment = U.new("Attachment", { Name = name, CFrame = part.CFrame:Inverse() * cf }, part)
 	return Props.fx(attachment, kind, opts)
 end
