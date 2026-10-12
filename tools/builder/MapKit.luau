@@ -16,7 +16,10 @@
 	  Kit.light(part, range, ...)       PointLight (Range <= 16, no shadows), counted in Kit.lights
 	  Kit.claim / Kit.isClaimed         areas taken by landmarks, gateways, … (Nature avoids them)
 	  Kit.stairs(...)                   walkable 1-stud steps that follow the voxel ground
-	  Kit.lamp / Kit.flowerMeadow       cheap chunky lamp (4 parts), flower bed (5 parts)
+	  Kit.ramp(...)                     sloped walkable block between two top points (boardwalks,
+	                                    or an invisible collider over visible steps)
+	  Kit.lamp / Kit.flowerMeadow       cheap chunky lamp (4 parts), flower meadow (5 parts)
+	  Kit.flowerBed                     planted box: blooms on stems (2 + 2 per flower)
 
 	Property presets (pass as `extra`): DECOR (tiny non-walkable details), NOSHADOW, NEON,
 	NEON_DECOR.
@@ -275,24 +278,103 @@ function Kit.lamp(parent: any, cf: any, opts: { [string]: any }?): any
 end
 
 --[[
-	Cheap flower meadow (5 parts): a dark leafy mat with four blocks of blooms on it — a big
-	splash of colour for its cost (Props.flowerPatch is 12 parts for four single flowers).
+	Cheap flower meadow (5 parts): a low leafy mat with a darker leafy mound on it and three
+	clumps of blooms half sunk into the leaves at different heights — a big splash of colour for
+	its cost (Props.flowerPatch is 12 parts for four single flowers). Blooms poking out of
+	foliage read as flowers from the side as well as from above (not as tiles on a plate).
 ]]
+local MEADOW = { Kit.C.Red, Kit.C.Yellow, Kit.C.Pink, Kit.C.Purple, Kit.C.Orange, Kit.C.Blue, Kit.C.Blossom1 }
+
 function Kit.flowerMeadow(parent: any, cf: any, seed: number): any
 	local r = Kit.rng(seed)
 	local b = Kit.builder(parent, "FlowerMeadow", cf * CFrame.Angles(0, rad(90 * floor(r(0, 3.99))), 0))
 	local C = Kit.C
-	local w, d = r(10, 14), r(7, 10)
-	local mat = b:box("Leaves", -w / 2, -0.4, -d / 2, w / 2, 0.8, d / 2, C.Leaf1, Kit.DECOR)
-	local first = floor(r(1, #C.Flowers + 0.99))
-	for i = 1, 4 do
-		local colour = C.Flowers[(first + (i % 2) * 2 - 1) % #C.Flowers + 1]
-		local s = r(2.2, 3.2)
-		local x = (if i <= 2 then -1 else 1) * w * r(0.12, 0.3)
-		local z = (if i % 2 == 1 then -1 else 1) * d * r(0.1, 0.25)
-		b:box(`Blooms{i}`, x - s / 2, 0.6, z - s / 2, x + s / 2, 1.5 + i * 0.12, z + s / 2, colour, Kit.DECOR)
+	local w, d = r(10, 13), r(7, 9)
+	local mat = b:box("Leaves", -w / 2, -0.4, -d / 2, w / 2, 0.9, d / 2, C.Leaf2, Kit.DECOR)
+	local mx, mz = r(-0.12, 0.12) * w, r(-0.12, 0.12) * d
+	b:box("Mound", mx - w * 0.28, 0.5, mz - d * 0.3, mx + w * 0.28, 2.0, mz + d * 0.3, C.Leaf1, Kit.DECOR)
+	local first = floor(r(1, #MEADOW + 0.99))
+	local spots = {
+		{ mx + r(-0.8, 0.8), mz + r(-0.6, 0.6), 1.4 },
+		{ -w * 0.34, -d * 0.24, 0.6 },
+		{ w * 0.34, d * 0.24, 0.6 },
+	}
+	for i, p in spots do
+		-- three different saturated colours (white cubes read as sugar lumps, not flowers)
+		local colour = MEADOW[(first + i * 2 - 1) % #MEADOW + 1]
+		local s = r(1.7, 2.2)
+		b:box(
+			`Blooms{i}`,
+			p[1] - s / 2,
+			p[3],
+			p[2] - s / 2,
+			p[1] + s / 2,
+			p[3] + s * 0.95,
+			p[2] + s / 2,
+			colour,
+			Kit.DECOR
+		)
 	end
 	return b:finish(mat)
+end
+
+--[[
+	Planted flower bed (2 + 2 per flower parts): a box with a dark soil top and a row of blooms
+	(2-stud cubes) on thin green stems at staggered heights — real flowers, not coloured tiles.
+	Stands on cf (front = -Z). opts: width (8), depth (3.6), count (3), height (box, 1.4), box
+	(colour, default WoodLight), colors (bloom list, default C.Flowers), seed, name.
+]]
+function Kit.flowerBed(parent: any, cf: any, opts: { [string]: any }?): any
+	local o = opts or {}
+	local C = Kit.C
+	local r = Kit.rng(o.seed or 1)
+	local w, d = o.width or 8, o.depth or 3.6
+	local n = o.count or 3
+	local hb = o.height or 1.4
+	local colors = o.colors or C.Flowers
+	local b = Kit.builder(parent, o.name or "FlowerBed", cf)
+	local box = b:box("Box", -w / 2, -0.3, -d / 2, w / 2, hb, d / 2, o.box or C.WoodLight)
+	b:box("Soil", -w / 2 + 0.4, hb - 0.4, -d / 2 + 0.4, w / 2 - 0.4, hb + 0.15, d / 2 - 0.4, C.DirtDark, Kit.NOSHADOW)
+	local first = floor(r(1, #colors + 0.99))
+	for i = 1, n do
+		local x = -w / 2 + (i - 0.5) * w / n
+		local z = r(-0.3, 0.3)
+		local top = hb + 1.6 + ((i + first) % 3) * 0.7
+		b:box(`Stem{i}`, x - 0.3, hb, z - 0.3, x + 0.3, top - 1.2, z + 0.3, C.Leaf1, Kit.DECOR)
+		local c = colors[(first + i * 2) % #colors + 1]
+		b:box(`Bloom{i}`, x - 1, top - 1.8, z - 1, x + 1, top, z + 1, c, Kit.DECOR)
+	end
+	return b:finish(box)
+end
+
+--[[
+	Sloped walkable block whose top face runs from top point a to top point b (Vector3s) — a
+	boardwalk ramp (visible) or, with opts.invisible, a collider over a flight of visible steps
+	(walking up smoothly instead of hopping). opts: width (6), thick (1), color, name, extra.
+]]
+function Kit.ramp(parent: any, a: any, b: any, opts: { [string]: any }?): any
+	local o = opts or {}
+	local d = b - a
+	local flat = Vector3.new(d.X, 0, d.Z)
+	local run = flat.Magnitude
+	local len = d.Magnitude
+	local thick = o.thick or 1
+	local yaw = math.atan2(-flat.X, -flat.Z) -- local -Z along a -> b
+	local pitch = math.atan2(d.Y, run)
+	local cf = CFrame.new((a + b) / 2) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0)
+	local extra = o.extra
+	if o.invisible then
+		extra = { Transparency = 1, CastShadow = false, CanQuery = false }
+	end
+	return U.part(
+		parent,
+		o.name or "Ramp",
+		Vector3.new(o.width or 6, thick, len),
+		cf * CFrame.new(0, -thick / 2, 0),
+		o.color or Kit.C.WoodLight,
+		nil,
+		extra
+	)
 end
 
 --[[
@@ -300,10 +382,13 @@ end
 	used): stations every `tread` studs; the stair surface never drops below the ground and
 	rises at most `rise` per station (so a 4-stud terrace step becomes four 1-stud steps that
 	start early enough). Blocks are only placed where the stair is above the ground; each
-	block reaches down into the lowest ground under it. Returns the Model (nil if the ground
-	was already smooth enough).
+	block reaches down into the lowest ground under it. When the first step would still be
+	more than `rise` above the ground at a, the stairs start earlier (a moves back), so there is
+	never a tall first riser. Returns the Model (nil if the ground was already smooth enough).
 	opts: width (8), tread (2), rise (1), color, color2 (alternating), name, lift (0.2: tops
-	sit a hair above the terrace tops so no faces are coplanar).
+	sit a hair above the terrace tops so no faces are coplanar), pave (also lay slabs on the
+	flat stretches between the steps: a continuous visible path), top (the last step's top is
+	at least this y: stairs that end on a platform built over the ground).
 ]]
 function Kit.stairs(parent: any, world: any, a: any, b: any, opts: { [string]: any }?): any
 	local o = opts or {}
@@ -312,28 +397,46 @@ function Kit.stairs(parent: any, world: any, a: any, b: any, opts: { [string]: a
 	local rise = o.rise or 1
 	local lift = o.lift or 0.2
 	local flat = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
-	local length = flat.Magnitude
 	local dir = flat.Unit
 	local side = Vector3.new(-dir.Z, 0, dir.X)
-	local n = max(1, floor(length / tread))
-	local gHi, gLo = {}, {}
-	for i = 1, n do
-		local c = Vector3.new(a.X, 0, a.Z) + dir * ((i - 0.5) * tread)
+	local function groundSpan(c: any, along: { number }): (number, number)
 		local hi, lo = -math.huge, math.huge
 		for _, f in { -0.45, 0, 0.45 } do
-			for _, g in { -0.4, 0.4 } do
+			for _, g in along do
 				local p = c + side * (f * width) + dir * (g * tread)
-				local h = world:heightAt(p.X, p.Z)
-				hi, lo = max(hi, h), min(lo, h)
+				local hh = world:heightAt(p.X, p.Z)
+				hi, lo = max(hi, hh), min(lo, hh)
 			end
 		end
-		gHi[i], gLo[i] = hi, lo
+		return hi, lo
 	end
-	-- the stair surface: at least the highest ground, at most `rise` below the next station
-	local h = table.clone(gHi)
-	for i = n - 1, 1, -1 do
-		h[i] = max(h[i], h[i + 1] - rise)
+	local start = Vector3.new(a.X, 0, a.Z)
+	local n: number, gLo: { number }, h: { number } = 1, {}, {}
+	for _ = 1, 8 do
+		local length = (Vector3.new(b.X, 0, b.Z) - start).Magnitude
+		n = max(1, floor(length / tread))
+		local gHi = {}
+		gLo = {}
+		for i = 1, n do
+			gHi[i], gLo[i] = groundSpan(start + dir * ((i - 0.5) * tread), { -0.4, 0.4 })
+		end
+		-- the stair surface: at least the highest ground, at most `rise` below the next station
+		h = table.clone(gHi)
+		if o.top then
+			h[n] = max(h[n], o.top - lift)
+		end
+		for i = n - 1, 1, -1 do
+			h[i] = max(h[i], h[i + 1] - rise)
+		end
+		-- the ground just before the first step: move the start back while that riser is too tall
+		local _, before = groundSpan(start - dir * tread * 0.5, { -0.2, 0.2 })
+		local excess = h[1] - before - rise
+		if excess <= 1e-6 then
+			break
+		end
+		start -= dir * (tread * math.ceil(excess / rise))
 	end
+	a = start
 	local model = U.model(parent, o.name or "Stairs")
 	local C = Kit.C
 	local c1 = o.color or C.StoneLight
@@ -349,7 +452,7 @@ function Kit.stairs(parent: any, world: any, a: any, b: any, opts: { [string]: a
 			j += 1
 			lo = min(lo, gLo[j])
 		end
-		local needed = false
+		local needed = o.pave == true
 		for k = i, j do
 			if h[k] > gLo[k] then
 				needed = true
