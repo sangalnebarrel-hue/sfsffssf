@@ -344,7 +344,7 @@ table.insert(sections, { "sky", 170, -20, 150 })
 -- Coverage check, output
 --------------------------------------------------------------------------------------------
 
-local HELPERS = { makeRng = true, shade = true, lerpColor = true, tones = true }
+local HELPERS = { makeRng = true, shade = true, lerpColor = true, tones = true, fx = true, fxAt = true }
 local missing = {}
 for name, value in Props :: any do
 	if type(value) == "function" and not HELPERS[name] and not used[name] then

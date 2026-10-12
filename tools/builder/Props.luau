@@ -1,9 +1,12 @@
 --[[
 	Props — the voxel prop library of World v3 (style contract: tools/builder/DESIGN.md §1).
 
-	Every prop is built from chunky, axis-aligned blocks in bright saturated colours with
-	2-3 shades of one hue ("voxel shading": dark undersides / mid bodies / light tops),
-	SmoothPlastic everywhere, Neon for glowing accents. Cylinders only for thin round things
+	Every prop is built from chunky, axis-aligned blocks in the calm, natural colours of
+	Palette.luau (art direction v4: wood, stone, plaster, leaf greens; strong colour only on small
+	accents — flowers, flags, trims, lamp cores) with 2-3 shades of one hue ("voxel shading": dark
+	undersides / mid bodies / light tops), SmoothPlastic everywhere, Neon only for small glowing
+	cores. No inline colour literals: every colour is a Palette token (C.*) or derived from one
+	(lerpColor / shade). Cylinders only for thin round things
 	(poles, barrels), balls nowhere. Thousands of props are scattered over the map, so every
 	prop is lean: the part budget is noted next to each constructor.
 
@@ -85,7 +88,6 @@ local Enum = U.Enum
 local Vector3 = U.Vector3
 local CFrame = U.CFrame
 local Color3 = U.Color3
-local rgb = U.rgb
 local Mat = Enum.Material
 local roblox = U.roblox
 
@@ -163,6 +165,15 @@ local function tones(c: any): { any }
 	return { shade(c, 0.8), c, lerpColor(c, C.White, 0.3) }
 end
 Props.tones = tones
+
+-- Shades derived from the palette, shared by several props.
+local FIRE_LIGHT = lerpColor(C.LightColor, C.Flame, 0.3) -- PointLight of torches and campfires
+local SIGN_INK = shade(C.WoodDark, 0.72) -- dark brown text on light boards
+local PAINT_BLUE = lerpColor(C.Blue, C.Stone, 0.3) -- painted wood / metal, a weathered blue
+local MUSTARD = lerpColor(C.Yellow, C.WoodLight, 0.45) -- a yellow that sits with wood and stone
+local SPRAY = lerpColor(C.WaterLight, C.Foam, 0.5) -- light water: spray, foam, falling water
+-- Calm paint colours for small painted things (crates, parasols, coolers, gondolas, balloons).
+local PAINTS = { C.RoofRed, PAINT_BLUE, C.RoofGreen, MUSTARD, C.Cream }
 
 --------------------------------------------------------------------------------------------
 -- Geometry helpers
@@ -604,7 +615,7 @@ local FX = {
 		Spread = 12,
 		Size = { { 0, 1.6 }, { 1, 5.5 } },
 		Transparency = { { 0, 0.35 }, { 0.7, 0.75 }, { 1, 1 } },
-		Color = CS.new(rgb(250, 250, 252), rgb(214, 218, 228)),
+		Color = CS.new(C.White, C.CloudShade),
 		Acceleration = Vector3.new(0.9, 0.25, 0.35),
 		Drag = 0.3,
 		RotSpeed = NR.new(-25, 25),
@@ -618,7 +629,7 @@ local FX = {
 		Spread = 12,
 		Size = { { 0, 0.7 }, { 1, 0.25 } },
 		Transparency = { { 0, 0.05 }, { 0.8, 0.3 }, { 1, 1 } },
-		Color = CS.new(C.Foam, rgb(160, 228, 255)),
+		Color = CS.new(C.Foam, C.WaterLight),
 		Acceleration = Vector3.new(0, -30, 0),
 		RotSpeed = NR.new(-90, 90),
 		Rotation = NR.new(0, 90),
@@ -646,7 +657,7 @@ local FX = {
 		Spread = 50,
 		Size = { { 0, 3 }, { 1, 6.5 } },
 		Transparency = { { 0, 0.5 }, { 1, 1 } },
-		Color = CS.new(rgb(236, 250, 255)),
+		Color = CS.new(C.Foam),
 		Acceleration = Vector3.new(0, 1.8, 0),
 		RotSpeed = NR.new(-15, 15),
 		Rotation = NR.new(0, 360),
@@ -660,7 +671,7 @@ local FX = {
 		Spread = 180,
 		Size = { { 0, 0.2 }, { 0.3, 1.1 }, { 1, 0 } },
 		Transparency = { { 0, 0 }, { 1, 0.4 } },
-		Color = CS.new(rgb(255, 246, 180), C.Gold),
+		Color = CS.new(C.GoldLight, C.Gold),
 		RotSpeed = NR.new(-120, 120),
 		Rotation = NR.new(0, 360),
 		LightEmission = 1,
@@ -673,7 +684,7 @@ local FX = {
 		Spread = 180,
 		Size = { { 0, 0 }, { 0.15, 0.4 }, { 0.85, 0.4 }, { 1, 0 } },
 		Transparency = { { 0, 0 }, { 0.5, 0.3 }, { 1, 0 } },
-		Color = CS.new(rgb(230, 255, 130), rgb(170, 255, 110)),
+		Color = CS.new(lerpColor(C.Glow, C.Lime, 0.35), lerpColor(C.Lime, C.Glow, 0.3)),
 		Acceleration = Vector3.new(0, 0.15, 0),
 		LightEmission = 1,
 	},
@@ -685,7 +696,7 @@ local FX = {
 		Spread = 6,
 		Size = { { 0, 0.3 }, { 1, 0.55 } },
 		Transparency = { { 0, 0.15 }, { 0.8, 0.35 }, { 1, 1 } },
-		Color = CS.new(rgb(236, 252, 255), rgb(190, 238, 255)),
+		Color = CS.new(C.Foam, C.WaterLight),
 		LightEmission = 0.35,
 	},
 	petals = {
@@ -997,7 +1008,8 @@ function Props.oakTree(parent: any, cf: any, opts: { [string]: any }?): any
 end
 
 --[[
-	cherryTree: pink blossom tree, wider and flatter canopy, a few fallen petals. 15 parts.
+	cherryTree: dusty-pink blossom tree (an accent: a few groves only), wider and flatter canopy,
+	a few fallen petals. 15 parts.
 	opts: leaves, trunk.
 ]]
 function Props.cherryTree(parent: any, cf: any, opts: { [string]: any }?): any
@@ -1010,8 +1022,8 @@ function Props.cherryTree(parent: any, cf: any, opts: { [string]: any }?): any
 		R = b:range(5.6, 6.2),
 		H = b:range(7.4, 8.2),
 		pal = o.leaves or { C.Blossom0, C.Blossom1, C.Blossom2 },
-		trunk = pickColor(o, "trunk", rgb(150, 92, 72)),
-		trunkDark = rgb(118, 70, 56),
+		trunk = pickColor(o, "trunk", lerpColor(C.Bark, C.Brick, 0.3)),
+		trunkDark = lerpColor(C.BarkDark, C.Brick, 0.25),
 		litter = C.Blossom1,
 		crownScale = 0.78,
 	})
@@ -1019,7 +1031,7 @@ function Props.cherryTree(parent: any, cf: any, opts: { [string]: any }?): any
 end
 
 --[[
-	autumnTree: orange / yellow / red-orange broadleaf with fallen leaves. 15 parts.
+	autumnTree: russet / ochre broadleaf with fallen leaves (an accent: a few groves only). 15 parts.
 	opts: leaves, trunk.
 ]]
 function Props.autumnTree(parent: any, cf: any, opts: { [string]: any }?): any
@@ -1050,7 +1062,7 @@ local ROUND_PALETTES = {
 --[[
 	roundTree (v2 name): a broadleaf voxel tree with a named palette. 13-16 parts.
 	opts: palette = "green" (default) | "mint" | "autumn" | "blossom" | "lime" | "mixed" (mostly
-	green, sometimes mint/autumn by seed), leaves = {dark, mid, light}, trunk, fruit.
+	green, sometimes mint by seed), leaves = {dark, mid, light}, trunk, fruit.
 ]]
 function Props.roundTree(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "RoundTree", cf, opts, 23)
@@ -1058,7 +1070,7 @@ function Props.roundTree(parent: any, cf: any, opts: { [string]: any }?): any
 	local palName = o.palette or "green"
 	if palName == "mixed" then
 		local r = b.rand()
-		palName = if r < 0.6 then "green" elseif r < 0.8 then "mint" else "autumn"
+		palName = if r < 0.7 then "green" else "mint"
 	end
 	treeSize(b)
 	local trunk = broadleaf(b, {
@@ -1282,13 +1294,13 @@ end
 
 --[[
 	giantTree: the landmark tree, ~82 studs tall at scale 1 (Landmarks scales it up): a massive
-	10-stud trunk with bark ridges and stepped roots, three branches tucked under a huge, bright
-	4-layer canopy (~58 studs, ~70 with its bumps) with pink blossom clusters and 8 Neon lanterns
-	hanging under its rim. A treehouse deck wraps the trunk at y 28 with a hut on the front (-Z),
+	10-stud trunk with bark ridges and stepped roots, three branches tucked under a huge, leafy
+	4-layer canopy (~58 studs, ~70 with its bumps) with a few small blossom clusters and 8 Neon
+	lanterns hanging under its rim. A treehouse deck wraps the trunk at y 28 with a hut on the front (-Z),
 	right under the canopy: a room you walk into through an open door on its right side (glowing
 	windows, a rug, a window seat, a treasure chest, a lantern with a PointLight) under a stepped
 	roof. A chunky stair of 20 steps wraps once round the trunk from the front-right corner up to
-	the deck, a yellow slide runs from the deck's front-left corner down to the meadow (~20 studs
+	the deck, a mustard slide runs from the deck's front-left corner down to the meadow (~20 studs
 	out in front of the trunk) and a long rope swing hangs under the deck. 101 parts.
 	opts: leaves = {dark, mid, light}, treehouse = false (no deck/hut/stair/swing),
 	roof = colour (hut roof).
@@ -1297,8 +1309,9 @@ end
 function Props.giantTree(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "GiantTree", cf, opts, 47)
 	local o = b.opts
-	-- a brighter palette than the woods: it lights up from across the lagoon
-	local pal = o.leaves or { C.Leaf1, C.Leaf2, rgb(132, 228, 92) }
+	-- the woods' greens with a fresher crown: it stands out from across the lagoon by its size,
+	-- not by a candy colour
+	local pal = o.leaves or { C.Leaf1, C.Leaf2, C.Leaf3 }
 	local dark, mid, lightC = pal[1], pal[2], pal[3]
 	local bark, barkDark = C.Bark, C.BarkDark
 	local T = 5 -- trunk half-width
@@ -1356,14 +1369,14 @@ function Props.giantTree(parent: any, cf: any, opts: { [string]: any }?): any
 		{ 23, 57, 23, 11, mid },
 		{ -23, 58, -23, 11, mid },
 		{ 23.5, 57.5, -22.5, 11, mid },
-		{ 18, 68, -8, 10, C.Blossom1 }, -- two of the high bumps are blossom puffs
-		{ -17, 67, 8, 10, lightC },
-		{ 6, 69, 18, 9, C.Blossom2 },
+		{ 18, 68, -8, 10, lightC },
+		{ -17, 67, 8, 10, lerpColor(mid, lightC, 0.5) },
+		{ 6, 69, 18, 9, lightC },
 	}
 	for i, c in bumps do
 		b:vox(`Bump{i}`, c[1], c[2], c[3], c[4], c[4] * 0.9, c[4], c[5], FOLIAGE)
 	end
-	-- pink blossom clusters on the crown and the canopy sides (the "magic" touch)
+	-- small blossom clusters on the crown and the canopy sides (the "magic" touch)
 	local blossoms = {
 		{ 11.5, 73.4, -11.5, 4.5, 1.8, 4.5 },
 		{ -13, 73.4, 11, 4.5, 1.8, 4.5 },
@@ -1419,44 +1432,44 @@ function Props.giantTree(parent: any, cf: any, opts: { [string]: any }?): any
 		-- stepped roof just under the canopy, glowing windows through the front wall, an open
 		-- doorway on its right side (towards the stair) with the door swung out; inside a rug, a
 		-- window seat, a treasure chest and a lantern with a PointLight
-		local roofC = o.roof or C.Red
+		local roofC = o.roof or C.RoofRed
 		local Y = deckY
-		b:span("HutWalls", -9, Y, -16, 9, Y + 8, -15.2, C.Cream) -- the front wall
-		b:span("HutBack", -9, Y, -8.3, 9, Y + 8, -7.5, C.Cream)
-		b:span("HutLeft", -9, Y, -15.2, -8.2, Y + 8, -8.3, C.Cream)
-		b:span("HutRightA", 8.2, Y, -15.2, 9, Y + 8, -13.6, C.Cream)
-		b:span("HutRightB", 8.2, Y, -10, 9, Y + 8, -8.3, C.Cream)
-		b:span("HutLintel", 8.2, Y + 5.6, -13.6, 9, Y + 8, -10, C.Cream)
+		b:span("HutWalls", -9, Y, -16, 9, Y + 8, -15.2, C.Plaster) -- the front wall
+		b:span("HutBack", -9, Y, -8.3, 9, Y + 8, -7.5, C.Plaster)
+		b:span("HutLeft", -9, Y, -15.2, -8.2, Y + 8, -8.3, C.Plaster)
+		b:span("HutRightA", 8.2, Y, -15.2, 9, Y + 8, -13.6, C.Plaster)
+		b:span("HutRightB", 8.2, Y, -10, 9, Y + 8, -8.3, C.Plaster)
+		b:span("HutLintel", 8.2, Y + 5.6, -13.6, 9, Y + 8, -10, C.Plaster)
 		b:span("HutRoof1", -10.5, Y + 8, -17.5, 10.5, Y + 9.4, -6, roofC)
 		b:span("HutRoof2", -8.5, Y + 9.4, -16, 8.5, Y + 10.8, -7.5, lerpColor(roofC, C.White, 0.25))
 		b:span("HutRoof3", -5.5, Y + 10.8, -14.5, 5.5, Y + 12, -9, roofC)
-		b:span("HutDoor", 9, Y + 0.1, -14, 12.4, Y + 5.5, -13.6, C.Orange, NOSHADOW)
+		b:span("HutDoor", 9, Y + 0.1, -14, 12.4, Y + 5.5, -13.6, C.WoodDark, NOSHADOW)
 		for i, x in { -4.3, 4.3 } do
 			b:span(`HutWindow{i}`, x - 1.8, Y + 3, -16.3, x + 1.8, Y + 6, -15.1, C.Glow, NEON_DECOR)
 		end
-		b:span("HutRug", -5, Y, -13.6, 3, Y + 0.15, -9.3, C.Pink, DECOR)
+		b:span("HutRug", -5, Y, -13.6, 3, Y + 0.15, -9.3, C.Brick, DECOR)
 		b:span("HutSeat", 1.6, Y, -15.2, 7.2, Y + 1.6, -13.8, C.WoodLight)
 		b:span("HutChest", -7.9, Y, -10.3, -5.1, Y + 1.8, -8.3, C.Wood)
 		b:span("HutChestLid", -8.1, Y + 1.8, -10.5, -4.9, Y + 2.5, -8.3, C.Gold, NOSHADOW)
 		local lamp = b:span("HutLantern", -0.8, Y + 6.3, -12.55, 0.8, Y + 8, -10.95, C.Glow, NEON_DECOR)
 		light(lamp, 14, 1.3)
-		-- the fun way down: a yellow slide from the front-left corner of the deck to the meadow
-		-- (bed, red rails, a leg, a landing pad)
+		-- the fun way down: a mustard slide from the front-left corner of the deck to the meadow
+		-- (bed, rails in the roof colour, a leg, a landing pad)
 		local xc = -11.4
 		local top, foot = Vector3.new(xc, Y, -17), Vector3.new(xc, 0.4, -37.5)
 		local dir = (foot - top).Unit
 		local n = Vector3.new(0, -dir.Z, dir.Y) -- the slope's upward normal
-		b:beam("SlideBed", top - n * 0.4 - dir * 0.6, foot - n * 0.4 + dir * 0.5, 3.4, 0.8, C.Yellow)
+		b:beam("SlideBed", top - n * 0.4 - dir * 0.6, foot - n * 0.4 + dir * 0.5, 3.4, 0.8, MUSTARD)
 		for i, sx in { -1, 1 } do
 			local off = Vector3.new(sx * 1.95, 0, 0)
-			b:beam(`SlideRail{i}`, top + n * 0.5 + off, foot + n * 0.5 + off, 0.5, 1.4, C.Red, NOSHADOW)
+			b:beam(`SlideRail{i}`, top + n * 0.5 + off, foot + n * 0.5 + off, 0.5, 1.4, roofC, NOSHADOW)
 		end
 		local midZ = (top.Z + foot.Z) / 2
 		local midY = (top.Y + foot.Y) / 2
 		b:span("SlideLeg", xc - 0.6, -0.5, midZ - 0.6, xc + 0.6, midY - 0.6, midZ + 0.6, C.Wood, NOSHADOW)
 		-- (the pad is wider than the rails: no shared side planes where they run into it; it is a
 		-- deep block, so it still stands on the ground where the foot overhangs a terrace step)
-		b:span("SlidePad", xc - 2.5, -4.2, foot.Z - 3.5, xc + 2.5, 0.45, foot.Z + 0.4, C.Orange)
+		b:span("SlidePad", xc - 2.5, -4.2, foot.Z - 3.5, xc + 2.5, 0.45, foot.Z + 0.4, C.Plank)
 		-- the stair: 20 chunky steps (1.4 up each, 3.1 apart) on a square loop 5..10.5 out from
 		-- the trunk centre, once round the trunk; the top step is flush with the deck
 		local c = 7.75
@@ -1491,7 +1504,7 @@ function Props.giantTree(parent: any, cf: any, opts: { [string]: any }?): any
 		local sx, sz = -12, 3
 		b:span("SwingRopeA", sx - 1.4, 2, sz - 0.1, sx - 1.2, d0, sz + 0.1, C.Rope, DECOR)
 		b:span("SwingRopeB", sx + 1.2, 2, sz - 0.1, sx + 1.4, d0, sz + 0.1, C.Rope, DECOR)
-		b:span("SwingSeat", sx - 1.8, 1.6, sz - 0.7, sx + 1.8, 2.1, sz + 0.7, C.Red)
+		b:span("SwingSeat", sx - 1.8, 1.6, sz - 0.7, sx + 1.8, 2.1, sz + 0.7, roofC)
 	end
 	return b:finish(trunk)
 end
@@ -1516,7 +1529,7 @@ function Props.bush(parent: any, cf: any, opts: { [string]: any }?): any
 	b:vox("BushSide", w * 0.5, 0.75, 0.45, w * 0.48, 2.1, w * 0.5, pal[1], FOLIAGE)
 	local berries = o.berries
 	if berries == nil then
-		berries = if b:chance(0.5) then b:pick({ C.Red, C.Pink, C.Yellow, C.Purple, C.White }) else false
+		berries = if b:chance(0.5) then b:pick({ C.Red, C.Red, C.Purple, C.White }) else false
 	end
 	if berries then
 		local spots = {
@@ -1576,7 +1589,7 @@ function Props.mushroom(parent: any, cf: any, opts: { [string]: any }?): any
 	local o = b.opts
 	b.s *= b:range(0.8, 1.25)
 	b.cf = cf * quarterTurn(b)
-	local cap = o.color or b:pick({ C.Red, C.Red, C.Orange, C.Pink })
+	local cap = o.color or b:pick({ C.RoofRed, C.RoofRed, C.RoofTerracotta, C.Brick })
 	local dots = o.dots or C.White
 	local stem = b:span("Stem", -0.6, -0.2, -0.6, 0.6, 1.9, 0.6, C.Cream, DECOR)
 	b:span("Cap", -1.7, 1.7, -1.7, 1.7, 2.9, 1.7, cap, DECOR)
@@ -1591,7 +1604,8 @@ end
 --[[
 	giantMushroom: a mushroom you can stand under: tall stem with a ring, a stepped 16-stud cap,
 	cream gills and big dots (Neon when opts.glow). 14-16 parts.
-	opts: color (cap, default Red), dots, glow = true (purple cap, glowing cyan dots), height (stem).
+	opts: color (cap, default RoofRed), dots, glow = true (dusky violet cap, glowing cyan dots), height
+	(stem).
 ]]
 function Props.giantMushroom(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "GiantMushroom", cf, opts, 97)
@@ -1599,7 +1613,7 @@ function Props.giantMushroom(parent: any, cf: any, opts: { [string]: any }?): an
 	b.s *= b:range(0.92, 1.08)
 	b.cf = cf * quarterTurn(b)
 	local glow = o.glow == true
-	local cap = o.color or (if glow then C.Purple else C.Red)
+	local cap = o.color or (if glow then lerpColor(C.Purple, C.Navy, 0.25) else C.RoofRed)
 	local dots = o.dots or (if glow then C.Cyan else C.White)
 	local dotExtra = if glow then NEON_DECOR else DECOR
 	local h = o.height or 11
@@ -1674,7 +1688,7 @@ function Props.reeds(parent: any, cf: any, opts: { [string]: any }?): any
 	end
 	for i = 1, 2 do
 		local t = tops[i]
-		b:vox(`Cattail{i}`, t[1], t[2] - 0.6, t[3], 0.7, 1.5, 0.7, rgb(150, 92, 52), DECOR)
+		b:vox(`Cattail{i}`, t[1], t[2] - 0.6, t[3], 0.7, 1.5, 0.7, C.Coconut, DECOR)
 	end
 	b:span("Leaf", -1.3, -0.5, 0.1, -0.95, 2.6, 0.9, C.Leaf2, DECOR)
 	return b:finish(first)
@@ -1714,24 +1728,31 @@ function Props.log(parent: any, cf: any, opts: { [string]: any }?): any
 	return b:finish(main)
 end
 
--- Bright bloom colours for the cheap flower decor (no white: it reads as sugar lumps).
-local BLOOMS = { C.Red, C.Yellow, C.Pink, C.Purple, C.Orange, C.Blue }
+-- Harmonious bloom pairs for the cheap flower decor: one colour with a lighter partner (or two
+-- neighbouring hues), never a rainbow.
+local BLOOM_PAIRS = {
+	{ C.Red, C.Cream },
+	{ C.Pink, C.Cream },
+	{ C.Purple, C.Pink },
+	{ C.Yellow, C.Cream },
+	{ C.Blue, C.Cream },
+	{ C.Orange, C.Yellow },
+	{ C.Red, C.Pink },
+}
+Props.bloomPairs = BLOOM_PAIRS
 
 --[[
-	flowerClump: cheap meadow decor — a leafy tuft with two big voxel blooms of two colours
-	poking out of its top. 3 parts, all non-colliding. opts: colors = {c1, c2} (default: a pair
-	by seed), leaves (tuft colour).
+	flowerClump: cheap meadow decor — a leafy tuft with two big voxel blooms poking out of its top,
+	a harmonious pair (or one colour). 3 parts, all non-colliding. opts: colors = {c1, c2}
+	(default: a pair by seed), leaves (tuft colour).
 ]]
 function Props.flowerClump(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "FlowerClump", cf, opts, 251)
 	local o = b.opts
 	b.s *= b:range(0.9, 1.2)
 	b.cf = cf * quarterTurn(b)
-	local c1 = o.colors and o.colors[1] or b:pick(BLOOMS)
-	local c2 = o.colors and o.colors[2] or b:pick(BLOOMS)
-	if c2 == c1 then
-		c2 = BLOOMS[(table.find(BLOOMS, c1) or 1) % #BLOOMS + 1]
-	end
+	local pair = o.colors or b:pick(BLOOM_PAIRS)
+	local c1, c2 = pair[1], pair[2] or pair[1]
 	local tw = b:range(1.6, 1.9)
 	local tuft = b:span("Tuft", -tw, -0.3, -tw * 0.8, tw, 1.1, tw * 0.8, o.leaves or C.Leaf1, FOLIAGE)
 	b:span("BloomA", -tw * 0.5 - 0.7, 0.75, -0.95, -tw * 0.5 + 0.7, 2.2, 0.45, c1, DECOR)
@@ -1763,7 +1784,7 @@ end
 -- ROCKS
 --------------------------------------------------------------------------------------------
 
--- Stone shades of a rock: { dark, mid, light } — the light lavender rock greys by default, or
+-- Stone shades of a rock: { dark, mid, light } — the warm rock greys by default, or
 -- shades of opts.color (a cream or sandy rock).
 local function rockTones(color: any?): { any }
 	if color then
@@ -1773,7 +1794,7 @@ local function rockTones(color: any?): { any }
 end
 
 --[[
-	rock: a small rounded voxel boulder in light lavender-grey stone, built like the tree canopies:
+	rock: a small rounded voxel boulder in warm grey stone, built like the tree canopies:
 	a "plus" of two crossed blocks (rounded corners seen from above), a lighter, smaller block on
 	top of it, off-centre, and a moss cap draped over the highest block (a band of Moss
 	overhanging it all round). 1-4 parts: count 1 = one block, 2 = the rounded body, 3 = body +
@@ -1817,7 +1838,7 @@ function Props.rock(parent: any, cf: any, opts: { [string]: any }?): any
 end
 
 --[[
-	boulder: a big voxel rock (~8-11 studs) — a light lavender-grey body on a dark foot band, a
+	boulder: a big voxel rock (~8-11 studs) — a warm grey body on a dark foot band, a
 	taller, lighter block standing in one of its corners (out over its side) under a draped moss
 	cap with a light moss tuft on top, and a dark broken-off chunk at its foot. 6 parts.
 	opts: color (body; the other stone shades follow it), moss = false (a light stone top instead
@@ -1885,8 +1906,9 @@ function Props.crystalCluster(parent: any, cf: any, opts: { [string]: any }?): a
 	local col = if typeof(o.color) == "string" then named[o.color] else o.color
 	col = col or b:pick({ C.Cyan, C.Purple })
 	local second = lerpColor(col, C.White, 0.45)
-	local base = b:span("Base", -2.6, -0.6, -2.2, 2.6, 1.0, 2.2, rgb(96, 88, 132))
-	b:span("Base2", -1.4, -0.6, -3.2, 2.0, 0.6, -1.8, rgb(78, 72, 112), NOSHADOW)
+	local rockC = lerpColor(C.StoneDark, C.Navy, 0.35)
+	local base = b:span("Base", -2.6, -0.6, -2.2, 2.6, 1.0, 2.2, rockC)
+	b:span("Base2", -1.4, -0.6, -3.2, 2.0, 0.6, -1.8, shade(rockC, 0.82), NOSHADOW)
 	local cols = {
 		{ 0, 0, 1.8, 7.5 },
 		{ 1.7, 0.8, 1.3, 5 },
@@ -2067,7 +2089,7 @@ function Props.torch(parent: any, cf: any, opts: { [string]: any }?): any
 	local flame = b:vox("Flame", 0, h + 0.85, 0, 0.9, 1.0, 0.9, C.Flame, NEON_DECOR)
 	b:vox("FlameCore", 0.1, h + 1.45, 0.05, 0.5, 0.6, 0.5, C.FlameCore, NEON_DECOR)
 	if o.light then
-		light(flame, 12, 1.4, rgb(255, 170, 90))
+		light(flame, 12, 1.4, FIRE_LIGHT)
 	end
 	if o.fire then
 		U.new("Fire", { Size = 2, Heat = 4, Color = C.Flame, SecondaryColor = C.FlameCore }, flame)
@@ -2150,7 +2172,7 @@ function Props.crateStack(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "CrateStack", cf, opts, 109)
 	local o = b.opts
 	b.cf = cf * quarterTurn(b)
-	local painted = o.color or b:pick({ C.Cyan, C.Red, C.Blue, C.Yellow })
+	local painted = o.color or b:pick(PAINTS)
 	local main = framedCrate(b, "CrateA", -1.6, 0, 0, 3, C.WoodLight)
 	framedCrate(b, "CrateB", 1.5, 0, 0.3, 2.6, painted)
 	framedCrate(b, "CrateTop", -1.2, 3, 0.15, 2.2, shade(C.WoodLight, 0.94))
@@ -2190,8 +2212,8 @@ end
 	fenceSegment: chunky picket fence centred on cframe, running along local X: two rails, thick
 	posts with coloured caps at the ends (+ a middle post when longer than 10) and pickets
 	between. <= 12 parts. opts: length (default 8), posts = "both" | "start" | "end" | "none"
-	(for chaining), height (default 3.4), color (pickets/rails, default White), trim (cap
-	colour, default Red), style = "picket" (default) | "rail" (rustic: wooden posts + 2 rails).
+	(for chaining), height (default 3.4), color (pickets/rails, default Cream), trim (cap
+	colour, default RoofRed), style = "picket" (default) | "rail" (rustic: wooden posts + 2 rails).
 ]]
 function Props.fenceSegment(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Fence", cf, opts, 127)
@@ -2200,9 +2222,9 @@ function Props.fenceSegment(parent: any, cf: any, opts: { [string]: any }?): any
 	local h = o.height or 3.4
 	local posts = o.posts or "both"
 	local rustic = o.style == "rail"
-	local main = o.color or (if rustic then C.Wood else C.White)
+	local main = o.color or (if rustic then C.Wood else C.Cream)
 	local postC = if rustic then C.WoodDark else main
-	local trim = o.trim or (if rustic then C.WoodLight else C.Red)
+	local trim = o.trim or (if rustic then C.WoodLight else C.RoofRed)
 	local rail = b:span("RailTop", -L / 2, h * 0.68, -0.15, L / 2, h * 0.68 + 0.5, 0.35, main)
 	b:span("RailLow", -L / 2, h * 0.24, -0.15, L / 2, h * 0.24 + 0.5, 0.35, main)
 	local xs = {}
@@ -2270,7 +2292,7 @@ function Props.signpost(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Signpost", cf, opts, 131)
 	local o = b.opts
 	local w = o.width or 5
-	local trim = o.trim or C.Red
+	local trim = o.trim or C.RoofRed
 	local post = b:span("Post", -0.45, -0.8, -0.45, 0.45, 6.2, 0.45, C.WoodDark)
 	b:span("PostCap", -0.65, 6.2, -0.65, 0.65, 6.7, 0.65, trim, NOSHADOW)
 	b:span("Frame", -w / 2 - 0.25, 3.25, -0.95, w / 2 + 0.25, 5.75, -0.45, trim)
@@ -2281,7 +2303,7 @@ function Props.signpost(parent: any, cf: any, opts: { [string]: any }?): any
 		b:span("ArrowTip", sg * (w / 2 + 0.2), 3.75, -1.0, sg * (w / 2 + 1.1), 5.25, -0.4, trim, NOSHADOW)
 	end
 	local text = o.text or "→"
-	local tc = o.textColor or rgb(96, 56, 30)
+	local tc = o.textColor or SIGN_INK
 	addSignText(board, Enum.NormalId.Front, text, tc)
 	if o.twoSided ~= false then
 		addSignText(board, Enum.NormalId.Back, text, tc)
@@ -2291,10 +2313,11 @@ end
 
 --[[
 	billboard(parent, cframe, {text, color, width, height}): big sign board on two thick posts,
-	facing -Z. Trim frame, Neon rim strips top and bottom, a coloured cap; white text with a dark
-	outline on the front. 9 parts. opts: text, color (board, default Blue), trim (default White),
-	rim (Neon colour, default Yellow), width (default 16), height (default 6), lift (board bottom
-	above the ground, default 3), textColor, back = true (text on the back as well).
+	facing -Z. Trim frame, rim strips top and bottom, a coloured cap; white text with a dark
+	outline on the front. 9 parts. opts: text, color (board, default a weathered blue), trim
+	(default Cream), rim (strip colour, default mustard), glow = true (Neon rim strips), width
+	(default 16), height (default 6), lift (board bottom above the ground, default 3), textColor,
+	back = true (text on the back as well).
 ]]
 function Props.billboard(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Billboard", cf, opts, 133)
@@ -2302,9 +2325,10 @@ function Props.billboard(parent: any, cf: any, opts: { [string]: any }?): any
 	local W = o.width or 16
 	local H = o.height or 6
 	local y0 = o.lift or 3
-	local boardC = o.color or C.Blue
-	local trim = o.trim or C.White
-	local rim = o.rim or C.Yellow
+	local boardC = o.color or PAINT_BLUE
+	local trim = o.trim or C.Cream
+	local rim = o.rim or MUSTARD
+	local rimX = if o.glow then NEON else NOSHADOW
 	local first
 	for i, x in { -W / 2 + 1.6, W / 2 - 1.6 } do
 		local p = b:span(`Post{i}`, x - 0.75, -1, 0.2, x + 0.75, y0 + H - 0.4, 1.7, C.WoodDark)
@@ -2313,8 +2337,8 @@ function Props.billboard(parent: any, cf: any, opts: { [string]: any }?): any
 	end
 	b:span("Frame", -W / 2 - 0.6, y0 - 0.6, -0.4, W / 2 + 0.6, y0 + H + 0.6, 0.25, trim)
 	local board = b:span("Board", -W / 2, y0, -0.6, W / 2, y0 + H, 0.1, boardC)
-	b:span("RimTop", -W / 2 - 0.6, y0 + H + 0.6, -0.5, W / 2 + 0.6, y0 + H + 1.0, 0.25, rim, NEON)
-	b:span("RimBottom", -W / 2 - 0.6, y0 - 1.0, -0.5, W / 2 + 0.6, y0 - 0.6, 0.25, rim, NEON)
+	b:span("RimTop", -W / 2 - 0.6, y0 + H + 0.6, -0.5, W / 2 + 0.6, y0 + H + 1.0, 0.25, rim, rimX)
+	b:span("RimBottom", -W / 2 - 0.6, y0 - 1.0, -0.5, W / 2 + 0.6, y0 - 0.6, 0.25, rim, rimX)
 	b:span("Cap", -W / 2 - 1.0, y0 + H + 1.0, -0.8, W / 2 + 1.0, y0 + H + 1.7, 0.6, shade(boardC, 0.8))
 	local text = o.text or "РЫБАЛКА"
 	addSignText(board, Enum.NormalId.Front, text, o.textColor or C.White, C.Navy)
@@ -2355,7 +2379,7 @@ function Props.planter(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Planter", cf, opts, 139)
 	local o = b.opts
 	local variant = o.variant or b:pick({ "bush", "flowers", "topiary" })
-	local boxC = o.color or b:pick({ C.White, C.Cream, C.Wood, C.Blue })
+	local boxC = o.color or b:pick({ C.Plaster, C.Cream, C.Wood, PAINT_BLUE })
 	local box = b:span("Box", -2, 0, -2, 2, 1.8, 2, boxC)
 	b:span("Rim", -2.25, 1.75, -2.25, 2.25, 2.15, 2.25, shade(boxC, 0.82), NOSHADOW)
 	b:span("Soil", -1.7, 1.8, -1.7, 1.7, 2.05, 1.7, C.DirtDark, DECOR)
@@ -2473,7 +2497,7 @@ function Props.campfire(parent: any, cf: any, opts: { [string]: any }?): any
 	local flame = b:vox("Flame", 0, 1.9, 0, 1.6, 2.0, 1.6, C.Flame, NEON_DECOR)
 	b:vox("FlameCore", 0.15, 3.2, -0.1, 0.9, 1.3, 0.9, C.FlameCore, NEON_DECOR)
 	if o.light then
-		light(flame, 14, 1.6, rgb(255, 170, 90))
+		light(flame, 14, 1.6, FIRE_LIGHT)
 	end
 	if o.fire then
 		U.new("Fire", { Size = 3, Heat = 6, Color = C.Flame, SecondaryColor = C.FlameCore }, flame)
@@ -2493,11 +2517,11 @@ end
 function Props.parasol(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Parasol", cf, opts, 157)
 	local o = b.opts
-	local col = o.color or b:pick({ C.Red, C.Blue, C.Yellow, C.Cyan, C.Pink, C.Orange })
+	local col = o.color or b:pick({ C.RoofRed, PAINT_BLUE, C.RoofGreen, MUSTARD, C.RoofTerracotta })
 	b:span("Base", -0.7, -0.3, -0.7, 0.7, 0.3, 0.7, C.White, NOSHADOW)
 	local pole = b:column("Pole", 0.35, 0, 0, 0, 6.6, C.White, nil, NOSHADOW)
 	b:span("Canopy", -3.6, 5.3, -3.6, 3.6, 5.9, 3.6, col, FOLIAGE)
-	b:span("CanopyMid", -2.5, 5.85, -2.5, 2.5, 6.45, 2.5, C.White, FOLIAGE)
+	b:span("CanopyMid", -2.5, 5.85, -2.5, 2.5, 6.45, 2.5, C.Cream, FOLIAGE)
 	b:span("CanopyTop", -1.4, 6.4, -1.4, 1.4, 7.0, 1.4, col, FOLIAGE)
 	b:vox("Knob", 0, 7.25, 0, 0.6, 0.5, 0.6, C.White, DECOR)
 	return b:finish(pole)
@@ -2510,25 +2534,25 @@ end
 function Props.beachChair(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "BeachChair", cf, opts, 159)
 	local o = b.opts
-	local col = o.color or b:pick({ C.Red, C.Blue, C.Cyan, C.Pink, C.Orange })
+	local col = o.color or b:pick({ C.RoofRed, PAINT_BLUE, C.RoofGreen, MUSTARD, C.RoofTerracotta })
 	local frame = C.WoodLight
 	local main = b:span("RailL", -1.5, 0.6, -2.4, -1.2, 0.9, 2.2, frame)
 	b:span("RailR", 1.2, 0.6, -2.4, 1.5, 0.9, 2.2, frame)
 	b:span("LegFront", -1.5, 0, -2.4, 1.5, 0.65, -2.0, frame, NOSHADOW)
 	b:span("LegBack", -1.5, 0, 1.0, 1.5, 0.65, 1.4, frame, NOSHADOW)
 	b:span("Seat", -1.2, 0.7, -2.3, 1.2, 0.95, 0.9, col)
-	b:span("BackLow", -1.2, 0.9, 0.9, 1.2, 2.2, 1.35, C.White)
+	b:span("BackLow", -1.2, 0.9, 0.9, 1.2, 2.2, 1.35, C.Cream)
 	b:span("BackHigh", -1.25, 2.1, 1.3, 1.25, 3.4, 1.75, col) -- 0.05 wider: no shared side planes
 	return b:finish(main)
 end
 
 --[[
-	cooler: bright cooler box with a white lid and handle. 4 parts. opts: color.
+	cooler: painted cooler box with a white lid and handle. 4 parts. opts: color.
 ]]
 function Props.cooler(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Cooler", cf, opts, 161)
 	local o = b.opts
-	local col = o.color or b:pick({ C.Blue, C.Red, C.Cyan })
+	local col = o.color or b:pick({ PAINT_BLUE, C.RoofRed, C.RoofGreen })
 	local body = b:span("Body", -1.2, 0, -0.8, 1.2, 1.5, 0.8, col)
 	b:span("Lid", -1.3, 1.45, -0.9, 1.3, 1.95, 0.9, C.White, NOSHADOW)
 	b:span("Handle", -0.7, 1.9, -0.15, 0.7, 2.25, 0.15, C.White, DECOR)
@@ -2588,12 +2612,12 @@ end
 --[[
 	fishStatue: big chunky voxel fish (~11 studs) on a two-tier pedestal: body, lighter belly,
 	head, open-tail V, dorsal and side fins, big cartoon eyes and lips. 18 parts.
-	opts: color (fish, default Orange), belly, pedestal (colour), trim (pedestal band, Gold).
+	opts: color (fish, default a bronze gold), belly, pedestal (colour), trim (pedestal band, Gold).
 ]]
 function Props.fishStatue(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "FishStatue", cf, opts, 171)
 	local o = b.opts
-	local col = o.color or C.Orange
+	local col = o.color or lerpColor(C.Gold, C.Wood, 0.3)
 	local t = tones(col)
 	local belly = o.belly or lerpColor(col, C.Cream, 0.6)
 	local ped = o.pedestal or C.StoneLight
@@ -2636,7 +2660,7 @@ function Props.lifebuoy(parent: any, cf: any, opts: { [string]: any }?): any
 end
 
 --[[
-	fishingRodRack: base plank, two posts, a top bar; three bright rods standing in it, each
+	fishingRodRack: base plank, two posts, a top bar; three painted rods standing in it, each
 	with a reel, and a tackle box. 11 parts. Faces -Z.
 ]]
 function Props.fishingRodRack(parent: any, cf: any, opts: { [string]: any }?): any
@@ -2652,7 +2676,7 @@ function Props.fishingRodRack(parent: any, cf: any, opts: { [string]: any }?): a
 		b:span(`Rod{i}`, x - 0.15, 0.5, -0.65, x + 0.15, 8.2, -0.35, rodColors[i], DECOR)
 		b:span(`Reel{i}`, x - 0.4, 1.8, -1.05, x + 0.4, 2.5, -0.6, C.White, DECOR)
 	end
-	b:span("Tackle", -0.6, 0.6, -0.8, 0.6, 1.3, 0.2, C.Cyan, NOSHADOW)
+	b:span("Tackle", -0.6, 0.6, -0.8, 0.6, 1.3, 0.2, C.RoofGreen, NOSHADOW)
 	return b:finish(main)
 end
 
@@ -2710,7 +2734,7 @@ local function voxelHull(
 end
 
 --[[
-	rowboat: voxel hull, two seats, two oars with yellow blades resting along the sides.
+	rowboat: voxel hull, two seats, two oars with mustard blades resting along the sides.
 	14 parts. cframe on the water surface, bow = -Z. opts: color (paint, default from
 	Colors.BoatPaint), oars = false, bob / bobPeriod (see bobbing).
 ]]
@@ -2725,7 +2749,7 @@ function Props.rowboat(parent: any, cf: any, opts: { [string]: any }?): any
 	if o.oars ~= false then
 		for i, sx in { -1, 1 } do
 			b:span(`Oar{i}`, sx * 2.05 - 0.15, 1.6, -2.6, sx * 2.05 + 0.15, 1.85, 3.0, C.WoodDark, DECOR)
-			b:span(`Blade{i}`, sx * 2.05 - 0.3, 1.55, 3.0, sx * 2.05 + 0.3, 1.9, 4.6, C.Yellow, DECOR)
+			b:span(`Blade{i}`, sx * 2.05 - 0.3, 1.55, 3.0, sx * 2.05 + 0.3, 1.9, 4.6, MUSTARD, DECOR)
 		end
 	end
 	bobbing(b, 0.3, 2.8)
@@ -2788,7 +2812,7 @@ end
 function Props.motorboat(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Motorboat", cf, opts, 169)
 	local o = b.opts
-	local paint = o.color or b:pick({ C.White, C.Red, C.Blue, C.Yellow })
+	local paint = o.color or b:pick({ C.White, C.RoofRed, PAINT_BLUE, C.BoatPaint[2] })
 	local stripe = o.stripe or (if paint == C.White then C.Blue else C.White)
 	local L, W = 12, 5
 	local floor = voxelHull(b, L, W, -0.9, 0.3, 1.5, paint, C.White)
@@ -2908,15 +2932,15 @@ end
 	painted band and a jagged hole, a stepped bow with a bowsprit, a raised stern castle with
 	lit windows, a broken main mast with a torn sail, a fore mast with a black flag, cargo,
 	glowing treasure, seaweed and foam cubes at the waterline. 63 parts. cframe on the water
-	surface, bow = -Z. opts: band (colour of the hull band, default Red), sink (default 2.6).
+	surface, bow = -Z. opts: band (colour of the hull band, default RoofRed), sink (default 2.6).
 ]]
 function Props.shipwreck(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Shipwreck", cf, opts, 193)
 	local o = b.opts
-	local hullC = rgb(150, 96, 62)
-	local hullD = rgb(116, 72, 46)
+	local hullC = C.Bark
+	local hullD = C.BarkDark
 	local deckC = C.WoodLight
-	local band = o.band or C.Red
+	local band = o.band or C.RoofRed
 	local L, W = 44, 13
 	local hw = W / 2
 	local sink = o.sink or 2.6
@@ -3007,7 +3031,17 @@ function Props.shipwreck(parent: any, cf: any, opts: { [string]: any }?): any
 	end
 	-- seaweed and barnacles on the hull
 	b:span("Seaweed1", -hw - 0.25, y0 + 2, zb + 3, -hw + 0.1, deckY - 1.2, zb + 4.2, C.Seaweed, DECOR)
-	b:span("Seaweed2", -hw - 0.25, y0 + 1, zb + 20, -hw + 0.1, deckY - 2, zb + 21.4, C.Lime, DECOR)
+	b:span(
+		"Seaweed2",
+		-hw - 0.25,
+		y0 + 1,
+		zb + 20,
+		-hw + 0.1,
+		deckY - 2,
+		zb + 21.4,
+		lerpColor(C.Seaweed, C.Lime, 0.4),
+		DECOR
+	)
 	b:span("Seaweed3", hw - 0.1, y0 + 1.5, zb + 25, hw + 0.25, deckY - 1.6, zb + 26.2, C.Seaweed, DECOR)
 	b:span("Barnacles", -hw - 0.2, deckY - 3.4, zb + 9, -hw + 0.1, deckY - 2.6, zb + 11.5, C.StoneLight, DECOR)
 	b:pop(old)
@@ -3027,7 +3061,7 @@ end
 function Props.whale(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Whale", cf, opts, 197)
 	local o = b.opts
-	local col = o.color or rgb(70, 140, 240)
+	local col = o.color or PAINT_BLUE
 	local back = shade(col, 0.8)
 	local lightC = lerpColor(col, C.White, 0.35)
 	local belly = C.Cream
@@ -3142,14 +3176,14 @@ function Props.bridge(parent: any, fromPos: any, toPos: any, opts: { [string]: a
 		deckA = o.color or C.StoneLight
 		deckB = lerpColor(deckA, C.Stone, 0.45)
 		kerbC, postC, railC, pileC = C.Stone, C.Stone, C.StoneLight, C.StoneDark
-		roofC = o.roof or C.Blue
+		roofC = o.roof or C.RoofBlue
 		capC = C.Stone
 		archC = C.StoneLight
 	else
 		deckA = o.color or C.WoodLight
 		deckB = lerpColor(deckA, C.Wood, 0.45)
-		kerbC, postC, railC, pileC = C.Wood, C.White, C.Wood, C.WoodDark
-		roofC = o.roof or C.Red
+		kerbC, postC, railC, pileC = C.Wood, C.Cream, C.Wood, C.WoodDark
+		roofC = o.roof or C.RoofRed
 		capC = lerpColor(roofC, C.White, 0.6)
 		archC = C.Wood
 	end
@@ -3318,7 +3352,12 @@ function Props.waterfall(parent: any, topPos: any, bottomPos: any, width: number
 	local H = topL.Y
 	local zTop = topL.Z
 	local sheet = merge(DECOR, { Transparency = o.transparency or 0.08 })
-	local shades = { rgb(96, 196, 255), rgb(150, 224, 255), rgb(118, 210, 255) }
+	-- light water blues (calm: the palette's water, lightened), white streaks and foam
+	local shades = {
+		lerpColor(C.Water, C.WaterLight, 0.45),
+		lerpColor(C.Water, C.WaterLight, 0.85),
+		lerpColor(C.Water, C.WaterLight, 0.65),
+	}
 
 	-- sheet: m vertical sections stepping from the lip towards the plunge point, each split into
 	-- columns of different blues (vertical stripes read as falling water)
@@ -3362,7 +3401,7 @@ function Props.waterfall(parent: any, topPos: any, bottomPos: any, width: number
 	local f0 = fronts[0]
 	b:span("Crest", -W / 2 - 0.3, H - 0.3, f0[1] - 0.4, W / 2 + 0.3, H + 0.9, zTop + 1.5, C.Foam, DECOR)
 	-- foam at the bottom: a light slab and a row of white / light-blue cubes
-	local foam = b:span("Foam", -W * 0.7, -0.35, -W * 0.5, W * 0.7, 0.45, 1.2, rgb(200, 240, 255), sheet)
+	local foam = b:span("Foam", -W * 0.7, -0.35, -W * 0.5, W * 0.7, 0.45, 1.2, SPRAY, sheet)
 	local puffs = o.puffs or 5
 	for i = 1, puffs do
 		local x = (-0.5 + (i - 0.5) / puffs) * W * 1.2
@@ -3379,18 +3418,18 @@ function Props.waterfall(parent: any, topPos: any, bottomPos: any, width: number
 end
 
 --[[
-	lighthouse: voxel red/white striped square tower (~40 studs) on a stone plinth: 6 tapering
+	lighthouse: voxel striped square tower (roof red / plaster by default) (~40 studs) on a stone plinth: 6 tapering
 	bands, door with a frame, windows, a navy gallery with a red parapet, a lantern room with
 	white corner posts round a turning Neon lens panel (child Model "Beacon", attribute Spin), a
 	stepped red roof and a gold top. 28 parts.
-	opts: light = false (no PointLight), stripe = colour (default Red), spin (degrees per second,
+	opts: light = false (no PointLight), stripe = colour (default RoofRed), spin (degrees per second,
 	default 40).
 ]]
 
 function Props.lighthouse(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Lighthouse", cf, opts, 223)
 	local o = b.opts
-	local red = o.stripe or C.Red
+	local red = o.stripe or C.RoofRed
 	-- the plinth reaches well below the ground, so it also fills a terrace step under one side
 	local plinth = b:span("Plinth", -7, -6.5, -7, 7, 1, 7, C.StoneLight)
 	b:span("Base", -5.6, 0.9, -5.6, 5.6, 3, 5.6, C.Stone)
@@ -3400,7 +3439,7 @@ function Props.lighthouse(parent: any, cf: any, opts: { [string]: any }?): any
 	for i = 0, 5 do
 		local w = 9.6 - i * 0.6
 		widths[i + 1] = w
-		b:span(`Band{i + 1}`, -w / 2, y - 0.02, -w / 2, w / 2, y + bandH, w / 2, if i % 2 == 0 then red else C.White)
+		b:span(`Band{i + 1}`, -w / 2, y - 0.02, -w / 2, w / 2, y + bandH, w / 2, if i % 2 == 0 then red else C.Plaster)
 		y += bandH
 	end
 	local top = y -- 30
@@ -3427,7 +3466,7 @@ function Props.lighthouse(parent: any, cf: any, opts: { [string]: any }?): any
 	-- door with a frame on the front of the bottom band
 	local fz = -widths[1] / 2
 	b:span("DoorFrame", -1.9, 3, fz - 0.3, 1.9, 8.2, fz + 0.2, C.White)
-	b:span("Door", -1.3, 3, fz - 0.45, 1.3, 7.4, fz + 0.1, C.Blue)
+	b:span("Door", -1.3, 3, fz - 0.45, 1.3, 7.4, fz + 0.1, PAINT_BLUE)
 	-- windows on alternating faces
 	local winSpots = { { 2, "front" }, { 3, "right" }, { 4, "back" }, { 5, "left" } }
 	for i, s in winSpots do
@@ -3445,7 +3484,7 @@ function Props.lighthouse(parent: any, cf: any, opts: { [string]: any }?): any
 		end
 	end
 	if o.light ~= false then
-		light(glass, 16, 2.5, rgb(255, 220, 150))
+		light(glass, 16, 2.5, C.LightColor)
 	end
 	return b:finish(plinth)
 end
@@ -3461,21 +3500,21 @@ end
 function Props.windmill(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Windmill", cf, opts, 227)
 	local o = b.opts
-	local roof = o.roof or C.Red
+	local roof = o.roof or C.RoofRed
 	local base = b:span("Base", -6.5, -1.5, -6.5, 6.5, 1.5, 6.5, C.StoneLight)
 	-- the bottom tier: four walls 1 thick on the base (its floor), the doorway (2.8 wide, 5 high)
 	-- in the front wall; the trim band above is the room's ceiling
-	b:span("Tower1", -5, 1.4, 4, 5, 10, 5, C.Cream)
-	b:span("Tower1L", -5, 1.4, -4, -4, 10, 4, C.Cream)
-	b:span("Tower1R", 4, 1.4, -4, 5, 10, 4, C.Cream)
-	b:span("Tower1FL", -5, 1.4, -5, -1.5, 10, -4, C.Cream)
-	b:span("Tower1FR", 1.5, 1.4, -5, 5, 10, -4, C.Cream)
-	b:span("Tower1FTop", -1.5, 6.6, -5, 1.5, 10, -4, C.Cream)
+	b:span("Tower1", -5, 1.4, 4, 5, 10, 5, C.Plaster)
+	b:span("Tower1L", -5, 1.4, -4, -4, 10, 4, C.Plaster)
+	b:span("Tower1R", 4, 1.4, -4, 5, 10, 4, C.Plaster)
+	b:span("Tower1FL", -5, 1.4, -5, -1.5, 10, -4, C.Plaster)
+	b:span("Tower1FR", 1.5, 1.4, -5, 5, 10, -4, C.Plaster)
+	b:span("Tower1FTop", -1.5, 6.6, -5, 1.5, 10, -4, C.Plaster)
 	b:span("DoorFrame", -2.1, 6.5, -5.3, 2.1, 7.2, -4.9, C.Wood)
 	b:span("DoorJambL", -2.1, 1.5, -5.3, -1.4, 6.5, -4.9, C.Wood)
 	b:span("DoorJambR", 1.4, 1.5, -5.3, 2.1, 6.5, -4.9, C.Wood)
 	-- the door stands wide open against the right jamb
-	b:span("Door", 2.1, 1.6, -7.9, 2.45, 6.4, -5.3, C.Blue, NOSHADOW)
+	b:span("Door", 2.1, 1.6, -7.9, 2.45, 6.4, -5.3, PAINT_BLUE, NOSHADOW)
 	-- inside: a millstone, two flour sacks in the corner, a lantern on the back wall
 	b:column("Millstone", 4.4, 0.6, 1.0, 1.5, 2.6, C.Stone)
 	b:span("Sack1", -3.9, 1.5, 1.6, -1.9, 3.7, 3.9, C.Canvas)
@@ -3483,9 +3522,9 @@ function Props.windmill(parent: any, cf: any, opts: { [string]: any }?): any
 	local lamp = b:span("Lantern", -0.7, 6.2, 3.5, 0.7, 7.8, 4.0, C.Glow, NEON)
 	light(lamp, 14, 1.4)
 	b:span("Trim1", -5.4, 9.6, -5.4, 5.4, 10.6, 5.4, C.Wood)
-	b:span("Tower2", -4.3, 10.5, -4.3, 4.3, 17, 4.3, C.Cream)
+	b:span("Tower2", -4.3, 10.5, -4.3, 4.3, 17, 4.3, C.Plaster)
 	b:span("Trim2", -4.7, 16.6, -4.7, 4.7, 17.6, 4.7, C.Wood)
-	b:span("Tower3", -3.6, 17.5, -3.6, 3.6, 21.2, 3.6, C.Cream)
+	b:span("Tower3", -3.6, 17.5, -3.6, 3.6, 21.2, 3.6, C.Plaster)
 	b:span("Roof1", -4.8, 21, -4.8, 4.8, 22.4, 4.8, roof)
 	b:span("Roof2", -3.7, 22.4, -3.7, 3.7, 23.8, 3.7, roof)
 	b:span("Roof3", -2.5, 23.8, -2.5, 2.5, 25.2, 2.5, lerpColor(roof, C.White, 0.2))
@@ -3502,7 +3541,7 @@ function Props.windmill(parent: any, cf: any, opts: { [string]: any }?): any
 	blades:SetAttribute("Spin", o.spin or 24)
 	local hubLocal = CFrame.new(0, 19.2, -4.6)
 	local old = b:push(hubLocal * rot(0, 0, o.bladeAngle or 45))
-	local hub = b:span("Hub", -1.3, -1.3, -1.3, 1.3, 1.3, 1.0, C.Red)
+	local hub = b:span("Hub", -1.3, -1.3, -1.3, 1.3, 1.3, 1.0, roof)
 	b:span("HubCap", -0.6, -0.6, -1.9, 0.6, 0.6, -1.25, C.Gold, DECOR)
 	b:span("ArmX", -13, -0.45, -1.0, 13, 0.45, -0.3, C.WoodDark, NOSHADOW)
 	b:span("ArmY", -0.45, -13, -1.05, 0.45, 13, -0.25, C.WoodDark, NOSHADOW)
@@ -3515,13 +3554,13 @@ function Props.windmill(parent: any, cf: any, opts: { [string]: any }?): any
 		{ 0.35, 3.6, -12.5, -2.4, "y" },
 	}
 	for i, s in sails do
-		b:span(`Sail{i}`, s[1], s[3], -0.85, s[2], s[4], -0.5, C.White, FOLIAGE)
+		b:span(`Sail{i}`, s[1], s[3], -0.85, s[2], s[4], -0.5, C.Sail, FOLIAGE)
 		if s[5] == "x" then
 			local xm = (s[1] + s[2]) / 2
-			b:span(`Lattice{i}`, xm - 0.25, s[3], -1.05, xm + 0.25, s[4], -0.8, C.Red, DECOR)
+			b:span(`Lattice{i}`, xm - 0.25, s[3], -1.05, xm + 0.25, s[4], -0.8, roof, DECOR)
 		else
 			local ym = (s[3] + s[4]) / 2
-			b:span(`Lattice{i}`, s[1], ym - 0.25, -1.05, s[2], ym + 0.25, -0.8, C.Red, DECOR)
+			b:span(`Lattice{i}`, s[1], ym - 0.25, -1.05, s[2], ym + 0.25, -0.8, roof, DECOR)
 		end
 	end
 	b:pop(old)
@@ -3535,13 +3574,13 @@ end
 	watchtower: four thick legs with a brace ring, a plank platform with a parapet (gap for the
 	ladder), corner posts carrying a stepped roof with a flag, a lantern on a cord, and a climbable
 	ladder (invisible TrussPart + rails and rungs). 44 parts at the default height.
-	opts: roof = colour (default Blue), height (platform, 14).
+	opts: roof = colour (default RoofBlue), height (platform, 14).
 ]]
 function Props.watchtower(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Watchtower", cf, opts, 229)
 	local o = b.opts
 	local H = o.height or 14
-	local roof = o.roof or C.Blue
+	local roof = o.roof or C.RoofBlue
 	local first
 	for i, p in { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } } do
 		-- legs reach 5 studs into the ground, so a leg over a terrace step still stands on it
@@ -3593,8 +3632,8 @@ function Props.watchtower(parent: any, cf: any, opts: { [string]: any }?): any
 end
 
 --[[
-	ferrisWheel: rainbow ferris wheel (R = 18, hub ~25 studs up) on a two-tower support with a
-	coloured base deck. The wheel — two rainbow rims of 16 segments, spokes, Neon bulbs and 8
+	ferrisWheel: ferris wheel (R = 18, hub ~25 studs up) on a two-tower support with a
+	paved base deck. The wheel — two rims of 16 segments striped in roof red and cream, spokes, Neon bulbs and 8
 	hanging gondolas — is the child Model "Wheel" (attribute Spin, default 8 deg/s; pivot = hub,
 	LookVector = axis). Gondolas are Models with attribute KeepUpright = true. The wheel's parts
 	never collide (the client turns it); an invisible static "WheelGuard" closes its lower part.
@@ -3608,31 +3647,32 @@ function Props.ferrisWheel(parent: any, cf: any, opts: { [string]: any }?): any
 	local depth = 2.6 -- rims at z = ±depth
 	-- base + support towers (front and back of the wheel)
 	local base = b:span("Base", -R * 0.75, -0.6, -8, R * 0.75, 1.0, 8, C.StoneLight)
-	b:span("Deck", -R * 0.7, 0.95, -7.5, R * 0.7, 1.3, 7.5, o.deck or C.Cyan, NOSHADOW)
+	b:span("Deck", -R * 0.7, 0.95, -7.5, R * 0.7, 1.3, 7.5, o.deck or C.Cobble, NOSHADOW)
 	for i, sz in { -1, 1 } do
 		local z = sz * (depth + 2.2)
-		b:span(`LegL{i}`, -7.6, 1.0, z - 0.8, -6.0, hubY - 3, z + 0.8, C.White)
-		b:span(`LegR{i}`, 6.0, 1.0, z - 0.8, 7.6, hubY - 3, z + 0.8, C.White)
-		b:span(`Cross{i}`, -7.6, hubY - 4.4, z - 0.7, 7.6, hubY - 3, z + 0.7, C.Red)
-		b:span(`Head{i}`, -1.0, hubY - 3, z - 0.8, 1.0, hubY + 1.2, z + 0.8, C.White)
-		b:span(`Brace{i}`, -7.6, hubY * 0.4, z - 0.6, 7.6, hubY * 0.4 + 1.0, z + 0.6, C.Red, NOSHADOW)
+		b:span(`LegL{i}`, -7.6, 1.0, z - 0.8, -6.0, hubY - 3, z + 0.8, C.Cream)
+		b:span(`LegR{i}`, 6.0, 1.0, z - 0.8, 7.6, hubY - 3, z + 0.8, C.Cream)
+		b:span(`Cross{i}`, -7.6, hubY - 4.4, z - 0.7, 7.6, hubY - 3, z + 0.7, C.RoofRed)
+		b:span(`Head{i}`, -1.0, hubY - 3, z - 0.8, 1.0, hubY + 1.2, z + 0.8, C.Cream)
+		b:span(`Brace{i}`, -7.6, hubY * 0.4, z - 0.6, 7.6, hubY * 0.4 + 1.0, z + 0.6, C.RoofRed, NOSHADOW)
 	end
 	b:span("Axle", -0.7, hubY - 0.7, -(depth + 3.0), 0.7, hubY + 0.7, depth + 3.0, C.Navy, NOSHADOW)
 	-- ticket booth
-	b:span("Booth", R * 0.45, 1.3, -7.4, R * 0.45 + 4, 5.3, -4.4, C.Cream)
-	b:span("BoothRoof", R * 0.45 - 0.5, 5.3, -7.9, R * 0.45 + 4.5, 6.1, -3.9, C.Red, NOSHADOW)
+	b:span("Booth", R * 0.45, 1.3, -7.4, R * 0.45 + 4, 5.3, -4.4, C.Plaster)
+	b:span("BoothRoof", R * 0.45 - 0.5, 5.3, -7.9, R * 0.45 + 4.5, 6.1, -3.9, C.RoofRed, NOSHADOW)
 
 	-- the wheel
 	local wheel = b:group("Wheel")
 	wheel:SetAttribute("Spin", o.spin or 8)
 	local hubLocal = CFrame.new(0, hubY, 0)
 	local old = b:push(hubLocal)
-	local hub = b:span("Hub", -2.2, -2.2, -(depth + 0.8), 2.2, 2.2, depth + 0.8, C.Red)
+	local hub = b:span("Hub", -2.2, -2.2, -(depth + 0.8), 2.2, 2.2, depth + 0.8, C.RoofRed)
 	local N = 16
 	local segLen = 2 * R * math.sin(math.pi / N) + 0.9
 	for k = 0, N - 1 do
 		local th = (k + 0.5) * 2 * math.pi / N
-		local col = C.Festive[(math.floor(k / 2)) % #C.Festive + 1]
+		-- the rim in two calm tones, alternating every two segments
+		local col = if math.floor(k / 2) % 2 == 0 then C.RoofRed else C.Cream
 		local pos = Vector3.new(R * math.cos(th), R * math.sin(th), 0)
 		-- neighbouring segments overlap at the joints: odd ones are 0.2 thicker, so their front
 		-- and back faces never share a plane with the even ones (no flicker on the turning wheel)
@@ -3678,11 +3718,11 @@ function Props.ferrisWheel(parent: any, cf: any, opts: { [string]: any }?): any
 		local g = U.model(wheel, `Gondola_{k + 1}`)
 		g:SetAttribute("KeepUpright", true)
 		b.target = g
-		local col = C.Festive[k % #C.Festive + 1]
+		local col = PAINTS[k % 4 + 1]
 		local pin = b:span("Pin", px - 0.3, py - 0.3, -depth, px + 0.3, py + 0.3, depth, C.Navy, DECOR)
 		b:span("Hanger", px - 0.25, py - 2.2, -0.25, px + 0.25, py, 0.25, C.Navy, DECOR)
 		b:span("Cabin", px - 1.8, py - 5.4, -1.6, px + 1.8, py - 2.2, 1.6, col, NOSHADOW)
-		b:span("Roof", px - 2.1, py - 2.5, -1.9, px + 2.1, py - 1.9, 1.9, C.White, NOSHADOW)
+		b:span("Roof", px - 2.1, py - 2.5, -1.9, px + 2.1, py - 1.9, 1.9, C.Cream, NOSHADOW)
 		g.PrimaryPart = pin
 		b.target = wheel
 	end
@@ -3701,7 +3741,7 @@ function Props.ferrisWheel(parent: any, cf: any, opts: { [string]: any }?): any
 end
 
 --[[
-	hotAirBalloon: floating decor — a rainbow-striped voxel envelope (rounded "plus" tiers), ropes,
+	hotAirBalloon: floating decor — a striped voxel envelope (one calm paint and cream by default) (rounded "plus" tiers), ropes,
 	a wicker basket with a rim and a glowing burner. cframe = bottom of the basket (in the air).
 	19 parts, all non-colliding. opts: colors (list, bottom to top).
 ]]
@@ -3711,11 +3751,9 @@ function Props.hotAirBalloon(parent: any, cf: any, opts: { [string]: any }?): an
 	b.s *= 1.3
 	local cs = o.colors
 	if not cs then
-		local k = b:int(0, #C.Festive - 1)
-		cs = {}
-		for i = 1, 6 do
-			cs[i] = C.Festive[(k + i - 1) % #C.Festive + 1]
-		end
+		-- stripes of one calm paint and cream
+		local p = PAINTS[b:int(1, 4)]
+		cs = { p, C.Cream, p, C.Cream, p, p }
 	end
 	local basket = b:span("Basket", -1.8, 0, -1.8, 1.8, 2.4, 1.8, C.WoodLight, DECOR)
 	b:span("Rim", -2.1, 2.2, -2.1, 2.1, 2.8, 2.1, C.WoodDark, DECOR)

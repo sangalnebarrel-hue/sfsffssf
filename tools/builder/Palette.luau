@@ -72,12 +72,13 @@ local P: { [string]: any } = {
 	Palm1 = rgb(60, 140, 70),
 	Palm2 = rgb(84, 162, 76),
 	Palm3 = rgb(126, 186, 96),
-	Blossom0 = rgb(214, 124, 160),
-	Blossom1 = rgb(230, 156, 184),
-	Blossom2 = rgb(240, 190, 210),
-	Autumn0 = rgb(198, 96, 52),
-	Autumn1 = rgb(218, 134, 58),
-	Autumn2 = rgb(228, 170, 72),
+	-- accent foliage (a few deliberate groves only): dusty blossom pink, russet / ochre autumn
+	Blossom0 = rgb(204, 124, 152),
+	Blossom1 = rgb(222, 156, 180),
+	Blossom2 = rgb(236, 192, 208),
+	Autumn0 = rgb(180, 94, 56),
+	Autumn1 = rgb(200, 130, 66),
+	Autumn2 = rgb(214, 170, 96),
 	Bark = rgb(140, 96, 62),
 	BarkDark = rgb(108, 74, 50),
 	CutWood = rgb(226, 196, 146),
@@ -106,7 +107,7 @@ local P: { [string]: any } = {
 	White = rgb(242, 240, 234),
 	Cream = rgb(238, 228, 206),
 	Glass = rgb(170, 206, 222),
-	Gold = rgb(226, 178, 64),
+	Gold = rgb(212, 170, 88), -- brass gold: rich, not candy
 	GoldLight = rgb(240, 212, 120),
 	Iron = rgb(90, 98, 112),
 	Navy = rgb(52, 66, 100),
@@ -140,7 +141,7 @@ local P: { [string]: any } = {
 		rgb(196, 72, 64), -- red
 		rgb(60, 150, 156), -- teal
 		rgb(66, 116, 180), -- blue
-		rgb(226, 186, 80), -- yellow
+		rgb(214, 178, 96), -- yellow
 		rgb(238, 236, 230), -- white
 		rgb(86, 150, 86), -- green
 		rgb(200, 120, 140), -- rose
