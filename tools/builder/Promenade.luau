@@ -18,16 +18,21 @@
 	  Map.Promenade   the ring walk r 312..330 on flat GroundTop: warm sand paving with darker
 	                  joint strips, a smooth coral middle band and white kerbs (open where the
 	                  gateway roads and landmark paths leave the ring); a sea wall on the lagoon
-	                  side (light stone face from the beach up, white coping) with a low white
-	                  railing and a blue rail on it, open at the 8 pier entrances (base ± 6°, with
-	                  two broad sand steps down to the beach on both sides of the pier) and 4
-	                  sand steps down to the beach (between two plots); chunky lamps (caps in the
-	                  colour of the nearest gateway: each quarter of the ring has its own),
+	                  side (a face in two creams by turns from the beach up, a coral coping) with
+	                  a low white railing and a blue rail on it, open at the 8 pier entrances
+	                  (base ± 6°, with two broad steps down to the beach on both sides of the
+	                  pier) and 4 steps down to the beach (between two plots); chunky lamps (caps
+	                  in the colour of the nearest gateway: each quarter of the ring has its own),
 	                  bunting, benches and planters in front of the plots and along the stretches
-	                  between them, big billboards at the landmark paths.
+	                  between them, big billboards at the landmark paths, and a themed stop in the
+	                  base's colour on every stretch from a base's gate to its bridge (Stops: an
+	                  ice-cream cart, a balloon seller, a lemonade stand, a fisherman sitting on
+	                  the sea wall, a surfboard rental, a bait shop, a photo board, a candy-floss
+	                  cart).
 
-	Nothing is placed on the walking surface except along its two edges, so players can run
-	all the way round. Returns { lamps = number }.
+	Nothing is placed on the walking surface except along its two edges (the stops stand on
+	its outer half: ~10 studs of lane stay free), so players can run all the way round.
+	Returns { lamps = number }.
 ]]
 
 local U = require("./Util")
@@ -82,6 +87,19 @@ local PATH_SIGNS = {
 local FLAT = { CastShadow = false }
 
 local DECK_TOP = 0.64 -- above GroundTop: a hair above the bridge and pier decks (0.6)
+
+-- Props.bunting hangs its flags in the rope's plane (0.2 thick flags on a 0.18 rope: faces 0.01
+-- apart); each flag moves 0.06 off it, so no flag face shimmers against the rope's.
+local function offsetFlags(model: any): any
+	if model then
+		for _, p in model:GetChildren() do
+			if p:IsA("BasePart") and string.match(p.Name, "^Flag") then
+				p.CFrame = p.CFrame * CFrame.new(0, 0, 0.06)
+			end
+		end
+	end
+	return model
+end
 
 --------------------------------------------------------------------------------------------
 -- Bridges
@@ -267,12 +285,14 @@ local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme
 	b:box("ScopeLens", tx + 1.9, 3.45, 5.8, tx + 2.2, 4.85, 7.2, C.Glass, Kit.NOSHADOW)
 	-- bunting across the deck between the two flag poles (well above the players' heads)
 	local fz = zh - 0.75
-	Kit.prop(
-		"bunting",
-		b.model,
-		(cf * CFrame.new(flagX[1], 12.2, fz)).Position,
-		(cf * CFrame.new(flagX[2], 12.2, fz)).Position,
-		{ seed = 3, count = 4, sag = 1.6, name = "Bunting" }
+	offsetFlags(
+		Kit.prop(
+			"bunting",
+			b.model,
+			(cf * CFrame.new(flagX[1], 12.2, fz)).Position,
+			(cf * CFrame.new(flagX[2], 12.2, fz)).Position,
+			{ seed = 3, count = 4, sag = 1.6, name = "Bunting" }
+		)
 	)
 	b:finish(first)
 	return b.model
@@ -325,6 +345,16 @@ function Promenade.buildBridges(map: any, cfg: any, world: any): { any }
 				-- planks: light / honey wood, every fourth one in the gateway's pastel
 				local k = tonumber(string.sub(name, 5)) :: number
 				d.Color = if k % 4 == 3 then theme.plank or pastel elseif k % 2 == 1 then C.WoodLight else honey
+				if k == 1 then
+					-- the hub-end plank reaches 0.1 into the plaza, so its end face is not in the
+					-- plane of the ground columns' edge there
+					local dir = (c - a).Unit
+					local sz = d.Size
+					d.Size = if math.abs(d.CFrame.RightVector:Dot(dir)) > 0.9
+						then Vector3.new(sz.X + 0.1, sz.Y, sz.Z)
+						else Vector3.new(sz.X, sz.Y, sz.Z + 0.1)
+					d.CFrame = d.CFrame - dir * 0.05
+				end
 			elseif string.match(name, "^TopRail") or string.match(name, "^MidRail") then
 				-- split round the lookout; the top rail gets chunkier (1.2 x 1.4) and the
 				-- gateway's colour, the mid rail its pastel
@@ -534,6 +564,232 @@ end
 -- Bloom colours for the planters (never the box's own colour).
 local PLANTER_BLOOMS = { C.Yellow, C.Red, C.Pink, C.Purple, C.Orange, C.Blue }
 
+--------------------------------------------------------------------------------------------
+-- Themed stops: one per stretch between a base's gate and its bridge
+--------------------------------------------------------------------------------------------
+
+-- Base colours (BaseConfig.Colors: base i gets colour i); a fallback when the module is missing.
+local BASE_COLORS = (function(): { any }
+	local ok, cfg = pcall(U.loadPure, "src/ReplicatedStorage/Shared/Config/BaseConfig.luau")
+	local list = {}
+	if ok and type(cfg) == "table" and type(cfg.Colors) == "table" then
+		for _, entry in cfg.Colors do
+			table.insert(list, entry.Color)
+		end
+	end
+	if #list == 0 then
+		list = { C.Red, C.Orange, C.Yellow, rgb(30, 190, 112), C.Cyan, C.Blue, C.Purple, C.Pink }
+	end
+	return list
+end)()
+
+local SHIRTS = { C.Cyan, C.Blue, C.Red, C.Orange, C.Purple }
+
+-- A vendor (3 parts) standing behind a counter at local (x, z): body (shirt) from the ground,
+-- head, a hat; the face shows above a counter up to y 4.
+local function vendor(b: any, x: number, z: number, shirt: any, hat: any)
+	b:box("VendorBody", x - 0.9, -0.05, z - 0.6, x + 0.9, 4.7, z + 0.6, shirt)
+	b:box("VendorHead", x - 0.75, 4.7, z - 0.7, x + 0.75, 6.2, z + 0.7, SKIN)
+	b:box("VendorHat", x - 0.95, 6.15, z - 0.9, x + 0.95, 6.8, z + 0.9, hat, Kit.NOSHADOW)
+end
+
+-- A cart (4 parts) on two wheels: a body in `color` with a white top; front (-Z) to the walk.
+local function cart(b: any, color: any, half: number): any
+	local body = b:box("Cart", -half, 0.9, -1.5, half, 3.4, 0.8, color)
+	b:box("CartTop", -half - 0.3, 3.4, -1.8, half + 0.3, 3.8, 1.1, C.White)
+	-- (round wheels on the front: cylinders across the cart, axis along local Z)
+	for i, x in { -half + 1.3, half - 1.3 } do
+		b:block(
+			`Wheel{i}`,
+			Vector3.new(0.5, 1.7, 1.7),
+			CFrame.new(x, 0.8, -1.6) * CFrame.Angles(0, math.rad(90), 0),
+			C.Navy,
+			{ Shape = U.Enum.PartType.Cylinder, CanCollide = false, CanQuery = false }
+		)
+	end
+	return body
+end
+
+-- Ice-cream cart (17 parts): a cart in the base colour with three scoops in the counter, a
+-- parasol over it, a giant cone on a pole and the ice-cream man in white.
+local function iceCreamStop(b: any, color: any)
+	local first = cart(b, color, 2.6)
+	for i, s in { { -1.9, C.Pink }, { -0.5, C.Cream }, { 0.9, rgb(150, 240, 190) } } do
+		b:box(`Scoop{i}`, s[1], 3.7, -1.3, s[1] + 1.0, 4.5, -0.3, s[2], Kit.NOSHADOW)
+	end
+	b:pole("ParasolPole", 0.4, 0, 0.2, 3.8, 9.4, C.White, Kit.NOSHADOW)
+	b:box("Parasol", -3.4, 8.3, -3.2, 3.4, 8.9, 3.6, color)
+	b:box("ParasolTop", -1.6, 8.85, -1.4, 1.6, 9.5, 1.8, C.White, Kit.NOSHADOW)
+	-- the giant cone: a pointed wafer and a pink scoop on a white pole
+	b:pole("ConePole", 0.4, 4.4, 0.4, -0.05, 6.6, C.White, Kit.NOSHADOW)
+	b:box("ConeTip", 4.0, 6.4, 0.0, 4.8, 7.2, 0.8, C.WoodLight)
+	b:box("Cone", 3.65, 7.1, -0.35, 5.15, 8.6, 1.15, C.WoodLight)
+	b:box("ConeScoop", 3.45, 8.5, -0.55, 5.35, 10.1, 1.35, C.Pink)
+	vendor(b, 0, 1.75, C.White, color)
+	return first
+end
+
+-- Balloon seller (14 parts): a vendor in the base colour holding a bundle of five balloons on
+-- one string, a helium bottle beside him.
+local function balloonStop(b: any, color: any)
+	local first = b:box("Legs", -1.5, -0.05, -0.5, -0.1, 2.3, 0.6, C.Navy)
+	b:box("Body", -1.7, 2.2, -0.6, 0.1, 4.7, 0.7, color)
+	b:box("Head", -1.55, 4.7, -0.65, -0.05, 6.2, 0.75, SKIN)
+	b:box("Shades", -1.45, 5.35, -0.8, -0.15, 5.75, -0.6, C.Dark, Kit.DECOR)
+	b:box("Cap", -1.75, 6.15, -0.85, 0.15, 6.7, 0.95, C.White, Kit.NOSHADOW)
+	b:box("Arm", 0.0, 3.6, -0.3, 0.6, 5.4, 0.3, SKIN, Kit.NOSHADOW)
+	b:box("String", 0.23, 5.3, -0.07, 0.37, 8.6, 0.07, C.White, Kit.DECOR)
+	for i, p in
+		{
+			{ -0.7, 9.4, -0.3, color },
+			{ 1.2, 9.7, 0.2, C.Red },
+			{ 0.2, 11.0, 0.5, C.Yellow },
+			{ -1.3, 11.3, -0.1, C.Cyan },
+			{ 1.6, 11.6, -0.5, C.Pink },
+		}
+	do
+		b:box(`Balloon{i}`, p[1] - 0.9, p[2] - 0.9, p[3] - 0.9, p[1] + 0.9, p[2] + 1.0, p[3] + 0.9, p[4], Kit.DECOR)
+	end
+	b:pole("Bottle", 1.3, 2.6, 0.4, -0.05, 2.8, C.Cyan)
+	b:box("Valve", 2.3, 2.75, 0.1, 2.9, 3.3, 0.7, C.White, Kit.NOSHADOW)
+	return first
+end
+
+-- Lemonade stand (16 parts): a wooden counter with a panel in the base colour, a white top
+-- with a pitcher and a cup, an awning on two posts with a giant lemon on it, a crate of
+-- lemons, the vendor behind.
+local function lemonadeStop(b: any, color: any)
+	local first = b:box("Counter", -3.0, -0.05, -1.2, 3.0, 3.2, 0.8, C.WoodLight)
+	local panel = b:box("Panel", -2.6, 0.5, -1.35, 2.6, 2.7, -1.15, color, Kit.DECOR)
+	Kit.sign(panel, U.Enum.NormalId.Front, "ЛИМОНАД", C.White, C.Navy, { pps = 24 })
+	b:box("Top", -3.3, 3.2, -1.5, 3.3, 3.6, 1.1, C.White)
+	b:box("Pitcher", -2.3, 3.6, -1.0, -1.3, 5.2, 0.0, rgb(255, 240, 150), Kit.NOSHADOW)
+	b:box("Cup", 0.6, 3.6, -1.0, 1.4, 4.5, -0.2, C.White, Kit.DECOR)
+	for i, x in { -3.0, 2.5 } do
+		b:box(`Post{i}`, x, 3.6, 0.5, x + 0.5, 7.5, 1.0, C.White)
+	end
+	b:box("Awning", -3.6, 7.4, -2.0, 3.6, 8.0, 1.4, color)
+	b:box("AwningStripe", -1.0, 7.95, -1.9, 1.0, 8.2, 1.3, C.White, Kit.NOSHADOW)
+	b:box("Lemon", -1.1, 8.15, -0.9, 1.1, 9.9, 0.5, rgb(255, 236, 90))
+	b:box("LemonLeaf", 0.5, 9.5, -0.5, 1.5, 10.1, 0.1, C.Leaf2, Kit.DECOR)
+	b:box("Crate", 3.5, -0.05, -0.9, 5.3, 1.4, 0.9, C.Wood)
+	b:box("Lemons", 3.7, 1.3, -0.7, 5.1, 1.8, 0.7, rgb(255, 236, 90), Kit.DECOR)
+	vendor(b, 0, 1.75, SHIRTS[2], C.Yellow)
+	return first
+end
+
+-- Fisherman on the sea wall (13 parts), sitting on the coping's lagoon edge (cf on the coping
+-- top, -Z to the lagoon, the edge at z = -1.4): a vest in the base colour, legs dangling over
+-- the wall face in yellow wellies, a bucket hat, a rod out over the beach with its line and a
+-- float on the water, a bucket with a fish and a tackle box beside him.
+local function fishermanStop(b: any, color: any, waterY: number)
+	local first = b:box("Body", -0.9, 0, -0.6, 0.9, 2.6, 0.6, color)
+	b:box("Thighs", -0.8, 0, -1.8, 0.8, 0.9, -0.4, C.Navy)
+	b:box("Shins", -0.75, -2.5, -2.3, 0.75, 0.1, -1.6, C.Navy)
+	b:box("Boots", -0.8, -3.2, -2.6, 0.8, -2.45, -1.5, C.Yellow)
+	b:box("Arms", -1.0, 1.5, -1.6, 1.0, 2.1, -0.4, color, Kit.NOSHADOW)
+	b:box("Head", -0.75, 2.6, -0.7, 0.75, 4.1, 0.7, SKIN)
+	b:box("Hat", -1.05, 4.0, -1.0, 1.05, 4.6, 1.0, C.Yellow, Kit.NOSHADOW)
+	-- the rod from his hands up and out over the beach, the line straight down to the water
+	local a, tip = Vector3.new(0.3, 1.9, -1.4), Vector3.new(0.3, 8.0, -16.0)
+	local mid = (a + tip) / 2
+	b:block("Rod", Vector3.new(0.25, 0.25, (tip - a).Magnitude), CFrame.lookAt(mid, tip), C.WoodDark, Kit.DECOR)
+	b:box("Line", 0.25, waterY + 0.3, -16.05, 0.35, 8.0, -15.95, C.White, Kit.DECOR)
+	b:box("Float", 0.0, waterY - 0.1, -16.3, 0.6, waterY + 0.5, -15.7, C.Red, Kit.DECOR)
+	b:box("Bucket", 1.5, 0, -0.9, 2.7, 1.4, 0.3, C.Blue)
+	b:box("Fish", 1.8, 1.3, -0.6, 2.4, 2.2, 0.0, C.Orange, Kit.DECOR)
+	b:box("TackleBox", -2.9, 0, -0.8, -1.5, 0.9, 0.2, C.Red)
+	return first
+end
+
+-- Surfboard rental (14 parts): four tall boards (one in the base colour, two with a white
+-- stripe) leaning on a white rack with a bar in the base colour, a «СЁРФ» board over them.
+local function surfStop(b: any, color: any)
+	local first = b:box("PostA", -3.6, -0.05, 0.8, -3.0, 9.9, 1.4, C.White)
+	b:box("PostB", 3.0, -0.05, 0.8, 3.6, 9.9, 1.4, C.White)
+	b:box("Bar", -3.9, 4.6, 0.7, 3.9, 5.2, 1.5, color)
+	for i, spec in { { -2.3, color, 6.6 }, { -0.75, C.Yellow, 7.2 }, { 0.8, C.Pink, 6.4 }, { 2.35, C.Orange, 6.9 } } do
+		local x, col, h = spec[1], spec[2], spec[3]
+		b:box(`Board{i}`, x - 0.65, 0.1, 0.1, x + 0.65, h, 0.55, col)
+		b:box(`Nose{i}`, x - 0.4, h - 0.05, 0.15, x + 0.4, h + 0.6, 0.5, col, Kit.NOSHADOW)
+		if i % 2 == 0 then
+			b:box(`Stripe{i}`, x - 0.15, 0.6, 0.02, x + 0.15, h - 0.4, 0.12, C.White, Kit.DECOR)
+		end
+	end
+	local board = b:box("Sign", -3.9, 8.1, 0.65, 3.9, 9.8, 1.15, C.White)
+	Kit.sign(board, U.Enum.NormalId.Front, "СЁРФ", color, nil, { pps = 24 })
+	return first
+end
+
+-- Bait shop (8 parts + a lifebuoy): a stack of crates in the base colour with a «НАЖИВКА»
+-- board on top, a coil of rope, a bait barrel and a lifebuoy on a post.
+local function baitStop(b: any, color: any)
+	local light = Kit.lerpColor(color, C.White, 0.3)
+	local first = b:box("CrateA", -3.2, -0.05, -1.0, -1.0, 2.2, 1.2, color)
+	b:box("CrateB", -0.8, -0.05, -0.8, 1.4, 2.0, 1.4, C.Wood)
+	b:box("CrateC", -2.6, 2.2, -0.6, -0.4, 4.2, 1.1, light)
+	local board = b:box("Board", -3.2, 4.15, 0.55, 0.4, 5.9, 0.95, C.White)
+	Kit.sign(board, U.Enum.NormalId.Front, "НАЖИВКА", color, nil, { pps = 24 })
+	b:box("Rope", -0.4, 2.0, -0.4, 1.0, 2.5, 1.0, C.Rope, Kit.NOSHADOW)
+	b:pole("Barrel", 1.8, 2.7, 0.2, -0.05, 2.6, C.WoodLight)
+	b:box("Bait", 2.1, 2.55, -0.4, 3.3, 2.85, 0.8, C.Pink, Kit.DECOR)
+	b:box("BuoyPost", 4.8, -0.05, 0.6, 5.3, 5.8, 1.1, C.White)
+	Kit.prop("lifebuoy", b.model, b.cf * CFrame.new(5.05, 3.6, 0.2), {})
+	return first
+end
+
+-- Photo board (15 parts): a board in the base colour on two legs with a hole for a face over a
+-- painted giant fish, a «ФОТО» header, a step behind it and two flower pots beside it.
+local function photoStop(b: any, color: any)
+	local first = b:box("LegA", -2.9, -0.05, 0.7, -2.3, 2.6, 1.2, C.White)
+	b:box("LegB", 2.3, -0.05, 0.7, 2.9, 2.6, 1.2, C.White)
+	-- the board round a 1.6-stud face hole at y 5.6..7.2
+	b:box("BoardLow", -3.2, 2.5, 0.6, 3.2, 5.6, 1.0, color)
+	b:box("BoardTop", -3.2, 7.2, 0.6, 3.2, 9.0, 1.0, color)
+	b:box("BoardL", -3.2, 5.6, 0.6, -0.8, 7.2, 1.0, color)
+	b:box("BoardR", 0.8, 5.6, 0.6, 3.2, 7.2, 1.0, color)
+	b:box("Fish", -2.7, 3.0, 0.44, 1.8, 5.2, 0.62, C.Orange, Kit.NOSHADOW)
+	b:box("FishTail", 1.7, 3.3, 0.52, 2.8, 4.9, 0.66, C.Yellow, Kit.NOSHADOW)
+	b:box("FishEye", -2.2, 4.3, 0.34, -1.6, 4.9, 0.5, C.White, Kit.DECOR)
+	local header = b:box("Header", -2.2, 9.0, 0.55, 2.2, 10.6, 1.05, C.White)
+	Kit.sign(header, U.Enum.NormalId.Front, "ФОТО", color, nil, { pps = 24 })
+	b:box("Step", -1.6, -0.05, 1.2, 1.6, 1.0, 2.6, C.WoodLight)
+	for i, x in { -4.6, 4.6 } do
+		b:box(`Pot{i}`, x - 0.9, -0.05, -0.2, x + 0.9, 1.6, 1.4, C.White)
+		b:box(`Bloom{i}`, x - 0.7, 1.5, 0.0, x + 0.7, 2.7, 1.2, if i == 1 then C.Yellow else C.Red, Kit.DECOR)
+	end
+	return first
+end
+
+-- Cotton-candy cart (16 parts): a cart in the base colour with the spinning bowl and a pink
+-- cloud in it, two candy flosses on sticks stuck in its top, an awning on two posts, the vendor.
+local function candyStop(b: any, color: any)
+	local first = cart(b, color, 2.4)
+	b:box("Bowl", -1.0, 3.8, -1.2, 1.0, 4.8, 0.4, C.White)
+	b:box("Floss", -0.8, 4.75, -1.0, 0.8, 5.6, 0.2, rgb(255, 200, 230), Kit.DECOR)
+	for i, s in { { 1.25, rgb(190, 225, 255), 0 }, { 2.25, rgb(220, 190, 255), 0.3 } } do
+		b:box(`Stick{i}`, s[1] - 0.08, 3.75, -0.6, s[1] + 0.08, 6.0 + s[3], -0.44, C.White, Kit.DECOR)
+		b:box(`Cloud{i}`, s[1] - 0.45, 5.9 + s[3], -0.97, s[1] + 0.45, 6.9 + s[3], -0.07, s[2], Kit.DECOR)
+	end
+	for i, x in { -2.7, 2.2 } do
+		b:box(`Post{i}`, x, 3.8, 0.55, x + 0.5, 8.2, 1.05, C.White)
+	end
+	b:box("Awning", -3.0, 8.2, -2.2, 3.0, 8.8, 1.4, color)
+	vendor(b, 0, 1.75, SHIRTS[5], C.Pink)
+	return first
+end
+
+local STOPS = {
+	{ name = "IceCreamCart", build = iceCreamStop },
+	{ name = "BalloonSeller", build = balloonStop },
+	{ name = "LemonadeStand", build = lemonadeStop },
+	{ name = "Fisherman", build = fishermanStop, seaWall = true },
+	{ name = "SurfRental", build = surfStop },
+	{ name = "BaitShop", build = baitStop },
+	{ name = "PhotoBoard", build = photoStop },
+	{ name = "CandyCart", build = candyStop },
+}
+
 function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	local promenade = U.model(map, "Promenade")
 	local G = cfg.GroundTop
@@ -543,8 +799,8 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 
 	-- Paving: 48 warm sand tiles (7.5°), all one colour at one height (the chord rectangles
 	-- overlap near the inner edge: same colour, so no seam, no lip and no shimmer), a coral
-	-- middle band in 96 short chords (3.75°: it reads as a smooth curve at eye level) and white
-	-- kerbs. A darker sand joint strip across the walk every 15° gives the paving its rhythm.
+	-- middle band in 72 short chords (5°: it reads as a smooth curve at eye level) and white
+	-- kerbs. A darker sand joint strip across the walk every 30° gives the paving its rhythm.
 	local paving = U.model(promenade, "Paving")
 	local tileColor = rgb(244, 210, 154)
 	local step = 360 / 96 -- railing post grid (3.75°)
@@ -554,14 +810,14 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	end
 	local bandColor = rgb(255, 128, 104)
 	local mid = (inner + outer) / 2
-	for k = 0, 95 do
-		local a0 = k * step
-		ringPiece(paving, "Band", a0, a0 + step, mid - 2.2, mid + 2.2, top, top + 0.28, bandColor, Kit.NOSHADOW)
+	for k = 0, 71 do
+		local a0 = k * 5
+		ringPiece(paving, "Band", a0, a0 + 5, mid - 2.2, mid + 2.2, top, top + 0.28, bandColor, Kit.NOSHADOW)
 	end
 	-- joint strips (2 wide, 0.12 proud) from the coping to the kerb, under the band's top
 	local jointColor = rgb(228, 178, 116)
-	for k = 0, 23 do
-		local a = k * 4 * step
+	for k = 0, 11 do
+		local a = k * 8 * step
 		local p = U.polar(a, (inner + 1.6 + outer - 1.4) / 2, 0)
 		U.part(
 			paving,
@@ -622,11 +878,16 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	local function isLamp(a: number): boolean
 		return lampAngles[floor((a % 360) * 100 + 0.5)] == true
 	end
-	-- Sea wall along the lagoon edge: a light stone face from the beach (y 1.5) up to the walk,
-	-- under a white coping that is also the railing's kerb; where the railing is open (beside
-	-- the piers and bridge landings, at the beach steps) the wall stops just under the tiles.
+	-- Sea wall along the lagoon edge: a cream face from the beach (y 1.5) up to the walk in
+	-- blocks of two creams by turns, under a coral coping (the colour of the walk's middle band)
+	-- that is also the railing's kerb; where the railing is open (beside the piers and bridge
+	-- landings, at the beach steps) the wall stops just under the tiles, with a white and a sand
+	-- step down to the beach.
 	local seaWall = U.model(promenade, "SeaWall")
-	local stone = Kit.lerpColor(C.StoneLight, C.White, 0.25)
+	local creams = { C.Cream, rgb(255, 232, 196) }
+	local copingColor = rgb(255, 128, 104)
+	local copings = {} -- { a0, a1 } of the coping pieces (the fisherman sits on one)
+	local nWall = 0
 	for _, run in
 		runs(cfg, function(a)
 			return if onDeck(cfg, a) then "deck" elseif inGap(cfg, a) then "open" else "rail"
@@ -636,14 +897,28 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 			continue
 		end
 		for _, pc in pieces(run[1], run[2], 7.5) do
+			nWall += 1
+			local cream = creams[nWall % 2 + 1]
 			if run[3] == "rail" then
-				ringPiece(seaWall, "Wall", pc[1], pc[2], WALL_IN + 0.2, inner + 0.3, 1.5, top - 0.2, stone, FLAT)
-				ringPiece(seaWall, "Coping", pc[1], pc[2], WALL_IN, inner + 1.6, top - 0.2, top + 0.6, C.White, FLAT)
+				ringPiece(seaWall, "Wall", pc[1], pc[2], WALL_IN + 0.2, inner + 0.3, 1.5, top - 0.2, cream, FLAT)
+				ringPiece(
+					seaWall,
+					"Coping",
+					pc[1],
+					pc[2],
+					WALL_IN,
+					inner + 1.6,
+					top - 0.2,
+					top + 0.6,
+					copingColor,
+					FLAT
+				)
+				table.insert(copings, pc)
 			else
-				ringPiece(seaWall, "Wall", pc[1], pc[2], WALL_IN, inner + 0.3, 1.5, top - 0.12, stone, FLAT)
+				ringPiece(seaWall, "Wall", pc[1], pc[2], WALL_IN, inner + 0.3, 1.5, top - 0.12, cream, FLAT)
 				-- two sand steps down to the beach along the whole opening (beside the piers and
 				-- at the step gaps between two plots): no ledge to jump back up
-				ringPiece(seaWall, "Step1", pc[1], pc[2], WALL_IN - 2.8, WALL_IN + 0.1, 1.5, 3.85, C.Cream, FLAT)
+				ringPiece(seaWall, "Step1", pc[1], pc[2], WALL_IN - 2.8, WALL_IN + 0.1, 1.5, 3.85, C.White, FLAT)
 				ringPiece(seaWall, "Step2", pc[1], pc[2], WALL_IN - 5.6, WALL_IN - 2.8, 1.5, 2.95, C.SandDark, FLAT)
 			end
 		end
@@ -707,13 +982,35 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 		Kit.prop("lifebuoy", railing, CFrame.new(p.X, top + 2.3, p.Z) * CFrame.Angles(0, rad(a), 0), { seed = k })
 	end
 
+	-- The bridge landing at angle a (within 1°), if any.
+	local function bridgeAt(a: number): number?
+		for _, b in cfg.BridgeAngles do
+			if Kit.angleDistance(a, b) < 1 then
+				return b
+			end
+		end
+		return nil
+	end
+	-- Radius of the coping's lagoon edge on the ray `a` (the pieces are chords), nil off it.
+	local function copingEdge(a: number): number?
+		for _, pc in copings do
+			if a >= pc[1] and a <= pc[2] then
+				local am = (pc[1] + pc[2]) / 2
+				local half = rad(pc[2] - pc[1]) / 2
+				local rm = (WALL_IN + inner + 1.6) / 2 * cos(half)
+				return (rm - (inner + 1.6 - WALL_IN) / 2) / cos(rad(a - am))
+			end
+		end
+		return nil
+	end
+
 	-- Bunting between the first two lamps after each pier (lantern tops ~ y + 11).
 	local bunting = U.model(promenade, "Bunting")
 	for i = 1, cfg.BaseCount do
 		local base = cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount
 		local pa = U.polar(base + 7.5, postR, top + 10.9)
 		local pb = U.polar(base + 15, postR, top + 10.9)
-		Kit.prop("bunting", bunting, pa, pb, { seed = i * 7, count = 4, sag = 2.4, name = "Bunting" })
+		offsetFlags(Kit.prop("bunting", bunting, pa, pb, { seed = i * 7, count = 4, sag = 2.4, name = "Bunting" }))
 	end
 
 	-- A bench facing the lagoon and planters on both sides of each plot's gate; more planters
@@ -753,11 +1050,44 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 		for _, sgn in { -1, 1 } do
 			planterAt(base + sgn * 5.6, outer - 2.6)
 		end
-		-- the stretch from this plot to the next one (centre = base + 22.5)
+		-- the stretch from this plot to the next one (centre = base + 22.5); beside a bridge
+		-- landing the themed stops stand there instead
 		local gap = base + 180 / cfg.BaseCount
-		for _, off in { -6.2, 6.2 } do
-			planterAt(gap + off, outer - 2.6)
+		if not bridgeAt(gap) then
+			for _, off in { -6.2, 6.2 } do
+				planterAt(gap + off, outer - 2.6)
+			end
 		end
+	end
+
+	-- Themed stops: one on every stretch from a base's gate to its bridge landing, in the base's
+	-- colour, on the outer half of the walk (from r ~324 out, every solid part centred beyond
+	-- r 325: 10 studs of lane stay free between it and the lamps) 5.5° from the bridge, between
+	-- the lamps; the fisherman sits on the sea wall's coping instead, half-way between two lamps.
+	local stops = U.model(promenade, "Stops")
+	for i = 1, cfg.BaseCount do
+		local base = cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount
+		local half = 180 / cfg.BaseCount
+		local bridge = bridgeAt(base + half) or bridgeAt(base - half)
+		if not bridge then
+			continue
+		end
+		local dir = if Kit.angleDistance(base - half, bridge) < 1 then 1 else -1 -- bridge to base
+		local spec = STOPS[(i - 1) % #STOPS + 1]
+		local color = BASE_COLORS[(i - 1) % #BASE_COLORS + 1]
+		local b
+		if spec.seaWall then
+			local a = bridge + dir * 11.25
+			local edge = copingEdge(a) or WALL_IN
+			local cf = U.polarCFrame(a, edge + 1.4, top + 0.6)
+			b = Kit.builder(stops, spec.name, cf)
+			spec.build(b, color, -(top + 0.6))
+		else
+			local a = bridge + dir * 5.5
+			b = Kit.builder(stops, spec.name, U.polarCFrame(a, outer - 4.1, top))
+			spec.build(b, color)
+		end
+		b:finish()
 	end
 
 	-- Big billboards at the landmark path mouths (land side, beside the path, facing the

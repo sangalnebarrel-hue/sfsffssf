@@ -146,11 +146,13 @@ return function(game: any, cfg: any, world: any)
 			table.insert(report, `{child.Name} {p}` .. (if l > 0 then `/{l}L` else ""))
 		end
 	end
+	local natureParts = stats(map.Nature)
 	print(`  map dressing: {totalParts} parts, {totalLights} lights ({table.concat(report, ", ")})`)
+	-- (the headroom the other dressing still has before Nature would fall under its minimum)
+	print(`  dressing headroom: {natureParts - NATURE_MIN - 10} parts (Nature {natureParts} / min {NATURE_MIN})`)
 	if totalParts > DRESSING_BUDGET or totalLights > LIGHT_BUDGET then
 		error(`map dressing over budget: {totalParts}/{DRESSING_BUDGET} parts, {totalLights}/{LIGHT_BUDGET} lights`)
 	end
-	local natureParts = stats(map.Nature)
 	if natureParts < NATURE_MIN then
 		error(`Nature got only {natureParts} parts (< {NATURE_MIN})`)
 	end

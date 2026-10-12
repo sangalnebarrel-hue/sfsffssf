@@ -5,15 +5,18 @@
 	              floating raft with a parasol, a swim platform with a slide, a sandbar island
 	              with a palm and two small ones (the coral reefs on the bed are Nature's). The
 	              water in front of every pier (base-local lz -(PierLength + 16)..0, |lx| <= 26)
-	              and along the bridges stays clear (lagoonClear).
+	              and along the bridges stays clear (lagoonClear); boats keep out of every pier's
+	              whole casting cone (|lx| <= 40, lz -150..0): they sail half-way between piers.
 	  Map.Ocean   decorated islets (world.islets, all beyond the boundary wall, seen through the
 	              haze, so lean: Nature.farTree palms / pines / cherries at 5 parts a tree): a
 	              lighthouse on a stone foundation, a pirate hideout with a hut and a flag, a palm
-	              grove, the big island with a fisherman's hut, a cherry-blossom island; a cheap
-	              shipwreck in an islet's shallows; a rock arch and a whale (spouting spray)
-	              between the coast and the boundary wall, a ring of red / yellow marker buoys
-	              just inside the wall (the swim limit), a big sailboat far out at sea. Parts
-	              beyond the wall neither collide nor cast shadows.
+	              grove with a beach hut and a red-white parasol, the big island, a
+	              cherry-blossom island, an island with a cheap shipwreck along its shore and a
+	              red-rock sea stack off its corner; a white-sand atoll with a turquoise pool; a
+	              rock arch and a whale (spouting spray) between the coast and the boundary
+	              wall, a ring of red / yellow marker buoys just inside the wall (the swim
+	              limit), a big sailboat far out at sea. Parts beyond the wall neither collide
+	              nor cast shadows.
 	  Map.Sky     voxel clouds (Props.cloud): a ring of 8 big ones low over the open ocean
 	              (r 1020-1260, y 130-190: one on the horizon of every outward view) and three
 	              high ones over the hills.
@@ -63,11 +66,15 @@ end
 -- Lagoon
 --------------------------------------------------------------------------------------------
 
--- (the water 16 studs past the pier end stays open too: the fishing spot looks out over it)
-local function lagoonClear(cfg: any, world: any, x: number, z: number, pad: number): boolean
+-- (the water 16 studs past the pier end stays open too: the fishing spot looks out over it;
+-- a boat keeps out of the whole casting cone: 40 studs either side of a pier's axis, from the
+-- promenade 150 studs out, nearly to the hub beach)
+local function lagoonClear(cfg: any, world: any, x: number, z: number, pad: number, boat: boolean?): boolean
+	local side = if boat then 40 else 26
+	local reach = if boat then 150 else (cfg.PierLength or 72) + 16
 	for i = 1, cfg.BaseCount do
 		local lx, lz = world:toBaseLocal(i, x, z)
-		if abs(lx) < 26 + pad and lz > -(cfg.PierLength or 72) - 16 - pad and lz < pad then
+		if abs(lx) < side + pad and lz > -reach - pad and lz < pad then
 			return false
 		end
 	end
@@ -160,20 +167,23 @@ end
 
 local function buildLagoon(map: any, cfg: any, world: any)
 	local lagoon = U.model(map, "Lagoon")
-	-- (lift: how far the model floats above the water plane, so a low hull's floor stays dry)
+	-- (lift: how far the model floats above the water plane, so a low hull's floor stays dry;
+	-- boats keep out of every pier's casting cone)
 	local function place(name: string, angle: number, r: number, heading: number, opts: any, pad: number, lift: number?)
 		local p = U.polar(angle, r, 0)
-		if not lagoonClear(cfg, world, p.X, p.Z, pad) then
+		local boat = string.find(name, "boat") ~= nil
+		if not lagoonClear(cfg, world, p.X, p.Z, pad, boat) then
 			return nil
 		end
 		return Kit.prop(name, lagoon, onWater(angle, r, heading) * CFrame.new(0, lift or 0, 0), opts)
 	end
-	-- boats sailing round the lagoon (between the piers, away from the bridges), rocking on the
-	-- waves (the rowboats' and the motorboat's floors lifted to 0.55-0.6 above the water)
+	-- boats sailing round the lagoon (half-way between two piers, away from the bridges),
+	-- rocking on the waves (the rowboats' and the motorboat's floors lifted to 0.55-0.6 above the
+	-- water)
 	bob(place("sailboat", 45, 226, tangent(45, true), { seed = 1, color = C.Red, stripe = C.Yellow }, 10), 0.35, 4.2)
 	bob(place("sailboat", 226, 238, tangent(226, false), { seed = 2, color = C.Blue, stripe = C.White }, 10), 0.35, 4.8)
 	bob(
-		place("motorboat", 152, 205, tangent(152, true), { seed = 3, color = C.White, stripe = C.Red }, 8, 0.3),
+		place("motorboat", 133, 202, tangent(133, true), { seed = 3, color = C.White, stripe = C.Red }, 8, 0.3),
 		0.3,
 		3.4
 	)
@@ -200,7 +210,7 @@ local function buildLagoon(map: any, cfg: any, world: any)
 	-- a floating raft, a swim platform with a slide off the hub beach, a sandbar island with a
 	-- palm and a beach chair and two small sandbars with a palm and a towel
 	local rp = U.polar(100, 238, 0)
-	if lagoonClear(cfg, world, rp.X, rp.Z, 8) then
+	if lagoonClear(cfg, world, rp.X, rp.Z, 8, true) then
 		bob(raft(lagoon, CFrame.new(rp.X, 0, rp.Z) * CFrame.Angles(0, rad(30), 0)), 0.25, 3.6)
 	end
 	local wp = U.polar(55, cfg.HubRadius + 24, 0)
@@ -224,16 +234,80 @@ end
 -- Ocean
 --------------------------------------------------------------------------------------------
 
-local function hut(parent: any, cf: any, roof: any)
+-- A hut (7 parts, scaled by `s`): a plank floor, cream walls, a stepped roof, door and window.
+local function hut(parent: any, cf: any, roof: any, s: number?)
+	local k = s or 1
 	local b = Kit.builder(parent, "Hut", cf)
-	local base = b:box("Floor", -5, -1, -4.5, 5, 0.6, 4.5, C.WoodDark)
-	b:box("Walls", -4.2, 0.6, -3.8, 4.2, 6, 3.8, C.Cream)
-	b:box("Roof1", -5.4, 6, -5, 5.4, 7.4, 5, roof)
-	b:box("Roof2", -3.8, 7.4, -3.6, 3.8, 8.6, 3.6, Kit.lerpColor(roof, C.White, 0.2))
-	b:box("Roof3", -2, 8.6, -2, 2, 9.6, 2, roof)
-	b:box("Door", -1.2, 0.6, -3.95, 1.2, 4.4, -3.7, C.Blue, Kit.NOSHADOW)
-	b:box("Window", 2.0, 2.6, -3.95, 3.4, 4.0, -3.7, C.WindowBlue, Kit.DECOR)
+	local function box(name: string, x0, y0, z0, x1, y1, z1, color, extra)
+		return b:box(name, x0 * k, y0 * k, z0 * k, x1 * k, y1 * k, z1 * k, color, extra)
+	end
+	local base = box("Floor", -5, -1, -4.5, 5, 0.6, 4.5, C.WoodDark)
+	box("Walls", -4.2, 0.6, -3.8, 4.2, 6, 3.8, C.Cream)
+	box("Roof1", -5.4, 6, -5, 5.4, 7.4, 5, roof)
+	box("Roof2", -3.8, 7.4, -3.6, 3.8, 8.6, 3.6, Kit.lerpColor(roof, C.White, 0.2))
+	box("Roof3", -2, 8.6, -2, 2, 9.6, 2, roof)
+	box("Door", -1.2, 0.6, -3.95, 1.2, 4.4, -3.7, C.Blue, Kit.NOSHADOW)
+	box("Window", 2.0, 2.6, -3.95, 3.4, 4.0, -3.7, C.WindowBlue, Kit.DECOR)
 	return b:finish(base)
+end
+
+-- Red-rock strata (the mesas' colours) for the sea stack.
+local STRATA = { U.rgb(226, 110, 72), U.rgb(242, 142, 90), U.rgb(252, 190, 130) }
+local CREAM_BAND = U.rgb(255, 226, 170)
+local OCHRE = U.rgb(250, 206, 130)
+
+--[[
+	A red-rock sea stack (9 parts + a palm): three terracotta strata narrowing upwards, each off
+	the centre of the one under it, with a cream band between them (a lip, like the mesas'
+	strata), an ochre top with a palm, two boulders at its foot in a ring of foam. cf on the
+	water surface; it stands on the sea floor `bed` studs down.
+]]
+local function seaStack(parent: any, cf: any, bed: number)
+	local b = Kit.builder(parent, "SeaStack", cf)
+	local base = b:box("Rock1", -11, -bed, -9, 11, 14, 9, STRATA[1])
+	b:box("Band1", -11.3, 14, -9.3, 10.4, 17, 8.4, CREAM_BAND)
+	b:box("Rock2", -9, 17, -7.5, 8, 30, 7, STRATA[2])
+	b:box("Band2", -9.3, 30, -7.8, 7.4, 32.5, 6.4, CREAM_BAND)
+	b:box("Rock3", -7.5, 32.5, -6, 5.6, 44, 5.4, STRATA[1])
+	b:box("Top", -7.8, 44, -6.3, 5.9, 46, 5.7, OCHRE)
+	b:box("BoulderA", 10, -bed, 2, 16, 3.5, 8, STRATA[2])
+	b:box("BoulderB", -15, -bed, -8, -9.5, 2.2, -2.6, STRATA[3])
+	b:box("Foam", -17, 0.1, -12, 18, 0.3, 12, C.Foam, Kit.DECOR)
+	b:finish(base)
+	Nature.farTree(b.model, cf * CFrame.new(-1, 46, 0), "palm", 2.2, 57)
+	return b.model
+end
+
+-- A white-sand atoll (6 parts + three palms): a square ring of sand (two sides a little lower)
+-- round a bright turquoise inner pool, in a ring of foam. cf on the water surface.
+local function atoll(parent: any, cf: any)
+	local b = Kit.builder(parent, "Atoll", cf)
+	local sand = U.rgb(255, 246, 220)
+	local R, w = 36, 11
+	local first = b:box("RingN", -R, -6, R - w, R, 1.6, R, sand)
+	b:box("RingS", -R, -6, -R, R, 1.6, -R + w, sand)
+	b:box("RingW", -R, -6, -R + w, -R + w, 1.2, R - w, sand)
+	b:box("RingE", R - w, -6, -R + w, R, 1.2, R - w, sand)
+	b:box("Pool", -R + w, -3, -R + w, R - w, 0.35, R - w, U.rgb(70, 226, 214), Kit.NOSHADOW)
+	b:box("Foam", -R - 4, 0.05, -R - 4, R + 4, 0.25, R + 4, C.Foam, Kit.DECOR)
+	b:finish(first)
+	for i, p in { { -R + w / 2, R - w / 2 - 2, 2.3 }, { R - w / 2, -R + w / 2 + 8, 2.0 }, { R - 20, R - w / 2, 1.8 } } do
+		Nature.farTree(b.model, cf * CFrame.new(p[1], if i == 1 then 1.6 else 1.2, p[2]), "palm", p[3], 80 + i)
+	end
+	return b.model
+end
+
+-- Ground CFrame on the islet's square sand rim, on the side facing `towards` degrees: `inset`
+-- studs in from the water's edge, `off` studs along that side.
+local function rimSpot(world: any, isle: any, towards: number, inset: number, off: number, yaw: number?): any
+	local ux, uz = sin(rad(towards)), cos(rad(towards))
+	local x, z
+	if abs(ux) >= abs(uz) then
+		x, z = isle.x + (if ux > 0 then 1 else -1) * (isle.size - inset), isle.z + off
+	else
+		x, z = isle.x + off, isle.z + (if uz > 0 then 1 else -1) * (isle.size - inset)
+	end
+	return Kit.ground(world, x, z, yaw)
 end
 
 -- A cheap shipwreck (16 parts; it is seen from 200+ studs through the haze): a dark hull with
@@ -416,7 +490,6 @@ local function buildOcean(map: any, cfg: any, world: any)
 			foundation(m, world, cf, 8.7, top - 2.4, C.Stone)
 			Nature.farTree(m, isletSpot(world, isle, s * 0.42, home + 70), "palm", 2.2, 11)
 			Nature.farTree(m, isletSpot(world, isle, s * 0.62, home + 98), "palm", 2.0, 13)
-			Nature.farTree(m, isletSpot(world, isle, s * 0.6, home + 42), "palm", 1.8, 14)
 		elseif i == 3 then
 			-- pirate hideout: a red-roofed hut, a black flag and palms
 			local hutCf = isletSpot(world, isle, s * 0.15, home + 20, home)
@@ -430,28 +503,37 @@ local function buildOcean(map: any, cfg: any, world: any)
 			)
 			Nature.farTree(m, isletSpot(world, isle, s * 0.5, home + 110), "palm", 2.1, 31)
 			Nature.farTree(m, isletSpot(world, isle, s * 0.58, home + 150), "palm", 1.9, 32)
-			Nature.farTree(m, isletSpot(world, isle, s * 0.6, home + 75), "palm", 1.7, 33)
 		elseif i == 5 then
 			Nature.farTree(m, isletSpot(world, isle, s * 0.2, home + 40), "palm", 2.3, 51)
 			Nature.farTree(m, isletSpot(world, isle, s * 0.35, home - 50), "palm", 2.0, 52)
-			-- shipwreck in the shallows on the side facing the main island
-			local d = s + 12
-			local wx = isle.x + d * sin(rad(home + 25))
-			local wz = isle.z + d * cos(rad(home + 25))
-			wreck(m, CFrame.new(wx, 0, wz) * CFrame.Angles(0, rad(home + 115), 0))
+			-- shipwreck lying along the side facing the main island (clear of the square island's
+			-- edge), a red-rock sea stack off the corner beside it (the square reaches s / cos 45°
+			-- along its diagonals)
+			local ux, uz = sin(rad(home)), cos(rad(home))
+			local wx, wz, yaw
+			if abs(ux) >= abs(uz) then
+				wx, wz, yaw = isle.x + (if ux > 0 then 1 else -1) * (s + 16), isle.z + 18, 12
+			else
+				wx, wz, yaw = isle.x + 18, isle.z + (if uz > 0 then 1 else -1) * (s + 16), 102
+			end
+			wreck(m, CFrame.new(wx, 0, wz) * CFrame.Angles(0, rad(yaw), 0))
+			local sd = s * 1.42 + 22
+			local sx, sz = isle.x + sd * sin(rad(home - 45)), isle.z + sd * cos(rad(home - 45))
+			seaStack(
+				m,
+				CFrame.new(sx, 0, sz) * CFrame.Angles(0, rad(home + 10), 0),
+				math.max(4, -world:heightAt(sx, sz))
+			)
 		elseif i == 2 then
-			-- a palm grove (cheap far palms: it is seen through the haze)
-			plant(world, sites, taken, 4, 16, 3, 21, land, farTree("palm", 1.7, 2.2, 21))
+			-- a palm grove (cheap far palms: it is seen through the haze) and, on the beach facing
+			-- the main island, a beach hut with a red-white parasol beside it
+			hut(m, rimSpot(world, isle, home, 14, 12, home), C.Orange, 1.4)
+			Kit.prop("parasol", m, rimSpot(world, isle, home, 10, -10), { color = C.Red, scale = 1.6 })
+			plant(world, sites, taken, 3, 16, 3, 21, land, farTree("palm", 1.7, 2.2, 21))
 		elseif i == 4 then
-			-- the big one (far out, mostly seen through the haze, so lean): a palm on the beach,
-			-- three pines on the upper terraces and a fisherman's hut with a blue roof facing the main
-			-- island
-			local cx, cz = isle.x - s * 0.25 * sin(rad(home + 180)), isle.z - s * 0.25 * cos(rad(home + 180))
-			local hutCf = Kit.ground(world, cx, cz, home)
-			hut(m, hutCf, C.Blue)
-			foundation(m, world, hutCf, 4.9, hutCf.Position.Y - 1, C.WoodDark)
-			table.insert(taken, { cx, cz })
-			plant(world, sites, taken, 3, 30, 3, 41, function(site)
+			-- the big one (far out, mostly seen through the haze, so lean): a palm on the beach and
+			-- a pine on the upper terraces
+			plant(world, sites, taken, 1, 30, 3, 41, function(site)
 				return site.h >= isle.height * 0.5
 			end, farTree("pine", 2.2, 2.7, 41))
 			plant(world, sites, taken, 1, 26, 3, 42, function(site)
@@ -465,6 +547,9 @@ local function buildOcean(map: any, cfg: any, world: any)
 			end, farTree("palm", 1.8, 2.2, 62))
 		end
 	end
+	-- a white-sand atoll with a turquoise pool out between the lighthouse and the palm grove
+	local ap = U.polar(62, 900, 0)
+	atoll(ocean, CFrame.new(ap.X, 0, ap.Z) * CFrame.Angles(0, rad(80), 0))
 	-- a rock arch (its opening facing the island) and a whale in open water between the coast
 	-- and the boundary wall, where they are seen from the outer beaches
 	local ra = openSea(cfg, world, 66, 24)
@@ -494,13 +579,13 @@ local function buildOcean(map: any, cfg: any, world: any)
 			EmissionDirection = U.Enum.NormalId.Top,
 		}, blow)
 	end
-	-- the swim limit: a ring of red and yellow marker buoys (every 12°, ~160 studs apart) just
+	-- the swim limit: a ring of red and yellow marker buoys (every 15°, ~200 studs apart) just
 	-- inside the invisible boundary wall, so swimmers heading for the islets see where the sea
 	-- ends (1 part each, bobbing; they keep clear of the arch and the whale)
 	local line = U.model(ocean, "BuoyLine")
 	local R = cfg.BoundaryRadius - 10
 	local keepOff = { U.polar(66, ra, 0), U.polar(160, wa, 0) }
-	local count = 30
+	local count = 24
 	for k = 0, count - 1 do
 		local a = (k + 0.5) * 360 / count
 		local p = U.polar(a, R, 0)
