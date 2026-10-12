@@ -10,35 +10,43 @@
 	    ВОРОТА» …) in the gateway colour, each with its own silhouette (see ARCHES): a harbour gate
 	    of timber masts with an anchor and a lifebuoy, a garden gate of clipped hedges under a
 	    rose pergola, a toy-block gate with a spinning pinwheel, a log gate with hanging lanterns;
-	  • stone-flag paving in its own footprint and its own layout — the axis from the arch to the
+	  • two-tone flagstone paving in its own footprint and its own layout — the axis from the arch to the
 	    hill path stays open, the centrepiece stands off it; every stall and board faces the plaza.
 	    The stalls are little timber pavilions (see stall): a plank floor on a stone kerb, posts
 	    and tie beams, a pitched roof with a fascia, a sign board on the roof, a striped awning, a
 	    counter with the goods, a back shelf, lanterns, crates.
-	      north (180) fish market   a square market (checker flags): the fish and the tackle
-	                                stall, a fountain with a bronze fish off the axis, a notice
-	                                board, lamps, barrels; wooden steps up the fishermen's slope
-	                                (drying racks, upturned and beached boats, fishers' cottages,
-	                                a net rack, crates, palms) to a deck by the lighthouse
+	      north (180) fish market   a square market (checker flags, a compass rose inlaid in
+	                                the middle): the fish and the tackle stall, a fountain off
+	                                the axis (light water in a foam ring, jets of stacked foam, a
+	                                bronze fish) in a ring of planters and benches, a notice
+	                                board, lamps; wooden steps up the fishermen's row (two
+	                                cottages, a net loft, a smokehouse with a fish-drying rack, a
+	                                rowboat on the grass) to a deck by the lighthouse
 	      east  (90)  flower garden round plaza with hedge beds round a cross of paths, a wishing
 	                                well among flowers off the axis, a rose pergola over the axis,
-	                                a photo frame, the flower stall; a ramped garden path between
-	                                tulip terraces, hedge mazes and topiaries to a gazebo
+	                                a photo frame, the flower stall; a ramped garden path past a
+	                                glasshouse and a potting shed, planted flower beds and a hedge
+	                                maze to a gazebo
 	      south (0)   playground    round plaza with a wood-chip play yard: a timber play fort
 	                                with a slide off the axis, a sandpit, swings, the ice cream
-	                                stall; a stone ramp path up a little farm (crop beds, a barn,
-	                                haystacks, a pumpkin patch, an orchard) to a lookout deck with
-	                                a long slide down
+	                                stall; a stone ramp path up a little farm (a big barn with a
+	                                ramp down into its paddock, a silo, crop beds, hay, a pumpkin
+	                                patch) to a lookout deck with a long slide down
 	      west  (270) picnic camp   a meadow with a paved path and a camp off the axis: a trodden
 	                                clearing round a fire pit with a cooking tripod and log seats,
 	                                two canvas tents; the souvenir stall, an upturned canoe, a
 	                                picnic table, firewood and a lantern on a plank patio; plank
-	                                stairs zigzag up past a camp to a lookout with a pergola
+	                                stairs zigzag up past more tents, a log cabin with a porch and
+	                                a ranger hut on stilts to a lookout with a pergola
 	  • the climb from the back of the plaza up the terraces to the viewpoint (Kit.stairs 1-stud
 	    steps, or Kit.rampPath slabs and wedge ramps), a lantern post beside it; the viewpoint
-	    stands on a solid plinth on the hilltop. District pieces stand only where the ground
-	    under their whole footprint is flat (nudged up to 8 studs to find such a spot); the
-	    theme's chunky trees (Kit.voxelTree) stand in groves on the terraces round them.
+	    stands on a solid plinth on the hilltop. The district on the terraces either side: two or
+	    three real buildings (see house: base course, walls, a roof with a filled gable, framed
+	    doors and windows, chimneys) and their yards, each standing only where the ground under
+	    its whole footprint is flat (nudged up to 8 studs to find such a spot); lanes of 1-stud
+	    steps from the climb to the buildings, lanterns at their ends, bush clumps and rocks at the
+	    foot of the terrace walls; the trees round them come from Nature (a view corridor from
+	    the plaza to every building is kept clear).
 
 	Local frame of a plaza: origin at its centre on the ground, +Z away from the lagoon (like a
 	base slot's frame), so the entry road comes in from -Z.
@@ -54,13 +62,13 @@ local Enum = U.Enum
 local C = Kit.C -- the Palette (tools/builder/Palette.luau)
 local mix = Kit.lerpColor
 
-local rad, max, min = math.rad, math.max, math.min
+local rad, max, min, abs, floor = math.rad, math.max, math.min, math.abs, math.floor
 
 local Gateways = {}
 
 local FLOOR = 0.35 -- plaza paving top above GroundTop
-local PAVE = mix(C.SandDark, C.Cobble, 0.35) -- warm stone flags ...
-local PAVE2 = mix(C.Cobble, C.SandDark, 0.25) -- ... and their second tone (paths, checker)
+local PAVE = C.Flagstone -- warm stone flags ...
+local PAVE2 = C.FlagstoneDark -- ... and their second tone (paths, checker)
 local KERB = C.CobbleDark -- borders round the paving
 local ROAD = mix(C.Brick, C.SandDark, 0.45) -- terracotta brick entry roads
 local EARTH = mix(C.Dirt, C.SandDark, 0.6) -- trodden earth (the camp clearing)
@@ -68,6 +76,8 @@ local CHIPS = mix(C.WoodLight, C.Dirt, 0.35) -- wood chips under the play fort
 local BRONZE = mix(C.Gold, C.WoodDark, 0.35) -- statues
 local BRASS = mix(C.Gold, C.WoodDark, 0.3) -- telescopes
 local INK = Kit.shade(C.WoodDark, 0.7) -- dark brown sign text on cream boards
+local POOL = U.rgb(120, 196, 226) -- light fountain water (DESIGN.md: falling and shallow water) ...
+local FOAM = U.rgb(240, 248, 252) -- ... and its foam
 local ROAD_TOP = 0.97 -- the entry road: a clear step (>= 0.15) over the promenade tiles
 
 -- Per-gateway details (keyed by bridge angle): the layout and the gateway's own colour (a calm
@@ -293,12 +303,12 @@ local function welcomeArch(parent: any, cf: any, text: string, color: any, kind:
 end
 
 --[[
-	Market stall (front = -Z, the customers' side): a little timber pavilion, about 28-30 parts —
-	a stone platform, four posts with tie beams, a pitched roof in the gateway colour with a cream
-	fascia and a dark ridge, a framed sign board standing on the roof's front slope, a striped
-	canvas awning with a valance over the counter, the counter (plank body, a dark plinth, a light
-	top) with the goods on it, a back wall with a shelf, two lanterns hanging inside the front
-	beam. goods: fish, tackle, flowers, icecream, souvenirs.
+	Market stall (front = -Z, the customers' side): a little timber pavilion, about 26-28 parts —
+	a stone platform, four posts with a front tie beam, a pitched roof in the gateway colour with a
+	cream fascia and a dark ridge, a framed sign board standing on the roof's front slope, a
+	striped canvas awning with a valance over the counter, the counter (plank body, a light top)
+	with the goods on it, a back wall with a shelf, two lanterns hanging inside the front beam.
+	goods: fish, tackle, flowers, icecream, souvenirs.
 ]]
 local function stall(parent: any, cf: any, text: string, color: any, goods: string)
 	local b = Kit.builder(parent, "Stall", cf)
@@ -306,8 +316,7 @@ local function stall(parent: any, cf: any, text: string, color: any, goods: stri
 	for i, p in { { -5.5, -3.4 }, { 5.5, -3.4 }, { 5.5, 3.4 }, { -5.5, 3.4 } } do
 		b:box(`Post{i}`, p[1] - 0.5, 0.85, p[2] - 0.5, p[1] + 0.5, 8.4, p[2] + 0.5, C.WoodDark)
 	end
-	b:box("BeamF", -6.2, 8, -4, 6.2, 8.9, -2.9, C.Wood)
-	b:box("BeamB", -6.2, 8, 2.9, 6.2, 8.9, 4, C.Wood)
+	b:box("BeamF", -6.2, 8, -4.05, 6.2, 8.9, -2.8, C.Wood)
 	-- the roof: eaves at 8.9, ridge at 12.5
 	gable(b, "Roof", -7.2, 7.2, -5.4, 5.4, 8.9, 3.6, color)
 	b:box("Fascia", -7.4, 8.5, -5.65, 7.4, 9.3, -5.25, C.Cream, Kit.NOSHADOW)
@@ -327,8 +336,7 @@ local function stall(parent: any, cf: any, text: string, color: any, goods: stri
 	b:box("Valance", -6.45, 5.9, -6.75, 6.45, 6.75, -6.45, color, Kit.NOSHADOW)
 	-- the counter
 	b:box("Counter", -5, 0.85, -3.5, 5, 3.6, -1.7, C.Wood)
-	b:box("Plinth", -5.1, 0.85, -3.65, 5.1, 1.35, -1.6, C.WoodDark, Kit.NOSHADOW)
-	b:box("CounterTop", -5.4, 3.6, -3.9, 5.4, 4.1, -1.4, C.WoodLight)
+	b:box("CounterTop", -5.4, 3.6, -3.95, 5.4, 4.1, -1.4, C.WoodLight)
 	-- the back wall and its shelf
 	b:box("BackWall", -5, 0.85, 3, 5, 7.8, 3.4, Kit.shade(C.Plank, 0.88))
 	b:box("Shelf", -5, 4.6, 1.9, 5, 5, 3, C.WoodLight, Kit.NOSHADOW)
@@ -430,17 +438,25 @@ end
 -- Centrepieces
 --------------------------------------------------------------------------------------------
 
--- Fountain: a stone basin (two crossed rims), water, four jets, a bronze fish on a pedestal.
+--[[
+	Fountain: an octagonal limestone basin (two crossed rims), light water in a white foam ring
+	along the rim (each a cross of two sheets, opaque), four jets of stacked foam cubes getting
+	smaller towards the top, a foam ring round the bronze fish rising out of the middle.
+]]
 local function fountain(parent: any, cf: any, color: any)
 	local b = Kit.builder(parent, "Fountain", cf)
-	local water = { CanCollide = false, CastShadow = false } -- opaque: the two sheets cross
-	local rim = b:box("Rim", -10.4, 0, -6.6, 10.4, 2.2, 6.6, C.StoneLight)
-	b:box("RimB", -6.6, 0.02, -10.4, 6.6, 2.22, 10.4, C.StoneLight)
-	b:box("Water", -9.2, 2.0, -5.4, 9.2, 2.5, 5.4, C.Water, water)
-	b:box("WaterB", -5.4, 2.02, -9.2, 5.4, 2.52, 9.2, C.Water, water)
+	local water = { CanCollide = false, CastShadow = false } -- opaque: the sheets cross
+	local rim = b:box("Rim", -10.4, 0, -6.6, 10.4, 2.2, 6.6, C.Limestone)
+	b:box("RimB", -6.6, 0.02, -10.4, 6.6, 2.22, 10.4, C.Limestone)
+	b:box("Foam", -9.4, 1.6, -5.6, 9.4, 2.4, 5.6, FOAM, water)
+	b:box("FoamB", -5.6, 1.62, -9.4, 5.6, 2.42, 9.4, FOAM, water)
+	b:box("Water", -8.4, 1.7, -4.6, 8.4, 2.5, 4.6, POOL, water)
+	b:box("WaterB", -4.6, 1.72, -8.4, 4.6, 2.52, 8.4, POOL, water)
+	b:box("Splash", -2.9, 2.3, -2.9, 2.9, 2.75, 2.9, FOAM, Kit.DECOR)
 	for i, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
-		local x, z = d[1] * 6.4, d[2] * 6.4
-		b:box(`Jet{i}`, x - 0.35, 2.4, z - 0.35, x + 0.35, 4.8, z + 0.35, mix(C.WaterLight, C.Foam, 0.4), Kit.DECOR)
+		local x, z = d[1] * 6.2, d[2] * 6.2
+		b:box(`Jet{i}`, x - 0.6, 2.4, z - 0.6, x + 0.6, 3.9, z + 0.6, mix(FOAM, POOL, 0.25), Kit.DECOR)
+		b:box(`JetTop{i}`, x - 0.35, 3.9, z - 0.35, x + 0.35, 5.1 + (i % 2) * 0.3, z + 0.35, FOAM, Kit.DECOR)
 	end
 	b:finish(rim)
 	-- the bronze fish on its pedestal rising out of the water (about 22 studs to the tail)
@@ -683,49 +699,6 @@ local function cropBed(parent: any, cf: any, w: number, d: number, crop: any, ta
 	return b:finish(soil)
 end
 
---[[
-	Barn (front = -Z, 11 parts): a stone base course, barn-red plank walls, a slate roof with the
-	gable to the front, a cream-framed double door with a cross brace, a hayloft hatch.
-]]
-local function barn(parent: any, cf: any)
-	local b = Kit.builder(parent, "Barn", cf)
-	local base = b:box("Base", -6.4, -0.6, -5.4, 6.4, 0.8, 5.4, C.StoneLight)
-	b:box("Body", -6, 0.8, -5, 6, 8, 5, C.RoofRed)
-	gable(b, "Roof", -7, 7, -5.8, 5.8, 8, 5.4, C.RoofSlate, true)
-	b:box("Eaves", -6.2, 7.6, -5.2, 6.2, 8.2, 5.2, C.Cream, Kit.NOSHADOW)
-	b:box("DoorFrame", -3.2, 0.8, -5.3, 3.2, 6.6, -4.9, C.Cream, Kit.NOSHADOW)
-	b:box("Door", -2.6, 0.8, -5.45, 2.6, 6, -5.2, C.WoodDark, Kit.NOSHADOW)
-	for i, a in { 45, -45 } do
-		b:block(
-			`Brace{i}`,
-			Vector3.new(0.5, 6.6, 0.2),
-			CFrame.new(0, 3.4, -5.55) * CFrame.Angles(0, 0, rad(a * 0.82)),
-			C.Cream,
-			Kit.DECOR
-		)
-	end
-	b:box("Hayloft", -1.6, 9, -5.95, 1.6, 11.4, -5.6, C.WoodDark, Kit.NOSHADOW)
-	return b:finish(base)
-end
-
--- Flower bed w x d (2 + about w / 5 parts): two rows of tulips along X, each a green stem strip
--- with the blooms on it in separate clumps (two tints, two heights by turns), not a plank.
-local function tulipBed(parent: any, cf: any, w: number, d: number, c1: any, c2: any)
-	local b = Kit.builder(parent, "TulipBed", cf)
-	local first = nil
-	for i, z in { -d / 4, d / 4 } do
-		local stems = b:box(`Stems{i}`, -w / 2 + 0.4, -0.3, z - 1.6, w / 2 - 0.4, 1.2, z + 1.6, C.Leaf1, Kit.DECOR)
-		first = first or stems
-		local c = if i == 1 then c1 else c2
-		for k, q in Kit.clumps(-w / 2 + 0.8, w / 2 - 0.8, 6.5, 1.8) do
-			local top = 2.3 + ((k + i) % 2) * 0.5
-			local tint = if k % 2 == 0 then mix(c, C.White, 0.2) else c
-			b:box(`Blooms{i}_{k}`, q[1], 1.1, z - 1.1, q[2], top, z + 1.1, tint, Kit.DECOR)
-		end
-	end
-	return b:finish(first)
-end
-
 -- Fish-drying rack (6 parts): two posts, a bar, three silver fish hanging from it.
 local function dryingRack(parent: any, cf: any)
 	local b = Kit.builder(parent, "DryingRack", cf)
@@ -737,22 +710,6 @@ local function dryingRack(parent: any, cf: any)
 		b:box(`Fish{i}`, x - 0.6, 3.6 + (i % 2) * 0.5, -0.3, x + 0.6, 6.6, 0.3, c, Kit.DECOR)
 	end
 	return b:finish(post)
-end
-
---[[
-	Fisher's cottage (front = -Z, 9 parts): a stone base course, plaster walls, a roof in the
-	gateway colour with the gable to the front, a plank door, a framed window, a brick chimney.
-]]
-local function hut(parent: any, cf: any, color: any)
-	local b = Kit.builder(parent, "Hut", cf)
-	local base = b:box("Base", -6.2, -0.6, -4.9, 6.2, 1, 4.9, C.StoneLight)
-	b:box("Body", -5.8, 1, -4.5, 5.8, 7.4, 4.5, C.Plaster)
-	gable(b, "Roof", -6.8, 6.8, -5.4, 5.4, 7.4, 4.4, color, true)
-	b:box("Door", -3.6, 1, -4.75, -1.2, 5.8, -4.45, C.WoodDark, Kit.NOSHADOW)
-	b:box("WindowFrame", 0.8, 2.8, -4.7, 4.4, 6, -4.45, C.WoodLight, Kit.NOSHADOW)
-	b:box("Window", 1.3, 3.3, -4.85, 3.9, 5.5, -4.6, C.WindowBlue, Kit.NOSHADOW)
-	b:box("Chimney", 2.6, 8, 1.4, 4.4, 12.6, 3.2, C.Brick)
-	return b:finish(base)
 end
 
 -- Picnic blanket (2 parts) with a cream stripe.
@@ -813,36 +770,21 @@ local function pumpkinPatch(parent: any, cf: any, w: number, d: number)
 	return b:finish(bed)
 end
 
--- Hedge maze 14 x 14 (7 parts, fits on one terrace): clipped walls in two greens (the lighter a
+-- Hedge maze 14 sx x 14 (7 parts, fits on one terrace): clipped walls in two greens (the lighter a
 -- little lower), a way in at the front, a baffle inside, a stone urn in the middle.
-local function hedgeMaze(parent: any, cf: any)
+local function hedgeMaze(parent: any, cf: any, sx: number?)
 	local b = Kit.builder(parent, "HedgeMaze", cf)
 	local dark, mid = C.Leaf1, C.Leaf2
-	local first = b:box("WallW", -7, -0.4, -7, -5.5, 3.6, 7, dark)
-	b:box("WallE", 5.5, -0.4, -7, 7, 3.6, 7, dark)
-	b:box("WallN", -5.5, -0.4, 5.5, 5.5, 3.2, 7, mid)
-	b:box("WallS1", -5.5, -0.4, -7, -1.8, 3.2, -5.5, mid)
-	b:box("WallS2", 1.8, -0.4, -7, 5.5, 3.2, -5.5, mid)
-	b:box("Baffle", -3.2, -0.4, -2.6, 5.5, 3.4, -1.2, dark)
+	local k = sx or 1 -- (stretched along X: the walls stay 1.5 thick)
+	local e, i = 7 * k, 7 * k - 1.5
+	local first = b:box("WallW", -e, -0.4, -7, -i, 3.6, 7, dark)
+	b:box("WallE", i, -0.4, -7, e, 3.6, 7, dark)
+	b:box("WallN", -i, -0.4, 5.5, i, 3.2, 7, mid)
+	b:box("WallS1", -i, -0.4, -7, -1.8, 3.2, -5.5, mid)
+	b:box("WallS2", 1.8, -0.4, -7, i, 3.2, -5.5, mid)
+	b:box("Baffle", -3.2 * k, -0.4, -2.6, i, 3.4, -1.2, dark)
 	b:box("Urn", -1.3, -0.4, 1.4, 1.3, 2.4, 4, C.StoneLight)
 	return b:finish(first)
-end
-
--- Fishing-net rack (3 parts): two posts and a teal net hung between them.
-local function netRack(parent: any, cf: any)
-	local b = Kit.builder(parent, "NetRack", cf)
-	local post = b:box("PostL", -5.4, -0.5, -0.45, -4.5, 6.2, 0.45, C.WoodDark)
-	b:box("PostR", 4.5, -0.5, -0.45, 5.4, 6.2, 0.45, C.WoodDark)
-	b:box("Net", -4.6, 1.6, -0.2, 4.6, 5.8, 0.2, mix(C.Cyan, C.Navy, 0.25), Kit.DECOR)
-	return b:finish(post)
-end
-
--- Two stacked crates (2 parts), the top one turned and smaller.
-local function crates(parent: any, cf: any, color: any)
-	local b = Kit.builder(parent, "Crates", cf)
-	local base = b:box("Crate", -1.8, -0.5, -1.8, 1.8, 3.1, 1.8, C.WoodLight)
-	b:block("Crate2", Vector3.new(2.6, 2.6, 2.6), CFrame.new(0.2, 4.4, -0.1) * CFrame.Angles(0, rad(20), 0), color)
-	return b:finish(base)
 end
 
 -- Firewood pile (2 parts): a wide stack of logs with a narrower layer on top.
@@ -874,77 +816,726 @@ local function fireRing(parent: any, cf: any)
 	return b:finish(ring)
 end
 
+--------------------------------------------------------------------------------------------
+-- District buildings: real little houses — a stone base course, walls, a pitched roof with a
+-- ridge beam and a filled gable, framed doors and windows with shutters and flower boxes,
+-- chimneys — lean enough (12-25 parts) for two or three on every hill
+--------------------------------------------------------------------------------------------
+
+-- A block on a wall face: face "-z" | "+z" | "-x" | "+x" (the wall's outward normal), p the
+-- plane of the wall, a0..a1 along it (x on the z faces, z on the x faces), d0..d1 out of it.
+local function onFace(
+	b: any,
+	name: string,
+	face: string,
+	p: number,
+	a0: number,
+	y0: number,
+	a1: number,
+	y1: number,
+	d0: number,
+	d1: number,
+	color: any,
+	extra: any?
+): any
+	if face == "-z" then
+		return b:box(name, a0, y0, p - d1, a1, y1, p - d0, color, extra)
+	elseif face == "+z" then
+		return b:box(name, a0, y0, p + d0, a1, y1, p + d1, color, extra)
+	elseif face == "-x" then
+		return b:box(name, p - d1, y0, a0, p - d0, y1, a1, color, extra)
+	end
+	return b:box(name, p + d0, y0, a0, p + d1, y1, a1, color, extra)
+end
+
+-- A gable triangle (2 wedges, the tall faces meeting in the middle): half width hw at its base
+-- y0, ht tall, th thick, in the plane z = c (axis "z") or x = c (axis "x").
+local function triangle(
+	b: any,
+	name: string,
+	axis: string,
+	c: number,
+	y0: number,
+	hw: number,
+	ht: number,
+	th: number,
+	color: any
+)
+	local y = y0 + ht / 2
+	if axis == "z" then
+		wedge(b, `{name}L`, Vector3.new(th, ht, hw), CFrame.new(-hw / 2, y, c) * CFrame.Angles(0, rad(90), 0), color)
+		wedge(b, `{name}R`, Vector3.new(th, ht, hw), CFrame.new(hw / 2, y, c) * CFrame.Angles(0, rad(-90), 0), color)
+	else
+		wedge(b, `{name}L`, Vector3.new(th, ht, hw), CFrame.new(c, y, -hw / 2), color)
+		wedge(b, `{name}R`, Vector3.new(th, ht, hw), CFrame.new(c, y, hw / 2) * CFrame.Angles(0, math.pi, 0), color)
+	end
+end
+
+-- A window on a wall face centred at a, sill at y0, ww x wh: a trim frame with the glass 0.1
+-- proud of it, shutters either side (one block behind the frame), a flower box with two blooms
+-- (o.box = { c1, c2 }). 2-6 parts.
+local function window(
+	b: any,
+	name: string,
+	face: string,
+	p: number,
+	a: number,
+	y0: number,
+	ww: number,
+	wh: number,
+	trim: any,
+	o: any?
+)
+	local hw = ww / 2
+	if o and o.shutter then
+		local sw = ww * 0.5
+		onFace(
+			b,
+			`{name}Shutters`,
+			face,
+			p,
+			a - hw - sw,
+			y0 + 0.15,
+			a + hw + sw,
+			y0 + wh - 0.15,
+			-0.1,
+			0.15,
+			o.shutter,
+			Kit.NOSHADOW
+		)
+	end
+	onFace(b, `{name}Frame`, face, p, a - hw, y0, a + hw, y0 + wh, -0.1, 0.25, trim, Kit.NOSHADOW)
+	onFace(
+		b,
+		`{name}Glass`,
+		face,
+		p,
+		a - hw + 0.45,
+		y0 + 0.45,
+		a + hw - 0.45,
+		y0 + wh - 0.45,
+		0,
+		0.35,
+		C.WindowBlue,
+		Kit.NOSHADOW
+	)
+	if o and o.box then
+		onFace(
+			b,
+			`{name}Box`,
+			face,
+			p,
+			a - hw + 0.1,
+			y0 - 1.1,
+			a + hw - 0.1,
+			y0 + 0.1,
+			0.05,
+			1.2,
+			C.WoodDark,
+			Kit.NOSHADOW
+		)
+		for i, sx in { -1, 1 } do
+			local c = a + sx * hw * 0.45
+			local top = y0 + 0.75 + (i % 2) * 0.25
+			onFace(b, `{name}Bloom{i}`, face, p, c - 0.6, y0 - 0.1, c + 0.6, top, 0.25, 1.05, o.box[i], Kit.DECOR)
+		end
+	end
+end
+
+-- A door on a wall face centred at a: a trim frame round the leaf (the leaf 0.1 proud). 2 parts.
+local function door(
+	b: any,
+	name: string,
+	face: string,
+	p: number,
+	a: number,
+	y0: number,
+	dw: number,
+	dh: number,
+	trim: any,
+	leaf: any
+)
+	onFace(
+		b,
+		`{name}Frame`,
+		face,
+		p,
+		a - dw / 2 - 0.5,
+		y0,
+		a + dw / 2 + 0.5,
+		y0 + dh + 0.5,
+		-0.1,
+		0.25,
+		trim,
+		Kit.NOSHADOW
+	)
+	onFace(b, name, face, p, a - dw / 2, y0, a + dw / 2, y0 + dh, 0, 0.35, leaf, Kit.NOSHADOW)
+end
+
+local WALL_PLANE = { ["-z"] = "d", ["+z"] = "d", ["-x"] = "w", ["+x"] = "w" }
+
+--[[
+	A real little house, front = -Z, standing on the ground at y = 0 (the floor is the top of a
+	stone base course at 0.9, which is also the doorstep). Walls up to s.h, a pitched roof of two
+	wedges (s.rise high) overhanging the walls, a ridge beam; the gable ends in s.fills (along the
+	ridge: -1 / 1; default the front one, or both with s.eaves) filled with a triangle in s.gable
+	0.15 in front of the roof's end and 0.8 under its slopes (the roof shows round it as a thick
+	border) on a dark tie beam, with an attic window (s.attic). s.eaves turns the ridge along X
+	(the eaves face the front). s.lower = { colour, top }: a stone ground storey 0.2 proud of the
+	walls. Door s.door (x on the front; s.doorW, s.doorH, s.leaf), windows s.win = { { face, a,
+	y0, w, h, shutter =, box = } }, chimney s.chimney = { x, z } (brick, a stone cap), a lantern
+	beside the door (s.lantern = -1 | 1). Returns the builder (b.base: the base course); the
+	caller adds its own details and finishes it. 12 + 2 per filled gable (+2 attic) + 2 door +
+	2-6 per window + 2 chimney + 1 lantern parts.
+]]
+local function house(parent: any, cf: any, s: any): any
+	local b = Kit.builder(parent, s.name or "House", cf)
+	local hw, hd, h = s.w / 2, s.d / 2, s.h
+	local B = 0.9
+	b.base = b:box("Base", -hw - 0.5, -0.8, -hd - 0.5, hw + 0.5, B, hd + 0.5, s.base or C.Stone)
+	b:box("Walls", -hw, B, -hd, hw, h, hd, s.wall)
+	local lower = 0
+	if s.lower then
+		lower = 0.2
+		b:box("Lower", -hw - 0.2, B, -hd - 0.2, hw + 0.2, s.lower[2], hd + 0.2, s.lower[1])
+	end
+	local y0, rise = h - 0.4, s.rise
+	local ov, og = s.ov or 1.1, s.og or 0.8
+	local ul, vl = if s.eaves then hw else hd, if s.eaves then hd else hw -- the walls along / across the ridge
+	local UL, VL = ul + og, vl + ov -- the roof
+	if s.eaves then
+		gable(b, "Roof", -UL, UL, -VL, VL, y0, rise, s.roof)
+		b:box(
+			"Ridge",
+			-UL - 0.25,
+			y0 + rise - 0.6,
+			-0.65,
+			UL + 0.25,
+			y0 + rise + 0.55,
+			0.65,
+			s.ridge or C.WoodDark,
+			Kit.NOSHADOW
+		)
+	else
+		gable(b, "Roof", -VL, VL, -UL, UL, y0, rise, s.roof, true)
+		b:box(
+			"Ridge",
+			-0.65,
+			y0 + rise - 0.6,
+			-UL - 0.25,
+			0.65,
+			y0 + rise + 0.55,
+			UL + 0.25,
+			s.ridge or C.WoodDark,
+			Kit.NOSHADOW
+		)
+	end
+	local k = rise / VL
+	local gy = y0 + 0.2
+	local ght = rise - 1
+	local ghw = ght / k
+	b.gable = { y = gy, ht = ght, hw = ghw, u = UL + 0.45 } -- (u: the plane of the triangles' fronts)
+	for _, su in s.fills or (if s.eaves then { -1, 1 } else { -1 }) do
+		local axis = if s.eaves then "x" else "z"
+		triangle(b, `Gable{su}`, axis, su * (UL + 0.3), gy, ghw, ght, 0.3, s.gable or s.wall)
+		local a0, a1 = su * (ul - 0.6), su * (UL + 0.55)
+		local u0, u1 = min(a0, a1), max(a0, a1)
+		if s.eaves then
+			b:box(`Tie{su}`, u0, y0 - 0.9, -ghw - 0.6, u1, gy, ghw + 0.6, C.WoodDark)
+		else
+			b:box(`Tie{su}`, -ghw - 0.6, y0 - 0.9, u0, ghw + 0.6, gy, u1, C.WoodDark)
+		end
+		if s.attic then
+			local wh = min(3, ght * 0.42)
+			local ww = min(2.8, wh)
+			local f0, f1, g0, g1 = su * (UL + 0.35), su * (UL + 0.6), su * (UL + 0.4), su * (UL + 0.7)
+			local ya = gy + 0.7
+			if s.eaves then
+				b:box(`Attic{su}Frame`, min(f0, f1), ya, -ww / 2, max(f0, f1), ya + wh, ww / 2, s.trim, Kit.NOSHADOW)
+				b:box(
+					`Attic{su}`,
+					min(g0, g1),
+					ya + 0.4,
+					-ww / 2 + 0.4,
+					max(g0, g1),
+					ya + wh - 0.4,
+					ww / 2 - 0.4,
+					C.WindowBlue,
+					Kit.DECOR
+				)
+			else
+				b:box(`Attic{su}Frame`, -ww / 2, ya, min(f0, f1), ww / 2, ya + wh, max(f0, f1), s.trim, Kit.NOSHADOW)
+				b:box(
+					`Attic{su}`,
+					-ww / 2 + 0.4,
+					ya + 0.4,
+					min(g0, g1),
+					ww / 2 - 0.4,
+					ya + wh - 0.4,
+					max(g0, g1),
+					C.WindowBlue,
+					Kit.DECOR
+				)
+			end
+		end
+	end
+	local front = -hd - lower
+	if s.door then
+		door(b, "Door", "-z", front, s.door, B, s.doorW or 2.8, s.doorH or 5.6, s.trim, s.leaf or C.WoodDark)
+		if s.lantern then
+			local lx = s.door + s.lantern * ((s.doorW or 2.8) / 2 + 1.6)
+			b:box("Lamp", lx - 0.55, B + 3.9, front - 0.95, lx + 0.55, B + 5.3, front + 0.1, C.Glow, Kit.NEON_DECOR)
+		end
+	end
+	for i, w in s.win or {} do
+		local p = if WALL_PLANE[w[1]] == "d" then hd else hw
+		if w[1] == "-z" or w[1] == "-x" then
+			p = -p
+		end
+		if w[1] == "-z" and w[3] < (if s.lower then s.lower[2] else 0) then
+			p = front
+		end
+		window(b, `Win{i}`, w[1], p, w[2], w[3], w[4], w[5], s.trim, w)
+	end
+	if s.chimney then
+		local cx, cz = s.chimney[1], s.chimney[2]
+		local across = if s.eaves then abs(cz) else abs(cx)
+		local top = y0 + rise * (1 - (across + 1.1) / VL) + 3
+		b:box("Chimney", cx - 1.1, h - 1, cz - 1.1, cx + 1.1, top, cz + 1.1, C.Brick)
+		b:box("ChimneyCap", cx - 1.45, top, cz - 1.45, cx + 1.45, top + 0.6, cz + 1.45, C.StoneDark, Kit.NOSHADOW)
+	end
+	return b
+end
+
+-- Shades of the district walls (one wall + one roof + one trim colour a building).
+local BARN_RED = mix(C.RoofRed, C.WoodDark, 0.22)
+local NET = mix(C.Cyan, C.Navy, 0.45)
+local GLASS = { Transparency = 0.45, CastShadow = false }
+local SAGE = mix(C.RoofGreen, C.Plank, 0.5)
+
+-- Fisher's cottage (gable to the front, ~23 parts): tinted plaster, a roof in the gateway
+-- colour, cream trim, a planked gable with an attic window, a shuttered window with a flower
+-- box, a side window towards `side` ("-x" / "+x"), a chimney, a lantern by the door.
+local function fisherCottage(parent: any, cf: any, color: any, tint: any, side: string, flowers: { any })
+	local m = if side == "+x" then 1 else -1
+	local b = house(parent, cf, {
+		name = "Cottage",
+		w = 14,
+		d = 10,
+		h = 9,
+		rise = 6,
+		wall = tint,
+		roof = color,
+		trim = C.Cream,
+		gable = C.WoodLight,
+		attic = true,
+		door = m * 3.2,
+		leaf = C.WoodDark,
+		lantern = m,
+		win = {
+			{ "-z", -m * 3, 3.4, 3.2, 3.2, shutter = color, box = flowers },
+			{ side, 0.6, 3.6, 3, 3 },
+		},
+		chimney = { -m * 3, 2.4 },
+	})
+	return b:finish(b.base)
+end
+
+--[[
+	Net loft (~24 parts): a tall plank storehouse on a stone ground storey, a roof in the gateway
+	colour, a wide door below, a loft door above it under a hoist beam with a crate on its rope,
+	nets with cork floats drying on the side wall towards `side`.
+]]
+local function netLoft(parent: any, cf: any, color: any, side: string)
+	local b = house(parent, cf, {
+		name = "NetLoft",
+		w = 11,
+		d = 10,
+		h = 14,
+		rise = 6.5,
+		wall = C.Plank,
+		roof = color,
+		trim = C.Cream,
+		gable = C.Wood,
+		lower = { C.StoneLight, 7 },
+		door = 0,
+		doorW = 4.2,
+		doorH = 5.4,
+		win = { { side, -0.5, 9, 2.8, 3 } },
+	})
+	door(b, "LoftDoor", "-z", -5, 0, 8.4, 3, 4.2, C.Cream, C.WoodDark)
+	local g = b.gable
+	local u = -g.u
+	b:box("Hoist", -0.5, g.y + g.ht - 2.4, u - 3.6, 0.5, g.y + g.ht - 1.4, -4, C.WoodDark)
+	b:box("Rope", -0.15, 11.4, u - 3.1, 0.15, g.y + g.ht - 2.4, u - 2.8, C.Rope, Kit.DECOR)
+	b:box("Bundle", -1.1, 9.4, u - 4.1, 1.1, 11.4, u - 1.8, C.WoodLight, Kit.DECOR)
+	local sx = if side == "+x" then 1 else -1
+	onFace(b, "Net", side, sx * 5.5, -3.2, 5.4, 0.2, 11.6, 0.05, 0.4, NET, Kit.DECOR)
+	onFace(b, "Net2", side, sx * 5.5, 0, 7.6, 2.8, 11.5, 0.1, 0.45, Kit.shade(NET, 0.85), Kit.DECOR)
+	onFace(b, "Floats", side, sx * 5.5, -3.6, 11.4, 3.2, 12.2, 0.15, 0.7, C.Orange, Kit.DECOR)
+	return b:finish(b.base)
+end
+
+-- Smokehouse (~14 parts): a squat stone house under a dark slate roof, a plank door, a louvred
+-- vent on the ridge with smoke curling out of it.
+local function smokehouse(parent: any, cf: any)
+	local b = house(parent, cf, {
+		name = "Smokehouse",
+		w = 8,
+		d = 8,
+		h = 6.5,
+		rise = 4.2,
+		wall = C.Stone,
+		roof = C.RoofSlate,
+		trim = C.WoodDark,
+		gable = C.StoneDark,
+		base = C.StoneDark,
+		door = 0,
+		doorW = 2.4,
+		doorH = 4.4,
+		leaf = C.Wood,
+	})
+	local vy = 6.1 + 4.2
+	b:box("Vent", -1.1, vy - 0.8, -1.4, 1.1, vy + 1.4, 1.4, C.WoodDark)
+	local cap = b:box("VentCap", -1.7, vy + 1.4, -2, 1.7, vy + 2.1, 2, C.RoofSlate, Kit.NOSHADOW)
+	Kit.smoke(cap, { rate = 2, size = 1.4, rise = 2.4 })
+	return b:finish(b.base)
+end
+
+--[[
+	The big barn (gable to the front, ~25 parts): barn-red plank walls on a stone base, a slate
+	roof, cream corner boards, a wide double door with cream X braces, the hayloft door in the
+	gable with hay poking out under a hoist beam, a lean-to shed on the left side.
+]]
+local function bigBarn(parent: any, cf: any)
+	local b = house(parent, cf, {
+		name = "Barn",
+		w = 16,
+		d = 13,
+		h = 10,
+		rise = 8,
+		wall = BARN_RED,
+		roof = C.RoofSlate,
+		trim = C.Cream,
+		gable = Kit.shade(BARN_RED, 0.9),
+		base = C.StoneLight,
+	})
+	local f = -6.5
+	door(b, "Door", "-z", f, 0, 0.9, 7, 7.2, C.Cream, C.WoodDark)
+	for i, a in { 1, -1 } do
+		b:block(
+			`Brace{i}`,
+			Vector3.new(0.55, 9.6, 0.25),
+			CFrame.new(0, 4.5, f - 0.45) * CFrame.Angles(0, 0, a * 0.77),
+			C.Cream,
+			Kit.DECOR
+		)
+	end
+	for i, sx in { -1, 1 } do
+		onFace(b, `Corner{i}`, "-z", f, sx * 8 - 0.45, 0.9, sx * 8 + 0.45, 9.65, -0.1, 0.2, C.Cream, Kit.NOSHADOW)
+	end
+	local g = b.gable
+	local u = -g.u
+	b:box("LoftFrame", -2.3, g.y + 0.3, u - 0.1, 2.3, g.y + 4.4, u + 0.25, C.Cream, Kit.NOSHADOW)
+	b:box("Loft", -1.8, g.y + 0.4, u - 0.2, 1.8, g.y + 3.9, u + 0.1, C.WoodDark, Kit.NOSHADOW)
+	b:box("Hay", -1.5, g.y + 0.5, u - 0.6, 1.5, g.y + 1.8, u + 0.05, C.Straw, Kit.DECOR)
+	b:box("Hoist", -0.5, g.y + 5, u - 3, 0.5, g.y + 5.9, u + 2, C.WoodDark)
+	-- the lean-to shed against the left wall, its pent roof falling away from the barn
+	b:box("Shed", -13, -0.5, -3, -8, 6, 5, mix(BARN_RED, C.WoodDark, 0.25))
+	wedge(
+		b,
+		"ShedRoof",
+		Vector3.new(9.6, 2.4, 6.2),
+		CFrame.new(-11.1, 7.2, 1) * CFrame.Angles(0, rad(90), 0),
+		C.RoofSlate
+	)
+	return b:finish(b.base)
+end
+
+-- Silo (7 parts): a round voxel tower of limestone (two crossed blocks) on a stone base, a
+-- stepped slate cap, a finial, a ladder up the front.
+local function silo(parent: any, cf: any)
+	local b = Kit.builder(parent, "Silo", cf)
+	local base = b:box("Base", -3.6, -0.8, -3.6, 3.6, 1.2, 3.6, C.Stone)
+	b:box("BodyA", -3.2, 1.2, -2.1, 3.2, 20, 2.1, C.Limestone)
+	b:box("BodyB", -2.1, 1.2, -3.2, 2.1, 20.05, 3.2, C.Limestone)
+	b:box("Cap", -2.8, 20, -2.8, 2.8, 22, 2.8, C.RoofSlate)
+	b:box("Cap2", -1.6, 22, -1.6, 1.6, 23.4, 1.6, C.RoofSlate, Kit.NOSHADOW)
+	b:box("Finial", -0.35, 23.4, -0.35, 0.35, 25.2, 0.35, C.Iron, Kit.DECOR)
+	b:box("Ladder", -0.6, 1.2, -3.55, 0.6, 19.5, -3.15, C.WoodDark, Kit.NOSHADOW)
+	return b:finish(base)
+end
+
+--[[
+	A rail fence (posts + one chunky rail a segment) along a polyline of local points {x, z}
+	in a builder frame on ground y (one height). 2n - 1 parts.
+]]
+local function fence(b: any, name: string, pts: { { number } }, y: number, color: any?)
+	for i, p in pts do
+		b:box(`{name}Post{i}`, p[1] - 0.55, y - 0.5, p[2] - 0.55, p[1] + 0.55, y + 3.6, p[2] + 0.55, C.WoodDark)
+		local q = pts[i + 1]
+		if q then
+			local a, c = Vector3.new(p[1], y + 2.5, p[2]), Vector3.new(q[1], y + 2.5, q[2])
+			b:block(
+				`{name}Rail{i}`,
+				Vector3.new(0.5, 0.75, (c - a).Magnitude),
+				CFrame.lookAt((a + c) / 2, c),
+				color or C.Wood,
+				Kit.NOSHADOW
+			)
+		end
+	end
+end
+
+-- Paddock w x d (~14 parts, front = -Z): a trodden earth floor, a rail fence round it with a
+-- gate gap on the +X side and one at the back at x = gx (the barn ramp), a water trough inside.
+-- No animals.
+local function paddock(parent: any, cf: any, w: number, d: number, gx: number)
+	local b = Kit.builder(parent, "Paddock", cf)
+	local x, z = w / 2, d / 2
+	local earth = b:box("Floor", -x + 0.3, -0.5, -z + 0.3, x - 0.3, 0.22, z - 0.3, EARTH, Kit.NOSHADOW)
+	fence(b, "FenceA", { { x, -2.5 }, { x, -z }, { -x, -z }, { -x, z }, { gx - 3.6, z } }, 0)
+	fence(b, "FenceB", { { gx + 3.6, z }, { x, z }, { x, 2.5 } }, 0)
+	b:box("Trough", -x + 2, -0.2, -z + 2, -x + 8, 1.6, -z + 4, C.Wood)
+	b:box("TroughWater", -x + 2.4, 1.2, -z + 2.4, -x + 7.6, 1.75, -z + 3.6, C.WaterLight, Kit.DECOR)
+	return b:finish(earth)
+end
+
+--[[
+	Glasshouse (~17 parts, the eaves to the front): a brick plinth, glass walls and a glass roof
+	(see-through) in a white frame — the eaves band, the ridge, mullions on the front — a white
+	door at the end, staging inside with seedlings and blooms.
+]]
+local function glasshouse(parent: any, cf: any, w: number, d: number, color: any)
+	local b = Kit.builder(parent, "Glasshouse", cf)
+	local x, z = w / 2, d / 2
+	local base = b:box("Plinth", -x - 0.4, -0.8, -z - 0.4, x + 0.4, 1.6, z + 0.4, C.Brick)
+	b:box("Glass", -x, 1.6, -z, x, 7.6, z, C.Glass, GLASS)
+	gable(b, "Roof", -x - 0.2, x + 0.2, -z - 0.6, z + 0.6, 7.4, 4.2, C.Glass)
+	for _, p in b.model:GetChildren() do
+		if p.Name == "RoofF" or p.Name == "RoofB" then
+			p.Transparency, p.CastShadow = 0.45, false
+		end
+	end
+	for i, sz in { -1, 1 } do
+		b:box(`Eaves{i}`, -x - 0.3, 7.2, sz * z - 0.3, x + 0.3, 7.8, sz * z + 0.3, C.White, Kit.NOSHADOW)
+	end
+	b:box("Ridge", -x - 0.5, 11.2, -0.5, x + 0.5, 11.9, 0.5, C.White, Kit.NOSHADOW)
+	for i = 1, 3 do
+		local mx = -x + i * w / 4
+		b:box(`Mullion{i}`, mx - 0.3, 1.6, -z - 0.25, mx + 0.3, 7.2, -z + 0.05, C.White, Kit.NOSHADOW)
+	end
+	for i, sx in { -1, 1 } do
+		b:box(`Corner{i}`, sx * x - 0.35, 1.6, -z - 0.35, sx * x + 0.35, 7.2, -z + 0.35, C.White, Kit.NOSHADOW)
+	end
+	onFace(b, "DoorFrame", "+x", x, -1.8, 1.6, 1.8, 7, -0.05, 0.45, C.White, Kit.NOSHADOW)
+	-- staging along the back wall with seedlings, flowers in the gateway colour and in white
+	b:box("Staging", -x + 1, 1.65, z - 3.2, x - 1, 3.6, z - 0.8, C.WoodLight)
+	b:box("Seedlings", -x + 1.4, 3.6, z - 2.9, x - 1.4, 4.6, z - 1.1, C.Leaf2, Kit.DECOR)
+	for i = 1, 3 do
+		local bx = -x + i * w / 4
+		b:box(`Blooms{i}`, bx - 1.1, 4.2, z - 2.7, bx + 1.1, 5.4, z - 1.3, if i == 2 then C.Cream else color, Kit.DECOR)
+	end
+	return b:finish(base)
+end
+
+-- Potting shed (~14 parts, front = -Z): sage plank walls under a pent roof in the gateway colour,
+-- a door and a window, a potting bench by the door with terracotta pots, a rake on the wall.
+local function pottingShed(parent: any, cf: any, color: any)
+	local b = Kit.builder(parent, "PottingShed", cf)
+	local base = b:box("Base", -4.5, -0.8, -3.5, 4.5, 0.8, 3.5, C.Stone)
+	b:box("Walls", -4, 0.8, -3, 4, 7.4, 3, SAGE)
+	wedge(b, "Roof", Vector3.new(10, 2.6, 8.2), CFrame.new(0, 8.4, -0.1), color)
+	b:box("Eaves", -4.3, 6.85, -3.4, 4.3, 7.3, 3.4, C.Cream, Kit.NOSHADOW)
+	door(b, "Door", "-z", -3, -1.8, 0.8, 2.4, 5, C.Cream, C.WoodDark)
+	window(b, "Win", "-z", -3, 2.2, 3.4, 2.6, 2.4, C.Cream)
+	-- the potting bench against the right wall
+	b:box("Bench", 4.4, 2.6, -2.6, 6.6, 3.1, 2.6, C.WoodLight)
+	b:box("BenchLegs", 4.6, -0.3, -2.4, 6.4, 2.6, 2.4, C.Wood, Kit.NOSHADOW)
+	for i, z in { -1.3, 1.2 } do
+		b:box(`Pot{i}`, 4.9, 3.1, z - 0.7, 6.1, 4.1, z + 0.7, C.RoofTerracotta, Kit.DECOR)
+		b:box(`Plant{i}`, 4.8, 4.1, z - 0.8, 6.2, 5.3, z + 0.8, if i == 1 then C.Leaf2 else color, Kit.DECOR)
+	end
+	b:box("Rake", -4.45, 1.2, 1, -4.05, 6.6, 1.4, C.Wood, Kit.DECOR)
+	return b:finish(base)
+end
+
+--[[
+	Log cabin (gable to the front, ~24 parts): bark walls with darker log courses, a roof in the
+	gateway colour, a cut-wood gable, a porch on two posts under a pent roof, a door and a
+	shuttered window, a stone chimney up the outside of the side wall away from `side`.
+]]
+local function logCabin(parent: any, cf: any, color: any, side: string)
+	local m = if side == "+x" then 1 else -1
+	local b = house(parent, cf, {
+		name = "LogCabin",
+		w = 13,
+		d = 10,
+		h = 8.6,
+		rise = 6,
+		wall = C.Bark,
+		roof = color,
+		trim = C.CutWood,
+		gable = C.CutWood,
+		base = C.StoneLight,
+		door = m * 2.6,
+		doorW = 2.6,
+		doorH = 5.4,
+		leaf = C.WoodDark,
+		win = { { "-z", -m * 3, 3.2, 3, 2.8 } },
+	})
+	for i, y in { 2.6, 4.6, 6.6 } do
+		b:box(`Logs{i}`, -6.7, y, -5.2, 6.7, y + 0.8, 5.2, C.BarkDark, Kit.NOSHADOW)
+	end
+	-- the chimney: stone, up the outside of the far side wall
+	local cx = -m * 7.4
+	b:box("Chimney", cx - 1.2, 0.9, 0.3, cx + 1.2, 17.2, 2.7, C.StoneLight)
+	b:box("ChimneyCap", cx - 1.5, 17.2, 0, cx + 1.5, 17.8, 3, C.StoneDark, Kit.NOSHADOW)
+	-- the porch: a plank floor, two posts, a pent roof
+	b:box("Porch", -6.5, -0.4, -9, 6.5, 1.15, -5.4, C.Plank)
+	for i, sx in { -1, 1 } do
+		b:box(`PorchPost{i}`, sx * 5.8 - 0.5, 1.15, -8.6, sx * 5.8 + 0.5, 6.6, -7.6, C.Bark)
+	end
+	wedge(b, "PorchRoof", Vector3.new(14, 1.6, 4.2), CFrame.new(0, 7.4, -7.6), color)
+	return b:finish(b.base)
+end
+
+--[[
+	Ranger hut (~19 parts): a little timber cabin on four stilts with a plank deck and a rail, a
+	roof in the gateway colour, a ladder up to the deck, a flag, a board «ЛЕСНИК» on the rail.
+]]
+local function rangerHut(parent: any, cf: any, color: any)
+	local b = Kit.builder(parent, "RangerHut", cf)
+	local first
+	for i, p in { { -4, -4 }, { 4, -4 }, { 4, 4 }, { -4, 4 } } do
+		local post = b:box(`Stilt{i}`, p[1] - 0.6, -0.6, p[2] - 0.6, p[1] + 0.6, 6, p[2] + 0.6, C.Bark)
+		first = first or post
+	end
+	b:box("Deck", -5.2, 5.4, -6.2, 5.2, 6.2, 5.2, C.Plank)
+	b:box("Cabin", -3.6, 6.2, -2.4, 3.6, 12, 4.4, C.WoodLight)
+	gable(b, "Roof", -4.8, 4.8, -3.4, 5.4, 11.6, 3.6, color)
+	b:box("Ridge", -5, 14.8, 0.5, 5, 15.6, 1.5, C.WoodDark, Kit.NOSHADOW)
+	door(b, "Door", "-z", -2.4, -1.4, 6.2, 2.2, 4.4, C.WoodDark, C.Wood)
+	window(b, "Win", "-z", -2.4, 1.8, 8, 2.4, 2.4, C.WoodDark)
+	b:box("RailF", -5.2, 8.6, -6.2, 5.2, 9.2, -5.6, C.Wood, Kit.NOSHADOW)
+	b:box("RailPostL", -5.35, 6.2, -6.35, -4.4, 9.45, -5.4, C.WoodDark)
+	b:box("RailPostR", 4.4, 6.2, -6.35, 5.35, 9.45, -5.4, C.WoodDark)
+	local sign = b:box("Sign", -2.6, 7.4, -6.5, 2.6, 9.6, -6.15, C.Cream)
+	Kit.sign(sign, Enum.NormalId.Front, "ЛЕСНИК", INK, nil, { pps = 30 })
+	b:pole("FlagPole", 0.4, 4.6, -5.4, 9.2, 19, C.WoodDark)
+	b:box("Flag", 4.8, 16, -5.55, 8, 18.4, -5.25, color, Kit.DECOR)
+	-- a ladder (a climbable truss, Roblox sizes them in 2-stud steps) up the right side
+	U.partCount += 1
+	U.new("TrussPart", {
+		Name = "Ladder",
+		Size = Vector3.new(2, 6, 2),
+		CFrame = cf * CFrame.new(6.2, 3.2, -3),
+		Color = C.Wood,
+		Material = Enum.Material.SmoothPlastic,
+		Anchored = true,
+		CanTouch = false,
+		Locked = true,
+	}, b.model)
+	return b:finish(first)
+end
+
 --[[
 	Per theme: the climb ("steps" stone stairs, "wood" plank stairs, "ramps" a paved path with
 	wedge ramps, "switchback" plank stairs in three legs to a deck off the axis), the lantern
 	spots beside it, the district pieces { kind, x, z, w, d, yaw, ... } on the terraces either
-	side (nudged to a flat spot nearby, dropped where there is none) and the trees { kind,
-	scale, seed, groves = { { x, z, count }, ... } } (see buildDistrict).
+	side (w x d: the footprint, which must be flat; nudged to a flat spot nearby, dropped where
+	there is none), the lanes { x0, z0, x1, z1 } from the climb to the buildings (1-stud steps
+	up the terrace walls, paved on the flats) and the number of riser dressings (bush clumps,
+	rocks and grass tufts at the foot of the terrace walls). The terraces behind every plaza
+	are 16-stud bands (z 44-60, 60-76, 76-92, ...) a step (4) higher each, split at x = ±16 (the
+	valley of the climb) and ±48 / ±64.
 ]]
 local DISTRICTS = {
-	-- south: a little farm — crop beds on the terraces (tall wheat and corn among them), a barn,
-	-- haystacks, a pumpkin patch, an orchard of fruit trees either side
+	-- south: a farm — a big barn with a ramp down into its paddock, a silo, crop beds, pumpkins
+	-- and hay on the right
 	playground = {
 		climb = "ramps",
-		lanterns = { { 5.6, 66 } },
+		lanterns = { { -7.5, 64 } },
 		pieces = {
-			{ "crop", -32, 52, 28, 12, 0, C.Straw, 3.2 },
-			{ "crop", 32, 52, 28, 12, 0, C.Leaf3 },
+			{ "barn", -42, 84, 23, 14, 0 },
+			{ "silo", -21, 84, 8, 8, 0 },
+			{ "paddock", -40, 68, 30, 12, 0 },
+			{ "crop", -32, 52, 26, 10, 0, C.Leaf3 },
+			{ "crop", 32, 52, 28, 12, 0, C.Straw, 3.2 },
 			{ "crop", 40, 68, 40, 12, 0, mix(C.Straw, C.Leaf3, 0.45), 3.4 },
-			{ "barn", -40, 100, 14, 12, -90 },
-			{ "hay", -58, 100, 7, 5, 20 },
-			{ "pumpkins", 52, 100, 14, 8, 0 },
+			{ "pumpkins", 36, 84, 16, 9, 0 },
+			{ "hay", 54, 84, 7, 5, 20 },
 		},
-		trees = { kind = "fruit", scale = 1.6, seed = 11, groves = { { -72, 64, 1 }, { 74, 72, 1 } } },
+		lanes = { { -4.5, 68, -25.5, 68 } },
+		lane = { C.Flagstone, C.FlagstoneDark },
+		risers = 4,
 	},
-	-- east: a flower garden — tulip terraces either side of a ramped garden path, hedge mazes,
-	-- clipped topiary trees
+	-- east: a flower garden — a glasshouse and a potting shed on the right, planted flower beds
+	-- on the left terraces, a hedge maze up the hill
 	garden = {
 		climb = "ramps",
-		lanterns = { { 5.6, 58 } },
+		lanterns = { { 7.5, 63.5 } },
 		pieces = {
-			{ "tulips", -32, 52, 28, 12, 0, C.Flowers[1], C.Flowers[2] },
-			{ "tulips", 32, 52, 28, 12, 0, C.Flowers[4], C.Flowers[3] },
-			{ "tulips", -40, 68, 40, 12, 0, C.Flowers[3], C.Flowers[7] },
-			{ "maze", 40, 68, 14, 14, 0 },
-			{ "maze", -40, 100, 14, 14, 90 },
+			{ "glasshouse", 36, 69.5, 26, 11, 0 },
+			{ "shed", 57, 69.5, 12, 9, 0 },
+			{ "bed", -32, 52, 22, 6, 0, { C.Flowers[1], C.Cream } },
+			{ "bed", 32, 52, 22, 6, 0, { C.Flowers[4], C.Pink } },
+			{ "maze", -40, 68, 23, 14, 0, 1.6 },
 		},
-		trees = { kind = "topiary", scale = 1.5, seed = 23, groves = { { -70, 70, 1 }, { 70, 96, 1 } } },
+		lanes = { { 4.5, 62.4, 56, 62.4 } },
+		lane = { PAVE, PAVE2 },
+		risers = 4,
 	},
-	-- north: the fishermen's slope — fish-drying racks, upturned and beached boats, fishers'
-	-- cottages, a net rack, crates, palms
+	-- north: the fishermen's row — two cottages on the left, the net loft and the smokehouse
+	-- with its fish-drying rack on the right, a rowboat pulled up on the grass
 	market = {
 		climb = "wood",
-		lanterns = { { 5.6, 58 } },
+		lanterns = { { -6.5, 64.5 } },
 		pieces = {
-			{ "rack", -30, 52, 12, 3, 0 },
-			{ "boat", 32, 52, 15, 12, 90 },
-			{ "boat", -36, 68, 15, 12, -70 },
-			{ "hut", -40, 84, 14, 11, -90 },
-			{ "hut", 40, 84, 14, 11, 90 },
-			{ "net", -56, 60, 12, 3, 20 },
-			{ "crates", 22, 84, 5, 5, 0, C.Wood },
-			{ "rowboat", 60, 72, 6, 11, -30, C.BoatPaint[1] },
+			{ "cottage", -27, 69.5, 15, 12, 0, mix(C.Plaster, C.Blue, 0.1), { C.Flowers[1], C.Cream } },
+			{ "cottage", -45, 69.5, 15, 12, 0, C.PlasterShade, { C.Flowers[2], C.Flowers[6] } },
+			{ "netloft", 35, 69.5, 14, 12, 0 },
+			{ "smokehouse", 50, 84, 10, 10, 0 },
+			{ "rack", 32, 84, 12, 3, 0 },
+			{ "rowboat", -40, 84, 6, 11, -80, C.BoatPaint[1] },
 		},
-		trees = { kind = "palm", scale = 1.5, seed = 31, groves = { { -70, 78, 1 }, { 68, 98, 1 } } },
+		lanes = { { -4.5, 62.4, -47, 62.4 }, { 4.5, 62.4, 38, 62.4 } },
+		lane = { C.WoodLight, C.Plank },
+		risers = 4,
 	},
-	-- west: a camp — tents round a fire ring, a blanket, firewood, pines; the path zigzags up to a
-	-- lookout off the axis
+	-- west: a camp — tents round a fire on the right, a log cabin with a porch above them, a ranger
+	-- hut on stilts on the left where the zigzag path turns
 	picnic = {
 		climb = "switchback",
 		deckX = -24,
 		turnZ = 80,
-		lanterns = { { 5.6, 62 } },
+		lanterns = { { 6.2, 73.4 } },
 		pieces = {
 			{ "clearing", 32, 52, 30, 13, 0, EARTH },
 			{ "tent", 23, 52, 10, 10, -60, C.RoofTerracotta },
 			{ "tent", 42, 52, 10, 10, -110, C.RoofGreen },
 			{ "fire", 32.5, 52, 6, 6, 0 },
-			{ "blanket", 44, 70, 8, 8, 20, C.Red },
-			{ "logs", 22, 66, 6, 4, 10 },
+			{ "cabin", 40, 84, 18, 14.5, 0 },
+			{ "ranger", -48, 84, 15, 12, 0 },
+			{ "blanket", 44, 68, 8, 8, 20, C.Red },
+			{ "logs", 24, 68, 6, 4, 10 },
 		},
-		trees = { kind = "pine", scale = 1.6, seed = 47, groves = { { 66, 70, 1 }, { -66, 96, 1 } } },
+		lanes = { { 3.5, 77.8, 32, 77.8 }, { -27.5, 81, -41.5, 81 } },
+		lane = { C.WoodLight, C.Plank },
+		risers = 4,
 	},
+}
+
+local BUILDINGS = {
+	barn = true,
+	silo = true,
+	cottage = true,
+	netloft = true,
+	smokehouse = true,
+	glasshouse = true,
+	shed = true,
+	cabin = true,
+	ranger = true,
 }
 
 local PIECES = {
@@ -957,14 +1548,8 @@ local PIECES = {
 	pumpkins = function(parent: any, cf: any, q: any)
 		pumpkinPatch(parent, cf, q[4], q[5])
 	end,
-	maze = function(parent: any, cf: any)
-		hedgeMaze(parent, cf)
-	end,
-	net = function(parent: any, cf: any)
-		netRack(parent, cf)
-	end,
-	crates = function(parent: any, cf: any, q: any)
-		crates(parent, cf, q[7])
+	maze = function(parent: any, cf: any, q: any)
+		hedgeMaze(parent, cf, q[7])
 	end,
 	rowboat = function(parent: any, cf: any, q: any)
 		beachedBoat(parent, cf, q[7])
@@ -972,20 +1557,8 @@ local PIECES = {
 	logs = function(parent: any, cf: any)
 		logPile(parent, cf)
 	end,
-	barn = function(parent: any, cf: any)
-		barn(parent, cf)
-	end,
-	tulips = function(parent: any, cf: any, q: any)
-		tulipBed(parent, cf, q[4], q[5], q[7], q[8])
-	end,
 	rack = function(parent: any, cf: any)
 		dryingRack(parent, cf)
-	end,
-	boat = function(parent: any, cf: any, _q: any, color: any)
-		boatYard(parent, cf, color)
-	end,
-	hut = function(parent: any, cf: any, _q: any, color: any)
-		hut(parent, cf, color)
 	end,
 	tent = function(parent: any, cf: any, q: any)
 		tent(parent, cf, q[7])
@@ -995,6 +1568,17 @@ local PIECES = {
 	end,
 	blanket = function(parent: any, cf: any, q: any)
 		blanket(parent, cf, q[7])
+	end,
+	-- a planted flower bed: stems with blooms in two tones, a limestone kerb
+	bed = function(parent: any, cf: any, q: any)
+		Kit.prop("flowerBed", parent, cf, {
+			width = q[4] - 1,
+			depth = q[5] - 1,
+			colors = q[7],
+			spacing = 2.5,
+			max = 9,
+			seed = floor(q[2] * 7 + q[3]),
+		})
 	end,
 	-- a trodden earth clearing under a group of pieces (1 part)
 	clearing = function(parent: any, cf: any, q: any)
@@ -1008,16 +1592,154 @@ local PIECES = {
 			Kit.NOSHADOW
 		)
 	end,
+	cottage = function(parent: any, cf: any, q: any, color: any)
+		fisherCottage(parent, cf, color, q[7], if q[2] < 0 then "+x" else "-x", q[8])
+	end,
+	netloft = function(parent: any, cf: any, q: any, color: any)
+		netLoft(parent, cf, color, if q[2] < 0 then "+x" else "-x")
+	end,
+	smokehouse = function(parent: any, cf: any)
+		smokehouse(parent, cf)
+	end,
+	-- the barn (its lean-to on the left, so the model sits right of the footprint's centre) with a
+	-- plank ramp from its door down into the paddock on the terrace below
+	barn = function(parent: any, cf: any)
+		local bcf = cf * CFrame.new(2.85, 0, 0)
+		local m = bigBarn(parent, bcf)
+		Kit.ramp(m, (bcf * CFrame.new(0, 0.9, -6.9)).Position, (bcf * CFrame.new(0, -3.75, -15.5)).Position, {
+			width = 6,
+			thick = 0.8,
+			color = C.Plank,
+			name = "Ramp",
+		})
+	end,
+	silo = function(parent: any, cf: any)
+		silo(parent, cf)
+	end,
+	paddock = function(parent: any, cf: any, q: any)
+		paddock(parent, cf, q[4], q[5], 0.85)
+	end,
+	glasshouse = function(parent: any, cf: any, q: any, color: any)
+		glasshouse(parent, cf, q[4] - 2, q[5] - 2, color)
+	end,
+	shed = function(parent: any, cf: any, _q: any, color: any)
+		pottingShed(parent, cf * CFrame.new(-1, 0, 0), color)
+	end,
+	-- the cabin's porch reaches out in front, so the model sits behind the footprint's centre
+	cabin = function(parent: any, cf: any, q: any, color: any)
+		logCabin(parent, cf * CFrame.new(0, 0, 1.75), color, if q[2] < 0 then "+x" else "-x")
+	end,
+	ranger = function(parent: any, cf: any, _q: any, color: any)
+		rangerHut(parent, cf * CFrame.new(-1, 0, 0), color)
+	end,
 }
+
+--[[
+	Riser dressing: bush clumps (two leaf blocks, some with a bloom), rocks (a stone with a
+	lighter top) and grass tufts at the foot of the district's terrace walls (the 4-stud grass
+	risers), their backs 0.3 into the wall: spots where the ground 2.5 studs on (uphill, or
+	sideways) is one step higher and the spot itself is flat, unclaimed and clear of the climb;
+	a spread-out pick (16+ apart) of up to n. 1-3 parts each.
+]]
+local RISER_BLOOMS = { C.Pink, C.Cream, C.Yellow, C.Flowers[1], C.Purple, C.Orange }
+
+local function dressRisers(model: any, world: any, origin: any, G: number, n: number, seed: number)
+	local r = Kit.rng(seed)
+	local function ground(x: number, z: number): number
+		local p = (origin * CFrame.new(x, 0, z)).Position
+		return world:heightAt(p.X, p.Z)
+	end
+	local spots = {}
+	for z = 44, 132, 2 do
+		for x = -76, 76, 2 do
+			local h = ground(x, z)
+			local p = (origin * CFrame.new(x, 0, z)).Position
+			if abs(x) > 11 and h > G - 0.1 and not Kit.isClaimed(p.X, p.Z, 3) and not world:isReserved(p.X, p.Z, 2) then
+				for _, d in { { 0, 1 }, { if x < 0 then -1 else 1, 0 } } do
+					local up = ground(x + d[1] * 2.5, z + d[2] * 2.5)
+					local sx, sz = d[2], d[1] -- along the wall
+					if
+						up == h + 4
+						and ground(x - d[1] * 2, z - d[2] * 2) == h
+						and ground(x + sx * 2.5, z + sz * 2.5) == h
+						and ground(x - sx * 2.5, z - sz * 2.5) == h
+					then
+						table.insert(spots, { x = x, z = z, h = h, dx = d[1], dz = d[2], score = r() - z / 90 })
+					end
+				end
+			end
+		end
+	end
+	table.sort(spots, function(a, b)
+		return a.score > b.score
+	end)
+	local placed = {}
+	local count = 0
+	for _, s in spots do
+		if count >= n then
+			break
+		end
+		local ok = true
+		for _, o in placed do
+			if (o[1] - s.x) ^ 2 + (o[2] - s.z) ^ 2 < 16 * 16 then
+				ok = false
+				break
+			end
+		end
+		if ok then
+			count += 1
+			table.insert(placed, { s.x, s.z })
+			-- the wall: step on from the spot until the ground rises
+			local t = 0
+			while t < 3 and ground(s.x + s.dx * t, s.z + s.dz * t) == s.h do
+				t += 0.25
+			end
+			local wx, wz = s.x + s.dx * (t - 0.25), s.z + s.dz * (t - 0.25)
+			local yaw = math.atan2(s.dx, s.dz) -- local +Z into the wall
+			local cf = origin * CFrame.new(wx, s.h - G, wz) * CFrame.Angles(0, yaw, 0)
+			local kind = count % 5
+			local b = Kit.builder(model, if kind == 1 or kind == 4 then "Rocks" else "Bush", cf)
+			local o = r(-1.2, 1.2) -- sideways
+			if kind == 1 or kind == 4 then
+				local w = r(3, 4.4)
+				local stone = b:box("Rock", o - w / 2, -0.6, -2.4, o + w / 2, r(1.8, 2.8), 0.4, C.Stone)
+				b:box(
+					"RockTop",
+					o - w / 2 + 0.5,
+					1.2,
+					-1.8,
+					o + w / 2 - 0.9,
+					r(2.9, 3.4),
+					0.5,
+					C.StoneLight,
+					Kit.NOSHADOW
+				)
+				if kind == 4 then
+					b:box("Tuft", o + w / 2 - 0.4, -0.3, -2.8, o + w / 2 + 1.6, 1.4, -1, C.Leaf2, Kit.DECOR)
+				end
+				b:finish(stone)
+			else
+				local w = r(4.2, 5.6)
+				local bush = b:box("Leaves", o - w / 2, -0.4, -3, o + w / 2, r(2.8, 3.6), 0.4, C.Leaf1, Kit.DECOR)
+				b:box("Top", o - w / 2 + 0.8, 2.2, -2.3, o + w / 2 - 1.2, r(3.9, 4.6), 0.5, C.Leaf3, Kit.DECOR)
+				if kind == 2 then
+					local c = RISER_BLOOMS[floor(r(1, #RISER_BLOOMS + 0.99))]
+					b:box("Bloom", o + w / 2 - 2.2, 2.4, -3.3, o + w / 2 - 0.8, 3.7, -2, c, Kit.DECOR)
+				end
+				b:finish(bush)
+			end
+			Kit.claim((cf.Position).X, (cf.Position).Z, 3)
+		end
+	end
+end
 
 -- Builds the district of a theme on the hill behind its plaza (origin: the plaza frame on the
 -- ground at GroundTop G). Each piece stands where the ground under its whole footprint is flat:
 -- at its spot, or the nearest spot up to 8 studs off it that is flat, clear of the climb (open,
--- |x| > 9) and of the pieces placed before it. Then the theme's trees (Kit.voxelTree, an orchard,
--- topiaries, palms or pines) in groves round their centres { x, z, count }: each tree on the
--- free spot nearest its grove's centre whose ground under the trunk is flat and not claimed
--- (the plaza, the climb, the viewpoint, the pieces), at least 14 studs from the other trees.
-local function buildDistrict(parent: any, world: any, origin: any, G: number, d: any, color: any)
+-- |x| > 9) and of the pieces placed before it. Then the lanes from the climb to the buildings,
+-- the lanterns and the riser dressing (which keeps off everything claimed). The trees round the
+-- district come from Nature (its gateway wedge pass), which keeps off the claims.
+local function buildDistrict(parent: any, world: any, origin: any, G: number, d: any, color: any, seed: number)
 	local model = U.model(parent, "District")
 	local function ground(x: number, z: number): number
 		local p = (origin * CFrame.new(x, 0, z)).Position
@@ -1085,7 +1807,14 @@ local function buildDistrict(parent: any, world: any, origin: any, G: number, d:
 			if q[1] ~= "clearing" then -- (a clearing is the floor under the pieces on it)
 				table.insert(placed, { x - w / 2, z - dd / 2, x + w / 2, z + dd / 2 })
 			end
-			-- claims along the long side (Nature keeps its trees off the beds)
+			-- a view corridor from the plaza to every building (no tree of Nature in front of it)
+			if BUILDINGS[q[1]] then
+				for t = 0.25, 0.8, 0.15 do
+					local p = (origin * CFrame.new(x * t, 0, 20 + (z - 20) * t)).Position
+					Kit.claim(p.X, p.Z, 7)
+				end
+			end
+			-- claims along the long side (Nature keeps its trees off the pieces)
 			local long, short = max(w, dd), min(w, dd)
 			for t = -long / 2 + short / 2, long / 2 - short / 2 + 0.01, short do
 				local lx, lz = if w >= dd then x + t else x, if w >= dd then z else z + t
@@ -1094,74 +1823,32 @@ local function buildDistrict(parent: any, world: any, origin: any, G: number, d:
 			end
 		end
 	end
-	-- the groves
-	local t = d.trees
-	if t then
-		local r = Kit.rng(t.seed)
-		local spots = {}
-		for gz = 42, 140, 6 do
-			for gx = -104, 104, 6 do
-				local x, z = gx + r(-2, 2), gz + r(-2, 2)
-				local p = (origin * CFrame.new(x, 0, z)).Position
-				local h = ground(x, z)
-				local ok = math.abs(x) > 14
-					and h > G
-					and world:kindAt(p.X, p.Z) ~= "sand"
-					and not world:isReserved(p.X, p.Z, 4)
-					and not Kit.isClaimed(p.X, p.Z, 6)
-					and flat(x, z, 3, 3) == h
-				if ok then
-					table.insert(spots, { x = x, z = z, h = h })
-				end
-			end
-		end
-		local trees: { { number } } = {}
-		local left = {}
-		for gi, g in t.groves do
-			left[gi] = g[3]
-		end
-		-- round robin over the groves, each taking its nearest free spot
-		local more = true
-		while more do
-			more = false
-			for gi, g in t.groves do
-				if left[gi] > 0 then
-					local best, bd = nil, math.huge
-					for _, s in spots do
-						local dist = (s.x - g[1]) ^ 2 + (s.z - g[2]) ^ 2
-						if dist < bd then
-							local clear = true
-							for _, o in trees do
-								if (s.x - o[1]) ^ 2 + (s.z - o[2]) ^ 2 < 14 * 14 then
-									clear = false
-									break
-								end
-							end
-							if clear then
-								best, bd = s, dist
-							end
-						end
-					end
-					if best then
-						table.insert(trees, { best.x, best.z })
-						left[gi] -= 1
-						more = more or left[gi] > 0
-						local yaw = math.floor(r(0, 3.99)) * 90 + r(-15, 15)
-						local cf = origin * CFrame.new(best.x, best.h - G, best.z) * CFrame.Angles(0, rad(yaw), 0)
-						Kit.voxelTree(model, cf, t.kind, { scale = t.scale * r(0.9, 1.1) })
-						local p = cf.Position
-						Kit.claim(p.X, p.Z, 6)
-					end
-				end
-			end
+	-- the lanes from the climb to the buildings: 1-stud steps up the terrace walls, paved on the
+	-- flats
+	for i, l in d.lanes or {} do
+		local a = (origin * CFrame.new(l[1], 0, l[2])).Position
+		local b = (origin * CFrame.new(l[3], 0, l[4])).Position
+		Kit.stairs(model, world, Vector3.new(a.X, 0, a.Z), Vector3.new(b.X, 0, b.Z), {
+			width = 3.2,
+			color = d.lane[1],
+			color2 = d.lane[2],
+			pave = true,
+			name = `Lane{i}`,
+		})
+		for t = 0, 1, 0.25 do
+			local p = a:Lerp(b, t)
+			Kit.claim(p.X, p.Z, 3.5)
 		end
 	end
 	for _, l in d.lanterns do
 		local h = flat(l[1], l[2], 2.6, 2.6)
 		if h then
 			lantern(model, origin * CFrame.new(l[1], h - G, l[2]), color)
+			local p = (origin * CFrame.new(l[1], 0, l[2])).Position
+			Kit.claim(p.X, p.Z, 2.5)
 		end
 	end
+	dressRisers(model, world, origin, G, d.risers or 0, seed)
 	return model
 end
 
@@ -1189,22 +1876,33 @@ local function marketPlaza(model: any, at: any, paving: any, view: any, h: any):
 			end
 		end
 	end
-	-- the fountain off the axis (front right), two stalls facing the square
+	-- a compass rose inlaid where the four middle flags meet
+	paving:box("CompassNS", -0.9, -0.4, -7, 0.9, FLOOR + 0.2, 7, C.Limestone, Kit.NOSHADOW)
+	paving:box("CompassEW", -7, -0.4, -0.9, 7, FLOOR + 0.18, 0.9, C.Limestone, Kit.NOSHADOW)
+	paving:box("CompassHub", -2, -0.4, -2, 2, FLOOR + 0.26, 2, color, Kit.NOSHADOW)
+	-- the fountain off the axis (front right) in a ring of planters and benches, two stalls
+	-- facing the square
 	fountain(model, at(13, -8), color)
+	for i, p in { { 13, -21, 0 }, { 26, -8, -90 } } do
+		Kit.bench(model, at(p[1], p[2], p[3]), { length = 7, color = C.WoodLight, legs = C.WoodDark })
+	end
+	for i, p in { { 22.5, -18 }, { 3.5, -18 } } do
+		Kit.prop("planter", model, at(p[1], p[2], 45), {
+			variant = if i == 1 then "flowers" else "topiary",
+			color = C.Limestone,
+			colors = { C.Flowers[1], C.Flowers[5] },
+			scale = 1.15,
+			seed = i * 3,
+		})
+	end
 	-- (every stall and board faces the square: front = -Z turned towards the centre)
 	stall(model, at(-24, -10, -90), "РЫБА", color, "fish")
 	stall(model, at(26, 18, 60), "СНАСТИ", color, "tackle")
 	noticeBoard(model, at(-28, 10, -90), color)
-	Kit.prop("barrel", model, at(-19.6, 25), { color = C.Wood })
-	-- fish crates stacked by the fish stall, lamps in the square's back corners
-	local cr = Kit.builder(model, "FishCrates", at(-17.5, -19, 10))
-	cr:box("Crate", -1.6, -0.3, -1.4, 1.6, 2.2, 1.4, C.WoodLight)
-	cr:box("Crate2", -1.3, 2.2, -1.1, 1.5, 4, 1.2, C.Wood, Kit.NOSHADOW)
-	cr:finish()
+	-- lamps in the square's back corners
 	for i, p in { { -31, 31 }, { 31, 31 } } do
 		Kit.lamp(model, at(p[1], p[2]), { trim = C.Iron, post = C.WoodDark, name = `Lamp{i}` })
 	end
-	Kit.bench(model, at(14, 28, 180), { length = 7, color = C.WoodLight, legs = C.WoodDark })
 	-- up the hill: a fenced deck beside the lighthouse (rails, bench, telescope)
 	local z0 = h.deckZ0
 	local top = plinth(view, h.world, h.origin, -17, z0, 17, z0 + 20, C.StoneLight)
@@ -1497,7 +2195,7 @@ local function buildGateway(parent: any, cfg: any, world: any, gw: any)
 	local deck = (viewOrigin * CFrame.new(0, 0, deckZ0 + 8)).Position
 	Kit.claim(deck.X, deck.Z, 18)
 	-- the district last: its trees keep off everything claimed above
-	buildDistrict(model, world, origin, G, district, color)
+	buildDistrict(model, world, origin, G, district, color, 7000 + gw.index * 31)
 	return model
 end
 
