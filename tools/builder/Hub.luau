@@ -14,26 +14,29 @@
 	θ = 0/90/180/270, r ≈ 118: their avenues stay open from the bridge to the fountain.
 
 	Layout (r = distance from the island centre):
-	  centre       «Золотая рыбка» fountain: turquoise basin, tiered pedestal with water curtains
-	               and a huge crowned golden fish (top ~49 studs) slowly circling on a water spout
-	               (Spin attribute, turned by the client's AmbientController); a round
-	               paved plaza (r 50, peach checker ring), a ring of benches and lamps 22.5° off
-	               the avenues and the shop diagonals (clear walkways to every bridge and counter);
-	               HubSpawn at θ 180, r 38, facing the fountain, two planters behind it
+	  centre       «Золотая рыбка» fountain: turquoise basin with a gold band, tiered pedestal
+	               with water curtains and a huge crowned golden fish (top ~49 studs) slowly
+	               circling on a water spout (Spin attribute, turned by the client's
+	               AmbientController); a round paved plaza (r 50, warm sand checker), a ring of
+	               benches and lamps 22.5° off the avenues and the shop diagonals (clear walkways
+	               to every bridge and counter); HubSpawn at θ 180, r 38, facing the fountain, two
+	               planters behind it
 	  avenues      θ = 0/90/180/270, 25 wide: coral bricks between white kerbs from the plaza to
-	               the bridge (r 46..119), two lamp pairs with bunting, flowering hedges, a tall
-	               welcome gate «ОСТРОВ РЫБАКОВ» (inner side «ХОРОШЕГО КЛЁВА!») at r 104 whose sign
-	               shows above the bridge arch, and tall palms at the avenue end
-	  θ 45         Shop «УДОЧКИ» — yellow/red shop, giant rod with a hooked fish on the sign,
-	               rod wall, display cases, counter, an old captain
+	               the bridge (r 46..119) and a light coral runner from the fountain basin to the
+	               bridge (a cross through the plaza), two lamp pairs with bunting, flowering
+	               hedges, a tall welcome gate «ОСТРОВ РЫБАКОВ» (inner side «ХОРОШЕГО КЛЁВА!») at
+	               r 104 whose sign shows above the bridge arch, and tall palms at the avenue end
+	  θ 45         Shop «УДОЧКИ» — yellow/red shop, giant rod with a hooked fish twirling on the
+	               line, rod wall, display cases, counter, an old captain
 	  θ 315        FishMarket «РЫБНЫЙ РЫНОК» — seaside market hall: striped cyan posts, blue/white
 	               roof, blue/yellow awning, blue ice counters with fish, scales, a fishmonger, a
-	               jumping fish on the roof, a fish relief on the back
-	  θ 135        Workshop «МАСТЕРСКАЯ» — orange/purple garage: workbench, anvil, forge, gear
-	               sign, chimney with smoke, a mechanic in a hard hat
+	               jumping fish turning on the roof like a weather vane, a fish relief on the back
+	  θ 135        Workshop «МАСТЕРСКАЯ» — orange/purple garage: workbench, anvil, forge, a turning
+	               gear on the sign, chimney with smoke, a mechanic in a hard hat
 	               (the shops face the fountain from r 58; customers stand on the porch, r 49..60)
 	  θ 225        fun fair: Ferris wheel, three food kiosks with giant treats, a picnic table and a
-	               rainbow balloon ride tethered ~70 studs up (a landmark seen from every base)
+	               rainbow balloon ride tethered ~70 studs up, slowly turning (a landmark seen from
+	               every base)
 	  lawns        8 pastel cottages on the outer ring (doors towards the beach),
 	               garden behind the Shop, boat yard behind the Workshop, fish yard behind the
 	               market, big oaks
@@ -47,7 +50,8 @@
 	Every building is modelled in a local frame (origin = front centre at ground level, local −Z
 	towards the fountain), so the customer side of every counter is local −Z; prompts sit 3 studs
 	above the porch, just in front of the counter.
-	Budget: ≤ 1900 parts and ≤ 12 PointLights (the build fails above either).
+	Budget: ≤ 1900 parts and ≤ 12 PointLights (the build fails above either); the hub is
+	planned at ≤ 1800 parts (DESIGN.md §3), the margin absorbs changes of the Props it uses.
 ]]
 
 local U = require("./Util")
@@ -74,8 +78,8 @@ local MAX_LIGHTS = 12
 --------------------------------------------------------------------------------
 
 local H = {
-	tileA = rgb(255, 244, 222), -- plaza paving (light)
-	tileB = rgb(255, 210, 166), -- plaza checker (peach)
+	tileA = rgb(246, 214, 160), -- plaza paving (warm sand: cream/white stay for kerbs and trims)
+	tileB = rgb(236, 196, 140), -- plaza checker (a shade darker)
 	brick = rgb(242, 126, 96), -- avenue bricks (coral)
 	brickLight = rgb(255, 160, 124),
 	skin = rgb(255, 206, 158),
@@ -296,7 +300,8 @@ end
 	Big cartoon voxel fish lying along local X (head at −X), its side towards ±Z, centred on the
 	frame origin; s scales it (s = 1: ~27 long, ~16 tall). pal: body, head, belly, fin, lips,
 	spots. opts.crown (golden crown with gems), opts.simple (10 parts: no belly, fins, scales,
-	shine). 16-24 parts. opts.extra (property set for the big parts).
+	shine), opts.side = −1 | 1 (a relief: eye, shine and spot only on that Z side, the other one
+	is in the wall). 16-24 parts. opts.extra (property set for the big parts).
 ]]
 local function bigFish(F: any, s: number, pal: { [string]: any }, opts: { [string]: any }?): any
 	local o = opts or {}
@@ -320,7 +325,8 @@ local function bigFish(F: any, s: number, pal: { [string]: any }, opts: { [strin
 	b("TailStem", 5.6, -2.6, -2.1, 9.6, 2.6, 2.1, pal.body, big)
 	b("TailUp", 9.2, 1.2, -1.2, 13.4, 7.8, 1.2, pal.fin, big)
 	b("TailDown", 9.2, -7.8, -1.2, 13.4, -1.2, 1.2, pal.fin, big)
-	for i, sz in { -1, 1 } do
+	local sides = if o.side then { o.side } else { -1, 1 }
+	for i, sz in sides do
 		b(`Eye{i}`, -11.4, -0.2, sz * 2.95, -8.0, 3.6, sz * 3.35, C.White, DECOR)
 		b(`Pupil{i}`, -10.9, 0.4, sz * 3.25, -8.9, 2.8, sz * 3.6, C.Dark, DECOR)
 	end
@@ -329,7 +335,7 @@ local function bigFish(F: any, s: number, pal: { [string]: any }, opts: { [strin
 		b("Dorsal", -4.4, 4.6, -1.1, 3.2, 8.8, 1.1, pal.fin, big)
 		b("FinL", -4, -3.6, -4.8, 0.4, -1.4, -3.4, pal.fin, NOSHADOW)
 		b("FinR", -4, -3.6, 3.4, 0.4, -1.4, 4.8, pal.fin, NOSHADOW)
-		for i, sz in { -1, 1 } do
+		for i, sz in sides do
 			b(`Shine{i}`, -10.5, 2.0, sz * 3.45, -9.8, 2.6, sz * 3.72, C.White, DECOR)
 			b(`Spot{i}`, -3.6, -0.6, sz * 3.5, 0.6, 3.0, sz * 3.68, pal.spots or pal.belly, DECOR)
 		end
@@ -366,12 +372,12 @@ end
 	Voxel gear facing −Z in the local XY plane, centre (cx, cz), outer radius r: a rounded body
 	(plus of two blocks), 4 square teeth on the axes and 4 on the diagonals (pixel-art steps), and
 	a hub. The teeth overlap the body (one solid piece) and are a little thinner, so no faces are
-	coplanar. 11 parts.
+	coplanar. 11 parts. Returns the body, centred on the gear with LookVector = the axle.
 ]]
-local function gear(F: any, cx: number, cy: number, cz: number, r: number, t: number, color: any, hub: any)
+local function gear(F: any, cx: number, cy: number, cz: number, r: number, t: number, color: any, hub: any): any
 	local b = r * 0.62
 	local k = r * 0.38
-	F:box("Gear", cx - b, cy - k, cz - t / 2, cx + b, cy + k, cz + t / 2, color)
+	local body = F:box("Gear", cx - b, cy - k, cz - t / 2, cx + b, cy + k, cz + t / 2, color)
 	F:box("GearB", cx - k, cy - b, cz - t / 2 - 0.1, cx + k, cy + b, cz + t / 2 + 0.1, color)
 	local tw = r * 0.34
 	local tz = t / 2 - 0.1 -- teeth are 0.2 thinner than the body
@@ -401,6 +407,7 @@ local function gear(F: any, cx: number, cy: number, cz: number, r: number, t: nu
 		cz + t / 2 + 0.25,
 		hub
 	)
+	return body
 end
 
 --[[
@@ -431,6 +438,26 @@ local function flowerBed(F: any, cx: number, cz: number, w: number, d: number, c
 		local top = 2.6 + (i % 3) * 0.18 -- bottoms sink into the green cushion (top 1.8)
 		F:box(`Flower{i}`, x - 0.6, 1.6, z - 0.6, x + 0.6, top, z + 0.6, colors[(i - 1) % #colors + 1], DECOR)
 	end
+end
+
+--[[
+	Chunky street lamp standing on cf: stone foot, dark post, a trim plate, a big Neon cube and a
+	cap (the silhouette of Props.lampPost without its collar and knob, for the hub's 20 lamps).
+	light = true adds a PointLight. 5 parts.
+]]
+local function streetLamp(parent: any, cf: any, h: number, trim: any, light: boolean?): any
+	local F = newFrame(U.model(parent, "LampPost"), cf)
+	F:box("Foot", -1.2, -0.4, -1.2, 1.2, 1.0, 1.2, C.StoneLight)
+	local post = F:box("Post", -0.5, 0.9, -0.5, 0.5, h, 0.5, C.WoodDark)
+	F:box("Plate", -1.5, h - 0.05, -1.5, 1.5, h + 0.45, 1.5, trim, NOSHADOW)
+	local glow = F:box("Glow", -1.12, h + 0.45, -1.12, 1.12, h + 2.95, 1.12, C.Glow, NEON)
+	F:box("Cap", -1.7, h + 2.95, -1.7, 1.7, h + 3.7, 1.7, trim, NOSHADOW)
+	if light then
+		pointLight(glow, 16, 1.6)
+	end
+	F.model.PrimaryPart = post
+	post.PivotOffset = post.CFrame:Inverse() * cf
+	return F.model
 end
 
 --------------------------------------------------------------------------------
@@ -572,9 +599,18 @@ local function buildShop(hub: any, cf: any): (any, any)
 	local hookY, fs = h + 29, 0.4
 	F:box("Line", tipPos.X - 0.12, hookY, -0.12, tipPos.X + 0.12, tipPos.Y, 0.12, C.White, DECOR)
 	-- the fish's lips (fish-local (−13.8, −1.2)) hang on the hook, the body wriggles down-right
-	local hooked =
-		F:sub(CFrame.new(tipPos.X, hookY, 0) * CFrame.Angles(0, 0, rad(-52)) * CFrame.new(13.8 * fs, 1.2 * fs, 0))
-	bigFish(hooked, fs, { body = C.Orange, head = rgb(255, 176, 70), fin = C.Red, lips = C.Pink }, { simple = true })
+	-- and slowly twirls on the line (Spin about the vertical through the hook)
+	local hook = CFrame.new(tipPos.X, hookY, 0)
+	local hooked = F:child("HookedFish", hook * CFrame.Angles(0, 0, rad(-52)) * CFrame.new(13.8 * fs, 1.2 * fs, 0))
+	local hookedBody = bigFish(
+		hooked,
+		fs,
+		{ body = C.Orange, head = rgb(255, 176, 70), fin = C.Red, lips = C.Pink },
+		{ simple = true }
+	)
+	hooked.model.PrimaryPart = hookedBody
+	hookedBody.PivotOffset = hookedBody.CFrame:Inverse() * (F.cf * hook * CFrame.Angles(rad(90), 0, 0))
+	hooked.model:SetAttribute("Spin", 30)
 
 	-- subtitle on the lintel, awning, lifebuoy on the pillar
 	local sub = F:box("SubSign", -12.5, OPEN + 1.4, -0.1, 12.5, OPEN + 7, 0.45, C.White, NOSHADOW)
@@ -673,9 +709,11 @@ local function buildWorkshop(hub: any, cf: any): (any, any)
 		)
 	end
 
-	-- sign with a big gear on top
+	-- sign with a big gear on top, slowly turning (Spin about its axle)
 	signBoard(F, "Sign", -16, 16, h + 2, h + 11, -1.2, rgb(124, 70, 224), C.Lime, "МАСТЕРСКАЯ")
-	gear(F, 0, h + 19, -1.2, 6.4, 1.4, C.Yellow, C.Orange)
+	local cog = F:child("SignGear")
+	cog.model.PrimaryPart = gear(cog, 0, h + 19, -1.2, 6.4, 1.4, C.Yellow, C.Orange)
+	cog.model:SetAttribute("Spin", -24)
 
 	-- rolled-up garage door under the lintel, subtitle
 	F:box("DoorRoll", -OH, OPEN - 2, 0.6, OH, OPEN - 0.5, 3.4, C.Yellow, NOSHADOW)
@@ -708,7 +746,7 @@ local function buildWorkshop(hub: any, cf: any): (any, any)
 	Props.crate(F.model, F:at(17.3, FL, 4.1), { size = 3.2, color = C.Yellow, seed = 6 })
 	shopkeeper(F, 0, FL, 9, { shirt = C.Blue, pants = C.Blue, sleeve = C.Orange, hat = "hardhat", goggles = true })
 
-	-- interior: pegboard with tools, a glowing forge, a boat motor on a stand
+	-- interior: pegboard with tools, a glowing forge
 	F:box("Pegboard", -9.6, 4, bi - 0.6, 14, 15, bi, C.Cream, NOSHADOW)
 	local pz0, pz1 = bi - 1.0, bi - 0.6
 	F:box("PegWrench", -7.2, 5.5, pz0, -6.0, 12.5, pz1, C.Red, DECOR)
@@ -722,9 +760,6 @@ local function buildWorkshop(hub: any, cf: any): (any, any)
 	F:box("ForgeHood", -wi, 6.4, 24, -13.4, 10, bi, C.Red)
 	F:box("ForgeFlue", -17.4, 10, 26, -15.4, h, 28, C.Red, NOSHADOW)
 	pointLight(glow, 14, 1.6, rgb(255, 160, 80))
-	F:box("MotorStand", 14, FL, 20, 17.4, 3.2, 25, C.Wood)
-	F:box("Motor", 14.7, 3.2, 21.4, 16.7, 7.0, 23.6, C.Red)
-	F:box("MotorCap", 14.5, 7.0, 21.2, 16.9, 7.8, 23.8, C.White, NOSHADOW)
 
 	-- outside: a giant wrench leaning on the wall, barrels on the porch
 	local wrench = F:sub(CFrame.new(-HW - 2.6, 0, 14) * CFrame.Angles(0, 0, rad(-12)))
@@ -778,7 +813,7 @@ local function buildFishMarket(hub: any, cf: any): (any, any)
 		relief,
 		0.5,
 		{ body = C.Orange, head = rgb(255, 176, 70), fin = C.Yellow, lips = C.Pink },
-		{ simple = true }
+		{ simple = true, side = -1 }
 	)
 	local fresh = F:box("FreshBoard", -11, 9, D - 3.7, 11, 14, D - 3.2, C.Yellow, NOSHADOW)
 	signText(fresh, Enum.NormalId.Front, "СВЕЖАЯ РЫБА", C.Navy)
@@ -795,10 +830,19 @@ local function buildFishMarket(hub: any, cf: any): (any, any)
 	signBoard(F, "Sign", -19, 19, top + 1.8, top + 10.8, -4.0, blue, C.Cyan, "РЫБНЫЙ РЫНОК")
 	awning(F, -HW - 1, HW + 1, top, -1.2, 6, 7, blue, C.Yellow)
 
-	-- big fish jumping on the roof top
+	-- big fish jumping on the roof top, turning on its pole like a weather vane
 	F:box("FishPole", -0.6, roofTop, D / 2 - 0.6, 0.6, roofTop + 6, D / 2 + 0.6, white, NOSHADOW)
-	local jumper = F:sub(CFrame.new(0, roofTop + 8.4, D / 2) * CFrame.Angles(0, 0, rad(-18)))
-	bigFish(jumper, 0.62, { body = C.Cyan, head = rgb(120, 236, 240), fin = blue, lips = C.Pink }, { simple = true })
+	local vane = CFrame.new(0, roofTop + 8.4, D / 2)
+	local jumper = F:child("JumpingFish", vane * CFrame.Angles(0, 0, rad(-18)))
+	local jumperBody = bigFish(
+		jumper,
+		0.62,
+		{ body = C.Cyan, head = rgb(120, 236, 240), fin = blue, lips = C.Pink },
+		{ simple = true }
+	)
+	jumper.model.PrimaryPart = jumperBody
+	jumperBody.PivotOffset = jumperBody.CFrame:Inverse() * (F.cf * vane * CFrame.Angles(rad(90), 0, 0))
+	jumper.model:SetAttribute("Spin", 14)
 
 	-- front ice counter with fish, the «Продать рыбу» panel and the scales (low: the fishmonger's
 	-- face stays visible); side wings and crates of fish close the front
@@ -845,21 +889,50 @@ end
 
 local PLAZA_R = 50 -- radius of the round central plaza
 
--- Round plaza (rows of 8 studs, light) with a peach checker of 8-stud tiles in a ring.
+--[[
+	Round plaza: rows of 8 studs in warm sand with a checker of darker 8-stud tiles out to the
+	rim. The tile grid is centred on the axes and leaves the axis cells free: the avenues'
+	coral runners (buildAvenues) cross the plaza there, from the basin to every bridge.
+]]
 local function buildPlaza(hub: any, G: number)
 	local F = newFrame(U.model(hub, "Plaza"), CFrame.new(0, G, 0))
+	local rows = {} -- row z0 → half width
 	for z0 = -56, 48, 8 do
 		local zm = abs(z0 + 4)
 		local w = floor(sqrt(math.max(0, PLAZA_R * PLAZA_R - zm * zm)) / 4 + 0.5) * 4
 		if w > 0 then
-			F:box("Paving", -w, -0.3, z0, w, 0.2, z0 + 8, H.tileA, FLAT)
+			rows[z0] = w
 		end
 	end
-	for gz = -6, 5 do
-		for gx = -6, 5 do
-			local cx, cz = gx * 8 + 4, gz * 8 + 4
-			local r = sqrt(cx * cx + cz * cz)
-			if (gx + gz) % 2 == 0 and r > 21 and r < PLAZA_R - 10 then
+	-- one slab per run of rows of the same width
+	local z0 = -56
+	while z0 <= 48 do
+		local w = rows[z0]
+		local z1 = z0 + 8
+		while w and rows[z1] == w do
+			z1 += 8
+		end
+		if w then
+			F:box("Paving", -w, -0.3, z0, w, 0.2, z1, H.tileA, FLAT)
+		end
+		z0 = z1
+	end
+	-- a tile goes down only where both rows under it are paved wide enough
+	local function paved(x: number, z0: number): boolean
+		local w = rows[z0]
+		return w ~= nil and abs(x) + 4 <= w
+	end
+	for gz = -6, 6 do
+		for gx = -6, 6 do
+			local cx, cz = gx * 8, gz * 8
+			if
+				gx ~= 0
+				and gz ~= 0
+				and (gx + gz) % 2 ~= 0
+				and sqrt(cx * cx + cz * cz) > 21
+				and paved(cx, cz - 8)
+				and paved(cx, cz)
+			then
 				F:box("Tile", cx - 4, 0.1, cz - 4, cx + 4, 0.35, cz + 4, H.tileB, FLAT)
 			end
 		end
@@ -867,11 +940,11 @@ local function buildPlaza(hub: any, G: number)
 end
 
 --[[
-	«Золотая рыбка» fountain: an octagonal turquoise basin with a white rim and water, a tiered
-	pedestal with a gold band, a plus-shaped upper bowl with water curtains falling into the
-	basin (foam where they land), and a stepped water spout carrying a huge crowned golden fish
-	(tilted nose-up) that spits an arc of water and slowly circles about the spout (Spin), so
-	every avenue sees it from all sides.
+	«Золотая рыбка» fountain: an octagonal turquoise basin with a gold band, a white rim and
+	water, a tiered pedestal with a gold band, a plus-shaped upper bowl with water curtains
+	falling into the basin (foam where they land), and a stepped water spout carrying a huge
+	crowned golden fish (tilted nose-up) that spits an arc of water and slowly circles about the
+	spout (Spin), so every avenue sees it from all sides.
 ]]
 local function buildFountain(hub: any, G: number)
 	local F = newFrame(U.model(hub, "Fountain"), CFrame.new(0, G + 0.25, 0))
@@ -888,19 +961,32 @@ local function buildFountain(hub: any, G: number)
 			y0: number,
 			y1: number,
 			name: string,
-			c: any
+			c: any,
+			ex: { [string]: any }?
 		)
 			if d[1] ~= 0 then
-				F:box(name, d[1] * b0, y0, a0, d[1] * b1, y1, a1, c)
+				F:box(name, d[1] * b0, y0, a0, d[1] * b1, y1, a1, c, ex)
 			else
-				F:box(name, a0, y0, d[2] * b0, a1, y1, d[2] * b1, c)
+				F:box(name, a0, y0, d[2] * b0, a1, y1, d[2] * b1, c, ex)
 			end
 		end
 		along(-half, half, r0, r1, -0.3, 3.2, `BasinWall{i}`, H.basin)
 		along(-half - 0.4, half + 0.4, r0 - 0.4, r1 + 0.4, 3.2, 3.9, `BasinRim{i}`, white)
+		along(-half, half, r1 - 0.3, r1 + 0.15, 1.0, 1.9, `BasinBand{i}`, C.Gold, NOSHADOW)
 	end
 	for i, d in { { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do
 		F:box(`BasinCorner{i}`, d[1] * half, -0.3, d[2] * half, d[1] * (r0 + 1.2), 3.2, d[2] * (r0 + 1.2), H.basin)
+		F:box(
+			`BasinCornerBand{i}`,
+			d[1] * (half + 0.6),
+			1.0,
+			d[2] * (half + 0.6),
+			d[1] * (r0 + 1.35),
+			1.9,
+			d[2] * (r0 + 1.35),
+			C.Gold,
+			NOSHADOW
+		)
 		F:box(
 			`BasinCornerRim{i}`,
 			d[1] * (half - 0.4),
@@ -1030,11 +1116,7 @@ local function buildPlazaFurniture(hub: any, G: number)
 	for k = 0, 3 do
 		local a = 22.5 + k * 90
 		Props.bench(m, U.polarCFrame(a, 28.5, G + 0.2), { length = 8, color = C.WoodLight, seed = 40 + k })
-		Props.lampPost(
-			m,
-			U.polarCFrame(a + 45, 30, G + 0.2),
-			{ height = 10, color = C.Festive[k * 2 + 1], light = true, seed = 50 + k }
-		)
+		streetLamp(m, U.polarCFrame(a + 45, 30, G + 0.2), 10, C.Festive[k * 2 + 1], true)
 	end
 end
 
@@ -1054,12 +1136,12 @@ local BLOOMS = { C.Pink, C.Yellow, C.Red, C.Orange, rgb(255, 150, 200) }
 -- Welcome gate over an avenue at radial distance z: pastel pillars striped in the avenue colour
 -- with gold balls, a beam and a big sign: «ОСТРОВ РЫБАКОВ» for visitors coming off the bridge,
 -- «ХОРОШЕГО КЛЁВА!» for players heading back to their bases; tall enough to show above the bridge
--- arch. 21 parts.
+-- arch. 20 parts.
 local function welcomeGate(F: any, z: number, accent: any)
 	local m = F:child("WelcomeGate")
 	for i, sx in { -1, 1 } do
 		m:box(`GateBase{i}`, sx * 14.4, -0.3, z - 2.6, sx * 20.4, 1.8, z + 2.6, shade(accent, 0.8))
-		m:box(`GatePillar{i}`, sx * 15.4, 1.8, z - 2, sx * 19.4, 30, z + 2, lerpColor(accent, C.White, 0.62))
+		m:box(`GatePillar{i}`, sx * 15.4, 1.8, z - 2, sx * 19.4, 30, z + 2, lerpColor(accent, C.White, 0.5))
 		for k, y0 in { 6, 13, 20 } do
 			m:box(`GateBand{i}_{k}`, sx * 15.2, y0, z - 2.2, sx * 19.6, y0 + 2, z + 2.2, accent, NOSHADOW)
 		end
@@ -1088,9 +1170,12 @@ local function buildAvenues(hub: any, cfg: any, G: number)
 	for i, angle in cfg.BridgeAngles do
 		local F = radialFrame(U.model(root, `Avenue{i}`), angle, G)
 		local accent = AVENUE_ACCENT[(i - 1) % #AVENUE_ACCENT + 1]
-		-- paving: coral bricks, light cross bands, white kerbs
+		-- paving: coral bricks, a light runner from the fountain basin to the bridge (it crosses
+		-- the plaza on the free axis cells of its checker), light cross bands up to the gate,
+		-- white kerbs
 		F:box("Bricks", -11, -0.3, AVENUE_START, 11, 0.35, AVENUE_END, H.brick, FLAT)
-		for z = AVENUE_START + 14, AVENUE_END - 6, 24 do
+		F:box("Runner", -4, 0.05, 19.2, 4, 0.42, AVENUE_END, H.brickLight, FLAT)
+		for z = AVENUE_START + 14, GATE_Z - 6, 24 do
 			F:box("Band", -10.9, 0.1, z, 10.9, 0.5, z + 2, H.brickLight, FLAT)
 		end
 		for j, sx in { -1, 1 } do
@@ -1100,11 +1185,7 @@ local function buildAvenues(hub: any, cfg: any, G: number)
 		for k, z in { 64, 88 } do
 			local tops = {}
 			for j, sx in { -1, 1 } do
-				Props.lampPost(
-					F.model,
-					F:at(sx * 14.2, 0, z),
-					{ height = 11, color = accent, seed = i * 10 + k * 2 + j }
-				)
+				streetLamp(F.model, F:at(sx * 14.2, 0, z), 11, accent)
 				tops[j] = F:point(sx * 14.2, 10.2, z)
 			end
 			Props.bunting(F.model, tops[1], tops[2], { seed = i * 7 + k, sag = 1.8, count = 4 })
@@ -1207,7 +1288,7 @@ local function buildFair(hub: any, G: number)
 	Props.picnicTable(m, F:at(-15.5, 0, 76, 90), { seed = 61, cloth = C.Red })
 	Props.parasol(m, F:at(-15.7, 0, 76.1), { seed = 63, color = C.Cyan })
 	-- a rainbow balloon ride tethered high above the fair (seen from every base): a stake on the
-	-- lawn and a rope up to the basket
+	-- lawn and a rope up to the basket; the balloon slowly turns about its rope (Spin)
 	local tether = U.polar(205, 74, G)
 	local balloonY = G + 66
 	U.part(m, "BalloonStake", V(1.4, 1.6, 1.4), CFrame.new(tether + V(0, 0.5, 0)), C.WoodDark, nil, NOSHADOW)
@@ -1220,10 +1301,14 @@ local function buildFair(hub: any, G: number)
 		nil,
 		DECOR
 	)
-	Props.hotAirBalloon(m, CFrame.new(tether.X, balloonY, tether.Z) * CFrame.Angles(0, rad(25), 0), {
+	local balloon = Props.hotAirBalloon(m, CFrame.new(tether.X, balloonY, tether.Z) * CFrame.Angles(0, rad(25), 0), {
 		seed = 65,
 		colors = { C.Red, C.Orange, C.Yellow, C.Lime, C.Cyan, C.Purple },
 	})
+	local basket = balloon.PrimaryPart
+	basket.PivotOffset = basket.CFrame:Inverse()
+		* (CFrame.new(tether.X, balloonY, tether.Z) * CFrame.Angles(rad(90), 0, 0))
+	balloon:SetAttribute("Spin", 5)
 end
 
 --------------------------------------------------------------------------------
@@ -1269,9 +1354,11 @@ local COTTAGES = { -- angle, wall, roof
 	stair-stepped grass edge (grass cells reach r ≈ 118..130), so players walk down to the beach
 	and back up anywhere without jumping. Straight chords of a 36-gon whose outer edge is a
 	smooth polygon at TERRACE_OUT; the inner parts of the chords sit inside the grass columns
-	(hidden). Left out under the bridge decks.
+	(hidden). Left out under the bridge decks, and cut round the harbour pier's piles (the pier
+	deck carries the walk there).
 ]]
 local TERRACE_IN, TERRACE_OUT, TERRACE_STEP = 116, 132, 10 -- radii (studs), degrees per chord
+local PIER_ANGLE, PIER_CLEAR = 322, 6 -- harbour pier centreline; half width kept clear of steps
 
 local function buildTerrace(hub: any, cfg: any, G: number)
 	local m = U.model(hub, "BeachTerrace")
@@ -1282,8 +1369,21 @@ local function buildTerrace(hub: any, cfg: any, G: number)
 	end
 	for a = 0, 360 - TERRACE_STEP, TERRACE_STEP do
 		if not bridges[a] then
-			local cf = U.polarCFrame(a, (TERRACE_IN + TERRACE_OUT) / 2, G - 1.6)
-			U.part(m, "Step", V(len, 1.2, TERRACE_OUT - TERRACE_IN), cf, C.Sand, nil, FLAT)
+			-- along the chord (local X) the pier covers r·sin(Δθ) ± PIER_CLEAR for r in the ring
+			local pieces = { { -len / 2, len / 2 } }
+			local d = rad(PIER_ANGLE - a)
+			if math.cos(d) > 0.9 then
+				local x0, x1 = TERRACE_IN * math.sin(d), TERRACE_OUT * math.sin(d)
+				local g0, g1 = math.min(x0, x1) - PIER_CLEAR, math.max(x0, x1) + PIER_CLEAR
+				pieces = { { -len / 2, math.min(g0, len / 2) }, { math.max(g1, -len / 2), len / 2 } }
+			end
+			for _, p in pieces do
+				if p[2] - p[1] >= 2 then
+					local cf = U.polarCFrame(a, (TERRACE_IN + TERRACE_OUT) / 2, G - 1.6)
+						* CFrame.new((p[1] + p[2]) / 2, 0, 0)
+					U.part(m, "Step", V(p[2] - p[1], 1.2, TERRACE_OUT - TERRACE_IN), cf, C.Sand, nil, FLAT)
+				end
+			end
 		end
 	end
 end
@@ -1333,15 +1433,14 @@ end
 -- Beach ring: palms, beach huts, parasols with deck chairs, a sand castle, a volleyball net
 --------------------------------------------------------------------------------
 
-local PALM_ANGLES = { 22.5, 37.5, 52.5, 67.5, 112.5, 127.5, 150, 202.5, 217.5, 240 }
+local PALM_ANGLES = { 22.5, 45, 67.5, 112.5, 127.5, 150, 202.5, 217.5, 240 }
 
 local function beachSet(parent: any, cf: any, seed: number, color: any)
 	local F = newFrame(U.model(parent, "BeachSet"), cf)
 	Props.parasol(F.model, F:at(0, 0, 1), { seed = seed, color = color })
-	Props.beachChair(F.model, F:at(-2.6, 0, -1, 0), { seed = seed + 1, color = color })
-	Props.beachChair(F.model, F:at(2.6, 0, -1, 0), { seed = seed + 2 })
-	F:box("Towel", 4.6, -0.05, -3.6, 7.8, 0.12, 1.8, lerpColor(color, C.White, 0.3), DECOR)
-	F:box("TowelStripe", 4.45, -0.1, -1.4, 7.95, 0.24, -0.4, C.White, DECOR)
+	Props.beachChair(F.model, F:at(-2.2, 0, -1, 0), { seed = seed + 1, color = color })
+	F:box("Towel", 2.4, -0.05, -3.6, 5.6, 0.12, 1.8, lerpColor(color, C.White, 0.3), DECOR)
+	F:box("TowelStripe", 2.25, -0.1, -1.4, 5.75, 0.24, -0.4, C.White, DECOR)
 end
 
 local function buildBeach(hub: any, world: any)
@@ -1399,10 +1498,27 @@ local function buildHarbour(hub: any, cfg: any, world: any)
 	local m = U.model(hub, "Harbour")
 	local water = cfg.WaterTop or 0
 	local deck = water + 3.8 -- just under the plaza grass, clear above the beach terrace
-	local pierA = 322
+	local pierA = PIER_ANGLE
+	-- Props.dockSegment hangs a brace between the piles of every segment: over the beach it would
+	-- be buried in the sand (invisible), so it is taken out there
+	local function dock(cf: any, opts: { [string]: any })
+		local brace = Props.dockSegment(m, cf, opts):FindFirstChild("Brace")
+		if brace then
+			local top = brace.CFrame.Position.Y + brace.Size.Y / 2
+			local buried = true
+			for _, x in { -brace.Size.X / 2, 0, brace.Size.X / 2 } do
+				local p = brace.CFrame * V(x, 0, 0)
+				buried = buried and world:heightAt(p.X, p.Z) >= top
+			end
+			if buried then
+				brace:Destroy()
+				U.partCount -= 1
+			end
+		end
+	end
 	-- pier from the grass edge over the beach out to deep water: 5 chained segments, a T-head
 	for k = 0, 4 do
-		Props.dockSegment(m, U.polarCFrame(pierA, 128 + k * 12, deck), {
+		dock(U.polarCFrame(pierA, 128 + k * 12, deck), {
 			length = 12,
 			width = 8,
 			depth = if k < 2 then 10 else 20,
@@ -1410,7 +1526,7 @@ local function buildHarbour(hub: any, cfg: any, world: any)
 			seed = 200 + k,
 		})
 	end
-	Props.dockSegment(m, U.polarCFrame(pierA, 186, deck) * CFrame.Angles(0, rad(90), 0), {
+	dock(U.polarCFrame(pierA, 186, deck) * CFrame.Angles(0, rad(90), 0), {
 		length = 24,
 		width = 8,
 		depth = 22,
@@ -1419,8 +1535,7 @@ local function buildHarbour(hub: any, cfg: any, world: any)
 	local P = radialFrame(m, pierA, 0)
 	-- boats moored along the pier, all on open water (lagoon bed −2 … −14, r ≥ 156)
 	Props.motorboat(m, P:at(9.5, water, 172, 180), { color = C.White, stripe = C.Red, seed = 210 })
-	Props.rowboat(m, P:at(-9.5, water, 174), { color = C.Yellow, seed = 211 })
-	Props.rowboat(m, P:at(-9.5, water, 162, 180), { color = C.Cyan, seed = 212 })
+	Props.rowboat(m, P:at(-9.5, water, 170), { color = C.Yellow, seed = 211 })
 	Props.sailboat(m, P:at(19, water, 187, 190), { color = C.Blue, seed = 213 })
 	-- mooring posts with lifebuoys (between the piles), a crate and a barrel on the pier
 	for i, z in { 153, 177 } do
@@ -1438,10 +1553,9 @@ local function buildHarbour(hub: any, cfg: any, world: any)
 	Props.barrel(m, ground(312, 137), { seed = 223, color = C.Red })
 
 	-- lighthouse on a stepped rock islet, joined to the beach by a stone breakwater; corner rocks
-	-- stay clear of the lighthouse plinth (±13.3 at scale 1.9)
+	-- stay clear of the lighthouse plinth (±13.3 at scale 1.9), which is the islet's top step
 	local I = polarFrame(U.model(m, "LighthouseIslet"), 300, 168, 0)
 	I:box("Rock1", -16, -7, -14, 15, 0.8, 16, C.Stone)
-	I:box("Rock2", -12.5, 0.8, -12, 12, 2.8, 12.5, C.StoneLight)
 	I:box("Rock3", -17.5, -6, -6, -15, 0.2, 5, C.StoneDark)
 	I:box("Rock4", 11, -6, 13, 16, 0.4, 18, C.StoneDark)
 	I:box("Rock5", 13.8, -6, -16, 19.5, 2.4, -7.5, C.StoneDark)
