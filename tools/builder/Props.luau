@@ -32,19 +32,20 @@
 
 	Catalogue (parts per instance):
 	  trees      oakTree 13-16, roundTree 13-16, cherryTree 15, autumnTree 15,
-	             birchTree 12, pineTree 11-14, palmTree 16, giantTree 94 (landmark)
+	             birchTree 12, pineTree 11-14, palmTree 16, giantTree 101 (landmark)
 	  plants     bush 4-7, flowerPatch 12, mushroom 7, giantMushroom 14-16, lilyPad 2-4,
-	             reeds 7, stump 4-6, log 3
-	  rocks      rock 1-4, boulder 5-6, crystalCluster 10, rockArch 23-33
+	             reeds 7, stump 4-6, log 3, flowerClump 3, berryBush 3 (cheap decor)
+	  rocks      rock 1-4 (3-4 by default), boulder 5-6, rockPair 3, crystalCluster 10,
+	             rockArch 23-33
 	  furniture  lampPost 7, doubleLamp 12, torch 4, bench 8, picnicTable 10, crate 4,
-	             crateStack 12, barrel 4, fenceSegment <= 12, fenceLine, signpost 4-5,
+	             crateStack 12, barrel 4, hayBale 3, fenceSegment <= 12, fenceLine, signpost 4-5,
 	             billboard 9, flowerBox 7, planter 6-8, bunting <= 16, flagPole 6, campfire 10,
 	             parasol 6, beachChair 7, cooler 4, treasureChest 7-9, anchor 10,
 	             fishStatue 18, lifebuoy 4, fishingRodRack 11
 	  water      rowboat 14, sailboat 21, motorboat 17, buoy 4, dockSegment 9-11, shipwreck 63,
 	             whale 44
-	  big        bridge (~8 per 10 studs + ~30), waterfall 12-22, lighthouse 28, windmill 29
-	             (spinning "Blades"), watchtower 43, ferrisWheel 104 (spinning "Wheel"),
+	  big        bridge (~8 per 10 studs + ~30), waterfall 12-22, lighthouse 28, windmill 40
+	             (spinning "Blades"), watchtower 43, ferrisWheel 105 (spinning "Wheel"),
 	             hotAirBalloon 19, cloud 7-8
 	  helpers    Props.Colors (shared palette, DESIGN.md §1 names), Props.makeRng(seed),
 	             Props.shade(c, f), Props.lerpColor(a, b, t), Props.tones(c) -> {dark, mid, light},
@@ -55,14 +56,16 @@
 	axis is the pivot's LookVector. A client script can do
 	    model:PivotTo(model:GetPivot() * CFrame.Angles(0, 0, math.rad(spin * dt))).
 	Ferris-wheel gondolas are Models with attribute KeepUpright = true (re-level them after
-	turning the wheel).
+	turning the wheel). Every part of a spinning group has CanCollide = CanQuery = CanTouch =
+	false: only the client moves it, so it must never shove a player.
 
 	No randomness from math.random: variation comes from a small Park–Miller generator seeded
 	by opts.seed or by the position, so rebuilding the place gives identical output.
 	Foliage and tiny details have CanCollide = CastShadow = CanQuery = false, except the biggest
 	canopy / frond blocks of each tree, which cast the tree's shadow. PointLights (Range
 	<= 16, no shadows) only where documented: lamps/torches/campfires with opts.light, crystals
-	with opts.light, the lighthouse, glowing giant mushrooms and some bridge lanterns.
+	with opts.light, the lighthouse, glowing giant mushrooms, some bridge lanterns and the room
+	lanterns of the windmill and the treehouse.
 	Every prop runs a z-fight guard when finished (see deconflict below): coplanar faces of
 	differently coloured overlapping blocks are nudged apart by 0.1 stud.
 ]]
@@ -170,6 +173,14 @@ local C: { [string]: any } = {
 	Canvas = rgb(250, 236, 200),
 	CloudShade = rgb(222, 236, 252),
 	Seaweed = rgb(70, 190, 110),
+	-- rocks and boulders: a light lavender grey (lighter and softer than the cliff Stone), so a
+	-- rock on a lime lawn reads as a bright voxel boulder under its moss cap, not a concrete block
+	RockDark = rgb(156, 156, 180),
+	RockMid = rgb(190, 190, 204),
+	RockLight = rgb(222, 222, 234),
+	Straw = rgb(244, 202, 86), -- hay bales
+	StrawLight = rgb(255, 230, 138),
+	Twine = rgb(190, 122, 58),
 
 	-- lists
 	Flowers = {
@@ -212,8 +223,8 @@ C.PalmLeaves = { C.Palm1, C.Palm2, C.Palm3 }
 C.BushLeaves = { C.Leaf0, C.Leaf1, C.Leaf2 }
 C.Grass = C.GrassTop
 C.GrassDark = C.GrassTop2
-C.Rock = { C.StoneDark, C.Stone, C.Stone, C.StoneLight }
-C.Moss = C.GrassTop
+C.Rock = { C.RockDark, C.RockMid, C.RockMid, C.RockLight }
+C.Moss = C.Leaf2 -- rock and boulder caps: a step darker than the lawns they stand on
 C.Soil = C.DirtDark
 C.WoodDeep = C.BarkDark
 C.RoofRed = rgb(240, 76, 64)
@@ -659,6 +670,19 @@ local function light(parentPart: any, range: number, brightness: number?, color:
 		Color = color or C.LightColor,
 		Shadows = false,
 	}, parentPart)
+end
+
+-- A spinning group (windmill blades, ferris wheel) is turned by CFrame on every client: its parts
+-- never collide, are never raycast against and never fire Touched, so the turning geometry can't
+-- shove or fling a player (the static frame round it stays solid).
+local function ghost(m: any)
+	for _, d in m:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.CanCollide = false
+			d.CanQuery = false
+			d.CanTouch = false
+		end
+	end
 end
 
 local function pickColor(o: { [string]: any }, key: string, default: any): any
@@ -1161,10 +1185,12 @@ end
 	giantTree: the landmark tree, ~82 studs tall at scale 1 (Landmarks scales it up): a massive
 	10-stud trunk with bark ridges and stepped roots, three branches tucked under a huge, bright
 	4-layer canopy (~58 studs, ~70 with its bumps) with pink blossom clusters and 8 Neon lanterns
-	hanging on cords under its rim. A treehouse deck wraps the trunk at y 28 with a hut (glowing
-	windows, stepped roof) on the front (-Z), right under the canopy; a chunky stair of 20 steps
-	wraps once round the trunk from the front-right corner up to the deck, and a long rope swing
-	hangs under the deck. 94 parts.
+	hanging under its rim. A treehouse deck wraps the trunk at y 28 with a hut on the front (-Z),
+	right under the canopy: a room you walk into through an open door on its right side (glowing
+	windows, a rug, a window seat, a treasure chest, a lantern with a PointLight) under a stepped
+	roof. A chunky stair of 20 steps wraps once round the trunk from the front-right corner up to
+	the deck, a yellow slide runs from the deck's front-left corner down to the meadow (~20 studs
+	out in front of the trunk) and a long rope swing hangs under the deck. 101 parts.
 	opts: leaves = {dark, mid, light}, treehouse = false (no deck/hut/stair/swing),
 	roof = colour (hut roof).
 ]]
@@ -1250,12 +1276,11 @@ function Props.giantTree(parent: any, cf: any, opts: { [string]: any }?): any
 	for i, c in blossoms do
 		b:vox(`Blossom{i}`, c[1], c[2], c[3], c[4], c[5], c[6], if i % 2 == 1 then C.Blossom1 else C.Blossom2, FOLIAGE)
 	end
-	-- 8 glowing lanterns on short cords under the wide middle layer, round the rim
+	-- 8 glowing lanterns hanging straight under the wide middle layer, round the rim
 	for i = 0, 7 do
 		local a = RAD(22.5 + 45 * i)
 		local lx, lz = 25 * math.sin(a), 25 * math.cos(a)
-		b:span(`LanternCord{i + 1}`, lx - 0.15, 48.8, lz - 0.15, lx + 0.15, 50.8, lz + 0.15, C.Rope, DECOR)
-		b:vox(`Lantern{i + 1}`, lx, 47.6, lz, 2, 2.4, 2, C.Glow, NEON_DECOR)
+		b:span(`Lantern{i + 1}`, lx - 1, 47.4, lz - 1, lx + 1, 50.7, lz + 1, C.Glow, NEON_DECOR)
 	end
 
 	if o.treehouse ~= false then
@@ -1272,17 +1297,46 @@ function Props.giantTree(parent: any, cf: any, opts: { [string]: any }?): any
 		b:span("RailLeft", -14, deckY, -17, -13.2, deckY + 1.8, 14, C.Wood)
 		b:span("RailBack", -13.2, deckY, 13.2, 0, deckY + 1.8, 14, C.Wood)
 		b:span("RailRight", 13.2, deckY, -17, 14, deckY + 1.8, -0.7, C.Wood)
-		-- the hut on the front of the deck, facing the lagoon: glowing windows, a stepped roof
-		-- just under the canopy, the door on its right side (towards the stair)
+		-- the hut on the front of the deck, facing the lagoon: a room (walls 0.8 thick) under a
+		-- stepped roof just under the canopy, glowing windows through the front wall, an open
+		-- doorway on its right side (towards the stair) with the door swung out; inside a rug, a
+		-- window seat, a treasure chest and a lantern with a PointLight
 		local roofC = o.roof or C.Red
-		b:span("HutWalls", -9, deckY, -16, 9, deckY + 8, -7.5, C.Cream)
-		b:span("HutRoof1", -10.5, deckY + 8, -17.5, 10.5, deckY + 9.4, -6, roofC)
-		b:span("HutRoof2", -8.5, deckY + 9.4, -16, 8.5, deckY + 10.8, -7.5, lerpColor(roofC, C.White, 0.25))
-		b:span("HutRoof3", -5.5, deckY + 10.8, -14.5, 5.5, deckY + 12, -9, roofC)
-		b:span("HutDoor", 9, deckY, -13.6, 9.4, deckY + 5.6, -10, C.Orange)
+		local Y = deckY
+		b:span("HutWalls", -9, Y, -16, 9, Y + 8, -15.2, C.Cream) -- the front wall
+		b:span("HutBack", -9, Y, -8.3, 9, Y + 8, -7.5, C.Cream)
+		b:span("HutLeft", -9, Y, -15.2, -8.2, Y + 8, -8.3, C.Cream)
+		b:span("HutRightA", 8.2, Y, -15.2, 9, Y + 8, -13.6, C.Cream)
+		b:span("HutRightB", 8.2, Y, -10, 9, Y + 8, -8.3, C.Cream)
+		b:span("HutLintel", 8.2, Y + 5.6, -13.6, 9, Y + 8, -10, C.Cream)
+		b:span("HutRoof1", -10.5, Y + 8, -17.5, 10.5, Y + 9.4, -6, roofC)
+		b:span("HutRoof2", -8.5, Y + 9.4, -16, 8.5, Y + 10.8, -7.5, lerpColor(roofC, C.White, 0.25))
+		b:span("HutRoof3", -5.5, Y + 10.8, -14.5, 5.5, Y + 12, -9, roofC)
+		b:span("HutDoor", 9, Y + 0.1, -14, 12.4, Y + 5.5, -13.6, C.Orange, NOSHADOW)
 		for i, x in { -4.3, 4.3 } do
-			b:span(`HutWindow{i}`, x - 1.8, deckY + 3, -16.3, x + 1.8, deckY + 6, -16, C.Glow, NEON_DECOR)
+			b:span(`HutWindow{i}`, x - 1.8, Y + 3, -16.3, x + 1.8, Y + 6, -15.1, C.Glow, NEON_DECOR)
 		end
+		b:span("HutRug", -5, Y, -13.6, 3, Y + 0.15, -9.3, C.Pink, DECOR)
+		b:span("HutSeat", 1.6, Y, -15.2, 7.2, Y + 1.6, -13.8, C.WoodLight)
+		b:span("HutChest", -7.9, Y, -10.3, -5.1, Y + 1.8, -8.3, C.Wood)
+		b:span("HutChestLid", -8.1, Y + 1.8, -10.5, -4.9, Y + 2.5, -8.3, C.Gold, NOSHADOW)
+		local lamp = b:span("HutLantern", -0.8, Y + 6.3, -12.55, 0.8, Y + 8, -10.95, C.Glow, NEON_DECOR)
+		light(lamp, 14, 1.3)
+		-- the fun way down: a yellow slide from the front-left corner of the deck to the meadow
+		-- (bed, red rails, a leg, a landing pad)
+		local xc = -11.4
+		local top, foot = Vector3.new(xc, Y, -17), Vector3.new(xc, 0.4, -37.5)
+		local dir = (foot - top).Unit
+		local n = Vector3.new(0, -dir.Z, dir.Y) -- the slope's upward normal
+		b:beam("SlideBed", top - n * 0.4 - dir * 0.6, foot - n * 0.4 + dir * 0.5, 3.4, 0.8, C.Yellow)
+		for i, sx in { -1, 1 } do
+			local off = Vector3.new(sx * 1.95, 0, 0)
+			b:beam(`SlideRail{i}`, top + n * 0.5 + off, foot + n * 0.5 + off, 0.5, 1.4, C.Red, NOSHADOW)
+		end
+		local midZ = (top.Z + foot.Z) / 2
+		local midY = (top.Y + foot.Y) / 2
+		b:span("SlideLeg", xc - 0.6, -0.5, midZ - 0.6, xc + 0.6, midY - 0.6, midZ + 0.6, C.Wood, NOSHADOW)
+		b:span("SlidePad", xc - 2.2, -0.3, foot.Z - 3.5, xc + 2.2, 0.45, foot.Z + 0.4, C.Orange)
 		-- the stair: 20 chunky steps (1.4 up each, 3.1 apart) on a square loop 5..10.5 out from
 		-- the trunk centre, once round the trunk; the top step is flush with the deck
 		local c = 7.75
@@ -1534,59 +1588,160 @@ function Props.log(parent: any, cf: any, opts: { [string]: any }?): any
 	return b:finish(main)
 end
 
+-- Bright bloom colours for the cheap flower decor (no white: it reads as sugar lumps).
+local BLOOMS = { C.Red, C.Yellow, C.Pink, C.Purple, C.Orange, C.Blue }
+
+--[[
+	flowerClump: cheap meadow decor — a leafy tuft with two big voxel blooms of two colours
+	poking out of its top. 3 parts, all non-colliding. opts: colors = {c1, c2} (default: a pair
+	by seed), leaves (tuft colour).
+]]
+function Props.flowerClump(parent: any, cf: any, opts: { [string]: any }?): any
+	local b = begin(parent, "FlowerClump", cf, opts, 251)
+	local o = b.opts
+	b.s *= b:range(0.9, 1.2)
+	b.cf = cf * quarterTurn(b)
+	local c1 = o.colors and o.colors[1] or b:pick(BLOOMS)
+	local c2 = o.colors and o.colors[2] or b:pick(BLOOMS)
+	if c2 == c1 then
+		c2 = BLOOMS[(table.find(BLOOMS, c1) or 1) % #BLOOMS + 1]
+	end
+	local tw = b:range(1.6, 1.9)
+	local tuft = b:span("Tuft", -tw, -0.3, -tw * 0.8, tw, 1.1, tw * 0.8, o.leaves or C.Leaf1, FOLIAGE)
+	b:span("BloomA", -tw * 0.5 - 0.7, 0.75, -0.95, -tw * 0.5 + 0.7, 2.2, 0.45, c1, DECOR)
+	b:span("BloomB", tw * 0.45 - 0.55, 0.8, -0.2, tw * 0.45 + 0.55, 1.95, 0.9, c2, DECOR)
+	return b:finish(tuft)
+end
+
+--[[
+	berryBush: cheap decor — a two-tone leaf block with a bar of berries straight through it (a
+	berry pokes out of the front and one out of the back). 3 parts, all non-colliding.
+	opts: leaves = {dark, mid, light}, berries = colour (default by seed).
+]]
+function Props.berryBush(parent: any, cf: any, opts: { [string]: any }?): any
+	local b = begin(parent, "BerryBush", cf, opts, 257)
+	local o = b.opts
+	b.s *= b:range(0.9, 1.15)
+	b.cf = cf * quarterTurn(b)
+	local pal = o.leaves or { C.Leaf0, C.Leaf1, C.Leaf2 }
+	local berry = o.berries or b:pick({ C.Red, C.Red, C.Pink, C.Purple, C.Blue })
+	local w, h, d = b:range(3.6, 4.2), b:range(2.4, 2.9), b:range(3.2, 3.8)
+	local bush = b:span("Bush", -w / 2, -0.3, -d / 2, w / 2, h, d / 2, pal[2], FOLIAGE)
+	local ox = b:range(-0.3, 0.3)
+	b:span("BushTop", ox - w * 0.32, h - 0.1, -d * 0.3, ox + w * 0.32, h + 0.9, d * 0.3, pal[3], FOLIAGE)
+	b:vox("Berries", -w * 0.2, h * 0.6, 0, 0.8, 0.8, d + 0.3, berry, DECOR)
+	return b:finish(bush)
+end
+
 --------------------------------------------------------------------------------------------
 -- ROCKS
 --------------------------------------------------------------------------------------------
 
+-- Stone shades of a rock: { dark, mid, light } — the light lavender rock greys by default, or
+-- shades of opts.color (a cream or sandy rock).
+local function rockTones(color: any?): { any }
+	if color then
+		return { shade(color, 0.82), color, lerpColor(color, C.White, 0.35) }
+	end
+	return { C.RockDark, C.RockMid, C.RockLight }
+end
+
 --[[
-	rock: cube cluster — main block, a lighter block on top, a darker side block, a pebble.
-	1-4 parts. opts: count = 1..4, snow = true (white top), moss = true (green top), color.
+	rock: a small rounded voxel boulder in light lavender-grey stone, built like the tree canopies:
+	a "plus" of two crossed blocks (rounded corners seen from above), a lighter, smaller block on
+	top of it, off-centre, and a moss cap draped over the highest block (a band of Moss
+	overhanging it all round). 1-4 parts: count 1 = one block, 2 = the rounded body, 3 = body +
+	moss cap (or, without a cap, the top block), 4 = body + top block + moss cap (or a dark pebble
+	at its foot). Default 3-4. opts: count, moss = false (no cap), snow = true (snow cap),
+	color (body; the other stone shades follow it).
 ]]
 function Props.rock(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Rock", cf, opts, 67)
 	local o = b.opts
 	b.cf = cf * quarterTurn(b)
-	local base = o.color or C.Stone
-	local t = tones(base)
-	local count = o.count or ((o.snow or o.moss) and 3 or b:pick({ 2, 3, 3, 4 }))
-	local sx, sy, sz = b:range(3.6, 5), b:range(2.4, 3.4), b:range(3.2, 4.4)
-	local main = b:vox("Rock", 0, sy / 2 - 0.4, 0, sx, sy, sz, t[2])
+	local t = rockTones(o.color)
+	local capped = o.snow == true or o.moss ~= false
+	local count = o.count or b:pick({ 3, 3, 4 })
+	local sx, sy, sz = b:range(3.8, 4.8), b:range(2.2, 2.9), b:range(3.6, 4.4)
+	local k = 0.68 -- how far the corners are cut
+	local main = b:vox("Rock", 0, sy / 2 - 0.4, 0, sx, sy, sz * k, t[2])
 	if count >= 2 then
-		local topC = if o.snow then C.Snow elseif o.moss then C.GrassTop else t[3]
-		local tx, tz = b:range(-0.5, 0.5), b:range(-0.5, 0.5)
-		b:vox("RockTop", tx, sy - 0.4 + 0.45, tz, sx * 0.62, 1.1, sz * 0.62, topC)
+		-- the cross block is a hair taller, so the two tops never share a plane
+		b:vox("RockB", 0, sy / 2 - 0.38, 0, sx * k, sy + 0.04, sz, t[2])
 	end
-	if count >= 3 then
+	local top = sy - 0.36 -- top of the highest block so far
+	local tx, tz, tw, td = b:range(-0.3, 0.3), b:range(-0.3, 0.3), sx * 0.62, sz * 0.62
+	if count >= 4 or (count == 3 and not capped) then
+		-- a lighter block on top, off-centre, sunk 0.2 into the body
+		tw, td = sx * b:range(0.5, 0.6), sz * b:range(0.5, 0.6)
+		tx = (sx * k - tw) / 2 * b:range(0.3, 1) * (if b:chance(0.5) then 1 else -1)
+		tz = (sz * k - td) / 2 * b:range(0.3, 1) * (if b:chance(0.5) then 1 else -1)
+		local th = b:range(1.2, 1.7)
+		b:vox("RockTop", tx, top - 0.2 + th / 2, tz, tw, th, td, lerpColor(t[2], t[3], 0.7))
+		top += th - 0.2
+	end
+	if count >= 3 and capped then
+		local cap = if o.snow then C.Snow else C.Moss
+		b:vox("RockCap", tx, top + 0.08, tz, tw + 0.3, 0.76, td + 0.3, cap, NOSHADOW)
+	elseif count >= 4 then
 		local side = if b:chance(0.5) then 1 else -1
-		b:vox("RockSide", side * (sx / 2 + 0.6), 0.5, b:range(-0.6, 0.6), 1.8, 1.8, sz * 0.55, t[1])
-	end
-	if count >= 4 then
-		b:vox("Pebble", b:range(-1, 1), 0.25, sz / 2 + 0.9, 1.1, 0.9, 1.1, t[2], DECOR)
+		b:vox("Pebble", side * (sx * k / 2 + 0.9), 0.2, b:range(-0.25, 0.25) * sz, 1.5, 1.0, 1.3, t[1], DECOR)
 	end
 	return b:finish(main)
 end
 
 --[[
-	boulder: big rock (~8-11 studs) — body on a dark skirt, a lighter upper block, a light top, a
-	dark chunk, and a moss or snow cap. 5-6 parts. opts: color, moss = true, snow = true.
+	boulder: a big voxel rock (~8-11 studs) — a light lavender-grey body on a dark foot band, a
+	taller, lighter block standing in one of its corners (out over its side) under a draped moss
+	cap with a light moss tuft on top, and a dark broken-off chunk at its foot. 6 parts.
+	opts: color (body; the other stone shades follow it), moss = false (a light stone top instead
+	of the moss), snow = true (snow cap).
 ]]
 function Props.boulder(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Boulder", cf, opts, 61)
 	local o = b.opts
 	b.s *= b:range(0.9, 1.15)
 	b.cf = cf * quarterTurn(b)
-	local t = tones(o.color or C.Stone)
+	local t = rockTones(o.color)
 	local w, d = b:range(8, 9.5), b:range(7, 8.5)
 	local main = b:span("Boulder", -w / 2, -1, -d / 2, w / 2, 4.2, d / 2, t[2])
-	b:span("Skirt", -w / 2 - 0.9, -1, -d / 2 + 0.8, w / 2 + 0.7, 1.8, d / 2 - 1.2, t[1])
-	local ux, uz = b:range(-0.8, 0.8), b:range(-0.8, 0.8)
-	b:span("Upper", ux - w * 0.36, 4.0, uz - d * 0.36, ux + w * 0.36, 6.8, uz + d * 0.36, lerpColor(t[2], t[3], 0.35))
-	b:span("Top", ux - w * 0.2 + 0.5, 6.7, uz - d * 0.2, ux + w * 0.2 + 0.5, 7.8, uz + d * 0.22, t[3])
-	b:span("Chunk", -w * 0.25, -0.8, -d / 2 - 1.6, w * 0.15, 2.2, -d / 2 + 0.5, t[1])
-	if o.moss or o.snow then
-		local cap = if o.snow then C.Snow else C.GrassTop
-		b:span("Cap", ux - w * 0.38, 6.75, uz - d * 0.38, ux + w * 0.3, 7.25, uz + d * 0.3, cap, NOSHADOW)
+	b:span("Skirt", -w / 2 - 0.7, -1, -d / 2 + 0.9, w / 2 + 0.6, 1.5, d / 2 - 1.1, t[1])
+	-- the upper block: a tall stone standing in one corner of the body, out over its side
+	local uw, ud = w * b:range(0.3, 0.35), d * b:range(0.32, 0.38)
+	local ux = (if b:chance(0.5) then 1 else -1) * (w / 2 - uw + b:range(0.3, 0.7))
+	local uz = (if b:chance(0.5) then 1 else -1) * (d / 2 - ud - b:range(0.2, 0.8))
+	b:span("Upper", ux - uw, -0.6, uz - ud, ux + uw, 6.8, uz + ud, lerpColor(t[2], t[3], 0.7))
+	b:span("Chunk", -w * 0.25, -0.8, -d / 2 - 1.5, w * 0.15, 2.1, -d / 2 + 0.5, t[1])
+	if o.snow or o.moss ~= false then
+		local cap = if o.snow then C.Snow else C.Moss
+		local tuft = if o.snow then C.Snow else C.Leaf3
+		b:span("Cap", ux - uw - 0.2, 6.25, uz - ud - 0.2, ux + uw + 0.2, 7.3, uz + ud + 0.2, cap, NOSHADOW)
+		local tx, tz = ux + b:range(-0.8, 0.8), uz + b:range(-0.8, 0.8)
+		b:span("Tuft", tx - uw * 0.5, 7.2, tz - ud * 0.45, tx + uw * 0.5, 8.0, tz + ud * 0.45, tuft, NOSHADOW)
+	else
+		b:span("Top", ux - w * 0.2 + 0.5, 6.7, uz - d * 0.2, ux + w * 0.2 + 0.5, 7.8, uz + d * 0.22, t[3])
 	end
+	return b:finish(main)
+end
+
+--[[
+	rockPair: cheap decor — a mossy rock with a light pebble rock beside it. 3 parts.
+	opts: color (body; the other stone shades follow it), moss = false, snow = true.
+]]
+function Props.rockPair(parent: any, cf: any, opts: { [string]: any }?): any
+	local b = begin(parent, "RockPair", cf, opts, 263)
+	local o = b.opts
+	b.s *= b:range(0.85, 1.2)
+	b.cf = cf * quarterTurn(b)
+	local t = rockTones(o.color)
+	local w, h, d = b:range(3.2, 4.0), b:range(2.4, 3.2), b:range(2.8, 3.4)
+	local x0, x1 = -w / 2 - 0.7, w / 2 - 0.7
+	local main = b:span("Rock", x0, -0.4, -d / 2, x1, h, d / 2, t[2])
+	-- the cap covers the outer two thirds and hangs over three sides (moss on one shoulder)
+	local cap = if o.snow then C.Snow elseif o.moss == false then t[3] else C.Moss
+	b:span("RockCap", x0 - 0.15, h - 0.5, -d / 2 - 0.15, x0 + w * 0.66, h + 0.4, d / 2 + 0.15, cap, NOSHADOW)
+	local pz = b:range(-0.6, 0.6)
+	b:span("Pebble", x1 - 0.2, -0.3, pz - 1.0, x1 + 1.9, b:range(1.2, 1.6), pz + 1.0, t[3], DECOR)
 	return b:finish(main)
 end
 
@@ -1883,6 +2038,21 @@ function Props.barrel(parent: any, cf: any, opts: { [string]: any }?): any
 	b:column("HoopHigh", 2.78, 0, 0, 2.4, 2.8, C.Iron, nil, NOSHADOW)
 	b:column("Lid", 2.1, 0, 0, 3.35, 3.5, lerpColor(wood, C.White, 0.25), nil, DECOR)
 	return b:finish(body)
+end
+
+--[[
+	hayBale: cheap farm decor — a straw block along local X with a light top layer and a twine
+	band round its middle. 3 parts. opts: length (default 4.4), color (straw).
+]]
+function Props.hayBale(parent: any, cf: any, opts: { [string]: any }?): any
+	local b = begin(parent, "HayBale", cf, opts, 269)
+	local o = b.opts
+	local L = o.length or 4.4
+	local straw = o.color or C.Straw
+	local bale = b:span("Bale", -L / 2, -0.2, -1.4, L / 2, 2.3, 1.4, straw)
+	b:span("BaleTop", -L / 2 + 0.15, 2.3, -1.25, L / 2 - 0.15, 2.8, 1.25, lerpColor(straw, C.StrawLight, 0.8), NOSHADOW)
+	b:span("Twine", -0.3, -0.1, -1.55, 0.3, 2.95, 1.55, C.Twine, DECOR)
+	return b:finish(bale)
 end
 
 --[[
@@ -3122,17 +3292,37 @@ function Props.lighthouse(parent: any, cf: any, opts: { [string]: any }?): any
 end
 
 --[[
-	windmill: stone base, three stepped cream tower tiers with wooden trim bands, a door,
-	windows, a stepped red cap, and 4 lattice sails. The sails are in a child Model "Blades"
-	(attribute Spin = degrees per second, opts.spin, default 24; pivot = hub, LookVector = axis).
-	29 parts. opts: roof = colour, spin, bladeAngle (degrees, default 45).
+	windmill: stone base, three stepped cream tower tiers with wooden trim bands, windows, a
+	stepped red cap, and 4 lattice sails. The bottom tier is a hollow room you can walk into: an
+	open doorway in a wooden frame (the blue door stands open), a millstone, flour sacks and a
+	glowing lantern (with a PointLight) inside. The sails are in a child Model "Blades" (attribute
+	Spin = degrees per second, opts.spin, default 24; pivot = hub, LookVector = axis); they never
+	collide. 40 parts. opts: roof = colour, spin, bladeAngle (degrees, default 45).
 ]]
 function Props.windmill(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Windmill", cf, opts, 227)
 	local o = b.opts
 	local roof = o.roof or C.Red
 	local base = b:span("Base", -6.5, -1.5, -6.5, 6.5, 1.5, 6.5, C.StoneLight)
-	b:span("Tower1", -5, 1.4, -5, 5, 10, 5, C.Cream)
+	-- the bottom tier: four walls 1 thick on the base (its floor), the doorway (2.8 wide, 5 high)
+	-- in the front wall; the trim band above is the room's ceiling
+	b:span("Tower1", -5, 1.4, 4, 5, 10, 5, C.Cream)
+	b:span("Tower1L", -5, 1.4, -4, -4, 10, 4, C.Cream)
+	b:span("Tower1R", 4, 1.4, -4, 5, 10, 4, C.Cream)
+	b:span("Tower1FL", -5, 1.4, -5, -1.5, 10, -4, C.Cream)
+	b:span("Tower1FR", 1.5, 1.4, -5, 5, 10, -4, C.Cream)
+	b:span("Tower1FTop", -1.5, 6.6, -5, 1.5, 10, -4, C.Cream)
+	b:span("DoorFrame", -2.1, 6.5, -5.3, 2.1, 7.2, -4.9, C.Wood)
+	b:span("DoorJambL", -2.1, 1.5, -5.3, -1.4, 6.5, -4.9, C.Wood)
+	b:span("DoorJambR", 1.4, 1.5, -5.3, 2.1, 6.5, -4.9, C.Wood)
+	-- the door stands wide open against the right jamb
+	b:span("Door", 2.1, 1.6, -7.9, 2.45, 6.4, -5.3, C.Blue, NOSHADOW)
+	-- inside: a millstone, two flour sacks in the corner, a lantern on the back wall
+	b:column("Millstone", 4.4, 0.6, 1.0, 1.5, 2.6, C.Stone)
+	b:span("Sack1", -3.9, 1.5, 1.6, -1.9, 3.7, 3.9, C.Canvas)
+	b:span("Sack2", -3.8, 1.5, -0.8, -2.0, 3.1, 1.3, lerpColor(C.Canvas, C.Wood, 0.25))
+	local lamp = b:span("Lantern", -0.7, 6.2, 3.5, 0.7, 7.8, 4.0, C.Glow, NEON)
+	light(lamp, 14, 1.4)
 	b:span("Trim1", -5.4, 9.6, -5.4, 5.4, 10.6, 5.4, C.Wood)
 	b:span("Tower2", -4.3, 10.5, -4.3, 4.3, 17, 4.3, C.Cream)
 	b:span("Trim2", -4.7, 16.6, -4.7, 4.7, 17.6, 4.7, C.Wood)
@@ -3142,11 +3332,10 @@ function Props.windmill(parent: any, cf: any, opts: { [string]: any }?): any
 	b:span("Roof3", -2.5, 23.8, -2.5, 2.5, 25.2, 2.5, lerpColor(roof, C.White, 0.2))
 	b:span("Roof4", -1.3, 25.2, -1.3, 1.3, 26.4, 1.3, roof)
 	b:vox("Vane", 0, 27.2, 0, 0.5, 1.6, 0.5, C.Gold, DECOR)
-	b:span("DoorFrame", -2.1, 1.5, -5.3, 2.1, 7.2, -4.9, C.Wood)
-	b:span("Door", -1.5, 1.5, -5.45, 1.5, 6.6, -5.1, C.Blue)
 	b:span("Window1", -1, 12.2, -4.55, 1, 14.6, -4.2, C.WindowBlue, NOSHADOW)
-	b:span("Window2", 4.9, 4.6, -1, 5.25, 7.0, 1, C.WindowBlue, NOSHADOW)
-	b:span("Window3", -5.25, 4.6, -1, -4.9, 7.0, 1, C.WindowBlue, NOSHADOW)
+	-- the side windows go through the walls (seen from inside the room too)
+	b:span("Window2", 3.9, 4.6, -1, 5.25, 7.0, 1, C.WindowBlue, NOSHADOW)
+	b:span("Window3", -5.25, 4.6, -1, -3.9, 7.0, 1, C.WindowBlue, NOSHADOW)
 	b:span("Balcony", -3.2, 9.9, -6.4, 3.2, 10.6, -5.2, C.WoodDark, NOSHADOW)
 
 	-- spinning blades
@@ -3179,6 +3368,7 @@ function Props.windmill(parent: any, cf: any, opts: { [string]: any }?): any
 	b:pop(old)
 	b:ungroup()
 	b:finishGroup(blades, hub, hubLocal)
+	ghost(blades)
 	return b:finish(base)
 end
 
@@ -3247,8 +3437,9 @@ end
 	ferrisWheel: rainbow ferris wheel (R = 18, hub ~25 studs up) on a two-tower support with a
 	coloured base deck. The wheel — two rainbow rims of 16 segments, spokes, Neon bulbs and 8
 	hanging gondolas — is the child Model "Wheel" (attribute Spin, default 8 deg/s; pivot = hub,
-	LookVector = axis). Gondolas are Models with attribute KeepUpright = true.
-	104 parts. opts: radius (default 18), spin, deck (base colour).
+	LookVector = axis). Gondolas are Models with attribute KeepUpright = true. The wheel's parts
+	never collide (the client turns it); an invisible static "WheelGuard" closes its lower part.
+	105 parts. opts: radius (default 18), spin, deck (base colour).
 ]]
 function Props.ferrisWheel(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "FerrisWheel", cf, opts, 233)
@@ -3339,6 +3530,14 @@ function Props.ferrisWheel(parent: any, cf: any, opts: { [string]: any }?): any
 	b:pop(old)
 	b:ungroup()
 	b:finishGroup(wheel, hub, hubLocal)
+	ghost(wheel)
+	-- the turning wheel never collides: an invisible static wall round its lower part keeps players
+	-- on the deck from walking into the gondolas sweeping past
+	b:span("WheelGuard", -R * 0.8, 1.3, -(depth + 1.2), R * 0.8, 12, depth + 1.2, C.White, {
+		Transparency = 1,
+		CastShadow = false,
+		CanQuery = false,
+	})
 	return b:finish(base)
 end
 
