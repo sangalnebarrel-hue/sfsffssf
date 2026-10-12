@@ -36,7 +36,8 @@
 	Catalogue (parts per instance):
 	  trees      oakTree 13-16, roundTree 13-16, cherryTree 15, autumnTree 15,
 	             birchTree 12, pineTree 11-14, palmTree 16, giantTree 101 (landmark)
-	  plants     bush 4-7, flowerPatch 12, mushroom 7, giantMushroom 14-16, lilyPad 2-4,
+	  plants     bush 4-7, flowerPatch 12, flowerBed 3 + 2 per flower (6×3 bed: 15), mushroom 7,
+	             giantMushroom 14-16, lilyPad 2-4,
 	             reeds 7, stump 4-6, log 3, flowerClump 3, berryBush 3 (cheap decor)
 	  rocks      rock 1-4 (3-4 by default), boulder 5-6, rockPair 3, crystalCluster 10,
 	             rockArch 23-33
@@ -1740,6 +1741,65 @@ local BLOOM_PAIRS = {
 	{ C.Red, C.Pink },
 }
 Props.bloomPairs = BLOOM_PAIRS
+
+--[[
+	flowerBed: a planted bed (use it instead of flat colour slabs) — a low kerb, soil, a leafy mound and
+	a grid of flowers, each a thin stem with a bloom cube on top, 1.6–2 studs apart with staggered
+	heights, in two tones of one family. All parts non-colliding. The bed is centred on cf, its
+	width along local X, depth along Z, ground at y = 0.
+	opts: width (6), depth (3), colors = {c1, c2} (default: a pair from bloomPairs),
+	kerb = colour or false (default Limestone), leaves (colour), spacing (1.8),
+	stems = false (blooms sit on the mound: 1 part per flower), max (flower count cap, 12).
+	Parts: 3 (2 without kerb) + flowers × 2 (× 1 without stems). A 6×3 bed = 3 + 6×2 = 15.
+]]
+function Props.flowerBed(parent: any, cf: any, opts: { [string]: any }?): any
+	local b = begin(parent, "FlowerBed", cf, opts, 263)
+	local o = b.opts
+	local w, d = o.width or 6, o.depth or 3
+	local pair = o.colors or b:pick(BLOOM_PAIRS)
+	local c1, c2 = pair[1], pair[2] or pair[1]
+	local sp = o.spacing or 1.8
+	local main
+	if o.kerb ~= false then
+		main = b:span(
+			"Kerb",
+			-w / 2 - 0.35,
+			-0.2,
+			-d / 2 - 0.35,
+			w / 2 + 0.35,
+			0.45,
+			d / 2 + 0.35,
+			o.kerb or C.Limestone,
+			DECOR
+		)
+	end
+	local soil = b:span("Soil", -w / 2, 0, -d / 2, w / 2, 0.6, d / 2, C.DirtDark, DECOR)
+	main = main or soil
+	b:span("Leaves", -w / 2 + 0.25, 0.6, -d / 2 + 0.25, w / 2 - 0.25, 1.05, d / 2 - 0.25, o.leaves or C.Leaf1, FOLIAGE)
+	local nx = math.max(1, math.floor((w - 0.4) / sp))
+	local nz = math.max(1, math.floor((d - 0.4) / sp))
+	local cap, n = o.max or 12, 0
+	for iz = 1, nz do
+		for ix = 1, nx do
+			if n >= cap then
+				break
+			end
+			n += 1
+			-- rows offset by half a step: a staggered, planted look
+			local x = (ix - (nx + 1) / 2) * sp + (if iz % 2 == 0 then sp * 0.25 else -sp * 0.25) + b:range(-0.15, 0.15)
+			local z = (iz - (nz + 1) / 2) * sp + b:range(-0.15, 0.15)
+			local h = 1.55 + b:range(-0.3, 0.45)
+			local col = if (ix + iz) % 2 == 0 then c1 else c2
+			if o.stems ~= false then
+				b:span(`Stem{n}`, x - 0.15, 1.0, z - 0.15, x + 0.15, h, z + 0.15, C.Leaf2, DECOR)
+				b:vox(`Bloom{n}`, x, h + 0.35, z, 1.0, 0.7, 1.0, col, DECOR)
+			else
+				b:vox(`Bloom{n}`, x, 1.25, z, 0.9, 0.6, 0.9, col, DECOR)
+			end
+		end
+	end
+	return b:finish(main)
+end
 
 --[[
 	flowerClump: cheap meadow decor — a leafy tuft with two big voxel blooms poking out of its top,

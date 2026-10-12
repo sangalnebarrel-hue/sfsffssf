@@ -30,9 +30,14 @@ local P: { [string]: any } = {
 	Sand = rgb(232, 212, 160),
 	SandDark = rgb(212, 186, 134),
 	SandWet = rgb(220, 196, 146),
-	Stone = rgb(150, 146, 142),
-	StoneDark = rgb(118, 114, 112),
-	StoneLight = rgb(182, 178, 172),
+	-- warm sandstone-like stone (neutral greys read as unpainted default parts)
+	Stone = rgb(160, 148, 130),
+	StoneDark = rgb(122, 110, 98),
+	StoneLight = rgb(214, 202, 178),
+	-- cool slate: mountains and cliffs only (recedes behind the warm village)
+	Slate = rgb(136, 144, 162),
+	SlateDark = rgb(118, 126, 146),
+	SlateLight = rgb(168, 176, 192),
 	Snow = rgb(238, 242, 246),
 
 	-- wood and building materials
@@ -43,8 +48,11 @@ local P: { [string]: any } = {
 	Plaster = rgb(236, 226, 204), -- house walls
 	PlasterShade = rgb(214, 200, 176),
 	Brick = rgb(172, 92, 70),
-	Cobble = rgb(168, 160, 150), -- paving
-	CobbleDark = rgb(138, 130, 122),
+	Cobble = rgb(196, 174, 140), -- paving
+	CobbleDark = rgb(156, 132, 106),
+	Flagstone = rgb(210, 184, 142), -- two-tone flag paving
+	FlagstoneDark = rgb(196, 168, 128),
+	Limestone = rgb(232, 218, 188), -- cream stone: plinths, steps, kerbs
 	RoofRed = rgb(178, 74, 60),
 	RoofTerracotta = rgb(190, 100, 66),
 	RoofBlue = rgb(72, 104, 150),
@@ -53,9 +61,9 @@ local P: { [string]: any } = {
 	RoofBrown = rgb(122, 82, 58),
 
 	-- foliage: natural greens a step darker than the lawns
-	Leaf0 = rgb(54, 122, 56),
-	Leaf1 = rgb(66, 140, 62),
-	Leaf2 = rgb(86, 160, 70),
+	Leaf0 = rgb(62, 136, 60),
+	Leaf1 = rgb(76, 152, 66),
+	Leaf2 = rgb(94, 168, 74),
 	Leaf3 = rgb(112, 180, 84),
 	LeafLight = rgb(138, 190, 96),
 	Mint1 = rgb(56, 140, 96),
@@ -64,9 +72,9 @@ local P: { [string]: any } = {
 	BirchLeaf1 = rgb(72, 146, 68),
 	BirchLeaf2 = rgb(100, 170, 80),
 	BirchLeaf3 = rgb(140, 192, 104),
-	Pine0 = rgb(38, 104, 64),
-	Pine1 = rgb(46, 116, 70),
-	Pine2 = rgb(58, 134, 78),
+	Pine0 = rgb(46, 118, 72),
+	Pine1 = rgb(56, 130, 78),
+	Pine2 = rgb(70, 146, 86),
 	Pine3 = rgb(80, 152, 90),
 	PineLight = rgb(112, 170, 110),
 	Palm1 = rgb(60, 140, 70),
@@ -76,9 +84,9 @@ local P: { [string]: any } = {
 	Blossom0 = rgb(204, 124, 152),
 	Blossom1 = rgb(222, 156, 180),
 	Blossom2 = rgb(236, 192, 208),
-	Autumn0 = rgb(180, 94, 56),
-	Autumn1 = rgb(200, 130, 66),
-	Autumn2 = rgb(214, 170, 96),
+	Autumn0 = rgb(194, 84, 48),
+	Autumn1 = rgb(222, 124, 52),
+	Autumn2 = rgb(236, 172, 72),
 	Bark = rgb(140, 96, 62),
 	BarkDark = rgb(108, 74, 50),
 	CutWood = rgb(226, 196, 146),
@@ -125,7 +133,8 @@ local P: { [string]: any } = {
 	Water = rgb(56, 140, 190),
 	WaterLight = rgb(130, 190, 220),
 	Foam = rgb(236, 244, 248),
-	CloudShade = rgb(226, 234, 244),
+	Cloud = rgb(250, 251, 253),
+	CloudShade = rgb(222, 234, 248),
 
 	-- lists
 	Flowers = {

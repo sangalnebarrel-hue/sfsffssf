@@ -1050,6 +1050,15 @@ GUARD_BAND = 2.0  # polygons are clipped to GUARD_BAND x the view frustum (keeps
 SKY_HORIZON = np.array([212, 229, 244], np.float32)
 SKY_ZENITH = np.array([84, 142, 218], np.float32)
 FOG_START, FOG_END = 300.0, 1500.0  # fog starts at START, is 90% at END (studs)
+FOG_TINT = None  # (weight, rgb) from the place's Atmosphere (set in main)
+
+
+def atmosphere_fog(atm):
+    """Fog distances and tint from a Roblox Atmosphere (rough fit: denser/hazier = closer fog)."""
+    density, haze = max(atm.get("density", 0.3), 0.02), atm.get("haze", 0.0)
+    end = min(max(1500.0 * (0.25 / density) / (1.0 + 1.5 * haze), 400.0), 4000.0)
+    tint = (min(0.25 + 0.5 * haze, 0.8), np.array(atm.get("color", [199, 199, 199]), np.float32))
+    return (0.25 * end, end), tint
 OUTLINE_FADE = (60.0, 400.0)  # outlines fade from full strength to none over this distance
 WATER_FRESNEL = 0.85  # extra opacity / sky reflection of water at grazing angles
 
@@ -1285,7 +1294,10 @@ def render_persp(scene, cam: PerspCamera, outlines=True, fog=(FOG_START, FOG_END
         fogged = np.isfinite(dist)
         if fog and fogged.any():
             f = _fog_amount(dist[fogged], fog)[:, None]
-            col[fogged] += (sky[fogged] - col[fogged]) * f
+            target = sky[fogged]
+            if FOG_TINT is not None:  # the place's Atmosphere colour, more of it with more haze
+                target = target + (FOG_TINT[1] - target) * FOG_TINT[0]
+            col[fogged] += (target - col[fogged]) * f
         img[r0:r1] = (col + 0.5).clip(0, 255).astype(np.uint8)
     info = {"zbuf": zbuf, "faces": int(sel.sum()), "total": len(scene.count)}
     return img, info
@@ -1975,10 +1987,18 @@ def main(argv=None):
         with open(args.parts_json, "r", encoding="utf-8") as fh:
             data = json.load(fh)
     os.makedirs(args.out_dir, exist_ok=True)
-    global GRADE
+    global GRADE, WATER_COLOR, WATER_OPACITY, FOG_TINT
     GRADE = None if args.no_grade else data.get("grade")
     if GRADE:
         print(f"[render] colour grading from the place: {GRADE}")
+    if data.get("water"):  # the place's terrain water
+        WATER_COLOR = np.array(data["water"]["color"], np.float32)
+        WATER_OPACITY = float(min(max(1.0 - data["water"].get("transparency", 0.45) + 0.1, 0.3), 0.9))
+        TERRAIN_COLORS["Water"] = tuple(int(c) for c in WATER_COLOR)
+    if data.get("atmosphere") and args.fog == [FOG_START, FOG_END]:  # no explicit --fog
+        args.fog, FOG_TINT = atmosphere_fog(data["atmosphere"])
+        args.fog = list(args.fog)
+        print(f"[render] fog from the place's Atmosphere: {args.fog[0]:.0f}..{args.fog[1]:.0f} studs")
 
     t0 = time.time()
     scene = Scene(data)

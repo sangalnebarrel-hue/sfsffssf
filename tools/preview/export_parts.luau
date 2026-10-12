@@ -208,6 +208,9 @@ local function loadModule(moduleScript: any): any
 	return result
 end
 
+-- House wall tones per base (BaseConfig.WallTones; parts with WallTone = true, shade WallShade).
+local wallTones: { any } = {}
+
 local function readBaseColors(): ({ any }, string)
 	local ReplicatedStorage = game:GetService("ReplicatedStorage")
 	local module = findPath(ReplicatedStorage, { "Shared", "Config", "BaseConfig" })
@@ -228,6 +231,11 @@ local function readBaseColors(): ({ any }, string)
 	end
 	if #colors == 0 then
 		return FALLBACK_COLORS, "fallback (BaseConfig.Colors empty)"
+	end
+	if type(result.WallTones) == "table" then
+		for _, tone in result.WallTones do
+			table.insert(wallTones, tone)
+		end
 	end
 	return colors, "BaseConfig"
 end
@@ -377,9 +385,15 @@ if simulateBases and template and slotFolder then
 					stats.skippedInvisible += 1
 					continue
 				end
-				local color = if inst:GetAttribute("Accent") == true
-					then accentColor(baseColor, inst:GetAttribute("AccentShade"))
-					else inst.Color
+				local color = inst.Color
+				if inst:GetAttribute("Accent") == true then
+					color = accentColor(baseColor, inst:GetAttribute("AccentShade"))
+				elseif inst:GetAttribute("WallTone") == true and #wallTones > 0 then
+					color = accentColor(
+						wallTones[((math.floor(index) - 1) % #wallTones) + 1],
+						inst:GetAttribute("WallShade")
+					)
+				end
 				addPart(
 					inst,
 					slotToWorld * inst.CFrame,
@@ -434,9 +448,30 @@ do
 	end
 end
 
+-- Terrain water and the sky's Atmosphere, so previews tint water and distance haze like Studio.
+local water, atmosphere = nil, nil
+do
+	local terrain = Workspace:FindFirstChildOfClass("Terrain")
+	if terrain then
+		water = { color = colorArray(terrain.WaterColor), transparency = round(terrain.WaterTransparency, 3) }
+	end
+	local atm = game:GetService("Lighting"):FindFirstChildOfClass("Atmosphere")
+	if atm then
+		atmosphere = {
+			density = round(atm.Density, 3),
+			offset = round(atm.Offset, 3),
+			haze = round(atm.Haze, 3),
+			color = colorArray(atm.Color),
+			decay = colorArray(atm.Decay),
+		}
+	end
+end
+
 local output = {
 	source = placePath,
 	grade = grade,
+	water = water,
+	atmosphere = atmosphere,
 	parts = parts,
 	slots = slotsOut,
 	baseColorSource = colorSource,

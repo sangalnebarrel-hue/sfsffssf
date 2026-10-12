@@ -91,7 +91,7 @@ local baked = { smoothGrid = waterGrid:encode(), physicsGrid = waterGrid:encodeP
 terrain.SmoothGrid = baked.smoothGrid
 terrain.PhysicsGrid = baked.physicsGrid
 -- Bright tropical lagoon water.
-terrain.WaterColor = rgb(44, 150, 180)
+terrain.WaterColor = rgb(36, 156, 186)
 terrain.WaterTransparency = 0.55
 terrain.WaterReflectance = 0.2
 terrain.WaterWaveSize = 0.1
@@ -112,10 +112,10 @@ lighting.TimeOfDay = "14:30:00"
 lighting.Brightness = 2.3
 -- Soft, slightly cool shadow sides against the warm sun.
 lighting.Ambient = rgb(112, 112, 120)
-lighting.OutdoorAmbient = rgb(132, 136, 150)
+lighting.OutdoorAmbient = rgb(138, 146, 168)
 lighting.ColorShift_Top = rgb(255, 240, 220)
 lighting.ColorShift_Bottom = rgb(0, 0, 0)
-lighting.EnvironmentDiffuseScale = 0.5
+lighting.EnvironmentDiffuseScale = 0.6
 lighting.EnvironmentSpecularScale = 0.15 -- less plastic sky reflection on the blocks
 lighting.ExposureCompensation = 0
 lighting.GlobalShadows = true
@@ -127,12 +127,12 @@ if dof then
 end
 local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
 	or U.new("Atmosphere", { Name = "Atmosphere" }, lighting)
-atmosphere.Density = 0.28
-atmosphere.Offset = 0.1
-atmosphere.Color = rgb(204, 220, 236)
-atmosphere.Decay = rgb(118, 142, 176)
+atmosphere.Density = 0.22
+atmosphere.Offset = 0.25
+atmosphere.Color = rgb(198, 222, 248)
+atmosphere.Decay = rgb(104, 150, 210)
 atmosphere.Glare = 0
-atmosphere.Haze = 0.6
+atmosphere.Haze = 0.2
 local bloom = lighting:FindFirstChildOfClass("BloomEffect") or U.new("BloomEffect", { Name = "Bloom" }, lighting)
 -- Only Neon blooms (sunlit cream/white surfaces stay crisp).
 bloom.Intensity = 0.35
@@ -144,10 +144,10 @@ sunRays.Intensity = 0.04
 sunRays.Spread = 0.5
 local grade = lighting:FindFirstChildOfClass("ColorCorrectionEffect")
 	or U.new("ColorCorrectionEffect", { Name = "ColorCorrection" }, lighting)
-grade.Saturation = 0.04
-grade.Contrast = 0.04
+grade.Saturation = 0.1
+grade.Contrast = 0.06
 grade.Brightness = 0
-grade.TintColor = rgb(255, 252, 248)
+grade.TintColor = rgb(255, 252, 246)
 
 --------------------------------------------------------------------------------
 -- 3-6. Generated content

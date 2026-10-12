@@ -154,6 +154,8 @@ row("plants", 0, 70, 8, {
 	{ "bush", { seed = 4, berries = C.Yellow } },
 	{ "berryBush", { seed = 1 } },
 	{ "flowerClump", { seed = 1 } },
+	{ "flowerBed", { seed = 1 } },
+	{ "flowerBed", { seed = 2, width = 8, depth = 2, kerb = false } },
 	{ "hayBale", {} },
 	{ "flowerPatch", { seed = 1 } },
 	{ "flowerPatch", { seed = 2 } },

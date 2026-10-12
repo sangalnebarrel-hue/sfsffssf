@@ -32,10 +32,10 @@ local FAR = 780 -- beyond the boundary: one tint (bigger merged rectangles)
 local STRATUM = 12
 local STRATA = {
 	Dirt = { rgb(166, 118, 78), rgb(148, 104, 70) },
-	-- warm grey stone in two bands
-	Mountainside = { rgb(150, 146, 142), rgb(132, 128, 126) },
-	Stone = { rgb(150, 146, 142), rgb(132, 128, 126) },
-	Snow = { rgb(214, 224, 236), rgb(200, 212, 226) },
+	-- cool slate in two bands: mountains recede behind the warm village
+	Mountainside = { rgb(136, 144, 162), rgb(118, 126, 146) }, -- cool slate (Palette.Slate*)
+	Stone = { rgb(136, 144, 162), rgb(118, 126, 146) },
+	Snow = { rgb(230, 238, 250), rgb(218, 228, 244) },
 	-- red-rock mesas: terracotta bands with a cream band every fourth stratum
 	Redrock = { rgb(190, 108, 78), rgb(206, 130, 92), rgb(222, 170, 124), rgb(232, 200, 160) },
 	Sandstone = { rgb(206, 162, 112), rgb(190, 144, 98), rgb(222, 186, 138) },
@@ -46,25 +46,25 @@ local KIND_STYLE = {
 	meadow = { cap = rgb(138, 194, 88), body = DIRT, name = "Meadow", strata = "Dirt" },
 	path = { cap = rgb(206, 180, 136), body = DIRT, name = "Path", strata = "Dirt" },
 	sand = { cap = rgb(232, 212, 160), body = rgb(212, 188, 138), name = "Sand" },
-	shallow = { body = rgb(222, 204, 150), name = "Shallows" },
-	seabed = { body = rgb(176, 196, 150), name = "Seabed" },
-	deep = { body = rgb(86, 150, 150), name = "DeepSeabed" },
-	stone = { cap = rgb(176, 172, 166), body = rgb(150, 146, 142), name = "Stone", strata = "Stone" },
-	snow = { cap = rgb(238, 242, 246), body = rgb(214, 224, 236), name = "Snow" }, -- one icy body, no bands
-	grassRock = { body = rgb(150, 146, 142), name = "Mountainside", strata = "Mountainside" }, -- grass cap
+	shallow = { body = rgb(230, 212, 156), name = "Shallows" },
+	seabed = { body = rgb(178, 212, 176), name = "Seabed" },
+	deep = { body = rgb(70, 160, 182), name = "DeepSeabed" },
+	stone = { cap = rgb(168, 176, 192), body = rgb(136, 144, 162), name = "Stone", strata = "Stone" },
+	snow = { cap = rgb(246, 249, 252), body = rgb(230, 238, 250), name = "Snow" }, -- one icy body, no bands
+	grassRock = { body = rgb(136, 144, 162), name = "Mountainside", strata = "Mountainside" }, -- grass cap
 	redrock = { body = rgb(190, 108, 78), name = "RedRock", strata = "Redrock" }, -- ochre/grass cap
 	mesa = { body = rgb(204, 160, 112), name = "Sandstone", strata = "Sandstone" }, -- grass cap, warm cliff
 }
 
 -- Sea floor colour by depth: bright sand in the shallows, turquoise lagoon, deep-blue ocean.
 local SEABED_BY_TOP = {
-	[-2] = rgb(226, 206, 150),
-	[-4] = rgb(212, 200, 150),
-	[-6] = rgb(180, 196, 150),
-	[-8] = rgb(146, 180, 156),
-	[-14] = rgb(100, 160, 158),
-	[-16] = rgb(84, 140, 150),
-	[-24] = rgb(44, 96, 136),
+	[-2] = rgb(230, 212, 156),
+	[-4] = rgb(214, 210, 164),
+	[-6] = rgb(178, 212, 176),
+	[-8] = rgb(128, 202, 186),
+	[-14] = rgb(86, 182, 188),
+	[-16] = rgb(70, 160, 182),
+	[-24] = rgb(40, 104, 150),
 }
 
 return function(parent: any, world: any): { parts: number, rects: number }

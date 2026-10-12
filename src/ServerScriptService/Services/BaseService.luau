@@ -5,7 +5,8 @@
 	Что делает:
 	  1. При старте сервера клонирует шаблон ServerStorage.BaseTemplate в каждый слот
 	     Workspace.Map.BaseSlots (8 штук) и красит базу в свой цвет из BaseConfig.Colors.
-	     Красятся детали шаблона с атрибутом Accent = true (флаг, стены, крыши, площадка и т.д.);
+	     Красятся детали шаблона с атрибутом Accent = true (флаг, крыши, навесы и т.д.), а детали
+	     с WallTone = true получают тон стен базы (BaseConfig.WallTones, оттенок — WallShade);
 	     числовой атрибут AccentShade (от -1 до 1) даёт оттенок: > 0 — светлее (к белому),
 	     < 0 — темнее (к чёрному). Все TextLabel с именами OwnerLabel / BaseLabel (табличка над
 	     флагом, вывеска на воротах и т.д.) показывают владельца и название базы.
@@ -178,6 +179,8 @@ end
 local function createBase(template: Model, slot: BasePart, index: number, parent: Instance): Base
 	local colors = BaseConfig.Colors
 	local colorDef = colors[(index - 1) % #colors + 1]
+	local wallTones = BaseConfig.WallTones
+	local wallTone = wallTones[(index - 1) % #wallTones + 1]
 
 	local model = template:Clone()
 	model.Name = `Base_{index}`
@@ -189,6 +192,8 @@ local function createBase(template: Model, slot: BasePart, index: number, parent
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") and descendant:GetAttribute("Accent") == true then
 			descendant.Color = shadeColor(colorDef.Color, descendant:GetAttribute("AccentShade"))
+		elseif descendant:IsA("BasePart") and descendant:GetAttribute("WallTone") == true then
+			descendant.Color = shadeColor(wallTone, descendant:GetAttribute("WallShade"))
 		elseif descendant:IsA("TextLabel") then
 			if descendant.Name == "OwnerLabel" then
 				table.insert(ownerLabels, descendant)
