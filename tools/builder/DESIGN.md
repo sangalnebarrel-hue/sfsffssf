@@ -136,7 +136,13 @@ lays its own floor/paths/borders on top (slab tops at y ≈ 0.2; nothing coplana
 | `tools/builder/Props.luau` | props | voxel prop library (see its header) |
 | `tools/builder/BaseTemplate.luau` | template | `ServerStorage.BaseTemplate` |
 | `tools/builder/Hub.luau` | hub | `Workspace.Map.Hub` |
-| `tools/builder/Map.luau` | map | assembles Map: slots, ground, hub, bridges, promenade, landmarks, nature, lagoon/ocean decor, boundaries |
+| `tools/builder/Map.luau` | map | assembles Map: slots, ground, hub, bridges, promenade, landmarks, nature, lagoon/ocean decor, boundaries; prints the dressing budget |
+| `tools/builder/MapKit.luau` | map | shared helpers: seeded rng, Props call, local-frame block builder, signs, lights, claims, stairs over the voxel ground, cheap lamp / flower bed |
+| `tools/builder/Promenade.luau` | map | `Map.Bridges` (4 × Props.bridge) and `Map.Promenade` (paving, railing with gaps, lamps, bunting, benches, flower boxes, path billboards) |
+| `tools/builder/Gateways.luau` | map | `Map.Gateways` — 4 themed plazas (arch + sign, centrepiece, stall, notice board, photo frame, flower beds) |
+| `tools/builder/Landmarks.luau` | map | `Map.Landmarks` — waterfall (stream, cliff stairs, lookout), windmill (tulip terraces, stairs, fence), giant tree, peaks |
+| `tools/builder/Coast.luau` | map | `Map.Lagoon`, `Map.Ocean` (islets, shipwreck, rock arch, whale, far sailboats), `Map.Sky` (clouds) |
+| `tools/builder/Nature.luau` | map | `Map.Nature` — groves by noise + visibility within the part budget left over by the others |
 
 Builder conventions (unchanged): deterministic (no `math.random`, seeds only), anchored parts
 via `Util.part`, `CanTouch = false` by default, foliage/tiny details `CanCollide = false` and
@@ -146,6 +152,13 @@ PointLight Range ≤ 16.
 
 Part budgets (runtime total target ≤ 15 000): ground ≤ 4 000, 8 bases × ≤ 450, hub ≤ 1 800,
 bridges + promenade ≤ 1 200, nature ≤ 2 500, landmarks + islets + lagoon decor ≤ 1 500.
+The map dressing as a whole (everything in `Workspace.Map` except Ground and Hub) is capped at
+4 000 parts and 40 PointLights; Map.luau builds Nature last with whatever is left and fails
+the build when the cap is exceeded.
+
+Spinning models: any Model under `Workspace.Map` with a number attribute `Spin` (degrees per
+second) is turned about its pivot's LookVector by the client (AmbientController); child Models
+with `KeepUpright = true` stay level.
 
 ## 4. Preview
 

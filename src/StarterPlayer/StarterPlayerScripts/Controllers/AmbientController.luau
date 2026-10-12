@@ -2,9 +2,13 @@
 --[[
 	AmbientController — «живой» мир, только для красоты и только на клиенте:
 	  • стайки разноцветных рыб плавают под водой по озеру;
-	  • чайки кружат над островом-деревней и машут крыльями.
-	Всё создаётся локально (сервер об этом не знает), без коллизий и теней. Двигается через
-	Workspace:BulkMoveTo примерно 30 раз в секунду — дёшево даже для телефонов.
+	  • чайки кружат над островом-деревней и машут крыльями;
+	  • крутятся лопасти мельницы, колесо обозрения и всё прочее, что строитель карты пометил:
+	    любая Model внутри Workspace.Map с числовым атрибутом Spin (градусов в секунду)
+	    вращается вокруг оси своей точки опоры (pivot, ось = LookVector). Вложенные модели с
+	    атрибутом KeepUpright = true (кабинки колеса) при этом остаются ровными.
+	Рыбы и чайки создаются локально (сервер о них не знает), без коллизий и теней. Всё двигается
+	через Workspace:BulkMoveTo примерно 30 раз в секунду — дёшево даже для телефонов.
 	Количество — в AMBIENT ниже.
 ]]
 
@@ -35,6 +39,25 @@ type Mover = {
 	update: (self: Mover, t: number) -> CFrame,
 	flap: boolean,
 	phase: number,
+}
+
+-- Ровная часть вращающейся модели (кабинка колеса): где её точка опоры на колесе и как она
+-- повёрнута в мире (этот поворот сохраняется).
+type Upright = {
+	pivot: Vector3, -- точка опоры в системе координат вращающейся модели
+	rotation: CFrame, -- исходный поворот в мире
+	parts: { BasePart },
+	offsets: { CFrame }, -- детали относительно точки опоры
+}
+
+type Spinner = {
+	model: Model,
+	base: CFrame, -- исходная точка опоры (pivot) модели
+	speed: number, -- радиан в секунду
+	angle: number,
+	parts: { BasePart },
+	offsets: { CFrame }, -- детали относительно base
+	uprights: { Upright },
 }
 
 local AmbientController = {}
@@ -117,6 +140,74 @@ local function makeGull(folder: Instance, rng: Random): Mover
 	return mover
 end
 
+-- Ближайшая вложенная модель с KeepUpright = true между деталью и вращающейся моделью.
+local function uprightAncestor(part: BasePart, root: Model): Model?
+	local node = part.Parent
+	while node and node ~= root do
+		if node:IsA("Model") and node:GetAttribute("KeepUpright") == true then
+			return node
+		end
+		node = node.Parent
+	end
+	return nil
+end
+
+-- Собирает вращающиеся модели карты: все Model с числовым атрибутом Spin.
+local function collectSpinners(map: Instance): { Spinner }
+	local spinners: { Spinner } = {}
+	for _, inst in map:GetDescendants() do
+		local spin = inst:GetAttribute("Spin")
+		if not inst:IsA("Model") or typeof(spin) ~= "number" or spin == 0 then
+			continue
+		end
+		local model = inst :: Model
+		local base = model:GetPivot()
+		local spinner: Spinner = {
+			model = model,
+			base = base,
+			speed = math.rad(spin),
+			angle = 0,
+			parts = {},
+			offsets = {},
+			uprights = {},
+		}
+		local groups: { [Model]: Upright } = {}
+		local origins: { [Model]: CFrame } = {}
+		for _, d in model:GetDescendants() do
+			if not d:IsA("BasePart") then
+				continue
+			end
+			local part = d :: BasePart
+			local holder = uprightAncestor(part, model)
+			if holder then
+				local group: Upright? = groups[holder]
+				local origin: CFrame? = origins[holder]
+				if not group or not origin then
+					local pivot = holder:GetPivot()
+					origin = pivot
+					group = {
+						pivot = base:PointToObjectSpace(pivot.Position),
+						rotation = pivot.Rotation,
+						parts = {},
+						offsets = {},
+					}
+					origins[holder] = pivot
+					groups[holder] = group
+					table.insert(spinner.uprights, group :: Upright)
+				end
+				local g = group :: Upright
+				table.insert(g.parts, part)
+				table.insert(g.offsets, (origin :: CFrame):Inverse() * part.CFrame)
+			else
+				table.insert(spinner.parts, part)
+				table.insert(spinner.offsets, base:Inverse() * part.CFrame)
+			end
+		end
+		table.insert(spinners, spinner)
+	end
+	return spinners
+end
+
 function AmbientController:Start(_hud: ScreenGui)
 	local folder = Instance.new("Folder")
 	folder.Name = "Ambient (client)"
@@ -139,6 +230,54 @@ function AmbientController:Start(_hud: ScreenGui)
 	end
 	local cframes: { CFrame } = table.create(#allParts, CFrame.identity)
 
+	-- Вращающиеся модели карты (мельница, колесо обозрения …). Карта уже лежит в месте
+	-- (StreamingEnabled выключен) — коротко ждём её, не задерживая остальные контроллеры.
+	local spinners: { Spinner } = {}
+	local spinParts: { BasePart } = {}
+	local spinFrames: { CFrame } = {}
+	task.spawn(function()
+		local map = Workspace:WaitForChild("Map", 10)
+		if map then
+			spinners = collectSpinners(map)
+		end
+	end)
+
+	-- Поворачивает все вращающиеся модели на их угол. Позиции считаются заново от исходной
+	-- точки опоры, поэтому ошибки округления не копятся.
+	local function updateSpinners(elapsed: number)
+		for index = #spinners, 1, -1 do
+			if not spinners[index].model:IsDescendantOf(Workspace) then
+				table.remove(spinners, index) -- модель удалили — больше не трогаем её детали
+			end
+		end
+		local n = 0
+		for _, spinner in spinners do
+			spinner.angle = (spinner.angle + spinner.speed * elapsed) % (2 * math.pi)
+			local frame = spinner.base * CFrame.Angles(0, 0, spinner.angle)
+			for k, part in spinner.parts do
+				n += 1
+				spinParts[n] = part
+				spinFrames[n] = frame * spinner.offsets[k]
+			end
+			for _, group in spinner.uprights do
+				-- кабинка едет вместе с колесом, но сохраняет свой исходный поворот
+				local pivot = CFrame.new(frame * group.pivot) * group.rotation
+				for k, part in group.parts do
+					n += 1
+					spinParts[n] = part
+					spinFrames[n] = pivot * group.offsets[k]
+				end
+			end
+		end
+		for k = #spinParts, n + 1, -1 do
+			spinParts[k] = nil
+			spinFrames[k] = nil
+		end
+		if n > 0 then
+			Workspace:BulkMoveTo(spinParts, spinFrames, Enum.BulkMoveMode.FireCFrameChanged)
+		end
+	end
+
 	local accumulator = 0
 	local interval = 1 / AMBIENT.UpdateRate
 	RunService.Heartbeat:Connect(function(dt: number)
@@ -146,7 +285,9 @@ function AmbientController:Start(_hud: ScreenGui)
 		if accumulator < interval then
 			return
 		end
+		local elapsed = accumulator
 		accumulator = 0
+		updateSpinners(elapsed)
 		local t = os.clock()
 		local i = 0
 		for _, mover in movers do
