@@ -82,7 +82,7 @@ hub island       r < 150     (plaza flat at GroundTop for r < 124, sand y = 2 to
 | BaseCount / BaseAngleOffset | 8 / 22.5 | base angles 22.5, 67.5, … |
 | BaseRadius | 312 | slot position radius (= PromenadeRadius) |
 | PlotFront / PlotDepth / PlotHalfWidth | 18 / 150 / 68 | plot rectangle in base-local space |
-| PierLength / PierHalfWidth | 92 / 22 | pier corridor in base-local space (incl. end platform) |
+| PierLength / PierHalfWidth | 72 / 22 | pier corridor in base-local space (incl. end platform) |
 | BridgeAngles / BridgeWidth | {0,90,180,270} / 18 | bridges hub ↔ promenade |
 | RingOuterRadius | 600 | mean outer coastline |
 | OceanHalf / OceanDepth | 1400 / 24 | ocean square half-size / bed depth |
@@ -105,7 +105,7 @@ origin of this frame; `y = 0` is GroundTop.
            |  siren tower                        |
  lz = 18   ──── big entrance gate (front) ───────
  lz 0..18      public PROMENADE (built by Map — template places nothing here)
- lz 0 … −92    the base's pier (width ≤ 2·22) over the beach (y = −2 local) and water
+ lz 0 … −72    the base's pier (width ≤ 2·22) over the beach (y = −2 local) and water
                (y = −4 local), end platform with the fishing spot
 ```
 

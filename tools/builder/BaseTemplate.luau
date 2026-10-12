@@ -1055,7 +1055,7 @@ end
 ------------------------------------------------------------------------------------------
 
 local PIER_HALF = 8 -- walkway deck x = ±8
-local PIER_END = -70 -- walkway ends, platform begins
+local PLATFORM_DEPTH = 22 -- the end platform: from the pier's end (lz = -PierLength) 22 studs inland
 local PLAT_HALF = 20 -- platform x = ±20
 
 -- Deck slab (top at `top`) with raised plank strips (4 studs wide, every 8; 0.1 short of the
@@ -1079,6 +1079,7 @@ local function deck(parent: any, halfWidth: number, z0: number, z1: number, acro
 end
 
 local function buildPier(template: any, pierEnd: number, pileBottom: number)
+	local PIER_END = pierEnd + PLATFORM_DEPTH -- walkway ends, platform begins
 	local pier = U.model(template, "Pier")
 	local hw = PIER_HALF
 	-- (the walkway slab sits 0.14 under the promenade tiles it runs into: no shared plane)

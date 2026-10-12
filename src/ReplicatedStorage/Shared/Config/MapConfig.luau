@@ -43,7 +43,7 @@ local MapConfig = {
 	PlotDepth = 150, -- … и уходит вглубь суши на 150 studs
 	PlotHalfWidth = 68, -- полуширина участка
 	PlotMargin = 8, -- ровная земля вокруг участка
-	PierLength = 92, -- пирс участка: от lz = 0 до lz = −92
+	PierLength = 72, -- пирс участка: от lz = 0 до lz = −72 (рыбак смотрит на открытую лагуну)
 	PierHalfWidth = 22,
 
 	-- Мосты на остров -------------------------------------------------------------------
@@ -62,13 +62,15 @@ local MapConfig = {
 		{ Name = "Waterfall", Angle = 45, Radius = 404 }, -- скала с водопадом и прудом; Radius — фронт скалы
 		{ Name = "Windmill", Angle = 135, Radius = 432 }, -- ступенчатый холм с мельницей
 		{ Name = "GiantTree", Angle = 225, Radius = 420 }, -- луг с гигантским деревом
-		{ Name = "Peak", Angle = 315, Radius = 580, Size = 125, Height = 176 }, -- снежная вершина у берега
+		-- Style: "snow" — снежная вершина, "sandstone" — столовая гора из красного песчаника,
+		-- "green" — лесистая гора
+		{ Name = "Peak", Angle = 315, Radius = 580, Size = 125, Height = 176, Style = "snow" }, -- с тропой
 		-- ещё две горы на внешнем кольце (за участками 3 и 5): Size — радиус подножия, Height — высота
-		{ Name = "PeakEast", Angle = 112.5, Radius = 612, Size = 120, Height = 140 },
-		{ Name = "PeakSouth", Angle = 202.5, Radius = 620, Size = 112, Height = 124 },
-		{ Name = "PeakNorth", Angle = 22.5, Radius = 600, Size = 100, Height = 104 }, -- за участком 1
-		{ Name = "PeakSouthEast", Angle = 157.5, Radius = 600, Size = 96, Height = 96 }, -- за участком 4
-		{ Name = "PeakWest", Angle = 252, Radius = 600, Size = 104, Height = 110 }, -- за участком 6
+		{ Name = "PeakEast", Angle = 112.5, Radius = 612, Size = 120, Height = 150, Style = "snow" },
+		{ Name = "PeakSouth", Angle = 202.5, Radius = 620, Size = 112, Height = 96, Style = "sandstone" },
+		{ Name = "PeakNorth", Angle = 22.5, Radius = 600, Size = 100, Height = 120, Style = "snow" }, -- за участком 1
+		{ Name = "PeakSouthEast", Angle = 157.5, Radius = 600, Size = 96, Height = 84, Style = "green" }, -- за 4
+		{ Name = "PeakWest", Angle = 252, Radius = 600, Size = 104, Height = 88, Style = "sandstone" }, -- за 6
 	},
 
 	-- Океан -------------------------------------------------------------------------------

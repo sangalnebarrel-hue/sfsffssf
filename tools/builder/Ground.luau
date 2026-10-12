@@ -29,7 +29,7 @@ local GRASS_HIGH = rgb(112, 210, 68) -- slightly deeper on high ground
 local HIGH_GROUND = 40
 local FAR = 780 -- beyond the boundary: one tint (bigger merged rectangles)
 -- Tall cliff bodies are split into horizontal strata (absolute y bands) of 2-3 shades.
-local STRATUM = 8
+local STRATUM = 12
 local STRATA = {
 	Dirt = { rgb(206, 148, 88), rgb(186, 128, 74) },
 	Mountainside = { rgb(186, 194, 214), rgb(166, 174, 198) },

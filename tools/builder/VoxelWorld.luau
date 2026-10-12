@@ -171,7 +171,7 @@ local DEFAULTS = {
 	PlotDepth = 150,
 	PlotHalfWidth = 68,
 	PlotMargin = 8,
-	PierLength = 92,
+	PierLength = 72,
 	PierHalfWidth = 22,
 	BridgeAngles = { 0, 90, 180, 270 },
 	BridgeWidth = 18,
@@ -262,6 +262,7 @@ function VoxelWorld:setupLandmarks()
 			site.peak = true
 			site.mountainRadius = def.Size or 150
 			site.top = def.Height or 116
+			site.style = def.Style or "snow"
 			site.path = def.Name == "Peak"
 		end
 		site.x, site.z = polar(def.Angle, def.Radius)
@@ -490,7 +491,12 @@ function VoxelWorld:landmarkShape(x: number, z: number, flat: number, mflat: num
 			local d = sqrt((mx - site.x) ^ 2 + (mz - site.z) ^ 2)
 			if d < site.mountainRadius then
 				local t = 1 - d / site.mountainRadius
-				local shape = t ^ 1.35 + 0.08 * self:noise(mx / 40 + 5, mz / 40 + 9) * t
+				-- snowy peaks are pointed cones, sandstone mountains flat-topped mesas, green ones round
+				local shape = if site.style == "sandstone"
+					then min(1, (t / 0.55) ^ 0.9)
+					elseif site.style == "green" then t ^ 0.8
+					else t ^ 1.35
+				shape += 0.08 * self:noise(mx / 40 + 5, mz / 40 + 9) * t
 				-- the mountain foot never spills into plots or paths
 				local h = (site.top - 4) * clamp(shape, 0, 1) * smoothstep(0, 30, mflat)
 				if site.summitTop then
@@ -528,7 +534,12 @@ function VoxelWorld:peakKind(x: number, z: number, top: number): string
 		end
 	end
 	local peakTop = if site then (site.summitTop or site.top) else 116
-	local snowLine = max(peakTop - 36, 80)
+	if site and site.style == "sandstone" then
+		return if top > 12 then "mesa" else "grass" -- red-rock strata under a grass cap
+	elseif site and site.style == "green" then
+		return if top >= peakTop - 8 then "stone" else "grass" -- a rocky crown on a green hill
+	end
+	local snowLine = max(peakTop - 48, 76) -- generous snow caps
 	if top >= snowLine then
 		return "snow"
 	elseif top >= snowLine - 20 then
@@ -658,7 +669,7 @@ function VoxelWorld:column(x: number, z: number): (number, string, boolean?, boo
 		-- Sea cliffs: where the coast is rocky, its last 24 studs stand at least 12 above the water
 		-- as warm sandstone (instead of a lawn running into the sea).
 		if cliff > 0.5 and not shaped and coastR - mr < 24 then
-			h = max(h, 12)
+			h = max(h, 8) -- (top 12: a cliff, but low enough to stay one block — no strata parts)
 			shaped, locked, lkind = true, true, "mesa"
 		end
 		local top = G + snap(h, 4)
@@ -675,7 +686,7 @@ function VoxelWorld:column(x: number, z: number): (number, string, boolean?, boo
 	-- Peak running into the sea.
 	if lh and lh > 2 then
 		local top = G + snap(lh, 4)
-		return top, lkind or landKind(top), true
+		return top, lkind or self:peakKind(x, z, top), true
 	end
 
 	-- Outer beach (an upper dune row at y 3, then y 2: 1-stud steps, no jumps), then the sea

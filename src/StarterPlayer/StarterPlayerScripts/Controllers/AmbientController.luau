@@ -6,7 +6,10 @@
 	  • крутятся лопасти мельницы, колесо обозрения и всё прочее, что строитель карты пометил:
 	    любая Model внутри Workspace.Map с числовым атрибутом Spin (градусов в секунду)
 	    вращается вокруг оси своей точки опоры (pivot, ось = LookVector). Вложенные модели с
-	    атрибутом KeepUpright = true (кабинки колеса) при этом остаются ровными.
+	    атрибутом KeepUpright = true (кабинки колеса) при этом остаются ровными;
+	  • покачиваются на волнах лодки, буйки, плоты — любая Model в Workspace.Map или
+	    Workspace.Bases с числовым атрибутом Bob (амплитуда в studs; BobPeriod — период в секундах,
+	    по умолчанию 3).
 	Рыбы и чайки создаются локально (сервер о них не знает), без коллизий и теней. Всё двигается
 	через Workspace:BulkMoveTo примерно 30 раз в секунду — дёшево даже для телефонов.
 	Количество — в AMBIENT ниже.
@@ -58,6 +61,16 @@ type Spinner = {
 	parts: { BasePart },
 	offsets: { CFrame }, -- детали относительно base
 	uprights: { Upright },
+}
+
+type Bobber = {
+	model: Model,
+	base: CFrame, -- исходная точка опоры
+	amplitude: number,
+	omega: number, -- радиан в секунду
+	phase: number,
+	parts: { BasePart },
+	offsets: { CFrame },
 }
 
 local AmbientController = {}
@@ -208,6 +221,36 @@ local function collectSpinners(map: Instance): { Spinner }
 	return spinners
 end
 
+-- Собирает покачивающиеся модели: все Model с числовым атрибутом Bob (кроме вложенных в другие).
+local function collectBobbers(root: Instance, into: { Bobber })
+	for _, inst in root:GetDescendants() do
+		local amplitude = inst:GetAttribute("Bob")
+		if not inst:IsA("Model") or typeof(amplitude) ~= "number" or amplitude == 0 then
+			continue
+		end
+		local model = inst :: Model
+		local period = model:GetAttribute("BobPeriod")
+		local base = model:GetPivot()
+		local bobber: Bobber = {
+			model = model,
+			base = base,
+			amplitude = amplitude,
+			omega = 2 * math.pi / (if typeof(period) == "number" and period > 0 then period else 3),
+			-- своя фаза у каждой лодки (по координатам — одинаково у всех игроков)
+			phase = (base.Position.X * 0.37 + base.Position.Z * 0.61) % (2 * math.pi),
+			parts = {},
+			offsets = {},
+		}
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				table.insert(bobber.parts, d)
+				table.insert(bobber.offsets, base:Inverse() * d.CFrame)
+			end
+		end
+		table.insert(into, bobber)
+	end
+end
+
 function AmbientController:Start(_hud: ScreenGui)
 	local folder = Instance.new("Folder")
 	folder.Name = "Ambient (client)"
@@ -235,10 +278,17 @@ function AmbientController:Start(_hud: ScreenGui)
 	local spinners: { Spinner } = {}
 	local spinParts: { BasePart } = {}
 	local spinFrames: { CFrame } = {}
+	local bobbers: { Bobber } = {}
 	task.spawn(function()
 		local map = Workspace:WaitForChild("Map", 10)
 		if map then
 			spinners = collectSpinners(map)
+			collectBobbers(map, bobbers)
+		end
+		-- базы сервер создаёт при старте, до прихода игроков
+		local bases = Workspace:WaitForChild("Bases", 10)
+		if bases then
+			collectBobbers(bases, bobbers)
 		end
 	end)
 
@@ -267,6 +317,24 @@ function AmbientController:Start(_hud: ScreenGui)
 					spinParts[n] = part
 					spinFrames[n] = pivot * group.offsets[k]
 				end
+			end
+		end
+		-- лодки и буйки: плавно вверх-вниз с лёгким креном
+		local t = os.clock()
+		for index = #bobbers, 1, -1 do
+			if not bobbers[index].model:IsDescendantOf(Workspace) then
+				table.remove(bobbers, index)
+			end
+		end
+		for _, bobber in bobbers do
+			local w = bobber.omega * t + bobber.phase
+			local frame = bobber.base
+				* CFrame.new(0, bobber.amplitude * math.sin(w), 0)
+				* CFrame.Angles(0.04 * math.sin(w), 0, 0.03 * math.cos(w))
+			for k, part in bobber.parts do
+				n += 1
+				spinParts[n] = part
+				spinFrames[n] = frame * bobber.offsets[k]
 			end
 		end
 		for k = #spinParts, n + 1, -1 do
