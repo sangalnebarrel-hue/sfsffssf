@@ -32,9 +32,12 @@ local FAR = 780 -- beyond the boundary: one tint (bigger merged rectangles)
 local STRATUM = 12
 local STRATA = {
 	Dirt = { rgb(206, 148, 88), rgb(186, 128, 74) },
-	Mountainside = { rgb(186, 194, 214), rgb(166, 174, 198) },
-	Stone = { rgb(186, 194, 214), rgb(166, 174, 198) },
-	Snow = { rgb(236, 244, 255), rgb(220, 232, 250) },
+	-- periwinkle slate: rock that still reads as colour, not grey-on-grey
+	Mountainside = { rgb(150, 162, 222), rgb(128, 140, 206) },
+	Stone = { rgb(150, 162, 222), rgb(128, 140, 206) },
+	Snow = { rgb(214, 236, 255), rgb(200, 224, 250) },
+	-- red-rock mesas: terracotta bands with a cream band every fourth stratum
+	Redrock = { rgb(226, 110, 72), rgb(242, 142, 90), rgb(252, 190, 130), rgb(255, 226, 170) },
 	Sandstone = { rgb(232, 178, 112), rgb(214, 150, 92), rgb(246, 206, 150) },
 }
 local DIRT = rgb(206, 148, 88)
@@ -46,9 +49,10 @@ local KIND_STYLE = {
 	shallow = { body = rgb(250, 226, 156), name = "Shallows" },
 	seabed = { body = rgb(200, 226, 170), name = "Seabed" },
 	deep = { body = rgb(112, 208, 198), name = "DeepSeabed" },
-	stone = { cap = rgb(206, 210, 222), body = rgb(168, 174, 192), name = "Stone", strata = "Stone" },
-	snow = { cap = rgb(250, 252, 255), body = rgb(224, 236, 252), name = "Snow", strata = "Snow" },
-	grassRock = { body = rgb(168, 174, 192), name = "Mountainside", strata = "Mountainside" }, -- grass cap
+	stone = { cap = rgb(184, 194, 240), body = rgb(150, 162, 222), name = "Stone", strata = "Stone" },
+	snow = { cap = rgb(255, 255, 255), body = rgb(214, 236, 255), name = "Snow" }, -- one icy body, no bands
+	grassRock = { body = rgb(150, 162, 222), name = "Mountainside", strata = "Mountainside" }, -- grass cap
+	redrock = { body = rgb(226, 110, 72), name = "RedRock", strata = "Redrock" }, -- ochre/grass cap
 	mesa = { body = rgb(222, 170, 116), name = "Sandstone", strata = "Sandstone" }, -- grass cap, warm cliff
 }
 
@@ -150,7 +154,10 @@ return function(parent: any, world: any): { parts: number, rects: number }
 				local underwater = top < waterTop
 				local folder = if underwater then folders.water else folders.land
 				local capColor = style.cap
-				if kind == "grass" or kind == "grassRock" or kind == "mesa" then
+				if kind == "redrock" then
+					-- flat mesa tops are ochre sand, lower ledges grassy
+					capColor = if top > 40 then rgb(250, 206, 130) else GRASS_LIME
+				elseif kind == "grass" or kind == "grassRock" or kind == "mesa" then
 					-- three tints in broad patches (forest floor / lime / warm meadow)
 					local tint = world:noise(cx / 256 + 3.7, cz / 256 - 1.3)
 					capColor = if math.sqrt(cx * cx + cz * cz) > FAR

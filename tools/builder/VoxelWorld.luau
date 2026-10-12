@@ -36,7 +36,7 @@ local sin, cos, rad, deg, atan2 = math.sin, math.cos, math.rad, math.deg, math.a
 
 -- Column kinds (index order is used by Ground.luau for merging and colours).
 VoxelWorld.Kinds =
-	{ "grass", "meadow", "path", "sand", "shallow", "seabed", "deep", "stone", "snow", "grassRock", "mesa" }
+	{ "grass", "meadow", "path", "sand", "shallow", "seabed", "deep", "stone", "snow", "grassRock", "mesa", "redrock" }
 local KIND_INDEX = {}
 for i, name in VoxelWorld.Kinds do
 	KIND_INDEX[name] = i
@@ -446,7 +446,8 @@ function VoxelWorld:landmarkShape(x: number, z: number, flat: number, mflat: num
 		if site.name == "Waterfall" then
 			local lx, lz = radialLocal(x, z, site.angle, site.radius)
 			-- Plateau: lz in [0, depth], |lx| <= halfWidth with rounded back corners.
-			if lz >= 0 and lz <= site.depth then
+			-- (the face steps back 8 studs on the right where the cliff stairs climb along it)
+			if lz >= (if lx > 22 then 8 else 0) and lz <= site.depth then
 				local w = site.halfWidth - max(lz - site.depth + 40, 0) * 0.9
 				if abs(lx) <= w then
 					-- a chunky mesa: flat top, one terrace ledge along the sides and back
@@ -495,7 +496,7 @@ function VoxelWorld:landmarkShape(x: number, z: number, flat: number, mflat: num
 				local shape = if site.style == "sandstone"
 					then min(1, (t / 0.55) ^ 0.9)
 					elseif site.style == "green" then t ^ 0.8
-					else t ^ 1.35
+					else min(1, t ^ 1.35 / 0.8) -- a broad crown, not a one-column chimney
 				shape += 0.08 * self:noise(mx / 40 + 5, mz / 40 + 9) * t
 				-- the mountain foot never spills into plots or paths
 				local h = (site.top - 4) * clamp(shape, 0, 1) * smoothstep(0, 30, mflat)
@@ -535,14 +536,14 @@ function VoxelWorld:peakKind(x: number, z: number, top: number): string
 	end
 	local peakTop = if site then (site.summitTop or site.top) else 116
 	if site and site.style == "sandstone" then
-		return if top > 12 then "mesa" else "grass" -- red-rock strata under a grass cap
+		return if top > 12 then "redrock" else "grass" -- red-rock strata, ochre-sand flat tops
 	elseif site and site.style == "green" then
 		return if top >= peakTop - 8 then "stone" else "grass" -- a rocky crown on a green hill
 	end
-	local snowLine = max(peakTop - 48, 76) -- generous snow caps
+	local snowLine = max(peakTop - 64, 64) -- generous snow crowns (~30% of the mountain)
 	if top >= snowLine then
 		return "snow"
-	elseif top >= snowLine - 20 then
+	elseif top >= snowLine - 12 then
 		return "stone"
 	elseif top > 24 then
 		return "grassRock"
@@ -565,8 +566,8 @@ end
 function VoxelWorld:isletHeight(x: number, z: number): (number?, string?)
 	for _, isle in self.islets do
 		local dx, dz = abs(x - isle.x), abs(z - isle.z)
-		-- L4 norm: a rounded square
-		local d = (dx ^ 4 + dz ^ 4) ^ 0.25
+		-- square voxel islands: every terrace is a single block (cheap far-away scenery)
+		local d = max(dx, dz)
 		local radius = isle.size
 		if d < radius then
 			if d > radius - 28 then
@@ -579,8 +580,6 @@ function VoxelWorld:isletHeight(x: number, z: number): (number?, string?)
 				return 4 + snap(isle.height * 0.5, 8), nil -- a terrace below it
 			end
 			return 4, nil -- grassy shelf above the beach
-		elseif d < radius + 24 then
-			return -4, "shallow"
 		end
 	end
 	return nil, nil

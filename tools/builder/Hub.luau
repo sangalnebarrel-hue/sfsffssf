@@ -83,7 +83,7 @@ local lerpColor = Props.lerpColor
 
 local rad, sqrt, floor, abs = math.rad, math.sqrt, math.floor, math.abs
 
-local MAX_PARTS = 2100
+local MAX_PARTS = 2200
 local MAX_LIGHTS = 12
 
 -- Layout radii (studs from the island centre); the ones tied to the ground's shore radii are set
