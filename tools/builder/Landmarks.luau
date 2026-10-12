@@ -2,35 +2,43 @@
 	Landmarks — dressing of the four landmark sites of World v3 (world.landmarks, DESIGN.md §5/§6),
 	built into Map.Landmarks:
 
-	  Waterfall  a three-tier cascade off the mesa's lagoon-facing cliff (opaque sheets with a
-	             lighter band and white foam streaks, foam rolls with a Neon lip, two mossy
-	             sandstone rock shelves) into the pond, a foam slab on a white ring where it lands;
-	             solid sandstone stairs right of the fall (two flights in front of the cliff face,
-	             cream treads, white posts and red rails, lanterns, vine curtains) up to a bastion in
-	             the cliff's strata whose top is the lookout deck (telescope, bench, flag); stepping
-	             stones from the end of the path across the pond's edge to the stairs; mossy
-	             ledges, vines and grassy boulders on the cliffs; lily pads and reeds. On the mesa
-	             top a stream meanders from a spring pool to the lip, and the pool is the way to a
-	             destination: a sandstone grotto («РОДНИК») the spring flows out of, a glowing
-	             crystal cluster on it, a picnic glade (blossom trees, a blanket), a rope swing near
-	             the lip, lantern posts along stepping stones.
-	  Windmill   the hero mill on the ziggurat top (white tiers, red band, blue trims, a balcony
-	             ring, a stepped red roof, an open lit doorway to step into, 56-stud sails spinning
-	             as "Blades"); rainbow tulip rows (green stems + blooms) on the lagoon-facing
-	             terraces, walkable stairs up the terraces, a chunky rail fence round the edge of
-	             the top meadow (a walkway all round the mill), a barrel.
+	  Waterfall  a three-tier cascade off the mesa's lagoon-facing cliff, each tier narrower than
+	             the one above (opaque sheets under staggered streaks in three shades, foam rolls
+	             broken by lumps, two solid mossy sandstone shelves) into the pond, a foam slab, a
+	             ring and a heap of foam cubes where it lands; foam particles off every lip, spray
+	             and mist over the pool; solid sandstone stairs right of the fall (two flights in
+	             front of the cliff face, the upper one against a clean cut wall in the cliff's
+	             strata, cream treads, white posts and red rails, lanterns, vine curtains) up to a
+	             bastion whose top is the lookout deck (telescope, bench, flag); a plank boardwalk
+	             level with the promenade from its path gap round the pond's rim to the stairs;
+	             mossy ledges, vines and grassy boulders on the cliffs; lily pads and reeds. On the
+	             mesa top a stream meanders from a spring pool to the lip, and the pool is the way
+	             to a destination: a sandstone grotto («РОДНИК») the spring flows out of, a glowing
+	             crystal cluster with sparkles on it, a picnic glade (blossom trees, a blanket), a
+	             rope swing near the lip, stepping stones.
+	  Windmill   the hero mill on the ziggurat top (white tiers, red band, blue trims, a stepped
+	             red roof, 56-stud sails spinning as "Blades"): a walk-through room on the ground
+	             floor (front and back doors, a millstone, sacks, a lantern), a ladder up the back
+	             to the balcony (parapet, bench, telescope, petals drifting off it); flower and
+	             crop rows on the terraces all round (rainbow tulips at the front, lavender and
+	             sunflowers with marigolds on the sides, wheat and pumpkins at the back) and a
+	             little farm on the back (scarecrow, hay bales, beehives with bees, a hand cart);
+	             chunky 2-stud stairs up the front (invisible ramps over them), a rail fence round
+	             the top meadow.
 	  GiantTree  Props.giantTree (treehouse, swing, lanterns) on the meadow plateau, scaled to a
 	             real giant, with a long slide from the treehouse deck down to the meadow (the fun
 	             way down); steps up from the path with grassy cheek blocks filling the plateau's
-	             jagged edge beside them; glowing giant mushrooms, torches, a picnic table.
+	             jagged edge beside them; glowing giant mushrooms with fireflies, torches, a picnic
+	             table.
 	  Peaks      the main Peak is climbed by the spiral trail VoxelWorld carves into it, walkable
 	             all the way: a path-tan wedge ramp on every riser. A base camp on a flat pad beside
-	             the end of its path (tents, a fire ring, log, flag), a signpost, a «ВЕРШИНА» arch
-	             where the trail leaves the path, lantern posts, pennants, leafy curtains with
-	             blooms on the inner rock wall and a rest bench along it, and a lookout deck flush
-	             on the flat snowy summit, open towards the trail's end (big flag, telescope, board,
-	             a snowman on the snow). Chunky flags on the two smaller peaks. The pines on the
-	             slopes come from Nature.
+	             the end of its path (tents, a smoking fire ring with sparks, a log), a signpost, a
+	             «ВЕРШИНА» arch where the trail leaves the path, lantern posts, pennants, leafy
+	             curtains with blooms on the inner rock wall and a rest bench along it, and a lookout
+	             deck flush on the flat snowy summit, open towards the trail's end (big flag with
+	             gold sparkles, telescope, board, a snowman on the snow). The other mountains are
+	             scenery nobody can climb, so they carry no flags. The pines on the slopes come
+	             from Nature.
 
 	Every site is registered with Kit.claim so Nature keeps its trees off the dressing.
 ]]
@@ -74,8 +82,9 @@ end
 -- Waterfall
 --------------------------------------------------------------------------------------------
 
--- The mesa's cliff strata (Ground.luau): 8-stud bands on absolute y in three sandstone shades.
+-- The mesa's cliff strata (Ground.luau): 12-stud bands on absolute y in three sandstone shades.
 local STRATA = { rgb(232, 178, 112), rgb(214, 150, 92), rgb(246, 206, 150) }
+local STRATUM = 12
 local TREAD = rgb(255, 236, 200) -- cream stair treads on the sandstone
 -- falling water and foam: opaque (colour does the work; transparent layers would sort-flicker)
 local WATER = { CanCollide = false, CastShadow = false, CanQuery = false }
@@ -87,8 +96,8 @@ local function strataBox(b: any, name: string, x0: number, y0: number, z0: numbe
 	local y = y1
 	local k = 0
 	while y > y0 + 0.01 do
-		local band = floor((y - 0.01) / 8)
-		local yb = max(y0, band * 8)
+		local band = floor((y - 0.01) / STRATUM)
+		local yb = max(y0, band * STRATUM)
 		if yb - y0 < 2 then -- no sliver at the bottom
 			yb = y0
 		end
@@ -121,26 +130,40 @@ local function railRun(b: any, name: string, a: any, c: any, posts: string?)
 end
 
 --[[
-	The falls (site frame, y absolute): three tiers of falling water stepping out over two sandstone
-	rock shelves (mossy ends) from the lip into the pond. Each tier is an opaque sheet of mid blue
-	with a lighter band and white foam streaks standing proud of it (falling water, not stacked
-	glass), a white foam roll with a Neon cyan lip where it tips over the edge; foam runs over the
-	shelves; where it lands a white foam slab on a wider white ring, foam puffs, mist. Nothing is
-	transparent (no sorting flicker) and no two faces share a plane. fmin / fmax: the jagged cliff
-	face (lz) behind the fall, lipLz: where the stream reaches the lip, W: the width of the fall.
+	The falls (site frame, y absolute): three tiers of falling water, each a little narrower than
+	the one above, stepping out over two solid sandstone rock shelves (mossy shoulders) from the lip
+	into the pond. Each tier is an opaque sheet of mid blue covered in staggered white and pale
+	blue streaks of different widths and lengths (falling water, not a glass front); where it tips
+	over, a white foam roll broken by foam lumps; foam runs over the shelves; where it lands a
+	white foam slab on a wider ring, a heap of foam cubes. Particles: foam tumbling off every lip,
+	spray and mist over the pool. Nothing is transparent (no sorting flicker) and no two faces
+	share a plane. fmin / fmax: the jagged cliff face (lz) behind the fall, lipLz: where the
+	stream reaches the lip, W: the width of the fall at the top.
 ]]
 local function cascade(parent: any, site: any, frame: any, fmin: number, fmax: number, lipLz: number, W: number)
 	local b = Kit.builder(parent, "Waterfall", frame)
-	local hw = W / 2
+	local r = Kit.rng(4507)
 	local top = site.cliffTop + 0.9 -- over the stream sheet
-	local body, band, lip = rgb(88, 196, 252), rgb(172, 234, 255), rgb(120, 230, 255)
-	-- the rock shelves: the upper one juts out of the cliff, the lower one stands in the pond
-	local s1 = { z0 = -12, z1 = fmax + 1, y0 = 33, y1 = 38.4 }
-	local s2 = { z0 = -23, z1 = fmin + 2, y0 = -7, y1 = 19.4 }
+	local body = rgb(88, 196, 252)
+	local white, pale = rgb(240, 252, 255), rgb(160, 230, 255)
+	local hw1 = W / 2
+	-- the rock shelves: the upper one is a solid block from the lower shelf up out of the cliff
+	-- (the narrower middle tier falls down its face), the lower one stands in the pond
+	local s1 = { z0 = -12, z1 = fmax + 1, y0 = 18.9, y1 = 38.4, hw = hw1 + 3 }
+	local s2 = { z0 = -23, z1 = fmin + 2, y0 = -7.5, y1 = 19.4, hw = hw1 + 4 }
+	-- tiers: top y, bottom y, front lz, back lz, half width (each from the edge above down to the
+	-- next shelf, 4 studs narrower than the tier above)
+	local tiers = {
+		{ top, s1.y1 - 0.3, fmin - 3, lipLz, hw1 },
+		{ s1.y1 + 0.5, s2.y1 - 0.3, s1.z0 - 3, s1.z0 + 0.6, hw1 - 2 },
+		{ s2.y1 + 0.5, -0.6, s2.z0 - 3, s2.z0 + 0.6, hw1 - 4 },
+	}
 	for i, s in { s1, s2 } do
-		b:box(`Shelf{i}`, -hw - 3, s.y0, s.z0, hw + 3, s.y1, s.z1, if i == 1 then STRATA[2] else STRATA[1])
+		b:box(`Shelf{i}`, -s.hw, s.y0, s.z0, s.hw, s.y1, s.z1, if i == 1 then STRATA[2] else STRATA[1])
+		-- moss on the shoulders either side of the water running over it
+		local w = tiers[i + 1][5]
 		for k, sx in { -1, 1 } do
-			local x0, x1 = sx * (hw - 0.5), sx * (hw + 3.4)
+			local x0, x1 = sx * (w - 0.5), sx * (s.hw + 0.4)
 			b:box(
 				`Moss{i}_{k}`,
 				min(x0, x1),
@@ -154,59 +177,90 @@ local function cascade(parent: any, site: any, frame: any, fmin: number, fmax: n
 			)
 		end
 		-- the water runs over the shelf top to its front edge (0.15 over the tier below's top)
-		b:box(`ShelfFoam{i}`, -hw + 0.5, s.y1 - 0.2, s.z0 - 0.2, hw - 0.5, s.y1 + 0.65, s.z0 + 9, C.Foam, FOAM)
+		b:box(`ShelfFoam{i}`, -w + 0.5, s.y1 - 0.2, s.z0 - 0.2, w - 0.5, s.y1 + 0.65, s.z0 + 9, C.Foam, FOAM)
 	end
-	-- tiers: top y, bottom y, front lz, back lz (each from the edge above down to the next shelf)
-	local tiers = {
-		{ top, s1.y1 - 0.3, fmin - 3, lipLz },
-		{ s1.y1 + 0.5, s2.y1 - 0.3, s1.z0 - 3, s1.z0 + 0.6 },
-		{ s2.y1 + 0.5, -0.6, s2.z0 - 3, s2.z0 + 0.6 },
-	}
-	-- per tier: the light band's centre and the foam streaks' centres (x / hw), so the tiers differ
-	local bands = { -0.3, 0.42, -0.05 }
-	local streaks = { { -0.68, 0.02, 0.62 }, { -0.4, 0.28, 0.8 }, { -0.78, -0.15, 0.5 } }
 	for t, tier in tiers do
-		local y1, y0, f, k = tier[1], tier[2], tier[3], tier[4]
+		local y1, y0, f, k, hw = tier[1], tier[2], tier[3], tier[4], tier[5]
 		local h = y1 - y0
 		b:box(`Sheet{t}`, -hw, y0, f, hw, y1, k, body, WATER)
-		local bx = bands[t] * hw
-		b:box(`Band{t}`, bx - W * 0.17, y0, f - 0.4, bx + W * 0.17, y1 - 0.6, f + 1, band, WATER)
-		for i, sx in streaks[t] do
-			local x = sx * hw
-			local yt = y1 - 1.4 - ((t + i) % 2) * h * 0.15
-			b:box(`Streak{t}_{i}`, x - 0.7, yt - h * 0.6, f - 0.8, x + 0.7, yt, f + 0.5, C.Foam, WATER)
+		-- streaks: 6 across the sheet, 40-100 % of the tier tall, each in its own slot with a
+		-- random offset (so no streak lines up with the tier above), in three kinds: thin white
+		-- threads, pale ribbons and broad light-blue sheets of faster water
+		local n = 6
+		for i = 1, n do
+			local slot = 2 * hw / n
+			local kind = (i + t) % 3
+			local sw = if kind == 0 then r(0.8, 1.3) elseif kind == 1 then r(1.4, 2.2) else r(2.6, 3.8)
+			local x = -hw + (i - 0.5) * slot + r(-0.3, 0.3) * max(slot - sw, 0)
+			local len = h * r(0.4, 1)
+			local yt = y1 - 1 - r(0, 1) * (h - 1 - len)
+			b:box(
+				`Streak{t}_{i}`,
+				x - sw / 2,
+				max(yt - len, y0 + 0.3),
+				f - 0.6 - (i % 2) * 0.2,
+				x + sw / 2,
+				yt,
+				f + 0.5,
+				if kind == 0 then white elseif kind == 1 then pale else rgb(122, 214, 255),
+				WATER
+			)
 		end
-		-- the foam roll where the tier tips over, a glowing cyan lip under it
-		b:box(`Crest{t}`, -hw - 0.2, y1 - 1.3, f - 1.1, hw + 0.2, y1 + 0.35, f + 2.4, C.Foam, WATER)
-		b:box(`Lip{t}`, -hw - 0.1, y1 - 1.75, f - 1.0, hw + 0.1, y1 - 1.3, f + 0.2, lip, Kit.NEON_DECOR)
+		-- the foam roll where the tier tips over, broken by foam lumps along it
+		local crest = b:box(`Crest{t}`, -hw - 0.2, y1 - 1.3, f - 1.1, hw + 0.2, y1 + 0.35, f + 2.4, C.Foam, WATER)
+		for i = 1, 2 do
+			local lw = r(3.5, 5.5)
+			local x = (i - 1.5) * hw + r(-0.2, 0.2) * hw
+			local lh = r(0.9, 1.6)
+			b:box(`Lump{t}_{i}`, x - lw / 2, y1 - 1.6, f - 1.6, x + lw / 2, y1 + lh, f + 1.4, white, WATER)
+		end
+		Kit.foam(crest, Enum.NormalId.Bottom, { box = true, rate = 2 + hw * 0.4, size = 1.6, grow = 2.6 })
 	end
-	-- where it lands: a foam slab on a wider white ring, foam puffs, mist
+	-- where it lands: a foam slab on a wider ring, a heap of foam cubes where the water hits
+	local hw3 = tiers[3][5]
 	local zf = s2.z0 - 3
-	local foam = b:box("Splash", -hw - 2, -0.3, zf - 10, hw + 2, 0.5, zf + 2, rgb(206, 242, 255), WATER)
-	b:box("Ring", -hw - 5, -0.5, zf - 13, hw + 5, 0.3, s2.z0 + 4, C.Foam, WATER)
-	for i, p in { { -0.62, 4.4, 1.4 }, { 0.05, 3.4, 0.2 }, { 0.7, 3.8, 0.8 } } do
-		local x, s, lift = p[1] * hw, p[2], p[3]
-		b:box(`Puff{i}`, x - s / 2, 0, zf - 6 - s * 0.4, x + s / 2, s * 0.42 + lift, zf - 6 + s * 0.4, C.Foam, WATER)
+	local foam = b:box("Splash", -hw3 - 3, -0.3, zf - 10, hw3 + 3, 0.5, zf + 2, rgb(206, 242, 255), WATER)
+	b:box("Ring", -hw3 - 6, -0.5, zf - 13, hw3 + 6, 0.3, s2.z0 + 4, C.Foam, WATER)
+	for i = 1, 6 do
+		local s = r(2.5, 5)
+		local x = -hw3 - 2 + (i - 0.5) * (2 * hw3 + 4) / 6 + r(-0.8, 0.8)
+		local z = zf - 1 - r(0, 6)
+		local hgt = r(0.5, 3)
+		b:box(
+			`FoamCube{i}`,
+			x - s / 2,
+			0.2,
+			z - s / 2,
+			x + s / 2,
+			0.5 + hgt,
+			z + s / 2,
+			if i % 3 == 1 then pale else white,
+			WATER
+		)
 	end
-	U.new("ParticleEmitter", {
-		Name = "Mist",
-		Rate = 6,
-		Lifetime = U.roblox.NumberRange.new(1.6, 2.6),
-		Speed = U.roblox.NumberRange.new(2, 5),
-		SpreadAngle = U.Vector2.new(50, 50),
-		Size = U.roblox.NumberSequence.new({
-			U.roblox.NumberSequenceKeypoint.new(0, W * 0.2),
-			U.roblox.NumberSequenceKeypoint.new(1, W * 0.4),
-		}),
-		Transparency = U.roblox.NumberSequence.new({
-			U.roblox.NumberSequenceKeypoint.new(0, 0.55),
-			U.roblox.NumberSequenceKeypoint.new(1, 1),
-		}),
-		Color = U.roblox.ColorSequence.new(C.Foam),
-		Acceleration = Vector3.new(0, 2, 0),
-		LightEmission = 0.1,
-		EmissionDirection = Enum.NormalId.Top,
-	}, foam)
+	-- spray thrown up where it lands, mist drifting over the pool
+	Kit.foam(foam, Enum.NormalId.Top, {
+		name = "Spray",
+		box = true,
+		rate = 14,
+		size = 1.4,
+		grow = 3,
+		speed = { 6, 11 },
+		lifetime = { 0.8, 1.4 },
+		gravity = 18,
+		spread = 30,
+	})
+	Kit.foam(foam, Enum.NormalId.Top, {
+		name = "Mist",
+		rate = 5,
+		size = W * 0.25,
+		grow = 2,
+		speed = { 2, 5 },
+		lifetime = { 1.6, 2.6 },
+		gravity = -2,
+		spread = 50,
+		transparency = 0.55,
+	})
 	return b:finish()
 end
 
@@ -318,6 +372,38 @@ local function cliffStairs(
 	b:box("Landing", xe, yMid - 0.8, zB0 - 0.3, xl + 0.3, yMid, zBack, TREAD)
 	-- the upper flight (inner lane, back towards the fall)
 	local line2 = flight(2, zA0, zA1, zBack, xe, -1, yMid)
+	-- the rock it is cut into: behind the lane the voxel cliff is a staircase of 8-stud cells
+	-- across the 45-degree flight, which would overhang the treads' inner halves in a zig-zag,
+	-- so a solid cut wall (the cliff's strata, a grass cap) stands on the lane's inner edge up to
+	-- the rock's own top, hiding the jagged cells behind a clean face. Steps with the same rock
+	-- height behind them share one wall.
+	local walls = {}
+	local cur = nil
+	for k = 1, n do
+		local x0, x1 = xe - k * tread, xe - (k - 1) * tread
+		local hk = -math.huge
+		for x = x0, x1, 1 do
+			for z = zA1, zBack + 2, 1 do
+				hk = max(hk, ground(x, z))
+			end
+		end
+		local yk = yMid + k * rise -- the tread top
+		if hk <= yk + 1 then
+			cur = nil
+		elseif cur and cur.h == hk then
+			cur.x0, cur.y = x0, min(cur.y, yk)
+		else
+			cur = { x0 = x0, x1 = x1, h = hk, y = yk }
+			table.insert(walls, cur)
+		end
+	end
+	for i, w in walls do
+		-- (0.1 up the flight and 0.1 deeper than the treads: no plane shared with a riser or a
+		-- tread's back; never into the bastion)
+		local x0, x1 = max(w.x0 - 0.1, bx1), w.x1 - 0.1
+		strataBox(b, `Cut{i}_`, x0, w.y - 1.2, zA1, x1, w.h - 0.7, zBack + 0.1)
+		b:box(`CutGrass{i}`, x0, w.h - 0.7, zA1, x1, w.h + 0.35, zBack + 0.1, C.GrassTop, Kit.NOSHADOW)
+	end
 	-- the bastion: a solid tower in the cliff's strata, the lookout deck on top
 	local gb = lowest(bx0, bx1, zB0, zBack)
 	strataBox(b, "Bastion", bx0, gb - 1.5, zB0, bx1, yTop - 0.8, zBack)
@@ -325,12 +411,12 @@ local function cliffStairs(
 	-- rails: the lower flight's open side (the entry left free at the foot), the landing, the
 	-- upper flight's open side (over the lower flight), the deck
 	local rx = xs + 2 * tread
-	local cA, cB = P(xe - 0.6, yMid, zB0 + 0.4), P(xl - 0.6, yMid, zB0 + 0.4)
-	railRun(b, "Rail1", P(rx, line1(rx), zB0 + 0.4), cA)
+	local cA, cB = P(xe - 0.6, yMid, zB0 + 0.5), P(xl - 0.6, yMid, zB0 + 0.5)
+	railRun(b, "Rail1", P(rx, line1(rx), zB0 + 0.5), cA)
 	railRun(b, "RailL1", cA, cB, "last")
 	railRun(b, "RailL2", cB, P(xl - 0.6, yMid, zBack - 2), "last")
 	local r2 = xe - 2 * tread
-	local cC, cD, cE = P(bx1 - 0.6, yTop, zA0 + 0.6), P(bx0 + 0.6, yTop, zB0 + 0.4), P(bx1 - 0.6, yTop, zB0 + 0.4)
+	local cC, cD, cE = P(bx1 - 0.6, yTop, zA0 + 0.6), P(bx0 + 0.6, yTop, zB0 + 0.5), P(bx1 - 0.6, yTop, zB0 + 0.5)
 	railRun(b, "Rail2", P(r2, line2(r2), zA0 + 0.6), cC)
 	railRun(b, "DeckFront", cD, cE)
 	railRun(b, "DeckSide", cD, P(bx0 + 0.6, yTop, fmin - 1), "last")
@@ -412,7 +498,7 @@ local function mesaStream(parent: any, world: any, site: any, frame: any, lipLz:
 	for i, s in segs do
 		local x0, x1 = s[3] - s[4] / 2, s[3] + s[4] / 2
 		-- the sand bank: wider than the water, and reaching over the joints of the meander
-		local bank = if i == 1 then 2 else 3
+		local bank = if i == 1 then 2.2 else 3 -- (the first a hair wider than the fall's top sheet)
 		local z0 = if i == 1 then s[1] else s[1] - 2
 		b:box(`Bank{i}`, x0 - bank, top - 0.6, z0, x1 + bank, SAND_TOP, s[2] + 2, sand, Kit.NOSHADOW)
 		b:box(`Water{i}`, x0, top - 0.35, s[1] - (if i == 1 then 0.3 else 0), x1, WATER_TOP, s[2], water, WATER_SHEET)
@@ -430,9 +516,8 @@ local function mesaStream(parent: any, world: any, site: any, frame: any, lipLz:
 	local function place(lx: number, lz: number, yaw: number?): any
 		return frame * CFrame.new(lx, top, lz) * CFrame.Angles(0, rad(yaw or 0), 0)
 	end
-	-- cream pebbles on the banks, lily pads (on the deep sheet's level), flowers
-	Kit.prop("rock", parent, place(-20, lipLz + 28), { seed = 11, count = 3, color = C.Cream })
-	for i, p in { { px - 6, pz0 + 8 }, { px + 6, pz1 - 7 } } do
+	-- a lily pad (on the deep sheet's level), flowers on the banks
+	for i, p in { { px - 6, pz0 + 8 } } do
 		Kit.prop("lilyPad", parent, place(p[1], p[2], i * 40) * CFrame.new(0, WATER_TOP + 0.36 - top, 0), {
 			seed = i * 5,
 			scale = 1.2,
@@ -452,10 +537,9 @@ end
 
 --[[
 	The mesa top's destination, behind the spring pool and round it: a sandstone grotto the
-	spring flows out of (a dark cave mouth, a little spout, a glowing crystal cluster on top), a
-	picnic glade on the far bank (blossom trees, two blankets with a basket), a rope swing near the
-	lip, stepping stones from the lookout deck to the grotto lit by lantern posts, and stepping
-	stones across the stream.
+	spring flows out of (a dark cave mouth, a little spout, a glowing crystal cluster on top, magic
+	sparkles), a picnic glade on the far bank (blossom trees, a blanket with a basket), a rope swing
+	near the lip, stepping stones from the lookout deck to the grotto and across the stream.
 ]]
 local function mesaGarden(parent: any, world: any, site: any, frame: any, lipLz: number, pool: any, st: any)
 	local top = site.cliffTop
@@ -478,20 +562,23 @@ local function mesaGarden(parent: any, world: any, site: any, frame: any, lipLz:
 	g:box("Spout", px - 2.5, top + 0.3, gz - 4, px + 2.5, top + 1.1, gz + 0.2, C.WaterLight, Kit.DECOR)
 	g:box("SpoutFoam", px - 3.5, top + 0.55, gz - 5, px + 3.5, top + 1.5, gz - 3, C.Foam, Kit.DECOR)
 	g:finish(rock)
-	Kit.prop("crystalCluster", g.model, place(px + 1, gz + 7) * CFrame.new(0, 14, 0), {
+	local crystal = Kit.prop("crystalCluster", g.model, place(px + 1, gz + 7) * CFrame.new(0, 14, 0), {
 		color = "cyan",
 		scale = 1.6,
 		seed = 4,
 		light = true,
 	})
 	Kit.lights += 1
+	if crystal.PrimaryPart then
+		Kit.sparkles(crystal.PrimaryPart, rgb(170, 250, 255), { rate = 4, size = 0.7, lifetime = 2.5, speed = 2 })
+	end
 	-- the picnic glade on the far bank: blossom trees, blankets with a basket
-	Kit.prop("cherryTree", parent, place(px - 27, pool.z1 + 2), { seed = 17, scale = 1.25 })
-	Kit.prop("cherryTree", parent, place(-31, lipLz + 26), { seed = 23, scale = 1.1 })
+	Kit.prop("cherryTree", parent, place(px - 27, pool.z1 + 2), { seed = 17, scale = 1.25, compact = true })
+	Kit.prop("cherryTree", parent, place(-31, lipLz + 26), { seed = 23, scale = 1.1, compact = true })
 	for i, p in { { -27, lipLz + 44, 20, C.Red } } do
 		local bl = Kit.builder(parent, "Blanket", place(p[1], p[2], p[3]))
 		local cloth = bl:box("Cloth", -3.5, -0.1, -3, 3.5, 0.25, 3, p[4], Kit.NOSHADOW)
-		bl:box("Stripe", -3.5, -0.08, -0.7, 3.5, 0.4, 0.7, C.White, Kit.DECOR) -- 0.15 over the cloth
+		bl:box("Stripe", -3.6, -0.08, -0.7, 3.6, 0.4, 0.7, C.White, Kit.DECOR) -- 0.15 over, 0.1 past the cloth
 		bl:box("Basket", 1.2, 0.25, 0.8, 3, 1.6, 2.2, C.WoodLight)
 		bl:box("Handle", 1.95, 1.6, 0.9, 2.25, 2.4, 2.1, C.Wood, Kit.DECOR)
 		bl:finish(cloth)
@@ -505,8 +592,7 @@ local function mesaGarden(parent: any, world: any, site: any, frame: any, lipLz:
 	sw:box("RopeR", 1.35, 3, -0.12, 1.6, 11, 0.12, C.Rope, Kit.DECOR)
 	sw:box("Seat", -2, 2.6, -0.8, 2, 3.1, 0.8, C.Yellow)
 	sw:finish(post)
-	-- stepping stones from the lookout deck to the grotto (lantern posts along them) and across
-	-- the stream to the glade
+	-- stepping stones from the lookout deck to the grotto and across the stream to the glade
 	local stones = {
 		{ st.bx0 + 4, st.zBack + 4 },
 		{ 22, lipLz + 12 },
@@ -539,9 +625,6 @@ local function mesaGarden(parent: any, world: any, site: any, frame: any, lipLz:
 		)
 	end
 	sb:finish()
-	for _, p in { { 27.5, pool.z0 - 2 } } do
-		lanternPost(parent, place(p[1], p[2]))
-	end
 end
 
 --[[
@@ -637,7 +720,7 @@ local function cliffLedges(parent: any, frame: any, faceRange: (number, number) 
 		local lx, y, w = s[1], s[2], s[3]
 		local fmin, fmax = faceRange(lx - w / 2, lx + w / 2)
 		local z0 = fmin - 4
-		b:box(`Ledge{i}`, lx - w / 2, y - 2.4, z0, lx + w / 2, y, fmax + 1, STRATA[floor(y / 8) % 3 + 1])
+		b:box(`Ledge{i}`, lx - w / 2, y - 2.4, z0, lx + w / 2, y, fmax + 1, STRATA[floor(y / STRATUM) % 3 + 1])
 		b:box(`Grass{i}`, lx - w / 2 + 0.4, y - 0.4, z0 + 0.5, lx + w / 2 - 0.4, y + 1, fmax + 1, C.Leaf2, Kit.NOSHADOW)
 	end
 	return b:finish()
@@ -706,29 +789,46 @@ local function buildWaterfall(root: any, cfg: any, world: any, site: any)
 	local stairLo, stairFace = faceRange(FALL_W / 2 + 4, 80)
 	local st = cliffStairs(model, world, site, frame, fmin, stairLo, stairFace, FALL_W / 2 + 5)
 	lookout(model, frame, st)
-	-- stepping stones from the end of the path across the pond's edge to the foot of the stairs:
-	-- chunky pillars standing in the shallow water (the sand rim between the water and the
-	-- promenade is left free for the path's billboard)
-	local stones = Kit.builder(model, "Stones", CFrame.new())
-	local pr = site.pondRadius - 3
-	local k = 0
-	for a = 14, 114, 12.5 do
-		local lx = pr * math.sin(rad(a))
-		local lz = site.pondR - site.radius - pr * math.cos(rad(a))
-		local x, z = W(lx, lz)
-		local g = world:heightAt(x, z)
-		local y1 = max(g + 0.35, 0.8) -- a stride over the water
-		k += 1
-		stones:block(
-			`Stone{k}`,
-			Vector3.new(4.8, y1 - g + 0.5, 4),
-			CFrame.new(x, (y1 + g - 0.5) / 2, z) * CFrame.Angles(0, rad(site.angle - a), 0),
-			if k % 2 == 0 then C.StoneLight else C.Cream,
-			Kit.NOSHADOW
+	-- a plank boardwalk from the promenade's path gap round the pond's sand rim to the foot of
+	-- the stairs, level with the promenade (0.2 under its tiles), so the way in is a walk, not a
+	-- drop onto the sand: straight runs that overlap at the bends (alternate runs 0.1 apart in
+	-- height, no shared top faces), each a solid slab down into the sand (or 1.5 under the water)
+	local walk = Kit.builder(model, "Boardwalk", frame)
+	local pz = site.pondR - site.radius -- the pond centre (lz)
+	local ez = st.zB0 - 8 -- over the first entry step, where the stairs' ramp meets the deck
+	local route = { { 3.5, pz - 35.5 }, { 17, pz - 30 }, { 28, pz - 19 }, { 33, pz - 6 }, { st.footX - 1.2, ez } }
+	local WALK_TOP = 4.4
+	for i = 1, #route - 1 do
+		local a, c = Vector3.new(route[i][1], 0, route[i][2]), Vector3.new(route[i + 1][1], 0, route[i + 1][2])
+		local d = c - a
+		-- (the first run starts 2.5 back under the promenade's tiles: no crack at its edge)
+		local back = if i == 1 then 2.5 else 0
+		local len = d.Magnitude + back + (if i < #route - 1 then 3.5 else 0)
+		local lo = math.huge
+		for t = 0, 1, 0.1 do
+			for _, s in { -3.5, 0, 3.5 } do
+				local p = a + d * t + Vector3.new(d.Z, 0, -d.X).Unit * s
+				local wx, wz = W(p.X, p.Z)
+				lo = min(lo, world:heightAt(wx, wz))
+			end
+		end
+		local yTop = WALK_TOP + (i % 2) * 0.1
+		lo = max(lo, 0) - 0.5 - (i % 2) * 0.1
+		local mid = a + d.Unit * (len / 2 - back)
+		walk:block(
+			`Deck{i}`,
+			Vector3.new(7, yTop - lo + 1, len),
+			CFrame.lookAt(Vector3.new(mid.X, (yTop + lo - 1) / 2, mid.Z), Vector3.new(c.X, (yTop + lo - 1) / 2, c.Z)),
+			if i % 2 == 0 then rgb(222, 166, 104) else C.WoodLight
 		)
 	end
-	stones:finish()
-	local sx, sz = W(10, site.pondR - site.radius - site.pondRadius - 4)
+	walk:finish()
+	-- a lantern post on the outer side of the boardwalk's last bend
+	for _, p in { { 38.5, pz - 7 } } do
+		local x, z = W(p[1], p[2])
+		lanternPost(model, Kit.ground(world, x, z, site.angle))
+	end
+	local sx, sz = W(24, pz - 34)
 	Kit.prop("signpost", model, Kit.ground(world, sx, sz, site.angle), {
 		text = "СМОТРОВАЯ",
 		width = 10,
@@ -745,12 +845,10 @@ local function buildWaterfall(root: any, cfg: any, world: any, site: any)
 		{ -30, 46, 10 },
 		{ -44, 30, 8 },
 		{ -26, 22, 9 },
-		{ -50, 14, 6 },
-		{ -38, 38, 6 },
 	})
 	mesaVines(model, world, site, function(lx: number, lz: number): boolean
 		return (abs(lx) < FALL_W / 2 + 6 and lz < 24) or (lx > st.bx0 - 6 and lx < st.xl + 10 and lz < 24)
-	end, 6)
+	end, 4)
 
 	-- claims: the stream and pool, the garden, the stairs (the pond yard is reserved already)
 	for _, c in streamClaims do
@@ -771,71 +869,239 @@ end
 -- Windmill
 --------------------------------------------------------------------------------------------
 
--- Rainbow tulip rows on the lagoon-facing terraces: per row of 8-stud cells, runs of equal
--- height merge into one strip of green stems with a strip of blooms on top (a green line under
--- every colour band, so the rows read as flowers, not tiles); the terrace colour cycles through
--- a warm rainbow and the grass shows between the rows.
-local function tulipTerraces(parent: any, world: any, site: any, corridor: (number, number) -> boolean)
-	local model = U.model(parent, "TulipFields")
+--[[
+	Flower and crop rows on the windmill hill's terraces, all round. The hill is a ziggurat of
+	one-cell (8-stud) rings, 4 studs per ring, so the rows follow the rings: every cell whose
+	outward direction is mostly along X takes a row along Z and vice versa, and runs of equal
+	height merge into one long row (the straight faces of the hill give long rows, the diagonal
+	corners short ones). By the cell's direction from the mill:
+	  front (towards the lagoon and the stairs)  rainbow tulips on every ring: a strip of green
+	                                             stems under a strip of blooms, the colour
+	                                             cycling with the ring
+	  sides                                      every ring: lavender mounds (two purples) on one
+	                                             side; on the other tall sunflowers (stems, yellow
+	                                             heads) and low marigolds by turns
+	  back                                       every other ring: golden wheat and pumpkin rows;
+	                                             the rings between hold the farm (see hillFarm)
+	Lone cells on the sides and the back stay grass (a row needs two cells). Returns the cells
+	left free on the back's farm rings: { x, z, h, d, a } (a: degrees from straight back).
+]]
+local function hillFields(parent: any, world: any, site: any, corridor: (number, number) -> boolean): { any }
+	local model = U.model(parent, "Fields")
 	local cell = world.cell
-	local palette = { C.Red, C.Orange, C.Yellow, C.Pink, C.Purple, rgb(255, 72, 140), C.Blue, rgb(255, 120, 60) }
+	local tulips = { C.Red, C.Orange, C.Yellow, C.Pink, C.Purple, rgb(255, 72, 140), C.Blue, rgb(255, 120, 60) }
+	local lavender = { rgb(168, 112, 242), rgb(146, 92, 224) }
 	local towards = Vector3.new(-site.x, 0, -site.z).Unit -- the lagoon direction
 	local R = site.hillRadius
+	local G = world.cfg.GroundTop
 	local ix0, ix1 = floor((site.x - R) / cell), floor((site.x + R) / cell)
 	local iz0, iz1 = floor((site.z - R) / cell), floor((site.z + R) / cell)
-	local count = 0
-	local function eligible(ix: number, iz: number): number?
+	local farm = {}
+	-- a cell's row: height, row axis, zone, side (+1 / -1), ring level; nil = no row
+	local function info(ix: number, iz: number): (number?, string?, string?, number?, number?)
 		local x, z = (ix + 0.5) * cell, (iz + 0.5) * cell
 		local dx, dz = x - site.x, z - site.z
 		local d = sqrt(dx * dx + dz * dz)
-		if d < site.topRadius + 5 or d > R - 6 then
+		if d < site.topRadius + 5 or d > R - 4 or corridor(x, z) then
+			return nil
+		end
+		local h = world:heightAt(x, z)
+		if h <= G or world:kindAt(x, z) == "path" then
 			return nil
 		end
 		local facing = (dx * towards.X + dz * towards.Z) / d
-		if facing < 0.7 or corridor(x, z) then
+		local zone = if facing >= 0.45 then "front" elseif facing <= -0.45 then "back" else "side"
+		local side = if dx * towards.Z - dz * towards.X > 0 then 1 else -1
+		local level = floor((h - G) / 4)
+		if zone == "back" and level % 2 == 1 then
 			return nil
 		end
-		return world:heightAt(x, z)
+		return h, if abs(dx) > abs(dz) then "z" else "x", zone, side, level
+	end
+	local used: { [number]: boolean } = {}
+	local function row(
+		name: string,
+		x0: number,
+		z0: number,
+		x1: number,
+		z1: number,
+		y0: number,
+		y1: number,
+		colour: any
+	)
+		local p = U.part(
+			model,
+			name,
+			Vector3.new(x1 - x0, y1 - y0, z1 - z0),
+			CFrame.new((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2),
+			colour,
+			nil,
+			Kit.DECOR
+		)
+		p.Locked = true
 	end
 	for iz = iz0, iz1 do
-		local ix = ix0
-		while ix <= ix1 do
-			local h = eligible(ix, iz)
-			if h then
-				local j = ix
-				while j + 1 <= ix1 and eligible(j + 1, iz) == h do
-					j += 1
+		for ix = ix0, ix1 do
+			local h, axis, zone, side, level = info(ix, iz)
+			if not h or used[ix * 4096 + iz] then
+				continue
+			end
+			local sx, sz = if axis == "x" then 1 else 0, if axis == "z" then 1 else 0
+			local n = 1
+			while true do
+				local h2, a2, z2, s2 = info(ix + sx * n, iz + sz * n)
+				if h2 == h and a2 == axis and z2 == zone and s2 == side then
+					n += 1
+				else
+					break
 				end
-				local level = floor((h - 4) / 4)
-				local colour = palette[level % #palette + 1]
-				local x0, x1 = ix * cell + 0.9, (j + 1) * cell - 0.9
-				local z0, z1 = iz * cell + 1.4, (iz + 1) * cell - 1.4
-				U.part(
-					model,
-					"Stems",
-					Vector3.new(x1 - x0 - 0.6, 1.4, z1 - z0 - 0.6),
-					CFrame.new((x0 + x1) / 2, h + 0.5, (z0 + z1) / 2),
-					C.Leaf1,
-					nil,
-					Kit.DECOR
-				)
-				U.part(
-					model,
-					"Tulips",
-					Vector3.new(x1 - x0, 1.6, z1 - z0),
-					CFrame.new((x0 + x1) / 2, h + 1.95, (z0 + z1) / 2),
-					colour,
-					nil,
-					Kit.DECOR
-				)
-				count += 1
-				ix = j + 1
+			end
+			for k = 0, n - 1 do
+				used[(ix + sx * k) * 4096 + iz + sz * k] = true
+			end
+			if n == 1 and zone ~= "front" then
+				continue
+			end
+			-- the row's footprint: inset from the cell edges, long along the run
+			local ax0, az0 = ix * cell, iz * cell
+			local ax1, az1 = (ix + 1 + sx * (n - 1)) * cell, (iz + 1 + sz * (n - 1)) * cell
+			local ex, ez = if axis == "x" then 0.9 else 1.4, if axis == "z" then 0.9 else 1.4
+			local x0, x1, z0, z1 = ax0 + ex, ax1 - ex, az0 + ez, az1 - ez
+			local lv = level :: number
+			if zone == "front" then
+				row("Stems", x0 + 0.3, z0 + 0.3, x1 - 0.3, z1 - 0.3, h - 0.2, h + 1.2, C.Leaf1)
+				row("Tulips", x0, z0, x1, z1, h + 1.15, h + 2.75, tulips[lv % #tulips + 1])
+			elseif zone == "side" and side == 1 then
+				row("Lavender", x0 + 0.4, z0 + 0.4, x1 - 0.4, z1 - 0.4, h - 0.2, h + 2.2, lavender[lv % 2 + 1])
+			elseif zone == "side" and lv % 2 == 1 then
+				row("Marigolds", x0 + 0.4, z0 + 0.4, x1 - 0.4, z1 - 0.4, h - 0.2, h + 1.6, rgb(255, 156, 36))
+			elseif zone == "side" then
+				row("SunStems", x0 + 0.6, z0 + 0.6, x1 - 0.6, z1 - 0.6, h - 0.2, h + 2.9, C.Leaf1)
+				row("Sunflowers", x0, z0, x1, z1, h + 2.8, h + 4.2, C.Yellow)
+			elseif (lv // 2) % 2 == 0 then
+				row("Wheat", x0 + 0.2, z0 + 0.2, x1 - 0.2, z1 - 0.2, h - 0.2, h + 2.6, rgb(246, 204, 84))
 			else
-				ix += 1
+				row("Pumpkins", x0 + 0.6, z0 + 0.6, x1 - 0.6, z1 - 0.6, h - 0.2, h + 1.8, C.Orange)
 			end
 		end
 	end
-	return count
+	-- the farm rings: the back's cells between the crop rows, flat across the whole cell
+	local back = Vector3.new(-towards.X, 0, -towards.Z)
+	for iz = iz0, iz1 do
+		for ix = ix0, ix1 do
+			local x, z = (ix + 0.5) * cell, (iz + 0.5) * cell
+			local dx, dz = x - site.x, z - site.z
+			local d = sqrt(dx * dx + dz * dz)
+			local h = world:heightAt(x, z)
+			if d < site.topRadius + 6 or d > R - 8 or h <= G or corridor(x, z) then
+				continue
+			end
+			local facing = (dx * back.X + dz * back.Z) / d
+			if facing < 0.45 or floor((h - G) / 4) % 2 == 0 then
+				continue
+			end
+			local flat = true
+			for _, c in { { -3.5, -3.5 }, { 3.5, -3.5 }, { 3.5, 3.5 }, { -3.5, 3.5 } } do
+				if world:heightAt(x + c[1], z + c[2]) ~= h then
+					flat = false
+				end
+			end
+			if flat then
+				local a = deg(atan2(dx * back.Z - dz * back.X, dx * back.X + dz * back.Z))
+				table.insert(farm, { x = x, z = z, h = h, d = d, a = a })
+			end
+		end
+	end
+	return farm
+end
+
+-- Beehive on a little stand (4 parts): legs, a golden hive with an amber band, a plank roof;
+-- bees (yellow specks) buzzing round it.
+local function beehive(parent: any, cf: any)
+	local b = Kit.builder(parent, "Beehive", cf)
+	local stand = b:box("Stand", -1.4, -0.4, -1.4, 1.4, 1.2, 1.4, C.WoodDark)
+	local hive = b:box("Hive", -1.3, 1.2, -1.3, 1.3, 4, 1.3, C.Autumn2)
+	b:box("Band", -1.45, 2.2, -1.45, 1.45, 2.8, 1.45, C.Autumn1, Kit.NOSHADOW)
+	b:box("Roof", -1.8, 4, -1.8, 1.8, 4.6, 1.8, C.WoodLight, Kit.NOSHADOW)
+	Kit.sparkles(hive, C.Yellow, { rate = 3, size = 0.35, lifetime = 2.5, speed = 2.5, drift = 0 })
+	return b:finish(stand)
+end
+
+-- Hand cart (6 parts): a plank bed on two wheels, a pull bar, a load of two pumpkins. Front = -Z.
+local function handCart(parent: any, cf: any)
+	local b = Kit.builder(parent, "Cart", cf)
+	local bed = b:box("Bed", -1.8, 1.6, -3, 1.8, 2.6, 3, C.Wood)
+	for i, sx in { -1, 1 } do
+		b:block(
+			`Wheel{i}`,
+			Vector3.new(0.6, 3, 3),
+			CFrame.new(sx * 2.1, 1.5, 0.6),
+			C.WoodDark,
+			{ Shape = Enum.PartType.Cylinder, CastShadow = false }
+		)
+	end
+	b:box("Bar", -0.25, 2, -6, 0.25, 2.5, -2.9, C.WoodDark, Kit.NOSHADOW)
+	b:box("Pumpkin1", -1.5, 2.6, -2.4, 0.3, 4.2, -0.6, C.Orange, Kit.NOSHADOW)
+	b:box("Pumpkin2", 0, 2.6, 0.2, 1.6, 4, 1.8, rgb(255, 128, 32), Kit.NOSHADOW)
+	return b:finish(bed)
+end
+
+-- Scarecrow (5 parts): post, shirt with arms, straw head, a wide hat.
+local function scarecrow(parent: any, cf: any)
+	local b = Kit.builder(parent, "Scarecrow", cf)
+	local post = b:box("Post", -0.3, -0.5, -0.3, 0.3, 5.5, 0.3, C.WoodDark)
+	b:box("Arms", -2.8, 4, -0.35, 2.8, 4.8, 0.35, C.Blue, Kit.NOSHADOW)
+	b:box("Shirt", -1, 2.4, -0.6, 1, 5, 0.6, C.Red)
+	b:box("Head", -0.85, 5, -0.85, 0.85, 6.7, 0.85, C.StrawLight, Kit.NOSHADOW)
+	b:box("Hat", -1.5, 6.7, -1.5, 1.5, 7.4, 1.5, C.WoodLight, Kit.NOSHADOW)
+	return b:finish(post)
+end
+
+--[[
+	The little farm on the back of the windmill hill, on the free rings between the crop rows:
+	a scarecrow in the middle, hay bales, two beehives, a hand cart with pumpkins. Each piece
+	takes the free cell nearest its spot (degrees from straight back, distance from the mill).
+]]
+local function hillFarm(parent: any, site: any, cells: { any })
+	local model = U.model(parent, "Farm")
+	local pieces = {
+		{ "scarecrow", 0, 60 },
+		{ "hay", -22, 50 },
+		{ "hive", 24, 50 },
+		{ "hive", 34, 62 },
+		{ "cart", 12, 74 },
+	}
+	local taken: { [any]: boolean } = {}
+	for i, p in pieces do
+		local best, bd = nil, math.huge
+		for _, c in cells do
+			if not taken[c] then
+				local da = Kit.angleDistance(c.a, p[2]) * c.d * math.pi / 180
+				local score = da * da + (c.d - p[3]) ^ 2
+				if score < bd then
+					best, bd = c, score
+				end
+			end
+		end
+		if not best then
+			continue
+		end
+		taken[best] = true
+		-- facing out along the ring (tangent), so rows and pieces line up with the terrace
+		local yaw = deg(atan2(best.x - site.x, best.z - site.z)) + 90
+		local cf = CFrame.new(best.x, best.h, best.z) * CFrame.Angles(0, rad(yaw), 0)
+		if p[1] == "scarecrow" then
+			scarecrow(model, cf)
+		elseif p[1] == "hive" then
+			beehive(model, cf)
+		elseif p[1] == "cart" then
+			handCart(model, cf)
+		else
+			Kit.prop("hayBale", model, cf * CFrame.new(-1.6, 0, -0.4), { seed = i })
+			Kit.prop("hayBale", model, cf * CFrame.new(2.2, 0, 0.6) * CFrame.Angles(0, rad(90), 0), { seed = i + 7 })
+		end
+	end
+	return model
 end
 
 -- Chunky rail fence (posts + one thick rail per segment) along a polyline of ground points.
@@ -864,42 +1130,92 @@ end
 --[[
 	The hero windmill (frame cf on the top meadow, front = -Z towards the lagoon and the stairs):
 	a stone plinth one step up, three white tiers (a red band, blue window and door trims) up to a
-	stepped red roof with a gold cap, a plank balcony ring with a red rim round the second tier,
-	and an open doorway in the front — a lit niche with sacks you can step into. The sails (white
+	stepped red roof with a gold cap. The ground floor is a real room (16 x 16, a stone floor, a
+	plank ceiling, a millstone on its shaft, flour sacks, a lantern on a chain) with a door at the
+	front and one at the back; behind it a wooden ladder (a climbable TrussPart) runs up to the
+	plank balcony round the second tier: a red parapet open at the ladder, a bench and a
+	telescope looking out over the sails to the lagoon, petals drifting off it. The sails (white
 	with red lattice, 56 across) are a child Model "Blades" spinning about the hub (attribute
-	Spin, PrimaryPart = Hub, pivot LookVector = the axis). About 40 parts, 54 studs to the cap.
+	Spin, PrimaryPart = Hub, pivot LookVector = the axis). About 65 parts, 54 studs to the cap.
 ]]
 local function heroMill(parent: any, cf: any, spin: number): any
 	local b = Kit.builder(parent, "Windmill", cf)
 	local white, red, blue = C.White, C.Red, C.Blue
 	local plinth = b:box("Plinth", -11, -2, -11, 11, 1, 11, C.StoneLight)
-	-- the ground floor round a doorway niche (x ±2.6, up to y 9, 4 deep)
-	b:box("Tower1", -9.5, 1, -5.5, 9.5, 16, 9.5, white)
-	b:box("Tower1L", -9.5, 1, -9.5, -2.6, 16, -5.5, white)
-	b:box("Tower1R", 2.6, 1, -9.5, 9.5, 16, -5.5, white)
-	b:box("Lintel", -2.6, 9, -9.5, 2.6, 16, -5.5, white)
-	b:box("DoorL", -3.6, 1, -9.9, -2.6, 10, -9.3, blue, Kit.NOSHADOW)
-	b:box("DoorR", 2.6, 1, -9.9, 3.6, 10, -9.3, blue, Kit.NOSHADOW)
-	b:box("DoorTop", -3.6, 9, -9.9, 3.6, 10, -9.3, blue, Kit.NOSHADOW)
-	local glow = b:box("Glow", -2.2, 2, -5.7, 2.2, 7.6, -5.4, C.Glow, Kit.NEON)
-	Kit.light(glow, 12, 1)
-	b:box("Sack1", -2.2, 1, -8.4, -0.2, 3.4, -6.2, C.Canvas)
-	b:box("Sack2", 0.4, 1, -7.4, 2.2, 2.8, -5.6, C.Cream, Kit.NOSHADOW)
+	-- the room: walls 1.5 thick, a door (x ±2.6, up to y 9) in the front and the back wall; the
+	-- blue door frames stand 0.1 into the openings and 0.1 under the lintels (no shared faces)
+	b:box("WallL", -9.5, 1, -8, -8, 16, 8, white)
+	b:box("WallR", 8, 1, -8, 9.5, 16, 8, white)
+	for _, side in { { "Front", -1 }, { "Back", 1 } } do
+		local s = side[2]
+		local z0, z1 = min(s * 8, s * 9.5), max(s * 8, s * 9.5)
+		local f0, f1 = min(s * 9.3, s * 9.9), max(s * 9.3, s * 9.9)
+		b:box(`{side[1]}L`, -9.5, 1, z0, -2.6, 16, z1, white)
+		b:box(`{side[1]}R`, 2.6, 1, z0, 9.5, 16, z1, white)
+		b:box(`{side[1]}Lintel`, -2.6, 9, z0, 2.6, 16, z1, white)
+		b:box(`{side[1]}DoorL`, -3.6, 1, f0, -2.5, 10, f1, blue, Kit.NOSHADOW)
+		b:box(`{side[1]}DoorR`, 2.5, 1, f0, 3.6, 10, f1, blue, Kit.NOSHADOW)
+		b:box(`{side[1]}DoorTop`, -3.6, 8.9, f0, 3.6, 10, f1, blue, Kit.NOSHADOW)
+	end
+	b:box("Ceiling", -8, 13.4, -8, 8, 15, 8, C.WoodLight)
+	-- inside (on the plinth's stone floor): a millstone on its shaft left of the way through,
+	-- flour sacks on the right, a lantern on a chain from the ceiling
+	b:block(
+		"Millstone",
+		Vector3.new(1.6, 5.2, 5.2),
+		CFrame.new(-5, 1.8, 2.5) * CFrame.Angles(0, 0, rad(90)),
+		C.StoneLight,
+		{ Shape = Enum.PartType.Cylinder }
+	)
+	b:box("Shaft", -5.6, 2.6, 1.9, -4.4, 13.4, 3.1, C.WoodDark, Kit.NOSHADOW)
+	b:box("Sack1", 4.6, 1, -6.6, 6.8, 3.6, -4.4, C.Canvas)
+	b:box("Sack2", 5, 1, -3.6, 7, 3, -1.6, C.Cream, Kit.NOSHADOW)
+	b:box("Chain", -0.15, 11.4, -0.15, 0.15, 13.4, 0.15, C.Navy, Kit.DECOR)
+	local lantern = b:box("Lantern", -0.9, 9.6, -0.9, 0.9, 11.4, 0.9, C.Glow, Kit.NEON_DECOR)
+	Kit.light(lantern, 14, 1.2)
 	b:box("Band", -10.2, 14.6, -10.2, 10.2, 16.8, 10.2, red)
 	b:box("Tower2", -8, 16.8, -8, 8, 30, 8, white)
 	b:box("Balcony", -11, 29.4, -11, 11, 30.6, 11, C.WoodLight)
 	b:box("BalconyRim", -11.4, 28.8, -11.4, 11.4, 29.4, 11.4, red, Kit.NOSHADOW)
+	-- the balcony's parapet, open at the back where the ladder arrives (x 3.8..7.2)
+	b:box("ParapetF", -11, 30.6, -11, 11, 32.2, -10.2, red)
+	b:box("ParapetL", -11, 30.6, -10.2, -10.2, 32.2, 10.2, red)
+	b:box("ParapetR", 10.2, 30.6, -10.2, 11, 32.2, 10.2, red)
+	b:box("ParapetB", -11, 30.6, 10.2, 3.8, 32.2, 11, red)
+	b:box("ParapetB2", 7.2, 30.6, 10.2, 11, 32.2, 11, red)
 	b:box("Tower3", -6.5, 30.6, -6.5, 6.5, 42, 6.5, white)
 	b:box("Window1", -1.8, 20, -8.4, 1.8, 25, -7.8, blue, Kit.NOSHADOW)
 	b:box("Window2", -1.5, 33, -6.9, 1.5, 36.5, -6.3, blue, Kit.NOSHADOW)
 	b:box("Window3", 9.3, 5, -1.8, 9.9, 10, 1.8, blue, Kit.NOSHADOW)
 	b:box("Window4", -9.9, 5, -1.8, -9.3, 10, 1.8, blue, Kit.NOSHADOW)
+	b:box("Window5", -1.8, 20, 7.8, 1.8, 25, 8.4, blue, Kit.NOSHADOW)
 	b:box("Roof1", -8.6, 42, -8.6, 8.6, 44.6, 8.6, red)
 	b:box("Roof2", -6.6, 44.6, -6.6, 6.6, 47.2, 6.6, Kit.lerpColor(red, C.White, 0.15))
 	b:box("Roof3", -4.6, 47.2, -4.6, 4.6, 49.8, 4.6, red)
 	b:box("Roof4", -2.6, 49.8, -2.6, 2.6, 52.2, 2.6, Kit.lerpColor(red, C.White, 0.15))
 	b:box("Cap", -1.2, 52.2, -1.2, 1.2, 54.4, 1.2, C.Gold, Kit.NEON_DECOR)
+	-- a telescope at the front of the balcony, over the parapet
+	local y = 30.6
+	b:box("ScopePost", 4.6, y, -9.8, 5.4, y + 3.4, -9, C.Navy)
+	b:box("Scope", 4, y + 3.4, -11.2, 6, y + 4.7, -8.5, C.Yellow)
+	b:box("ScopeLens", 4.35, y + 3.6, -11.5, 5.65, y + 4.5, -11.15, C.Cyan, Kit.DECOR)
 	b:finish(plinth)
+	Kit.bench(b.model, cf * CFrame.new(-4.5, y, -9.2), { length = 5, color = C.WoodLight, legs = red })
+	-- the ladder up the back to the balcony gap: a climbable wooden truss (Roblox sizes trusses
+	-- in 2-stud steps), standing on the meadow just outside the balcony's rim
+	U.partCount += 1
+	U.new("TrussPart", {
+		Name = "Ladder",
+		Size = Vector3.new(2, 32, 2),
+		CFrame = cf * CFrame.new(5.5, 16, 12.5),
+		Color = C.Wood,
+		Material = Enum.Material.SmoothPlastic,
+		Anchored = true,
+		CanTouch = false,
+		Locked = true,
+	}, b.model)
+	-- petals drifting off the balcony over the flower hill
+	Kit.petals(b.model.Balcony, { rate = 3, box = true, wind = Vector3.new(1.6, 0, 0.8) })
 	-- the sails: a red hub on the front of the top tier, two crossed arms, four white sails on
 	-- the trailing side of their arms with a red lattice bar each (an X at rest)
 	local hubCF = cf * CFrame.new(0, 37, -6.5)
@@ -920,10 +1236,10 @@ local function heroMill(parent: any, cf: any, spin: number): any
 		blades:box(`Sail{i}`, q[1], q[3], -6.3, q[2], q[4], -5.7, white, Kit.DECOR)
 		if q[5] == "x" then
 			local xm = (q[1] + q[2]) / 2
-			blades:box(`Lattice{i}`, xm - 0.45, q[3], -6.75, xm + 0.45, q[4], -6.2, red, Kit.DECOR)
+			blades:box(`Lattice{i}`, xm - 0.45, q[3] - 0.1, -6.75, xm + 0.45, q[4] + 0.1, -6.2, red, Kit.DECOR)
 		else
 			local ym = (q[3] + q[4]) / 2
-			blades:box(`Lattice{i}`, q[1], ym - 0.45, -6.75, q[2], ym + 0.45, -6.2, red, Kit.DECOR)
+			blades:box(`Lattice{i}`, q[1] - 0.1, ym - 0.45, -6.75, q[2] + 0.1, ym + 0.45, -6.2, red, Kit.DECOR)
 		end
 	end
 	blades.model.PrimaryPart = hub
@@ -944,17 +1260,47 @@ local function buildWindmill(root: any, cfg: any, world: any, site: any)
 	end
 	-- the hero mill on the meadow, its open doorway facing the stairs (the plinth is a 1-stud step)
 	local mill = heroMill(model, Kit.facing(site.x, topY, site.z, 0, 0), 20)
-	tulipTerraces(model, world, site, corridor)
-	-- stairs from the hill foot up to the top meadow (Kit.stairs adds a first step if needed)
+	hillFarm(model, site, hillFields(model, world, site, corridor))
+	-- stairs from the hill foot up to the top meadow (Kit.stairs adds a first step if needed):
+	-- chunky 2-stud steps, an invisible ramp over their nosings so the climb is a walk
 	local foot = Vector3.new(site.x - ux * (site.hillRadius + 4), 0, site.z - uz * (site.hillRadius + 4))
 	local summit = Vector3.new(site.x - ux * (site.topRadius - 2), 0, site.z - uz * (site.topRadius - 2))
-	Kit.stairs(
-		model,
-		world,
-		foot,
-		summit,
-		{ width = 8, color = rgb(255, 236, 204), color2 = rgb(250, 222, 184), name = "Stairs" }
-	)
+	local stairs = Kit.stairs(model, world, foot, summit, {
+		width = 8,
+		tread = 4,
+		rise = 2,
+		color = rgb(255, 236, 204),
+		color2 = rgb(250, 222, 184),
+		name = "Stairs",
+	})
+	if stairs then
+		-- one ramp over the nosings of every run of evenly spaced steps (a longer tread, where
+		-- the stairs follow a flat bit of the hill, is walked on itself): from one tread before
+		-- the run's first step (one rise down) to the run's last step's front edge
+		local dir = Vector3.new(ux, 0, uz) -- (up the stairs: from the foot towards the mill)
+		local steps = {}
+		for _, s in stairs:GetChildren() do
+			local p = s.CFrame.Position
+			local along = (p - foot):Dot(dir) - s.Size.Z / 2
+			table.insert(steps, { s = along, top = p.Y + s.Size.Y / 2 })
+		end
+		table.sort(steps, function(a, b)
+			return a.s < b.s
+		end)
+		local i, k = 1, 0
+		while i <= #steps do
+			local j = i
+			while j < #steps and abs(steps[j + 1].s - steps[j].s - 4) < 0.01 do
+				j += 1
+			end
+			local first, last = steps[i], steps[j]
+			local a = foot + dir * (first.s - 4) + Vector3.new(0, first.top - 2, 0)
+			local c = foot + dir * last.s + Vector3.new(0, last.top, 0)
+			k += 1
+			Kit.ramp(stairs, a, c, { width = 8, thick = 0.4, invisible = true, name = `Ramp{k}` })
+			i = j + 1
+		end
+	end
 	local lagoonA = deg(atan2(-site.x, -site.z))
 	local function onTop(r: number, a: number): any
 		local aa = rad(lagoonA + a)
@@ -973,7 +1319,7 @@ local function buildWindmill(root: any, cfg: any, world: any, site: any)
 		end
 		run = {}
 	end
-	local gapHalf, posts = 15, 14
+	local gapHalf, posts = 15, 8
 	for k = 0, posts do
 		local a = gapHalf + k * (360 - 2 * gapHalf) / posts
 		local p = onTop(19.5, a).Position
@@ -985,8 +1331,6 @@ local function buildWindmill(root: any, cfg: any, world: any, site: any)
 		end
 	end
 	flush()
-	-- a barrel behind the mill (clear of the walkway)
-	Kit.prop("barrel", model, onTop(16, -150), { color = C.Red })
 	Kit.claim(site.x, site.z, site.hillRadius - 2)
 	return mill
 end
@@ -1114,7 +1458,7 @@ local function buildGiantTree(root: any, cfg: any, world: any, site: any)
 	cheeks:finish()
 	-- glowing giant mushrooms round the tree, a fairy ring of small ones
 	for i, spec in { { 35, 62, true }, { 32, -70, true } } do
-		Kit.prop("giantMushroom", model, at(spec[1], spec[2]), {
+		local m = Kit.prop("giantMushroom", model, at(spec[1], spec[2]), {
 			glow = true,
 			light = spec[3],
 			seed = i,
@@ -1122,6 +1466,11 @@ local function buildGiantTree(root: any, cfg: any, world: any, site: any)
 		})
 		if spec[3] then
 			Kit.lights += 1
+		end
+		-- fireflies drifting round the glowing cap
+		local cap = m:FindFirstChild("Cap", true)
+		if cap then
+			Kit.sparkles(cap, rgb(214, 255, 120), { rate = 2, size = 0.6, lifetime = 6, speed = 0.6, box = true })
 		end
 	end
 	-- torches lining the way in, a picnic table, flowers
@@ -1447,7 +1796,7 @@ local function trailDressing(parent: any, world: any, site: any)
 				pennant(model, facing(x, q.top, z, q.nx, q.nz), cols[(k // 2) % 4 + 1], 9)
 			end
 		end
-		s += 30
+		s += 40
 	end
 
 	-- leafy curtains on the inner rock wall (green and flowering streaks on the grey stone): the
@@ -1469,7 +1818,7 @@ local function trailDressing(parent: any, world: any, site: any)
 		end
 	end
 	local blooms = { C.Pink, C.Yellow, C.Purple, C.Blossom1 }
-	local VINES = 12
+	local VINES = 8
 	for v = 1, min(VINES, #faces) do
 		-- (spread evenly over the faces in scan order)
 		local f = faces[floor((v - 0.5) * #faces / VINES) + 1]
@@ -1532,8 +1881,9 @@ local function summitDeck(parent: any, world: any, cf: any, D: number)
 	b:box("RailBack", -D, ry0, D - 0.8, D, ry1, D, railC, Kit.NOSHADOW)
 	b:box("RailL", -D, ry0, -D, -D + 0.8, ry1, D, railC, Kit.NOSHADOW)
 	b:box("RailR", D - 0.8, ry0, -D, D, ry1, D, railC, Kit.NOSHADOW)
-	b:box("RailFront", -D, ry0, -D, -gap, ry1, -D + 0.8, railC, Kit.NOSHADOW)
-	b:box("RailFrontB", gap, ry0, -D, D, ry1, -D + 0.8, railC, Kit.NOSHADOW)
+	-- (the front rails end 0.1 inside the gate posts: no shared end faces)
+	b:box("RailFront", -D, ry0, -D, -gap - 0.1, ry1, -D + 0.8, railC, Kit.NOSHADOW)
+	b:box("RailFrontB", gap + 0.1, ry0, -D, D, ry1, -D + 0.8, railC, Kit.NOSHADOW)
 	-- lantern posts framing the way in
 	for i, sx in { -1, 1 } do
 		local x = sx * (gap + 0.8)
@@ -1554,7 +1904,8 @@ local function summitDeck(parent: any, world: any, cf: any, D: number)
 	local function on(lx: number, lz: number, yaw: number?): any
 		return cf * CFrame.new(lx, y, lz) * CFrame.Angles(0, rad(yaw or 0), 0)
 	end
-	bigFlag(b.model, on(D - 4, D - 4.5, 0), 24, 10, 6, C.Red)
+	local flag = bigFlag(b.model, on(D - 4, D - 4.5, 0), 24, 10, 6, C.Red)
+	Kit.sparkles(flag.Top, C.Gold, { rate = 3, size = 0.8, lifetime = 3, speed = 2 }) -- the goal glints
 	-- the snowman stands on the snow beside the deck, on the first spot whose whole footprint is
 	-- the flat summit (never over the trail's last bend)
 	local snowTop = cf.Position.Y
@@ -1592,17 +1943,7 @@ end
 
 local function buildPeaks(root: any, cfg: any, world: any)
 	local model = U.model(root, "Peaks")
-	-- the smaller peaks: a chunky flag on the summit block
-	for _, name in { "PeakEast", "PeakSouth" } do
-		local site = world.landmarks[name]
-		if not site then
-			continue
-		end
-		local x, z, y = summit(world, site.x, site.z, 48)
-		local m = U.model(model, `{name}Flag`)
-		bigFlag(m, CFrame.new(x, y, z) * CFrame.Angles(0, rad(site.angle + 90), 0), 16, 8, 5, C.Yellow)
-	end
-
+	-- (the other mountains are scenery: no flag on a summit nobody can reach)
 	local site = world.landmarks.Peak
 	if not site then
 		return
@@ -1695,7 +2036,7 @@ local function buildPeaks(root: any, cfg: any, world: any)
 		local function toward(lx: number, lz: number, tx: number, tz: number): number
 			return deg(atan2(-side * (tx - lx), -(tz - lz)))
 		end
-		-- two tents and a flag at the back, the campfire with two logs in front of them
+		-- two tents at the back, the campfire with a log in front of them
 		local fireX, fireZ = 0, -2
 		tent(camp, at(-5, 5, toward(-5, 5, fireX, fireZ)), C.Orange)
 		tent(camp, at(6, 4, toward(6, 4, fireX, fireZ)), C.Blue)
@@ -1703,10 +2044,12 @@ local function buildPeaks(root: any, cfg: any, world: any)
 		local ring = fire:box("Stones", -2.4, -0.4, -2.4, 2.4, 0.7, 2.4, C.StoneLight)
 		fire:box("LogA", -1.9, 0.7, -0.45, 1.9, 1.5, 0.45, C.Bark)
 		fire:box("LogB", -0.45, 1.5, -1.9, 0.45, 2.2, 1.9, C.Bark)
-		Kit.light(fire:box("Flame", -0.8, 1.4, -0.8, 0.8, 3.4, 0.8, C.Flame, Kit.NEON_DECOR), 14, 1.2)
+		local flame = fire:box("Flame", -0.8, 1.4, -0.8, 0.8, 3.4, 0.8, C.Flame, Kit.NEON_DECOR)
+		Kit.light(flame, 14, 1.2)
+		Kit.smoke(flame)
+		Kit.sparkles(flame, C.Autumn2, { rate = 4, size = 0.4, lifetime = 1.4, speed = 5, drift = 2 })
 		fire:finish(ring)
 		Kit.prop("log", camp, at(fireX, fireZ - 5, 90), { seed = 1 })
-		bigFlag(camp, at(8.5, -7.5, 90), 14, 7, 4.5, C.Orange)
 		local wx, wz = Kit.radial(site.angle, site.radius, padLx, padLz)
 		Kit.claim(wx, wz, 20)
 	end

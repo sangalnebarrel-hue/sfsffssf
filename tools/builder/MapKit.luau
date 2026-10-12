@@ -22,9 +22,12 @@
 	  Kit.lamp / Kit.flowerMeadow       cheap chunky lamp (4 parts), flower meadow (5 parts)
 	  Kit.bench                         cheap chunky bench (4 parts)
 	  Kit.flowerBed                     planted box: blooms on stems (2 + 2 per flower)
+	  Kit.smoke / Kit.sparkles /        particle effects inside a part (no parts, low rates for
+	  Kit.foam / Kit.petals             phones): campfire smoke, magic sparkles or fireflies, white
+	                                    water foam / spray / mist, drifting petals
 
 	Property presets (pass as `extra`): DECOR (tiny non-walkable details), NOSHADOW, NEON,
-	NEON_DECOR.
+	NEON_DECOR. Builder parts are Locked (a stray drag in Studio cannot move generated dressing).
 ]]
 
 local U = require("./Util")
@@ -182,6 +185,20 @@ function Kit.isClaimed(x: number, z: number, margin: number?): boolean
 	return false
 end
 
+-- Locks a part, or every part of a model (generated dressing: not draggable in Studio).
+local function lock(inst: any): any
+	if inst:IsA("BasePart") then
+		inst.Locked = true
+	else
+		for _, d in inst:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.Locked = true
+			end
+		end
+	end
+	return inst
+end
+
 --------------------------------------------------------------------------------------------
 -- Builder: blocks in a local frame (y = 0 at cf, -Z = front), Model pivot = cf
 --------------------------------------------------------------------------------------------
@@ -211,14 +228,14 @@ function Builder:box(
 ): any
 	local size = Vector3.new(abs(x1 - x0), abs(y1 - y0), abs(z1 - z0))
 	local centre = Vector3.new((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2)
-	local p = U.part(self.model, name, size, self.cf * CFrame.new(centre), color, nil, extra)
+	local p = lock(U.part(self.model, name, size, self.cf * CFrame.new(centre), color, nil, extra))
 	self.first = self.first or p
 	return p
 end
 
 -- Block with an explicit local CFrame.
 function Builder:block(name: string, size: any, lcf: any, color: any, extra: { [string]: any }?): any
-	local p = U.part(self.model, name, size, self.cf * lcf, color, nil, extra)
+	local p = lock(U.part(self.model, name, size, self.cf * lcf, color, nil, extra))
 	self.first = self.first or p
 	return p
 end
@@ -387,14 +404,16 @@ function Kit.ramp(parent: any, a: any, b: any, opts: { [string]: any }?): any
 	if o.invisible then
 		extra = { Transparency = 1, CastShadow = false, CanQuery = false }
 	end
-	return U.part(
-		parent,
-		o.name or "Ramp",
-		Vector3.new(o.width or 6, thick, len),
-		cf * CFrame.new(0, -thick / 2, 0),
-		o.color or Kit.C.WoodLight,
-		nil,
-		extra
+	return lock(
+		U.part(
+			parent,
+			o.name or "Ramp",
+			Vector3.new(o.width or 6, thick, len),
+			cf * CFrame.new(0, -thick / 2, 0),
+			o.color or Kit.C.WoodLight,
+			nil,
+			extra
+		)
 	)
 end
 
@@ -452,15 +471,15 @@ function Kit.rampPath(parent: any, world: any, a: any, b: any, opts: { [string]:
 	local function at(s: number, y: number): any
 		return CFrame.new(start.X + dir.X * s, y, start.Z + dir.Z * s) * rot
 	end
+	-- (every slab reaches 0.12 past its run into the neighbouring runs, so no slab end lies on a
+	-- terrace riser of the voxel ground: a lower slab's end is buried in the higher cell, a higher
+	-- slab's overhang is under the wedge ramp; the slabs themselves never meet, being at
+	-- different heights)
 	for k, r in runs do
 		local top, bottom = r.h + lift, r.lo - 1
-		U.part(
-			model,
-			`Slab{k}`,
-			Vector3.new(width, top - bottom, r.s1 - r.s0),
-			at((r.s0 + r.s1) / 2, (top + bottom) / 2),
-			c1
-		)
+		local s0 = if k > 1 then r.s0 - 0.12 else r.s0
+		local s1 = if k < #runs then r.s1 + 0.12 else r.s1
+		U.part(model, `Slab{k}`, Vector3.new(width, top - bottom, s1 - s0), at((s0 + s1) / 2, (top + bottom) / 2), c1)
 	end
 	for k = 1, #runs - 1 do
 		local r, q = runs[k], runs[k + 1]
@@ -476,7 +495,7 @@ function Kit.rampPath(parent: any, world: any, a: any, b: any, opts: { [string]:
 			U.wedge(model, `Ramp{k}`, Vector3.new(width, abs(dh), L + 0.1), cf, c2)
 		end
 	end
-	return model
+	return lock(model)
 end
 
 --[[
@@ -580,7 +599,142 @@ function Kit.stairs(parent: any, world: any, a: any, b: any, opts: { [string]: a
 		model:Destroy()
 		return nil
 	end
-	return model
+	return lock(model)
+end
+
+--------------------------------------------------------------------------------------------
+-- Particle effects: no parts, so they cost nothing of the part budget; rates stay low (phones).
+-- Each takes the part to emit from (its volume with opts.box, else its top face) and returns
+-- the ParticleEmitter.
+--------------------------------------------------------------------------------------------
+
+local R = U.roblox
+local SMOKE_TEX = "rbxasset://textures/particles/smoke_main.dds"
+local SPARKLE_TEX = "rbxasset://textures/particles/sparkles_main.dds"
+
+local function seq(a: number, b: number, mid: number?): any
+	local keys = { R.NumberSequenceKeypoint.new(0, a) }
+	if mid then
+		table.insert(keys, R.NumberSequenceKeypoint.new(0.5, mid))
+	end
+	table.insert(keys, R.NumberSequenceKeypoint.new(1, b))
+	return R.NumberSequence.new(keys)
+end
+
+local function emitter(part: any, name: string, props: { [string]: any }, opts: { [string]: any }?): any
+	local o = opts or {}
+	if o.box then
+		props.Shape = Enum.ParticleEmitterShape.Box
+		props.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+	end
+	props.Name = name
+	return U.new("ParticleEmitter", props, part)
+end
+
+--[[
+	Soft grey smoke rising from a campfire or chimney: a few big slow puffs that grow and fade.
+	opts: rate (2.5), size (start size, 1.6), rise (speed, 3), color.
+]]
+function Kit.smoke(part: any, opts: { [string]: any }?): any
+	local o = opts or {}
+	local s = o.size or 1.6
+	return emitter(part, "Smoke", {
+		Texture = SMOKE_TEX,
+		Rate = o.rate or 2.5,
+		Lifetime = R.NumberRange.new(3, 4.5),
+		Speed = R.NumberRange.new((o.rise or 3) * 0.7, o.rise or 3),
+		SpreadAngle = U.Vector2.new(10, 10),
+		Acceleration = Vector3.new(0.6, 0.4, 0),
+		Drag = 0.4,
+		Size = seq(s, s * 3.6),
+		Transparency = seq(0.35, 1, 0.6),
+		RotSpeed = R.NumberRange.new(-20, 20),
+		Rotation = R.NumberRange.new(0, 360),
+		Color = R.ColorSequence.new(o.color or U.rgb(236, 236, 240)),
+		LightInfluence = 0.6,
+	}, o)
+end
+
+--[[
+	Magic sparkles / fireflies: small glowing specks drifting out of the part (LightEmission 1).
+	opts: rate (3), size (0.5), lifetime (max, 3), speed (max, 1.5), box (spawn in the part's
+	volume), drift (upward acceleration, 0.4).
+]]
+function Kit.sparkles(part: any, color: any, opts: { [string]: any }?): any
+	local o = opts or {}
+	local s = o.size or 0.5
+	local life = o.lifetime or 3
+	local speed = o.speed or 1.5
+	return emitter(part, "Sparkles", {
+		Texture = SPARKLE_TEX,
+		Rate = o.rate or 3,
+		Lifetime = R.NumberRange.new(life * 0.6, life),
+		Speed = R.NumberRange.new(speed * 0.3, speed),
+		SpreadAngle = U.Vector2.new(180, 180),
+		Acceleration = Vector3.new(0, o.drift or 0.4, 0),
+		Drag = 0.5,
+		Size = seq(s * 0.4, 0, s),
+		Transparency = seq(0.1, 1, 0.2),
+		Color = R.ColorSequence.new(color),
+		LightEmission = 1,
+		LightInfluence = 0,
+	}, o)
+end
+
+--[[
+	White water: foam tumbling off a waterfall lip, spray where it lands, mist over the pool.
+	The part's face `dir` (Enum.NormalId, default Bottom) is where it goes. opts: rate (10),
+	size (start, 1.4), grow (end size factor, 2.2), speed {min, max} (3, 5), lifetime {min, max}
+	(0.7, 1.1), gravity (downward acceleration, 24), spread (degrees, 15), color, box (spawn in
+	the part's volume: along a whole lip), transparency (start, 0.15), name.
+]]
+function Kit.foam(part: any, dir: any?, opts: { [string]: any }?): any
+	local o = opts or {}
+	local s = o.size or 1.4
+	local sp = o.speed or { 3, 5 }
+	local life = o.lifetime or { 0.7, 1.1 }
+	local spread = o.spread or 15
+	return emitter(part, o.name or "Foam", {
+		Texture = SMOKE_TEX,
+		EmissionDirection = dir or Enum.NormalId.Bottom,
+		Rate = o.rate or 10,
+		Lifetime = R.NumberRange.new(life[1], life[2]),
+		Speed = R.NumberRange.new(sp[1], sp[2]),
+		SpreadAngle = U.Vector2.new(spread, spread),
+		Acceleration = Vector3.new(0, -(o.gravity or 24), 0),
+		Drag = 0.6,
+		Size = seq(s, s * (o.grow or 2.2)),
+		Transparency = seq(o.transparency or 0.15, 1, 0.45),
+		Rotation = R.NumberRange.new(0, 360),
+		RotSpeed = R.NumberRange.new(-40, 40),
+		Color = R.ColorSequence.new(o.color or Kit.C.Foam),
+		LightEmission = 0.15,
+		LightInfluence = 0.5,
+	}, o)
+end
+
+--[[
+	Petals drifting on the breeze from the part (blossom trees, a flower hill). opts: rate (3),
+	color (Blossom1 -> Blossom2), wind (Vector3, sideways drift), box.
+]]
+function Kit.petals(part: any, opts: { [string]: any }?): any
+	local o = opts or {}
+	return emitter(part, "Petals", {
+		Texture = SPARKLE_TEX,
+		Rate = o.rate or 3,
+		Lifetime = R.NumberRange.new(5, 8),
+		Speed = R.NumberRange.new(0.5, 2),
+		SpreadAngle = U.Vector2.new(180, 180),
+		Acceleration = (o.wind or Vector3.new(1.4, 0, 0.6)) + Vector3.new(0, -0.6, 0),
+		Drag = 0.3,
+		Size = seq(0.55, 0.35),
+		Transparency = seq(0, 1, 0.1),
+		Rotation = R.NumberRange.new(0, 360),
+		RotSpeed = R.NumberRange.new(-90, 90),
+		Color = R.ColorSequence.new(o.color or Kit.C.Blossom1, o.color2 or Kit.C.Blossom2),
+		LightEmission = 0.2,
+		LightInfluence = 0.8,
+	}, o)
 end
 
 return Kit
