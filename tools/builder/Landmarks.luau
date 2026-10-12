@@ -18,7 +18,7 @@
 	             ring, a stepped red roof, an open lit doorway to step into, 56-stud sails spinning
 	             as "Blades"); rainbow tulip rows (green stems + blooms) on the lagoon-facing
 	             terraces, walkable stairs up the terraces, a chunky rail fence round the edge of
-	             the top meadow (a walkway all round the mill), a hay crate and a barrel.
+	             the top meadow (a walkway all round the mill), a barrel.
 	  GiantTree  Props.giantTree (treehouse, swing, lanterns) on the meadow plateau, scaled to a
 	             real giant, with a long slide from the treehouse deck down to the meadow (the fun
 	             way down); steps up from the path with grassy cheek blocks filling the plateau's
@@ -133,7 +133,7 @@ local function cascade(parent: any, site: any, frame: any, fmin: number, fmax: n
 	local b = Kit.builder(parent, "Waterfall", frame)
 	local hw = W / 2
 	local top = site.cliffTop + 0.9 -- over the stream sheet
-	local body, band, lip = rgb(78, 188, 250), rgb(150, 226, 255), rgb(120, 230, 255)
+	local body, band, lip = rgb(88, 196, 252), rgb(172, 234, 255), rgb(120, 230, 255)
 	-- the rock shelves: the upper one juts out of the cliff, the lower one stands in the pond
 	local s1 = { z0 = -12, z1 = fmax + 1, y0 = 33, y1 = 38.4 }
 	local s2 = { z0 = -23, z1 = fmin + 2, y0 = -7, y1 = 19.4 }
@@ -164,7 +164,7 @@ local function cascade(parent: any, site: any, frame: any, fmin: number, fmax: n
 	}
 	-- per tier: the light band's centre and the foam streaks' centres (x / hw), so the tiers differ
 	local bands = { -0.3, 0.42, -0.05 }
-	local streaks = { { -0.62, 0.18 }, { -0.12, 0.68 }, { -0.58, 0.4 } }
+	local streaks = { { -0.68, 0.02, 0.62 }, { -0.4, 0.28, 0.8 }, { -0.78, -0.15, 0.5 } }
 	for t, tier in tiers do
 		local y1, y0, f, k = tier[1], tier[2], tier[3], tier[4]
 		local h = y1 - y0
@@ -539,7 +539,7 @@ local function mesaGarden(parent: any, world: any, site: any, frame: any, lipLz:
 		)
 	end
 	sb:finish()
-	for _, p in { { 25.5, lipLz + 17 }, { 29.5, pool.z0 + 13 } } do
+	for _, p in { { 27.5, pool.z0 - 2 } } do
 		lanternPost(parent, place(p[1], p[2]))
 	end
 end
@@ -985,8 +985,7 @@ local function buildWindmill(root: any, cfg: any, world: any, site: any)
 		end
 	end
 	flush()
-	-- hay crates and barrels behind the mill (clear of the walkway)
-	Kit.prop("crate", model, onTop(16, 150), { color = C.Yellow, size = 3.4 })
+	-- a barrel behind the mill (clear of the walkway)
 	Kit.prop("barrel", model, onTop(16, -150), { color = C.Red })
 	Kit.claim(site.x, site.z, site.hillRadius - 2)
 	return mill
