@@ -5,15 +5,18 @@
 	              floating raft with a parasol and a tiny sandbar with a palm. The water in front
 	              of every pier (base-local lz -92..0, |lx| <= 26) and along the bridges stays
 	              clear (lagoonClear).
-	  Map.Ocean   decorated islets (world.islets): a lighthouse, a pirate hideout with a hut,
-	              a treasure chest and a flag, palms and rocks; a shipwreck in an islet's
-	              shallows, a rock arch and a whale between the coast and the boundary wall, two
-	              big sailboats far out at sea.
-	  Map.Sky     voxel clouds (Props.cloud) at y 180-320 over the island and the ocean.
+	  Map.Ocean   decorated islets (world.islets): a lighthouse on a stone foundation, a pirate
+	              hideout with a hut, a treasure chest and a flag, a palm grove, the big island
+	              with palms round its beach, a pine wood, boulders and a fisherman's hut, a
+	              cherry-blossom island (far islets use Nature.farTree: 5 parts a tree); a
+	              shipwreck in an islet's shallows, a rock arch and a whale between the coast and
+	              the boundary wall, two big sailboats far out at sea.
+	  Map.Sky     15 voxel clouds (Props.cloud) at y 180-320 over the island and the ocean.
 ]]
 
 local U = require("./Util")
 local Kit = require("./MapKit")
+local Nature = require("./Nature")
 
 local Vector3 = U.Vector3
 local CFrame = U.CFrame
@@ -74,7 +77,7 @@ local function raft(parent: any, cf: any)
 		)
 	end
 	b:box("Towel", -2.6, 0.75, -2.5, 0.2, 0.85, 1.5, C.Pink, Kit.DECOR)
-	b:box("TowelStripe", -2.6, 0.76, -1.0, 0.2, 0.87, -0.2, C.White, Kit.DECOR)
+	b:box("TowelStripe", -2.65, 0.8, -1.0, 0.25, 0.97, -0.2, C.White, Kit.DECOR)
 	b:finish(deck)
 	Kit.prop("parasol", b.model, cf * CFrame.new(2, 0.75, 1.5), { color = C.Cyan })
 	return b.model
@@ -85,7 +88,7 @@ local function sandbar(parent: any, cf: any)
 	local base = b:box("Sand", -11, -15, -7, 11, 0.7, 7, C.Sand)
 	b:box("SandB", -7, -15, -10, 7, 0.72, 10, C.Sand)
 	b:box("Top", -5, 0.7, -4, 5, 1.6, 4, Kit.lerpColor(C.Sand, C.White, 0.25))
-	b:box("Wet", -12, -15, -8, 12, 0.25, 8, C.SandWet, Kit.NOSHADOW)
+	b:box("Wet", -12, -14.8, -8, 12, 0.25, 8, C.SandWet, Kit.NOSHADOW)
 	b:finish(base)
 	Kit.prop("palmTree", b.model, cf * CFrame.new(1, 1.6, 0), { seed = 5, scale = 1.4, variant = 1 })
 	Kit.prop("rock", b.model, cf * CFrame.new(-7, 0.7, 4), { seed = 6, count = 3 })
@@ -162,6 +165,103 @@ local function isletSpot(world: any, isle: any, r: number, a: number, yaw: numbe
 	return Kit.ground(world, x, z, yaw)
 end
 
+-- A foundation under the square footprint (half-width `half`) of a prop standing on `cf`
+-- (turned like the prop) where the ground is lower than `top` somewhere (islet terraces): from
+-- the lowest column up to `top`, so nothing overhangs a step. Nil when the ground is flat.
+local function foundation(parent: any, world: any, cf: any, half: number, top: number, color: any): any
+	local low = top
+	for _, fx in { -1, -0.5, 0, 0.5, 1 } do
+		for _, fz in { -1, -0.5, 0, 0.5, 1 } do
+			local p = cf * Vector3.new(fx * half, 0, fz * half)
+			low = math.min(low, world:heightAt(p.X, p.Z))
+		end
+	end
+	if low >= top - 0.25 then
+		return nil
+	end
+	local c = cf.Position
+	return U.part(
+		parent,
+		"Foundation",
+		Vector3.new(2 * half, top - low + 1, 2 * half),
+		CFrame.new(c.X, (top + low - 1) / 2, c.Z) * cf.Rotation,
+		color
+	)
+end
+
+-- Land columns of an islet: { x, z, h, kind, d (distance from the centre) }, in a fixed order.
+local function isletSites(world: any, isle: any): { any }
+	local list = {}
+	local n = math.floor(isle.size / 8)
+	-- on the centres of the ground's 8-stud columns
+	local ox, oz = math.floor(isle.x / 8) * 8 + 4, math.floor(isle.z / 8) * 8 + 4
+	for iz = -n, n do
+		for ix = -n, n do
+			local x, z = ox + ix * 8, oz + iz * 8
+			local h, kind, water = world:surfaceAt(x, z)
+			if not water and h >= 2 then
+				table.insert(
+					list,
+					{ x = x, z = z, h = h, kind = kind, d = math.sqrt((x - isle.x) ^ 2 + (z - isle.z) ^ 2) }
+				)
+			end
+		end
+	end
+	return list
+end
+
+--[[
+	Plants up to `count` things on islet sites that pass `filter`, at least `spacing` apart (and
+	clear of `taken`), in an order shuffled by `seed`; every site must be flat over `half`
+	studs. place(site, k) builds one.
+]]
+local function plant(
+	world: any,
+	sites: { any },
+	taken: { any },
+	count: number,
+	spacing: number,
+	half: number,
+	seed: number,
+	filter: (any) -> boolean,
+	place: (any, number) -> ()
+)
+	local r = Kit.rng(seed)
+	local order = {}
+	for _, s in sites do
+		if filter(s) then
+			table.insert(order, { s = s, key = r() })
+		end
+	end
+	table.sort(order, function(a, b)
+		return a.key < b.key
+	end)
+	local k = 0
+	for _, e in order do
+		if k >= count then
+			break
+		end
+		local s = e.s
+		local ok = true
+		for _, d in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
+			if world:heightAt(s.x + d[1] * half, s.z + d[2] * half) ~= s.h then
+				ok = false
+			end
+		end
+		for _, t in taken do
+			if (s.x - t[1]) ^ 2 + (s.z - t[2]) ^ 2 < spacing * spacing then
+				ok = false
+				break
+			end
+		end
+		if ok then
+			k += 1
+			table.insert(taken, { s.x, s.z })
+			place(s, k)
+		end
+	end
+end
+
 -- Radius on the ray `angle` of the first spot past the coast where the sea floor is at least
 -- 8 deep everywhere within `clear` studs (capped inside the boundary wall).
 local function openSea(cfg: any, world: any, angle: number, clear: number): number
@@ -190,9 +290,27 @@ local function buildOcean(map: any, cfg: any, world: any)
 		-- the side facing the main island
 		local home = math.deg(math.atan2(-isle.x, -isle.z))
 		local s = isle.size
+		local sites = isletSites(world, isle)
+		local taken = {}
+		local function sand(site: any): boolean
+			return site.kind == "sand"
+		end
+		local function land(site: any): boolean
+			return site.kind ~= "sand"
+		end
+		local function farTree(kind: string, scale0: number, scale1: number, seed: number)
+			local r = Kit.rng(seed)
+			return function(site: any)
+				Nature.farTree(m, CFrame.new(site.x, site.h, site.z), kind, r(scale0, scale1), seed + site.x)
+			end
+		end
 		if i == 1 then
-			Kit.prop("lighthouse", m, isletSpot(world, isle, 0, 0, home), { scale = 1.3 })
+			-- the lighthouse on the top terrace, on a stone foundation down to the lower one
+			local cf = isletSpot(world, isle, 0, 0, home)
+			local top = cf.Position.Y
+			Kit.prop("lighthouse", m, cf, { scale = 1.3 })
 			Kit.lights += 1
+			foundation(m, world, cf, 8.7, top - 2.4, C.Stone)
 			Kit.prop(
 				"palmTree",
 				m,
@@ -202,7 +320,9 @@ local function buildOcean(map: any, cfg: any, world: any)
 			Kit.prop("rock", m, isletSpot(world, isle, s * 0.55, home - 60), { seed = 12, scale = 1.6 })
 		elseif i == 3 then
 			-- pirate hideout
-			hut(m, isletSpot(world, isle, s * 0.15, home + 20, home), C.Red)
+			local hutCf = isletSpot(world, isle, s * 0.15, home + 20, home)
+			hut(m, hutCf, C.Red)
+			foundation(m, world, hutCf, 4.9, hutCf.Position.Y - 1, C.WoodDark)
 			Kit.prop("treasureChest", m, isletSpot(world, isle, s * 0.45, home - 15, home), { scale = 1.3 })
 			Kit.prop(
 				"flagPole",
@@ -231,15 +351,40 @@ local function buildOcean(map: any, cfg: any, world: any)
 			local wz = isle.z + d * cos(rad(home + 25))
 			Kit.prop("shipwreck", m, CFrame.new(wx, 0, wz) * CFrame.Angles(0, rad(home + 115), 0), { seed = 54 })
 		elseif i == 2 then
-			-- two big palms on the side facing the main island (lite: seen through the haze);
-			-- the farthest islets stay bare, the fog hides them anyway
-			Kit.prop(
-				"palmTree",
-				m,
-				isletSpot(world, isle, s * 0.25, home + 30),
-				{ seed = 21, scale = 1.8, lite = true }
-			)
-			Kit.prop("palmTree", m, isletSpot(world, isle, s * 0.4, home - 40), { seed = 22, scale = 1.5, lite = true })
+			-- a palm grove (cheap far palms: it is seen through the haze) and a rock
+			plant(world, sites, taken, 6, 16, 3, 21, land, farTree("palm", 1.6, 2.1, 21))
+			plant(world, sites, taken, 2, 14, 2, 22, sand, function(site)
+				Kit.prop("rock", m, CFrame.new(site.x, site.h, site.z), { seed = 22, scale = 1.5, moss = true })
+			end)
+		elseif i == 4 then
+			-- the big one: palms round the beach, a pine wood on the upper terraces, mossy
+			-- boulders and a fisherman's hut with a blue roof facing the main island
+			local cx, cz = isle.x - s * 0.25 * sin(rad(home + 180)), isle.z - s * 0.25 * cos(rad(home + 180))
+			local hutCf = Kit.ground(world, cx, cz, home)
+			hut(m, hutCf, C.Blue)
+			foundation(m, world, hutCf, 4.9, hutCf.Position.Y - 1, C.WoodDark)
+			table.insert(taken, { cx, cz })
+			plant(world, sites, taken, 6, 26, 3, 41, function(site)
+				return site.h >= isle.height * 0.5
+			end, farTree("pine", 1.9, 2.5, 41))
+			plant(world, sites, taken, 8, 22, 3, 42, function(site)
+				return site.kind == "sand" or site.h <= 12
+			end, farTree("palm", 1.7, 2.2, 42))
+			plant(world, sites, taken, 4, 24, 3, 43, function(site)
+				return site.kind ~= "sand" and site.h < isle.height * 0.5
+			end, farTree("green", 1.9, 2.4, 43))
+			plant(world, sites, taken, 3, 20, 5, 44, land, function(site, k)
+				Kit.prop("boulder", m, CFrame.new(site.x, site.h, site.z), { seed = 44 + k, moss = true })
+			end)
+		elseif i == 6 then
+			-- a cherry grove on the hill and two rocks on the beach
+			plant(world, sites, taken, 6, 24, 3, 61, land, farTree("cherry", 1.9, 2.4, 61))
+			plant(world, sites, taken, 2, 20, 3, 62, function(site)
+				return site.kind ~= "sand" and site.h <= 12
+			end, farTree("palm", 1.7, 2.1, 62))
+			plant(world, sites, taken, 2, 16, 2, 63, sand, function(site, k)
+				Kit.prop("rock", m, CFrame.new(site.x, site.h, site.z), { seed = 63 + k, scale = 1.6 })
+			end)
 		end
 	end
 	-- a rock arch (its opening facing the island) and a whale in open water between the coast
@@ -275,6 +420,10 @@ local function buildSky(map: any, cfg: any)
 		{ 230, 900 },
 		{ 10, 940 },
 		{ 290, 980 },
+		{ 95, 860 },
+		{ 145, 760 },
+		{ 185, 1000 },
+		{ 330, 820 },
 	}
 	for i, s in spots do
 		local p = U.polar(s[1] + rng(-8, 8), s[2], 0)

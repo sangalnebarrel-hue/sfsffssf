@@ -15,8 +15,10 @@
 	  Map.Nature       forests, palms, flowers, rocks on the hills     (Nature.luau)
 	  Map.Boundaries   invisible ring wall in the ocean
 
-	Part budget of the dressing (everything except Ground and Hub): DRESSING_BUDGET. Nature is
-	built last and gets whatever the other modules left over.
+	Part budget of the dressing (everything except Ground and Hub): DRESSING_BUDGET parts and
+	LIGHT_BUDGET PointLights. Nature is built last (it keeps off what the others claimed) and gets
+	whatever the other modules left over, but never less than NATURE_MIN: the build fails when the
+	other modules leave less, and when the dressing as a whole goes over budget.
 
 	Coordinates: angle θ (degrees, 0 = +Z) and radius r map to (r·sin θ, y, r·cos θ).
 ]]
@@ -33,8 +35,9 @@ local Nature = require("./Nature")
 
 local Vector3 = U.Vector3
 
-local DRESSING_BUDGET = 4000 -- parts (base slots, bridges, promenade, gateways, landmarks, water, sky, nature, walls)
+local DRESSING_BUDGET = 5600 -- parts (base slots, bridges, promenade, gateways, landmarks, water, sky, nature, walls)
 local LIGHT_BUDGET = 40 -- PointLights of the dressing
+local NATURE_MIN = 2200 -- parts Nature is guaranteed (the hills must look lush)
 
 --------------------------------------------------------------------------------
 
@@ -51,7 +54,7 @@ end
 
 local function buildBoundaries(map: any, cfg: any)
 	local walls = U.folder(map, "Boundaries")
-	local count = 48
+	local count = 24
 	local R = cfg.BoundaryRadius
 	local width = 2 * R * math.tan(math.pi / count) + 4
 	for k = 0, count - 1 do
@@ -103,12 +106,20 @@ return function(game: any, cfg: any, world: any)
 	Coast.build(map, cfg, world)
 	buildBoundaries(map, cfg)
 
-	-- Nature fills the rest of the budget.
+	-- Nature fills the rest of the budget (at least NATURE_MIN).
 	local used = 0
+	local usedBy = {}
 	for _, child in map:GetChildren() do
 		if child.Name ~= "Ground" and child.Name ~= "Hub" then
-			used += (stats(child))
+			local p = stats(child)
+			used += p
+			table.insert(usedBy, `{child.Name} {p}`)
 		end
+	end
+	-- (10 spare: Nature fills its budget up to the last few parts)
+	if DRESSING_BUDGET - used < NATURE_MIN + 10 then
+		local list = table.concat(usedBy, ", ")
+		error(`map dressing leaves Nature {DRESSING_BUDGET - used} parts (< {NATURE_MIN} + 10); used: {list}`)
 	end
 	local natureCounts = Nature.build(map, cfg, world, DRESSING_BUDGET - used)
 
@@ -126,11 +137,16 @@ return function(game: any, cfg: any, world: any)
 	if totalParts > DRESSING_BUDGET or totalLights > LIGHT_BUDGET then
 		error(`map dressing over budget: {totalParts}/{DRESSING_BUDGET} parts, {totalLights}/{LIGHT_BUDGET} lights`)
 	end
+	local natureParts = stats(map.Nature)
+	if natureParts < NATURE_MIN then
+		error(`Nature got only {natureParts} parts (< {NATURE_MIN})`)
+	end
 
 	return {
 		map = map,
 		groundParts = ground.parts,
 		natureCounts = natureCounts,
+		budget = { dressing = DRESSING_BUDGET, lights = LIGHT_BUDGET, natureMin = NATURE_MIN },
 		lamps = lamps,
 		expectedAttachments = hub.expectedAttachments or {},
 	}
