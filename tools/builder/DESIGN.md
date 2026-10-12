@@ -1,13 +1,38 @@
-# World v3 — «Остров Рыбаков» (voxel atoll) — design contract
+# World v3 «Остров Рыбаков» (voxel atoll), art direction v4 — design contract
 
 This file is the contract every builder module follows. Numbers here are mirrored in
 `src/ReplicatedStorage/Shared/Config/MapConfig.luau` (v3); builders read them from the cfg
 argument and fall back to the values below.
 
-## 1. The look: bright voxel "simulator" style
+## 1. The look: rich, natural voxel island (art direction v4)
 
-Target: the look of top Roblox simulators — *Steal a Brainrot*, *Grow a Garden*, *Steal an
-Egg*. Bright, saturated, clean, chunky, instantly readable. **Not** realistic.
+Target: the charm and readability of top Roblox simulators (*Grow a Garden*, *Steal a
+Brainrot*) — chunky blocks, clear shapes, sunny — but with a **calm, harmonious, natural
+palette**: a well-kept fishing village on a green island, not a candy shop. v3 was too loud
+(lime lawns, neon team colours on whole plots, rainbow everything, +25 % saturation in the
+grading); v4 fixes that. All colours come from `tools/builder/Palette.luau`.
+
+Colour rules (measured by `tools/preview/palette_lint.py`, "loud" = HSV S > 0.6 and V > 0.8):
+
+* **Large surfaces are calm**: lawns, soil, rock, sand, water, walls, roofs, decks, paving,
+  fences use Palette materials (GrassTop*, Dirt, Stone*, Sand*, Wood*, Plank, Plaster, Brick,
+  Cobble, Roof*). No loud part bigger than ~400 studs² of visible area.
+* **Accents are small**: flowers, flags, awnings, trims, lanterns, signs, boat paint. The whole
+  map stays under ~4 % loud area.
+* **Team colour on a plot** (the base's own colour, `Accent`) only on the flag, the roof (or roof
+  trim), awnings/banners, the gate sign and a few small trims — never on lawns, fences, decks,
+  platforms or whole walls.
+* **One building = one wall colour + one roof colour + one trim colour** (+ wood/stone).
+* **Neon** only for lamp cores, crystals and glow details — small and few.
+* **No decorative people or animals** (no shopkeepers, scarecrows, snowmen, dogs on display).
+  The base dog is a gameplay upgrade (stage 4): its model exists but stays invisible until bought.
+* Lighting is neutral: ColorCorrection saturation ~0, light Bloom (only Neon blooms), soft cool
+  shadows, a bit of atmospheric haze for depth.
+
+Richness: buildings are real voxel architecture — a stone or wooden base course, framed walls,
+windows with frames and sills, doors with steps, roofs with overhangs, ridge and chimney, porches
+with posts, signs, flower boxes, lanterns — not boxes with a lid. Plots are designed spaces with
+paths, fences, beds, a work area, places to sit, lights.
 
 Rules:
 
@@ -22,36 +47,25 @@ Rules:
 * **Materials.** `SmoothPlastic` for almost everything. `Neon` for glowing accents (lamps,
   signs' rims, siren, magic). `Glass` (Transparency 0.4–0.6) for aquariums/windows.
   `WoodPlanks`/`Brick`/`Cobblestone` textures are NOT used — colour carries the material.
-* **Colour.** Saturated, bright, warm. Every structure has a strong main colour + a contrasting
-  trim colour + a light detail colour. Two or three shades of the same hue give the "voxel
-  shading" (e.g. leaves: dark / mid / light blocks). Avoid greys and browns that are dark or
-  dull — dark colours only for small contrast details (eyes, windows' frames, outlines).
+* **Colour.** See the v4 colour rules above: calm materials, small accents. Two or three
+  shades of the same hue give the "voxel shading" (e.g. leaves: dark / mid / light blocks).
 * **Chunky + exaggerated.** Thick posts, big signs with big text, oversized fish statues,
   exaggerated proportions (lamp posts with big cube lanterns, mushrooms with fat caps).
 * **Readable signage.** Shops and bases carry big `SurfaceGui` signs (Font: `Util.FONT`
   Nunito ExtraBold, Cyrillic text, `TextScaled`, white text with a dark `UIStroke` or dark text
   on a light board).
 
-Shared palette (use `Props.Colors`, keep names):
+Shared palette: `tools/builder/Palette.luau` (also exposed as `Props.Colors`, same names).
+Materials: GrassTop/GrassTop2/GrassTop3, Dirt/DirtDark, Sand/SandDark/SandWet,
+Stone/StoneDark/StoneLight, Snow, Wood/WoodDark/WoodLight, Plank, Plaster/PlasterShade, Brick,
+Cobble/CobbleDark, RoofRed/RoofTerracotta/RoofBlue/RoofGreen/RoofSlate/RoofBrown, foliage
+(Leaf*, Pine*, Palm*, Mint*, BirchLeaf*, Blossom*, Autumn*), Rock*, Straw, Bark*. Accents (small
+parts only): Red, Orange, Yellow, Lime, Cyan, Blue, Purple, Pink, Gold, White, Cream, Navy, Iron.
+Lists: Flowers, BoatPaint, Festive. Light: Glow, LightColor, Flame*.
 
-| name | RGB | use |
-|---|---|---|
-| GrassTop A / B / High | 118,218,66 / 128,226,74 / 146,234,82 | ground caps (noise patches; High above y 40) |
-| Dirt / DirtDark | 170,116,70 / 136,90,56 | ground sides, soil |
-| Sand / SandDark / SandWet | 255,228,152 / 236,200,124 / 240,212,140 | beaches |
-| Stone / StoneDark / StoneLight | 158,166,180 / 120,128,144 / 196,202,212 | cliffs, rocks, paving |
-| Snow | 248,252,255 | peak caps |
-| Wood / WoodDark / WoodLight | 204,138,78 / 150,94,52 / 236,184,120 | planks, posts, decks |
-| Leaf1 / Leaf2 / Leaf3 | 58,166,64 / 84,194,76 / 116,216,98 | foliage shading (see Props.Colors) |
-| Pine1 / Pine2 / Pine3 | 36,140,84 / 50,166,96 / 76,192,110 | conifers |
-| Blossom1 / Blossom2 | 255,150,200 / 255,190,225 | cherry trees |
-| Autumn1 / Autumn2 | 255,150,40 / 255,196,60 | autumn trees |
-| Red / Orange / Yellow / Lime / Cyan / Blue / Purple / Pink | 255,72,72 / 255,148,40 / 255,212,50 / 156,236,60 / 40,216,224 / 64,150,255 / 168,96,255 / 255,104,184 | accents |
-| White / Cream | 252,252,250 / 255,244,220 | trims |
-| Glass | 150,230,255 | aquariums, windows |
-
-Lighting (build.luau): sunny ~14:00, high brightness, light-blue atmosphere with low haze,
-ColorCorrection saturation ≈ +0.25, bloom for neon. Terrain water is turquoise.
+Lighting (build.luau): sunny 14:30, Brightness 2.3, neutral ambient with slightly cool
+shadows, atmosphere haze 0.6, ColorCorrection saturation +0.04 / contrast +0.04, Bloom 0.35
+(threshold 2.2, only Neon). Terrain water (44,150,180), transparency 0.55.
 
 ## 2. The world (top view, studs; angle θ → (r·sin θ, y, r·cos θ), θ = 0 is +Z)
 
@@ -151,7 +165,7 @@ models' pivots via `WorldPivotData`/PrimaryPart, part budgets respected, no Poin
 PointLight Range ≤ 16.
 
 Part budgets (runtime total target ≈ 16 000, plus fish models later): ground ≤ 4 000 (column
-caps, bodies, cliff strata, six mountains), 8 bases × ≤ 450, hub ≤ 2 200, map dressing
+caps, bodies, cliff strata, six mountains), 8 bases × ≤ 600, hub ≤ 2 200, map dressing
 (everything in `Workspace.Map` except Ground and Hub) ≤ 6 360 parts and 40 PointLights, of which
 Nature gets at least 2 500: Map.luau builds Nature last with whatever is left and fails the
 build when a cap is exceeded or Nature falls short.

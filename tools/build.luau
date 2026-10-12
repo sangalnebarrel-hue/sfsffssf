@@ -91,7 +91,7 @@ local baked = { smoothGrid = waterGrid:encode(), physicsGrid = waterGrid:encodeP
 terrain.SmoothGrid = baked.smoothGrid
 terrain.PhysicsGrid = baked.physicsGrid
 -- Bright tropical lagoon water.
-terrain.WaterColor = rgb(24, 196, 222)
+terrain.WaterColor = rgb(44, 150, 180)
 terrain.WaterTransparency = 0.55
 terrain.WaterReflectance = 0.2
 terrain.WaterWaveSize = 0.1
@@ -103,20 +103,20 @@ if clouds then
 	clouds:Destroy()
 end
 
--- Lighting: bright, saturated, sunny "simulator" look.
+-- Lighting: sunny and neutral (art direction v4): the palette carries the colour, the grading adds none.
 local lighting = game:GetService("Lighting")
 -- Sun ~50° high from the south-west: tops bright, one side lit, one side shaded — the classic
 -- three-tone voxel shading (a midday sun would light only the tops).
 lighting.GeographicLatitude = 35
 lighting.TimeOfDay = "14:30:00"
-lighting.Brightness = 2.6
--- Cool lilac shadow sides against the warm sun: saturated colours stay saturated in the shade.
-lighting.Ambient = rgb(110, 112, 132)
-lighting.OutdoorAmbient = rgb(150, 162, 205)
-lighting.ColorShift_Top = rgb(255, 244, 226)
+lighting.Brightness = 2.3
+-- Soft, slightly cool shadow sides against the warm sun.
+lighting.Ambient = rgb(112, 112, 120)
+lighting.OutdoorAmbient = rgb(132, 136, 150)
+lighting.ColorShift_Top = rgb(255, 240, 220)
 lighting.ColorShift_Bottom = rgb(0, 0, 0)
-lighting.EnvironmentDiffuseScale = 0.6
-lighting.EnvironmentSpecularScale = 0.2 -- less plastic sky reflection on the blocks
+lighting.EnvironmentDiffuseScale = 0.5
+lighting.EnvironmentSpecularScale = 0.15 -- less plastic sky reflection on the blocks
 lighting.ExposureCompensation = 0
 lighting.GlobalShadows = true
 lighting.ShadowSoftness = 0.25
@@ -127,27 +127,27 @@ if dof then
 end
 local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
 	or U.new("Atmosphere", { Name = "Atmosphere" }, lighting)
-atmosphere.Density = 0.2
-atmosphere.Offset = 0.15
-atmosphere.Color = rgb(196, 228, 255)
-atmosphere.Decay = rgb(120, 180, 255)
+atmosphere.Density = 0.28
+atmosphere.Offset = 0.1
+atmosphere.Color = rgb(204, 220, 236)
+atmosphere.Decay = rgb(118, 142, 176)
 atmosphere.Glare = 0
-atmosphere.Haze = 0.15
+atmosphere.Haze = 0.6
 local bloom = lighting:FindFirstChildOfClass("BloomEffect") or U.new("BloomEffect", { Name = "Bloom" }, lighting)
 -- Only Neon blooms (sunlit cream/white surfaces stay crisp).
-bloom.Intensity = 0.8
-bloom.Size = 24
-bloom.Threshold = 2
+bloom.Intensity = 0.35
+bloom.Size = 20
+bloom.Threshold = 2.2
 local sunRays = lighting:FindFirstChildOfClass("SunRaysEffect")
 	or U.new("SunRaysEffect", { Name = "SunRays" }, lighting)
 sunRays.Intensity = 0.04
 sunRays.Spread = 0.5
 local grade = lighting:FindFirstChildOfClass("ColorCorrectionEffect")
 	or U.new("ColorCorrectionEffect", { Name = "ColorCorrection" }, lighting)
-grade.Saturation = 0.25
-grade.Contrast = 0.12
-grade.Brightness = 0.03
-grade.TintColor = rgb(255, 252, 246)
+grade.Saturation = 0.04
+grade.Contrast = 0.04
+grade.Brightness = 0
+grade.TintColor = rgb(255, 252, 248)
 
 --------------------------------------------------------------------------------
 -- 3-6. Generated content

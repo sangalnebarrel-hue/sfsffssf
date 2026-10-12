@@ -419,8 +419,24 @@ local function vec(v: any): { number }?
 	return { round(v.X, 3), round(v.Y, 3), round(v.Z, 3) }
 end
 
+-- The place's colour grading (ColorCorrectionEffect), so previews can match what Studio shows.
+local grade = nil
+do
+	local lightingService = game:GetService("Lighting")
+	local cc = lightingService:FindFirstChildOfClass("ColorCorrectionEffect")
+	if cc and cc.Enabled then
+		grade = {
+			saturation = round(cc.Saturation, 3),
+			contrast = round(cc.Contrast, 3),
+			brightness = round(cc.Brightness, 3),
+			tint = colorArray(cc.TintColor),
+		}
+	end
+end
+
 local output = {
 	source = placePath,
+	grade = grade,
 	parts = parts,
 	slots = slotsOut,
 	baseColorSource = colorSource,

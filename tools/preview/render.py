@@ -1015,10 +1015,27 @@ class _Rasterizer:
             yield "block", i, c + s0, c + s1, a, b, mask, depth
 
 
+# Colour grading of the place (its ColorCorrectionEffect, exported by export_parts.luau), applied
+# to every rendered image so previews show the colours Studio shows. None = no grading.
+GRADE = None
+
+
+def apply_grade(im, grade):
+    """Approximates Roblox's ColorCorrectionEffect: brightness, contrast, saturation, tint."""
+    c = np.asarray(im, np.float32) / 255.0
+    c = c + grade.get("brightness", 0.0)
+    c = (c - 0.5) * (1.0 + grade.get("contrast", 0.0)) + 0.5
+    lum = c @ np.array([0.299, 0.587, 0.114], np.float32)
+    c = lum[..., None] + (c - lum[..., None]) * (1.0 + grade.get("saturation", 0.0))
+    c = c * (np.array(grade.get("tint", [255, 255, 255]), np.float32) / 255.0)
+    return Image.fromarray((c.clip(0, 1) * 255 + 0.5).astype(np.uint8), "RGB")
+
+
 def to_image(buf, ss):
     """Box-filter the supersampled buffer down to the output size (copies the data)."""
     im = Image.fromarray(buf, "RGB")
-    return im.reduce(ss) if ss > 1 else im.copy()
+    im = im.reduce(ss) if ss > 1 else im.copy()
+    return apply_grade(im, GRADE) if GRADE else im
 
 
 # --------------------------------------------------------------------------------------
@@ -1939,6 +1956,8 @@ def main(argv=None):
     ap.add_argument("--fog", type=_parse_fog, default=[FOG_START, FOG_END], metavar="START,END",
                     help=f"persp distance fog: starts at START studs, 90%% at END (default {FOG_START:g},{FOG_END:g})")
     ap.add_argument("--no-fog", action="store_true", help="persp: no distance fog")
+    ap.add_argument("--no-grade", action="store_true",
+                    help="ignore the place's colour grading (ColorCorrectionEffect) exported with the parts")
     # Allow "--zoom -57,-57,30" (argparse would read the value as an option).
     argv = list(sys.argv[1:] if argv is None else argv)
     for i in range(len(argv) - 1):
@@ -1956,6 +1975,10 @@ def main(argv=None):
         with open(args.parts_json, "r", encoding="utf-8") as fh:
             data = json.load(fh)
     os.makedirs(args.out_dir, exist_ok=True)
+    global GRADE
+    GRADE = None if args.no_grade else data.get("grade")
+    if GRADE:
+        print(f"[render] colour grading from the place: {GRADE}")
 
     t0 = time.time()
     scene = Scene(data)

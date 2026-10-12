@@ -22,49 +22,49 @@ local CAP = 4
 local MAX_SPAN = 240 -- columns per rectangle side (part size limit 2048)
 
 -- kind -> { cap = Color3?, body = Color3, name }
--- Grass: two close shades in broad noise patches (calm lawns, not a contour-map quilt) and a
+-- Grass (Palette.luau GrassTop*): close shades in broad noise patches (calm lawns, not a contour-map quilt) and a
 -- light highlight on high ground.
-local GRASS_LIME, GRASS_FOREST, GRASS_MEADOW = rgb(124, 222, 70), rgb(104, 204, 62), rgb(150, 232, 84)
-local GRASS_HIGH = rgb(112, 210, 68) -- slightly deeper on high ground
+local GRASS_LIME, GRASS_FOREST, GRASS_MEADOW = rgb(110, 178, 70), rgb(96, 164, 62), rgb(128, 188, 82)
+local GRASS_HIGH = rgb(102, 170, 66) -- slightly deeper on high ground
 local HIGH_GROUND = 40
 local FAR = 780 -- beyond the boundary: one tint (bigger merged rectangles)
 -- Tall cliff bodies are split into horizontal strata (absolute y bands) of 2-3 shades.
 local STRATUM = 12
 local STRATA = {
-	Dirt = { rgb(206, 148, 88), rgb(186, 128, 74) },
-	-- periwinkle slate: rock that still reads as colour, not grey-on-grey
-	Mountainside = { rgb(150, 162, 222), rgb(128, 140, 206) },
-	Stone = { rgb(150, 162, 222), rgb(128, 140, 206) },
-	Snow = { rgb(214, 236, 255), rgb(200, 224, 250) },
+	Dirt = { rgb(166, 118, 78), rgb(148, 104, 70) },
+	-- warm grey stone in two bands
+	Mountainside = { rgb(150, 146, 142), rgb(132, 128, 126) },
+	Stone = { rgb(150, 146, 142), rgb(132, 128, 126) },
+	Snow = { rgb(214, 224, 236), rgb(200, 212, 226) },
 	-- red-rock mesas: terracotta bands with a cream band every fourth stratum
-	Redrock = { rgb(226, 110, 72), rgb(242, 142, 90), rgb(252, 190, 130), rgb(255, 226, 170) },
-	Sandstone = { rgb(232, 178, 112), rgb(214, 150, 92), rgb(246, 206, 150) },
+	Redrock = { rgb(190, 108, 78), rgb(206, 130, 92), rgb(222, 170, 124), rgb(232, 200, 160) },
+	Sandstone = { rgb(206, 162, 112), rgb(190, 144, 98), rgb(222, 186, 138) },
 }
-local DIRT = rgb(206, 148, 88)
+local DIRT = rgb(166, 118, 78)
 local KIND_STYLE = {
 	grass = { body = DIRT, name = "Grass", strata = "Dirt" }, -- cap shade by noise patch
-	meadow = { cap = rgb(170, 240, 96), body = DIRT, name = "Meadow", strata = "Dirt" },
-	path = { cap = rgb(240, 204, 138), body = DIRT, name = "Path", strata = "Dirt" },
-	sand = { cap = rgb(255, 230, 156), body = rgb(240, 206, 132), name = "Sand" },
-	shallow = { body = rgb(250, 226, 156), name = "Shallows" },
-	seabed = { body = rgb(200, 226, 170), name = "Seabed" },
-	deep = { body = rgb(112, 208, 198), name = "DeepSeabed" },
-	stone = { cap = rgb(184, 194, 240), body = rgb(150, 162, 222), name = "Stone", strata = "Stone" },
-	snow = { cap = rgb(255, 255, 255), body = rgb(214, 236, 255), name = "Snow" }, -- one icy body, no bands
-	grassRock = { body = rgb(150, 162, 222), name = "Mountainside", strata = "Mountainside" }, -- grass cap
-	redrock = { body = rgb(226, 110, 72), name = "RedRock", strata = "Redrock" }, -- ochre/grass cap
-	mesa = { body = rgb(222, 170, 116), name = "Sandstone", strata = "Sandstone" }, -- grass cap, warm cliff
+	meadow = { cap = rgb(138, 194, 88), body = DIRT, name = "Meadow", strata = "Dirt" },
+	path = { cap = rgb(206, 180, 136), body = DIRT, name = "Path", strata = "Dirt" },
+	sand = { cap = rgb(232, 212, 160), body = rgb(212, 188, 138), name = "Sand" },
+	shallow = { body = rgb(222, 204, 150), name = "Shallows" },
+	seabed = { body = rgb(176, 196, 150), name = "Seabed" },
+	deep = { body = rgb(86, 150, 150), name = "DeepSeabed" },
+	stone = { cap = rgb(176, 172, 166), body = rgb(150, 146, 142), name = "Stone", strata = "Stone" },
+	snow = { cap = rgb(238, 242, 246), body = rgb(214, 224, 236), name = "Snow" }, -- one icy body, no bands
+	grassRock = { body = rgb(150, 146, 142), name = "Mountainside", strata = "Mountainside" }, -- grass cap
+	redrock = { body = rgb(190, 108, 78), name = "RedRock", strata = "Redrock" }, -- ochre/grass cap
+	mesa = { body = rgb(204, 160, 112), name = "Sandstone", strata = "Sandstone" }, -- grass cap, warm cliff
 }
 
 -- Sea floor colour by depth: bright sand in the shallows, turquoise lagoon, deep-blue ocean.
 local SEABED_BY_TOP = {
-	[-2] = rgb(250, 226, 156),
-	[-4] = rgb(236, 224, 162),
-	[-6] = rgb(200, 226, 170),
-	[-8] = rgb(160, 214, 190),
-	[-14] = rgb(112, 208, 198),
-	[-16] = rgb(96, 184, 190),
-	[-24] = rgb(36, 118, 168),
+	[-2] = rgb(226, 206, 150),
+	[-4] = rgb(212, 200, 150),
+	[-6] = rgb(180, 196, 150),
+	[-8] = rgb(146, 180, 156),
+	[-14] = rgb(100, 160, 158),
+	[-16] = rgb(84, 140, 150),
+	[-24] = rgb(44, 96, 136),
 }
 
 return function(parent: any, world: any): { parts: number, rects: number }
@@ -156,7 +156,7 @@ return function(parent: any, world: any): { parts: number, rects: number }
 				local capColor = style.cap
 				if kind == "redrock" then
 					-- flat mesa tops are ochre sand, lower ledges grassy
-					capColor = if top > 40 then rgb(250, 206, 130) else GRASS_LIME
+					capColor = if top > 40 then rgb(218, 182, 122) else GRASS_LIME
 				elseif kind == "grass" or kind == "grassRock" or kind == "mesa" then
 					-- three tints in broad patches (forest floor / lime / warm meadow)
 					local tint = world:noise(cx / 256 + 3.7, cz / 256 - 1.3)
