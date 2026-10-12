@@ -9,14 +9,16 @@
 	  Map.Promenade    the ring walk along the lagoon                  (Promenade.luau)
 	  Map.Gateways     4 themed plazas behind the bridge landings      (Gateways.luau)
 	  Map.Landmarks    waterfall, windmill, giant tree, peaks          (Landmarks.luau)
-	  Map.Lagoon       boats, buoys, lily pads, raft, sandbar          (Coast.luau)
+	  Map.Lagoon       boats, buoys, lily pads, raft, swim platform,   (Coast.luau)
+	                   sandbars
 	  Map.Ocean        decorated islets, shipwreck, rock arch, whale   (Coast.luau)
 	  Map.Sky          voxel clouds                                    (Coast.luau)
-	  Map.Nature       forests, palms, flowers, rocks on the hills     (Nature.luau)
+	  Map.Nature       forests, tree belts, palms, flowers, rocks,     (Nature.luau)
+	                   set-pieces on the hills, corals in the lagoon
 	  Map.Boundaries   invisible ring wall in the ocean
 
 	Part budget of the dressing (everything except Ground and Hub): DRESSING_BUDGET parts and
-	LIGHT_BUDGET PointLights. Nature is built last (it keeps off what the others claimed) and gets
+	LIGHT_BUDGET PointLights. Nature is built last (it keeps off what the others built) and gets
 	whatever the other modules left over, but never less than NATURE_MIN: the build fails when the
 	other modules leave less, and when the dressing as a whole goes over budget.
 

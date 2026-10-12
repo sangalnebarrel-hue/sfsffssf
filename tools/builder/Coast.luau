@@ -2,17 +2,18 @@
 	Coast — everything on the water and in the sky (World v3, DESIGN.md §6):
 
 	  Map.Lagoon  sailboats, rowboats, a motorboat, a ring of buoys, lily pads near both shores, a
-	              floating raft with a parasol and a tiny sandbar with a palm. The water in front
-	              of every pier (base-local lz -92..0, |lx| <= 26) and along the bridges stays
-	              clear (lagoonClear).
+	              floating raft with a parasol, a swim platform with a slide, a sandbar island
+	              with a palm and two small ones (the coral reefs on the bed are Nature's). The
+	              water in front of every pier (base-local lz -92..0, |lx| <= 26) and along the
+	              bridges stays clear (lagoonClear).
 	  Map.Ocean   decorated islets (world.islets): a lighthouse on a stone foundation, a pirate
 	              hideout with a hut, a treasure chest and a flag, a palm grove, the big island
 	              with palms on its beach, pines, a boulder and a fisherman's hut, a
 	              cherry-blossom island (far islets use Nature.farTree: 5 parts a tree); a
 	              shipwreck in an islet's shallows, a rock arch and a whale between the coast and
 	              the boundary wall, a ring of red / yellow marker buoys just inside the wall
-	              (the swim limit), two big sailboats far out at sea.
-	  Map.Sky     12 voxel clouds (Props.cloud) at y 180-320 over the island and the ocean.
+	              (the swim limit), a big sailboat far out at sea.
+	  Map.Sky     10 voxel clouds (Props.cloud) at y 180-320 over the island and the ocean.
 ]]
 
 local U = require("./Util")
@@ -26,6 +27,8 @@ local C = Kit.C
 local rad, sin, cos, abs = math.rad, math.sin, math.cos, math.abs
 
 local Coast = {}
+
+local BEACH_ROCK = Kit.lerpColor(C.StoneLight, C.SandDark, 0.4) -- warm light rocks on the sand
 
 -- CFrame on the water surface at angle/radius, turned by `heading` degrees about +Y (a boat's
 -- bow, local -Z, then points along (-sin heading, 0, -cos heading)).
@@ -78,7 +81,7 @@ local function raft(parent: any, cf: any)
 		)
 	end
 	b:box("Towel", -2.6, 0.75, -2.5, 0.2, 0.85, 1.5, C.Pink, Kit.DECOR)
-	b:box("TowelStripe", -2.65, 0.8, -1.0, 0.25, 0.97, -0.2, C.White, Kit.DECOR)
+	b:box("TowelStripe", -2.75, 0.8, -1.0, 0.35, 0.97, -0.2, C.White, Kit.DECOR)
 	b:finish(deck)
 	Kit.prop("parasol", b.model, cf * CFrame.new(2, 0.75, 1.5), { color = C.Cyan })
 	return b.model
@@ -86,19 +89,54 @@ end
 
 local function sandbar(parent: any, cf: any)
 	local b = Kit.builder(parent, "Sandbar", cf)
-	local base = b:box("Sand", -11, -15, -7, 11, 0.7, 7, C.Sand)
-	b:box("SandB", -7, -15, -10, 7, 0.72, 10, C.Sand)
+	-- (down into the bed: nothing floats over the deep tier)
+	local base = b:box("Sand", -11, -16.5, -7, 11, 0.7, 7, C.Sand)
+	b:box("SandB", -7, -16.5, -10, 7, 0.72, 10, C.Sand)
 	b:box("Top", -5, 0.7, -4, 5, 1.6, 4, Kit.lerpColor(C.Sand, C.White, 0.25))
-	b:box("Wet", -12, -14.8, -8, 12, 0.25, 8, C.SandWet, Kit.NOSHADOW)
+	b:box("Wet", -12, -16.3, -8, 12, 0.25, 8, C.SandWet, Kit.NOSHADOW)
 	b:finish(base)
-	Kit.prop("palmTree", b.model, cf * CFrame.new(1, 1.6, 0), { seed = 5, scale = 1.4, variant = 1 })
-	Kit.prop("rock", b.model, cf * CFrame.new(-7, 0.7, 4), { seed = 6, count = 3 })
+	Nature.farTree(b.model, cf * CFrame.new(1, 1.6, 0), "palm", 1.7, 5)
+	Kit.prop("rock", b.model, cf * CFrame.new(-7, 0.7, 4), { seed = 6, count = 3, color = BEACH_ROCK, moss = true })
 	Kit.prop(
 		"beachChair",
 		b.model,
 		cf * CFrame.new(-2.5, 1.6, -1) * CFrame.Angles(0, rad(200), 0),
 		{ color = C.Orange }
 	)
+	return b.model
+end
+
+-- A small sandbar (8 parts + a palm): a sand mound in two steps on a wider shoal just under
+-- the water, a striped towel and a starfish, a cheap palm leaning over it.
+local function islandlet(parent: any, cf: any, towel: any)
+	local b = Kit.builder(parent, "Sandbar", cf)
+	local base = b:box("Sand", -8, -16.5, -5.5, 8, 0.6, 5.5, C.Sand)
+	b:box("SandB", -5, -16.5, -8, 5, 0.62, 8, C.Sand)
+	b:box("Wet", -10.5, -16.3, -9, 10.5, -0.6, 9, C.SandWet, Kit.NOSHADOW)
+	b:box("Top", -3.5, 0.6, -3, 3.5, 1.3, 3, Kit.lerpColor(C.Sand, C.White, 0.25))
+	b:box("Towel", -6.6, 0.6, -2.0, -4.2, 0.78, 2.6, towel, Kit.DECOR)
+	b:box("TowelStripe", -6.75, 0.64, 0.0, -4.05, 0.86, 0.7, C.White, Kit.DECOR)
+	b:box("StarA", 3.9, 0.6, 3.8, 6.1, 0.85, 4.4, C.Orange, Kit.DECOR)
+	b:box("StarB", 4.7, 0.62, 3.0, 5.3, 0.87, 5.2, C.Orange, Kit.DECOR)
+	b:finish(base)
+	Nature.farTree(b.model, cf * CFrame.new(0.5, 1.3, 0.5), "palm", 1.5, 71)
+	return b.model
+end
+
+-- Floating swim platform (7 parts): a white deck on yellow floats with a cyan rim, a slide
+-- tower on one corner and a yellow chute down into the water.
+local function swimPlatform(parent: any, cf: any)
+	local b = Kit.builder(parent, "SwimPlatform", cf)
+	local deck = b:box("Deck", -6, 0.3, -6, 6, 1.1, 6, C.White)
+	b:box("Rim", -6.4, -0.3, -6.4, 6.4, 0.5, 6.4, C.Cyan, Kit.NOSHADOW)
+	b:box("FloatA", -5.6, -1.4, -5.6, -3.4, -0.25, 5.6, C.Yellow, Kit.NOSHADOW)
+	b:box("FloatB", 3.4, -1.4, -5.6, 5.6, -0.25, 5.6, C.Yellow, Kit.NOSHADOW)
+	b:box("Tower", 2.0, 1.1, 2.0, 6.0, 6.6, 6.0, C.Cyan)
+	b:box("TowerTop", 1.6, 6.6, 1.6, 6.4, 7.4, 6.4, C.Pink)
+	b:finish(deck)
+	local a = cf * Vector3.new(4.0, 6.6, 5.6)
+	local c = cf * Vector3.new(4.0, -0.2, 16.5)
+	Kit.ramp(b.model, a, c, { width = 3.6, thick = 0.8, color = C.Yellow, name = "Slide" })
 	return b.model
 end
 
@@ -131,14 +169,25 @@ local function buildLagoon(map: any, cfg: any, world: any)
 			place("lilyPad", a + spec[1], spec[2], n * 37, { seed = n, scale = 1.5 }, 0)
 		end
 	end
-	-- a floating raft and a tiny sandbar island with a palm
+	-- a floating raft, a swim platform with a slide off the hub beach, a sandbar island with a
+	-- palm and a beach chair and two small sandbars with a palm and a towel
 	local rp = U.polar(100, 238, 0)
 	if lagoonClear(cfg, world, rp.X, rp.Z, 8) then
 		raft(lagoon, CFrame.new(rp.X, 0, rp.Z) * CFrame.Angles(0, rad(30), 0))
 	end
+	local wp = U.polar(55, cfg.HubRadius + 24, 0)
+	if lagoonClear(cfg, world, wp.X, wp.Z, 18) then
+		swimPlatform(lagoon, CFrame.new(wp.X, 0, wp.Z) * CFrame.Angles(0, rad(55), 0))
+	end
 	local sp = U.polar(138, 236, 0)
 	if lagoonClear(cfg, world, sp.X, sp.Z, 14) then
 		sandbar(lagoon, CFrame.new(sp.X, 0, sp.Z) * CFrame.Angles(0, rad(138), 0))
+	end
+	for _, s in { { 318, 252, C.Pink }, { 222, 214, C.Blue } } do
+		local p = U.polar(s[1], s[2], 0)
+		if lagoonClear(cfg, world, p.X, p.Z, 12) then
+			islandlet(lagoon, CFrame.new(p.X, 0, p.Z) * CFrame.Angles(0, rad(s[1] + 30), 0), s[3])
+		end
 	end
 	return lagoon
 end
@@ -321,7 +370,12 @@ local function buildOcean(map: any, cfg: any, world: any)
 			-- two cheap palms beside it: a little grove on the side facing the swimmers
 			Nature.farTree(m, isletSpot(world, isle, s * 0.62, home + 98), "palm", 2.0, 13)
 			Nature.farTree(m, isletSpot(world, isle, s * 0.6, home + 42), "palm", 1.8, 14)
-			Kit.prop("rock", m, isletSpot(world, isle, s * 0.55, home - 60), { seed = 12, scale = 1.6 })
+			Kit.prop(
+				"rock",
+				m,
+				isletSpot(world, isle, s * 0.55, home - 60),
+				{ seed = 12, scale = 1.6, color = BEACH_ROCK, moss = true }
+			)
 		elseif i == 3 then
 			-- pirate hideout
 			local hutCf = isletSpot(world, isle, s * 0.15, home + 20, home)
@@ -350,7 +404,12 @@ local function buildOcean(map: any, cfg: any, world: any)
 				isletSpot(world, isle, s * 0.35, home - 50),
 				{ seed = 52, scale = 1.3, lite = true }
 			)
-			Kit.prop("boulder", m, isletSpot(world, isle, s * 0.5, home + 150), { seed = 53 })
+			Kit.prop(
+				"boulder",
+				m,
+				isletSpot(world, isle, s * 0.5, home + 150),
+				{ seed = 53, color = BEACH_ROCK, moss = true }
+			)
 			-- shipwreck in the shallows on the side facing the main island
 			local d = s + 12
 			local wx = isle.x + d * sin(rad(home + 25))
@@ -360,7 +419,12 @@ local function buildOcean(map: any, cfg: any, world: any)
 			-- a palm grove (cheap far palms: it is seen through the haze) and a rock
 			plant(world, sites, taken, 6, 16, 3, 21, land, farTree("palm", 1.6, 2.1, 21))
 			plant(world, sites, taken, 2, 14, 2, 22, sand, function(site)
-				Kit.prop("rock", m, CFrame.new(site.x, site.h, site.z), { seed = 22, scale = 1.5, moss = true })
+				Kit.prop(
+					"rock",
+					m,
+					CFrame.new(site.x, site.h, site.z),
+					{ seed = 22, scale = 1.5, moss = true, color = BEACH_ROCK }
+				)
 			end)
 		elseif i == 4 then
 			-- the big one (far out, mostly seen through the haze, so lean): palms on the beach,
@@ -374,23 +438,33 @@ local function buildOcean(map: any, cfg: any, world: any)
 			plant(world, sites, taken, 4, 30, 3, 41, function(site)
 				return site.h >= isle.height * 0.5
 			end, farTree("pine", 2.1, 2.6, 41))
-			plant(world, sites, taken, 4, 26, 3, 42, function(site)
+			plant(world, sites, taken, 3, 26, 3, 42, function(site)
 				return site.kind == "sand" or site.h <= 12
 			end, farTree("palm", 1.9, 2.3, 42))
 			plant(world, sites, taken, 2, 28, 3, 43, function(site)
 				return site.kind ~= "sand" and site.h < isle.height * 0.5
 			end, farTree("green", 2.1, 2.5, 43))
 			plant(world, sites, taken, 1, 20, 5, 44, land, function(site, k)
-				Kit.prop("boulder", m, CFrame.new(site.x, site.h, site.z), { seed = 44 + k, moss = true })
+				Kit.prop(
+					"boulder",
+					m,
+					CFrame.new(site.x, site.h, site.z),
+					{ seed = 44 + k, moss = true, color = BEACH_ROCK }
+				)
 			end)
 		elseif i == 6 then
 			-- a cherry grove on the hill and two rocks on the beach
-			plant(world, sites, taken, 6, 24, 3, 61, land, farTree("cherry", 1.9, 2.4, 61))
+			plant(world, sites, taken, 5, 24, 3, 61, land, farTree("cherry", 1.9, 2.4, 61))
 			plant(world, sites, taken, 2, 20, 3, 62, function(site)
 				return site.kind ~= "sand" and site.h <= 12
 			end, farTree("palm", 1.7, 2.1, 62))
 			plant(world, sites, taken, 2, 16, 2, 63, sand, function(site, k)
-				Kit.prop("rock", m, CFrame.new(site.x, site.h, site.z), { seed = 63 + k, scale = 1.6 })
+				Kit.prop(
+					"rock",
+					m,
+					CFrame.new(site.x, site.h, site.z),
+					{ seed = 63 + k, scale = 1.6, color = BEACH_ROCK, moss = true }
+				)
 			end)
 		end
 	end
@@ -400,13 +474,13 @@ local function buildOcean(map: any, cfg: any, world: any)
 	Kit.prop("rockArch", ocean, onWater(66, ra, 66), { seed = 3 })
 	local wa = openSea(cfg, world, 160, 22)
 	Kit.prop("whale", ocean, onWater(160, wa, tangent(160, true)), { seed = 4 })
-	-- the swim limit: a ring of red and yellow marker buoys just inside the invisible boundary
-	-- wall, so swimmers heading for the islets see where the sea ends (1 part each; they bob
-	-- round the arch and the whale)
+	-- the swim limit: a ring of red and yellow marker buoys (every 9°, ~120 studs apart) just
+	-- inside the invisible boundary wall, so swimmers heading for the islets see where the sea
+	-- ends (1 part each; they bob round the arch and the whale)
 	local line = U.model(ocean, "BuoyLine")
 	local R = cfg.BoundaryRadius - 10
 	local keepOff = { U.polar(66, ra, 0), U.polar(160, wa, 0) }
-	local count = 72
+	local count = 40
 	for k = 0, count - 1 do
 		local a = (k + 0.5) * 360 / count
 		local p = U.polar(a, R, 0)
@@ -428,8 +502,7 @@ local function buildOcean(map: any, cfg: any, world: any)
 			)
 		end
 	end
-	-- two big sailboats far out at sea (beyond the wall, seen from the coast and the peaks)
-	Kit.prop("sailboat", ocean, onWater(124, 930, tangent(124, true)), { seed = 21, scale = 1.6, color = C.Yellow })
+	-- a big sailboat far out at sea (beyond the wall, seen from the coast and the peaks)
 	Kit.prop("sailboat", ocean, onWater(302, 960, tangent(302, false)), { seed = 22, scale = 1.6, color = C.Red })
 	return ocean
 end
@@ -452,10 +525,8 @@ local function buildSky(map: any, cfg: any)
 		{ 255, 610 },
 		{ 300, 460 },
 		{ 340, 640 },
-		{ 230, 900 },
 		{ 95, 860 },
-		{ 145, 760 },
-		{ 330, 820 },
+		{ 230, 900 },
 	}
 	for i, s in spots do
 		local p = U.polar(s[1] + rng(-8, 8), s[2], 0)
