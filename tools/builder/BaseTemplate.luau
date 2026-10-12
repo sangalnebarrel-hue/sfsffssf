@@ -82,16 +82,21 @@ local C = {
 	Cream = rgb(255, 244, 220),
 	Glass = rgb(150, 230, 255),
 	Water = rgb(70, 196, 255),
-	TankWater = rgb(186, 236, 255), -- aquarium glass: a light tint, so the decor keeps its colours
+	TankWater = rgb(225, 250, 255), -- aquarium glass: an almost clear tint, the reef keeps its colours
+	TankEdge = rgb(236, 252, 255), -- the glass box's glowing top edges (Neon)
 	Reef = rgb(36, 150, 232), -- aquarium backdrop: deep sea blue behind the corals
 	ReefLight = rgb(140, 230, 255), -- the tank's PointLight
-	CoralPink = rgb(255, 150, 206), -- coral arms (lighter than the base) and their Neon tips
-	CoralPinkTip = rgb(255, 196, 232),
-	CoralLilac = rgb(198, 150, 255),
-	CoralLilacTip = rgb(230, 204, 255),
-	CoralOrange = rgb(255, 184, 84),
-	CoralOrangeTip = rgb(255, 226, 120),
-	CastleStone = rgb(214, 206, 246),
+	-- corals: a deep base, saturated arms and a light Neon tip (they must stay vivid behind glass)
+	CoralPinkBase = rgb(232, 52, 150),
+	CoralPink = rgb(255, 92, 184),
+	CoralPinkTip = rgb(255, 176, 226),
+	CoralOrangeBase = rgb(240, 100, 20),
+	CoralOrange = rgb(255, 150, 30),
+	CoralOrangeTip = rgb(255, 226, 100),
+	SeaFan = rgb(150, 70, 255),
+	Kelp1 = rgb(30, 186, 84),
+	Kelp2 = rgb(70, 218, 96),
+	CastleStone = rgb(180, 148, 255),
 	Bubble = rgb(205, 245, 255),
 	GoldGlow = rgb(255, 222, 90),
 	Gold = rgb(255, 200, 40),
@@ -447,15 +452,10 @@ local SPAWN_Z = 36
 
 local function buildSpawn(template: any)
 	local yard = U.model(template, "SpawnArea")
-	span(yard, "SpawnRing", -6.6, 6.6, PATH, 1.0, SPAWN_Z - 6.6, SPAWN_Z + 6.6, -0.3)
+	-- A glowing ring in a light shade of the base colour frames the pad.
+	span(yard, "SpawnRing", -6.6, 6.6, PATH, 1.0, SPAWN_Z - 6.6, SPAWN_Z + 6.6, 0.35, NEON)
 	-- The pad: -Z (the lagoon) is the facing on spawn. Pure base colour (tests check it).
 	span(template, "SpawnPad", -5, 5, 1.0, 1.4, SPAWN_Z - 5, SPAWN_Z + 5, 0, { CastShadow = false })
-	for _, sx in { -1, 1 } do
-		for _, sz in { -1, 1 } do
-			local x, z = sx * 5.9, SPAWN_Z + sz * 5.9
-			span(yard, "SpawnGlow", x - 0.7, x + 0.7, 1.0, 1.8, z - 0.7, z + 0.7, 0.35, NEON_DECOR)
-		end
-	end
 end
 
 -- Flag pole with the base-colour flag and the owner billboard above it.
@@ -561,10 +561,11 @@ local function buildTank(template: any): (any, { any })
 	span(tank, "Plinth", -hx - 2, hx + 2, FIELD - 0.1, TANK_BASE - 0.6, TANK_Z0 - 2, TANK_Z1 + 2, -0.35)
 	span(tank, "PlinthTrim", -hx - 1.2, hx + 1.2, TANK_BASE - 0.6, TANK_BASE, TANK_Z0 - 1.2, TANK_Z1 + 1.2, 0.35, NEON)
 
-	-- The glass (one part = the whole water volume; fish swim inside it later).
+	-- The glass (one part = the whole water volume; fish swim inside it later): almost clear, so
+	-- the reef keeps its colours from across the plaza.
 	local glass = span(tank, "Glass", -hx, hx, TANK_BASE, TANK_TOP, TANK_Z0, TANK_Z1, C.TankWater, {
 		Material = M.Glass,
-		Transparency = 0.6,
+		Transparency = 0.75,
 		CastShadow = false,
 	})
 	tank.PrimaryPart = glass
@@ -573,13 +574,15 @@ local function buildTank(template: any): (any, { any })
 	table.insert(expected, { root = "template", path = { "Tank", "Glass", "PromptAttachment" }, offset = promptOffset })
 
 	-- Inside: a sand bed and a deep-blue backdrop wall along the middle, so each long side reads as
-	-- a lit reef aquarium (also when no fish are on display); on each side chunky branching corals
-	-- with glowing Neon tips, wavy kelp, a treasure chest / a little castle, rising Neon bubbles and
-	-- a voxel fish. A cyan PointLight on the backdrop lights it all.
+	-- a lit reef aquarium (also when no fish are on display). The entrance end, seen from the
+	-- spawn, is the show window: a lilac castle in the middle (it hides the backdrop's end), an
+	-- open treasure chest with glowing gold and an orange coral either side of it and a yellow fish
+	-- swimming across above them. Along the sides: chunky branching corals with glowing Neon tips,
+	-- wavy kelp, rising Neon bubbles, voxel fish, a purple sea fan and a yellow brain coral. A cyan
+	-- PointLight on the backdrop lights it all.
 	local s = TANK_BASE + 1.2 -- sand top
 	span(tank, "Sand", -hx + 0.2, hx - 0.2, TANK_BASE, s, TANK_Z0 + 0.2, TANK_Z1 - 0.2, C.Sand, DECOR)
-	local backdrop =
-		span(tank, "Backdrop", -0.3, 0.3, s - 0.2, TANK_TOP - 0.6, TANK_Z0 + 0.4, TANK_Z1 - 0.4, C.Reef, DECOR)
+	local backdrop = span(tank, "Backdrop", -0.3, 0.3, s - 0.2, TANK_TOP - 0.6, 78.4, TANK_Z1 - 4, C.Reef, DECOR)
 	U.new("PointLight", { Range = 16, Brightness = 1.2, Color = C.ReefLight, Shadows = false }, backdrop)
 	local function piece(
 		name: string,
@@ -605,8 +608,9 @@ local function buildTank(template: any): (any, { any })
 	)
 		span(tank, name, x0, x1, s + y0, s + y1, z0, z1, paint, NEON_DECOR)
 	end
-	-- Branching coral: a fat base (w x 0.9w), a tall and a short arm in a lighter shade, a Neon tip
-	-- on the tall arm. (x, z) = the base's -X/-Z corner; flip puts the tall arm on the +X side.
+	-- Branching coral: a fat deep-coloured base (w x 0.9w), a tall and a short arm in a saturated
+	-- shade, a Neon tip on the tall arm. (x, z) = the base's -X/-Z corner; flip puts the tall arm
+	-- on the +X side.
 	local function coral(x: number, z: number, w: number, high: number, base: any, arm: any, tip: any, flip: boolean)
 		local d = w * 0.9
 		local a = if flip then w - 2.3 else 0.3 -- tall arm (2 wide)
@@ -618,18 +622,25 @@ local function buildTank(template: any): (any, { any })
 	end
 	-- Wavy kelp: three stacked blocks shifted back and forth, nearly up to the water line.
 	local function kelp(x: number, z: number, dx: number)
-		piece("Kelp", x, x + 1.6, -0.2, 3.4, z, z + 1.6, C.Leaf2)
-		piece("Kelp", x + dx, x + dx + 1.6, 3.2, 6.4, z + 0.4, z + 2, C.Leaf3)
+		piece("Kelp", x, x + 1.6, -0.2, 3.4, z, z + 1.6, C.Kelp1)
+		piece("Kelp", x + dx, x + dx + 1.6, 3.2, 6.4, z + 0.4, z + 2, C.Kelp2)
 		piece("Kelp", x - dx * 0.5, x - dx * 0.5 + 1.6, 6.2, 9.2, z - 0.2, z + 1.4, C.Lime)
 	end
-	-- Voxel fish: body, a tall tail fin behind it and a dark eye on the side the visitors see
-	-- (dir = +1 swims towards +Z, -1 towards -Z; side = -1 / +1: the -X / +X side).
-	local function fish(x: number, y: number, z: number, dir: number, side: number, body: any, tail: any)
-		piece("Fish", x - 1.1, x + 1.1, y - 1, y + 1, z - 1.6, z + 1.6, body)
-		local tz = z - dir * 2.3
-		piece("FishTail", x - 0.25, x + 0.25, y - 1.2, y + 1.2, tz - 0.7, tz + 0.7, tail)
-		local ex, ez = x + side * 1.15, z + dir * 0.9
-		piece("FishEye", ex - 0.15, ex + 0.15, 0.15 + y, 0.75 + y, ez - 0.3, ez + 0.3, C.Ink)
+	-- Voxel fish: body, a tall tail fin behind it and an eye block straight through the head (an
+	-- eye on both sides). Swims along Z (dir = +1 towards +Z, -1 towards -Z), or along X with
+	-- acrossX (dir = +1 towards +X), showing its side to the spawn.
+	local function fish(x: number, y: number, z: number, dir: number, body: any, tail: any, acrossX: boolean?)
+		if acrossX then
+			piece("Fish", x - 1.6, x + 1.6, y - 1, y + 1, z - 1.1, z + 1.1, body)
+			local tx, ex = x - dir * 2.3, x + dir * 0.9
+			piece("FishTail", tx - 0.7, tx + 0.7, y - 1.2, y + 1.2, z - 0.25, z + 0.25, tail)
+			piece("FishEye", ex - 0.3, ex + 0.3, y + 0.15, y + 0.75, z - 1.25, z + 1.25, C.Ink)
+		else
+			piece("Fish", x - 1.1, x + 1.1, y - 1, y + 1, z - 1.6, z + 1.6, body)
+			local tz, ez = z - dir * 2.3, z + dir * 0.9
+			piece("FishTail", x - 0.25, x + 0.25, y - 1.2, y + 1.2, tz - 0.7, tz + 0.7, tail)
+			piece("FishEye", x - 1.25, x + 1.25, y + 0.15, y + 0.75, ez - 0.3, ez + 0.3, C.Ink)
+		end
 	end
 	local function bubbles(x: number, z: number, list: { { number } })
 		for _, bub in list do
@@ -637,41 +648,44 @@ local function buildTank(template: any): (any, { any })
 		end
 	end
 
-	-- -X side (seen from the odd slot row): pink coral, bubbles, kelp, goldfish, treasure chest
-	-- with an open lid and glowing gold, a purple sea fan.
-	coral(-10, 75.5, 5, 8.4, C.Pink, C.CoralPink, C.CoralPinkTip, false)
-	bubbles(-2.4, 80, { { 2.6, 1 }, { 5.4, 1.3 }, { 8.2, 1.6 } })
-	kelp(-3.6, 86.5, 0.4)
-	fish(-6.5, 7.6, 90, -1, -1, C.Orange, C.Yellow)
-	piece("Chest", -10, -5.4, -0.2, 2.6, 94.5, 98.3, C.Wood)
-	piece("ChestLid", -5.8, -5, 2.6, 6, 94.3, 98.5, C.Gold) -- open, standing at the back
-	glow("ChestGold", -9.6, -5.8, 2.4, 3.4, 94.9, 97.9, C.GoldGlow)
-	piece("SeaFan", -8.4, -7.6, -0.2, 7, 101.5, 108.5, C.Purple)
-	-- +X side (seen from the even slot row): kelp, a little castle, orange coral, blue tang,
-	-- bubbles, a yellow brain coral.
-	kelp(1.8, 75.8, -0.4)
-	piece("Castle", 5, 10, -0.2, 6.6, 82.5, 87.5, C.CastleStone)
-	piece("CastleRoof", 4.5, 10.5, 6.6, 8.8, 82, 88, C.Red)
-	piece("CastleDoor", 10, 10.2, 0, 3.2, 84.2, 85.8, C.Ink)
-	coral(4.8, 94, 5, 7.6, C.Orange, C.CoralOrange, C.CoralOrangeTip, true)
-	bubbles(2.4, 101.5, { { 3, 1.1 }, { 5.8, 1.4 }, { 8.4, 1.6 } })
-	fish(6.5, 8.2, 102, 1, 1, C.Blue, C.Yellow)
-	piece("BrainCoral", 6, 10.2, -0.2, 2.6, 104.5, 108.5, C.Yellow)
+	-- The entrance end: the castle (stepped roof, a dark door towards the spawn), the open
+	-- treasure chest (-X), an orange coral (+X) and a yellow tang swimming across above the chest.
+	piece("Castle", -3, 3, -0.2, 6.6, 73.4, 78.8, C.CastleStone)
+	piece("CastleRoof", -3.6, 3.6, 6.6, 7.8, 72.9, 79.3, C.Red)
+	piece("CastleRoof", -2.2, 2.2, 7.8, 9, 74, 78.2, C.Pink)
+	piece("CastleDoor", -1, 1, 0, 3.2, 73.2, 73.4, C.Ink)
+	piece("Chest", -10.4, -5.8, -0.2, 2.6, 73.2, 76.8, C.Wood)
+	piece("ChestLid", -10.6, -5.6, 2.6, 6, 76.6, 77.4, C.Gold) -- open, standing at the back
+	glow("ChestGold", -10, -6.2, 2.4, 3.4, 73.6, 76.4, C.GoldGlow)
+	coral(5.8, 73.2, 5, 7.6, C.CoralOrangeBase, C.CoralOrange, C.CoralOrangeTip, true)
+	fish(-6.4, 8.2, 80.5, 1, C.Yellow, C.Blue, true)
+	-- -X side (seen from the odd slot row): pink coral, bubbles, kelp, clownfish, purple sea fan.
+	coral(-10.6, 83, 5, 8.4, C.CoralPinkBase, C.CoralPink, C.CoralPinkTip, false)
+	bubbles(-3.2, 88.5, { { 2.6, 1 }, { 5.4, 1.3 }, { 8.2, 1.6 } })
+	kelp(-4.6, 93, 0.4)
+	fish(-7, 7.2, 97, -1, C.Orange, C.White)
+	piece("SeaFan", -9, -8.2, -0.2, 7.4, 101, 108.5, C.SeaFan)
+	-- +X side (seen from the even slot row): kelp, blue tang, bubbles, yellow brain coral.
+	kelp(2.6, 81.5, -0.4)
+	fish(6.6, 8, 90, 1, C.Blue, C.Yellow)
+	bubbles(3, 99, { { 3, 1.1 }, { 5.8, 1.4 }, { 8.4, 1.6 } })
+	piece("BrainCoral", 5.6, 10.4, -0.2, 2.8, 103.5, 108.5, C.Yellow)
 
-	-- Chunky Accent frame: corner posts (the long sides stay open for the view), light top rim.
+	-- Chunky Accent corner posts (the long sides stay open for the view) and glowing white top
+	-- edges, so the clear glass still reads as a glass box.
 	local postTop = TANK_TOP + 1
 	for _, sx in { -1, 1 } do
 		for _, z in { TANK_Z0, TANK_Z1 } do
 			span(tank, "Post", sx * hx - 0.9, sx * hx + 0.9, TANK_BASE, postTop, z - 0.9, z + 0.9, 0)
 		end
-		span(tank, "Rim", sx * hx - 0.8, sx * hx + 0.8, TANK_TOP, TANK_TOP + 0.8, TANK_Z0, TANK_Z1, 0.2)
+		span(tank, "Rim", sx * hx - 0.5, sx * hx + 0.5, TANK_TOP, TANK_TOP + 0.6, TANK_Z0, TANK_Z1, C.TankEdge, NEON)
 	end
 	for _, z in { TANK_Z0, TANK_Z1 } do
-		span(tank, "Rim", -hx, hx, TANK_TOP, TANK_TOP + 0.8, z - 0.8, z + 0.8, 0.2)
+		span(tank, "Rim", -hx + 0.5, hx - 0.5, TANK_TOP, TANK_TOP + 0.6, z - 0.5, z + 0.5, C.TankEdge, NEON)
 	end
 
 	-- Name board standing on the rim of the entrance end.
-	local signY = TANK_TOP + 0.8
+	local signY = TANK_TOP + 0.6
 	span(tank, "SignFrame", -8, 8, signY, signY + 4.8, TANK_Z0 - 0.6, TANK_Z0 + 0.6, -0.2)
 	local board = span(tank, "SignBoard", -7.2, 7.2, signY + 0.6, signY + 4.2, TANK_Z0 - 0.8, TANK_Z0 + 0.8, C.White)
 	plainText(board, Enum.NormalId.Front, "АКВАРИУМ", C.Ink, false)
@@ -1011,10 +1025,11 @@ local function tree(parent: any, x: number, z: number, s: number, seed: number, 
 	})
 end
 
-local function bush(parent: any, x: number, z: number, s: number)
-	span(parent, "Bush", x - 2.6 * s, x + 2.6 * s, LAWN - 0.1, LAWN + 3 * s, z - 2.2 * s, z + 2.2 * s, C.Leaf1, DECOR)
+-- Flowering shrub: a leaf block with a crown of blooms (`bloom`) on top.
+local function bush(parent: any, x: number, z: number, s: number, bloom: any)
+	span(parent, "Bush", x - 2.6 * s, x + 2.6 * s, LAWN - 0.1, LAWN + 3 * s, z - 2.2 * s, z + 2.2 * s, C.Leaf2, DECOR)
 	local top = LAWN + 3 * s
-	span(parent, "BushTop", x - 1.6 * s, x + 1.4 * s, top, top + 1.4 * s, z - 1.4 * s, z + 1.4 * s, C.Leaf3, DECOR)
+	span(parent, "BushTop", x - 1.9 * s, x + 1.7 * s, top - 0.3, top + 1.2 * s, z - 1.6 * s, z + 1.6 * s, bloom, DECOR)
 end
 
 local function buildGreenery(template: any)
@@ -1029,9 +1044,9 @@ local function buildGreenery(template: any)
 	tree(green, 56, 117, 1.6, 14, "green", C.Orange)
 	tree(green, -30, 160, 1.3, 15, "green")
 	tree(green, 30, 160, 1.3, 16, "mint")
-	-- Bushes flanking the steps up to the stage.
+	-- Flowering shrubs flanking the steps up to the stage.
 	for _, p in { { -20, 49 }, { 20, 49 } } do
-		bush(green, p[1], p[2], 1.1)
+		bush(green, p[1], p[2], 1.1, C.Pink)
 	end
 end
 
