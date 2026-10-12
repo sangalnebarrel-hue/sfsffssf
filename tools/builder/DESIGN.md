@@ -110,10 +110,10 @@ origin of this frame; `y = 0` is GroundTop.
 
 ```
  lz = 168  ─────────── plot back edge (hills behind)
-           |  house / garden / campfire          |
+           |  cottage + smokehouse, garden, yard  |
  lz ≈ 120  |                                     |
            |  AQUARIUM: big tank + 12 slot       |   x = −68 … +68
-           |  pedestals, dog + doghouse          |
+           |  pedestals, doghouse (dog: stage 4)  |
  lz ≈ 50   |                                     |
            |  front yard: spawn pad, flag+sign,  |
            |  siren tower                        |
@@ -134,7 +134,8 @@ lays its own floor/paths/borders on top (slab tops at y ≈ 0.2; nothing coplana
   (BasePart), `Display` (glass BasePart), `Display.FishPoint` (Attachment where the fish
   model will float), `Pedestal.PromptAttachment` (Attachment for steal/collect prompts) and
   `Pedestal.LabelGui.Label` (SurfaceGui + TextLabel on the front, text "Пусто")
-* `Alarm.Lamp` (BasePart, Neon when lit), `Dog` (Model with PrimaryPart)
+* `Alarm.Lamp` (BasePart, Neon when lit), `Dog` (Model with PrimaryPart; invisible, attribute
+  `Unlocked = false`, until the stage-4 dog upgrade shows it)
 * `Flag.Pole.SignAttachment.OwnerSign.{OwnerLabel, BaseLabel}` (BillboardGui TextLabels)
 * any number of extra `OwnerLabel` / `BaseLabel` TextLabels elsewhere (e.g. the gate sign):
   BaseService updates **all** TextLabels with those names
@@ -213,10 +214,10 @@ waterfall pond and the peak's foot.
 ## 6. What goes where (composition)
 
 * **Hub (r < 185, plaza r < 158)** — the heart of the map, seen from every base across the
-  lagoon: a big bright village. Four avenues from the bridge landings (θ = 0/90/180/270, decks
+  lagoon: a cosy harbour town square. Four avenues from the bridge landings (θ = 0/90/180/270, decks
   land at r ≈ 152) meet at the ~75-stud «Золотая рыбка» tower (stepped fountain with a circling
   golden fish). The three shops (1.2× scale, r ≈ 76, porches on the plaza rim) sit between the
-  avenues with huge signs and blocky shopkeepers: `Shop` (rods), `FishMarket` (sell fish),
+  avenues as real buildings with big signs: `Shop` (rods), `FishMarket` (sell fish),
   `Workshop` (upgrades); a second ring holds the game booth, the stage, food kiosks, a Ferris
   wheel and the harbour boardwalk; palms, huts and a terrace step ring the beach. The view lanes
   from every base to the tower stay open. `HubSpawn` (SpawnLocation) near the centre.
