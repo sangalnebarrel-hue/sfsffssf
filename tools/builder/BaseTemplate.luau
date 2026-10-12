@@ -8,27 +8,33 @@
 	Base-local frame (Root at the origin, y = 0 is GroundTop; the world builder provides flat
 	grass under the plot):
 	  -Z     towards the lagoon. lz 0..18 is the public promenade (the template places nothing
-	         there except the start of the pier), lz 0..-92 is the base's own pier over the
-	         beach (sand, y = -2) and the water (y = -4).
+	         there except the start of the pier), lz 0..-PierLength (72) is the base's own pier
+	         over the beach (sand, y = -2) and the water (y = -4).
 	  +Z     inland: the plot x = -68..68, lz = 18..168.
 	  +X/-X  sideways (+X is on the left of a player walking in through the gate).
 
 	Layout (front to back):
 	  lz 18        entrance gate: two pillars with lanterns, a beam, a big name board
-	               (SurfaceGui with OwnerLabel / BaseLabel on both faces) and a gold fish on top
-	  lz 20..50    front yard: spawn pad on an Accent ring, flag with the owner billboard, siren
-	               tower (Alarm), vegetable beds (left), doghouse + guard dog (right)
-	  lz 54..130   aquarium plaza, a raised Accent stage: the big central tank (Tank.Glass, a lit
-	               voxel reef inside on a Neon plinth band) between two rows of six display
-	               pedestals facing it (Tank.Slots.Slot_1..12;
-	               odd numbers on the -X row, even on the +X row, slots 1-2 nearest the gate),
-	               flower fields and big trees in the side lawns
-	  lz 133..168  the owner's cottage with a porch, a duck pond (left), a campfire with a tent
-	               (right)
-	  lz 0..-70    plank pier with block rails and lanterns, a moored boat
-	  lz -70..-92  end platform: fishing pavilion over the FishingSpot, rod rack, crates,
-	               barrel, lifebuoy
+	               (SurfaceGui with OwnerLabel / BaseLabel on both faces) and a sparkling gold
+	               fish on top
+	  lz 20..50    front yard: spawn pad on an Accent ring, the beacon flag (a 52-stud pole, a big
+	               base-colour flag and a glowing cube: the base's landmark seen from the hub)
+	               with the owner billboard, siren tower (Alarm), vegetable beds (left), doghouse
+	               + guard dog (right)
+	  lz 54..130   aquarium plaza, a raised Accent stage in strong base-colour tints: the big
+	               central tank (Tank.Glass, a lit voxel reef with rising bubbles inside on a
+	               Neon plinth band) between two rows of six display pedestals facing it
+	               (Tank.Slots.Slot_1..12; odd numbers on the -X row, even on the +X row,
+	               slots 1-2 nearest the gate), flower fields and big trees in the side lawns
+	  lz 133..168  the owner's cottage (tall stepped roof, smoking chimney) with a porch, a duck
+	               pond (left), a campfire with a tent (right)
+	  lz 0..-50    plank pier with block rails and lanterns, a moored boat that bobs
+	  lz -50..-72  end platform (22 deep): the FishingSpot under open sky at its front edge
+	               (glints rise off it), a shelter with a bench over the rod rack on the -X side,
+	               crates, barrel, lifebuoy
 	The plot is closed by low Accent walls with white caps and lantern pillars.
+	Particles (no parts): chimney smoke, campfire sparks + smoke, tank bubbles, the gate fish's
+	and the fishing spot's glints (Props.fx).
 
 	Names the server code relies on (BaseService, DESIGN.md §2) — keep in sync:
 	  Root, SpawnPad, FishingSpot, Tank.Glass.PromptAttachment, Alarm.Lamp, Dog (PrimaryPart),
@@ -97,7 +103,6 @@ local C = {
 	Kelp1 = rgb(30, 186, 84),
 	Kelp2 = rgb(70, 218, 96),
 	CastleStone = rgb(180, 148, 255),
-	Bubble = rgb(205, 245, 255),
 	GoldGlow = rgb(255, 222, 90),
 	Gold = rgb(255, 200, 40),
 	Lamp = rgb(255, 238, 170), -- neon lantern light
@@ -235,10 +240,6 @@ local function cylY(parent: any, name: string, d: number, h: number, cf: any, pa
 	return make(parent, name, Vector3.new(h, d, d), cf * CFrame.Angles(0, 0, rad(90)), paint, props)
 end
 
-local function ball(parent: any, name: string, d: number, cf: any, paint: any, opts: { [string]: any }?): any
-	return make(parent, name, Vector3.new(d, d, d), cf, paint, merge(opts, { Shape = Enum.PartType.Ball }))
-end
-
 local function at(x: number, y: number, z: number): any
 	return CFrame.new(x, y, z)
 end
@@ -318,26 +319,27 @@ local function buildGrounds(template: any, plot: any)
 		z += 20
 	end
 
-	-- Main path: gate -> spawn -> stage steps, edged with light Accent kerbs (raised above the
-	-- spawn square they cross, ending at the stage step); a pale base-colour square round the pad.
+	-- Main path: gate -> spawn -> stage steps, edged with Accent kerbs (raised above the spawn
+	-- square they cross, ending at the stage step); a bright base-colour square round the pad.
 	span(floor, "Path", -10, 10, 0, PATH, plot.front, 51, C.Cream)
 	for _, sx in { -1, 1 } do
-		span(floor, "PathEdge", sx * 10, sx * 11.2, 0, PATH + 0.3, front + 3, 50.6, 0.45)
+		span(floor, "PathEdge", sx * 10, sx * 11.2, 0, PATH + 0.3, front + 3, 50.6, 0.2)
 	end
-	span(floor, "SpawnSquare", -14, 14, 0, PATH + 0.15, 24, 48, 0.8)
+	span(floor, "SpawnSquare", -14, 14, 0, PATH + 0.15, 24, 48, 0.5)
 
-	-- Aquarium stage: Accent block with a white rim, light tile field, darker pedestal strips,
-	-- checker bands across the aisle (every other 11-stud band, matching the slot pitch).
+	-- Aquarium stage: Accent block with a white rim, a light (but still clearly coloured) tile
+	-- field, saturated pedestal strips and checker bands across the aisle (every other 11-stud
+	-- band, matching the slot pitch): the courtyard reads in the base colour through the gate.
 	span(floor, "Stage", -46, 46, 0, STAGE, 54, 130, -0.3, { CastShadow = true })
 	span(floor, "StageRim", -45.2, 45.2, STAGE, RIM, 54.8, 129.2, C.White)
-	span(floor, "StageField", -43.6, 43.6, RIM, FIELD, 56.4, 127.6, 0.62)
+	span(floor, "StageField", -43.6, 43.6, RIM, FIELD, 56.4, 127.6, 0.38)
 	for i = 0, 2 do
 		-- 0.1 short of the 11-stud pitch at both ends (the tank plinth starts at 69.5 / ends at 113.5)
 		local z0 = 58.5 + i * 22
-		span(floor, "StageBand", -26, 26, FIELD - 0.06, BAND, z0 + 0.1, z0 + 10.9, 0.34)
+		span(floor, "StageBand", -26, 26, FIELD - 0.06, BAND, z0 + 0.1, z0 + 10.9, 0.15)
 	end
 	for _, sx in { -1, 1 } do
-		span(floor, "SlotStrip", sx * 26, sx * 39, FIELD - 0.1, STRIP, 57.5, 126.5, 0.3)
+		span(floor, "SlotStrip", sx * 26, sx * 39, FIELD - 0.1, STRIP, 57.5, 126.5, 0.08)
 	end
 	-- Steps up to the stage from the path (front) and from the porch (back).
 	span(floor, "StageStep", -14, 14, 0, 0.75, 50.6, 54, 0.5)
@@ -401,12 +403,23 @@ local function signFace(board: any, face: any)
 	textBand(gui, "BaseLabel", "База", C.White, 0.64, 0.32, true)
 end
 
--- Big voxel fish: body along local X (head at -X), belly at y = 0 of the frame, forked tail.
+-- Big voxel fish: body along local X (head at -X), belly at y = 0 of the frame, forked tail;
+-- gold glints sparkle round its body.
 local function fishStatue(parent: any, f: any, s: number, color: any, fin: any)
-	local function piece(name: string, x: number, y: number, sx: number, sy: number, sz: number, paint: any, opts: any?)
-		box(parent, name, f, x * s, y * s, 0, sx * s, sy * s, sz * s, paint, opts)
+	local function piece(
+		name: string,
+		x: number,
+		y: number,
+		sx: number,
+		sy: number,
+		sz: number,
+		paint: any,
+		opts: any?
+	): any
+		return box(parent, name, f, x * s, y * s, 0, sx * s, sy * s, sz * s, paint, opts)
 	end
-	piece("FishBody", 0, 2.4, 9, 4.8, 2.6, color, { CastShadow = true })
+	local body = piece("FishBody", 0, 2.4, 9, 4.8, 2.6, color, { CastShadow = true })
+	Props.fx(body, "sparkle", { rate = 2, size = 1.4 * s })
 	piece("FishNose", -5.3, 2.1, 1.6, 3.2, 2.2, color)
 	piece("FishTailStem", 5.1, 2.4, 1.4, 2.6, 1.6, fin)
 	piece("FishTail", 6.6, 4.3, 2.2, 2.8, 1.3, fin)
@@ -458,31 +471,33 @@ local function buildSpawn(template: any)
 	span(template, "SpawnPad", -5, 5, 1.0, 1.4, SPAWN_Z - 5, SPAWN_Z + 5, 0, { CastShadow = false })
 end
 
--- Flag pole with the base-colour flag and the owner billboard above it.
+-- The base's beacon: a tall flag pole (the highest point of the base, it stands out over the gate
+-- and the trees from across the lagoon) with a big base-colour flag, a glowing base-colour cube
+-- on top and the owner billboard above it.
 local function buildFlag(template: any): any
 	local flag = U.model(template, "Flag")
 	local fx, fz = -24, 32
 	span(flag, "Plinth", fx - 3, fx + 3, 0, 1.6, fz - 3, fz + 3, C.StoneLight)
 	span(flag, "PlinthTop", fx - 2, fx + 2, 1.6, 2.6, fz - 2, fz + 2, -0.25)
-	local poleBottom, poleTop = 2.6, 27
+	local poleBottom, poleTop = 2.6, 52
 	local poleH = poleTop - poleBottom
-	local pole = cylY(flag, "Pole", 0.9, poleH, at(fx, (poleTop + poleBottom) / 2, fz), C.White)
-	ball(flag, "Top", 1.8, at(fx, poleTop + 0.6, fz), C.Gold, DECOR)
+	local pole = cylY(flag, "Pole", 1.2, poleH, at(fx, (poleTop + poleBottom) / 2, fz), C.White, { CastShadow = true })
+	span(flag, "Beacon", fx - 1.5, fx + 1.5, poleTop, poleTop + 3, fz - 1.5, fz + 1.5, 0.12, NEON_DECOR)
 	-- The flag flies towards +X (over the path): main cloth + a slightly darker tail.
-	local clothTop = poleTop - 0.6
-	make(flag, "Cloth", Vector3.new(7, 5, 0.4), at(fx + 0.45 + 3.5, clothTop - 2.5, fz), 0, { CanCollide = false })
+	local clothTop = poleTop - 0.8
+	make(flag, "Cloth", Vector3.new(12, 7, 0.5), at(fx + 0.6 + 6, clothTop - 3.5, fz), 0, { CanCollide = false })
 	make(
 		flag,
 		"ClothTip",
-		Vector3.new(3, 4.2, 0.4),
-		at(fx + 7.45 + 1.4, clothTop - 2.6, fz) * CFrame.Angles(0, rad(-12), 0),
+		Vector3.new(4.4, 5.8, 0.5),
+		at(fx + 12.6 + 2.1, clothTop - 3.6, fz) * CFrame.Angles(0, rad(-12), 0),
 		-0.18,
 		{ CanCollide = false }
 	)
 
-	-- Owner sign above the flag (BaseService writes the owner name / base name).
+	-- Owner sign above the beacon (BaseService writes the owner name / base name).
 	-- The pole is a cylinder (local X = up), so the offset is along local X.
-	local signOffset = Vector3.new(poleH / 2 + 4.5, 0, 0)
+	local signOffset = Vector3.new(poleH / 2 + 6.5, 0, 0)
 	local attachment = U.new("Attachment", { Name = "SignAttachment", CFrame = CFrame.new(signOffset) }, pole)
 	local sign = U.new("BillboardGui", {
 		Name = "OwnerSign",
@@ -578,10 +593,10 @@ local function buildTank(template: any): (any, { any })
 	-- spawn, is the show window: a lilac castle in the middle (it hides the backdrop's end), an
 	-- open treasure chest with glowing gold and an orange coral either side of it and a yellow fish
 	-- swimming across above them. Along the sides: chunky branching corals with glowing Neon tips,
-	-- wavy kelp, rising Neon bubbles, voxel fish, a purple sea fan and a yellow brain coral. A cyan
-	-- PointLight on the backdrop lights it all.
+	-- wavy kelp, columns of rising bubbles (particles), voxel fish, a purple sea fan and a yellow
+	-- brain coral. A cyan PointLight on the backdrop lights it all.
 	local s = TANK_BASE + 1.2 -- sand top
-	span(tank, "Sand", -hx + 0.2, hx - 0.2, TANK_BASE, s, TANK_Z0 + 0.2, TANK_Z1 - 0.2, C.Sand, DECOR)
+	local sand = span(tank, "Sand", -hx + 0.2, hx - 0.2, TANK_BASE, s, TANK_Z0 + 0.2, TANK_Z1 - 0.2, C.Sand, DECOR)
 	local backdrop = span(tank, "Backdrop", -0.3, 0.3, s - 0.2, TANK_TOP - 0.6, 78.4, TANK_Z1 - 4, C.Reef, DECOR)
 	U.new("PointLight", { Range = 16, Brightness = 1.2, Color = C.ReefLight, Shadows = false }, backdrop)
 	local function piece(
@@ -642,10 +657,11 @@ local function buildTank(template: any): (any, { any })
 			piece("FishEye", x - 1.25, x + 1.25, y + 0.15, y + 0.75, ez - 0.3, ez + 0.3, C.Ink)
 		end
 	end
-	local function bubbles(x: number, z: number, list: { { number } })
-		for _, bub in list do
-			ball(tank, "Bubble", bub[2], at(x, s + bub[1], z), C.Bubble, NEON_DECOR)
-		end
+	-- A column of bubbles rising off the sand (particles: they move and cost no parts).
+	local function bubbles(name: string, x: number, z: number)
+		local attachment, offset = attachAt(sand, name, at(x, s + 0.4, z))
+		Props.fx(attachment, "bubbles", { rate = 3, size = 1.5 })
+		table.insert(expected, { root = "template", path = { "Tank", "Sand", name }, offset = offset })
 	end
 
 	-- The entrance end: the castle (stepped roof, a dark door towards the spawn), the open
@@ -661,14 +677,14 @@ local function buildTank(template: any): (any, { any })
 	fish(-6.4, 8.2, 80.5, 1, C.Yellow, C.Blue, true)
 	-- -X side (seen from the odd slot row): pink coral, bubbles, kelp, clownfish, purple sea fan.
 	coral(-10.6, 83, 5, 8.4, C.CoralPinkBase, C.CoralPink, C.CoralPinkTip, false)
-	bubbles(-3.2, 88.5, { { 2.6, 1 }, { 5.4, 1.3 }, { 8.2, 1.6 } })
+	bubbles("BubblesWest", -3.2, 88.5)
 	kelp(-4.6, 93, 0.4)
 	fish(-7, 7.2, 97, -1, C.Orange, C.White)
 	piece("SeaFan", -9, -8.2, -0.2, 7.4, 101, 108.5, C.SeaFan)
 	-- +X side (seen from the even slot row): kelp, blue tang, bubbles, yellow brain coral.
 	kelp(2.6, 81.5, -0.4)
 	fish(6.6, 8, 90, 1, C.Blue, C.Yellow)
-	bubbles(3, 99, { { 3, 1.1 }, { 5.8, 1.4 }, { 8.4, 1.6 } })
+	bubbles("BubblesEast", 3, 99)
 	piece("BrainCoral", 5.6, 10.4, -0.2, 2.8, 103.5, 108.5, C.Yellow)
 
 	-- Chunky Accent corner posts (the long sides stay open for the view) and glowing white top
@@ -823,11 +839,12 @@ end
 -- Owner's cottage
 ------------------------------------------------------------------------------------------
 
-local function buildHouse(template: any)
+-- Returns the chimney smoke attachment's offset.
+local function buildHouse(template: any): any
 	local house = U.model(template, "House")
 	local x0, x1, z0, z1 = -20, 20, 140, 162
 	local base = 1.2 -- floor level (on the foundation)
-	local wallTop = base + 12
+	local wallTop = base + 13
 
 	span(house, "Foundation", x0 - 1, x1 + 1, 0, base, z0 - 1, z1 + 1, C.StoneLight)
 	span(house, "Walls", x0, x1, base, wallTop, z0, z1, C.Cream)
@@ -838,13 +855,14 @@ local function buildHouse(template: any)
 		end
 	end
 
-	-- Stepped gable roof (ridge along X); shades alternate for the voxel look.
+	-- Stepped gable roof (ridge along X), tall and steep so the cottage stands out over the yard;
+	-- shades alternate for the voxel look.
 	local roofY = wallTop
 	local depth = (z1 - z0) + 6
 	local zc = (z0 + z1) / 2
 	for i, shade in { -0.38, 0, -0.12, 0.08, -0.05, 0.2 } do
 		local d = depth - (i - 1) * 4.4
-		local h = if i == 1 then 1.4 else 2.2
+		local h = if i == 1 then 1.4 else 2.8
 		span(house, "Roof", x0 - 2.6, x1 + 2.6, roofY, roofY + h, zc - d / 2, zc + d / 2, shade, { CastShadow = true })
 		roofY += h
 	end
@@ -852,7 +870,7 @@ local function buildHouse(template: any)
 
 	-- Dormer with a window on the front slope (above the porch awning); its top sinks 0.1 into its
 	-- roof so it never shares the plane of the roof step below.
-	local dy0 = wallTop + 1.4
+	local dy0 = wallTop + 2.2
 	span(house, "Dormer", -5, 5, dy0, dy0 + 6.7, z0 - 0.2, z0 + 7, C.Cream)
 	span(house, "DormerWindow", -3, 3, dy0 + 1.2, dy0 + 5.4, z0 - 0.6, z0, C.Glass, {
 		Material = M.Glass,
@@ -861,9 +879,12 @@ local function buildHouse(template: any)
 	span(house, "DormerRoof", -6.4, 6.4, dy0 + 6.6, dy0 + 7.8, z0 - 1.2, z0 + 7.6, -0.3, { CastShadow = true })
 	span(house, "DormerRoof", -4.2, 4.2, dy0 + 7.8, dy0 + 9, z0 - 0.6, z0 + 7.6, 0.12)
 
-	-- Chimney through the back slope.
-	span(house, "Chimney", 9, 13, wallTop + 2, wallTop + 15.5, zc + 3, zc + 7, C.StoneLight)
-	span(house, "ChimneyCap", 8.4, 13.6, wallTop + 15.5, wallTop + 16.7, zc + 2.4, zc + 7.6, C.Stone)
+	-- Chimney through the back slope, a lazy plume of smoke above it.
+	local chimneyTop = wallTop + 19
+	span(house, "Chimney", 9, 13, wallTop + 2, chimneyTop, zc + 3, zc + 7, C.StoneLight)
+	local cap = span(house, "ChimneyCap", 8.4, 13.6, chimneyTop, chimneyTop + 1.2, zc + 2.4, zc + 7.6, C.Stone)
+	local smoke, smokeOffset = attachAt(cap, "SmokeAttachment", at(11, chimneyTop + 1.4, zc + 5))
+	Props.fx(smoke, "smoke", { rate = 2.5 })
 
 	-- Front (-Z): door with a frame, two windows with flower boxes.
 	span(house, "DoorFrame", -3.8, 3.8, base, base + 9.2, z0 - 0.4, z0, C.Wood)
@@ -889,10 +910,10 @@ local function buildHouse(template: any)
 		})
 	end
 
-	-- Porch: deck (ends at the foundation's edge: no shared top face), two posts with lanterns,
-	-- Accent awning.
+	-- Porch: deck (ends at the foundation's edge, its top 0.06 above the foundation's: no shared
+	-- top face), two posts with lanterns, Accent awning.
 	local pz0 = 133.4
-	span(house, "Porch", -9, 9, 0, base, pz0, z0 - 1, C.WoodLight)
+	span(house, "Porch", -9, 9, 0, base + 0.06, pz0, z0 - 1, C.WoodLight)
 	for _, sx in { -1, 1 } do
 		local x = sx * 8
 		span(house, "PorchPost", x - 0.6, x + 0.6, base, base + 9.4, pz0 + 0.4, pz0 + 1.6, C.Wood)
@@ -904,6 +925,7 @@ local function buildHouse(template: any)
 	end
 	span(house, "Awning", -10, 10, base + 9.4, base + 10.4, pz0 - 0.6, z0, -0.3, { CastShadow = true })
 	span(house, "AwningTop", -9.4, 9.4, base + 10.4, base + 11.2, pz0 + 0.4, z0, 0.15)
+	return smokeOffset
 end
 
 ------------------------------------------------------------------------------------------
@@ -979,6 +1001,7 @@ local function buildCampfire(template: any): any
 		Color = R.ColorSequence.new(rgb(255, 214, 96), C.Flame),
 		LightEmission = 1,
 	}, sparks)
+	Props.fx(sparks, "smoke", { rate = 1.5, size = 0.8 })
 	-- Log seats on three sides.
 	span(camp, "LogSeat", fx - 3.5, fx + 3.5, 0.3, 1.9, fz - 6.6, fz - 5, C.Wood)
 	span(camp, "LogSeat", fx - 6.6, fx - 5, 0.3, 1.9, fz - 3.5, fz + 3.5, C.Wood)
@@ -1088,9 +1111,14 @@ local function buildPier(template: any, pierEnd: number, pileBottom: number)
 	for _, sx in { -1, 1 } do
 		span(pier, "Kerb", sx * hw, sx * (hw + 1.2), DECK - 1.4, DECK + 0.6, PIER_END, 0, -0.3)
 	end
-	-- Posts double as piles; the two end pairs carry lanterns.
+	-- Posts double as piles, evenly along the walkway (the last pair just short of the platform's
+	-- back kerbs); the two end pairs carry lanterns.
 	local px = hw + 0.6
-	local zs = { -3, -17, -31, -45, -59 }
+	local zs = {}
+	local n = 5
+	for i = 1, n do
+		zs[i] = -3 + (PIER_END + 2.5 + 3) * (i - 1) / (n - 1)
+	end
 	for i, z in zs do
 		local lantern = i == 1 or i == #zs
 		local top = if lantern then DECK + 6 else DECK + 4.2
@@ -1103,11 +1131,11 @@ local function buildPier(template: any, pierEnd: number, pileBottom: number)
 			end
 		end
 	end
-	-- Block rails: Accent top rail, white middle rail.
+	-- Block rails from the first to the last post: Accent top rail, white middle rail.
 	for _, sx in { -1, 1 } do
 		local x = sx * px
-		span(pier, "Rail", x - 0.5, x + 0.5, DECK + 3.2, DECK + 4.0, PIER_END + 1, -3, 0)
-		span(pier, "RailLow", x - 0.35, x + 0.35, DECK + 1.6, DECK + 2.2, PIER_END + 1, -3, C.White)
+		span(pier, "Rail", x - 0.5, x + 0.5, DECK + 3.2, DECK + 4.0, zs[n], zs[1], 0)
+		span(pier, "RailLow", x - 0.35, x + 0.35, DECK + 1.6, DECK + 2.2, zs[n], zs[1], C.White)
 	end
 
 	-- End platform (its front kerb ends exactly at the end of the pier corridor).
@@ -1143,32 +1171,62 @@ local function buildPier(template: any, pierEnd: number, pileBottom: number)
 	end
 end
 
--- Fishing pavilion over the FishingSpot at the front edge of the platform.
+-- The fishing spot sits in the open middle of the platform's front edge: nothing hangs over the
+-- player or over the follow camera behind them. Beside it, on the -X side of the platform, a
+-- shelter over the rod rack and a bench: white posts, a stepped Accent roof (it never collides
+-- or takes raycasts, so the camera never pops in against it) and a lantern under it.
 local function buildPavilion(template: any, pierEnd: number)
 	local pav = U.model(template, "Pavilion")
-	local z0 = pierEnd + 3.5 -- front posts
-	local z1 = pierEnd + 15.5 -- back posts
-	local postTop = DECK + 9
-	for _, x in { -6.5, 6.5 } do
+	local x0, x1 = -PLAT_HALF + 1, -10 -- post centres
+	local z0, z1 = pierEnd + 5.5, pierEnd + 17.5
+	local postTop = DECK + 10
+	for _, x in { x0, x1 } do
 		for _, z in { z0, z1 } do
 			span(pav, "Post", x - 0.7, x + 0.7, DECK, postTop, z - 0.7, z + 0.7, C.White)
 		end
 	end
-	local zc = (z0 + z1) / 2
+	local xc, zc = (x0 + x1) / 2, (z0 + z1) / 2
 	local y = postTop
-	for i, layer in { { 17, 1.2, -0.3 }, { 13, 1.4, 0 }, { 9, 1.4, 0.2 }, { 4.4, 1.4, -0.1 } } do
-		local w = layer[1]
-		span(pav, "Roof", -w / 2, w / 2, y, y + layer[2], zc - w / 2, zc + w / 2, layer[3], { CastShadow = i <= 2 })
+	for i, layer in { { 15, 1.2, -0.3 }, { 11.4, 1.4, 0 }, { 7.8, 1.4, 0.2 }, { 3.6, 1.4, -0.1 } } do
+		local w, d = layer[1], layer[1] + 2.4 -- a touch longer along the platform than across it
+		local opts = { CastShadow = i <= 2, CanCollide = false, CanQuery = false }
+		span(pav, "Roof", xc - w / 2, xc + w / 2, y, y + layer[2], zc - d / 2, zc + d / 2, layer[3], opts)
 		y += layer[2]
 	end
-	local lamp = span(pav, "Lantern", -0.9, 0.9, postTop - 2.6, postTop - 0.6, zc - 0.9, zc + 0.9, C.Lamp, NEON_DECOR)
-	span(pav, "LanternCord", -0.15, 0.15, postTop - 0.65, postTop + 0.1, zc - 0.15, zc + 0.15, C.Ink, DECOR)
+	local lamp = span(pav, "Lantern", xc - 0.9, xc + 0.9, postTop - 2, postTop, zc - 0.9, zc + 0.9, C.Lamp, NEON_DECOR)
 	U.new("PointLight", { Range = 16, Brightness = 1.3, Color = C.Lamp, Shadows = false }, lamp)
+	-- A bench under the roof, looking out over the lagoon (the rod rack stands behind it), and a
+	-- name board between the back posts, read from the pier.
+	span(pav, "BenchSeat", xc - 3, xc + 3, DECK, DECK + 1.8, zc - 3.4, zc - 1.6, C.WoodLight)
+	span(pav, "BenchBack", xc - 3, xc + 3, DECK + 1.8, DECK + 4.2, zc - 1.6, zc - 1, -0.3)
+	local board = span(pav, "Board", x0 + 0.7, x1 - 0.7, postTop - 2.4, postTop, z1 - 0.25, z1 + 0.25, C.Cream)
+	plainText(board, Enum.NormalId.Back, "РЫБАЛКА", C.Ink, false)
 
-	-- Where the owner stands to fish (stage 2 checks the distance to this part).
+	-- Where the owner stands to fish (stage 2 checks the distance to this part), with glints
+	-- rising off it so the spot catches the eye from the pier.
 	local sz = pierEnd + 4.5
-	span(pav, "SpotRing", -3.4, 3.4, DECK, PLANK + 0.15, sz - 3.4, sz + 3.4, C.White, { CanCollide = false })
-	span(template, "FishingSpot", -2.6, 2.6, DECK, PLANK + 0.3, sz - 2.6, sz + 2.6, 0.3, { CastShadow = false })
+	local plat = template:FindFirstChild("Platform")
+	span(plat, "SpotRing", -3.4, 3.4, DECK, PLANK + 0.15, sz - 3.4, sz + 3.4, C.White, { CanCollide = false })
+	local spot = span(template, "FishingSpot", -2.6, 2.6, DECK, PLANK + 0.3, sz - 2.6, sz + 2.6, 0.3, {
+		CastShadow = false,
+	})
+	Props.fx(spot, "sparkle", {
+		name = "Glints",
+		rate = 2.5,
+		spread = 25,
+		speed = U.roblox.NumberRange.new(1.5, 3),
+		color = U.roblox.ColorSequence.new(C.White, rgb(140, 236, 255)),
+	})
+	-- The catch of the day: a yellow bucket beside the spot with a fish tail sticking out.
+	cylY(plat, "Bucket", 2, 1.9, at(5.6, DECK + 0.95, sz - 1.2), C.Yellow, DECOR)
+	make(
+		plat,
+		"BucketFish",
+		Vector3.new(0.4, 1.6, 1.2),
+		at(5.5, DECK + 2.3, sz - 1.1) * CFrame.Angles(0, rad(30), rad(14)),
+		C.Orange,
+		DECOR
+	)
 end
 
 local function buildPierProps(template: any, pierEnd: number)
@@ -1209,11 +1267,15 @@ local function buildPierProps(template: any, pierEnd: number)
 	end
 end
 
--- Little rowing boat moored at the right side of the pier.
+-- Little rowing boat moored at the right side of the pier, halfway out. It bobs on the water: the
+-- client (AmbientController) lifts and rolls every Model with a number attribute Bob about its
+-- pivot (here the hull's centre on the waterline).
 local function buildBoat(template: any, waterY: number)
 	local boat = U.model(template, "Boat")
-	local f = facing(15, waterY, -44, 4)
-	box(boat, "Hull", f, 0, 0, 0, 4.6, 1.6, 10, C.WoodLight)
+	local f = facing(15, waterY, -34, 4)
+	boat.PrimaryPart = box(boat, "Hull", f, 0, 0, 0, 4.6, 1.6, 10, C.WoodLight)
+	boat:SetAttribute("Bob", 0.25)
+	boat:SetAttribute("BobPeriod", 3.4)
 	for _, sx in { -1, 1 } do
 		box(boat, "Side", f, sx * 2.7, 0.9, 0.3, 0.8, 2.4, 10.6, 0)
 	end
@@ -1255,7 +1317,7 @@ return function(game: any, mapCfg: any)
 	buildSlots(tank, expected)
 	buildDogHouse(template)
 	buildDog(template)
-	buildHouse(template)
+	local smokeOffset = buildHouse(template)
 	buildGarden(template)
 	buildPond(template)
 	local sparksOffset = buildCampfire(template)
@@ -1277,6 +1339,10 @@ return function(game: any, mapCfg: any)
 	table.insert(
 		expected,
 		{ root = "template", path = { "Campfire", "Logs", "SparksAttachment" }, offset = sparksOffset }
+	)
+	table.insert(
+		expected,
+		{ root = "template", path = { "House", "ChimneyCap", "SmokeAttachment" }, offset = smokeOffset }
 	)
 	return {
 		template = template,

@@ -49,15 +49,24 @@
 	             hotAirBalloon 19, cloud 7-8
 	  helpers    Props.Colors (shared palette, DESIGN.md §1 names), Props.makeRng(seed),
 	             Props.shade(c, f), Props.lerpColor(a, b, t), Props.tones(c) -> {dark, mid, light},
-	             Props.groundAt = function(x, z) -> y (optional ground probe, see broadleaf)
+	             Props.groundAt = function(x, z) -> y (optional ground probe, see broadleaf),
+	             Props.waterTop (water level, default 0: boats/buoys on it bob),
+	             Props.fx(partOrAttachment, kind, opts) / Props.fxAt(part, worldCFrame, kind, opts)
+	             -> ParticleEmitter (smoke, spray, foam, mist, sparkle, fireflies, bubbles, petals,
+	             embers, flame; see "Particle effects")
 
-	Spinning parts: windmill and ferrisWheel put the moving geometry in a child Model ("Blades",
-	"Wheel") with a number attribute Spin (degrees per second). Its pivot is the hub; the spin
-	axis is the pivot's LookVector. A client script can do
+	Spinning parts: windmill, ferrisWheel and lighthouse put the moving geometry in a child Model
+	("Blades", "Wheel", "Beacon") with a number attribute Spin (degrees per second). Its pivot is
+	the hub; the spin axis is the pivot's LookVector. A client script can do
 	    model:PivotTo(model:GetPivot() * CFrame.Angles(0, 0, math.rad(spin * dt))).
 	Ferris-wheel gondolas are Models with attribute KeepUpright = true (re-level them after
 	turning the wheel). Every part of a spinning group has CanCollide = CanQuery = CanTouch =
 	false: only the client moves it, so it must never shove a player.
+	Bobbing: rowboat, sailboat, motorboat and buoy standing on the water get the Model attributes
+	Bob (amplitude) and BobPeriod; the client (AmbientController) lifts and rolls them gently.
+	Particles (no parts): campfire embers + smoke, crystal glints, glowing giant mushrooms' and
+	the giant tree's fireflies, its blossom petals, the whale's spout spray, the balloon burner
+	flame, the open treasure chest's glints, the waterfall's mist and foam.
 
 	No randomness from math.random: variation comes from a small Park–Miller generator seeded
 	by opts.seed or by the position, so rebuilding the place gives identical output.
@@ -85,6 +94,9 @@ local Props = {}
 -- Optional ground probe function(x, z) -> top y of the ground (e.g. VoxelWorld:heightAt), set
 -- once by the map builder: trees then drop fallen-leaf litter that would hang over a step.
 Props.groundAt = nil :: ((number, number) -> number)?
+
+-- World water level (DESIGN.md WaterTop): boats and buoys standing on it bob (see bobbing below).
+Props.waterTop = 0
 
 --------------------------------------------------------------------------------------------
 -- Palette (DESIGN.md §1 names first; extra shades and legacy names below)
@@ -670,6 +682,217 @@ local function light(parentPart: any, range: number, brightness: number?, color:
 		Color = color or C.LightColor,
 		Shadows = false,
 	}, parentPart)
+end
+
+--[[
+	Particle effects (ParticleEmitters cost no parts). Props.fx(parent, kind, opts?) adds a tuned
+	emitter to `parent`: a BasePart (particles start anywhere in the part, moving along
+	opts.direction, default Top) or an Attachment (they start at that point; use Props.fxAt to
+	make one at a world point). Rates stay low for phones. Voxel kinds use square particles (no
+	texture); smoke and mist use the soft built-in smoke puff, sparkles the built-in star.
+	kinds:
+	  smoke      soft white-grey puffs drifting up and downwind (chimneys, campfires)   rate 2
+	  spray      water droplets shot up that fall back (fountains, spouts, whales)      rate 16
+	  foam       white cubes churning at a waterline (falls, rapids, splashes)          rate 8
+	  mist       big soft white puffs (the foot of a waterfall)                         rate 5
+	  sparkle    glinting stars (gold, crystals, magic)                                 rate 3
+	  fireflies  tiny glowing yellow-green squares wandering slowly                     rate 2
+	  bubbles    small light-blue squares rising straight up (aquariums, ponds)        rate 4
+	  petals     pink squares tumbling down on the wind (blossom trees, flower hills)    rate 3
+	  embers     tiny glowing orange squares rising from a fire                         rate 4
+	  flame      a short flickering burner flame (balloon burners, braziers)            rate 10
+	opts: rate, size (multiplies the sizes), speed (NumberRange or number), lifetime (NumberRange),
+	color (Color3 or ColorSequence), spread (degrees), accel (Vector3), direction (NormalId),
+	lightEmission, name. Returns the ParticleEmitter.
+]]
+local NR, NS, NSK, CS = roblox.NumberRange, roblox.NumberSequence, roblox.NumberSequenceKeypoint, roblox.ColorSequence
+local TEX_SMOKE = "rbxasset://textures/particles/smoke_main.dds"
+local TEX_SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
+local TEX_FIRE = "rbxasset://textures/particles/fire_main.dds"
+local TEX_SQUARE = "" -- no texture: Roblox draws plain square particles (the voxel look)
+
+local function seq(points: { { number } }, k: number?): any
+	local out = {}
+	for _, p in points do
+		table.insert(out, NSK.new(p[1], p[2] * (k or 1)))
+	end
+	return NS.new(out)
+end
+
+local FX = {
+	smoke = {
+		Texture = TEX_SMOKE,
+		Rate = 2,
+		Lifetime = NR.new(4, 6),
+		Speed = NR.new(2, 3.5),
+		Spread = 12,
+		Size = { { 0, 1.6 }, { 1, 5.5 } },
+		Transparency = { { 0, 0.35 }, { 0.7, 0.75 }, { 1, 1 } },
+		Color = CS.new(rgb(250, 250, 252), rgb(214, 218, 228)),
+		Acceleration = Vector3.new(0.9, 0.25, 0.35),
+		Drag = 0.3,
+		RotSpeed = NR.new(-25, 25),
+		Rotation = NR.new(0, 360),
+	},
+	spray = {
+		Texture = TEX_SQUARE,
+		Rate = 16,
+		Lifetime = NR.new(0.7, 1.0),
+		Speed = NR.new(10, 14),
+		Spread = 12,
+		Size = { { 0, 0.7 }, { 1, 0.25 } },
+		Transparency = { { 0, 0.05 }, { 0.8, 0.3 }, { 1, 1 } },
+		Color = CS.new(C.Foam, rgb(160, 228, 255)),
+		Acceleration = Vector3.new(0, -30, 0),
+		RotSpeed = NR.new(-90, 90),
+		Rotation = NR.new(0, 90),
+		LightEmission = 0.2,
+	},
+	foam = {
+		Texture = TEX_SQUARE,
+		Rate = 8,
+		Lifetime = NR.new(0.8, 1.4),
+		Speed = NR.new(2.5, 4.5),
+		Spread = 55,
+		Size = { { 0, 1.1 }, { 1, 0.3 } },
+		Transparency = { { 0, 0.1 }, { 0.7, 0.35 }, { 1, 1 } },
+		Color = CS.new(C.White, C.Foam),
+		Acceleration = Vector3.new(0, -7, 0),
+		RotSpeed = NR.new(-60, 60),
+		Rotation = NR.new(0, 90),
+		LightEmission = 0.15,
+	},
+	mist = {
+		Texture = TEX_SMOKE,
+		Rate = 5,
+		Lifetime = NR.new(1.8, 2.8),
+		Speed = NR.new(2, 4.5),
+		Spread = 50,
+		Size = { { 0, 3 }, { 1, 6.5 } },
+		Transparency = { { 0, 0.5 }, { 1, 1 } },
+		Color = CS.new(rgb(236, 250, 255)),
+		Acceleration = Vector3.new(0, 1.8, 0),
+		RotSpeed = NR.new(-15, 15),
+		Rotation = NR.new(0, 360),
+		LightEmission = 0.1,
+	},
+	sparkle = {
+		Texture = TEX_SPARKLE,
+		Rate = 3,
+		Lifetime = NR.new(0.8, 1.4),
+		Speed = NR.new(0.4, 1.4),
+		Spread = 180,
+		Size = { { 0, 0.2 }, { 0.3, 1.1 }, { 1, 0 } },
+		Transparency = { { 0, 0 }, { 1, 0.4 } },
+		Color = CS.new(rgb(255, 246, 180), C.Gold),
+		RotSpeed = NR.new(-120, 120),
+		Rotation = NR.new(0, 360),
+		LightEmission = 1,
+	},
+	fireflies = {
+		Texture = TEX_SQUARE,
+		Rate = 2,
+		Lifetime = NR.new(4, 6.5),
+		Speed = NR.new(0.4, 1.0),
+		Spread = 180,
+		Size = { { 0, 0 }, { 0.15, 0.4 }, { 0.85, 0.4 }, { 1, 0 } },
+		Transparency = { { 0, 0 }, { 0.5, 0.3 }, { 1, 0 } },
+		Color = CS.new(rgb(230, 255, 130), rgb(170, 255, 110)),
+		Acceleration = Vector3.new(0, 0.15, 0),
+		LightEmission = 1,
+	},
+	bubbles = {
+		Texture = TEX_SQUARE,
+		Rate = 4,
+		Lifetime = NR.new(2.8, 3.4),
+		Speed = NR.new(2.2, 2.8),
+		Spread = 6,
+		Size = { { 0, 0.3 }, { 1, 0.55 } },
+		Transparency = { { 0, 0.15 }, { 0.8, 0.35 }, { 1, 1 } },
+		Color = CS.new(rgb(236, 252, 255), rgb(190, 238, 255)),
+		LightEmission = 0.35,
+	},
+	petals = {
+		Texture = TEX_SQUARE,
+		Rate = 3,
+		Lifetime = NR.new(5, 7),
+		Speed = NR.new(1, 2.2),
+		Spread = 180,
+		Size = { { 0, 0.45 }, { 1, 0.45 } },
+		Transparency = { { 0, 0 }, { 0.85, 0 }, { 1, 1 } },
+		Color = CS.new(C.Blossom1, C.Blossom2),
+		Acceleration = Vector3.new(1.4, -0.7, 0.5),
+		Drag = 0.2,
+		RotSpeed = NR.new(-120, 120),
+		Rotation = NR.new(0, 360),
+	},
+	embers = {
+		Texture = TEX_SQUARE,
+		Rate = 4,
+		Lifetime = NR.new(1, 2),
+		Speed = NR.new(3, 5.5),
+		Spread = 16,
+		Size = { { 0, 0.35 }, { 1, 0 } },
+		Transparency = { { 0, 0 }, { 1, 0.3 } },
+		Color = CS.new(C.FlameCore, C.Flame),
+		Acceleration = Vector3.new(0.4, 1.2, 0),
+		Drag = 0.8,
+		RotSpeed = NR.new(-180, 180),
+		LightEmission = 1,
+	},
+	flame = {
+		Texture = TEX_FIRE,
+		Rate = 10,
+		Lifetime = NR.new(0.3, 0.5),
+		Speed = NR.new(3, 5),
+		Spread = 8,
+		Size = { { 0, 1.2 }, { 1, 0.2 } },
+		Transparency = { { 0, 0.1 }, { 1, 1 } },
+		Color = CS.new(C.FlameCore, C.Flame),
+		RotSpeed = NR.new(-60, 60),
+		Rotation = NR.new(0, 360),
+		LightEmission = 1,
+	},
+}
+
+-- Default instance name for an effect: "Smoke", "Fireflies", ...
+local function fxName(kind: string, opts: { [string]: any }?): string
+	return (opts and opts.name) or (kind:sub(1, 1):upper() .. kind:sub(2))
+end
+
+function Props.fx(parent: any, kind: string, opts: { [string]: any }?): any
+	local spec = FX[kind]
+	assert(spec, `Props.fx: unknown kind {kind}`)
+	local o = opts or {}
+	local k = o.size or 1
+	local speed = o.speed or spec.Speed
+	local color = o.color or spec.Color
+	local spread = o.spread or spec.Spread
+	return U.new("ParticleEmitter", {
+		Name = fxName(kind, o),
+		Texture = spec.Texture,
+		Rate = o.rate or spec.Rate,
+		Lifetime = o.lifetime or spec.Lifetime,
+		Speed = if typeof(speed) == "number" then NR.new(speed) else speed,
+		SpreadAngle = U.Vector2.new(spread, spread),
+		Size = seq(spec.Size, k),
+		Transparency = seq(spec.Transparency),
+		Color = if typeof(color) == "Color3" then CS.new(color) else color,
+		Acceleration = o.accel or spec.Acceleration or Vector3.new(0, 0, 0),
+		Drag = spec.Drag or 0,
+		RotSpeed = spec.RotSpeed or NR.new(0),
+		Rotation = spec.Rotation or NR.new(0),
+		LightEmission = o.lightEmission or spec.LightEmission or 0,
+		EmissionDirection = o.direction or Enum.NormalId.Top,
+	}, parent)
+end
+
+-- Props.fx on a new Attachment of `part` at the world CFrame (or point) `at`; returns the emitter.
+function Props.fxAt(part: any, at: any, kind: string, opts: { [string]: any }?): any
+	local cf = if typeof(at) == "Vector3" then CFrame.new(at) else at
+	local name = fxName(kind, opts) .. "Attachment"
+	local attachment = U.new("Attachment", { Name = name, CFrame = part.CFrame:Inverse() * cf }, part)
+	return Props.fx(attachment, kind, opts)
 end
 
 -- A spinning group (windmill blades, ferris wheel) is turned by CFrame on every client: its parts
@@ -1274,7 +1497,26 @@ function Props.giantTree(parent: any, cf: any, opts: { [string]: any }?): any
 		{ 12, 57, 29.2, 4.4, 3.6, 2.4 },
 	}
 	for i, c in blossoms do
-		b:vox(`Blossom{i}`, c[1], c[2], c[3], c[4], c[5], c[6], if i % 2 == 1 then C.Blossom1 else C.Blossom2, FOLIAGE)
+		local bloom = b:vox(
+			`Blossom{i}`,
+			c[1],
+			c[2],
+			c[3],
+			c[4],
+			c[5],
+			c[6],
+			if i % 2 == 1 then C.Blossom1 else C.Blossom2,
+			FOLIAGE
+		)
+		if i == 4 or i == 6 then
+			-- petals drifting off the two low side clusters
+			Props.fx(bloom, "petals", { rate = 2, size = b.s })
+		end
+	end
+	-- fireflies wandering in the shade under the canopy (the back and both sides; the hut is
+	-- on the front)
+	for _, p in { { 15, 12 }, { -16, 6 }, { 2, 18 } } do
+		Props.fxAt(trunk, b:world(CFrame.new(p[1], 36, p[2])), "fireflies", { rate = 1.5, size = 1.4 * b.s })
 	end
 	-- 8 glowing lanterns hanging straight under the wide middle layer, round the rim
 	for i = 0, 7 do
@@ -1506,6 +1748,12 @@ function Props.giantMushroom(parent: any, cf: any, opts: { [string]: any }?): an
 	end
 	if glow and o.light ~= false then
 		light(stem, 14, 1.2, C.Cyan)
+	end
+	if glow and o.fireflies ~= false then
+		-- fireflies drifting under the cap on both sides of the stem
+		for _, x in { -4.5, 4.5 } do
+			Props.fxAt(stem, b:world(CFrame.new(x, h - 2.5, -x * 0.4)), "fireflies", { rate = 1, size = b.s })
+		end
 	end
 	return b:finish(stem)
 end
@@ -1790,6 +2038,11 @@ function Props.crystalCluster(parent: any, cf: any, opts: { [string]: any }?): a
 	end
 	if o.light then
 		light(base, 14, 1.4, col)
+	end
+	if o.sparkle ~= false then
+		-- glints round the tallest crystal's tip
+		local tip = b:world(CFrame.new(0, 0.8 + 7.5 * 0.85, 0))
+		Props.fxAt(base, tip, "sparkle", { rate = 3, size = b.s, color = CS.new(C.White, second) })
 	end
 	return b:finish(base)
 end
@@ -2322,8 +2575,9 @@ function Props.flagPole(parent: any, cf: any, opts: { [string]: any }?): any
 end
 
 --[[
-	campfire: ring of stone cubes, two crossed block logs, Neon flame cubes. 10 parts.
-	opts: light = true (PointLight), fire = true (Fire effect).
+	campfire: ring of stone cubes, two crossed block logs, Neon flame cubes, rising embers and a
+	thin smoke trail (particles). 10 parts.
+	opts: light = true (PointLight), fire = true (Fire effect), smoke = false (no particles).
 ]]
 function Props.campfire(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Campfire", cf, opts, 151)
@@ -2344,6 +2598,11 @@ function Props.campfire(parent: any, cf: any, opts: { [string]: any }?): any
 	end
 	if o.fire then
 		U.new("Fire", { Size = 3, Heat = 6, Color = C.Flame, SecondaryColor = C.FlameCore }, flame)
+	end
+	if o.smoke ~= false then
+		-- glowing embers out of the flames, a thin trail of smoke above them
+		Props.fx(flame, "embers", { size = b.s })
+		Props.fxAt(flame, b:world(CFrame.new(0, 4.2, 0)), "smoke", { size = b.s * 0.8, rate = 1.5 })
 	end
 	return b:finish(ring)
 end
@@ -2416,7 +2675,8 @@ function Props.treasureChest(parent: any, cf: any, opts: { [string]: any }?): an
 		b:span("LidBand", -0.25, 1.8, -1.3, 0.25, 3.0, 1.3, C.Gold, NOSHADOW)
 	else
 		b:span("Lid", -1.85, 1.8, 1.0, 1.85, 4.2, 1.6, C.WoodDark)
-		b:span("Gold", -1.6, 1.4, -1.0, 1.6, 2.3, 1.0, C.Gold, NEON_DECOR)
+		local gold = b:span("Gold", -1.6, 1.4, -1.0, 1.6, 2.3, 1.0, C.Gold, NEON_DECOR)
+		Props.fx(gold, "sparkle", { rate = 2, size = b.s })
 		b:span("GoldTop", -0.9, 2.25, -0.6, 0.8, 2.7, 0.6, C.GoldLight, NEON_DECOR)
 		b:vox("Gem1", -1.0, 2.5, -0.3, 0.6, 0.6, 0.6, C.Red, DECOR)
 		b:vox("Gem2", 1.0, 2.45, 0.2, 0.55, 0.55, 0.55, C.Cyan, DECOR)
@@ -2522,6 +2782,25 @@ end
 --------------------------------------------------------------------------------------------
 
 --[[
+	Bobbing: the client (AmbientController) gently lifts and rolls every Model with a number
+	attribute Bob (amplitude, studs; BobPeriod in seconds) about its pivot, which for boats and
+	buoys is the waterline point. opts.bob = amplitude (0 or false: keep still), opts.bobPeriod.
+	Default: they bob when their cframe stands on the water (within 1 stud of Props.waterTop), so
+	a boat on trestles or on a beach stays put.
+]]
+local function bobbing(b: any, amplitude: number, period: number)
+	local o = b.opts
+	local a = o.bob
+	if a == nil then
+		a = if math.abs(b.pivot.Position.Y - Props.waterTop) <= 1 then amplitude else 0
+	end
+	if typeof(a) == "number" and a > 0 then
+		b.model:SetAttribute("Bob", a)
+		b.model:SetAttribute("BobPeriod", o.bobPeriod or period)
+	end
+end
+
+--[[
 	Shared voxel hull, bow towards -Z: floor slab, painted side walls, transom, a two-step
 	pointed bow and white gunwale trims. 8 parts. Returns the floor.
 	L = overall length, W = beam, y0 = hull bottom, deckY = inside floor, rimY = gunwale top.
@@ -2554,7 +2833,7 @@ end
 --[[
 	rowboat: voxel hull, two seats, two oars with yellow blades resting along the sides.
 	14 parts. cframe on the water surface, bow = -Z. opts: color (paint, default from
-	Colors.BoatPaint), oars = false.
+	Colors.BoatPaint), oars = false, bob / bobPeriod (see bobbing).
 ]]
 function Props.rowboat(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Rowboat", cf, opts, 163)
@@ -2570,13 +2849,15 @@ function Props.rowboat(parent: any, cf: any, opts: { [string]: any }?): any
 			b:span(`Blade{i}`, sx * 2.05 - 0.3, 1.55, 3.0, sx * 2.05 + 0.3, 1.9, 4.6, C.Yellow, DECOR)
 		end
 	end
+	bobbing(b, 0.3, 2.8)
 	return b:finish(floor)
 end
 
 --[[
 	sailboat: bigger voxel hull with a cabin (windows), a mast, a boom, a stepped (triangular)
 	main sail with a coloured stripe, a stepped jib and a pennant. 21 parts. cframe on the water
-	surface, bow = -Z. opts: color (hull paint), sailColor, stripe (sail stripe colour).
+	surface, bow = -Z. opts: color (hull paint), sailColor, stripe (sail stripe colour), bob /
+	bobPeriod (see bobbing).
 ]]
 function Props.sailboat(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Sailboat", cf, opts, 167)
@@ -2616,13 +2897,14 @@ function Props.sailboat(parent: any, cf: any, opts: { [string]: any }?): any
 		jy += jH
 	end
 	b:span("Pennant", -0.08, deckY + mastH - 1.2, mz + 0.35, 0.08, deckY + mastH - 0.2, mz + 2.4, C.Red, DECOR)
+	bobbing(b, 0.35, 4)
 	return b:finish(floor)
 end
 
 --[[
 	motorboat: sporty voxel hull with a racing stripe, a white front deck, a glass windshield, a
 	console, a bench and an outboard motor. 17 parts. cframe on the water surface, bow = -Z.
-	opts: color (hull paint), stripe (colour).
+	opts: color (hull paint), stripe (colour), bob / bobPeriod (see bobbing).
 ]]
 function Props.motorboat(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Motorboat", cf, opts, 169)
@@ -2650,12 +2932,14 @@ function Props.motorboat(parent: any, cf: any, opts: { [string]: any }?): any
 	b:span("Bench", -W / 2 + 0.6, 0.3, 2.6, W / 2 - 0.6, 1.4, 4.2, C.Cream, NOSHADOW)
 	b:span("Motor", -0.6, -0.8, L / 2, 0.6, 2.4, L / 2 + 1.2, C.Dark)
 	b:span("MotorCap", -0.7, 2.2, L / 2 - 0.1, 0.7, 2.9, L / 2 + 1.3, stripe, NOSHADOW)
+	bobbing(b, 0.3, 3.2)
 	return b:finish(floor)
 end
 
 --[[
 	buoy: voxel buoy — coloured float, white band, coloured top and a Neon lamp. 4 parts.
-	cframe on the water surface. opts: color (default Red), light = true (PointLight).
+	cframe on the water surface. opts: color (default Red), light = true (PointLight), bob /
+	bobPeriod (see bobbing).
 ]]
 function Props.buoy(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Buoy", cf, opts, 173)
@@ -2668,6 +2952,7 @@ function Props.buoy(parent: any, cf: any, opts: { [string]: any }?): any
 	if o.light then
 		light(lamp, 12, 1.2)
 	end
+	bobbing(b, 0.25, 2.4)
 	return b:finish(body)
 end
 
@@ -2894,7 +3179,9 @@ function Props.whale(parent: any, cf: any, opts: { [string]: any }?): any
 	-- spout: a column, a white head and four jets falling outwards, droplets below them
 	local sz0 = -10.2
 	b:span("Spout", -0.7, 5.05, sz0 - 0.7, 0.7, 9.8, sz0 + 0.7, C.WaterLight, spout)
-	b:vox("SpoutHead", 0, 10.2, sz0, 2.0, 1.4, 2.0, C.Foam, spout)
+	local head = b:vox("SpoutHead", 0, 10.2, sz0, 2.0, 1.4, 2.0, C.Foam, spout)
+	-- droplets keep spurting out of the spout head and rain down round it
+	Props.fx(head, "spray", { rate = 14, size = 1.3 * b.s, spread = 35, speed = NR.new(7, 11) })
 	for i, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
 		local sx = if d[1] ~= 0 then 1.8 else 1.0
 		local sz = if d[2] ~= 0 then 1.8 else 1.0
@@ -3205,34 +3492,20 @@ function Props.waterfall(parent: any, topPos: any, bottomPos: any, width: number
 		b:vox(`Puff{i}`, x, sz * 0.42, z, sz, sz, sz, if i == 2 then C.WaterLight else C.Foam, DECOR)
 	end
 	if o.mist ~= false then
-		U.new("ParticleEmitter", {
-			Name = "Mist",
-			Rate = 6,
-			Lifetime = roblox.NumberRange.new(1.6, 2.6),
-			Speed = roblox.NumberRange.new(2, 5),
-			SpreadAngle = U.Vector2.new(50, 50),
-			Size = roblox.NumberSequence.new({
-				roblox.NumberSequenceKeypoint.new(0, W * 0.25),
-				roblox.NumberSequenceKeypoint.new(1, W * 0.5),
-			}),
-			Transparency = roblox.NumberSequence.new({
-				roblox.NumberSequenceKeypoint.new(0, 0.55),
-				roblox.NumberSequenceKeypoint.new(1, 1),
-			}),
-			Color = roblox.ColorSequence.new(C.Foam),
-			Acceleration = Vector3.new(0, 2, 0),
-			LightEmission = 0.1,
-			EmissionDirection = Enum.NormalId.Top,
-		}, foam)
+		-- soft mist rising from the plunge pool and white foam cubes churning on it
+		Props.fx(foam, "mist", { size = W / 12 })
+		Props.fx(foam, "foam", { rate = 10, size = math.clamp(W / 8, 0.8, 2) })
 	end
 	return b:finish(first)
 end
 
 --[[
 	lighthouse: voxel red/white striped square tower (~40 studs) on a stone plinth: 6 tapering
-	bands, door with a frame, windows, a navy gallery with a red parapet, a glowing Neon lantern
-	room with white corner posts, a stepped red roof and a gold top. 28 parts.
-	opts: light = false (no PointLight), stripe = colour (default Red).
+	bands, door with a frame, windows, a navy gallery with a red parapet, a lantern room with
+	white corner posts round a turning Neon lens panel (child Model "Beacon", attribute Spin), a
+	stepped red roof and a gold top. 28 parts.
+	opts: light = false (no PointLight), stripe = colour (default Red), spin (degrees per second,
+	default 40).
 ]]
 
 function Props.lighthouse(parent: any, cf: any, opts: { [string]: any }?): any
@@ -3257,7 +3530,14 @@ function Props.lighthouse(parent: any, cf: any, opts: { [string]: any }?): any
 	b:span("ParapetB", -5.6, top + 1, 5.1, 5.6, top + 2.4, 5.6, red, NOSHADOW)
 	b:span("ParapetL", -5.6, top + 1, -5.1, -5.1, top + 2.4, 5.1, red, NOSHADOW)
 	b:span("ParapetR", 5.1, top + 1, -5.1, 5.6, top + 2.4, 5.1, red, NOSHADOW)
-	local glass = b:span("Lantern", -2.4, top + 1, -2.4, 2.4, top + 5.4, 2.4, C.Glow, NEON)
+	-- the lamp: a glowing lens panel turning in the lantern room (child Model "Beacon", Spin =
+	-- degrees per second about the vertical); it sweeps between the corner posts
+	local beacon = b:group("Beacon")
+	local glass = b:span("Lantern", -2.0, top + 1.1, -0.9, 2.0, top + 5.3, 0.9, C.Glow, NEON)
+	b:ungroup()
+	b:finishGroup(beacon, glass, CFrame.new(0, top + 3.2, 0) * rot(90, 0, 0))
+	beacon:SetAttribute("Spin", o.spin or 40)
+	ghost(beacon)
 	for i, p in { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } } do
 		b:vox(`Post{i}`, p[1] * 2.6, top + 3.2, p[2] * 2.6, 0.7, 4.4, 0.7, C.White, NOSHADOW)
 	end
@@ -3573,7 +3853,8 @@ function Props.hotAirBalloon(parent: any, cf: any, opts: { [string]: any }?): an
 			DECOR
 		)
 	end
-	b:vox("Burner", 0, 4.4, 0, 1.0, 1.2, 1.0, C.Flame, NEON_DECOR)
+	local burner = b:vox("Burner", 0, 4.4, 0, 1.0, 1.2, 1.0, C.Flame, NEON_DECOR)
+	Props.fx(burner, "flame", { rate = 8, size = b.s })
 	-- two thin diagonal bars from rope to rope hold the burner
 	b:beam("BurnerBarA", Vector3.new(-1.7, 4.4, -1.7), Vector3.new(1.7, 4.4, 1.7), 0.2, 0.2, C.Iron, DECOR)
 	b:beam("BurnerBarB", Vector3.new(-1.7, 4.4, 1.7), Vector3.new(1.7, 4.4, -1.7), 0.2, 0.2, C.Iron, DECOR)
