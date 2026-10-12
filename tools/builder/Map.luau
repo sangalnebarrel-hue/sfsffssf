@@ -5,7 +5,8 @@
 	  Map.BaseSlots    8 invisible markers where the server clones the base template
 	  Map.Ground       voxel ground (Ground.luau)
 	  Map.Hub          the central island village (Hub.luau)
-	  Map.Bridges      4 bridges hub ↔ promenade                      (Promenade.luau)
+	  Map.Bridges      4 bridges hub ↔ promenade, a sell kiosk on      (Promenade.luau)
+	                   each mid-span lookout
 	  Map.Promenade    the ring walk along the lagoon                  (Promenade.luau)
 	  Map.Gateways     4 themed plazas behind the bridge landings      (Gateways.luau)
 	  Map.Landmarks    waterfall, windmill, giant tree, peaks          (Landmarks.luau)
@@ -14,13 +15,17 @@
 	  Map.Ocean        decorated islets, shipwreck, rock arch, whale   (Coast.luau)
 	  Map.Sky          voxel clouds                                    (Coast.luau)
 	  Map.Nature       forests, tree belts, palms, flowers, rocks,     (Nature.luau)
-	                   set-pieces on the hills, corals in the lagoon
+	                   set-pieces on the hills, coral reefs in the lagoon
 	  Map.Boundaries   invisible ring wall in the ocean
 
 	Part budget of the dressing (everything except Ground and Hub): DRESSING_BUDGET parts and
 	LIGHT_BUDGET PointLights. Nature is built last (it keeps off what the others built) and gets
 	whatever the other modules left over, but never less than NATURE_MIN: the build fails when the
 	other modules leave less, and when the dressing as a whole goes over budget.
+
+	Every part of the map ends up Locked (Studio clicks cannot move generated parts). Returns
+	expectedAttachments for the build's self-check: the hub shops' and the bridge kiosks' prompt
+	attachments.
 
 	Coordinates: angle θ (degrees, 0 = +Z) and radius r map to (r·sin θ, y, r·cos θ).
 ]]
@@ -102,7 +107,7 @@ return function(game: any, cfg: any, world: any)
 	local hub = buildHub(map, cfg, world)
 
 	Kit.resetClaims()
-	Promenade.buildBridges(map, cfg, world)
+	local kioskAttachments = Promenade.buildBridges(map, cfg, world)
 	local lamps = Promenade.buildPromenade(map, cfg, world)
 	Gateways.build(map, cfg, world)
 	Landmarks.build(map, cfg, world)
@@ -150,12 +155,27 @@ return function(game: any, cfg: any, world: any)
 		error(`Nature got only {natureParts} parts (< {NATURE_MIN})`)
 	end
 
+	-- The generator owns every part of the map: lock them all, so a stray click-drag in Studio
+	-- cannot move one (the client's Spin / Bob animation is unaffected).
+	for _, d in map:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Locked = true
+		end
+	end
+
+	-- attachments the server binds prompts to (checked by the build's self-check): the hub's
+	-- shops and the sell kiosks on the bridges
+	local expected = table.clone(hub.expectedAttachments or {})
+	for _, item in kioskAttachments or {} do
+		table.insert(expected, item)
+	end
+
 	return {
 		map = map,
 		groundParts = ground.parts,
 		natureCounts = natureCounts,
 		budget = { dressing = DRESSING_BUDGET, lights = LIGHT_BUDGET, natureMin = NATURE_MIN },
 		lamps = lamps,
-		expectedAttachments = hub.expectedAttachments or {},
+		expectedAttachments = expected,
 	}
 end
