@@ -22,6 +22,9 @@
 	  Kit.lamp / Kit.flowerMeadow       cheap chunky lamp (4 parts), flower meadow (5 parts)
 	  Kit.bench                         cheap chunky bench (4 parts)
 	  Kit.flowerBed                     planted box: blooms on stems (2 + 2 per flower)
+	  Kit.clumps(a, b, size, gap)       splits a span into separate clumps (flower rows, crops)
+	  Kit.voxelTree(parent, cf, kind)   cheap chunky tree (3-4 parts): fruit, blossom, pine, palm,
+	                                    topiary
 	  Kit.smoke / Kit.sparkles /        particle effects inside a part (no parts, low rates for
 	  Kit.foam / Kit.petals             phones): campfire smoke, magic sparkles or fireflies, white
 	                                    water foam / spray / mist, drifting petals
@@ -357,7 +360,7 @@ function Kit.flowerMeadow(parent: any, cf: any, seed: number): any
 end
 
 --[[
-	Planted flower bed (2 + 2 per flower parts): a box with a dark soil top and a row of blooms
+	Planted flower bed (2 + up to 2 per flower parts): a box with a dark soil top and a row of blooms
 	(2-stud cubes) on thin green stems at staggered heights — real flowers, not coloured tiles.
 	Stands on cf (front = -Z). opts: width (8), depth (3.6), count (3), height (box, 1.4), box
 	(colour, default WoodLight), colors (bloom list, default C.Flowers), seed, name.
@@ -378,11 +381,90 @@ function Kit.flowerBed(parent: any, cf: any, opts: { [string]: any }?): any
 		local x = -w / 2 + (i - 0.5) * w / n
 		local z = r(-0.3, 0.3)
 		local top = hb + 1.6 + ((i + first) % 3) * 0.7
-		b:box(`Stem{i}`, x - 0.3, hb, z - 0.3, x + 0.3, top - 1.2, z + 0.3, C.Leaf1, Kit.DECOR)
+		if top - 1.8 > hb + 0.1 then -- (the lowest bloom sits in the soil: no stem to show)
+			b:box(`Stem{i}`, x - 0.3, hb, z - 0.3, x + 0.3, top - 1.2, z + 0.3, C.Leaf1, Kit.DECOR)
+		end
 		local c = colors[(first + i * 2) % #colors + 1]
 		b:box(`Bloom{i}`, x - 1, top - 1.8, z - 1, x + 1, top, z + 1, c, Kit.DECOR)
 	end
 	return b:finish(box)
+end
+
+-- Splits the span a..b into clumps about `size` long with `gap` between them (at least one, all
+-- the same length): { {from, to}, ... }. Flower rows and crop rows made of separate clumps read
+-- as plants, one long bar reads as a plank.
+function Kit.clumps(a: number, b: number, size: number, gap: number): { { number } }
+	local L = b - a
+	local n = max(1, floor((L + gap) / (size + gap) + 0.5))
+	local w = (L - (n - 1) * gap) / n
+	local out = {}
+	for i = 0, n - 1 do
+		local s = a + i * (w + gap)
+		table.insert(out, { s, s + w })
+	end
+	return out
+end
+
+--[[
+	Cheap chunky voxel tree (3-4 parts) for set pieces and orchards where a Props tree (8-16
+	parts) is too dear: a trunk and stacked canopy blocks in two or three shades. Stands on cf;
+	only the trunk collides, the crown casts the shadow. kind:
+	  fruit    a round leafy crown with a lighter top, a fruit cluster poking out (opts.fruit)
+	  blossom  a pink crown with a pale top
+	  pine     three stepped tiers on a short trunk
+	  palm     a tall trunk, two crossed frond slabs, a coconut cluster under them
+	  topiary  a clipped hedge cube on a stem in a white tub, a lighter cap
+	opts: scale (1), name.
+]]
+local CROWN = { CanCollide = false, CanQuery = false }
+
+function Kit.voxelTree(parent: any, cf: any, kind: string, opts: { [string]: any }?): any
+	local o = opts or {}
+	local s = o.scale or 1
+	local C = Kit.C
+	local b = Kit.builder(parent, o.name or "Tree", cf)
+	local function box(
+		name: string,
+		x0: number,
+		y0: number,
+		z0: number,
+		x1: number,
+		y1: number,
+		z1: number,
+		color: any,
+		extra: any?
+	): any
+		return b:box(name, x0 * s, y0 * s, z0 * s, x1 * s, y1 * s, z1 * s, color, extra)
+	end
+	local trunk
+	if kind == "pine" then
+		trunk = box("Trunk", -0.9, -0.5, -0.9, 0.9, 3, 0.9, C.Bark)
+		box("Tier1", -4.2, 2.4, -4.2, 4.2, 7, 4.2, C.Pine1, CROWN)
+		box("Tier2", -3, 7, -3, 3, 11.2, 3, C.Pine2, Kit.DECOR)
+		box("Tier3", -1.7, 11.2, -1.7, 1.7, 14.6, 1.7, C.Pine3, Kit.DECOR)
+	elseif kind == "palm" then
+		trunk = box("Trunk", -0.8, -0.5, -0.8, 0.8, 11, 0.8, C.Bark)
+		box("FrondX", -5, 10.6, -1.2, 5.2, 11.6, 1.2, C.Leaf2, CROWN)
+		box("FrondZ", -1.2, 11.2, -5.2, 1.2, 12.2, 5, C.Leaf3, Kit.DECOR)
+		box("Coconuts", -1.1, 9.2, -1.1, 1.1, 10.7, 1.1, C.WoodDark, Kit.DECOR)
+	elseif kind == "topiary" then
+		trunk = box("Tub", -1.6, -0.3, -1.6, 1.6, 1.8, 1.6, C.White)
+		box("Stem", -0.4, 1.8, -0.4, 0.4, 3, 0.4, C.Bark, Kit.DECOR)
+		box("Clip", -2.2, 3, -2.2, 2.2, 7.4, 2.2, C.Leaf1, CROWN)
+		box("Cap", -1.4, 7.4, -1.4, 1.4, 8.6, 1.4, C.Leaf2, Kit.DECOR)
+	else
+		local blossom = kind == "blossom"
+		local mid = if blossom then C.Blossom1 else C.Leaf2
+		local top = if blossom then C.Blossom2 else C.Leaf3
+		trunk = box("Trunk", -0.9, -0.5, -0.9, 0.9, 4.4, 0.9, C.Bark)
+		box("Crown", -3.8, 3.8, -3.8, 3.8, 8.4, 3.8, mid, CROWN)
+		box("Top", -2.6, 8.4, -2.6, 2.6, 10.4, 2.6, top, Kit.DECOR)
+		if not blossom then
+			-- a cluster of fruit through the crown (shows on two sides)
+			box("Fruit", -4.3, 5.2, -4.3, -2.3, 6.6, -2.3, o.fruit or C.Red, Kit.DECOR)
+		end
+	end
+	return b:finish(trunk)
 end
 
 --[[
