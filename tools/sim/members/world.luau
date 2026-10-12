@@ -566,7 +566,9 @@ return function(M)
 				local ok, bytes = pcall(function()
 					return real.SmoothGrid
 				end)
-				sim._terrainGrid = if ok and type(bytes) == "string" and #bytes > 2
+				sim._terrainGrid = if ok
+						and type(bytes) == "string"
+						and #bytes > 2
 					then SmoothGrid.decode(bytes)
 					else false
 			end
