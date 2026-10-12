@@ -93,26 +93,30 @@ terrain.PhysicsGrid = baked.physicsGrid
 -- Bright tropical lagoon water.
 terrain.WaterColor = rgb(24, 196, 222)
 terrain.WaterTransparency = 0.55
-terrain.WaterReflectance = 0.35
+terrain.WaterReflectance = 0.2
 terrain.WaterWaveSize = 0.1
 terrain.WaterWaveSpeed = 8
 terrain.Decoration = false -- no terrain grass blades (there is no solid terrain anyway)
-local clouds = terrain:FindFirstChildOfClass("Clouds") or U.new("Clouds", { Name = "Clouds" }, terrain)
-clouds.Cover = 0.5
-clouds.Density = 0.55
-clouds.Color = rgb(255, 255, 255)
+-- No realistic volumetric clouds: the sky has chunky voxel clouds (Map.Sky) instead.
+local clouds = terrain:FindFirstChildOfClass("Clouds")
+if clouds then
+	clouds:Destroy()
+end
 
 -- Lighting: bright, saturated, sunny "simulator" look.
 local lighting = game:GetService("Lighting")
-lighting.TimeOfDay = "13:30:00"
+-- Sun ~50° high from the south-west: tops bright, one side lit, one side shaded — the classic
+-- three-tone voxel shading (a midday sun would light only the tops).
+lighting.GeographicLatitude = 35
+lighting.TimeOfDay = "14:30:00"
 lighting.Brightness = 3
-lighting.Ambient = rgb(118, 118, 132)
-lighting.OutdoorAmbient = rgb(168, 168, 182)
+lighting.Ambient = rgb(138, 136, 146)
+lighting.OutdoorAmbient = rgb(192, 186, 178)
 lighting.ColorShift_Top = rgb(255, 244, 226)
 lighting.ColorShift_Bottom = rgb(0, 0, 0)
 lighting.EnvironmentDiffuseScale = 1
 lighting.EnvironmentSpecularScale = 0.6
-lighting.ExposureCompensation = 0.1
+lighting.ExposureCompensation = 0
 lighting.GlobalShadows = true
 lighting.ShadowSoftness = 0.25
 -- Depth of field is a full-screen blur pass — too heavy for phones.
@@ -122,12 +126,12 @@ if dof then
 end
 local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
 	or U.new("Atmosphere", { Name = "Atmosphere" }, lighting)
-atmosphere.Density = 0.24
+atmosphere.Density = 0.2
 atmosphere.Offset = 0.12
 atmosphere.Color = rgb(206, 232, 255)
 atmosphere.Decay = rgb(150, 196, 255)
 atmosphere.Glare = 0.15
-atmosphere.Haze = 0.6
+atmosphere.Haze = 0.25
 local bloom = lighting:FindFirstChildOfClass("BloomEffect") or U.new("BloomEffect", { Name = "Bloom" }, lighting)
 bloom.Intensity = 0.45
 bloom.Size = 22

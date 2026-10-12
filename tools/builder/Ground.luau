@@ -16,23 +16,37 @@ local CFrame = U.CFrame
 local Enum = U.Enum
 local rgb = U.rgb
 
-local CAP = 2 -- cap thickness (studs): half of a 4-stud terrace step shows grass
+-- Cap thickness (studs): a whole 4-stud terrace step is grass, so single steps need no dirt
+-- body at all (fewer parts, brighter hills); taller drops show grass over dirt/stone.
+local CAP = 4
 local MAX_SPAN = 240 -- columns per rectangle side (part size limit 2048)
 
 -- kind -> { cap = Color3?, body = Color3, name }
-local GRASS_SHADES = { rgb(104, 214, 72), rgb(88, 198, 62), rgb(124, 226, 86) }
-local DIRT = rgb(190, 132, 78)
+local GRASS_SHADES = { rgb(124, 222, 66), rgb(106, 206, 56), rgb(146, 234, 82) }
+local DIRT = rgb(206, 148, 88)
 local KIND_STYLE = {
 	grass = { body = DIRT, name = "Grass" }, -- cap shade by terrace level
-	meadow = { cap = rgb(156, 236, 92), body = DIRT, name = "Meadow" },
-	path = { cap = rgb(238, 200, 132), body = DIRT, name = "Path" },
-	sand = { cap = rgb(255, 228, 152), body = rgb(236, 200, 124), name = "Sand" },
-	shallow = { body = rgb(248, 222, 150), name = "Shallows" },
-	seabed = { body = rgb(222, 200, 136), name = "Seabed" },
-	deep = { body = rgb(120, 168, 168), name = "DeepSeabed" },
-	stone = { cap = rgb(196, 202, 212), body = rgb(150, 158, 172), name = "Stone" },
-	snow = { cap = rgb(248, 252, 255), body = rgb(196, 202, 212), name = "Snow" },
-	grassRock = { body = rgb(150, 158, 172), name = "Mountainside" }, -- grass cap, stone body
+	meadow = { cap = rgb(170, 240, 96), body = DIRT, name = "Meadow" },
+	path = { cap = rgb(240, 204, 138), body = DIRT, name = "Path" },
+	sand = { cap = rgb(255, 230, 156), body = rgb(240, 206, 132), name = "Sand" },
+	shallow = { body = rgb(250, 226, 156), name = "Shallows" },
+	seabed = { body = rgb(200, 226, 170), name = "Seabed" },
+	deep = { body = rgb(112, 208, 198), name = "DeepSeabed" },
+	stone = { cap = rgb(206, 210, 222), body = rgb(168, 174, 192), name = "Stone" },
+	snow = { cap = rgb(250, 252, 255), body = rgb(224, 236, 252), name = "Snow" },
+	grassRock = { body = rgb(168, 174, 192), name = "Mountainside" }, -- grass cap, stone body
+	mesa = { body = rgb(222, 170, 116), name = "Sandstone" }, -- grass cap, warm cliff
+}
+
+-- Sea floor colour by depth: bright sand in the shallows, turquoise lagoon, deep-blue ocean.
+local SEABED_BY_TOP = {
+	[-2] = rgb(250, 226, 156),
+	[-4] = rgb(236, 224, 162),
+	[-6] = rgb(200, 226, 170),
+	[-8] = rgb(160, 214, 190),
+	[-14] = rgb(112, 208, 198),
+	[-16] = rgb(96, 184, 190),
+	[-24] = rgb(36, 118, 168),
 }
 
 return function(parent: any, world: any): { parts: number, rects: number }
@@ -122,8 +136,12 @@ return function(parent: any, world: any): { parts: number, rects: number }
 				local underwater = top < waterTop
 				local folder = if underwater then folders.water else folders.land
 				local capColor = style.cap
-				if kind == "grass" or kind == "grassRock" then
+				if kind == "grass" or kind == "grassRock" or kind == "mesa" then
 					capColor = GRASS_SHADES[(top // 4) % 3 + 1]
+				end
+				local bodyColor = style.body
+				if underwater then
+					bodyColor = SEABED_BY_TOP[top] or style.body
 				end
 				local bodyTop = if capColor then top - CAP else top
 				local bodyBottom = low - 0.5
@@ -134,13 +152,14 @@ return function(parent: any, world: any): { parts: number, rects: number }
 					Locked = true,
 					CastShadow = not underwater,
 				}
-				if bodyTop > bodyBottom and (not capColor or low < top) then
+				-- a body only where the drop is deeper than the cap (or for the single-part sea floor)
+				if bodyTop > bodyBottom and (not capColor or low < top - CAP) then
 					U.part(
 						folder,
 						style.name .. (if capColor then "Side" else ""),
 						Vector3.new(w, bodyTop - bodyBottom, d),
 						CFrame.new(cx, (bodyTop + bodyBottom) / 2, cz),
-						style.body,
+						bodyColor,
 						Enum.Material.SmoothPlastic,
 						extra
 					)

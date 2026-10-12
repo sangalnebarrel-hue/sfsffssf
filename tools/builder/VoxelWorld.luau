@@ -35,7 +35,8 @@ local sqrt, abs, floor, max, min = math.sqrt, math.abs, math.floor, math.max, ma
 local sin, cos, rad, deg, atan2 = math.sin, math.cos, math.rad, math.deg, math.atan2
 
 -- Column kinds (index order is used by Ground.luau for merging and colours).
-VoxelWorld.Kinds = { "grass", "meadow", "path", "sand", "shallow", "seabed", "deep", "stone", "snow", "grassRock" }
+VoxelWorld.Kinds =
+	{ "grass", "meadow", "path", "sand", "shallow", "seabed", "deep", "stone", "snow", "grassRock", "mesa" }
 local KIND_INDEX = {}
 for i, name in VoxelWorld.Kinds do
 	KIND_INDEX[name] = i
@@ -43,9 +44,12 @@ end
 VoxelWorld.KindIndex = KIND_INDEX
 
 -- Height bands on hills.
-local SNOW_LINE = 92
-local STONE_LINE = 76
-local ROCK_LINE = 52
+-- Largest step between neighbouring dry columns after relaxation (one jump).
+local MAX_STEP = 4
+
+local SNOW_LINE = 104
+local STONE_LINE = 84
+local ROCK_LINE = 72
 
 --------------------------------------------------------------------------------
 -- Math helpers
@@ -367,6 +371,17 @@ function VoxelWorld:hillHeight(x: number, z: number, r: number, theta: number, f
 	local n = self:fbm(x / 210, z / 210, 2) * 0.5 + 0.5
 	local ridge = 1 - abs(self:noise(x / 170 + 31, z / 170 - 17))
 	local h = c.HillHeight * rise * fall * (0.3 + 0.7 * (0.6 * n + 0.4 * ridge))
+	-- The windmill hill and the giant tree meadow stay the local high points: the natural hills
+	-- step down towards them instead of walling them in.
+	local mill, tree = self.landmarks.Windmill, self.landmarks.GiantTree
+	if mill then
+		local d = sqrt((x - mill.x) ^ 2 + (z - mill.z) ^ 2)
+		h *= 0.35 + 0.65 * smoothstep(mill.hillRadius + 8, mill.hillRadius + 110, d)
+	end
+	if tree then
+		local d = sqrt((x - tree.x) ^ 2 + (z - tree.z) ^ 2)
+		h *= smoothstep(tree.plateauRadius + 8, tree.plateauRadius + 110, d)
+	end
 	-- Keep gameplay areas flat and let hills grow away from them.
 	return h * smoothstep(0, 90, flat)
 end
@@ -437,6 +452,16 @@ function VoxelWorld:overridesHills(x: number, z: number): boolean
 	return tree ~= nil and sqrt((x - tree.x) ^ 2 + (z - tree.z) ^ 2) < tree.plateauRadius
 end
 
+-- Inside the waterfall mesa footprint?
+function VoxelWorld:onMesa(x: number, z: number): boolean
+	local fall = self.landmarks.Waterfall
+	if not fall then
+		return false
+	end
+	local lx, lz = radialLocal(x, z, fall.angle, fall.radius)
+	return lz >= 0 and lz <= fall.depth and abs(lx) <= fall.halfWidth
+end
+
 -- Islet height (absolute) or nil: chunky stepped islands with a rounded-square outline
 -- (few big rectangles = few parts), sand rim, 8-stud terraces.
 function VoxelWorld:isletHeight(x: number, z: number): (number?, string?)
@@ -471,9 +496,10 @@ local function landKind(top: number): string
 end
 
 --[[
-	Top (absolute y, multiple of 2) and kind of the column whose centre is (x, z).
+	Top (absolute y, multiple of 2) and kind of the column whose centre is (x, z), plus `locked`
+	for columns the slope relaxation in build() must keep (mesa cliffs, mountains).
 ]]
-function VoxelWorld:column(x: number, z: number): (number, string)
+function VoxelWorld:column(x: number, z: number): (number, string, boolean?, boolean?)
 	local c = self.cfg
 	local G = c.GroundTop
 	local r = sqrt(x * x + z * z)
@@ -484,16 +510,21 @@ function VoxelWorld:column(x: number, z: number): (number, string)
 	elseif r < c.HubRadius then
 		return 2, "sand"
 	elseif r < c.LagoonRadius then
-		-- three depth bands: shallow sand at both shores, then a sandy slope, then the deep middle
-		local d = min(r - c.HubRadius, c.LagoonRadius - r)
-		if d < 10 then
+		-- three depth bands (on the 16-stud grid: fewer parts): shallow sand at both shores,
+		-- then a sandy slope, then the deep middle
+		local m = 2 * c.CellSize
+		local lx, lz = (floor(x / m) + 0.5) * m, (floor(z / m) + 0.5) * m
+		local lr = sqrt(lx * lx + lz * lz)
+		local d = min(lr - c.HubRadius, c.LagoonRadius - lr)
+		if d < 12 then
 			return -2, "shallow"
-		elseif d < 28 then
+		elseif d < 30 then
 			return -6, "seabed"
 		end
 		return -c.LagoonDepth, "deep"
-	elseif r < c.PromenadeRadius - 5 then
-		return 2, "sand" -- (cells reaching under the promenade deck are already GroundTop)
+	elseif r < c.PromenadeRadius + 2 then
+		-- the beach runs under the promenade's lagoon edge (its sea wall hides the step)
+		return 2, "sand"
 	end
 
 	-- Hills, coast and sea are sampled on a coarser 16-stud grid: chunkier voxel steps and
@@ -523,26 +554,40 @@ function VoxelWorld:column(x: number, z: number): (number, string)
 			return G, if self:pathDistance(x, z) <= 0 then "path" else "grass"
 		end
 		local h = self:hillHeight(mx, mz, mr, theta, mflat)
+		local locked = false
+		local shaped = false -- height comes from a landmark shape, not the natural hills
 		if lh and (lh > h or lkind == "meadow" or self:overridesHills(x, z)) then
+			shaped = true
+			-- mesa and mountains keep their cliffs; the windmill/tree shapes are gentle anyway
+			locked = lkind ~= "meadow" and not self:overridesHills(x, z)
 			h = lh
 		end
 		local top = G + snap(h, 4)
-		return top, lkind or landKind(top)
+		local kind = lkind or landKind(top)
+		if locked and self:onMesa(x, z) and (kind == "grassRock" or kind == "grass") then
+			kind = "mesa" -- grass cap on warm sandstone cliffs
+		end
+		-- natural hills (sampled on the 16-stud grid) are relaxed block-wise in build()
+		return top, kind, locked, not shaped
 	end
 
 	-- Peak running into the sea.
 	if lh and lh > 2 then
 		local top = G + snap(lh, 4)
-		return top, lkind or landKind(top)
+		return top, lkind or landKind(top), true
 	end
 
 	-- Outer beach, then the sea floor stepping down to the ocean depth.
 	if mr < coastR + beach then
 		return 2, "sand"
 	end
-	local isleTop, isleKind = self:isletHeight(mx, mz)
-	local off = mr - coastR - beach
-	local bed = if off < 16 then -2 elseif off < 48 then -8 elseif off < 96 then -16 else -c.OceanDepth
+	-- the open sea is sampled on a 32-stud grid (nobody sees its floor in detail)
+	local big = 4 * c.CellSize
+	local bx, bz = (floor(x / big) + 0.5) * big, (floor(z / big) + 0.5) * big
+	local br = sqrt(bx * bx + bz * bz)
+	local isleTop, isleKind = self:isletHeight(if br > 1000 then bx else mx, if br > 1000 then bz else mz)
+	local off = br - self:coastRadius(deg(atan2(bx, bz)) % 360) - beach
+	local bed = if off < 20 then -2 elseif off < 60 then -8 elseif off < 120 then -16 else -c.OceanDepth
 	if isleTop and isleTop > bed then
 		if isleTop >= 4 then
 			local top = snap(isleTop, 4)
@@ -566,13 +611,192 @@ function VoxelWorld:build()
 	local count = size * size
 	self.top = buffer.create(count * 2) -- i16 tops
 	self.kind = buffer.create(count) -- u8 kind index
+	local locked = buffer.create(count)
+	local hill = buffer.create(count)
 	for iz = -n, n - 1 do
 		for ix = -n, n - 1 do
 			local x, z = (ix + 0.5) * cell, (iz + 0.5) * cell
-			local top, kind = self:column(x, z)
+			local top, kind, lock, isHill = self:column(x, z)
 			local i = self:index(ix, iz)
 			buffer.writei16(self.top, i * 2, top)
 			buffer.writeu8(self.kind, i, KIND_INDEX[kind])
+			buffer.writeu8(locked, i, if lock then 1 else 0)
+			buffer.writeu8(hill, i, if isHill and top >= 2 then 1 else 0)
+		end
+	end
+	self:relaxBlocks(hill)
+	self:relaxSlopes(locked)
+end
+
+--[[
+	Block-wise slope relaxation of the natural hills (they are sampled on 16-stud blocks of
+	2×2 columns): a block may stand at most MAX_STEP above any dry neighbour (block or fixed
+	column), so the hills become climbable 4-stud terraces and the blocks stay whole (few parts).
+]]
+function VoxelWorld:relaxBlocks(hill: buffer)
+	local n, size = self.n, self.size
+	local tops, kinds = self.top, self.kind
+	local b0 = -((n + 1) // 2) -- lowest block index (world block = floor(ix / 2))
+	local bsize = n + 1
+	local function blockOf(ix: number): number
+		return ix // 2 - b0
+	end
+	local nb = bsize * bsize
+	-- relaxable blocks: every column inside is a natural hill column
+	local height = table.create(nb, -1)
+	local relaxable = table.create(nb, true)
+	local fixedCap = table.create(nb, math.huge)
+	for iz = -n, n - 1 do
+		for ix = -n, n - 1 do
+			local b = blockOf(iz) * bsize + blockOf(ix) + 1
+			local i = (iz + n) * size + (ix + n)
+			if buffer.readu8(hill, i) == 1 then
+				height[b] = max(height[b], buffer.readi16(tops, i * 2))
+			else
+				relaxable[b] = false
+			end
+		end
+	end
+	-- caps from fixed dry columns next to a relaxable block
+	local function snapDown(h: number): number
+		return floor(h / 4) * 4
+	end
+	for iz = -n, n - 1 do
+		for ix = -n, n - 1 do
+			local b = blockOf(iz) * bsize + blockOf(ix) + 1
+			if relaxable[b] and height[b] >= 0 then
+				for _, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+					local jx, jz = ix + d[1], iz + d[2]
+					if jx >= -n and jx < n and jz >= -n and jz < n then
+						local b2 = blockOf(jz) * bsize + blockOf(jx) + 1
+						if b2 ~= b and not relaxable[b2] then
+							local h2 = buffer.readi16(tops, ((jz + n) * size + (jx + n)) * 2)
+							if h2 >= 2 then
+								fixedCap[b] = min(fixedCap[b], snapDown(h2 + MAX_STEP))
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	-- chamfer sweeps over the block grid
+	local function relax(b: number, b2: number): boolean
+		if not relaxable[b2] or height[b2] < 2 then
+			return false
+		end
+		local limit = height[b2] + MAX_STEP
+		if height[b] > limit then
+			height[b] = limit
+			return true
+		end
+		return false
+	end
+	for b = 1, nb do
+		if relaxable[b] and height[b] > fixedCap[b] then
+			height[b] = fixedCap[b]
+		end
+	end
+	for _ = 1, 64 do
+		local changed = false
+		for bz = 0, bsize - 1 do
+			for bx = 0, bsize - 1 do
+				local b = bz * bsize + bx + 1
+				if relaxable[b] then
+					if bx > 0 and relax(b, b - 1) then
+						changed = true
+					end
+					if bz > 0 and relax(b, b - bsize) then
+						changed = true
+					end
+				end
+			end
+		end
+		for bz = bsize - 1, 0, -1 do
+			for bx = bsize - 1, 0, -1 do
+				local b = bz * bsize + bx + 1
+				if relaxable[b] then
+					if bx < bsize - 1 and relax(b, b + 1) then
+						changed = true
+					end
+					if bz < bsize - 1 and relax(b, b + bsize) then
+						changed = true
+					end
+				end
+			end
+		end
+		if not changed then
+			break
+		end
+	end
+	-- write back
+	for iz = -n, n - 1 do
+		for ix = -n, n - 1 do
+			local b = blockOf(iz) * bsize + blockOf(ix) + 1
+			if relaxable[b] and height[b] >= 0 then
+				local i = (iz + n) * size + (ix + n)
+				if buffer.readi16(tops, i * 2) ~= height[b] then
+					buffer.writei16(tops, i * 2, height[b])
+					buffer.writeu8(kinds, i, KIND_INDEX[landKind(height[b])])
+				end
+			end
+		end
+	end
+end
+
+--[[
+	Slope relaxation: on dry land every column may rise at most MAX_STEP above any dry
+	neighbour, so all hills are climbable 4-stud terraces (one jump each) instead of 8-12-stud
+	walls. Only lowers columns; locked ones (mesa cliffs, mountains) and the sea floor are kept.
+	Chamfer sweeps (forward + backward) until nothing changes.
+]]
+function VoxelWorld:relaxSlopes(locked: buffer)
+	local size = self.size
+	local tops, kinds = self.top, self.kind
+	local function relax(i: number, j: number): boolean
+		local hj = buffer.readi16(tops, j * 2)
+		if hj < 2 then
+			return false -- water does not hold the land up (sea cliffs stay)
+		end
+		local hi = buffer.readi16(tops, i * 2)
+		if hi > hj + MAX_STEP and buffer.readu8(locked, i) == 0 then
+			local h = hj + MAX_STEP
+			buffer.writei16(tops, i * 2, h)
+			-- recolour by the new height (hills only; gameplay kinds are flat and never lowered)
+			local kind = VoxelWorld.Kinds[buffer.readu8(kinds, i)]
+			if kind == "grass" or kind == "grassRock" or kind == "stone" or kind == "snow" then
+				buffer.writeu8(kinds, i, KIND_INDEX[landKind(h)])
+			end
+			return true
+		end
+		return false
+	end
+	for _ = 1, 64 do
+		local changed = false
+		for iz = 0, size - 1 do
+			for ix = 0, size - 1 do
+				local i = iz * size + ix
+				if ix > 0 and relax(i, i - 1) then
+					changed = true
+				end
+				if iz > 0 and relax(i, i - size) then
+					changed = true
+				end
+			end
+		end
+		for iz = size - 1, 0, -1 do
+			for ix = size - 1, 0, -1 do
+				local i = iz * size + ix
+				if ix < size - 1 and relax(i, i + 1) then
+					changed = true
+				end
+				if iz < size - 1 and relax(i, i + size) then
+					changed = true
+				end
+			end
+		end
+		if not changed then
+			break
 		end
 	end
 end

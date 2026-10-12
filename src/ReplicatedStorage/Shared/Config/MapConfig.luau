@@ -62,10 +62,10 @@ local MapConfig = {
 		{ Name = "Waterfall", Angle = 45, Radius = 404 }, -- скала с водопадом и прудом; Radius — фронт скалы
 		{ Name = "Windmill", Angle = 135, Radius = 432 }, -- ступенчатый холм с мельницей
 		{ Name = "GiantTree", Angle = 225, Radius = 420 }, -- луг с гигантским деревом
-		{ Name = "Peak", Angle = 315, Radius = 580 }, -- снежная вершина у внешнего берега
+		{ Name = "Peak", Angle = 315, Radius = 580, Size = 125, Height = 176 }, -- снежная вершина у берега
 		-- ещё две горы на внешнем кольце (за участками 3 и 5): Size — радиус подножия, Height — высота
-		{ Name = "PeakEast", Angle = 112.5, Radius = 612, Size = 130, Height = 96 },
-		{ Name = "PeakSouth", Angle = 202.5, Radius = 620, Size = 120, Height = 84 },
+		{ Name = "PeakEast", Angle = 112.5, Radius = 612, Size = 120, Height = 140 },
+		{ Name = "PeakSouth", Angle = 202.5, Radius = 620, Size = 112, Height = 124 },
 	},
 
 	-- Океан -------------------------------------------------------------------------------

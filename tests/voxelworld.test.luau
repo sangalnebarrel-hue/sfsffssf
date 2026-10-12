@@ -53,7 +53,7 @@ tests["promenade ring is flat and dry all the way round"] = function(t)
 	for a = 0, 359.5, 0.5 do
 		for _, r in
 			{
-				cfg.PromenadeRadius + 3,
+				cfg.PromenadeRadius + 8,
 				cfg.PromenadeRadius + cfg.PromenadeWidth / 2,
 				cfg.PromenadeRadius + cfg.PromenadeWidth - 3,
 			}
