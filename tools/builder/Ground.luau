@@ -175,7 +175,11 @@ return function(parent: any, world: any): { parts: number, rects: number }
 				}
 				-- a body only where the drop is deeper than the cap (or for the single-part sea floor)
 				if bodyTop > bodyBottom and (not capColor or low < top - CAP) then
-					local strata = not underwater and style.strata and STRATA[style.strata]
+					local strataName = style.strata
+					if kind == "path" and top > 24 then
+						strataName = "Mountainside" -- the carved peak trail: rock walls, not dirt
+					end
+					local strata = not underwater and strataName and STRATA[strataName]
 					local visibleBottom = math.max(bodyBottom, waterTop - 2) -- strata only above the water
 					if strata and bodyTop - visibleBottom > 2 * STRATUM then
 						-- horizontal bands on absolute y, so neighbouring cliffs line up

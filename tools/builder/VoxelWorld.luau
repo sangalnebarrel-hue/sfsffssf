@@ -251,8 +251,8 @@ function VoxelWorld:setupLandmarks()
 			site.pondRadius = 30
 			site.pondBed = -6
 		elseif def.Name == "Windmill" then
-			site.hillRadius = 84
-			site.topRadius = 18
+			site.hillRadius = 90
+			site.topRadius = 24 -- a roomy meadow for the hero windmill
 			site.top = 36
 		elseif def.Name == "GiantTree" then
 			site.plateauRadius = 46

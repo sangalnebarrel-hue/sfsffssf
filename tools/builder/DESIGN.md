@@ -184,7 +184,7 @@ third argument to `buildMap(game, cfg, world)`, which passes it on to `buildHub(
 | `world.bases[i]` | `{ index, angle, x, z }` (slot position) |
 | `world.gateways[i]` | `{ index, angle, x, z, radius }` flat plazas behind each bridge landing |
 | `world.landmarks.Waterfall` | `{ angle, radius (cliff front r), cliffTop = 56, halfWidth = 56, depth = 150, pondR, pondX, pondZ, pondRadius = 30 }` — mesa from r = radius outwards (flat top 56, a 44-high ledge ring along its sides/back), pond (water) at its foot |
-| `world.landmarks.Windmill` | `{ angle, radius, x, z, hillRadius = 84, topRadius = 18, top = 36 }` — climbable ziggurat, flat meadow top |
+| `world.landmarks.Windmill` | `{ angle, radius, x, z, hillRadius = 90, topRadius = 24, top = 36 }` — climbable ziggurat, flat meadow top |
 | `world.landmarks.GiantTree` | `{ angle, radius, x, z, plateauRadius = 46, top = 8 }` — meadow plateau one step up |
 | `world.landmarks.Peak` | `{ angle, radius, x, z, mountainRadius = 150, top = 116 }` — snowy mountain at the outer coast |
 | `world.islets[i]` | `{ angle, x, z, size, height }` — stepped rounded-square islands in the ocean |
@@ -198,16 +198,17 @@ waterfall pond and the peak's foot.
 
 ## 6. What goes where (composition)
 
-* **Hub (r < 150)** — the heart of the map, seen from every base across the lagoon: a big
-  bright village plaza. Four avenues from the bridge landings (θ = 0/90/180/270, decks land at
-  r ≈ 118–124) meet at a central landmark (giant fountain with a golden fish / a tall
-  lighthouse). The three shops sit between avenues, each a big colourful building with a
-  huge sign and a blocky shopkeeper: `Shop` (rods), `FishMarket` (sell fish), `Workshop`
-  (upgrades); plus a Ferris wheel, food stalls, benches, lamps, flower beds, bunting, palms
-  on the beach ring and a small harbour with boats. `HubSpawn` (SpawnLocation) near the centre.
+* **Hub (r < 185, plaza r < 158)** — the heart of the map, seen from every base across the
+  lagoon: a big bright village. Four avenues from the bridge landings (θ = 0/90/180/270, decks
+  land at r ≈ 152) meet at the ~75-stud «Золотая рыбка» tower (stepped fountain with a circling
+  golden fish). The three shops (1.2× scale, r ≈ 76, porches on the plaza rim) sit between the
+  avenues with huge signs and blocky shopkeepers: `Shop` (rods), `FishMarket` (sell fish),
+  `Workshop` (upgrades); a second ring holds the game booth, the stage, food kiosks, a Ferris
+  wheel and the harbour boardwalk; palms, huts and a terrace step ring the beach. The view lanes
+  from every base to the tower stay open. `HubSpawn` (SpawnLocation) near the centre.
 * **Bridges** — 4 chunky voxel bridges with arches at both ends.
 * **Promenade (r 312–330)** — plank/stone ring walk with lamps, benches, flower boxes and
-  bunting; gaps at piers (θ = base angle ± 5°) and bridge landings.
+  bunting; a sea wall on the lagoon side; gaps at piers (θ = base angle ± 6°) and bridge landings.
 * **Gateways (θ = 0/90/180/270, r ≈ 372)** — each a themed plaza: welcome arch + big sign,
   e.g. fish statue, notice board/map, market stall, photo spot.
 * **Landmarks (θ = 45/135/225/315)** — Waterfall (falls down the mesa face into the pond,
