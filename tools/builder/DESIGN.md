@@ -173,7 +173,7 @@ PointLight Range ≤ 16.
 
 Part budgets (runtime total target ≈ 16 000, plus fish models later): ground ≤ 4 000 (column
 caps, bodies, cliff strata, six mountains), 8 bases × ≤ 600, hub ≤ 2 200, map dressing
-(everything in `Workspace.Map` except Ground and Hub) ≤ 6 360 parts and 40 PointLights, of which
+(everything in `Workspace.Map` except Ground and Hub) ≤ 6 600 parts and 40 PointLights, of which
 Nature gets at least 2 500: Map.luau builds Nature last with whatever is left and fails the
 build when a cap is exceeded or Nature falls short.
 
