@@ -497,7 +497,21 @@ function VoxelWorld:landmarkShape(x: number, z: number, flat: number, mflat: num
 					then min(1, (t / 0.55) ^ 0.9)
 					elseif site.style == "green" then t ^ 0.8
 					else min(1, t ^ 1.35 / 0.8) -- a broad crown, not a one-column chimney
-				shape += 0.08 * self:noise(mx / 40 + 5, mz / 40 + 9) * t
+				shape += 0.14 * self:noise(mx / 40 + 5, mz / 40 + 9) * t
+				-- three ridges with valleys between them (strongest at the foot, none at the crown):
+				-- a mountain, not a round cake
+				local theta = atan2(mx - site.x, mz - site.z)
+				local phase = rad(site.angle * 2.7)
+				local valley = 0.5 - 0.5 * cos(3 * (theta - phase))
+				local ridgeDepth = if site.style == "sandstone" then 0.2 else 0.44
+				shape *= 1 - ridgeDepth * valley * (1 - t) ^ 0.6
+				-- a shoulder sub-peak on one flank
+				local sr = site.mountainRadius
+				local sx, sz = site.x + 0.55 * sr * sin(phase + 1.2), site.z + 0.55 * sr * cos(phase + 1.2)
+				local sd = sqrt((mx - sx) ^ 2 + (mz - sz) ^ 2) / (0.42 * sr)
+				if sd < 1 then
+					shape = max(shape, 0.58 * (1 - sd) ^ 1.1)
+				end
 				-- the mountain foot never spills into plots or paths
 				local h = (site.top - 4) * clamp(shape, 0, 1) * smoothstep(0, 30, mflat)
 				if site.summitTop then
@@ -561,25 +575,38 @@ function VoxelWorld:onMesa(x: number, z: number): boolean
 	return lz >= 0 and lz <= fall.depth and abs(lx) <= fall.halfWidth
 end
 
--- Islet height (absolute) or nil: a rounded-square island (few big rectangles = few parts)
--- with a wide sand rim, a broad grassy shelf and, on the bigger ones, one raised plateau.
+-- Islet height (absolute) or nil: an irregular voxel island (its outline wobbles with angle) with a
+-- sand rim that is wide on the beach side and narrow on the cliff side, a grassy shelf and, on the
+-- bigger ones, a raised plateau pushed towards the cliff side with a terrace below it.
 function VoxelWorld:isletHeight(x: number, z: number): (number?, string?)
 	for _, isle in self.islets do
-		local dx, dz = abs(x - isle.x), abs(z - isle.z)
-		-- square voxel islands: every terrace is a single block (cheap far-away scenery)
-		local d = max(dx, dz)
-		local radius = isle.size
-		if d < radius then
-			if d > radius - 28 then
-				return 2, "sand"
+		local dx, dz = x - isle.x, z - isle.z
+		local d = sqrt(dx * dx + dz * dz)
+		if d < isle.size * 1.3 then
+			local theta = atan2(dx, dz)
+			local seed = isle.index * 1.7
+			local cliff = rad(isle.angle * 3.1 + 40) -- direction of the cliff side
+			local facing = 0.5 + 0.5 * cos(theta - cliff) -- 1 on the cliff side, 0 on the beach side
+			local wobble = 1
+				+ 0.18 * self:noise(cos(theta) * 1.6 + seed, sin(theta) * 1.6 - seed)
+				+ 0.1 * cos(2 * theta + seed)
+			local radius = isle.size * wobble
+			if d < radius then
+				local rim = 28 - 18 * facing
+				if d > radius - rim then
+					return 2, "sand"
+				end
+				local inner = radius - rim
+				-- the plateau sits off-centre towards the cliff side
+				local px, pz = isle.x + inner * 0.22 * sin(cliff), isle.z + inner * 0.22 * cos(cliff)
+				local pd = sqrt((x - px) ^ 2 + (z - pz) ^ 2)
+				if pd < inner * 0.5 and isle.height > 12 then
+					return 4 + snap(isle.height, 8), nil -- the plateau
+				elseif pd < inner * 0.75 and isle.height > 28 then
+					return 4 + snap(isle.height * 0.5, 8), nil -- a terrace below it
+				end
+				return 4, nil -- grassy shelf above the beach
 			end
-			local inner = radius - 28
-			if d < inner * 0.55 and isle.height > 12 then
-				return 4 + snap(isle.height, 8), nil -- the plateau
-			elseif d < inner * 0.8 and isle.height > 28 then
-				return 4 + snap(isle.height * 0.5, 8), nil -- a terrace below it
-			end
-			return 4, nil -- grassy shelf above the beach
 		end
 	end
 	return nil, nil
