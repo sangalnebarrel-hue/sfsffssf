@@ -1578,7 +1578,9 @@ function Props.giantTree(parent: any, cf: any, opts: { [string]: any }?): any
 		local midZ = (top.Z + foot.Z) / 2
 		local midY = (top.Y + foot.Y) / 2
 		b:span("SlideLeg", xc - 0.6, -0.5, midZ - 0.6, xc + 0.6, midY - 0.6, midZ + 0.6, C.Wood, NOSHADOW)
-		b:span("SlidePad", xc - 2.2, -0.3, foot.Z - 3.5, xc + 2.2, 0.45, foot.Z + 0.4, C.Orange)
+		-- (the pad is wider than the rails: no shared side planes where they run into it; it is a
+		-- deep block, so it still stands on the ground where the foot overhangs a terrace step)
+		b:span("SlidePad", xc - 2.5, -4.2, foot.Z - 3.5, xc + 2.5, 0.45, foot.Z + 0.4, C.Orange)
 		-- the stair: 20 chunky steps (1.4 up each, 3.1 apart) on a square loop 5..10.5 out from
 		-- the trunk centre, once round the trunk; the top step is flush with the deck
 		local c = 7.75
@@ -2534,11 +2536,12 @@ function Props.bunting(parent: any, fromPos: any, toPos: any, opts: { [string]: 
 		end
 		local col = colors[1 + (offset + i - 1) % #colors]
 		local top = p - Vector3.new(0, 0.05, 0)
-		-- wide upper block + narrow lower block = a stepped pennant
+		-- wide upper block + narrow lower block = a stepped pennant (0.32 thick: its faces stand
+		-- 0.07 proud of the 0.18 rope it hangs from, never in the rope's side planes)
 		local h1, h2 = size * 0.8, size * 0.3
 		b:block(
 			`Flag{i}`,
-			Vector3.new(size, h1, 0.2),
+			Vector3.new(size, h1, 0.32),
 			CFrame.fromMatrix(top - Vector3.new(0, h1 / 2, 0), along, UP, zAxis),
 			col,
 			nil,
@@ -2546,7 +2549,7 @@ function Props.bunting(parent: any, fromPos: any, toPos: any, opts: { [string]: 
 		)
 		b:block(
 			`FlagTip{i}`,
-			Vector3.new(size * 0.55, h2, 0.2),
+			Vector3.new(size * 0.55, h2, 0.32),
 			CFrame.fromMatrix(top - Vector3.new(0, h1 + h2 / 2 - 0.02, 0), along, UP, zAxis),
 			col,
 			nil,
@@ -2639,7 +2642,7 @@ function Props.beachChair(parent: any, cf: any, opts: { [string]: any }?): any
 	b:span("LegBack", -1.5, 0, 1.0, 1.5, 0.65, 1.4, frame, NOSHADOW)
 	b:span("Seat", -1.2, 0.7, -2.3, 1.2, 0.95, 0.9, col)
 	b:span("BackLow", -1.2, 0.9, 0.9, 1.2, 2.2, 1.35, C.White)
-	b:span("BackHigh", -1.2, 2.1, 1.3, 1.2, 3.4, 1.75, col)
+	b:span("BackHigh", -1.25, 2.1, 1.3, 1.25, 3.4, 1.75, col) -- 0.05 wider: no shared side planes
 	return b:finish(main)
 end
 
