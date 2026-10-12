@@ -36,13 +36,13 @@ Shared palette (use `Props.Colors`, keep names):
 
 | name | RGB | use |
 |---|---|---|
-| GrassTop / GrassTop2 / GrassTop3 | 104,214,72 / 88,198,62 / 124,226,86 | ground caps, lawns |
+| GrassTop A / B / High | 118,218,66 / 128,226,74 / 146,234,82 | ground caps (noise patches; High above y 40) |
 | Dirt / DirtDark | 170,116,70 / 136,90,56 | ground sides, soil |
 | Sand / SandDark / SandWet | 255,228,152 / 236,200,124 / 240,212,140 | beaches |
 | Stone / StoneDark / StoneLight | 158,166,180 / 120,128,144 / 196,202,212 | cliffs, rocks, paving |
 | Snow | 248,252,255 | peak caps |
 | Wood / WoodDark / WoodLight | 204,138,78 / 150,94,52 / 236,184,120 | planks, posts, decks |
-| Leaf1 / Leaf2 / Leaf3 | 62,176,64 / 88,204,72 / 132,228,92 | foliage shading |
+| Leaf1 / Leaf2 / Leaf3 | 58,166,64 / 84,194,76 / 116,216,98 | foliage shading (see Props.Colors) |
 | Pine1 / Pine2 / Pine3 | 36,140,84 / 50,166,96 / 76,192,110 | conifers |
 | Blossom1 / Blossom2 | 255,150,200 / 255,190,225 | cherry trees |
 | Autumn1 / Autumn2 | 255,150,40 / 255,196,60 | autumn trees |
@@ -150,11 +150,11 @@ via `Util.part`, `CanTouch = false` by default, foliage/tiny details `CanCollide
 models' pivots via `WorldPivotData`/PrimaryPart, part budgets respected, no PointLight shadows,
 PointLight Range ≤ 16.
 
-Part budgets (runtime total target ≤ 15 000): ground ≤ 4 000, 8 bases × ≤ 450, hub ≤ 1 800,
-bridges + promenade ≤ 1 200, nature ≤ 2 500, landmarks + islets + lagoon decor ≤ 1 500.
-The map dressing as a whole (everything in `Workspace.Map` except Ground and Hub) is capped at
-4 000 parts and 40 PointLights; Map.luau builds Nature last with whatever is left and fails
-the build when the cap is exceeded.
+Part budgets (runtime total target ≈ 15 500, plus fish models later): ground ≤ 4 000 (≈ 3 950:
+column caps, bodies, cliff strata), 8 bases × ≤ 450, hub ≤ 1 900 (aim 1 800), map dressing
+(everything in `Workspace.Map` except Ground and Hub) ≤ 6 000 parts and 40 PointLights, of which
+Nature gets at least 2 200: Map.luau builds Nature last with whatever is left and fails the
+build when a cap is exceeded or Nature falls short.
 
 Spinning models: any Model under `Workspace.Map` with a number attribute `Spin` (degrees per
 second) is turned about its pivot's LookVector by the client (AmbientController); child Models

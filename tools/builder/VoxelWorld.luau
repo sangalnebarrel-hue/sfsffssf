@@ -525,8 +525,8 @@ function VoxelWorld:onMesa(x: number, z: number): boolean
 	return lz >= 0 and lz <= fall.depth and abs(lx) <= fall.halfWidth
 end
 
--- Islet height (absolute) or nil: chunky stepped islands with a rounded-square outline
--- (few big rectangles = few parts), sand rim, 8-stud terraces.
+-- Islet height (absolute) or nil: a rounded-square island (few big rectangles = few parts)
+-- with a wide sand rim, a broad grassy shelf and, on the bigger ones, one raised plateau.
 function VoxelWorld:isletHeight(x: number, z: number): (number?, string?)
 	for _, isle in self.islets do
 		local dx, dz = abs(x - isle.x), abs(z - isle.z)
@@ -534,11 +534,16 @@ function VoxelWorld:isletHeight(x: number, z: number): (number?, string?)
 		local d = (dx ^ 4 + dz ^ 4) ^ 0.25
 		local radius = isle.size
 		if d < radius then
-			if d > radius - 16 then
+			if d > radius - 28 then
 				return 2, "sand"
 			end
-			local t = clamp((radius - 16 - d) / max(radius * 0.55, 1), 0, 1)
-			return 4 + snap(isle.height * t, 8), nil
+			local inner = radius - 28
+			if d < inner * 0.55 and isle.height > 12 then
+				return 4 + snap(isle.height, 8), nil -- the plateau
+			elseif d < inner * 0.8 and isle.height > 28 then
+				return 4 + snap(isle.height * 0.5, 8), nil -- a terrace below it
+			end
+			return 4, nil -- grassy shelf above the beach
 		elseif d < radius + 24 then
 			return -4, "shallow"
 		end
@@ -598,7 +603,7 @@ function VoxelWorld:column(x: number, z: number): (number, string, boolean?, boo
 	local theta = deg(atan2(mx, mz)) % 360
 	local coastR = self:coastRadius(theta)
 	local cliff = self:cliffiness(theta)
-	local beach = if cliff > 0.5 then 0 else 16
+	local beach = if cliff > 0.5 then 0 else 28 -- two 16-stud sand cells on open coasts
 
 	-- Landmarks (the peak may run out into the sea, so check before the coast).
 	local flat = if r < coastR + 200 then self:flatDistance(x, z, r) else math.huge

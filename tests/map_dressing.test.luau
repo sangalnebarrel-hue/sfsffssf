@@ -190,4 +190,30 @@ tests["deterministic: a second build places the same parts"] = function(t)
 	t.ok(signature(again.map) == signature(map), "identical dressing")
 end
 
+tests["the peak's summit deck sits flush and centred on the carved flat summit"] = function(t)
+	local site = world.landmarks.Peak
+	local deck = nil
+	for _, d in map:GetDescendants() do
+		if d.Name == "SummitDeck" then
+			deck = d
+			break
+		end
+	end
+	t.ok(deck ~= nil, "Landmarks has a SummitDeck")
+	if not deck then
+		return
+	end
+	-- (Lune has no Model:GetBoundingBox: measure the plank deck itself)
+	local plank = deck:FindFirstChild("Deck")
+	t.ok(plank ~= nil and plank:IsA("BasePart"), "SummitDeck has its Deck part")
+	if not plank then
+		return
+	end
+	local pos, size = plank.CFrame.Position, plank.Size
+	local dx, dz = pos.X - site.x, pos.Z - site.z
+	t.ok(math.sqrt(dx * dx + dz * dz) < 6, `deck centre {pos} within 6 studs of the summit centre`)
+	local bottom = pos.Y - size.Y / 2
+	t.ok(math.abs(bottom - site.summitTop) < 2, `deck bottom {bottom} within 2 studs of summitTop {site.summitTop}`)
+end
+
 return tests
