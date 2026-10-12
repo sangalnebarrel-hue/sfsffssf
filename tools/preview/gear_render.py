@@ -11,7 +11,8 @@ Per model (ids from the specs), in DIR:
     <id>_<Mutation>.png  fish only: 3/4 view of each mutation (Gold, Neon, Rainbow)
     <id>_bobber.png    rods only: 3/4 view of the bobber (float)
     sheet_<id>.png     everything above on one labelled sheet (for reviewing)
-All views of one kind share one scale, so sizes compare 1:1 (a Mythic fish really is bigger).
+Side views of one kind share one scale, so sizes compare 1:1 (a Mythic fish really is bigger);
+the other views fill their frame.
 Neon blocks get a soft glow, like Roblox's bloom on Neon parts.
 """
 
@@ -35,7 +36,7 @@ ISO_AZ, ISO_EL = 38.0, 24.0
 
 # Fixed pixel budgets per view; the scale (px per stud) is shared by a kind.
 VIEW = {
-    "rod": {"side": (1500, 300), "front": (300, 300), "iso": (1100, 520), "bobber": (360, 360)},
+    "rod": {"side": (1500, 420), "front": (360, 360), "iso": (1100, 560), "bobber": (360, 360)},
     "fish": {"side": (1100, 560), "front": (560, 560), "iso": (900, 560), "mutation": (560, 360)},
 }
 
@@ -199,18 +200,7 @@ def main(argv=None):
             continue
         boxes = [extents(m["parts"]) for m in base]
         V = VIEW[kind]
-        scales[kind] = {
-            "side": fit_scale(boxes, V["side"], (0, 1), 0.06),
-            "front": fit_scale(boxes, V["front"], (2, 1)),
-            "iso": fit_scale(boxes, V["iso"], (iso_extent_w, iso_extent_h), 0.08),
-        }
-        if kind == "fish":
-            scales[kind]["mutation"] = fit_scale(boxes, V["mutation"], (iso_extent_w, iso_extent_h), 0.08)
-        else:
-            bob = [extents(v["bobber"]["parts"]) for v in by_id.values() if "bobber" in v]
-            scales[kind]["bobber"] = min(
-                fit_scale(bob, V["bobber"], (iso_extent_w, iso_extent_h), 0.15), scales[kind]["side"] * 2.5
-            )
+        scales[kind] = {"side": fit_scale(boxes, V["side"], (0, 1), 0.06)}
 
     for mid, variants in by_id.items():
         if args.only and mid not in args.only:
@@ -219,10 +209,12 @@ def main(argv=None):
         kind = base["kind"]
         V, S = VIEW[kind], scales[kind]
         parts = base["parts"]
+        box = [extents(parts)]
         side, cam = shoot(parts, (0, 0, -1), S["side"], V["side"], bg)
         side = draw_grid(side, cam, cell, bg)
-        front, _ = shoot(parts, (-1, 0, 0), S["front"], V["front"], bg)
-        iso, _ = shoot(parts, None, S["iso"], V["iso"], bg, orbit=(ISO_AZ, ISO_EL))
+        front, _ = shoot(parts, (-1, 0, 0), fit_scale(box, V["front"], (2, 1), 0.14), V["front"], bg)
+        iso_scale = fit_scale(box, V["iso"], (iso_extent_w, iso_extent_h), 0.1)
+        iso, _ = shoot(parts, None, iso_scale, V["iso"], bg, orbit=(ISO_AZ, ISO_EL))
         side.save(f"{args.out_dir}/{mid}_side.png")
         front.save(f"{args.out_dir}/{mid}_front.png")
         iso.save(f"{args.out_dir}/{mid}_iso.png")
@@ -230,13 +222,16 @@ def main(argv=None):
         if kind == "fish":
             for mut in ("Gold", "Neon", "Rainbow"):
                 if mut in variants:
-                    im, _ = shoot(variants[mut]["parts"], None, S["mutation"], V["mutation"], bg, orbit=(ISO_AZ, ISO_EL))
+                    mscale = fit_scale(box, V["mutation"], (iso_extent_w, iso_extent_h), 0.12)
+                    im, _ = shoot(variants[mut]["parts"], None, mscale, V["mutation"], bg, orbit=(ISO_AZ, ISO_EL))
                     im.save(f"{args.out_dir}/{mid}_{mut}.png")
                     tiles.append((im, mut))
             title = f"{base['title']} · {base['rarity']} · {base['blockCount']} блоков · длина {base['length']:g} кл."
         else:
             if "bobber" in variants:
-                im, _ = shoot(variants["bobber"]["parts"], None, S["bobber"], V["bobber"], bg, orbit=(ISO_AZ, ISO_EL))
+                bbox = [extents(variants["bobber"]["parts"])]
+                bscale = fit_scale(bbox, V["bobber"], (iso_extent_w, iso_extent_h), 0.2)
+                im, _ = shoot(variants["bobber"]["parts"], None, bscale, V["bobber"], bg, orbit=(ISO_AZ, ISO_EL))
                 im.save(f"{args.out_dir}/{mid}_bobber.png")
                 tiles.append((im, "поплавок"))
             title = f"{base['title']} · уровень {base['tier']} · {base['blockCount']} блоков · длина {base['length']:g} кл."
