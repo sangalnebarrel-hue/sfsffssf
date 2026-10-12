@@ -39,11 +39,17 @@ local rad, cos, tan, floor = math.rad, math.cos, math.tan, math.floor
 
 local Promenade = {}
 
--- Gateway themes by bridge angle (shared with Gateways.luau): name, colour.
+-- Gateway themes by bridge angle (shared with Gateways.luau): name, colour (and the bridge's
+-- accent plank when the pastel would read as water: white on the blue bridge).
 Promenade.Themes = {
 	[0] = { gate = "ЮЖНЫЕ ВОРОТА", bridge = "ЮЖНЫЙ МОСТ", color = C.Orange },
 	[90] = { gate = "ВОСТОЧНЫЕ ВОРОТА", bridge = "ВОСТОЧНЫЙ МОСТ", color = C.Pink },
-	[180] = { gate = "СЕВЕРНЫЕ ВОРОТА", bridge = "СЕВЕРНЫЙ МОСТ", color = C.Blue },
+	[180] = {
+		gate = "СЕВЕРНЫЕ ВОРОТА",
+		bridge = "СЕВЕРНЫЙ МОСТ",
+		color = C.Blue,
+		plank = C.White,
+	},
 	[270] = { gate = "ЗАПАДНЫЕ ВОРОТА", bridge = "ЗАПАДНЫЙ МОСТ", color = rgb(64, 196, 92) },
 }
 
@@ -182,7 +188,7 @@ function Promenade.buildBridges(map: any, cfg: any, world: any)
 			if string.match(name, "^Deck%d+$") then
 				-- planks: light / honey wood, every fourth one in the gateway's pastel
 				local k = tonumber(string.sub(name, 5)) :: number
-				d.Color = if k % 4 == 3 then pastel elseif k % 2 == 1 then C.WoodLight else honey
+				d.Color = if k % 4 == 3 then theme.plank or pastel elseif k % 2 == 1 then C.WoodLight else honey
 			elseif string.match(name, "^TopRail") or string.match(name, "^MidRail") then
 				-- split round the lookout; the top rail gets chunkier (1.2 x 1.4) and the
 				-- gateway's colour, the mid rail its pastel
@@ -376,12 +382,15 @@ end
 -- two colours poking out of it at different heights. Stands on cf (local X along the ring).
 local function planter(parent: any, cf: any, boxColor: any, c1: any, c2: any)
 	local b = Kit.builder(parent, "Planter", cf)
-	local box = b:box("Box", -2.4, -0.2, -1.4, 2.4, 1.3, 1.4, boxColor)
-	b:box("Greens", -2.05, 1.0, -1.05, 2.05, 2.6, 1.05, C.Leaf2, Kit.DECOR)
-	b:box("Bloom1", -1.65, 2.2, -0.7, -0.35, 3.5, 0.6, c1, Kit.DECOR)
-	b:box("Bloom2", 0.35, 2.6, -0.55, 1.65, 3.9, 0.75, c2, Kit.DECOR)
+	local box = b:box("Box", -2.4, -0.2, -1.4, 2.4, 1.2, 1.4, boxColor)
+	b:box("Greens", -2.05, 0.9, -1.05, 2.05, 2.2, 1.05, C.Leaf2, Kit.DECOR)
+	b:box("Bloom1", -1.6, 2.0, -0.65, -0.5, 3.1, 0.45, c1, Kit.DECOR)
+	b:box("Bloom2", 0.45, 2.3, -0.4, 1.55, 3.4, 0.7, c2, Kit.DECOR)
 	return b:finish(box)
 end
+
+-- Bloom colours for the planters (never the box's own colour).
+local PLANTER_BLOOMS = { C.Yellow, C.Red, C.Pink, C.Purple, C.Orange, C.Blue }
 
 function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	local promenade = U.model(map, "Promenade")
@@ -408,7 +417,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	end
 	-- outer kerb (0.5 high: walkable) between the plots; in front of a plot its own front wall
 	-- already edges the walk, and it opens where the gateway roads (± 9 studs) and the landmark
-	-- paths (± 6) leave the ring. It overhangs the tiles' outer face by 0.1 (no shimmer).
+	-- paths (± 6) leave the ring. It overhangs the tiles' outer face by ~0.2 (no shimmer).
 	local roadGap = math.deg(math.asin(11 / outer))
 	local pathGap = math.deg(math.asin(8 / outer))
 	for _, run in
@@ -433,7 +442,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	do
 		if run[3] == "kerb" then
 			for _, pc in pieces(run[1], run[2], 7.5) do
-				ringPiece(paving, "KerbOuter", pc[1], pc[2], outer - 1.4, outer + 0.1, top, top + 0.5, C.White, FLAT)
+				ringPiece(paving, "KerbOuter", pc[1], pc[2], outer - 1.4, outer + 0.2, top, top + 0.5, C.White, FLAT)
 			end
 		end
 	end
@@ -552,17 +561,24 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	-- or landmark path), so something colourful passes by every ~35 studs. The lagoon edge keeps
 	-- its lamps only: the running lane stays clear.
 	local furniture = U.model(promenade, "Furniture")
-	local boxColors = { C.Red, C.Blue, C.Yellow, C.Pink, C.Purple, C.Orange }
+	-- (boxes in the colour of the ring quarter, like the lamp caps)
 	local n = 0
 	local function planterAt(a: number, r: number)
 		n += 1
 		local q = U.polar(a, r, 0)
+		local boxColor = quarterColor(a)
+		local blooms = {}
+		for _, c in PLANTER_BLOOMS do
+			if c ~= boxColor then
+				table.insert(blooms, c)
+			end
+		end
 		planter(
 			furniture,
 			CFrame.new(q.X, top, q.Z) * CFrame.Angles(0, rad(a), 0),
-			boxColors[n % #boxColors + 1],
-			C.Flowers[(n * 3) % #C.Flowers + 1],
-			C.Flowers[(n * 3 + 2) % #C.Flowers + 1]
+			boxColor,
+			blooms[(n * 2) % #blooms + 1],
+			blooms[(n * 2 + 3) % #blooms + 1]
 		)
 	end
 	for i = 1, cfg.BaseCount do
