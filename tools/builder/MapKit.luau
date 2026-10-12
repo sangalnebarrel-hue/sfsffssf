@@ -19,6 +19,7 @@
 	  Kit.ramp(...)                     sloped walkable block between two top points (boardwalks,
 	                                    or an invisible collider over visible steps)
 	  Kit.lamp / Kit.flowerMeadow       cheap chunky lamp (4 parts), flower meadow (5 parts)
+	  Kit.bench                         cheap chunky bench (4 parts)
 	  Kit.flowerBed                     planted box: blooms on stems (2 + 2 per flower)
 
 	Property presets (pass as `extra`): DECOR (tiny non-walkable details), NOSHADOW, NEON,
@@ -275,6 +276,25 @@ function Kit.lamp(parent: any, cf: any, opts: { [string]: any }?): any
 		Kit.light(glow, 16, 1.3)
 	end
 	return b:finish(post)
+end
+
+--[[
+	Chunky 4-part bench (seat, back, two legs) — the cheap sibling of Props.bench (8 parts) for
+	plazas and viewpoints. Stands on cf, the sitter faces -Z. opts: length (6), color (seat and
+	back, default WoodLight), legs (default Wood), name.
+]]
+function Kit.bench(parent: any, cf: any, opts: { [string]: any }?): any
+	local o = opts or {}
+	local C = Kit.C
+	local L = o.length or 6
+	local wood = o.color or C.WoodLight
+	local b = Kit.builder(parent, o.name or "Bench", cf)
+	local seat = b:box("Seat", -L / 2, 1.5, -1, L / 2, 2.2, 1, wood)
+	b:box("Back", -L / 2, 2.2, 0.55, L / 2, 4.3, 1.15, Kit.shade(wood, 0.9), Kit.NOSHADOW)
+	for i, x in { -L / 2 + 0.4, L / 2 - 1.4 } do
+		b:box(`Leg{i}`, x, -0.3, -0.8, x + 1, 1.5, 0.95, o.legs or C.Wood)
+	end
+	return b:finish(seat)
 end
 
 --[[
