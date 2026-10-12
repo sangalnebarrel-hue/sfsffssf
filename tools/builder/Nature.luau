@@ -1332,11 +1332,11 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 			-- the peak trail: a pine avenue up to the mountain's foot on both sides, each pine on
 			-- the first spot out from the path where it fits (the terraces beside the cut)
 			if name == "Peak" then
-				-- (from 28 studs out: the path mouth by the promenade stays open)
+				-- (from 26 studs out: the path mouth by the promenade stays open)
 				local foot = site.radius - site.mountainRadius - outerR
-				for lz = 28, foot - 6, 20 do
+				for lz = 26, foot - 6, 18 do
 					for _, side in { -1, 1 } do
-						local s = srng(1.5, 1.75)
+						local s = srng(1.25, 1.45) -- (neat rows, not a dark tunnel at eye level)
 						local ok = false
 						for _, dz in { 0, 5, -5 } do
 							for lx = 14, 30, 3 do

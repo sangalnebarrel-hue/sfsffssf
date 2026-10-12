@@ -4,8 +4,8 @@
 	  Map.Lagoon  sailboats, rowboats, a motorboat, a ring of buoys, lily pads near both shores, a
 	              floating raft with a parasol, a swim platform with a slide, a sandbar island
 	              with a palm and two small ones (the coral reefs on the bed are Nature's). The
-	              water in front of every pier (base-local lz -PierLength..0, |lx| <= 26) and
-	              along the bridges stays clear (lagoonClear).
+	              water in front of every pier (base-local lz -(PierLength + 16)..0, |lx| <= 26)
+	              and along the bridges stays clear (lagoonClear).
 	  Map.Ocean   decorated islets (world.islets, all beyond the boundary wall, seen through the
 	              haze, so lean: Nature.farTree palms / pines / cherries at 5 parts a tree): a
 	              lighthouse on a stone foundation, a pirate hideout with a hut and a flag, a palm
@@ -14,7 +14,7 @@
 	              between the coast and the boundary wall, a ring of red / yellow marker buoys
 	              just inside the wall (the swim limit), a big sailboat far out at sea. Parts
 	              beyond the wall neither collide nor cast shadows.
-	  Map.Sky     voxel clouds (Props.cloud): a ring of 10 big ones low over the open ocean
+	  Map.Sky     voxel clouds (Props.cloud): a ring of 8 big ones low over the open ocean
 	              (r 1020-1260, y 130-190: one on the horizon of every outward view) and three
 	              high ones over the hills.
 
@@ -553,10 +553,10 @@ local function buildSky(map: any, cfg: any)
 	local sky = U.model(map, "Sky")
 	local rng = Kit.rng(2718)
 	-- big chunky clouds low over the open ocean (~130-230 studs long, 35-60 tall), one every
-	-- ~36° with their long side to the island, far enough out to sit on the horizon of every
+	-- 45° with their long side to the island, far enough out to sit on the horizon of every
 	-- view out to sea (from the plots, the coast and the peaks alike)
-	for k = 0, 9 do
-		local a = k * 36 + 14 + rng(-7, 7)
+	for k = 0, 7 do
+		local a = k * 45 + 14 + rng(-8, 8)
 		local p = U.polar(a, if k % 2 == 0 then rng(1020, 1120) else rng(1160, 1260), 0)
 		local y = rng(130, 190)
 		Kit.prop("cloud", sky, CFrame.new(p.X, y, p.Z) * CFrame.Angles(0, rad(a + rng(-12, 12)), 0), {
