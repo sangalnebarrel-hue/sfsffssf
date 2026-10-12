@@ -157,8 +157,8 @@ local DEFAULTS = {
 	WaterTop = 0,
 	GroundTop = 4,
 	CellSize = 8,
-	HubRadius = 150,
-	HubPlazaRadius = 124,
+	HubRadius = 185,
+	HubPlazaRadius = 158,
 	LagoonRadius = 296,
 	LagoonDepth = 14,
 	BeachWidth = 12,
@@ -177,7 +177,7 @@ local DEFAULTS = {
 	BridgeWidth = 18,
 	GatewayRadius = 40,
 	GatewayDistance = 372,
-	RingOuterRadius = 640,
+	RingOuterRadius = 600,
 	HillHeight = 60,
 	PathWidth = 12,
 	Landmarks = {},
@@ -515,6 +515,30 @@ function VoxelWorld:overridesHills(x: number, z: number): boolean
 	return tree ~= nil and sqrt((x - tree.x) ^ 2 + (z - tree.z) ^ 2) < tree.plateauRadius
 end
 
+-- Kind of a mountain column: grass foot, stone flanks above y 24 (grey strata, not dirt), bare
+-- rock and then snow towards the top; the snow line follows each peak's own height.
+function VoxelWorld:peakKind(x: number, z: number, top: number): string
+	local site, best = nil, math.huge
+	for _, s in self.landmarks do
+		if s.peak then
+			local d = (x - s.x) ^ 2 + (z - s.z) ^ 2
+			if d < best then
+				site, best = s, d
+			end
+		end
+	end
+	local peakTop = if site then (site.summitTop or site.top) else 116
+	local snowLine = max(peakTop - 36, 80)
+	if top >= snowLine then
+		return "snow"
+	elseif top >= snowLine - 20 then
+		return "stone"
+	elseif top > 24 then
+		return "grassRock"
+	end
+	return "grass"
+end
+
 -- Inside the waterfall mesa footprint?
 function VoxelWorld:onMesa(x: number, z: number): boolean
 	local fall = self.landmarks.Waterfall
@@ -631,10 +655,18 @@ function VoxelWorld:column(x: number, z: number): (number, string, boolean?, boo
 			locked = lkind ~= "meadow" and not self:overridesHills(x, z)
 			h = lh
 		end
+		-- Sea cliffs: where the coast is rocky, its last 24 studs stand at least 12 above the water
+		-- as warm sandstone (instead of a lawn running into the sea).
+		if cliff > 0.5 and not shaped and coastR - mr < 24 then
+			h = max(h, 12)
+			shaped, locked, lkind = true, true, "mesa"
+		end
 		local top = G + snap(h, 4)
 		local kind = lkind or landKind(top)
 		if locked and self:onMesa(x, z) and (kind == "grassRock" or kind == "grass") then
 			kind = "mesa" -- grass cap on warm sandstone cliffs
+		elseif locked and kind ~= "mesa" and kind ~= "path" and kind ~= "meadow" then
+			kind = self:peakKind(x, z, top) -- mountains: stone sides, snow caps
 		end
 		-- natural hills (sampled on the 16-stud grid) are relaxed block-wise in build()
 		return top, kind, locked, not shaped
@@ -646,9 +678,10 @@ function VoxelWorld:column(x: number, z: number): (number, string, boolean?, boo
 		return top, lkind or landKind(top), true
 	end
 
-	-- Outer beach, then the sea floor stepping down to the ocean depth.
+	-- Outer beach (an upper dune row at y 3, then y 2: 1-stud steps, no jumps), then the sea
+	-- floor stepping down to the ocean depth.
 	if mr < coastR + beach then
-		return 2, "sand"
+		return if mr < coastR + 12 then 3 else 2, "sand"
 	end
 	-- the open sea is sampled on a 32-stud grid (nobody sees its floor in detail)
 	local big = 4 * c.CellSize

@@ -115,8 +115,8 @@ lighting.Ambient = rgb(110, 112, 132)
 lighting.OutdoorAmbient = rgb(150, 162, 205)
 lighting.ColorShift_Top = rgb(255, 244, 226)
 lighting.ColorShift_Bottom = rgb(0, 0, 0)
-lighting.EnvironmentDiffuseScale = 1
-lighting.EnvironmentSpecularScale = 0.6
+lighting.EnvironmentDiffuseScale = 0.6
+lighting.EnvironmentSpecularScale = 0.2 -- less plastic sky reflection on the blocks
 lighting.ExposureCompensation = 0
 lighting.GlobalShadows = true
 lighting.ShadowSoftness = 0.25
@@ -127,12 +127,12 @@ if dof then
 end
 local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
 	or U.new("Atmosphere", { Name = "Atmosphere" }, lighting)
-atmosphere.Density = 0.24
-atmosphere.Offset = 0.1
-atmosphere.Color = rgb(172, 214, 255)
-atmosphere.Decay = rgb(110, 170, 255)
-atmosphere.Glare = 0.2
-atmosphere.Haze = 0.35
+atmosphere.Density = 0.2
+atmosphere.Offset = 0.15
+atmosphere.Color = rgb(196, 228, 255)
+atmosphere.Decay = rgb(120, 180, 255)
+atmosphere.Glare = 0
+atmosphere.Haze = 0.15
 local bloom = lighting:FindFirstChildOfClass("BloomEffect") or U.new("BloomEffect", { Name = "Bloom" }, lighting)
 -- Only Neon blooms (sunlit cream/white surfaces stay crisp).
 bloom.Intensity = 0.8
@@ -144,7 +144,7 @@ sunRays.Intensity = 0.04
 sunRays.Spread = 0.5
 local grade = lighting:FindFirstChildOfClass("ColorCorrectionEffect")
 	or U.new("ColorCorrectionEffect", { Name = "ColorCorrection" }, lighting)
-grade.Saturation = 0.2
+grade.Saturation = 0.25
 grade.Contrast = 0.12
 grade.Brightness = 0.03
 grade.TintColor = rgb(255, 252, 246)

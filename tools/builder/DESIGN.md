@@ -72,8 +72,8 @@ hub island       r < 150     (plaza flat at GroundTop for r < 124, sand y = 2 to
 | WaterTop | 0 | water surface everywhere (lagoon + ocean) |
 | GroundTop | 4 | plots, promenade, hub plaza |
 | CellSize | 8 | ground voxel column width (studs); heights are multiples of 2 |
-| HubRadius | 150 | hub island waterline |
-| HubPlazaRadius | 124 | hub flat ground (GroundTop) radius |
+| HubRadius | 185 | hub island waterline |
+| HubPlazaRadius | 158 | hub flat ground (GroundTop) radius |
 | LagoonRadius | 296 | ring shore waterline |
 | LagoonDepth | 14 | deepest lagoon bed (y = −14) |
 | BeachWidth | 12 | sand (y = 2) from LagoonRadius to the promenade |
@@ -84,7 +84,7 @@ hub island       r < 150     (plaza flat at GroundTop for r < 124, sand y = 2 to
 | PlotFront / PlotDepth / PlotHalfWidth | 18 / 150 / 68 | plot rectangle in base-local space |
 | PierLength / PierHalfWidth | 92 / 22 | pier corridor in base-local space (incl. end platform) |
 | BridgeAngles / BridgeWidth | {0,90,180,270} / 18 | bridges hub ↔ promenade |
-| RingOuterRadius | 640 | mean outer coastline |
+| RingOuterRadius | 600 | mean outer coastline |
 | OceanHalf / OceanDepth | 1400 / 24 | ocean square half-size / bed depth |
 | BoundaryRadius | 780 | invisible wall ring in the ocean |
 
@@ -150,10 +150,10 @@ via `Util.part`, `CanTouch = false` by default, foliage/tiny details `CanCollide
 models' pivots via `WorldPivotData`/PrimaryPart, part budgets respected, no PointLight shadows,
 PointLight Range ≤ 16.
 
-Part budgets (runtime total target ≈ 15 500, plus fish models later): ground ≤ 4 000 (≈ 3 950:
-column caps, bodies, cliff strata), 8 bases × ≤ 450, hub ≤ 1 900 (aim 1 800), map dressing
-(everything in `Workspace.Map` except Ground and Hub) ≤ 6 000 parts and 40 PointLights, of which
-Nature gets at least 2 200: Map.luau builds Nature last with whatever is left and fails the
+Part budgets (runtime total target ≈ 16 000, plus fish models later): ground ≤ 4 200 (column
+caps, bodies, cliff strata, six mountains), 8 bases × ≤ 450, hub ≤ 2 100, map dressing
+(everything in `Workspace.Map` except Ground and Hub) ≤ 6 300 parts and 40 PointLights, of which
+Nature gets at least 2 500: Map.luau builds Nature last with whatever is left and fails the
 build when a cap is exceeded or Nature falls short.
 
 Spinning models: any Model under `Workspace.Map` with a number attribute `Spin` (degrees per

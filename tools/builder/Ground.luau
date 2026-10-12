@@ -24,15 +24,17 @@ local MAX_SPAN = 240 -- columns per rectangle side (part size limit 2048)
 -- kind -> { cap = Color3?, body = Color3, name }
 -- Grass: two close shades in broad noise patches (calm lawns, not a contour-map quilt) and a
 -- light highlight on high ground.
-local GRASS_A, GRASS_B, GRASS_HIGH = rgb(118, 218, 66), rgb(128, 226, 74), rgb(146, 234, 82)
+local GRASS_LIME, GRASS_FOREST, GRASS_MEADOW = rgb(124, 222, 70), rgb(104, 204, 62), rgb(150, 232, 84)
+local GRASS_HIGH = rgb(112, 210, 68) -- slightly deeper on high ground
 local HIGH_GROUND = 40
+local FAR = 780 -- beyond the boundary: one tint (bigger merged rectangles)
 -- Tall cliff bodies are split into horizontal strata (absolute y bands) of 2-3 shades.
 local STRATUM = 8
 local STRATA = {
 	Dirt = { rgb(206, 148, 88), rgb(186, 128, 74) },
-	Mountainside = { rgb(168, 174, 192), rgb(150, 156, 176) },
-	Stone = { rgb(168, 174, 192), rgb(150, 156, 176) },
-	Snow = { rgb(224, 236, 252), rgb(206, 220, 240) },
+	Mountainside = { rgb(186, 194, 214), rgb(166, 174, 198) },
+	Stone = { rgb(186, 194, 214), rgb(166, 174, 198) },
+	Snow = { rgb(236, 244, 255), rgb(220, 232, 250) },
 	Sandstone = { rgb(232, 178, 112), rgb(214, 150, 92), rgb(246, 206, 150) },
 }
 local DIRT = rgb(206, 148, 88)
@@ -149,10 +151,14 @@ return function(parent: any, world: any): { parts: number, rects: number }
 				local folder = if underwater then folders.water else folders.land
 				local capColor = style.cap
 				if kind == "grass" or kind == "grassRock" or kind == "mesa" then
-					capColor = if top > HIGH_GROUND
-						then GRASS_HIGH
-						elseif world:noise(cx / 192 + 3.7, cz / 192 - 1.3) > 0 then GRASS_A
-						else GRASS_B
+					-- three tints in broad patches (forest floor / lime / warm meadow)
+					local tint = world:noise(cx / 256 + 3.7, cz / 256 - 1.3)
+					capColor = if math.sqrt(cx * cx + cz * cz) > FAR
+						then GRASS_LIME
+						elseif top > HIGH_GROUND then GRASS_HIGH
+						elseif tint < -0.28 then GRASS_FOREST
+						elseif tint > 0.32 then GRASS_MEADOW
+						else GRASS_LIME
 				end
 				local bodyColor = style.body
 				if underwater then
