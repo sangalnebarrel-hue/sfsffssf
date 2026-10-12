@@ -17,9 +17,13 @@
 	Most of the budget goes into cheap pieces (2-5 parts) so the land reads full: 5-part voxel
 	trees (Nature.farTree), 3-part flower bushes, 2-3 part bushes, 3-4 part rocks (warm light
 	greys with a moss cap, always with a flower bush or a bush beside them), hay bales, short
-	fence runs, and set-pieces of 5-11 parts (pumpkin patch with a scarecrow, picnic blanket,
-	bee boxes, log pile, mushroom ring, raised flower beds, bush clumps); all of them sized to
-	read from the promenade, not as 2-stud dots.
+	fence runs, voxel cacti, and set-pieces of 5-11 parts (pumpkin patch with a scarecrow, picnic
+	blanket, bee boxes, log pile, mushroom ring, raised flower beds, bush clumps); all of them
+	sized to read from the promenade, not as 2-stud dots.
+
+	Up on a mountain its style picks the trees: pines on the snow peaks (snow-dusted only there),
+	plain pines and round trees on the green hill, palms and autumn trees on the red-rock mesas
+	(at most MESA_TREES on each ochre top, with a few cacti and terracotta boulders).
 
 	Passes, each with its share of the budget (unspent parts carry over to the next one):
 	  reef    12 coral reef patches on the lagoon's sandy slope beside the piers and bridges
@@ -29,11 +33,16 @@
 	  show    the lawns between two plots at the peak trail and the giant tree (seen first from
 	          the promenade): a pine avenue framing the peak trail, then raised flower beds,
 	          bush clumps and boulder groups on the voxel grid
+	  wedges  the hills behind the gateway plazas: clumps of two or three trees in the
+	          district's theme (orchard, cherries, palms, pines) on the terrace lips either side
+	          of the climb, each with a flowering bush
 	  coast   a pair of palms every ~65 studs of the outer beaches; between the pairs, by turns,
 	          a beach set (parasol with a towel, sandcastle, towel and ball, driftwood) and a rock
 	          group at the waterline in a ring of foam; foamy rocks in the surf below the cliffs
-	  pines   up to 14 pines on the grassy flanks of each mountain, snow-dusted higher up, and a
-	          few snow-capped rocks
+	  pines   the mountains in their styles: up to 14 pines on the grassy flanks of each snow
+	          peak (snow-dusted higher up) with snow-capped rocks, pines and round trees on the
+	          green hill with mossy rocks; on each red-rock mesa three cacti, up to 8 palms /
+	          autumn trees and terracotta boulders
 	  belts   a continuous tree line behind every plot's back wall (two rows, round-robin over
 	          the plots), one tree family per plot by the biome noise
 	  crests  trees on the hill crests (local high points): the skyline behind the plots
@@ -91,6 +100,9 @@ local ROCK = U.rgb(190, 190, 204)
 local ROCK_DARK = U.rgb(166, 168, 184)
 local HAY = { U.rgb(236, 196, 88), U.rgb(250, 220, 118) }
 local FOAM = U.rgb(250, 254, 255)
+-- Red-rock mesas: terracotta boulders and lime voxel cacti on the ochre tops.
+local REDROCK = U.rgb(222, 118, 78)
+local CACTUS = { U.rgb(156, 236, 60), U.rgb(112, 204, 64) }
 
 -- Leaf palettes {dark, mid, light}: deeper greens than the lime grass so woods read as woods,
 -- but bright and warm (hue ~120-125°, no blue-green slabs on the far hills).
@@ -403,6 +415,26 @@ local function beeBoxes(parent: any, cf: any, seed: number): any
 		b:box(`Roof{i}`, x - 1.3, h - 0.05, -1.3, x + 1.3, h + 0.5, 1.3, if i == 2 then C.Orange else C.Yellow)
 	end
 	return b:finish(first)
+end
+
+-- Voxel cactus (5-6 parts, for the red-rock mesas' ochre tops): a lime column with two arms in
+-- a darker green (a stub out, then up, at two heights) and now and then a bloom on top.
+local function cactus(parent: any, cf: any, s: number, seed: number): any
+	local r = Kit.rng(seed)
+	local b = Kit.builder(parent, "Cactus", turned(cf, r))
+	local h = r(8.5, 10.5)
+	local trunk = b:box("Trunk", -1.1 * s, -0.5, -1.1 * s, 1.1 * s, h * s, 1.1 * s, CACTUS[1])
+	local y1 = h * r(0.3, 0.4)
+	b:box("ArmL", -3.0 * s, y1 * s, -0.7 * s, -1.0 * s, (y1 + 1.4) * s, 0.7 * s, CACTUS[2], FOLIAGE)
+	b:box("ArmLUp", -3.0 * s, (y1 + 1.3) * s, -0.7 * s, -1.7 * s, (y1 + r(3.4, 4.4)) * s, 0.7 * s, CACTUS[2], FOLIAGE)
+	local y2 = h * r(0.5, 0.6)
+	b:box("ArmR", 1.0 * s, y2 * s, -0.6 * s, 2.8 * s, (y2 + 1.3) * s, 0.6 * s, CACTUS[2], FOLIAGE)
+	b:box("ArmRUp", 1.5 * s, (y2 + 1.2) * s, -0.6 * s, 2.8 * s, (y2 + r(2.6, 3.4)) * s, 0.6 * s, CACTUS[2], FOLIAGE)
+	if r() < 0.7 then
+		local bloom = if r() < 0.5 then C.Pink else C.Yellow
+		b:box("Bloom", -0.6 * s, h * s - 0.1, -0.6 * s, 0.6 * s, (h + 0.9) * s, 0.6 * s, bloom, FOLIAGE)
+	end
+	return b:finish(trunk)
 end
 
 -- Log pile (3 parts): two logs side by side and one on top.
@@ -875,9 +907,43 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		hay = 3,
 		fence = 4,
 		meadow = 5,
+		cactus = 6,
 	}
 	local fullTrees = 0
 	local seedRng = Kit.rng(9001)
+
+	-- The mountains (by angle) and the one whose foot (plus `pad`) holds (x, z), if any: its
+	-- style picks the trees — snowy pines on the snow peaks, plain pines and round trees on the
+	-- green hill, palms, autumn trees and cacti on the red-rock mesas.
+	local peaks = {}
+	for _, site in world.landmarks do
+		if site.peak then
+			table.insert(peaks, site)
+		end
+	end
+	table.sort(peaks, function(a, b)
+		return a.angle < b.angle
+	end)
+	local function peakAt(x: number, z: number, pad: number): any
+		local best, bestD = nil, math.huge
+		for _, p in peaks do
+			local d = sqrt((x - p.x) ^ 2 + (z - p.z) ^ 2)
+			if d < p.mountainRadius + pad and d < bestD then
+				best, bestD = p, d
+			end
+		end
+		return best
+	end
+	-- An ochre mesa top (red-rock column above y 40): only a few palms and autumn trees there
+	-- (MESA_TREES per mesa), a few cacti and boulders.
+	local MESA_TREES = 5
+	local mesaTrees = {}
+	local function mesaTop(x: number, z: number, h: number): any
+		if h > 40 and world:kindAt(x, z) == "redrock" then
+			return peakAt(x, z, 0)
+		end
+		return nil
+	end
 
 	-- Places a tree of `kind` ("oak" | "round" | "birch" | "cherry" | "autumn" | "gold" |
 	-- "pine" | "snowPine" | "palm") at (x, z) if it fits; `level` = "full" | "lite" | "far";
@@ -896,6 +962,13 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		end
 		s = scale or s
 		local seed = floor(seedRng(1, 1e6))
+		if kind == "snowPine" then
+			-- snow-dusted pines only on the snowy mountains
+			local pk = peakAt(x, z, 30)
+			if not pk or pk.style ~= "snow" then
+				kind = "pine"
+			end
+		end
 		local pine = kind == "pine" or kind == "snowPine"
 		local canopy, bottom
 		if level == "far" then
@@ -925,6 +998,10 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		end
 		local h = flatAt(x, z, TRUNK_R[level] * s + 0.4) -- (trunk sides clear of any riser)
 		if not h or not fits(x, z, canopy, 0, fam) or not clearCanopy(x, z, h, canopy, bottom) then
+			return 0
+		end
+		local mesa = mesaTop(x, z, h)
+		if mesa and (mesaTrees[mesa] or 0) >= MESA_TREES then
 			return 0
 		end
 		-- the trunk and the canopy keep off the other dressing
@@ -986,15 +1063,18 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 			end
 		end
 		addPlaced(x, z, canopy, 0, fam)
+		if mesa then
+			mesaTrees[mesa] = (mesaTrees[mesa] or 0) + 1
+		end
 		count(kind)
 		count(level)
 		return U.partCount - before
 	end
 
-	-- Small things: "tuft" | "shrub" | "rock" | "hay" | "fence" | "meadow" (footprint radius by
-	-- kind and size). opts: scale, gap (extra clearance), margin (distance kept from reserved
-	-- ground; small decor may hug the paths and plots), berry (shrubs), cap / color (rocks),
-	-- yaw (fences), white (fences).
+	-- Small things: "tuft" | "shrub" | "rock" | "hay" | "fence" | "meadow" | "cactus" (footprint
+	-- radius by kind and size). opts: scale, gap (extra clearance), margin (distance kept from
+	-- reserved ground; small decor may hug the paths and plots), berry (shrubs), cap / color
+	-- (rocks), yaw (fences), white (fences).
 	local function small(x: number, z: number, kind: string, opts: { [string]: any }?): number
 		local o = opts or {}
 		local seed = floor(seedRng(1, 1e6))
@@ -1006,6 +1086,7 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 			elseif kind == "hay" then 3.4
 			elseif kind == "fence" then 5.2
 			elseif kind == "meadow" then 6.6
+			elseif kind == "cactus" then 3 * s + 0.4
 			else 3
 		if not affordable(COST[kind]) then
 			return 0
@@ -1018,7 +1099,10 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		if not h or not fits(x, z, 0, radius + (o.gap or 1), kind) then
 			return 0
 		end
-		local height = if kind == "fence" or kind == "hay" or kind == "rock" then 5 else 3.5
+		local height = if kind == "cactus"
+			then 11 * s
+			elseif kind == "fence" or kind == "hay" or kind == "rock" then 5
+			else 3.5
 		if blocked(x, z, radius, h + 0.2, h + height) then
 			return 0
 		end
@@ -1034,6 +1118,8 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 			hayBales(groups.sets, cf, seed)
 		elseif kind == "fence" then
 			fence(groups.sets, cf * CFrame.Angles(0, rad(o.yaw or 0), 0), 8, o.white == true)
+		elseif kind == "cactus" then
+			cactus(groups.plants, cf, s, seed)
 		else
 			rock(groups.rocks, cf, s, seed, { cap = o.cap, color = o.color, pebble = o.pebble })
 		end
@@ -1081,15 +1167,6 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		end
 	end
 
-	local peaks = {}
-	for _, site in world.landmarks do
-		if site.peak then
-			table.insert(peaks, site)
-		end
-	end
-	table.sort(peaks, function(a, b)
-		return a.angle < b.angle
-	end)
 	local fall = world.landmarks.Waterfall
 	local function onMesa(x: number, z: number, h: number): boolean
 		if not fall or h < G + fall.cliffTop - 8 then
@@ -1099,20 +1176,21 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		return lz > 6 and lz < fall.depth - 10 and abs(lx) < fall.halfWidth - 4
 	end
 	local function nearPeak(x: number, z: number, pad: number): boolean
-		for _, p in peaks do
-			local dx, dz = x - p.x, z - p.z
-			if dx * dx + dz * dz < (p.mountainRadius + pad) ^ 2 then
-				return true
-			end
-		end
-		return false
+		return peakAt(x, z, pad) ~= nil
 	end
 
-	-- Family of a grove at a site and the kind of each of its trees.
+	-- Family of a grove at a site and the kind of each of its trees; up on a mountain the
+	-- mountain's style decides: pines on the snow peaks, pines and round trees on the green
+	-- hill, palms and autumn trees on the red-rock mesas.
 	local function family(s: { [string]: any }): string
+		local pk = if s.h >= G + 28 then peakAt(s.x, s.z, 20) else nil
 		if onMesa(s.x, s.z, s.h) then
 			return "blossom"
-		elseif s.h >= G + 60 or (s.h >= G + 28 and nearPeak(s.x, s.z, 20)) then
+		elseif pk and pk.style == "sandstone" then
+			return "desert"
+		elseif pk and pk.style == "green" then
+			return "greenhill"
+		elseif pk or s.h >= G + 60 then
 			return "pines"
 		elseif s.biome > 0.2 then
 			return "cherry"
@@ -1124,6 +1202,14 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	local function speciesOf(fam: string, roll: number, h: number): string
 		if fam == "pines" then
 			return if h >= G + 88 then "snowPine" else "pine"
+		elseif fam == "greenhill" then
+			return if roll < 0.5 then "pine" elseif roll < 0.82 then "round" else "oak"
+		elseif fam == "desert" then
+			-- palms on the ochre tops, autumn colours on the grassy ledges
+			if h > 40 then
+				return if roll < 0.75 then "palm" else "autumn"
+			end
+			return if roll < 0.4 then "autumn" elseif roll < 0.7 then "gold" else "palm"
 		elseif fam == "blossom" then
 			return if roll < 0.75 then "cherry" else "birch"
 		elseif fam == "cherry" then
@@ -1179,7 +1265,14 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	local function decorGroup(x: number, z: number, h: number, margin: number): number
 		local roll = drng()
 		local farm = h <= G + 16
-		if h >= G + 28 and nearPeak(x, z, 10) then
+		local pk = if h >= G + 28 then peakAt(x, z, 10) else nil
+		if pk and pk.style == "sandstone" then
+			-- the red-rock mesas: terracotta boulders, on the ochre tops now and then a cactus
+			if roll < 0.3 and mesaTop(x, z, h) then
+				return small(x, z, "cactus", { scale = drng(1.4, 1.7), margin = margin })
+			end
+			return small(x, z, "rock", { scale = drng(1.1, 1.5), color = REDROCK, margin = margin })
+		elseif pk then
 			if roll < 0.55 then
 				return rockGroup(x, z, drng(1.1, 1.5), margin, drng)
 			end
@@ -1403,6 +1496,83 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	end
 
 	--------------------------------------------------------------------------------------------
+	-- Pass 0c: gateway wedges — the hills behind the four gateway plazas are the first land seen
+	-- from every bridge: clumps of two or three trees in the district's theme on the terrace lips
+	-- either side of the climb (orchard trees behind the farm, cherries behind the garden, palms
+	-- behind the harbour, pines round the camp), each with a flowering bush, clear of the climb
+	-- and the plaza (the district's own pieces and claims keep their ground)
+	--------------------------------------------------------------------------------------------
+	do
+		local THEMES = {
+			[0] = { "round", "oak", "round" },
+			[90] = { "cherry", "round", "cherry" },
+			[180] = { "palm", "round", "palm" },
+			[270] = { "pine", "round", "pine" },
+		}
+		local wrng = Kit.rng(1357)
+		for _, gw in world.gateways do
+			local kinds = THEMES[floor(gw.angle + 0.5) % 360] or THEMES[0]
+			local ux, uz = sin(rad(gw.angle)), cos(rad(gw.angle))
+			local cands = {}
+			for _, s in sites do
+				local lx, lz = world.radialLocal(s.x, s.z, gw.angle, 0)
+				local plaza = sqrt((s.x - gw.x) ^ 2 + (s.z - gw.z) ^ 2)
+				if lz > 400 and lz < 545 and abs(lx) >= 18 and abs(lx) <= 0.24 * lz and plaza > gw.radius + 14 then
+					-- terrace lips first (the ground drops towards the promenade in front)
+					local lip = world:heightAt(s.x - ux * 8, s.z - uz * 8) <= s.h - 4
+					table.insert(cands, { s = s, score = (if lip then 1 else 0) + 0.6 * s.jitter - lz / 400 })
+				end
+			end
+			sortBy(cands, "score")
+			local clumps, planted = {}, 0
+			for _, c in cands do
+				if #clumps >= 7 or planted >= 15 then
+					break
+				end
+				local s = c.s
+				local apart = true
+				for _, o in clumps do
+					if (o[1] - s.x) ^ 2 + (o[2] - s.z) ^ 2 < 34 * 34 then
+						apart = false
+						break
+					end
+				end
+				if apart then
+					-- the clump: its centre and up to two neighbours a canopy's width away (tried
+					-- round it in five directions)
+					local fam = `wedge{gw.index}_{#clumps + 1}`
+					local a0 = wrng(0, 2 * math.pi)
+					local n = 0
+					for k = 0, 5 do
+						if n >= 3 or planted >= 15 then
+							break
+						end
+						local x, z = s.x, s.z
+						if k > 0 then
+							local a = a0 + k * 1.2566
+							x, z = s.x + 20 * sin(a), s.z + 20 * cos(a)
+						end
+						-- (on a column's centre: the trunk never straddles a terrace step)
+						x, z = floor(x / 8) * 8 + 4, floor(z / 8) * 8 + 4
+						if tree(x, z, kinds[(n + k) % #kinds + 1], detail(x, z), fam) > 0 then
+							n += 1
+							planted += 1
+							count("wedgeTree")
+						end
+					end
+					if n > 0 then
+						table.insert(clumps, { s.x, s.z })
+						count("wedge")
+						local a = a0 + 1.05
+						local berry = BLOOMS[floor(wrng(1, #BLOOMS + 0.99))]
+						small(s.x + 10 * sin(a), s.z + 10 * cos(a), "shrub", { scale = wrng(1.3, 1.6), berry = berry })
+					end
+				end
+			end
+		end
+	end
+
+	--------------------------------------------------------------------------------------------
 	-- Pass 1: coast — palm pairs, beach sets and foamy rocks along the outer beaches, rocks in
 	-- the surf below the cliffs
 	--------------------------------------------------------------------------------------------
@@ -1574,18 +1744,57 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	end
 
 	--------------------------------------------------------------------------------------------
-	-- Pass 2: pines on the mountains' grassy flanks (snow-dusted higher up) and a few rocks
+	-- Pass 2: trees on the mountains, in each one's style — pines on the snow peaks' grassy flanks
+	-- (snow-dusted higher up) and snow-capped rocks; plain pines and round trees on the green
+	-- hill and mossy rocks; on the red-rock mesas (sparingly: the strata are the show) three
+	-- cacti, a few palms and terracotta boulders on the ochre top, autumn trees on the ledges
 	--------------------------------------------------------------------------------------------
 	do
 		local q = quota("pines")
 		local spent = 0
+		local prng = Kit.rng(3141)
+		-- the mesas' cacti first, spread over the ochre top
+		for _, p in peaks do
+			if p.style == "sandstone" then
+				local list = {}
+				for _, s in sites do
+					if mesaTop(s.x, s.z, s.h) == p then
+						table.insert(list, { s = s, score = s.jitter })
+					end
+				end
+				sortBy(list, "score")
+				local done = {}
+				for _, e in list do
+					if #done >= 3 then
+						break
+					end
+					local apart = true
+					for _, o in done do
+						if (o[1] - e.s.x) ^ 2 + (o[2] - e.s.z) ^ 2 < 30 * 30 then
+							apart = false
+							break
+						end
+					end
+					if apart then
+						local used = small(e.s.x, e.s.z, "cactus", { scale = prng(1.5, 1.8) })
+						if used > 0 then
+							spent += used
+							table.insert(done, { e.s.x, e.s.z })
+						end
+					end
+				end
+			end
+		end
 		local perPeak = {}
 		for i, p in peaks do
 			local list = {}
 			for _, s in sites do
 				local dx, dz = s.x - p.x, s.z - p.z
 				local d = sqrt(dx * dx + dz * dz)
-				if d < p.mountainRadius + 10 and s.h >= G + 8 and (s.kind == "grass" or s.kind == "grassRock") then
+				local land = if p.style == "sandstone"
+					then s.kind == "redrock" or s.kind == "grass"
+					else s.kind == "grass" or s.kind == "grassRock"
+				if d < p.mountainRadius + 10 and s.h >= G + 8 and land then
 					table.insert(
 						list,
 						{ s = s, score = s.grove * 0.6 + s.jitter + (if s.kind == "grassRock" then 0.4 else 0) }
@@ -1595,6 +1804,14 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 			sortBy(list, "score")
 			perPeak[i] = list
 		end
+		local function kindOn(p: any, s: any): string
+			if p.style == "sandstone" then
+				return speciesOf("desert", prng(), s.h)
+			elseif p.style == "green" then
+				return speciesOf("greenhill", prng(), s.h)
+			end
+			return if s.h >= G + 60 then "snowPine" else "pine"
+		end
 		-- round-robin over the mountains so each gets its share
 		local idx, placedOn = {}, {}
 		for i in peaks do
@@ -1603,14 +1820,14 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		local progress = true
 		while progress and spent < q do
 			progress = false
-			for i in peaks do
+			for i, p in peaks do
 				local list = perPeak[i]
-				while idx[i] <= #list and placedOn[i] < 14 do
+				local cap = if p.style == "sandstone" then 8 else 14
+				while idx[i] <= #list and placedOn[i] < cap do
 					local s = list[idx[i]].s
 					idx[i] += 1
-					local kind = if s.h >= G + 60 then "snowPine" else "pine"
 					local level = if world:isReserved(s.x, s.z, 50) then "lite" else "far"
-					local used = tree(s.x, s.z, kind, level, "pines")
+					local used = tree(s.x, s.z, kindOn(p, s), level, "pines")
 					if used > 0 then
 						spent += used
 						placedOn[i] += 1
@@ -1620,21 +1837,35 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 				end
 			end
 		end
-		-- snow-capped rocks on the stone flanks
+		-- rocks: snow-capped on the snow peaks' stone flanks, mossy on the green hill, terracotta
+		-- boulders on the mesa tops
 		local rrng = Kit.rng(2024)
+		local slate = Kit.lerpColor(U.rgb(150, 162, 222), C.White, 0.15)
 		for _, p in peaks do
 			local n = 0
+			local most = if p.style == "sandstone" then 3 else 2
 			for _, s in sites do
-				if n >= 2 or spent >= q then
+				if n >= most or spent >= q then
 					break
 				end
 				local d = sqrt((s.x - p.x) ^ 2 + (s.z - p.z) ^ 2)
-				if d < p.mountainRadius and (s.kind == "stone" or s.kind == "grassRock") and s.jitter > 0.9 then
-					local used = small(s.x, s.z, "rock", { scale = rrng(1.3, 1.7), cap = "snow", color = C.StoneLight })
-					if used > 0 then
-						n += 1
-						spent += used
+				local used = 0
+				if d < p.mountainRadius and s.jitter > 0.88 then
+					if p.style == "sandstone" then
+						if mesaTop(s.x, s.z, s.h) == p then
+							used = small(s.x, s.z, "rock", { scale = rrng(1.4, 1.8), color = REDROCK })
+						end
+					elseif p.style == "green" then
+						if s.kind == "grass" and s.h >= G + 28 then
+							used = small(s.x, s.z, "rock", { scale = rrng(1.3, 1.7), cap = "moss" })
+						end
+					elseif s.kind == "stone" or s.kind == "grassRock" then
+						used = small(s.x, s.z, "rock", { scale = rrng(1.3, 1.7), cap = "snow", color = slate })
 					end
+				end
+				if used > 0 then
+					n += 1
+					spent += used
 				end
 			end
 		end
