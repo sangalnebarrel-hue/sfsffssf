@@ -100,7 +100,7 @@ return function(game: any, cfg: any, world: any)
 	local hub = buildHub(map, cfg, world)
 
 	Kit.resetClaims()
-	Promenade.buildBridges(map, cfg)
+	Promenade.buildBridges(map, cfg, world)
 	local lamps = Promenade.buildPromenade(map, cfg, world)
 	Gateways.build(map, cfg, world)
 	Landmarks.build(map, cfg, world)
