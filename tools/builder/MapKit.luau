@@ -18,6 +18,7 @@
 	  Kit.stairs(...)                   walkable 1-stud steps that follow the voxel ground
 	  Kit.ramp(...)                     sloped walkable block between two top points (boardwalks,
 	                                    or an invisible collider over visible steps)
+	  Kit.rampPath(...)                 paved path over the voxel terraces: slabs + wedge ramps
 	  Kit.lamp / Kit.flowerMeadow       cheap chunky lamp (4 parts), flower meadow (5 parts)
 	  Kit.bench                         cheap chunky bench (4 parts)
 	  Kit.flowerBed                     planted box: blooms on stems (2 + 2 per flower)
@@ -395,6 +396,87 @@ function Kit.ramp(parent: any, a: any, b: any, opts: { [string]: any }?): any
 		nil,
 		extra
 	)
+end
+
+--[[
+	Paved path with ramps that follows the voxel terraces from point a to point b (Vector3, only
+	X/Z used): one slab per flat run (its top `lift` over the highest ground across the path,
+	reaching down into the lowest), and on every rise a Wedge ramp (2 studs long per stud of
+	rise) at the end of the lower run, its tall back face 0.1 into the higher run's slab, so the
+	climb is a walk with no steps to hop. Drops get a ramp the other way. Returns the Model.
+	opts: width (7), lift (0.2), color (slabs), color2 (ramps), name, top (the last run is
+	raised to at least this y: a path that ends on a platform), step (sampling, 0.5).
+]]
+function Kit.rampPath(parent: any, world: any, a: any, b: any, opts: { [string]: any }?): any
+	local o = opts or {}
+	local width = o.width or 7
+	local lift = o.lift or 0.2
+	local step = o.step or 0.5
+	local flat = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
+	local dir = flat.Unit
+	local side = Vector3.new(-dir.Z, 0, dir.X)
+	local n = floor(flat.Magnitude / step)
+	local start = Vector3.new(a.X, 0, a.Z)
+	-- the ground under each station: the highest and the lowest across the path
+	local hi, lo = {}, {}
+	for i = 1, n do
+		local c = start + dir * ((i - 0.5) * step)
+		local h1, h0 = -math.huge, math.huge
+		for _, f in { -0.45, 0, 0.45 } do
+			local p = c + side * (f * width)
+			local g = world:heightAt(p.X, p.Z)
+			h1, h0 = max(h1, g), min(h0, g)
+		end
+		hi[i], lo[i] = h1, h0
+	end
+	-- runs of stations at the same height
+	local runs = {}
+	local i = 1
+	while i <= n do
+		local j, l = i, lo[i]
+		while j < n and hi[j + 1] == hi[i] do
+			j += 1
+			l = min(l, lo[j])
+		end
+		table.insert(runs, { s0 = (i - 1) * step, s1 = j * step, h = hi[i], lo = l })
+		i = j + 1
+	end
+	if o.top and #runs > 0 then
+		runs[#runs].h = max(runs[#runs].h, o.top - lift)
+	end
+	local C = Kit.C
+	local c1 = o.color or C.StoneLight
+	local c2 = o.color2 or Kit.shade(c1, 0.93)
+	local model = U.model(parent, o.name or "Path")
+	local rot = CFrame.Angles(0, math.atan2(dir.X, dir.Z), 0) -- local +Z along the path
+	local function at(s: number, y: number): any
+		return CFrame.new(start.X + dir.X * s, y, start.Z + dir.Z * s) * rot
+	end
+	for k, r in runs do
+		local top, bottom = r.h + lift, r.lo - 1
+		U.part(
+			model,
+			`Slab{k}`,
+			Vector3.new(width, top - bottom, r.s1 - r.s0),
+			at((r.s0 + r.s1) / 2, (top + bottom) / 2),
+			c1
+		)
+	end
+	for k = 1, #runs - 1 do
+		local r, q = runs[k], runs[k + 1]
+		local dh = q.h - r.h
+		local up = dh > 0
+		local run = if up then r.s1 - r.s0 else q.s1 - q.s0
+		local L = min(2 * abs(dh), run - 0.5)
+		if L > 0.5 then
+			-- back face 0.1 into the higher run's slab, the slope running down onto the lower run
+			local s = if up then r.s1 + 0.1 - (L + 0.1) / 2 else q.s0 - 0.1 + (L + 0.1) / 2
+			local y = min(r.h, q.h) + lift + abs(dh) / 2
+			local cf = at(s, y) * (if up then CFrame.new() else CFrame.Angles(0, math.pi, 0))
+			U.wedge(model, `Ramp{k}`, Vector3.new(width, abs(dh), L + 0.1), cf, c2)
+		end
+	end
+	return model
 end
 
 --[[
