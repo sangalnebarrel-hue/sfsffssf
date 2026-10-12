@@ -187,6 +187,13 @@ local function centrePivots(root: any)
 	end
 end
 centrePivots(mapResult.map)
+-- The generated map is locked in Studio (no accidental drags of thousands of blocks); unlock a
+-- part in Properties if you really want to move it. The base template stays editable.
+for _, d in mapResult.map:GetDescendants() do
+	if d:IsA("BasePart") then
+		d.Locked = true
+	end
+end
 centrePivots(templateResult.template)
 
 --------------------------------------------------------------------------------
