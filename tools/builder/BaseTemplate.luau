@@ -40,6 +40,7 @@
 ]]
 
 local U = require("./Util")
+local Props = require("./Props")
 
 local Vector3 = U.Vector3
 local CFrame = U.CFrame
@@ -56,8 +57,8 @@ local rad = math.rad
 ------------------------------------------------------------------------------------------
 
 local C = {
-	Grass = rgb(104, 214, 72),
-	Grass3 = rgb(124, 226, 86),
+	Lawn = rgb(128, 226, 72), -- a touch brighter than the world's grass
+	LawnStripe = rgb(110, 210, 60), -- mowed stripes
 	Dirt = rgb(170, 116, 70),
 	DirtDark = rgb(136, 90, 56),
 	Sand = rgb(255, 228, 152),
@@ -66,9 +67,9 @@ local C = {
 	Wood = rgb(204, 138, 78),
 	WoodDark = rgb(150, 94, 52),
 	WoodLight = rgb(236, 184, 120),
-	Leaf1 = rgb(62, 176, 64),
-	Leaf2 = rgb(88, 204, 72),
-	Leaf3 = rgb(132, 228, 92),
+	Leaf1 = Props.Colors.Leaf1, -- foliage: cooler and darker than the lawn
+	Leaf2 = Props.Colors.Leaf2,
+	Leaf3 = Props.Colors.Leaf3,
 	Red = rgb(255, 72, 72),
 	Orange = rgb(255, 148, 40),
 	Yellow = rgb(255, 212, 50),
@@ -96,15 +97,18 @@ local ACCENT_DEFAULT = rgb(200, 200, 200)
 local WHITE = Color3.new(1, 1, 1)
 local BLACK = Color3.new(0, 0, 0)
 
--- Floor layers: the world's grass is at y = 0; no two floor layers are coplanar.
+-- Floor layers: the world's grass is at y = 0; no two floor layers are coplanar, and thin
+-- decorative slabs lying on another slab stand >= 0.15 above it (no shimmer from across the lagoon).
 local LAWN = 0.2 -- plot lawn slab
-local STRIPE = 0.26 -- mowed lawn stripes
+local STRIPE = 0.35 -- mowed lawn stripes
 local PATH = 0.5 -- paths
 local STAGE = 1.0 -- aquarium stage (Accent block)
 local RIM = 1.2 -- its white rim
 local FIELD = 1.3 -- its light tile field
-local STRIP = 1.4 -- pedestal rows
+local BAND = 1.45 -- checker bands on the field
+local STRIP = 1.55 -- pedestal rows
 local DECK = 0.6 -- pier and platform deck top
+local PLANK = 0.75 -- plank strips on the decks
 
 ------------------------------------------------------------------------------------------
 -- Part helpers
@@ -231,15 +235,6 @@ local function attachAt(part: any, name: string, cf: any): (any, any)
 	return attachment, rel.Position
 end
 
--- Small deterministic generator (Park–Miller) for decoration variety.
-local function makeRng(seed: number): () -> number
-	local state = seed % 2147483646 + 1
-	return function(): number
-		state = (state * 16807) % 2147483647
-		return state / 2147483647
-	end
-end
-
 ------------------------------------------------------------------------------------------
 -- Signs
 ------------------------------------------------------------------------------------------
@@ -293,20 +288,22 @@ local function buildGrounds(template: any, plot: any)
 	local inner = plot.halfWidth - 2.8 -- inside face of the side walls
 	local front, back = plot.front + 2.8, plot.back - 2.8
 
-	-- Lawn inside the walls, brighter than the world grass, with mowed stripes.
-	span(floor, "Lawn", -inner, inner, -0.4, LAWN, front, back, C.Grass3)
+	-- Lawn inside the walls, brighter than the world grass, with mowed stripes (inset from the
+	-- lawn's edges, so no side faces are shared).
+	span(floor, "Lawn", -inner, inner, -0.4, LAWN, front, back, C.Lawn)
 	local z = front + 5
 	while z + 8 <= back do
-		span(floor, "LawnStripe", -inner, inner, LAWN - 0.1, STRIPE, z, z + 8, C.Grass)
+		span(floor, "LawnStripe", -inner + 0.1, inner - 0.1, LAWN - 0.1, STRIPE, z, z + 8, C.LawnStripe)
 		z += 20
 	end
 
-	-- Main path: gate -> spawn -> stage steps, edged with light Accent kerbs.
+	-- Main path: gate -> spawn -> stage steps, edged with light Accent kerbs (raised above the
+	-- spawn square they cross, ending at the stage step); a pale base-colour square round the pad.
 	span(floor, "Path", -10, 10, 0, PATH, plot.front, 51, C.Cream)
 	for _, sx in { -1, 1 } do
-		span(floor, "PathEdge", sx * 10, sx * 11.2, 0, PATH + 0.15, front + 3, 51, 0.45)
+		span(floor, "PathEdge", sx * 10, sx * 11.2, 0, PATH + 0.3, front + 3, 50.6, 0.45)
 	end
-	span(floor, "SpawnSquare", -14, 14, 0, PATH + 0.1, 24, 48, C.White)
+	span(floor, "SpawnSquare", -14, 14, 0, PATH + 0.15, 24, 48, 0.8)
 
 	-- Aquarium stage: Accent block with a white rim, light tile field, darker pedestal strips,
 	-- checker bands across the aisle (every other 11-stud band, matching the slot pitch).
@@ -314,8 +311,9 @@ local function buildGrounds(template: any, plot: any)
 	span(floor, "StageRim", -45.2, 45.2, STAGE, RIM, 54.8, 129.2, C.White)
 	span(floor, "StageField", -43.6, 43.6, RIM, FIELD, 56.4, 127.6, 0.62)
 	for i = 0, 2 do
+		-- 0.1 short of the 11-stud pitch at both ends (the tank plinth starts at 69.5 / ends at 113.5)
 		local z0 = 58.5 + i * 22
-		span(floor, "StageBand", -26, 26, FIELD - 0.06, FIELD + 0.04, z0, z0 + 11, 0.48)
+		span(floor, "StageBand", -26, 26, FIELD - 0.06, BAND, z0 + 0.1, z0 + 10.9, 0.34)
 	end
 	for _, sx in { -1, 1 } do
 		span(floor, "SlotStrip", sx * 26, sx * 39, FIELD - 0.1, STRIP, 57.5, 126.5, 0.3)
@@ -354,8 +352,8 @@ local function buildWalls(template: any, plot: any)
 	wall(-hw + 2.8, -gateHalf, front, front + 2.8) -- front, left of the gate
 	wall(gateHalf, hw - 2.8, front, front + 2.8) -- front, right of the gate
 
-	-- Lantern pillars: corners, side middles, back and front pairs. Centres sit 2.4 inside the
-	-- plot edge so the pillar tops never cross it.
+	-- Lantern pillars: corners, side middles and a front pair. Centres sit 2.4 inside the plot
+	-- edge so the pillar tops never cross it.
 	local e = hw - 2.4
 	local zf, zb = front + 2.4, back - 2.4
 	for _, p in
@@ -366,8 +364,6 @@ local function buildWalls(template: any, plot: any)
 			{ e, zb },
 			{ -e, 92 },
 			{ e, 92 },
-			{ -34, zb },
-			{ 34, zb },
 			{ -42, zf },
 			{ 42, zf },
 		}
@@ -510,7 +506,7 @@ local function buildAlarm(template: any)
 	span(alarm, "Cap", ax - 2.8, ax + 2.8, 18.4, 19.4, az - 2.8, az + 2.8, 0)
 	-- Two loudspeaker horns on the platform.
 	for _, sx in { -1, 1 } do
-		span(alarm, "Horn", ax + sx * 2.1, ax + sx * 3.5, 15.6, 17.2, az - 0.8, az + 0.8, C.White, DECOR)
+		span(alarm, "Horn", ax + sx * 1.95, ax + sx * 3.5, 15.4, 17.0, az - 0.8, az + 0.8, C.White, DECOR)
 	end
 end
 
@@ -523,7 +519,7 @@ end
 local function buildYardDecor(template: any)
 	local yard = U.model(template, "YardDecor")
 	-- Mailbox next to the gate.
-	span(yard, "MailPost", 14.6, 15.4, PATH - 0.1, 3.6, 25.6, 26.4, C.Wood)
+	span(yard, "MailPost", 14.6, 15.4, LAWN - 0.1, 3.6, 25.6, 26.4, C.Wood)
 	span(yard, "Mailbox", 13.9, 16.1, 3.6, 5.4, 24.6, 27.4, 0)
 	span(yard, "MailFlag", 16.1, 16.4, 4.4, 6.0, 26.2, 27.0, C.Red, DECOR)
 	-- Lamp posts flanking the steps up to the aquarium stage.
@@ -596,9 +592,10 @@ local function buildTank(template: any): (any, { any })
 		span(tank, "Rim", -hx, hx, TANK_TOP, TANK_TOP + 0.8, z - 0.8, z + 0.8, 0.2)
 	end
 
-	-- Name board on top of the entrance end.
-	span(tank, "SignFrame", -8, 8, postTop, postTop + 4.6, TANK_Z0 - 0.6, TANK_Z0 + 0.6, -0.2)
-	local board = span(tank, "SignBoard", -7.2, 7.2, postTop + 0.6, postTop + 4, TANK_Z0 - 0.8, TANK_Z0 + 0.8, C.White)
+	-- Name board standing on the rim of the entrance end.
+	local signY = TANK_TOP + 0.8
+	span(tank, "SignFrame", -8, 8, signY, signY + 4.8, TANK_Z0 - 0.6, TANK_Z0 + 0.6, -0.2)
+	local board = span(tank, "SignBoard", -7.2, 7.2, signY + 0.6, signY + 4.2, TANK_Z0 - 0.8, TANK_Z0 + 0.8, C.White)
 	plainText(board, Enum.NormalId.Front, "АКВАРИУМ", C.Ink, false)
 
 	return tank, expected
@@ -718,7 +715,7 @@ local function buildDog(template: any)
 	piece("Head", 0, 2.5, -1.1, 1.9, 1.6, 1.6, C.Dog, { CastShadow = true })
 	piece("Muzzle", 0, 2.15, -2.1, 1.1, 0.65, 0.6, C.DogCream)
 	piece("Nose", 0, 2.42, -2.45, 0.4, 0.28, 0.2, C.Ink)
-	piece("Tongue", 0.15, 1.78, -2.33, 0.3, 0.32, 0.12, C.Tongue)
+	piece("Tongue", 0.15, 1.78, -2.38, 0.3, 0.32, 0.12, C.Tongue)
 	for _, sx in { -1, 1 } do
 		piece("Eye", sx * 0.46, 2.78, -1.93, 0.26, 0.36, 0.1, C.Ink)
 		piece("Ear", sx * 0.6, 3.55, -1.05, 0.5, 0.62, 0.42, C.Dog)
@@ -727,7 +724,7 @@ local function buildDog(template: any)
 	end
 	piece("Tail", 0, 2.1, 1.5, 0.5, 0.7, 0.5, C.Dog)
 	piece("TailTip", 0, 2.55, 1.25, 0.62, 0.5, 0.62, C.DogCream)
-	piece("Collar", 0, 1.95, -0.85, 1.75, 0.36, 1.1, 0)
+	piece("Collar", 0, 1.95, -0.8, 1.75, 0.36, 1.2, 0)
 	dog.PrimaryPart = body
 end
 
@@ -801,9 +798,10 @@ local function buildHouse(template: any)
 		})
 	end
 
-	-- Porch: deck, two posts with lanterns, Accent awning.
+	-- Porch: deck (ends at the foundation's edge: no shared top face), two posts with lanterns,
+	-- Accent awning.
 	local pz0 = 133.4
-	span(house, "Porch", -9, 9, 0, base, pz0, z0, C.WoodLight)
+	span(house, "Porch", -9, 9, 0, base, pz0, z0 - 1, C.WoodLight)
 	for _, sx in { -1, 1 } do
 		local x = sx * 8
 		span(house, "PorchPost", x - 0.6, x + 0.6, base, base + 9.4, pz0 + 0.4, pz0 + 1.6, C.Wood)
@@ -908,52 +906,29 @@ local function buildCampfire(template: any): any
 	return sparksOffset
 end
 
--- Tulip field in a dirt bed: four rows of colour running along Z.
+-- Tulip field in a dirt bed: three wide rows of colour running along Z.
 local function flowerField(parent: any, x0: number, z0: number, z1: number, seed: number)
 	local colors = { C.Red, C.Yellow, C.Pink, C.Purple, C.Orange }
 	span(parent, "FieldBed", x0, x0 + 13, 0, 1.0, z0, z1, C.Dirt)
-	for i = 0, 3 do
-		local x = x0 + 1 + i * 3
+	for i = 0, 2 do
+		local x = x0 + 0.9 + i * 4
 		local color = colors[(seed + i) % #colors + 1]
-		span(parent, "Tulips", x, x + 2.2, 1.0, 2.4, z0 + 1, z1 - 1, color, DECOR)
+		span(parent, "Tulips", x, x + 3.2, 1.0, 2.4, z0 + 1, z1 - 1, color, DECOR)
 	end
 end
 
--- Voxel tree: trunk + three leaf blocks in shades, optional fruit.
-local function tree(parent: any, x: number, z: number, s: number, seed: number, fruit: any?)
-	local rnd = makeRng(seed)
-	local th = 6 * s
-	span(parent, "Trunk", x - 1 * s, x + 1 * s, LAWN - 0.1, th, z - 1 * s, z + 1 * s, C.Wood)
-	local w = 9 * s
-	local y0 = th - 0.6
-	span(parent, "Leaves", x - w / 2, x + w / 2, y0, y0 + 6 * s, z - w / 2, z + w / 2, C.Leaf2, DECOR)
-	local ox, oz = (rnd() - 0.5) * 2 * s, (rnd() - 0.5) * 2 * s
-	local tw = 6 * s
-	local tx, tz = x + ox, z + oz
-	span(parent, "Leaves", tx - tw / 2, tx + tw / 2, y0 + 6 * s, y0 + 8.6 * s, tz - tw / 2, tz + tw / 2, C.Leaf3, DECOR)
-	local a = rnd() * math.pi * 2
-	local sx, sz = x + math.sin(a) * 3.4 * s, z + math.cos(a) * 3.4 * s
-	local bw = 5 * s
-	span(
-		parent,
-		"Leaves",
-		sx - bw / 2,
-		sx + bw / 2,
-		y0 - 1.4 * s,
-		y0 + 3.6 * s,
-		sz - bw / 2,
-		sz + bw / 2,
-		C.Leaf1,
-		DECOR
-	)
-	if fruit then
-		for i = 1, 3 do
-			local fa = a + i * 2.1
-			local fx, fz = x + math.sin(fa) * (w / 2 + 0.2), z + math.cos(fa) * (w / 2 + 0.2)
-			local fy = y0 + (1.5 + rnd() * 3) * s
-			span(parent, "Fruit", fx - 0.8, fx + 0.8, fy - 0.8, fy + 0.8, fz - 0.8, fz + 0.8, fruit, DECOR)
-		end
-	end
+-- Voxel tree from the prop library (the same layered dark / mid / light canopy as the map's
+-- trees, "lite + compact": 6 parts, + 3 with fruit), standing on the lawn.
+local function tree(parent: any, x: number, z: number, s: number, seed: number, palette: string, fruit: any?)
+	Props.roundTree(parent, at(x, LAWN, z), {
+		seed = seed,
+		scale = s,
+		lite = true,
+		compact = true,
+		palette = palette,
+		fruit = fruit,
+		name = "Tree",
+	})
 end
 
 local function bush(parent: any, x: number, z: number, s: number)
@@ -967,17 +942,18 @@ local function buildGreenery(template: any)
 	-- Flower fields in the side lawns.
 	flowerField(green, -62, 74, 104, 0)
 	flowerField(green, 49, 74, 104, 2)
-	-- Big trees in the side lawns, at the front corner and beside the house.
-	tree(green, -56, 62, 1.45, 11, C.Red)
-	tree(green, 56, 62, 1.4, 12, nil)
-	tree(green, -56, 117, 1.5, 13, nil)
-	tree(green, 56, 117, 1.45, 14, C.Orange)
-	tree(green, 58, 27, 1.2, 17, nil)
-	tree(green, -30, 160, 1.15, 15, nil)
-	tree(green, 30, 160, 1.15, 16, C.Red)
-	tree(green, 58, 159, 1.05, 18, nil)
-	-- Bushes at the stage corners.
-	for _, p in { { -20, 49 }, { 20, 49 }, { -50, 132 }, { 50, 132 } } do
+	-- Big trees in the side lawns (an apple and an orange tree among them), at the front corner,
+	-- beside the house and behind the campfire.
+	tree(green, -56, 62, 1.6, 11, "green", C.Red)
+	tree(green, 56, 62, 1.55, 12, "mint")
+	tree(green, -56, 117, 1.65, 13, "mint")
+	tree(green, 56, 117, 1.6, 14, "green", C.Orange)
+	tree(green, 58, 27, 1.35, 17, "green")
+	tree(green, -30, 160, 1.3, 15, "green")
+	tree(green, 30, 160, 1.3, 16, "mint")
+	tree(green, 58, 159, 1.2, 18, "green")
+	-- Bushes flanking the steps up to the stage.
+	for _, p in { { -20, 49 }, { 20, 49 } } do
 		bush(green, p[1], p[2], 1.1)
 	end
 end
@@ -990,21 +966,21 @@ local PIER_HALF = 8 -- walkway deck x = ±8
 local PIER_END = -70 -- walkway ends, platform begins
 local PLAT_HALF = 20 -- platform x = ±20
 
--- Deck slab with alternating plank strips (4 studs wide, every 8): along Z for the walkway,
--- across (along X) for the platform. z0 < z1.
+-- Deck slab with raised plank strips (4 studs wide, every 8; 0.1 short of the deck's ends): along
+-- Z for the walkway, across (along X) for the platform. z0 < z1.
 local function deck(parent: any, halfWidth: number, z0: number, z1: number, across: boolean)
 	span(parent, "Deck", -halfWidth, halfWidth, DECK - 1.2, DECK, z0, z1, C.WoodLight)
 	local flat = { CastShadow = false }
 	if across then
 		local z = z0 + 2
 		while z + 4 <= z1 - 1 do
-			span(parent, "Planks", -halfWidth, halfWidth, DECK - 0.2, DECK + 0.04, z, z + 4, C.Wood, flat)
+			span(parent, "Planks", -halfWidth + 0.1, halfWidth - 0.1, DECK - 0.2, PLANK, z, z + 4, C.Wood, flat)
 			z += 8
 		end
 	else
 		local x = -halfWidth + 2
 		while x + 4 <= halfWidth - 2 + 0.01 do
-			span(parent, "Planks", x, x + 4, DECK - 0.2, DECK + 0.04, z0, z1, C.Wood, flat)
+			span(parent, "Planks", x, x + 4, DECK - 0.2, PLANK, z0 + 0.1, z1 - 0.1, C.Wood, flat)
 			x += 8
 		end
 	end
@@ -1092,12 +1068,13 @@ local function buildPavilion(template: any, pierEnd: number)
 		y += layer[2]
 	end
 	local lamp = span(pav, "Lantern", -0.9, 0.9, postTop - 2.6, postTop - 0.6, zc - 0.9, zc + 0.9, C.Lamp, NEON_DECOR)
+	span(pav, "LanternCord", -0.15, 0.15, postTop - 0.65, postTop + 0.1, zc - 0.15, zc + 0.15, C.Ink, DECOR)
 	U.new("PointLight", { Range = 16, Brightness = 1.3, Color = C.Lamp, Shadows = false }, lamp)
 
 	-- Where the owner stands to fish (stage 2 checks the distance to this part).
 	local sz = pierEnd + 4.5
-	span(pav, "SpotRing", -3.4, 3.4, DECK, DECK + 0.12, sz - 3.4, sz + 3.4, C.White, { CanCollide = false })
-	span(template, "FishingSpot", -2.6, 2.6, DECK, DECK + 0.2, sz - 2.6, sz + 2.6, 0.3, { CastShadow = false })
+	span(pav, "SpotRing", -3.4, 3.4, DECK, PLANK + 0.15, sz - 3.4, sz + 3.4, C.White, { CanCollide = false })
+	span(template, "FishingSpot", -2.6, 2.6, DECK, PLANK + 0.3, sz - 2.6, sz + 2.6, 0.3, { CastShadow = false })
 end
 
 local function buildPierProps(template: any, pierEnd: number)
@@ -1105,7 +1082,7 @@ local function buildPierProps(template: any, pierEnd: number)
 	-- Rod rack on the left of the platform.
 	local rx, rz = -15, pierEnd + 14
 	for _, dx in { -3, 3 } do
-		span(props, "RackPost", rx + dx - 0.4, rx + dx + 0.4, DECK, DECK + 5, rz - 0.4, rz + 0.4, C.Wood)
+		span(props, "RackPost", rx + dx - 0.4, rx + dx + 0.4, DECK, DECK + 5.4, rz - 0.4, rz + 0.4, C.Wood)
 	end
 	span(props, "RackBar", rx - 3.6, rx + 3.6, DECK + 4.2, DECK + 5, rz - 0.5, rz + 0.5, -0.2)
 	local rod = at(rx - 1, DECK + 3.6, rz - 0.6) * CFrame.Angles(rad(-12), 0, rad(8))
@@ -1116,7 +1093,7 @@ local function buildPierProps(template: any, pierEnd: number)
 	span(props, "Crate", 12, 14.6, DECK + 4, DECK + 6.6, pierEnd + 12, pierEnd + 14.6, 0.1)
 	cylY(props, "Barrel", 2.8, 3.4, at(16.6, DECK + 1.7, pierEnd + 7.6), C.Blue)
 	-- Lifebuoy hanging on the outside of the left rail (square ring, red and white).
-	local bx, bz = -(PLAT_HALF + 1.6), pierEnd + 8
+	local bx, bz = -(PLAT_HALF + 1.35), pierEnd + 8
 	for i, s in { { 0, 1.1 }, { 0, -1.1 }, { 1.1, 0 }, { -1.1, 0 } } do
 		local col = if i <= 2 then C.Red else C.White
 		local dy, dz = s[1], s[2]
