@@ -32,10 +32,11 @@ local Gateways = require("./Gateways")
 local Landmarks = require("./Landmarks")
 local Coast = require("./Coast")
 local Nature = require("./Nature")
+local Props = require("./Props")
 
 local Vector3 = U.Vector3
 
-local DRESSING_BUDGET = 5600 -- parts (base slots, bridges, promenade, gateways, landmarks, water, sky, nature, walls)
+local DRESSING_BUDGET = 6000 -- parts (base slots, bridges, promenade, gateways, landmarks, water, sky, nature, walls)
 local LIGHT_BUDGET = 40 -- PointLights of the dressing
 local NATURE_MIN = 2200 -- parts Nature is guaranteed (the hills must look lush)
 
@@ -121,7 +122,12 @@ return function(game: any, cfg: any, world: any)
 		local list = table.concat(usedBy, ", ")
 		error(`map dressing leaves Nature {DRESSING_BUDGET - used} parts (< {NATURE_MIN} + 10); used: {list}`)
 	end
+	-- Props drop small details (fallen leaves, litter) only where the ground really is.
+	Props.groundAt = function(x: number, z: number): number
+		return world:heightAt(x, z)
+	end
 	local natureCounts = Nature.build(map, cfg, world, DRESSING_BUDGET - used)
+	Props.groundAt = nil
 
 	-- Budget report (printed with the build stats).
 	local report, totalParts, totalLights = {}, 0, 0
