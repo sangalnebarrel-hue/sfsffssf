@@ -12,8 +12,8 @@
 	                  mid-span lookout: bump-outs on both sides with benches facing the water, a
 	                  lamp and a flag each, bunting across the deck between the flags, a
 	                  telescope. Pile bents buried in the sand at the two ends are left out.
-	  Map.Promenade   the ring walk r 312..330 on flat GroundTop: paving tiles in two warm
-	                  sand shades with a coral middle band and white kerbs (open where the
+	  Map.Promenade   the ring walk r 312..330 on flat GroundTop: warm sand paving with darker
+	                  joint strips, a smooth coral middle band and white kerbs (open where the
 	                  gateway roads and landmark paths leave the ring); a sea wall on the lagoon
 	                  side (light stone face from the beach up, white coping) with a low white
 	                  railing and a blue rail on it, open at the 8 pier entrances (base ± 6°, with
@@ -53,9 +53,11 @@ Promenade.Themes = {
 	[270] = { gate = "ЗАПАДНЫЕ ВОРОТА", bridge = "ЗАПАДНЫЙ МОСТ", color = rgb(64, 196, 92) },
 }
 
--- Landmark path mouths on the promenade's land side: a big billboard beside each path.
+-- Landmark path mouths on the promenade's land side: a big billboard beside each path, on the
+-- `side` (+1: towards larger angles) that stays clear (the waterfall's stepping stones round
+-- the pond start on its + side).
 local PATH_SIGNS = {
-	{ angle = 45, text = "ВОДОПАД →", color = rgb(40, 170, 230) },
+	{ angle = 45, text = "ВОДОПАД →", color = rgb(40, 170, 230), side = -1 },
 	{ angle = 135, text = "МЕЛЬНИЦА →", color = rgb(240, 76, 64) },
 	{ angle = 225, text = "БОЛЬШОЕ ДЕРЕВО →", color = rgb(64, 180, 80) },
 	{ angle = 315, text = "ВЕРШИНА →", color = rgb(110, 110, 230) },
@@ -139,7 +141,7 @@ local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme
 		b.model,
 		(cf * CFrame.new(-fx, 12.2, fz)).Position,
 		(cf * CFrame.new(fx, 12.2, fz)).Position,
-		{ seed = 3, count = 5, sag = 1.6, name = "Bunting" }
+		{ seed = 3, count = 4, sag = 1.6, name = "Bunting" }
 	)
 	b:finish(first)
 	return b.model
@@ -399,21 +401,37 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	local outer = inner + cfg.PromenadeWidth
 	local top = G + DECK_TOP
 
-	-- Paving: 48 tiles (7.5°) in two warm sand shades at two heights 0.12 apart (the chord
-	-- rectangles overlap near the inner edge), a coral middle band and white kerbs.
+	-- Paving: 48 warm sand tiles (7.5°), all one colour at one height (the chord rectangles
+	-- overlap near the inner edge: same colour, so no seam, no lip and no shimmer), a coral
+	-- middle band in 96 short chords (3.75°: it reads as a smooth curve at eye level) and white
+	-- kerbs. A darker sand joint strip across the walk every 15° gives the paving its rhythm.
 	local paving = U.model(promenade, "Paving")
-	local tiles = { rgb(246, 214, 160), rgb(236, 196, 140) }
+	local tileColor = rgb(244, 210, 154)
 	local step = 360 / 96 -- railing post grid (3.75°)
 	for k = 0, 47 do
 		local a0 = k * 2 * step
-		local lift = (k % 2) * 0.12
-		ringPiece(paving, "Tile", a0, a0 + 2 * step, inner + 0.2, outer, G - 1, top + lift, tiles[k % 2 + 1], FLAT)
+		ringPiece(paving, "Tile", a0, a0 + 2 * step, inner + 0.2, outer, G - 1, top, tileColor, FLAT)
 	end
 	local bandColor = rgb(255, 128, 104)
 	local mid = (inner + outer) / 2
-	for k = 0, 47 do
-		local a0 = k * step * 2
-		ringPiece(paving, "Band", a0, a0 + 2 * step, mid - 2.2, mid + 2.2, top, top + 0.28, bandColor, Kit.NOSHADOW)
+	for k = 0, 95 do
+		local a0 = k * step
+		ringPiece(paving, "Band", a0, a0 + step, mid - 2.2, mid + 2.2, top, top + 0.28, bandColor, Kit.NOSHADOW)
+	end
+	-- joint strips (2 wide, 0.12 proud) from the coping to the kerb, under the band's top
+	local jointColor = rgb(228, 178, 116)
+	for k = 0, 23 do
+		local a = k * 4 * step
+		local p = U.polar(a, (inner + 1.6 + outer - 1.4) / 2, 0)
+		U.part(
+			paving,
+			"Joint",
+			Vector3.new(2, 0.24, outer - inner - 3.0),
+			CFrame.new(p.X, top, p.Z) * CFrame.Angles(0, rad(a), 0),
+			jointColor,
+			nil,
+			FLAT
+		)
 	end
 	-- outer kerb (0.5 high: walkable) between the plots; in front of a plot its own front wall
 	-- already edges the walk, and it opens where the gateway roads (± 9 studs) and the landmark
@@ -515,7 +533,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 				U.part(
 					railing,
 					"Post",
-					Vector3.new(1.1, 3.2, 1.1),
+					Vector3.new(1.3, 3.2, 1.3),
 					CFrame.new(p.X, top + 0.6 + 1.5, p.Z) * CFrame.Angles(0, rad(a), 0),
 					C.White,
 					nil,
@@ -585,10 +603,10 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 		local base = cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount
 		local ab = base + 9
 		local p = U.polar(ab, outer - 3.2, 0)
-		Kit.prop("bench", furniture, CFrame.new(p.X, top, p.Z) * CFrame.Angles(0, rad(ab), 0), {
+		Kit.bench(furniture, CFrame.new(p.X, top, p.Z) * CFrame.Angles(0, rad(ab), 0), {
 			length = 7,
 			color = C.WoodLight,
-			seed = i * 2,
+			legs = quarterColor(ab),
 		})
 		for _, sgn in { -1, 1 } do
 			planterAt(base + sgn * 5.6, outer - 2.6)
@@ -602,18 +620,22 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 
 	-- Big billboards at the landmark path mouths (land side, beside the path, facing the
 	-- lagoon), on the first spot where both feet stand on the same flat ground (the waterfall
-	-- pond's sand rim reaches the promenade).
+	-- pond's sand rim reaches the promenade). Each sign is claimed (Nature keeps off it).
 	for _, sign in PATH_SIGNS do
 		local spot = nil
+		local side = sign.side or 1
 		for _, d in { 2.7, 3.4, 4.1, -2.7, -3.4, 4.8, 5.5 } do
 			for _, dr in { 5, 4, 7 } do
-				local a = sign.angle + d
+				local a = sign.angle + d * side
 				local ok = true
-				for _, f in { -6, -4, 0, 4, 6 } do
-					local x, z = Kit.radial(a, outer + dr, f, 0)
-					local h, kind, water = world:surfaceAt(x, z)
-					if water or h ~= G or kind == "sand" then
-						ok = false
+				-- (the feet reach 6 studs to the sides and 2 behind the board)
+				for _, f in { -6.5, -4, 0, 4, 6.5 } do
+					for _, back in { -0.5, 2.5 } do
+						local x, z = Kit.radial(a, outer + dr + back, f, 0)
+						local h, kind, water = world:surfaceAt(x, z)
+						if water or h ~= G or kind == "sand" then
+							ok = false
+						end
 					end
 				end
 				if ok then
@@ -625,8 +647,10 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 				break
 			end
 		end
-		local a, r = (spot or { sign.angle + 2.7, outer + 5 })[1], (spot or { sign.angle + 2.7, outer + 5 })[2]
+		local fallback = { sign.angle + 2.7 * side, outer + 5 }
+		local a, r = (spot or fallback)[1], (spot or fallback)[2]
 		local p = U.polar(a, r, 0)
+		Kit.claim(p.X, p.Z, 8)
 		Kit.prop(
 			"billboard",
 			promenade,
