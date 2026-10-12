@@ -18,6 +18,8 @@
 	    picks the base colour from BaseConfig.Colors);
 	  * ServerStorage.BaseTemplate from tools/builder/BaseTemplate.luau;
 	  * ReplicatedStorage.Shared.Config.BaseConfig copied from src/ (base colours).
+	The stand-ins use the map's Palette colours and the same neutral colour grading as
+	tools/build.luau, so a preview looks like the base in the real map.
 ]]
 
 local fs = require("@lune/fs")
@@ -25,11 +27,13 @@ local process = require("@lune/process")
 local roblox = require("@lune/roblox")
 
 local U = require("../builder/Util")
+local Palette = require("../builder/Palette")
 local buildBaseTemplate = require("../builder/BaseTemplate")
 
 local Vector3 = U.Vector3
 local CFrame = U.CFrame
 local rgb = U.rgb
+local P = Palette
 
 local output = process.args[1]
 local baseIndex = tonumber(process.args[2]) or 1
@@ -73,13 +77,22 @@ end
 
 local map = U.folder(workspace, "Map")
 local ground = U.folder(map, "Ground")
-slab(ground, "Grass", -110, 110, -8, 0, 10, 200, rgb(104, 214, 72))
-slab(ground, "Promenade", -110, 110, -6, 0.05, 0, 18, rgb(236, 226, 204))
-slab(ground, "Beach", -110, 110, -8, -2, -12, 0, rgb(255, 228, 152))
-slab(ground, "LagoonBed", -150, 150, -18, -14, -150, -12, rgb(236, 200, 124))
+slab(ground, "Grass", -110, 110, -8, 0, 10, 200, P.GrassTop)
+slab(ground, "Promenade", -110, 110, -6, 0.05, 0, 18, P.Cobble)
+slab(ground, "Beach", -110, 110, -8, -2, -12, 0, P.Sand)
+slab(ground, "LagoonBed", -150, 150, -18, -14, -150, -12, P.SandDark)
 
 local water = U.folder(map, "Water")
-slab(water, "Lagoon", -150, 150, -14, -4, -150, 0, rgb(40, 200, 230))
+slab(water, "Lagoon", -150, 150, -14, -4, -150, 0, rgb(44, 150, 180))
+
+-- The map's neutral colour grading (tools/build.luau), read by the renderer.
+local lighting = game:GetService("Lighting")
+local grade = lighting:FindFirstChildOfClass("ColorCorrectionEffect")
+	or U.new("ColorCorrectionEffect", { Name = "ColorCorrection" }, lighting)
+grade.Saturation = 0.04
+grade.Contrast = 0.04
+grade.Brightness = 0
+grade.TintColor = rgb(255, 252, 248)
 
 local slots = U.folder(map, "BaseSlots")
 U.marker(slots, "Slot_1", Vector3.new(4, 0.2, 4), CFrame.new(0, 0, 0), { Attributes = { Index = baseIndex } })

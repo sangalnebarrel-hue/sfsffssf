@@ -227,12 +227,45 @@ tests["gate sign: every OwnerLabel/BaseLabel shows the owner and the base name"]
 	sim:AssertNoErrors()
 end
 
+tests["base template: within the part budget, the base colour only on small parts or in a deep shade"] = function(t)
+	local sim = boot(t)
+	local model = bases(sim):FindFirstChild("Base_1")
+	local parts = 0
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			parts += 1
+			-- art direction v4 (tools/builder/DESIGN.md §1): the team colour never floods a big
+			-- surface; big Accent parts (roofs) use a deep shade of it
+			if d:GetAttribute("Accent") == true then
+				local s = d.Size
+				local area = s.X * s.Z + 2 * s.Y * (s.X + s.Z)
+				local shade = d:GetAttribute("AccentShade")
+				local deep = typeof(shade) == "number" and shade <= -0.25
+				t.ok(
+					area <= 400 or deep,
+					`{d:GetFullName()}: {math.floor(area)} studs² of base colour (shade {shade})`
+				)
+			end
+		end
+	end
+	t.ok(parts <= 600, `BaseTemplate has {parts} parts (budget 600)`)
+	sim:AssertNoErrors()
+end
+
 tests["base template: 12 display slots, tank prompt, alarm, dog (names the server relies on)"] = function(t)
 	local sim = boot(t)
 	local model = bases(sim):FindFirstChild("Base_1")
 	t.ok(model.Tank.Glass:IsA("BasePart") and model.Tank.Glass.PromptAttachment:IsA("Attachment"), "tank prompt")
 	t.ok(model.Alarm.Lamp:IsA("BasePart"), "alarm lamp")
 	t.ok(model.Dog:IsA("Model") and model.Dog.PrimaryPart ~= nil, "dog with PrimaryPart")
+	-- The guard dog is a stage 4 upgrade: hidden (not on display) until it is bought.
+	t.eq(model.Dog:GetAttribute("Unlocked"), false, "dog not unlocked")
+	for _, d in model.Dog:GetDescendants() do
+		if d:IsA("BasePart") then
+			t.eq(d.Transparency, 1, `{d.Name} invisible`)
+			t.ok(not d.CanCollide and not d.CanQuery and not d.CastShadow, `{d.Name}: no collisions, raycasts, shadows`)
+		end
+	end
 	t.ok(model.FishingSpot:IsA("BasePart"), "fishing spot")
 	local spawnPos = model.SpawnPad.CFrame.Position
 	local dist = {}
