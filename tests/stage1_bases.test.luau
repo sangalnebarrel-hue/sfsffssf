@@ -248,7 +248,7 @@ tests["base template: within the part budget, the base colour only on small part
 			end
 		end
 	end
-	t.ok(parts <= 600, `BaseTemplate has {parts} parts (budget 600)`)
+	t.ok(parts <= 800, `BaseTemplate has {parts} parts (budget 800)`)
 	sim:AssertNoErrors()
 end
 

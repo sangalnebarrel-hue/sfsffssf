@@ -6,10 +6,11 @@
 
 		lune run tools/preview/template_preview.luau <out.rbxl> [baseIndex]
 		lune run tools/preview/export_parts.luau <out.rbxl> parts.json
-		python3 tools/preview/render.py parts.json --out-dir DIR --views iso,zoom --zoom 0,80,110,200
+		python3 tools/preview/render.py parts.json --out-dir DIR --views iso,zoom --zoom 0,90,120,200
 
 	World (base-local frame of the slot = world frame, y = 0 is GroundTop):
-	  * grass ground slab, top y = 0, x -110..110, z 10..200 (the plot and its margins);
+	  * grass ground slab, top y = 0, x -110..110, z 10..200 (the plot and its margins; the
+	    template brings its own house terrace);
 	  * the public promenade strip z 0..18 (light paving, top y = 0.05);
 	  * sand beach, top y = -2, z -12..0, plus a lagoon bed slab;
 	  * water stand-in under Workspace.Map.Water for z < 0, surface y = -4
@@ -18,8 +19,9 @@
 	    picks the base colour from BaseConfig.Colors);
 	  * ServerStorage.BaseTemplate from tools/builder/BaseTemplate.luau;
 	  * ReplicatedStorage.Shared.Config.BaseConfig copied from src/ (base colours).
-	The stand-ins use the map's Palette colours and the same neutral colour grading as
-	tools/build.luau, so a preview looks like the base in the real map.
+	The stand-ins use the map's Palette colours and the same colour grading, water colour and haze
+	as tools/build.luau, so a preview looks like the base in the real map (export_parts paints the
+	Accent parts in the base colour and the WallTone parts in the base's wall tone).
 ]]
 
 local fs = require("@lune/fs")
@@ -83,16 +85,28 @@ slab(ground, "Beach", -110, 110, -8, -2, -12, 0, P.Sand)
 slab(ground, "LagoonBed", -150, 150, -18, -14, -150, -12, P.SandDark)
 
 local water = U.folder(map, "Water")
-slab(water, "Lagoon", -150, 150, -14, -4, -150, 0, rgb(44, 150, 180))
+slab(water, "Lagoon", -150, 150, -14, -4, -150, 0, rgb(36, 156, 186))
 
--- The map's neutral colour grading (tools/build.luau), read by the renderer.
+-- The map's colour grading, water colour and haze (tools/build.luau), read by the renderer.
 local lighting = game:GetService("Lighting")
 local grade = lighting:FindFirstChildOfClass("ColorCorrectionEffect")
 	or U.new("ColorCorrectionEffect", { Name = "ColorCorrection" }, lighting)
-grade.Saturation = 0.04
-grade.Contrast = 0.04
+grade.Saturation = 0.1
+grade.Contrast = 0.06
 grade.Brightness = 0
-grade.TintColor = rgb(255, 252, 248)
+grade.TintColor = rgb(255, 252, 246)
+local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
+	or U.new("Atmosphere", { Name = "Atmosphere" }, lighting)
+atmosphere.Density = 0.22
+atmosphere.Offset = 0.25
+atmosphere.Color = rgb(198, 222, 248)
+atmosphere.Decay = rgb(104, 150, 210)
+atmosphere.Haze = 0.2
+local terrain = workspace:FindFirstChildOfClass("Terrain")
+if terrain then
+	terrain.WaterColor = rgb(36, 156, 186)
+	terrain.WaterTransparency = 0.55
+end
 
 local slots = U.folder(map, "BaseSlots")
 U.marker(slots, "Slot_1", Vector3.new(4, 0.2, 4), CFrame.new(0, 0, 0), { Attributes = { Index = baseIndex } })
