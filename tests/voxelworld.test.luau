@@ -194,6 +194,8 @@ tests["everything important is reachable from the hub (walk, jump 4, swim)"] = f
 	t.ok(reachable(world.landmarks.GiantTree.x, world.landmarks.GiantTree.z), "giant tree plateau reachable")
 	local fall = world.landmarks.Waterfall
 	t.ok(reachable(fall.pondX, fall.pondZ), "waterfall pond reachable")
+	local peak = world.landmarks.Peak
+	t.ok(reachable(peak.x, peak.z), "peak summit reachable by the spiral trail")
 end
 
 tests["ground part budget"] = function(t)

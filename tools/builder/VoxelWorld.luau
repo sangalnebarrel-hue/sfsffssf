@@ -265,11 +265,59 @@ function VoxelWorld:setupLandmarks()
 			site.path = def.Name == "Peak"
 		end
 		site.x, site.z = polar(def.Angle, def.Radius)
+		if site.peak and site.path then
+			self:setupTrail(site)
+		end
 		if site.pondR then
 			site.pondX, site.pondZ = polar(def.Angle, site.pondR)
 		end
 		self.landmarks[def.Name] = site
 	end
+end
+
+--[[
+	The main peak's trail: a spiral ledge carved into the mountain from its lagoon-facing foot up
+	to a flat summit, climbing TRAIL_SLOPE per stud, so it is all 4-stud steps (one jump each).
+	site.trail = { {x, z, h}, ... } (h above GroundTop, every ~2 studs); site.summitRadius,
+	site.summitTop (absolute y of the flat summit).
+]]
+local TRAIL_SLOPE = 0.42
+local TRAIL_HALF_WIDTH = 9 -- at least two columns wide, so diagonal bends stay connected
+function VoxelWorld:setupTrail(site: any)
+	local R, H = site.mountainRadius, site.top - self.cfg.GroundTop
+	local theta0 = atan2(-site.x, -site.z) -- start on the side facing the lagoon
+	local trail = {}
+	local d, psi, sinceLast = R - 2, 0, 99
+	local step = 0.004
+	while d > 20 do
+		local t = 1 - d / R
+		local slopeOut = H * 1.35 * t ^ 0.35 / R -- |dh/dd| of the mountain profile
+		local dd = TRAIL_SLOPE * d / slopeOut * step
+		d -= dd
+		psi += step
+		sinceLast += sqrt((d * step) ^ 2 + dd * dd)
+		if sinceLast >= 2 then
+			sinceLast = 0
+			local h = H * (1 - d / R) ^ 1.35
+			table.insert(trail, { site.x + d * sin(theta0 + psi), site.z + d * cos(theta0 + psi), h })
+		end
+	end
+	site.trail = trail
+	site.summitRadius = 22
+	site.summitTop = self.cfg.GroundTop + snap(trail[#trail][3], 4)
+end
+
+-- Height (above GroundTop) of the trail ledge at (x, z), or nil when (x, z) is off the trail.
+function VoxelWorld:trailHeight(site: any, x: number, z: number): number?
+	local best, bestH = TRAIL_HALF_WIDTH * TRAIL_HALF_WIDTH, nil
+	for _, p in site.trail do
+		local dx, dz = x - p[1], z - p[2]
+		local d2 = dx * dx + dz * dz
+		if d2 < best then
+			best, bestH = d2, p[3]
+		end
+	end
+	return bestH
 end
 
 function VoxelWorld:setupIslets()
@@ -428,6 +476,17 @@ function VoxelWorld:landmarkShape(x: number, z: number, flat: number, mflat: num
 				return site.top - 4, "meadow", false
 			end
 		elseif site.peak then
+			if site.trail then
+				-- flat summit and the carved spiral trail (fine grid)
+				local fd = sqrt((x - site.x) ^ 2 + (z - site.z) ^ 2)
+				if fd < site.summitRadius then
+					return site.summitTop - self.cfg.GroundTop, "snow", false
+				end
+				local th = if fd < site.mountainRadius then self:trailHeight(site, x, z) else nil
+				if th then
+					return snap(th, 4), "path", false
+				end
+			end
 			local d = sqrt((mx - site.x) ^ 2 + (mz - site.z) ^ 2)
 			if d < site.mountainRadius then
 				local t = 1 - d / site.mountainRadius
@@ -556,7 +615,8 @@ function VoxelWorld:column(x: number, z: number): (number, string, boolean?, boo
 		local h = self:hillHeight(mx, mz, mr, theta, mflat)
 		local locked = false
 		local shaped = false -- height comes from a landmark shape, not the natural hills
-		if lh and (lh > h or lkind == "meadow" or self:overridesHills(x, z)) then
+		local forced = lkind == "meadow" or lkind == "path" or lkind == "snow" -- landmark ground wins
+		if lh and (lh > h or forced or self:overridesHills(x, z)) then
 			shaped = true
 			-- mesa and mountains keep their cliffs; the windmill/tree shapes are gentle anyway
 			locked = lkind ~= "meadow" and not self:overridesHills(x, z)
