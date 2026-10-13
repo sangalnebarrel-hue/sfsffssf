@@ -11,7 +11,7 @@
 	  2. world settings (streaming off, manual character spawning, lighting, water look);
 	  3. Workspace.Map (voxel ground, hub, bridges, promenade, decor, base slots) + Terrain water;
 	  4. ServerStorage.BaseTemplate;
-	  5. ReplicatedStorage.Remotes from RemoteNames;
+	  5. ReplicatedStorage.Remotes from RemoteNames, ReplicatedStorage.Assets (rods, bobbers, fish);
 	  6. StarterGui.HUD;
 	  7. all scripts from src/;
 	  8. write the place + sourcemap.json (for luau-lsp) and print stats.
@@ -27,6 +27,7 @@ local VoxelWorld = require("./builder/VoxelWorld")
 local SmoothGrid = require("./terrain/SmoothGrid")
 local buildMap = require("./builder/Map")
 local buildBaseTemplate = require("./builder/BaseTemplate")
+local buildAssets = require("./builder/Assets")
 local buildGui = require("./builder/Gui")
 local Scripts = require("./builder/Scripts")
 local Sourcemap = require("./builder/Sourcemap")
@@ -43,6 +44,8 @@ local game = roblox.deserializePlace(fs.readFile(input))
 local MapConfig = U.loadPure(`{SRC}/ReplicatedStorage/Shared/Config/MapConfig.luau`)
 local BaseConfig = U.loadPure(`{SRC}/ReplicatedStorage/Shared/Config/BaseConfig.luau`)
 local RemoteNames = U.loadPure(`{SRC}/ReplicatedStorage/Shared/RemoteNames.luau`)
+local FishConfig = U.loadPure(`{SRC}/ReplicatedStorage/Shared/Config/FishConfig.luau`)
+local RodConfig = U.loadPure(`{SRC}/ReplicatedStorage/Shared/Config/RodConfig.luau`)
 
 --------------------------------------------------------------------------------
 -- 1. Remove managed content
@@ -55,6 +58,7 @@ local MANAGED = {
 	{ "Workspace", "SpawnLocation" },
 	{ "ServerStorage", "BaseTemplate" },
 	{ "ReplicatedStorage", "Remotes" },
+	{ "ReplicatedStorage", "Assets" },
 	{ "StarterGui", "HUD" },
 }
 for _, entry in MANAGED do
@@ -164,6 +168,7 @@ end
 for _, name in RemoteNames.Functions do
 	U.new("RemoteFunction", { Name = name }, remotes)
 end
+local assetsResult = buildAssets(game, { FishConfig = FishConfig, RodConfig = RodConfig })
 
 buildGui(game)
 
@@ -245,14 +250,23 @@ local checkTemplate = check:GetService("ServerStorage"):FindFirstChild("BaseTemp
 expect(checkTemplate ~= nil and checkTemplate.PrimaryPart ~= nil, "BaseTemplate.PrimaryPart not saved")
 -- Builders report the attachments they placed: { root = "template"|"workspace", path = {...}, offset = Vector3 }.
 local expectations = {}
-for _, list in { templateResult.expectedAttachments or {}, mapResult.expectedAttachments or {} } do
+for _, list in
+	{
+		templateResult.expectedAttachments or {},
+		mapResult.expectedAttachments or {},
+		assetsResult.expectedAttachments,
+	}
+do
 	for _, item in list do
 		table.insert(expectations, item)
 	end
 end
 expect(#expectations > 0, "builders reported no attachments to verify")
 for _, item in expectations do
-	local root = if item.root == "template" then checkTemplate else check:GetService("Workspace")
+	local root = if item.root == "template"
+		then checkTemplate
+		elseif item.root == "replicated" then check:GetService("ReplicatedStorage")
+		else check:GetService("Workspace")
 	expectAttachment(root, item.path, item.offset)
 end
 local accents = 0
@@ -281,6 +295,43 @@ for _, d in find(check:GetService("Workspace"), { "Map" }):GetDescendants() do
 	end
 end
 expect(pivotsSaved > 0, "Model pivots (WorldPivotData) not saved")
+-- Assets: every rod is a Tool with a Handle whose other parts are welded with explicit C0
+-- (Weld.C0 must survive serialization, or the rod collapses onto the hand in game);
+-- every fish has its four variants; Rainbow models keep their tag.
+local checkAssets = find(check:GetService("ReplicatedStorage"), { "Assets" })
+expect(checkAssets ~= nil, "ReplicatedStorage.Assets not saved")
+for _, rod in RodConfig.Rods do
+	local tool = find(checkAssets, { "Rods", rod.Id })
+	expect(tool ~= nil and tool:IsA("Tool"), `Assets.Rods.{rod.Id} is not a Tool`)
+	if tool then
+		local handle = tool:FindFirstChild("Handle")
+		expect(handle ~= nil and handle:IsA("BasePart"), `{rod.Id}: no Handle`)
+		local moved = 0
+		for _, d in tool:GetDescendants() do
+			if d:IsA("Weld") and d.C0.Position.Magnitude > 0.01 then
+				moved += 1
+			end
+		end
+		expect(moved > 0, `{rod.Id}: Weld.C0 offsets not saved`)
+		expect(
+			tool.Grip.Position.Magnitude < 1e-3 and tool.Grip.LookVector.Magnitude > 0.99,
+			`{rod.Id}: Grip not saved`
+		)
+	end
+	expect(find(checkAssets, { "Bobbers", rod.Id }) ~= nil, `Assets.Bobbers.{rod.Id} missing`)
+end
+for _, fish in FishConfig.Fish do
+	for _, variant in { "Normal", "Gold", "Neon", "Rainbow" } do
+		local model = find(checkAssets, { "Fish", fish.Id, variant })
+		expect(
+			model ~= nil and model.PrimaryPart ~= nil,
+			`Assets.Fish.{fish.Id}.{variant} missing or without PrimaryPart`
+		)
+		if model and variant == "Rainbow" then
+			expect(model:HasTag("RainbowFish"), `Assets.Fish.{fish.Id}.Rainbow lost its RainbowFish tag`)
+		end
+	end
+end
 
 if #problems > 0 then
 	error("Self-check of the built place failed:\n  - " .. table.concat(problems, "\n  - "))
@@ -307,6 +358,9 @@ print(`  water: SmoothGrid {#baked.smoothGrid} B, PhysicsGrid {#baked.physicsGri
 print(`  ground parts: {mapResult.groundParts}`)
 print(`  map parts: {mapParts}`)
 print(`  base template parts: {templateResult.partCount} × {MapConfig.BaseCount} bases`)
+print(
+	`  assets: {assetsResult.rods} rods, {assetsResult.fish} fish × 4 variants ({assetsResult.partCount} parts, not in Workspace)`
+)
 print(`  ≈ parts at runtime: {runtimeParts}`)
 local nature = {}
 for kind, count in mapResult.natureCounts or {} do
