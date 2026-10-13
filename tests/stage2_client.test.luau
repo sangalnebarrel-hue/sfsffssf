@@ -2,7 +2,8 @@
 	Stage 2 client tests (RbxSim against the built Place1.rbxl): FishingController (the local
 	player's fishing UI and input) and FishingFxController (bobbers, lines, rainbow fish).
 
-	The server half (FishingService) is not needed here: the harness plays the server — it puts
+	The server half (FishingService) is replaced by an empty module in boot(), so the harness alone
+	plays the server — it puts
 	the rod Tool into the Backpack, sets the Player attributes (FishingState, BobberTarget,
 	CastTime, RodId, FishCaught) and fires the FishingState RemoteEvent; what the client asked
 	for is read back with sim:ServerEventsFor(player, "FishingCast" | ...).
@@ -62,6 +63,10 @@ end
 
 local function boot(t: any): any
 	local sim = t.sim({ place = PLACE })
+	-- Switch the real FishingService off (an empty module: Main finds it but runs nothing), so
+	-- every FishingState the client sees comes from the test (tests/stage2_fishing and
+	-- tests/stage2_e2e cover the real server).
+	sim:Find("ServerScriptService.Services.FishingService").Source = "return {}"
 	sim:StartServer()
 	sim:Advance(0.5)
 	return sim

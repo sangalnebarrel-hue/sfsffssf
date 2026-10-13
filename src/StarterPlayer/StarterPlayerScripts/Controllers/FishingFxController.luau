@@ -148,7 +148,11 @@ local function resolveTip(bobber: Bobber, now: number): Attachment?
 		bobber.nextTipSearch = now + 0.25
 		tip = findTip(bobber.player)
 		bobber.tip = tip
-		bobber.beam.Attachment0 = tip
+		-- Без кончика леска просто выключается (Enabled = tip ~= nil в stepBobber); старую
+		-- Attachment0 не стираем.
+		if tip then
+			bobber.beam.Attachment0 = tip
+		end
 	end
 	return bobber.tip
 end
