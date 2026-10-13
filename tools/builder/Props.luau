@@ -53,6 +53,7 @@
 	             hotAirBalloon 19, cloud 7-8
 	  helpers    Props.Colors (shared palette, DESIGN.md §1 names), Props.makeRng(seed),
 	             Props.shade(c, f), Props.lerpColor(a, b, t), Props.tones(c) -> {dark, mid, light},
+	             Props.bloomPairs (flower colour pairs in the Palette's jewel tones),
 	             Props.groundAt = function(x, z) -> y (optional ground probe, see broadleaf),
 	             Props.waterTop (water level, default 0: boats/buoys on it bob),
 	             Props.fx(partOrAttachment, kind, opts) / Props.fxAt(part, worldCFrame, kind, opts)
@@ -1664,8 +1665,8 @@ function Props.lilyPad(parent: any, cf: any, opts: { [string]: any }?): any
 	local pad = b:span("Pad", -1.5, -0.1 + lift, -1.0, 1.5, 0.12 + lift, 1.0, C.Leaf1, DECOR)
 	b:span("Pad2", -1.0, -0.1 + lift, -1.5, 0.6, 0.16 + lift, 1.5, C.Leaf2, DECOR)
 	if o.flower == true or (o.flower == nil and b:chance(0.45)) then
-		b:vox("Flower", 0.5, 0.45 + lift, 0.3, 0.9, 0.6, 0.9, C.Pink, DECOR)
-		b:vox("FlowerCentre", 0.5, 0.8 + lift, 0.3, 0.4, 0.2, 0.4, C.Yellow, DECOR)
+		b:vox("Flower", 0.5, 0.45 + lift, 0.3, 0.9, 0.6, 0.9, C.Flowers[3], DECOR)
+		b:vox("FlowerCentre", 0.5, 0.8 + lift, 0.3, 0.4, 0.2, 0.4, C.Flowers[2], DECOR)
 	end
 	return b:finish(pad)
 end
@@ -1729,16 +1730,18 @@ function Props.log(parent: any, cf: any, opts: { [string]: any }?): any
 	return b:finish(main)
 end
 
--- Harmonious bloom pairs for the cheap flower decor: one colour with a lighter partner (or two
--- neighbouring hues), never a rainbow.
+-- Harmonious bloom pairs for the flower decor in the Palette's jewel tones (Palette.Flowers: the
+-- map's small colour pops): one colour with a white partner (or two neighbouring hues), never a
+-- rainbow. Order kept from the calmer v4 set (callers pick pairs by index).
+local F = C.Flowers -- red, yellow, pink, violet, white, orange, blue
 local BLOOM_PAIRS = {
-	{ C.Red, C.Cream },
-	{ C.Pink, C.Cream },
-	{ C.Purple, C.Pink },
-	{ C.Yellow, C.Cream },
-	{ C.Blue, C.Cream },
-	{ C.Orange, C.Yellow },
-	{ C.Red, C.Pink },
+	{ F[1], F[5] }, -- red / white
+	{ F[3], F[5] }, -- pink / white
+	{ F[4], F[3] }, -- violet / pink
+	{ F[2], F[5] }, -- yellow / white
+	{ F[7], F[5] }, -- blue / white
+	{ F[6], F[2] }, -- orange / yellow
+	{ F[1], F[3] }, -- red / pink
 }
 Props.bloomPairs = BLOOM_PAIRS
 
@@ -1777,7 +1780,8 @@ function Props.flowerBed(parent: any, cf: any, opts: { [string]: any }?): any
 	end
 	local soil = b:span("Soil", -w / 2, 0, -d / 2, w / 2, 0.6, d / 2, C.DirtDark, DECOR)
 	main = main or soil
-	b:span("Leaves", -w / 2 + 0.25, 0.6, -d / 2 + 0.25, w / 2 - 0.25, 1.05, d / 2 - 0.25, o.leaves or C.Leaf1, FOLIAGE)
+	-- (a leafy mound, not a plate: the blooms nestle into it)
+	b:span("Leaves", -w / 2 + 0.25, 0.6, -d / 2 + 0.25, w / 2 - 0.25, 1.3, d / 2 - 0.25, o.leaves or C.Leaf1, FOLIAGE)
 	local nx = math.max(1, math.floor((w - 0.4) / sp))
 	local nz = math.max(1, math.floor((d - 0.4) / sp))
 	local cap, n = o.max or 12, 0
@@ -1792,14 +1796,14 @@ function Props.flowerBed(parent: any, cf: any, opts: { [string]: any }?): any
 			local z = (iz - (nz + 1) / 2) * sp + b:range(-0.15, 0.15)
 			-- short stems: the blooms nestle just over the leaves at staggered heights (a planted
 			-- bed, not lollipops), each bloom a little different in size
-			local h = 1.2 + b:range(0, 0.5)
-			local bw, bh = b:range(0.95, 1.2), b:range(0.6, 0.8)
+			local h = 1.45 + b:range(0, 0.55)
+			local bw, bh = b:range(1.1, 1.35), b:range(0.7, 0.9)
 			local col = if (ix + iz) % 2 == 0 then c1 else c2
 			if o.stems ~= false then
 				b:span(`Stem{n}`, x - 0.16, 0.95, z - 0.16, x + 0.16, h, z + 0.16, C.Leaf2, DECOR)
 				b:vox(`Bloom{n}`, x, h + bh / 2 - 0.05, z, bw, bh, bw, col, DECOR)
 			else
-				b:vox(`Bloom{n}`, x, 1.25, z, bw * 0.9, 0.6, bw * 0.9, col, DECOR)
+				b:vox(`Bloom{n}`, x, 1.5 + b:range(0, 0.2), z, bw * 0.9, 0.6, bw * 0.9, col, DECOR)
 			end
 		end
 	end
@@ -3768,14 +3772,16 @@ function Props.hotAirBalloon(parent: any, cf: any, opts: { [string]: any }?): an
 end
 
 --[[
-	cloud: big floating voxel cloud — a flat rounded body in cool white (Palette Cloud) with a
-	faintly blue, slightly see-through underside (CloudShade), two puffs on top and puffs at the
-	ends. cframe = bottom centre. 7-8 parts, CanCollide/CastShadow/CanQuery = false (no shadow
-	blotches on the island).
+	cloud: big floating voxel cloud — a flat rounded body in cool white (Palette Cloud, a touch
+	see-through, so the sky lightens its shaded sides) with a faintly blue, more see-through
+	underside (a breath of CloudShade), two puffs on top and puffs at the ends. cframe = bottom
+	centre. 7-8 parts, CanCollide/CastShadow/CanQuery = false (no shadow blotches on the island).
 	opts: size (length along local X, default 36 by seed 30..44).
 ]]
-local CLOUD = merge(DECOR, { CastShadow = false })
-local CLOUD_UNDER = merge(CLOUD, { Transparency = 0.1 })
+local CLOUD = merge(DECOR, { CastShadow = false, Transparency = 0.12 })
+local CLOUD_UNDER = merge(CLOUD, { Transparency = 0.2 })
+-- the underside: a breath of the cool CloudShade (a full shade reads as a concrete slab)
+local CLOUD_SHADE = lerpColor(C.Cloud, C.CloudShade, 0.45)
 function Props.cloud(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Cloud", cf, opts, 241)
 	local o = b.opts
@@ -3785,7 +3791,7 @@ function Props.cloud(parent: any, cf: any, opts: { [string]: any }?): any
 	local white = C.Cloud
 	-- flat white body (rounded "plus") with a shaded underside, rounded puffs on top, end puffs
 	local base = b:cross("Body", -L * 0.01, 0, 0, h * 1.3, L * 0.78, D * 0.82, 0.72, white, CLOUD)
-	b:span("Under", -L * 0.3, -h * 0.3, -D * 0.28, L * 0.28, 0.05, D * 0.28, C.CloudShade, CLOUD_UNDER)
+	b:span("Under", -L * 0.3, -h * 0.3, -D * 0.28, L * 0.28, 0.05, D * 0.28, CLOUD_SHADE, CLOUD_UNDER)
 	local x1 = b:range(-0.2, -0.08) * L
 	b:cross("Puff1", x1, h * 1.2, D * 0.01, h * 1.2 + L * 0.15, L * 0.38, D * 0.7, 0.7, white, CLOUD)
 	local x2 = b:range(0.12, 0.2) * L

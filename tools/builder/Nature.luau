@@ -19,12 +19,17 @@
 	the wood edges. Blossom and autumn colours appear only as accent groves in three deliberate
 	spots (ACCENT): cherries on the waterfall mesa, an autumn orchard on the hills behind the farm
 	gateway (θ 0) and a few russet trees on the red-rock mesas' ledges — together under ACCENT_CAP
-	trees (well under 10 % of the trees). Flowers come in harmonious pairs (one colour and a light
-	partner), one pair per clump or bed; no rainbow rows. No figures (people, scarecrows, animals).
+	trees (well under 10 % of the trees). Flowers are the island's small colour pops: the Palette's
+	jewel tones (Props.bloomPairs) in harmonious pairs (one colour and a white partner, or two
+	neighbouring hues), one pair per clump or bed; no rainbow rows. No figures (people,
+	scarecrows, animals).
 
 	Most of the budget goes into trees grouped into woods (5-part voxel trees, Nature.farTree):
-	groves of 5-9 trees with a bush or two on their edge, belts behind the plots, crests on the
-	skyline, and more groves where the land is still open. The lawns between stay open: small
+	groves of 5-9 trees with a bush or two on their edge, belts behind the plots, woods of 5-8
+	trees on the visible crests, and more groves where the land is still open. Nothing grows on
+	the far side of a mountain (beyond r 640, behind its summit: no view reaches it). The outer
+	beaches and cliff tops, seen from the hill viewpoints, get small scenes of island life. The
+	lawns between stay open: small
 	decor (2-5 parts: flower clumps, bushes, rocks with a moss cap and a bush beside them, hay
 	bales, short fence runs, voxel cacti on the mesas) lines the paths and the terrace lips in
 	spaced groups instead of being scattered everywhere, and a few set-pieces of 5-10 parts
@@ -35,7 +40,8 @@
 	plain pines and round trees on the green hill, palms and green round trees on the red-rock
 	mesas (at most MESA_TREES on each ochre top, with a few cacti and terracotta boulders).
 
-	Passes, each with its share of the budget (unspent parts carry over to the next one):
+	Passes: lagoon, show and wedges first, then the shared passes, each with its share of the
+	budget left after the first three (unspent parts carry over to the next one):
 	  lagoon  12 calm coral patches on the lagoon's sandy slope beside the piers and bridges
 	          (an irregular sand pad, coral fingers in terracotta / sand / sage, seaweed, a rock, a
 	          starfish, one small pink tip, bubbles; nothing above y -4), then 2-3 surface
@@ -49,7 +55,15 @@
 	          district's theme (a farm orchard with one golden tree a clump, birches behind the
 	          garden, palms by the harbour, pines round the camp) on the terrace lips either side
 	          of the climb, each with a bush
-	  coast   a pair of palms every ~65 studs of the outer beaches; between the pairs, by turns,
+	  shore   4-5 scenes a quadrant on the outer coast, where the hill viewpoints look, each facing
+	          the sea on the first spot (from the sea inwards) where its footprint stands: a
+	          fisherman's hut on stilts by the water (a painted door and a pennant, a ladder, a net
+	          hung to dry), a beach camp (a faded jewel tent, a campfire with smoke, log seats, a
+	          painted canoe), drying racks (a net, a rack of fish, a basket of floats), a keeper's
+	          cottage on the grass over the beach (plinth, plaster, stepped roof, chimney, a flower
+	          box in jewel blooms, a flag), boulder piles with dune grass; drawn 1.3 x (SHORE_SCALE)
+	  coast   a pair of palms (drooping fronds: farTree "beachPalm") every ~65 studs of the outer
+	          beaches; between the pairs, by turns,
 	          a beach set (parasol with a towel, sandcastle, towel and ball, driftwood) and a rock
 	          group at the waterline in a ring of foam; foamy rocks in the surf below the cliffs
 	  pines   the mountains in their styles: up to 14 pines on the grassy flanks of each snow
@@ -58,7 +72,8 @@
 	          round trees (a few russet ones) and terracotta boulders
 	  belts   a continuous tree line behind every plot's back wall (two rows, round-robin over
 	          the plots), one tree family per plot by the biome noise
-	  crests  trees on the hill crests (local high points): the skyline behind the plots
+	  crests  woods of 5-8 trees whose crowns merge on the most visible hill crests (local high
+	          points, at least 70 studs apart): the skyline behind the plots and over the coast
 	  sets    set-pieces on the biggest open lawns, spread over the sectors, before the groves
 	          take the land
 	  groves  woods of 5-9 trees whose crowns merge (centres ~80 studs apart, round-robin over
@@ -66,15 +81,17 @@
 	          family per grove by height and a ~260-stud biome noise: mixed green (oak, round,
 	          pine, birch), birch woods, conifer woods, pines up high; the accent families only in
 	          their spots (blossom on the waterfall mesa, the farm orchard)
-	  decor   spaced groups where people walk: flower clumps (one colour pair), bushes and rock
-	          groups along both sides of the paths and round the landmark sites, bushes and rocks
-	          round the plots and plazas and on the terrace lips facing the promenade (only rocks
-	          and bushes on the mountains' flanks); wildflower patches where the woods leave room
-	          on the waterfall mesa and the giant tree's lawn
+	  decor   flowers along both sides of the landmark paths (by turns a drift of flowers on
+	          stems, Props.flowerBed, and a pair of clumps, the sides staggered); spaced groups
+	          where people walk: flower clumps and drifts (one jewel pair), bushes and rock groups
+	          along the paths and on the low lawns round the plots, plazas and landmark sites,
+	          bushes and rocks on the terrace lips facing the promenade (only rocks and bushes on
+	          the mountains' flanks); wildflower patches where the woods leave room on the
+	          waterfall mesa and the giant tree's lawn
 	  fill    coverage: rounds over every land spot, most visible first, each placing something
 	          wherever nothing (Nature or other dressing) is within 34 / 26 studs — a copse of up
-	          to three trees on the big gaps, a bush or a rock group on the rest (no flowers);
-	          more groves with what is left
+	          to three trees on the big gaps, a bush or a rock group on the rest (no flowers;
+	          nothing behind the mountains); more groves with what is left
 	The far woods beyond FAR_R (behind the plots and the peaks) are thinned by a quarter with
 	bigger trees for the same cover, so the budget stays with the near hills.
 	Level of detail by distance to the play area: full Props trees (13-16 parts) only right beside
@@ -97,16 +114,18 @@ local sin, cos, rad = math.sin, math.cos, math.rad
 
 local Nature = {}
 
--- Share of the budget per pass (the rest of a pass's share carries over).
+-- Share per pass of the budget left after the lagoon, showcase and gateway-wedge passes (the
+-- rest of a pass's share carries over to the next one).
 local SHARE = {
-	coast = 0.16,
-	pines = 0.12,
-	belts = 0.16,
-	crests = 0.06,
-	groves = 0.18,
-	decor = 0.07,
-	sets = 0.05,
-	fill = 0.2,
+	shore = 0.14,
+	coast = 0.13,
+	pines = 0.15,
+	belts = 0.12,
+	crests = 0.1,
+	sets = 0.03,
+	decor = 0.13,
+	groves = 0.12,
+	fill = 0.08,
 }
 -- Most full Props trees (13-16 parts): only the ones right beside the paths and plazas.
 local FULL_CAP = 16
@@ -127,7 +146,6 @@ local ROCK = lerp(C.Stone, C.StoneLight, 0.35)
 local ROCK_DARK = C.StoneDark
 local HAY = { C.Straw, C.StrawLight }
 local FOAM = C.Foam
-local PAINT_BLUE = lerp(C.Blue, C.Stone, 0.3) -- a weathered blue (blankets, parasols)
 -- Red-rock mesas: terracotta boulders and sage voxel cacti on the ochre tops.
 local REDROCK = lerp(C.RoofTerracotta, C.Stone, 0.15)
 local CACTUS = { C.Mint2, C.Mint1 }
@@ -168,7 +186,7 @@ local CANOPY_R = {
 	palm = 7.4,
 	far = 6.0,
 	farPine = 5.0,
-	farPalm = 5.2,
+	farPalm = 5.8,
 }
 -- Height of the lowest foliage above the foot (studs at scale 1): nothing round a tree may
 -- stand higher than this within its canopy.
@@ -224,6 +242,8 @@ end
 	  "pine" | "snowPine"   trunk, a stepped cone of three tiers (dark to light) and a tip
 	  "palm"                two trunk segments (the upper one leaning a little, overlapping the
 	                        lower by 0.6 · scale: one bent trunk), crown, two crossed fronds
+	  "beachPalm"           (7 parts) the palm with short light fronds over long darker ones a
+	                        step lower: drooping frond tips (the outer beaches' palms)
 	cf stands on the ground (front -Z). Model pivot = cf.
 ]]
 function Nature.farTree(parent: any, cf: any, kind: string, s: number, seed: number): any
@@ -246,14 +266,23 @@ function Nature.farTree(parent: any, cf: any, kind: string, s: number, seed: num
 		box("Tier3", -w3 / 2, 9.6, -w3 / 2, w3 / 2, 13.0, w3 / 2, if snow then skirt else C.Pine3, FOLIAGE)
 		local w4 = w * 0.16
 		box("Tip", -w4 / 2, 12.8, -w4 / 2, w4 / 2, 14.6, w4 / 2, if snow then C.Snow else C.PineLight, FOLIAGE)
-	elseif kind == "palm" then
+	elseif kind == "palm" or kind == "beachPalm" then
 		local lean = r(0.4, 0.8)
 		trunk = box("Trunk1", -1.0, -1 / s, -1.0, 1.0, 5.6, 1.0, C.PalmBark)
 		box("Trunk2", lean - 0.8, 5.0, -0.8, lean + 0.8, 10.4, 0.8, C.PalmBarkDark)
 		box("Crown", lean - 1.4, 9.6, -1.4, lean + 1.4, 11.4, 1.4, C.Palm1, FOLIAGE)
 		local L = r(4.6, 5.2)
-		box("FrondX", lean - L, 10.9, -1.1, lean + L, 11.9, 1.1, C.Palm2, CANOPY)
-		box("FrondZ", lean - 1.1, 10.7, -L, lean + 1.1, 11.7, L, C.Palm3, FOLIAGE)
+		if kind == "beachPalm" then
+			-- (7 parts) short, light upper fronds over long darker ones a step lower: the frond
+			-- tips droop (a palm from the side, a two-tone star from above, not a flat cross)
+			box("FrondX", lean - L * 0.6, 10.9, -1.2, lean + L * 0.6, 11.9, 1.2, C.Palm3, CANOPY)
+			box("FrondZ", lean - 1.2, 10.7, -L * 0.6, lean + 1.2, 11.7, L * 0.6, C.Palm3, FOLIAGE)
+			box("DroopX", lean - L * 1.12, 9.95, -0.85, lean + L * 1.12, 10.95, 0.85, C.Palm2, FOLIAGE)
+			box("DroopZ", lean - 0.85, 9.75, -L * 1.12, lean + 0.85, 10.75, L * 1.12, C.Palm1, FOLIAGE)
+		else
+			box("FrondX", lean - L, 10.9, -1.1, lean + L, 11.9, 1.1, C.Palm2, CANOPY)
+			box("FrondZ", lean - 1.1, 10.7, -L, lean + 1.1, 11.7, L, C.Palm3, FOLIAGE)
+		end
 	else
 		local birch = kind == "birch"
 		local pal = PAL[kind] or PAL.green
@@ -423,12 +452,13 @@ local function pumpkinPatch(parent: any, cf: any, seed: number): any
 	return b:finish(soil)
 end
 
--- Picnic spot (5 parts): a red or blue blanket with two cream stripes and a basket with its lid.
+-- Picnic spot (5 parts): a jewel red or blue blanket with two cream stripes and a basket with
+-- its lid.
 -- (the stripes stand 0.06 proud of the cloth on every face: no shared plane)
 local function picnic(parent: any, cf: any, seed: number): any
 	local r = Kit.rng(seed)
 	local b = Kit.builder(parent, "Picnic", turned(cf, r))
-	local col = if r() < 0.5 then C.RoofRed else PAINT_BLUE
+	local col = if r() < 0.5 then C.Flowers[1] else C.Flowers[7]
 	local blanket = b:box("Blanket", -3.2, -0.1, -2.6, 3.2, 0.14, 2.6, col, Kit.NOSHADOW)
 	b:box("StripeA", -1.6, 0.05, -2.66, -0.8, 0.2, 2.66, C.Cream, FOLIAGE)
 	b:box("StripeB", 0.8, 0.05, -2.66, 1.6, 0.2, 2.66, C.Cream, FOLIAGE)
@@ -577,12 +607,13 @@ local function beachProp(parent: any, cf: any, kind: string, seed: number): any
 	local b = Kit.builder(parent, "BeachProp", cf * CFrame.Angles(0, rad(r(0, 360)), 0))
 	local first
 	if kind == "parasol" then
-		-- canopy and towel: a calm paint and a light partner
+		-- canopy and towel: a jewel-tone canopy (a small accent) and a light partner
+		local F = C.Flowers
 		local cols = {
-			{ C.RoofRed, C.Cream },
-			{ PAINT_BLUE, C.Canvas },
-			{ C.RoofGreen, C.Cream },
-			{ C.RoofTerracotta, C.Canvas },
+			{ F[1], C.Cream },
+			{ F[7], C.Canvas },
+			{ F[2], C.Cream },
+			{ F[6], C.Canvas },
 		}
 		local pair = cols[floor(r(1, #cols + 0.99))]
 		first = b:pole("Pole", 0.5, 0, 0, -0.6, 7.0, C.Cream, Kit.NOSHADOW)
@@ -594,12 +625,13 @@ local function beachProp(parent: any, cf: any, kind: string, seed: number): any
 		first = b:box("Base", -2.2, -0.3, -2.2, 2.2, 1.4, 2.2, wet)
 		b:box("Tower", -1.2, 1.4, -1.2, 1.2, 3.4, 1.2, lerp(C.Sand, C.White, 0.3))
 		b:box("Turret", -0.6, 3.4, -0.6, 0.6, 4.4, 0.6, wet)
-		b:box("Flag", 0.6, 3.7, -0.1, 1.7, 4.4, 0.1, C.RoofRed, FOLIAGE)
+		b:box("Flag", 0.6, 3.7, -0.1, 1.7, 4.4, 0.1, C.Flowers[1], FOLIAGE)
 	elseif kind == "towel" then
-		local col = if r() < 0.5 then C.Blossom0 else PAINT_BLUE
+		local blue = r() >= 0.5
+		local col = if blue then C.Flowers[7] else C.Flowers[3]
 		first = b:box("Towel", -1.4, 0, -2.6, 1.4, 0.16, 2.6, col, FOLIAGE)
 		b:box("Stripe", -1.55, -0.1, -0.4, 1.55, 0.24, 0.4, C.Cream, FOLIAGE)
-		b:box("Ball", 2.0, -0.1, -0.8, 3.4, 1.3, 0.6, if col == PAINT_BLUE then C.Red else C.Yellow, FOLIAGE)
+		b:box("Ball", 2.0, -0.1, -0.8, 3.4, 1.3, 0.6, if blue then C.Flowers[1] else C.Flowers[2], FOLIAGE)
 	elseif kind == "driftwood" then
 		first = b:box("Log", -3.4, -0.3, -0.7, 3.4, 0.9, 0.7, Kit.lerpColor(C.WoodLight, C.White, 0.25))
 		b:box("Branch", 0.6, -0.2, 0.6, 1.5, 0.7, 2.8, Kit.lerpColor(C.WoodLight, C.White, 0.2))
@@ -778,8 +810,174 @@ local function rockyIslet(parent: any, cf: any, bed: number, seed: number): any
 	b:box("Tuft", -5.0, 2.1, 1.4, -2.9, 3.3, 3.8, C.Leaf1, FOLIAGE)
 	b:box("Perch", 1.8, 4.3, 0.6, 2.4, 10.5, 1.2, C.WoodDark)
 	b:box("Crossbar", 0.8, 9.9, 0.7, 3.4, 10.35, 1.1, C.Wood, Kit.NOSHADOW)
-	b:box("Pennant", 2.4, 8.4, 0.8, 4.2, 9.5, 1.0, C.BoatPaint[1], FOLIAGE)
+	b:box("Pennant", 2.4, 8.4, 0.8, 4.2, 9.5, 1.0, C.Flowers[1], FOLIAGE)
 	b:box("Foam", -8, 0.1, -7.5, 8.5, 0.3, 6.5, FOAM, FOLIAGE)
+	return b:finish(first)
+end
+
+--------------------------------------------------------------------------------------------
+-- Coastal set pieces (7-16 parts): small scenes of island life on the outer beaches and cliff
+-- tops, where the hill viewpoints look; cf on the ground, front -Z to the sea. Calm wood, plaster
+-- and canvas with one small jewel accent each (a door, a canoe, a pennant, a flower box).
+--------------------------------------------------------------------------------------------
+
+local HUT_ROOFS = { C.RoofTerracotta, C.RoofBlue, C.RoofRed, C.RoofGreen }
+local JEWEL = C.Flowers -- red, yellow, pink, violet, white, orange, blue
+local ACCENTS = { JEWEL[1], JEWEL[7], JEWEL[2], JEWEL[6] }
+-- fishing net hung to dry: a light rope-green mesh, a little see-through
+local NET = lerp(C.RoofGreen, C.Rope, 0.5)
+local NET_MESH = { CanCollide = false, CanQuery = false, CastShadow = false, Transparency = 0.3 }
+local DUNE_GRASS = { lerp(C.Leaf2, C.Straw, 0.3), lerp(C.Leaf3, C.StrawLight, 0.35) }
+local SILVER = lerp(C.Iron, C.Glass, 0.55)
+
+-- The coastal set pieces are drawn at SHORE_SCALE: a builder whose box / pole / lean
+-- coordinates are scaled about the frame's origin (they read from the hill viewpoints).
+local SHORE_SCALE = 1.3
+local function shoreBuilder(parent: any, name: string, cf: any): any
+	local b = Kit.builder(parent, name, cf)
+	local k = SHORE_SCALE
+	local sb = { model = b.model }
+	function sb.box(_: any, n: string, x0, y0, z0, x1, y1, z1, color, extra): any
+		return b:box(n, x0 * k, y0 * k, z0 * k, x1 * k, y1 * k, z1 * k, color, extra)
+	end
+	function sb.pole(_: any, n: string, d: number, x: number, z: number, y0: number, y1: number, color, extra): any
+		return b:pole(n, d * k, x * k, z * k, y0 * k, y1 * k, color, extra)
+	end
+	-- a thin block from (y0, z0) to (y1, z1) at x (ladders, paddles)
+	function sb.lean(_: any, n: string, x, y0, z0, y1, z1, w, d, color): any
+		local dy, dz = (y1 - y0) * k, (z1 - z0) * k
+		return b:block(
+			n,
+			Vector3.new(w * k, sqrt(dy * dy + dz * dz), d * k),
+			CFrame.new(x * k, (y0 + y1) / 2 * k, (z0 + z1) / 2 * k) * CFrame.Angles(math.atan2(dz, dy), 0, 0),
+			color,
+			FOLIAGE
+		)
+	end
+	function sb.finish(_: any, first: any): any
+		return b:finish(first)
+	end
+	return sb
+end
+
+-- A stepped roof in three layers (a voxel hip roof) over x ±hx, z z0..z1 from y.
+local function steppedRoof(b: any, hx: number, z0: number, z1: number, y: number, color: any)
+	local zc, hz = (z0 + z1) / 2, (z1 - z0) / 2
+	b:box("Roof1", -hx, y, zc - hz, hx, y + 1.1, zc + hz, color)
+	b:box("Roof2", -hx + 1.0, y + 1.05, zc - hz + 1.3, hx - 1.0, y + 2.15, zc + hz - 1.3, lerp(color, C.Cream, 0.12))
+	b:box("Roof3", -hx + 2.1, y + 2.1, zc - hz * 0.35, hx - 2.1, y + 3.0, zc + hz * 0.35, color, Kit.NOSHADOW)
+end
+
+-- Fisherman's hut on stilts (16 parts): four stilts, a plank deck with a porch on the sea side, a
+-- weathered plank hut with a painted door and a window, a stepped roof with a pennant, a ladder
+-- down to the sand, a net hung to dry on the porch.
+local function stiltHut(parent: any, cf: any, seed: number): any
+	local r = Kit.rng(seed)
+	local b = shoreBuilder(parent, "StiltHut", cf)
+	local first
+	for i, p in { { -4, -2.4 }, { 4, -2.4 }, { -4, 3.2 }, { 4, 3.2 } } do
+		local post = b:box(`Stilt{i}`, p[1] - 0.55, -1.6, p[2] - 0.55, p[1] + 0.55, 3.5, p[2] + 0.55, C.WoodDark)
+		first = first or post
+	end
+	b:box("Deck", -5.4, 3.4, -7.4, 5.4, 4.0, 4.2, C.Plank)
+	b:box("Walls", -4.2, 4.0, -2.8, 4.2, 9.4, 3.6, C.WoodLight)
+	local accent = ACCENTS[floor(r(1, #ACCENTS + 0.99))]
+	b:box("Door", -1.0, 4.0, -2.98, 1.0, 7.8, -2.72, accent, Kit.NOSHADOW)
+	b:box("Window", 1.9, 5.8, -2.98, 3.3, 7.4, -2.72, C.WindowBlue, FOLIAGE)
+	local roof = HUT_ROOFS[floor(r(1, #HUT_ROOFS + 0.99))]
+	steppedRoof(b, 5.2, -4.0, 4.8, 9.4, roof)
+	b:box("PennantPole", -0.2, 12.3, 0.2, 0.2, 15.2, 0.6, C.Cream, FOLIAGE)
+	b:box("Pennant", 0.2, 13.8, 0.3, 2.6, 15.0, 0.5, accent, FOLIAGE)
+	b:lean("Ladder", -3.4, -0.2, -10.2, 3.9, -7.3, 1.6, 0.35, C.Wood)
+	b:box("NetPole", 4.3, 4.0, -7.0, 4.8, 8.8, -6.5, C.WoodDark, FOLIAGE)
+	b:box("Net", 1.4, 5.2, -6.9, 4.3, 8.4, -6.65, NET, NET_MESH)
+	return b:finish(first)
+end
+
+-- Beach camp (12 parts): a stepped ridge tent in a faded jewel canvas with a dark doorway facing
+-- the sea, a campfire (stone ring, logs, a small flame with smoke), two log seats and a painted
+-- canoe pulled up on the sand with its paddle.
+local TENTS = { lerp(JEWEL[6], C.Canvas, 0.35), lerp(C.Cyan, C.Canvas, 0.3), lerp(JEWEL[1], C.Canvas, 0.4) }
+local function beachCamp(parent: any, cf: any, seed: number): any
+	local r = Kit.rng(seed)
+	local b = shoreBuilder(parent, "BeachCamp", cf)
+	local tent = TENTS[floor(r(1, #TENTS + 0.99))]
+	-- the tent (ridge along Z, its door at the -Z end), a little to the side of the fire
+	local tx = -2.5
+	local first = b:box("Tent1", tx - 2.8, -0.2, -3.0, tx + 2.8, 1.6, 3.0, tent)
+	b:box("Tent2", tx - 1.9, 1.55, -3.0, tx + 1.9, 3.0, 3.0, Kit.shade(tent, 0.94))
+	b:box("Tent3", tx - 0.9, 2.95, -3.0, tx + 0.9, 4.0, 3.0, tent, Kit.NOSHADOW)
+	b:box("Doorway", tx - 0.9, -0.1, -3.12, tx + 0.9, 2.4, -2.9, C.Dark, FOLIAGE)
+	-- the campfire in front, the log seats round it
+	local fx, fz = 1.2, -5.4
+	b:box("FireStones", fx - 1.3, -0.2, fz - 1.3, fx + 1.3, 0.45, fz + 1.3, C.StoneDark, Kit.NOSHADOW)
+	b:box("FireLogs", fx - 0.9, 0.4, fz - 0.35, fx + 0.9, 0.9, fz + 0.35, C.BarkDark, FOLIAGE)
+	local flame = b:box("Flame", fx - 0.4, 0.7, fz - 0.4, fx + 0.4, 1.7, fz + 0.4, C.Flame, Kit.NEON_DECOR)
+	Kit.smoke(flame, { rate = 1.4, size = 1.0, rise = 2.5 })
+	b:box("SeatA", fx - 4.4, -0.2, fz - 1.4, fx - 3.0, 1.0, fz + 1.4, C.Bark)
+	b:box("SeatB", fx + 2.8, -0.2, fz - 1.4, fx + 4.2, 1.0, fz + 1.4, C.Bark)
+	-- the canoe on the sand beside the tent, its paddle leaning on the hull
+	local paint = ACCENTS[floor(r(1, #ACCENTS + 0.99))]
+	b:box("Canoe", 4.2, -0.2, -2.6, 5.9, 0.9, 4.4, paint)
+	b:box("CanoeInner", 4.5, 0.85, -2.1, 5.6, 1.0, 3.9, C.WoodLight, FOLIAGE)
+	b:lean("Paddle", 6.3, -0.2, 2.6, 2.6, 0.6, 0.35, 0.9, C.WoodLight)
+	return b:finish(first)
+end
+
+-- Drying racks (11 parts): a net hung over a bar on two posts, a rack of fish on two posts, a
+-- basket of floats in a jewel colour.
+local function dryingRacks(parent: any, cf: any, seed: number): any
+	local r = Kit.rng(seed)
+	local b = shoreBuilder(parent, "DryingRacks", cf)
+	local first = b:box("NetPostA", -6.4, -0.6, -0.3, -5.8, 5.2, 0.3, C.WoodDark)
+	b:box("NetPostB", -1.4, -0.6, -0.3, -0.8, 5.2, 0.3, C.WoodDark)
+	b:box("NetBar", -6.6, 4.7, -0.25, -0.6, 5.1, 0.25, C.Wood, Kit.NOSHADOW)
+	b:box("Net", -5.8, 1.4, -0.3, -1.4, 4.75, 0.3, NET, NET_MESH)
+	b:box("FishPostA", 1.6, -0.6, -0.3, 2.2, 4.8, 0.3, C.WoodDark)
+	b:box("FishPostB", 6.6, -0.6, -0.3, 7.2, 4.8, 0.3, C.WoodDark)
+	b:box("FishBar", 1.4, 4.3, -0.2, 7.4, 4.7, 0.2, C.Wood, Kit.NOSHADOW)
+	b:box("FishA", 3.1, 2.1, -0.2, 3.7, 4.3, 0.2, SILVER, FOLIAGE)
+	b:box("FishB", 5.0, 2.4, -0.2, 5.6, 4.3, 0.2, C.Gold, FOLIAGE)
+	b:box("Basket", 2.6, -0.2, -3.4, 4.6, 1.3, -1.6, C.Wood)
+	b:box("Floats", 2.9, 1.25, -3.1, 4.3, 1.9, -1.9, ACCENTS[floor(r(1, #ACCENTS + 0.99))], FOLIAGE)
+	return b:finish(first)
+end
+
+-- Keeper's cottage (14 parts): a little plastered cottage on a stone plinth with a painted door,
+-- two windows and a flower box in jewel blooms, a stepped roof and a brick chimney, a flag on a
+-- pole beside it (the coast watch).
+local function keeperCottage(parent: any, cf: any, seed: number): any
+	local r = Kit.rng(seed)
+	local b = shoreBuilder(parent, "KeeperCottage", cf)
+	local first = b:box("Plinth", -5.6, -1.2, -4.6, 5.6, 0.8, 4.6, C.StoneLight)
+	b:box("Walls", -5.0, 0.8, -4.0, 5.0, 7.0, 4.0, C.Plaster)
+	local accent = ACCENTS[floor(r(1, #ACCENTS + 0.99))]
+	b:box("Door", -3.6, 0.8, -4.15, -1.8, 4.6, -3.9, accent, Kit.NOSHADOW)
+	b:box("WindowA", 0.4, 3.0, -4.15, 2.4, 5.2, -3.9, C.WindowBlue, FOLIAGE)
+	b:box("WindowB", -5.15, 3.0, -1.0, -4.9, 5.2, 1.0, C.WindowBlue, FOLIAGE)
+	b:box("FlowerBox", 0.2, 2.2, -4.7, 2.6, 2.9, -3.95, C.Wood, Kit.NOSHADOW)
+	b:box("Blooms", 0.4, 2.85, -4.55, 2.4, 3.5, -4.1, JEWEL[floor(r(1, 3.99)) * 2 - 1], FOLIAGE)
+	steppedRoof(b, 6.0, -5.1, 5.1, 7.0, if r() < 0.5 then C.RoofSlate else C.RoofRed)
+	b:box("Chimney", 2.4, 8.0, 1.4, 3.6, 11.6, 2.6, C.Brick)
+	b:pole("FlagPole", 0.5, 7.6, -3.4, -0.5, 13.5, C.Cream, Kit.NOSHADOW)
+	b:box("Flag", 7.85, 10.9, -3.5, 11.2, 13.1, -3.3, accent, FOLIAGE)
+	return b:finish(first)
+end
+
+-- Boulder pile with dune grass (7 parts): three warm beach rocks of falling sizes, a moss cap,
+-- three tall tufts of dune grass round them.
+local function boulderPile(parent: any, cf: any, seed: number): any
+	local r = Kit.rng(seed)
+	local b = shoreBuilder(parent, "BoulderPile", turned(cf, r))
+	local light = lerp(BEACH_ROCK, C.Limestone, 0.35)
+	local first = b:box("BoulderA", -3.4, -0.6, -2.6, 1.6, r(3.2, 3.8), 2.4, BEACH_ROCK)
+	b:box("BoulderB", 1.3, -0.6, -1.4, 4.4, r(2.0, 2.5), 2.0, light)
+	b:box("BoulderC", -2.2, -0.6, 2.3, 0.2, 1.4, 4.2, Kit.shade(BEACH_ROCK, 0.86))
+	b:box("Moss", -2.8, 3.1, -1.9, 0.6, 3.9, 1.6, C.Leaf2, Kit.NOSHADOW)
+	for i, p in { { 4.6, -2.6 }, { -4.6, 1.4 }, { 2.4, 3.2 } } do
+		local h = r(2.2, 3.4)
+		b:box(`Grass{i}`, p[1] - 0.6, -0.3, p[2] - 0.5, p[1] + 0.6, h, p[2] + 0.5, DUNE_GRASS[i % 2 + 1], FOLIAGE)
+	end
 	return b:finish(first)
 end
 
@@ -1053,7 +1251,7 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	local COST = {
 		full = 16,
 		lite = 10,
-		far = 5,
+		far = 7,
 		tuft = 3,
 		shrub = 3,
 		rock = 4,
@@ -1061,6 +1259,7 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		fence = 4,
 		meadow = 5,
 		cactus = 6,
+		drift = 14,
 	}
 	local fullTrees = 0
 	local seedRng = Kit.rng(9001)
@@ -1194,7 +1393,12 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		if level == "far" then
 			-- (each species keeps its own green at a distance: oaks leaf green, round trees deep,
 			-- birches fresh on white trunks)
-			local far = if kind == "oak" then "green" elseif kind == "round" then "deep" else kind
+			-- (the beach palms get drooping fronds)
+			local far = if kind == "oak"
+				then "green"
+				elseif kind == "round" then "deep"
+				elseif kind == "palm" and fam == "palm" then "beachPalm"
+				else kind
 			Nature.farTree(groups.trees, cf, far, s, seed)
 		else
 			local lite = level == "lite"
@@ -1277,6 +1481,7 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 			elseif kind == "hay" then 3.4
 			elseif kind == "fence" then 5.2
 			elseif kind == "meadow" then 6.6
+			elseif kind == "drift" then 4.2
 			elseif kind == "cactus" then 3 * s + 0.4
 			else 3
 		if not affordable(COST[kind]) then
@@ -1305,6 +1510,19 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 			shrub(groups.plants, cf, s, seed, o.berry)
 		elseif kind == "meadow" then
 			meadow(groups.plants, cf, seed)
+		elseif kind == "drift" then
+			-- a drift of wildflowers on stems in one jewel pair (Props.flowerBed without a kerb),
+			-- lined up with the path (o.yaw)
+			Kit.prop("flowerBed", groups.plants, cf * CFrame.Angles(0, rad(o.yaw or 0), 0), {
+				seed = seed,
+				width = 6.4,
+				depth = 4.2,
+				spacing = 1.9,
+				kerb = false,
+				leaves = C.Leaf2,
+				colors = o.pair or pairOf(seedRng()),
+				max = 6,
+			})
 		elseif kind == "hay" then
 			hayBales(groups.sets, cf, seed)
 		elseif kind == "fence" then
@@ -1358,6 +1576,40 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		end
 	end
 
+	-- the sites within `radius` of a point (closest first, ragged edges): groves and crest woods
+	local siteHash = {}
+	for _, s in sites do
+		local k = hashKey(s.x, s.z)
+		siteHash[k] = siteHash[k] or {}
+		table.insert(siteHash[k], s)
+	end
+	local function sitesNear(x: number, z: number, radius: number): { any }
+		local out = {}
+		local n = math.ceil(radius / HASH)
+		local cx, cz = floor(x / HASH), floor(z / HASH)
+		for ix = cx - n, cx + n do
+			for iz = cz - n, cz + n do
+				local list = siteHash[(ix + 200) * 1000 + iz + 200]
+				if list then
+					for _, s in list do
+						local dx, dz = s.x - x, s.z - z
+						local d = sqrt(dx * dx + dz * dz)
+						if d < radius then
+							table.insert(out, { s = s, d = d + 14 * s.jitter })
+						end
+					end
+				end
+			end
+		end
+		table.sort(out, function(a, b)
+			if a.d ~= b.d then
+				return a.d < b.d
+			end
+			return a.s.x + a.s.z * 1e-3 < b.s.x + b.s.z * 1e-3
+		end)
+		return out
+	end
+
 	local fall = world.landmarks.Waterfall
 	local function onMesa(x: number, z: number, h: number): boolean
 		if not fall or h < G + fall.cliffTop - 8 then
@@ -1368,6 +1620,16 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	end
 	local function nearPeak(x: number, z: number, pad: number): boolean
 		return peakAt(x, z, pad) ~= nil
+	end
+	-- A spot on the far side of a mountain (beyond r 640, behind its summit from the island's
+	-- centre): no view from the play area or the hill viewpoints reaches it, so no trees there
+	local function behindMountain(x: number, z: number): boolean
+		local r = sqrt(x * x + z * z)
+		if r < 640 then
+			return false
+		end
+		local p = peakAt(x, z, 30)
+		return p ~= nil and r > sqrt(p.x * p.x + p.z * p.z) + 20
 	end
 
 	-- Family of a grove at a site and the kind of each of its trees; up on a mountain the
@@ -1433,8 +1695,10 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	end
 
 	local carry = 0
+	local shareBase = nil -- (the budget left when the shared passes start)
 	local function quota(name: string): number
-		return budget * SHARE[name] + carry
+		shareBase = shareBase or max(0, budget - spentAll())
+		return shareBase * SHARE[name] + carry
 	end
 	local function finishPass(q: number, spent: number)
 		carry = max(0, q - spent)
@@ -1481,9 +1745,12 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 			end
 			return small(x, z, "shrub", { scale = drng(1.3, 1.7), margin = margin })
 		end
-		if roll < 0.24 then
+		if roll < 0.22 then
 			return small(x, z, "tuft", { scale = drng(1.5, 1.9), margin = margin })
-		elseif roll < 0.34 then
+		elseif roll < 0.32 then
+			-- a drift of wildflowers on stems along the path
+			return small(x, z, "drift", { margin = margin, yaw = deg(atan2(x, z)) + 90 })
+		elseif roll < 0.42 then
 			-- two clumps of one colour pair
 			local pair = pairOf(drng())
 			local used = small(x, z, "tuft", { scale = drng(1.4, 1.7), margin = margin, pair = pair })
@@ -1497,8 +1764,8 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 				)
 			end
 			return used
-		elseif roll < 0.64 then
-			local berry = if drng() < 0.3 then bloomOf(drng()) else nil
+		elseif roll < 0.66 then
+			local berry = if drng() < 0.4 then bloomOf(drng()) else nil
 			return small(x, z, "shrub", { scale = drng(1.3, 1.7), margin = margin, berry = berry })
 		elseif roll < 0.84 then
 			return rockGroup(x, z, drng(1.0, 1.4), margin, drng)
@@ -1855,6 +2122,137 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	end
 
 	--------------------------------------------------------------------------------------------
+	-- Pass 1a: shore — small scenes of island life on the outer beaches and cliff tops, where the
+	-- hill viewpoints look (4-5 a quadrant): fishermen's huts on stilts by the water, beach camps,
+	-- drying racks, keepers' cottages on the grass over the beach, boulder piles with dune grass;
+	-- each facing the sea on the first flat spot (from the sea inwards) near its angle
+	--------------------------------------------------------------------------------------------
+	do
+		local q = quota("shore")
+		local spent = 0
+		local shore = U.model(nature, "Shore")
+		-- (round-robin over the quadrants: a short budget thins every coast evenly)
+		local SPOTS = {
+			{ 352, "hut" },
+			{ 90, "hut" },
+			{ 178, "hut" },
+			{ 268, "hut" },
+			{ 8, "camp" },
+			{ 60, "camp" },
+			{ 145, "camp" },
+			{ 215, "camp" },
+			{ 340, "racks" },
+			{ 97, "racks" },
+			{ 188, "racks" },
+			{ 285, "racks" },
+			{ 330, "cottage" },
+			{ 128, "cottage" },
+			{ 238, "cottage" },
+			{ 16, "boulders" },
+			{ 137, "boulders" },
+			{ 222, "boulders" },
+			{ 70, "boulders" },
+			{ 298, "boulders" },
+		}
+		-- footprints in the piece's frame before SHORE_SCALE: { x0, x1, z0, z1 } (-Z to the sea)
+		local FOOT = {
+			hut = { -5.6, 5.6, -7.5, 4.3 },
+			camp = { -5.4, 6.7, -7.0, 4.5 },
+			racks = { -6.7, 7.4, -3.5, 0.5 },
+			cottage = { -6.1, 8.0, -5.2, 5.2 },
+			boulders = { -4.8, 4.8, -3.0, 4.4 },
+		}
+		local COSTS = { hut = 16, camp = 12, racks = 11, cottage = 14, boulders = 7 }
+		local BUILD = {
+			hut = stiltHut,
+			camp = beachCamp,
+			racks = dryingRacks,
+			cottage = keeperCottage,
+			boulders = boulderPile,
+		}
+		-- Does the footprint of `kind` at (x, z) on ground h, facing the sea along the ray `a`,
+		-- stand on one dry column top (a 4 x 4 grid of points over it)? The hut's sea side may
+		-- step down (it stands on stilts), the boulders' edges may step either way by 2.
+		local function settles(kind: string, x: number, z: number, h: number, a: number): boolean
+			local f = FOOT[kind]
+			local cf = CFrame.new(x, h, z) * CFrame.Angles(0, rad(a + 180), 0)
+			for i = 0, 3 do
+				for j = 0, 3 do
+					local lx = (f[1] + (f[2] - f[1]) * i / 3) * SHORE_SCALE
+					local lz = (f[3] + (f[4] - f[3]) * j / 3) * SHORE_SCALE
+					local p = cf * Vector3.new(lx, 0, lz)
+					local hh, _, water = world:surfaceAt(p.X, p.Z)
+					local ok = hh == h and not water
+					if kind == "hut" and j == 0 then
+						ok = hh <= h and hh >= h - 2
+					elseif kind == "boulders" and (i == 0 or i == 3 or j == 0 or j == 3) then
+						ok = not water and abs(hh - h) <= 2
+					end
+					if not ok then
+						return false
+					end
+				end
+			end
+			return true
+		end
+		-- the first spot near `theta` (from the sea inwards) where the piece stands on the right
+		-- ground (sand for the beach pieces, then a low lawn by the beach; grass for the
+		-- cottages): x, z, ground y, the ray's angle
+		local function spotFor(theta: number, kind: string): (number?, number?, number?, number?)
+			local f = FOOT[kind]
+			local reach = max(-f[1], f[2], -f[3], f[4]) * SHORE_SCALE
+			local beach = kind == "hut" or kind == "camp" or kind == "racks"
+			for round = 1, if beach and kind ~= "hut" then 2 else 1 do
+				for _, da in { 0, 1.5, -1.5, 3, -3, 4.5, -4.5, 6, -6 } do
+					local a = theta + da
+					local ux, uz = sin(rad(a)), cos(rad(a))
+					local coastR = world:coastRadius(a)
+					for r = coastR + 30, coastR - 70, -2 do
+						local x, z = r * ux, r * uz
+						local h, k, water = world:surfaceAt(x, z)
+						local ok = not water
+						if ok and beach then
+							ok = if round == 1 then k == "sand" and h <= 3 else k ~= "sand" and h <= G + 6
+						elseif ok and kind == "cottage" then
+							ok = k ~= "sand" and h >= G and h <= G + 40
+						end
+						if
+							ok
+							and settles(kind, x, z, h, a)
+							and not world:isReserved(x, z, reach + 2)
+							and not Kit.isClaimed(x, z, reach + 1)
+							and offPath(x, z, reach)
+							and fits(x, z, 0, reach + 2, "shore")
+							and not blocked(x, z, reach, h + 0.2, h + 18)
+						then
+							return x, z, h, a
+						end
+					end
+				end
+			end
+			return nil, nil, nil, nil
+		end
+		local srng = Kit.rng(8642)
+		for _, sp in SPOTS do
+			local kind = sp[2]
+			local seed = floor(srng(1, 1e6))
+			if spent < q and affordable(COSTS[kind]) then
+				local x, z, h, a = spotFor(sp[1], kind)
+				if x and z and h and a then
+					local before = U.partCount
+					-- (front, local -Z, out to sea)
+					BUILD[kind](shore, CFrame.new(x, h, z) * CFrame.Angles(0, rad(a + 180), 0), seed)
+					local f = FOOT[kind]
+					addPlaced(x, z, 0, max(-f[1], f[2], -f[3], f[4]) * SHORE_SCALE + 1, "shore")
+					count(kind)
+					spent += U.partCount - before
+				end
+			end
+		end
+		finishPass(q, spent)
+	end
+
+	--------------------------------------------------------------------------------------------
 	-- Pass 1: coast — palm pairs, beach sets and foamy rocks along the outer beaches, rocks in
 	-- the surf below the cliffs
 	--------------------------------------------------------------------------------------------
@@ -2076,7 +2474,7 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 				local land = if p.style == "sandstone"
 					then s.kind == "redrock" or s.kind == "grass"
 					else s.kind == "grass" or s.kind == "grassRock"
-				if d < p.mountainRadius + 10 and s.h >= G + 8 and land then
+				if d < p.mountainRadius + 10 and s.h >= G + 8 and land and not behindMountain(s.x, s.z) then
 					table.insert(
 						list,
 						{ s = s, score = s.grove * 0.6 + s.jitter + (if s.kind == "grassRock" then 0.4 else 0) }
@@ -2203,7 +2601,9 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	end
 
 	--------------------------------------------------------------------------------------------
-	-- Pass 4: trees on the hill crests (the skyline behind the plots)
+	-- Pass 4: woods on the hill crests (the skyline behind the plots and over the outer coast):
+	-- on each of the most visible crests (at least 70 studs apart) a grove of 5-8 trees whose
+	-- crowns merge, instead of a lone tree every 50-100 studs
 	--------------------------------------------------------------------------------------------
 	do
 		local q = quota("crests")
@@ -2225,13 +2625,42 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 		end
 		sortBy(list, "score")
 		local crng = Kit.rng(4711)
+		local woods = {}
 		for _, e in list do
 			if spent >= q then
 				break
 			end
-			local s = e.s
-			local fam = family(s)
-			spent += tree(s.x, s.z, speciesOf(fam, crng(), s.h), "far", "crest", crng(2.0, 2.5))
+			local c = e.s
+			local apart = not behindMountain(c.x, c.z)
+			for _, o in woods do
+				if (o[1] - c.x) ^ 2 + (o[2] - c.z) ^ 2 < 70 * 70 then
+					apart = false
+					break
+				end
+			end
+			if apart then
+				local fam = family(c)
+				local group = `crest{#woods + 1}`
+				local target = 5 + floor(c.jitter * 3.99)
+				local n = 0
+				for _, near in sitesNear(c.x, c.z, 34) do
+					if n >= target or spent >= q then
+						break
+					end
+					local s = near.s
+					if s.kind ~= "sand" and s.kind ~= "snow" and s.kind ~= "stone" then
+						local used = tree(s.x, s.z, speciesOf(fam, crng(), s.h), "far", group, crng(1.9, 2.4))
+						if used > 0 then
+							n += 1
+							spent += used
+						end
+					end
+				end
+				if n > 0 then
+					table.insert(woods, { c.x, c.z })
+					count("crestWood")
+				end
+			end
 		end
 		finishPass(q, spent)
 	end
@@ -2328,6 +2757,145 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	end
 
 	--------------------------------------------------------------------------------------------
+	-- Pass 6: decor — flowers in jewel tones along both sides of the landmark paths (by turns a
+	-- drift of flowers on stems, Props.flowerBed, and a pair of clumps of one colour pair, the
+	-- sides staggered), then spaced groups round the landmark sites (flowers, bushes, rocks),
+	-- bushes and rocks round the plots and plazas and on the terrace lips facing the promenade;
+	-- wildflower patches on the mesa and the giant tree's lawn
+	--------------------------------------------------------------------------------------------
+	do
+		local q = quota("decor")
+		local spent = 0
+		do
+			-- the paths (as VoxelWorld:pathDistance draws them): radial strips from the promenade
+			local paths = {}
+			for name, site in world.landmarks do
+				if not (site.peak and not site.path) then
+					local reach = if name == "Waterfall"
+						then site.pondR - site.pondRadius
+						elseif name == "Windmill" then site.radius - site.hillRadius - 4
+						elseif name == "GiantTree" then site.radius - site.plateauRadius - 6
+						else site.radius - site.mountainRadius + 12
+					table.insert(paths, { angle = site.angle, reach = reach })
+				end
+			end
+			table.sort(paths, function(a, b)
+				return a.angle < b.angle
+			end)
+			local outerR = cfg.PromenadeRadius + cfg.PromenadeWidth
+			local half = (cfg.PathWidth or 12) / 2
+			local frng = Kit.rng(7373)
+			local k = 0
+			for _, pth in paths do
+				for lz = 18, pth.reach - outerR - 8, 26 do
+					for _, side in { -1, 1 } do
+						if spent >= q * 0.65 then
+							break
+						end
+						k += 1
+						local along = lz + (if side > 0 then 13 else 0) -- (the sides staggered)
+						local pair = pairOf(frng())
+						local used = 0
+						-- (the path's 8-stud columns reach ~4 studs past its strip)
+						for _, off in { 8.5, 11, 13.5 } do
+							local x, z = Kit.radial(pth.angle, outerR, side * (half + off), along)
+							if k % 3 == 0 then
+								used = small(x, z, "drift", { margin = 1, yaw = pth.angle + 90, pair = pair })
+							else
+								used = small(x, z, "tuft", { scale = frng(1.4, 1.8), margin = 1, pair = pair })
+								if used > 0 then
+									local x2, z2 = Kit.radial(pth.angle, outerR, side * (half + off + 1.5), along + 6.5)
+									used += small(
+										x2,
+										z2,
+										"tuft",
+										{ scale = frng(1.0, 1.3), margin = 1, pair = pair, gap = 0.2 }
+									)
+								end
+							end
+							if used > 0 then
+								break
+							end
+						end
+						if used > 0 then
+							spent += used
+							count("pathFlowers")
+						end
+					end
+				end
+			end
+		end
+		local beds = {}
+		local giant = world.landmarks.GiantTree
+		for _, s in sites do
+			if onMesa(s.x, s.z, s.h) then
+				table.insert(beds, { s = s, score = s.jitter })
+			elseif giant then
+				local d = sqrt((s.x - giant.x) ^ 2 + (s.z - giant.z) ^ 2)
+				if d > giant.plateauRadius + 4 and d < 110 then
+					table.insert(beds, { s = s, score = s.jitter })
+				end
+			end
+		end
+		sortBy(beds, "score")
+		local nBeds = 0
+		for _, e in beds do
+			if nBeds >= 10 or spent >= q * 0.25 then
+				break
+			end
+			if nearest(e.s.x, e.s.z, 16) >= 16 then
+				local used = small(e.s.x, e.s.z, "meadow", { gap = 2 })
+				if used > 0 then
+					nBeds += 1
+					spent += used
+				end
+			end
+		end
+		-- groups within ~14 studs of a path, plot, plaza or landmark site (the paths first), and
+		-- on the terrace lips facing the promenade; flowers along the paths and on the low lawns
+		-- by the plots, plazas and sites, spaced groups (16 studs apart along the paths, 22
+		-- elsewhere) instead of a carpet of dots
+		local list = {}
+		for _, group in { edgeSites, sites } do
+			for _, s in group do
+				if s.kind == "grass" or s.kind == "meadow" or s.kind == "grassRock" then
+					local score = s.jitter
+					if world:isReserved(s.x, s.z, 14) then
+						score += if world:pathDistance(s.x, s.z) < 16 then 1.0 else 0.6
+					elseif s.h > G and s.r < 560 then
+						local ux, uz = s.x / s.r, s.z / s.r
+						if world:heightAt(s.x - ux * 8, s.z - uz * 8) <= s.h - 4 then
+							score += 0.5 * (1 - smooth(340, 560, s.r))
+						else
+							score = -1
+						end
+					else
+						score = -1
+					end
+					if score >= 0 then
+						table.insert(list, { s = s, score = score })
+					end
+				end
+			end
+		end
+		sortBy(list, "score")
+		for _, e in list do
+			if spent >= q then
+				break
+			end
+			local path = world:pathDistance(e.s.x, e.s.z) < 16
+			local gap = if path then 16 else 22
+			-- flowers where people walk: along the paths and on the low lawns round the plots,
+			-- plazas and landmark sites
+			local flowers = path or (e.s.h <= G + 12 and world:isReserved(e.s.x, e.s.z, 14))
+			if nearest(e.s.x, e.s.z, gap) >= gap then
+				spent += decorGroup(e.s.x, e.s.z, e.s.h, 1.5, flowers)
+			end
+		end
+		finishPass(q, spent)
+	end
+
+	--------------------------------------------------------------------------------------------
 	-- Pass 5: groves
 	--------------------------------------------------------------------------------------------
 	local centres = {}
@@ -2375,39 +2943,6 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 			round += 1
 		end
 	end
-	-- sites within 40 studs of each centre (closest first, ragged edges)
-	local siteHash = {}
-	for _, s in sites do
-		local k = hashKey(s.x, s.z)
-		siteHash[k] = siteHash[k] or {}
-		table.insert(siteHash[k], s)
-	end
-	local function sitesNear(x: number, z: number, radius: number): { any }
-		local out = {}
-		local n = math.ceil(radius / HASH)
-		local cx, cz = floor(x / HASH), floor(z / HASH)
-		for ix = cx - n, cx + n do
-			for iz = cz - n, cz + n do
-				local list = siteHash[(ix + 200) * 1000 + iz + 200]
-				if list then
-					for _, s in list do
-						local dx, dz = s.x - x, s.z - z
-						local d = sqrt(dx * dx + dz * dz)
-						if d < radius then
-							table.insert(out, { s = s, d = d + 14 * s.jitter })
-						end
-					end
-				end
-			end
-		end
-		table.sort(out, function(a, b)
-			if a.d ~= b.d then
-				return a.d < b.d
-			end
-			return a.s.x + a.s.z * 1e-3 < b.s.x + b.s.z * 1e-3
-		end)
-		return out
-	end
 	local nextCentre = 1
 	local groveCount = 0
 	-- A wood edge: up to `n` bushes just outside the trees planted round (cx, cz), on the side of
@@ -2449,7 +2984,7 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 					break
 				end
 				local s = e.s
-				if s.kind ~= "sand" and s.kind ~= "snow" then
+				if s.kind ~= "sand" and s.kind ~= "snow" and not behindMountain(s.x, s.z) then
 					-- the waterfall mesa top always blossoms, whatever grove reaches it
 					local f = if onMesa(s.x, s.z, s.h) then "blossom" else fam
 					local level = detail(s.x, s.z)
@@ -2475,80 +3010,6 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	end
 
 	--------------------------------------------------------------------------------------------
-	-- Pass 6: decor — spaced groups along the paths and round the landmark sites (flowers in
-	-- one colour pair, bushes, rocks), bushes and rocks round the plots and plazas and on the
-	-- terrace lips facing the promenade; wildflower patches on the mesa and the giant tree's lawn
-	--------------------------------------------------------------------------------------------
-	do
-		local q = quota("decor")
-		local spent = 0
-		local beds = {}
-		local giant = world.landmarks.GiantTree
-		for _, s in sites do
-			if onMesa(s.x, s.z, s.h) then
-				table.insert(beds, { s = s, score = s.jitter })
-			elseif giant then
-				local d = sqrt((s.x - giant.x) ^ 2 + (s.z - giant.z) ^ 2)
-				if d > giant.plateauRadius + 4 and d < 110 then
-					table.insert(beds, { s = s, score = s.jitter })
-				end
-			end
-		end
-		sortBy(beds, "score")
-		local nBeds = 0
-		for _, e in beds do
-			if nBeds >= 10 or spent >= q * 0.25 then
-				break
-			end
-			if nearest(e.s.x, e.s.z, 16) >= 16 then
-				local used = small(e.s.x, e.s.z, "meadow", { gap = 2 })
-				if used > 0 then
-					nBeds += 1
-					spent += used
-				end
-			end
-		end
-		-- groups within ~14 studs of a path, plot, plaza or landmark site (the paths first), and
-		-- on the terrace lips facing the promenade; flowers only along the paths, spaced groups
-		-- (16 studs apart there, 22 elsewhere) instead of a carpet of dots
-		local list = {}
-		for _, group in { edgeSites, sites } do
-			for _, s in group do
-				if s.kind == "grass" or s.kind == "meadow" or s.kind == "grassRock" then
-					local score = s.jitter
-					if world:isReserved(s.x, s.z, 14) then
-						score += if world:pathDistance(s.x, s.z) < 16 then 1.0 else 0.6
-					elseif s.h > G and s.r < 560 then
-						local ux, uz = s.x / s.r, s.z / s.r
-						if world:heightAt(s.x - ux * 8, s.z - uz * 8) <= s.h - 4 then
-							score += 0.5 * (1 - smooth(340, 560, s.r))
-						else
-							score = -1
-						end
-					else
-						score = -1
-					end
-					if score >= 0 then
-						table.insert(list, { s = s, score = score })
-					end
-				end
-			end
-		end
-		sortBy(list, "score")
-		for _, e in list do
-			if spent >= q then
-				break
-			end
-			local path = world:pathDistance(e.s.x, e.s.z) < 16
-			local gap = if path then 16 else 22
-			if nearest(e.s.x, e.s.z, gap) >= gap then
-				spent += decorGroup(e.s.x, e.s.z, e.s.h, 1.5, path)
-			end
-		end
-		finishPass(q, spent)
-	end
-
-	--------------------------------------------------------------------------------------------
 	-- Pass 7: fill — coverage rounds over every land spot, most visible first: a copse (a tree
 	-- and up to two neighbours of its family, a bush on its edge) where nothing is within 34
 	-- studs, then a bush or a rock group where nothing is within 26 (no flowers: the lawns stay
@@ -2557,7 +3018,7 @@ function Nature.build(map: any, cfg: any, world: any, budget: number): { [string
 	do
 		local order = {}
 		for _, s in sites do
-			if s.kind ~= "snow" and s.kind ~= "stone" then
+			if s.kind ~= "snow" and s.kind ~= "stone" and not behindMountain(s.x, s.z) then
 				table.insert(order, { s = s, score = visibility(s.r) + 0.5 * s.jitter })
 			end
 		end

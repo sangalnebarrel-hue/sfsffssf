@@ -156,6 +156,8 @@ row("plants", 0, 70, 8, {
 	{ "flowerClump", { seed = 1 } },
 	{ "flowerBed", { seed = 1 } },
 	{ "flowerBed", { seed = 2, width = 8, depth = 2, kerb = false } },
+	-- a wildflower drift (Nature's decor along the paths: no kerb, two rows on stems)
+	{ "flowerBed", { seed = 3, width = 6.4, depth = 4.2, spacing = 1.9, kerb = false, leaves = C.Leaf2, max = 6 } },
 	{ "hayBale", {} },
 	{ "flowerPatch", { seed = 1 } },
 	{ "flowerPatch", { seed = 2 } },
