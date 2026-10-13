@@ -154,10 +154,15 @@ row("plants", 0, 70, 8, {
 	{ "bush", { seed = 4, berries = C.Yellow } },
 	{ "berryBush", { seed = 1 } },
 	{ "flowerClump", { seed = 1 } },
+	{ "flowerClump", { seed = 2 } },
+	-- planted beds of small flowers (a petal plate with an eye, 1.1-1.3 apart, three heights)
 	{ "flowerBed", { seed = 1 } },
 	{ "flowerBed", { seed = 2, width = 8, depth = 2, kerb = false } },
-	-- a wildflower drift (Nature's decor along the paths: no kerb, two rows on stems)
-	{ "flowerBed", { seed = 3, width = 6.4, depth = 4.2, spacing = 1.9, kerb = false, leaves = C.Leaf2, max = 6 } },
+	-- a wildflower drift (Nature's decor along the paths: no kerb, leaf blades)
+	{ "flowerBed", { seed = 3, width = 6.4, depth = 4.2, kerb = false, leaves = C.Leaf2, blades = 4 } },
+	-- capped beds: the flowers gather in clumps (a base gate bed, a long parapet box)
+	{ "flowerBed", { seed = 4, width = 6, depth = 3.6, spacing = 1.6, max = 8 } },
+	{ "flowerBed", { seed = 5, width = 14, depth = 1.6, kerb = C.Wood, stems = false, spacing = 2.6, max = 10 }, 16 },
 	{ "hayBale", {} },
 	{ "flowerPatch", { seed = 1 } },
 	{ "flowerPatch", { seed = 2 } },
@@ -346,7 +351,8 @@ table.insert(sections, { "sky", 170, -20, 150 })
 -- Coverage check, output
 --------------------------------------------------------------------------------------------
 
-local HELPERS = { makeRng = true, shade = true, lerpColor = true, tones = true, fx = true, fxAt = true }
+local HELPERS =
+	{ makeRng = true, shade = true, lerpColor = true, tones = true, fx = true, fxAt = true, bloomCentre = true }
 local missing = {}
 for name, value in Props :: any do
 	if type(value) == "function" and not HELPERS[name] and not used[name] then
