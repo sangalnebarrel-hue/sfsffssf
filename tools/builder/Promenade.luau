@@ -4,46 +4,56 @@
 
 	  Map.Bridges     Bridge_1..4 at θ = BridgeAngles: chunky wooden Props.bridge from the hub
 	                  plaza (r ≈ 118) to the promenade (r ≈ 312), deck top GroundTop + 0.6, no end
-	                  arches (the hub's avenue gates and the gateway arches frame the crossing):
-	                  a deck of plank / light / mid wood boards, dark-wood posts, kerbs and mid
-	                  rail, a chunky wooden top rail, stone pillars under the lanterns (the
-	                  lantern caps are the gateway's colour: the district accent), a stone landing
-	                  plate where the deck meets the promenade and a mid-span lookout: plank
-	                  bump-outs on both sides on stone piers with stone corner posts, an iron lamp
-	                  and a flag in the gateway's colour each, two-tone bunting across the deck
-	                  between the flags; on the left (deeper) one a fish stall «ПРОДАТЬ РЫБУ»
-	                  (SellKiosk.Scales.SellPromptAttachment, bound by the server like the hub
-	                  market's) under a gabled roof, on the right a bench facing the water, a
-	                  telescope and the district's touch (a crate of glass floats, a flower box,
-	                  an anchor, a picnic basket). Pile bents buried in the sand are left out.
+	                  arches (the hub's avenue gates and the gateway arches frame the crossing),
+	                  painted like a seaside boardwalk (a value break, not wood on wood): a deck of
+	                  long plank / light / mid wood boards with a runner of two dark planks down
+	                  its middle, cream top rails and cream deck kerbs on dark-wood posts and mid
+	                  rail, slim navy iron posts under the lanterns (the lantern caps are the
+	                  gateway's colour: the district accent), a painted flower box on the top
+	                  rail at both ends of the crossing on each side (small flowers with their
+	                  eyes), a stone landing plate where the deck meets the promenade and a
+	                  mid-span lookout: plank bump-outs on both sides on stone piers with stone
+	                  corner posts, an iron lamp and a flag in the gateway's colour each, two-tone
+	                  bunting across the deck between the flags; on the left (deeper) one a fish
+	                  stall «ПРОДАТЬ РЫБУ» (SellKiosk.Scales.SellPromptAttachment, bound by the
+	                  server like the hub market's) under a gabled roof, on the right a bench
+	                  facing the water and the district's touch (a crate of glass floats, a flower
+	                  box, an anchor, a picnic basket). Pile bents buried in the sand are left out.
 	                  buildBridges returns the kiosks' attachments for the build's self-check.
-	  Map.Promenade   the ring walk r 312..330 on flat GroundTop, laid as paving with a rhythm
-	                  (not a running track): big warm honey sandstone flags in two tones,
-	                  checkered across a brick runner down the middle that changes between two
-	                  calm brick tones half-way along each flag, a cream limestone band right
-	                  across the walk every 3.75° (~21 studs), cream limestone kerbs (open where
-	                  the gateway roads and landmark paths leave the ring); a warm sandstone sea
-	                  wall on the lagoon side (two shades by
-	                  turns, a cream coping) with a low seat-high parapet between pale stone
-	                  pillars (the lagoon, the coping ledge and the beach stay in view from the
-	                  walk), open at the 8 pier entrances (base ± 6°, with two broad steps down
-	                  to the beach on both sides of the pier) and 4 steps down to the beach
-	                  (between two plots); slim iron lamps on every other pillar (every other
-	                  lamp with a banner on an iron arm), bunting and banners in the colour of
-	                  each quarter and its jewel partner (PARTNER), wooden benches and planters
-	                  (jewel bloom pairs) in front of the
-	                  plots and along the stretches between them, wooden direction signs at the
-	                  landmark paths, and a small stall on every stretch from a base's gate to its
-	                  bridge (Stops: an ice-cream cart, a fish smokehouse, a lemonade stall, a
-	                  fishing spot on the sea wall, a boat hire, a bait shed, an island map board,
-	                  a flower cart) — real little buildings with plinths, framed walls, doors,
-	                  windows, gabled roofs and signs; the base's own colour only on small accents
-	                  (awning stripes, shutters, a valance). On the lagoon side, every ~22°, a
-	                  fishing vignette (Vignettes): an upturned rowboat on the sand, a rod rack
-	                  and bait bucket or crates of the catch or lobster pots on the coping ledge,
-	                  a net laid over the parapet to dry, a beach parasol with a towel and a
-	                  cooler, a fish drying rack — boats, parasols and floats in jewel tones and
-	                  boat paint by turns (VIGNETTE_PAINT). No people, no animals.
+	  Map.Promenade   the ring walk r 312..330 on flat GroundTop, laid as paving with places along
+	                  it (not a running track): big warm honey sandstone flags right across the
+	                  walk in two tones by turns, a brick runner down the middle in two calm brick
+	                  tones broken every ~42 studs (every flag joint) by a round voxel medallion (a
+	                  cream limestone "plus" with a centre stone: terracotta, the quarter's colour
+	                  at the bridge landings, the base's own colour at its pier and gate), and in
+	                  front of every stop a square inlay plaza (a cream square with a checker of
+	                  brick and flagstone); cream limestone kerbs (open where the gateway roads
+	                  and landmark paths leave the ring); a warm sandstone sea wall on the lagoon
+	                  side (two shades by turns, a cream coping) with a low seat-high parapet
+	                  between pale stone pillars (the lagoon, the coping ledge and the beach stay
+	                  in view from the walk), open at the 8 pier entrances (base ± 6°, with two
+	                  broad steps down to the beach on both sides of the pier) and 4 steps down to
+	                  the beach (between two plots); no blank bollards at the openings: beside the
+	                  piers a low post with a terracotta pot of flowers on one side and a wicker
+	                  creel of the catch on the other, beside the bridges and beach steps the
+	                  parapet simply ends in a block; slim iron lamps on every other pillar (every
+	                  other lamp with a banner on an iron arm), bunting after every other pier and
+	                  banners in the colour of each quarter and its jewel partner (PARTNER), a
+	                  bench and two painted seaside-blue planters of small flowers (petal plates
+	                  with an eye, Props.bloomCentre) at every plot's gate (the verges between the
+	                  plots are Nature's: street trees and flowers beyond the kerb), wooden
+	                  direction signs at the landmark paths, and a small stall on every stretch
+	                  from a base's gate to its bridge (Stops: an ice-cream cart, a fish
+	                  smokehouse, a lemonade stall, a fishing spot on the sea wall, a boat hire, a
+	                  bait shed, an island map board, a flower cart) — real little buildings with
+	                  plinths, framed walls, doors, windows, gabled roofs and signs; the base's
+	                  own colour only on small accents (awning stripes, shutters, a valance). On
+	                  the lagoon side, every ~22°, a fishing vignette (Vignettes): an upturned
+	                  rowboat on the sand, a rod rack and bait bucket or crates of the catch or
+	                  lobster pots on the coping ledge, a net laid over the parapet to dry, a beach
+	                  parasol with a towel and a cooler, a fish drying rack — boats, parasols and
+	                  floats in jewel tones and boat paint by turns (VIGNETTE_PAINT). No people,
+	                  no animals.
 
 	Nothing is placed on the walking surface except along its two edges (the stops stand on
 	its outer half: ~10 studs of lane stay free), so players can run all the way round.
@@ -98,14 +108,12 @@ Promenade.Themes = {
 }
 
 -- Materials of the walk (calm, large surfaces: DESIGN.md §1): big warm honey sandstone flags
--- in two tones (~222, 202, 158 and a shade ~6 % darker), darker flagstone joints (~196, 172,
--- 134), a brick runner down the middle in two calm brick tones by turns (a terracotta ~184,
--- 104, 76 and a lighter, dustier brick), cut at every flag joint by a cream limestone band
--- right across the walk: a paved promenade with a rhythm, not one long red line (a running
--- track).
+-- in two tones (~222, 202, 158 and a shade ~6 % darker), a brick runner down the middle in two
+-- calm brick tones by turns (a terracotta ~184, 104, 76 and a lighter, dustier brick), broken at
+-- every flag joint by a cream limestone medallion: a paved promenade with a rhythm, not one long
+-- red line (a running track).
 local WALK = lerp(lerp(C.Sand, C.Flagstone, 0.5), C.Limestone, 0.2)
 local WALK2 = lerp(WALK, C.FlagstoneDark, 0.55)
-local JOINT = lerp(C.FlagstoneDark, C.Limestone, 0.1)
 local RUNNER = lerp(lerp(C.Brick, C.RoofTerracotta, 0.6), C.Sand, 0.06)
 local RUNNER2 = lerp(lerp(C.Brick, C.Sand, 0.45), C.RoofTerracotta, 0.15)
 local BAND = lerp(C.Limestone, C.Cream, 0.4)
@@ -117,7 +125,19 @@ local COPING = lerp(C.Limestone, C.Cream, 0.3)
 -- the coping ledge and the beach stay in view from the walk
 local PARAPET_TOP = 1.6
 local PILLAR_TOP = 3.6
+local POST_TOP = 2.4 -- (the low posts at a run's end: 0.8 over the parapet)
 local ICE = lerp(C.WaterLight, C.White, 0.65)
+local RAIL_CREAM = C.Cream -- (the bridges' top rails: a seaside boardwalk's white paint)
+-- painted planters and flower boxes along the walk and on the bridges: a calm seaside blue
+local PLANTER_PAINT = lerp(C.RoofBlue, C.Cream, 0.12)
+
+-- A small flower (2 parts) on a Kit builder: a petal plate w wide (<= 1.1) with a contrasting
+-- eye on top (Props.bloomCentre), its foot at (x, y, z).
+local function bloomAt(b: any, name: string, x: number, y: number, z: number, w: number, petal: any)
+	b:box(name, x - w / 2, y, z - w / 2, x + w / 2, y + 0.4, z + w / 2, petal, Kit.DECOR)
+	b:box(name .. "Eye", x - 0.2, y + 0.36, z - 0.2, x + 0.2, y + 0.56, z + 0.2, Props.bloomCentre(petal), Kit.DECOR)
+end
+
 local SILVER = lerp(C.Iron, C.Glass, 0.55) -- fish on ice, fish on the line
 local SALMON = lerp(C.Orange, C.Cream, 0.3)
 
@@ -299,11 +319,20 @@ local function wingAccent(b: any, theme: any, bx: number, ox: number)
 		-- a flower box along the top of the outer rail, a planter at the bench's end
 		b:box("RailBox", ox - 0.65, 4.35, -6.5, ox + 0.65, 5.2, 4.5, C.Wood)
 		b:box("RailGreens", ox - 0.45, 5.1, -6.2, ox + 0.45, 5.9, 4.2, C.Leaf2, Kit.DECOR)
-		b:box("RailBloomsA", ox - 0.55, 5.6, -5.8, ox + 0.55, 6.6, -1.2, C.Flowers[2], Kit.DECOR)
-		b:box("RailBloomsB", ox - 0.58, 5.7, -0.4, ox + 0.58, 6.5, 3.8, C.Flowers[4], Kit.DECOR)
+		for i, f in
+			{
+				{ -5.0, 5.85, C.Flowers[2] },
+				{ -2.4, 5.75, C.Flowers[4] },
+				{ 0.6, 5.9, C.Flowers[2] },
+				{ 3.2, 5.8, C.Flowers[4] },
+			}
+		do
+			bloomAt(b, `RailBloom{i}`, ox, f[2], f[1], 0.95, f[3])
+		end
 		b:box("Planter", bx - 1.3, -0.05, -6.6, bx + 1.3, 1.5, -4.0, C.Wood)
 		b:box("PlanterGreens", bx - 1.0, 1.4, -6.3, bx + 1.0, 2.6, -4.3, C.Leaf2, Kit.DECOR)
-		b:box("PlanterBloom", bx - 0.7, 2.4, -5.9, bx + 0.6, 3.5, -4.7, C.Flowers[3], Kit.DECOR)
+		bloomAt(b, "PlanterBloomA", bx - 0.35, 2.5, -5.6, 0.95, C.Flowers[3])
+		bloomAt(b, "PlanterBloomB", bx + 0.4, 2.35, -4.9, 0.9, C.Flowers[5])
 	elseif kind == "anchor" then
 		-- an iron anchor leaning on the outer rail (shank, stock, arms, flukes, ring) and a lifebuoy
 		local x, z = ox - 1.3, -5.2
@@ -330,8 +359,8 @@ end
 -- runs from the hub to the promenade, ±hw are the deck edges): a plank bump-out on both sides
 -- on a stone pier, a wooden railing on stone corner posts, an iron lamp and a flag in the
 -- district colour on the outer corners; the left wing (deeper) carries the fish stall, the
--- right one a bench facing the water and a telescope. The bridge's own railing is cut open
--- there (see buildBridges). ~65 parts.
+-- right one a bench facing the water. The bridge's own railing is cut open
+-- there (see buildBridges). ~62 parts.
 local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme: any)
 	local b = Kit.builder(bridge, "Lookout", cf)
 	local zh = LOOKOUT_HALF
@@ -388,11 +417,6 @@ local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme
 			wingAccent(b, theme, bx, ox)
 		end
 	end
-	-- a brass telescope on the right-hand bump-out, looking out over the lagoon
-	local tx = hw + LOOKOUT_OUT - 2.4
-	b:box("ScopeStand", tx - 0.4, -0.05, 6.1, tx + 0.4, 3.6, 6.9, C.Iron)
-	b:box("ScopeTube", tx - 1.2, 3.6, 5.95, tx + 1.9, 4.7, 7.05, C.Gold)
-	b:box("ScopeLens", tx + 1.9, 3.45, 5.8, tx + 2.2, 4.85, 7.2, C.Glass, Kit.NOSHADOW)
 	-- two-tone bunting across the deck between the two flag poles (well above the players' heads)
 	local fz = zh - 0.75
 	offsetFlags(
@@ -406,6 +430,38 @@ local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme
 	)
 	b:finish(first)
 	return b.model
+end
+
+--[[
+	A seaside boardwalk's paint on a bridge (Props.bridge local frame `cf`, deck top y = 0, local
+	z from +L/2 at the hub to -L/2 at the promenade): a runner of two dark planks down the middle
+	of the deck (broken by the lookout), and four painted flower boxes on the top rails, a pair at
+	each end of the crossing (a box, a leafy mound and two small flowers with their eyes each,
+	the colour pairs of the Palette's jewel blooms). 4 + 4 x 6 = 28 parts.
+]]
+local function bridgeDressing(bridge: any, cf: any, hw: number, L: number, i: number)
+	local b = Kit.builder(bridge, "Boardwalk", cf)
+	local first
+	for _, seg in { { LOOKOUT_HALF + 0.2, L / 2 - 0.6 }, { -L / 2 + 0.6, -LOOKOUT_HALF - 0.2 } } do
+		for j, x in { -1.05, 1.05 } do
+			local p = b:box(`Runner{j}`, x - 0.8, -0.05, seg[1], x + 0.8, 0.07, seg[2], C.WoodDark, Kit.NOSHADOW)
+			first = first or p
+		end
+	end
+	local pairs = Props.bloomPairs
+	for e, z in { L / 2 - 40, -L / 2 + 40 } do
+		for k, sx in { -1, 1 } do
+			-- (hung on the rail's outer face: only the leaves and the flowers show over the rail)
+			local x = sx * (hw + 0.8)
+			local pair = pairs[(i * 2 + e + k) % #pairs + 1]
+			local n = `{e}_{k}`
+			b:box(`FlowerBox{n}`, x - 0.6, 2.7, z - 1.7, x + 0.6, 3.75, z + 1.7, PLANTER_PAINT, Kit.NOSHADOW)
+			b:box(`FlowerLeaves{n}`, x - 0.7, 3.7, z - 1.85, x + 0.7, 4.35, z + 1.85, C.Leaf1, Kit.DECOR)
+			bloomAt(b, `Bloom{n}a`, x - 0.05, 4.25, z - 0.85, 0.95, pair[1])
+			bloomAt(b, `Bloom{n}b`, x + 0.05, 4.35, z + 0.8, 0.92, pair[2] or pair[1])
+		end
+	end
+	b:finish(first)
 end
 
 -- Returns the attachments it placed (the sell kiosks' prompts) for the build's self-check:
@@ -427,7 +483,7 @@ function Promenade.buildBridges(map: any, cfg: any, world: any): { any }
 			deckY = deckY,
 			width = width,
 			bedY = -cfg.LagoonDepth,
-			plankLength = 10,
+			plankLength = 20,
 			postSpacing = 16,
 			bentSpacing = 48,
 			roof = theme.color,
@@ -468,7 +524,7 @@ function Promenade.buildBridges(map: any, cfg: any, world: any): { any }
 				-- split round the lookout; the top rail gets chunkier (1.2 x 1.4) in mid wood, the
 				-- thin mid rail dark wood
 				local isTop = string.match(name, "^TopRail") ~= nil
-				local size = if isTop then Vector3.new(1.2, 1.4, 0) else Vector3.new(d.Size.X, d.Size.Y, 0)
+				local size = if isTop then Vector3.new(1.3, 1.2, 0) else Vector3.new(d.Size.X, d.Size.Y, 0)
 				local y = if isTop then 3.7 else lp.Y
 				for j, seg in { { open, L / 2 }, { -L / 2, -open } } do
 					local len = seg[2] - seg[1]
@@ -477,7 +533,7 @@ function Promenade.buildBridges(map: any, cfg: any, world: any): { any }
 						`{name}_{j}`,
 						Vector3.new(size.X, size.Y, len),
 						cf * CFrame.new(lp.X, y, (seg[1] + seg[2]) / 2),
-						if isTop then C.Wood else C.WoodDark,
+						if isTop then RAIL_CREAM else C.WoodDark,
 						nil,
 						if isTop then nil else Kit.NOSHADOW
 					)
@@ -496,15 +552,19 @@ function Promenade.buildBridges(map: any, cfg: any, world: any): { any }
 					d.Color = C.Wood
 				end
 			elseif string.match(name, "^LampPost") then
-				-- stone pillars under the lanterns
-				d.Color = C.StoneLight
-			elseif string.match(name, "^Post") or string.match(name, "^Kerb") then
+				-- slim navy iron posts under the lanterns
+				d.Color = C.Navy
+				d.Size = Vector3.new(1.1, d.Size.Y, 1.1)
+			elseif string.match(name, "^Post") then
 				d.Color = C.WoodDark
+			elseif string.match(name, "^Kerb") then
+				d.Color = RAIL_CREAM
 			elseif string.match(name, "^Stringer") then
 				d.Color = C.Wood
 			end
 		end
 		lookout(bridge, cf, hw, -cfg.LagoonDepth - deckY, theme)
+		bridgeDressing(bridge, cf, hw, L, i)
 		table.insert(attachments, {
 			root = "workspace",
 			path = { "Map", "Bridges", bridge.Name, "Lookout", "SellKiosk", "Scales", "SellPromptAttachment" },
@@ -583,6 +643,41 @@ local function inGap(cfg: any, a: number): boolean
 		end
 	end
 	return false
+end
+
+-- The base (index) whose slot angle is within `tol` degrees of a, if any.
+local function baseAt(cfg: any, a: number, tol: number): number?
+	for i = 1, cfg.BaseCount do
+		if Kit.angleDistance(a, cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount) < tol then
+			return i
+		end
+	end
+	return nil
+end
+
+-- Angles of the stops standing on the walk (one on every stretch from a base's gate to its
+-- bridge landing, 5.5° from the bridge; the fishing spot sits on the sea wall instead), in base
+-- order: { [base index] = angle }.
+function Promenade.stopAngles(cfg: any): { [number]: number }
+	local out = {}
+	for i = 1, cfg.BaseCount do
+		local base = cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount
+		local half = 180 / cfg.BaseCount
+		local bridge = nil
+		for _, b in cfg.BridgeAngles do
+			if Kit.angleDistance(base + half, b) < 1 or Kit.angleDistance(base - half, b) < 1 then
+				bridge = if Kit.angleDistance(base + half, b) < 1 then base + half else base - half
+			end
+		end
+		if bridge then
+			local dir = if bridge < base then 1 else -1 -- (from the bridge towards the base)
+			local spec = Promenade.STOP_KINDS[(i - 1) % #Promenade.STOP_KINDS + 1]
+			if spec ~= "FishingSpot" then
+				out[i] = bridge + dir * 5.5
+			end
+		end
+	end
+	return out
 end
 
 -- True where a pier or bridge deck crosses the sea wall line.
@@ -697,16 +792,38 @@ local function pillarLamp(parent: any, cf: any, light: boolean, banner: any?)
 	b:finish(post)
 end
 
--- Wooden planter (5 parts): a plank box (4.8 along the ring) of leafy greens with three clumps
--- of blooms half sunk into them at different heights, in one harmonious colour pair (the
--- partner in the middle). Stands on cf (local X along the ring).
+-- A terracotta pot of flowers on a post top (6 parts: pot, a leafy mound, two small flowers with
+-- their eyes, Props.bloomCentre). cf on the post top, local -Z to the lagoon.
+local POT = lerp(C.RoofTerracotta, C.Brick, 0.3)
+local function postPot(parent: any, cf: any, pair: { any })
+	local b = Kit.builder(parent, "PostPot", cf)
+	local pot = b:box("Pot", -0.75, -0.05, -0.75, 0.75, 1.05, 0.75, POT, Kit.NOSHADOW)
+	b:box("Leaves", -0.85, 0.95, -0.8, 0.8, 1.6, 0.85, C.Leaf2, Kit.DECOR)
+	bloomAt(b, "Bloom1", -0.3, 1.5, -0.3, 0.92, pair[1])
+	bloomAt(b, "Bloom2", 0.35, 1.68, 0.3, 0.92, pair[2] or pair[1])
+	return b:finish(pot)
+end
+
+-- A wicker creel of the catch on a post top (2 parts: the basket, a fish poking out of it).
+local CREEL = lerp(C.Straw, C.Wood, 0.35)
+local function postCreel(parent: any, cf: any, k: number)
+	local b = Kit.builder(parent, "PostCreel", cf)
+	local creel = b:box("Creel", -0.7, -0.05, -0.6, 0.7, 1.0, 0.6, CREEL, Kit.NOSHADOW)
+	b:box("Fish", -0.15, 0.6, -0.45, 0.2, 1.6, -0.1, if k % 2 == 0 then SILVER else SALMON, Kit.DECOR)
+	return b:finish(creel)
+end
+
+-- Painted planter (9 parts): a seaside-blue plank box (4.8 along the ring) with a leafy mound, a
+-- lighter knob of leaves on it and three small flowers (petal plates with an eye) in one
+-- harmonious colour pair. Stands on cf (local X along the ring).
 local function planter(parent: any, cf: any, pair: { any })
 	local b = Kit.builder(parent, "Planter", cf)
-	local box = b:box("Box", -2.4, -0.2, -1.4, 2.4, 1.2, 1.4, C.Wood)
-	b:box("Greens", -2.05, 0.9, -1.05, 2.05, 2.1, 1.05, C.Leaf2, Kit.DECOR)
-	b:box("Bloom1", -1.85, 1.75, -0.75, -0.85, 2.6, 0.25, pair[1], Kit.DECOR)
-	b:box("Bloom2", -0.45, 1.85, -0.2, 0.55, 2.9, 0.8, pair[2], Kit.DECOR)
-	b:box("Bloom3", 0.9, 1.7, -0.7, 1.85, 2.55, 0.25, pair[1], Kit.DECOR)
+	local box = b:box("Box", -2.4, -0.2, -1.3, 2.4, 1.25, 1.3, PLANTER_PAINT)
+	b:box("Greens", -2.1, 1.0, -1.05, 2.1, 1.7, 1.05, C.Leaf1, Kit.DECOR)
+	b:box("Knob", -1.4, 1.65, -0.55, 0.6, 2.15, 0.6, C.Leaf2, Kit.DECOR)
+	bloomAt(b, "Bloom1", -0.5, 2.05, 0.0, 1.0, pair[1])
+	bloomAt(b, "Bloom2", 1.45, 1.6, -0.45, 0.95, pair[2] or pair[1])
+	bloomAt(b, "Bloom3", -1.6, 1.6, 0.6, 0.92, pair[1])
 	return b:finish(box)
 end
 
@@ -928,9 +1045,9 @@ local function baitShedStop(b: any, color: any)
 	return plinth
 end
 
--- Island map board (13 parts): a cream board on two dark posts with a painted map (sea, the
--- island and the hub), a «КАРТА ОСТРОВА» header and a small gabled roof, a flower pot on each
--- side.
+-- Island map board (17 parts): a cream board on two dark posts with a painted map (sea, the
+-- island and the hub), a «КАРТА ОСТРОВА» header and a small gabled roof, a pot of greens with
+-- a flower on each side.
 local function mapBoardStop(b: any, color: any)
 	local first = b:box("PostA", -3.2, -0.05, 0.9, -2.6, 7.2, 1.5, C.WoodDark)
 	b:box("PostB", 2.6, -0.05, 0.9, 3.2, 7.2, 1.5, C.WoodDark)
@@ -950,14 +1067,15 @@ local function mapBoardStop(b: any, color: any)
 	gable(b, -3.7, 3.7, 0.1, 2.3, 7.2, 8.4, C.RoofGreen)
 	for i, x in { -4.6, 4.6 } do
 		b:box(`Pot{i}`, x - 0.8, -0.05, 0.2, x + 0.8, 1.4, 1.8, C.Brick)
-		b:box(`Bloom{i}`, x - 0.65, 1.3, 0.35, x + 0.65, 2.5, 1.65, if i == 1 then color else C.Flowers[2], Kit.DECOR)
+		b:box(`PotLeaves{i}`, x - 0.7, 1.3, 0.3, x + 0.7, 1.9, 1.7, C.Leaf2, Kit.DECOR)
+		bloomAt(b, `Bloom{i}`, x - 0.25, 1.8, 0.75, 0.9, if i == 1 then color else C.Flowers[2])
 	end
 	return first
 end
 
--- Flower cart (17 parts): a wooden cart with a dark rim, two wheels and handles, three iron
--- buckets of flowers (leaves and blooms: Palette flowers, one in the base colour), a «ЦВЕТЫ»
--- board on a post.
+-- Flower cart (23 parts): a wooden cart with a dark rim, two wheels and handles, three iron
+-- buckets of flowers (leaves and two small flowers with their eyes each: Palette flowers, one in
+-- the base colour), a «ЦВЕТЫ» board on a post.
 local function flowerCartStop(b: any, color: any)
 	local bed = b:box("Bed", -2.6, 1.1, -0.6, 2.6, 2.4, 1.6, C.Wood)
 	b:box("Rim", -2.75, 2.3, -0.75, 2.75, 2.65, 1.75, C.WoodDark, Kit.NOSHADOW)
@@ -968,7 +1086,8 @@ local function flowerCartStop(b: any, color: any)
 		local h = (i % 2) * 0.35
 		b:box(`Bucket{i}`, x - 0.65, 2.6, -0.1, x + 0.65, 3.6, 1.1, C.Iron, Kit.NOSHADOW)
 		b:box(`Leaves{i}`, x - 0.8, 3.5, -0.25, x + 0.8, 4.3 + h, 1.25, C.Leaf2, Kit.DECOR)
-		b:box(`Blooms{i}`, x - 0.55, 4.2 + h, 0.0, x + 0.55, 5.0 + h, 1.0, spec[2], Kit.DECOR)
+		bloomAt(b, `BloomA{i}`, x - 0.3, 4.2 + h, 0.2, 0.9, spec[2])
+		bloomAt(b, `BloomB{i}`, x + 0.3, 4.4 + h, 0.85, 0.85, spec[2])
 	end
 	b:box("SignPost", -0.25, -0.05, 2.2, 0.25, 6.6, 2.7, C.WoodDark)
 	local board = b:box("Sign", -2.2, 5.2, 1.9, 2.2, 6.6, 2.2, C.Cream)
@@ -1153,6 +1272,10 @@ local STOPS = {
 	{ name = "MapBoard", build = mapBoardStop },
 	{ name = "FlowerCart", build = flowerCartStop },
 }
+Promenade.STOP_KINDS = {}
+for _, spec in STOPS do
+	table.insert(Promenade.STOP_KINDS, spec.name)
+end
 
 -- Wooden direction sign (6 parts) at a landmark path mouth: two dark posts, a painted board
 -- (white text with a dark outline) in a wooden frame, a small gabled roof.
@@ -1181,44 +1304,105 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	local outer = inner + cfg.PromenadeWidth
 	local top = G + DECK_TOP
 
-	-- Paving: 48 big sandstone flags (7.5°, ~42 studs at the middle of the walk) in two tones
-	-- by turns, all at one height (the chord rectangles overlap near the inner edge: same colour,
-	-- so no seam, no lip and no shimmer); a brick runner down the middle in 48 pieces of two calm
-	-- brick tones by turns, offset by half a flag (so flag and runner change tone at different
-	-- bands); a cream limestone band right across the walk (over the runner) every 3.75°: the
-	-- flag joints and the half-way bands. The walk reads as laid paving with a rhythm.
+	-- Paving: 48 big sandstone flags (7.5°, ~42 studs at the middle of the walk) right across the
+	-- walk in two tones by turns, all at one height (the chord rectangles overlap near the inner
+	-- edge: same colour, so no seam, no lip and no shimmer); a brick runner down the middle in two
+	-- calm brick tones by turns, broken on every flag joint (~42 studs) by a round voxel medallion
+	-- (a cream limestone "plus" with a centre stone: terracotta, the quarter's colour at the
+	-- bridge landings, the base's own colour at its pier and gate), and in front of every stop by
+	-- a square inlay plaza (a cream square with a two-by-two checker of brick and flagstone): a
+	-- paved promenade with places along it, not a running track.
 	local paving = U.model(promenade, "Paving")
 	local step = 360 / 96 -- railing post grid (3.75°)
 	local mid = (inner + 1.6 + outer - 1.4) / 2 -- middle of the open walk (coping to kerb)
+	local stopAngles = Promenade.stopAngles(cfg)
+	local function nearStop(a: number, within: number): boolean
+		for _, sa in stopAngles do
+			if Kit.angleDistance(a, sa) < within then
+				return true
+			end
+		end
+		return false
+	end
+	local medDeg = math.deg(2.9 / mid) -- (the runner ends tuck under the medallions)
 	for k = 0, 47 do
 		local a0 = k * 2 * step
-		-- (checkered: the flags on the lagoon side and on the land side of the runner swap tones)
-		local flagIn = if k % 2 == 0 then WALK else WALK2
-		local flagOut = if k % 2 == 0 then WALK2 else WALK
-		-- (the two halves meet under the runner, which covers the seam at every angle)
-		ringPiece(paving, "Tile", a0, a0 + 2 * step, inner + 0.2, mid, G - 1, top, flagIn, FLAT)
-		ringPiece(paving, "Tile", a0, a0 + 2 * step, mid, outer, G - 1, top, flagOut, FLAT)
-		local r0 = a0 + step
+		ringPiece(
+			paving,
+			"Tile",
+			a0,
+			a0 + 2 * step,
+			inner + 0.2,
+			outer,
+			G - 1,
+			top,
+			if k % 2 == 0 then WALK else WALK2,
+			FLAT
+		)
 		local brick = if k % 2 == 0 then RUNNER else RUNNER2
-		ringPiece(paving, "Runner", r0, r0 + 2 * step, mid - 2.0, mid + 2.0, top, top + 0.2, brick, FLAT)
+		ringPiece(
+			paving,
+			"Runner",
+			a0 + medDeg,
+			a0 + 2 * step - medDeg,
+			mid - 2.0,
+			mid + 2.0,
+			top,
+			top + 0.2,
+			brick,
+			FLAT
+		)
 	end
-	-- across the walk from the coping to the kerb, every 3.75°: on every flag joint a cream
-	-- limestone band (2.4 wide, 0.06 over the runner: it cuts the runner into panels), half-way
-	-- along each flag a darker flagstone joint (1.4 wide, 0.12 proud: under the runner's top,
-	-- where the runner changes its brick)
-	for k = 0, 95 do
-		local a = k * step
+	-- the medallions on the flag joints (none right beside a stop's plaza)
+	for k = 0, 47 do
+		local a = k * 2 * step
+		if nearStop(a, 3.2) then
+			continue
+		end
 		local p = U.polar(a, mid, 0)
-		local major = k % 2 == 0
+		local turn = CFrame.Angles(0, rad(a), 0)
+		local base = baseAt(cfg, a, 0.5)
+		local bridge = nil
+		for _, ba in cfg.BridgeAngles do
+			if Kit.angleDistance(a, ba) < 0.5 then
+				bridge = ba
+			end
+		end
+		local big = base ~= nil or bridge ~= nil
+		local w, n = if big then 8.0 else 6.4, if big then 5.0 else 4.0
+		local centre = if base
+			then lerp(BASE_COLORS[(base - 1) % #BASE_COLORS + 1], C.Limestone, 0.4)
+			elseif bridge then lerp(quarterColor(a), C.Limestone, 0.4)
+			else RUNNER2
+		U.part(paving, "Medallion", Vector3.new(w, 0.36, n), CFrame.new(p.X, top + 0.07, p.Z) * turn, BAND, nil, FLAT)
+		U.part(paving, "Medallion", Vector3.new(n, 0.4, w), CFrame.new(p.X, top + 0.07, p.Z) * turn, BAND, nil, FLAT)
+		local c = if big then 3.0 else 2.2
 		U.part(
 			paving,
-			if major then "Band" else "Joint",
-			if major then Vector3.new(2.4, 0.38, outer - inner - 3.0) else Vector3.new(1.4, 0.24, outer - inner - 3.0),
-			CFrame.new(p.X, if major then top + 0.07 else top, p.Z) * CFrame.Angles(0, rad(a), 0),
-			if major then BAND else JOINT,
+			"MedallionCentre",
+			Vector3.new(c, 0.4, c),
+			CFrame.new(p.X, top + 0.12, p.Z) * turn,
+			centre,
 			nil,
 			FLAT
 		)
+	end
+	-- the plazas in front of the stops (a cream square, brick and flagstone in a checker)
+	for _, sa in stopAngles do
+		local p = U.polar(sa, mid + 1.2, 0)
+		local turn = CFrame.new(p.X, 0, p.Z) * CFrame.Angles(0, rad(sa), 0)
+		U.part(paving, "Plaza", Vector3.new(11.2, 0.36, 11.2), turn * CFrame.new(0, top + 0.07, 0), BAND, nil, FLAT)
+		for i, q in { { -1, -1 }, { 1, 1 } } do
+			U.part(
+				paving,
+				`PlazaChecker{i}`,
+				Vector3.new(4.8, 0.4, 4.8),
+				turn * CFrame.new(q[1] * 2.5, top + 0.1, q[2] * 2.5),
+				if i == 1 then RUNNER else RUNNER2,
+				nil,
+				FLAT
+			)
+		end
 	end
 	-- outer kerb (0.5 high: walkable) between the plots; in front of a plot its own front wall
 	-- already edges the walk, and it opens where the gateway roads (± 9 studs) and the landmark
@@ -1318,13 +1502,38 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 		for j, a in list do
 			local p = U.polar(a, postR, 0)
 			local turn = CFrame.Angles(0, rad(a), 0)
-			U.part(
-				railing,
-				"Pillar",
-				Vector3.new(1.8, PILLAR_TOP - 0.6, 1.8),
-				CFrame.new(p.X, top + (PILLAR_TOP + 0.6) / 2, p.Z) * turn,
-				COPING
-			)
+			if isLamp(a) then
+				U.part(
+					railing,
+					"Pillar",
+					Vector3.new(1.8, PILLAR_TOP - 0.6, 1.8),
+					CFrame.new(p.X, top + (PILLAR_TOP + 0.6) / 2, p.Z) * turn,
+					COPING
+				)
+			else
+				-- a run's end beside an opening: beside the piers a low post just over the parapet
+				-- with a pot of flowers on one side and a creel of the catch on the other; beside
+				-- the bridges and the beach steps the parapet simply ends in a block a little
+				-- wider and higher than itself (no blank bollards)
+				local pier = baseAt(cfg, a, 9)
+				local h = if pier then POST_TOP else PARAPET_TOP + 0.3
+				U.part(
+					railing,
+					"Post",
+					Vector3.new(if pier then 1.6 else 1.5, h - 0.6, if pier then 1.6 else 1.5),
+					CFrame.new(p.X, top + (h + 0.6) / 2, p.Z) * turn,
+					COPING
+				)
+				if pier then
+					local base = cfg.BaseAngleOffset + (pier - 1) * 360 / cfg.BaseCount
+					local cf = CFrame.new(p.X, top + POST_TOP, p.Z) * turn
+					if (Kit.angleDistance(a, base - 1) < Kit.angleDistance(a, base + 1)) == (pier % 2 == 0) then
+						postPot(railing, cf, Props.bloomPairs[(pier * 3) % #Props.bloomPairs + 1])
+					else
+						postCreel(railing, cf, pier)
+					end
+				end
+			end
 			if isLamp(a) then
 				-- an iron lamp on the pillar
 				-- (a banner on every other lamp: the district colour and its jewel partner by turns)
@@ -1352,8 +1561,11 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 			end
 		end
 	end
-	-- life rings on the parapet's lagoon face next to the sand steps (one beside each flight)
+	-- life rings on the parapet's lagoon face next to two of the sand steps
 	for k, sa in STEP_ANGLES do
+		if k % 2 == 0 then
+			continue
+		end
 		local a = sa + (if k % 2 == 0 then step else -step)
 		local p = U.polar(a, postR - 1.25, 0)
 		-- (front, local -Z, towards the lagoon)
@@ -1384,9 +1596,9 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	end
 
 	-- Two-tone bunting (the quarter's district colour and white) between the first two lamps
-	-- after each pier (lantern tops ~ y + 11).
+	-- after every other pier (lantern tops ~ y + 11).
 	local bunting = U.model(promenade, "Bunting")
-	for i = 1, cfg.BaseCount do
+	for i = 1, cfg.BaseCount, 2 do
 		local base = cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount
 		local pa = U.polar(base + 7.5, postR, top + 10.9)
 		local pb = U.polar(base + 15, postR, top + 10.9)
@@ -1399,10 +1611,9 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 		}))
 	end
 
-	-- A bench facing the lagoon and planters on both sides of each plot's gate; more planters
-	-- along the land edge of the stretches between two plots (both sides of the gateway road
-	-- or landmark path), so something in bloom passes by every ~35 studs. The lagoon edge keeps
-	-- its lamps only: the running lane stays clear.
+	-- A bench facing the lagoon and painted planters on both sides of each plot's gate (the
+	-- stretches between two plots get Nature's verge beyond the kerb: street trees, flowers).
+	-- The lagoon edge keeps its lamps only: the running lane stays clear.
 	local furniture = U.model(promenade, "Furniture")
 	local n = 0
 	local bloomPairs = Props.bloomPairs
@@ -1427,14 +1638,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 		for _, sgn in { -1, 1 } do
 			planterAt(base + sgn * 5.6, outer - 2.6)
 		end
-		-- the stretch from this plot to the next one (centre = base + 22.5); beside a bridge
-		-- landing the stops stand there instead
-		local gap = base + 180 / cfg.BaseCount
-		if not bridgeAt(gap) then
-			for _, off in { -6.2, 6.2 } do
-				planterAt(gap + off, outer - 2.6)
-			end
-		end
+		-- (the stretches between two plots: Nature plants the verge beyond the kerb there)
 	end
 
 	-- Stops: one on every stretch from a base's gate to its bridge landing, with the base's

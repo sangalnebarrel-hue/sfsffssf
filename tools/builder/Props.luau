@@ -36,14 +36,16 @@
 	Catalogue (parts per instance):
 	  trees      oakTree 13-16, roundTree 13-16, cherryTree 15, autumnTree 15,
 	             birchTree 12, pineTree 11-14, palmTree 16, giantTree 101 (landmark)
-	  plants     bush 4-7, flowerPatch 12, flowerBed 3 + 2 per flower (6×3 bed: 9), mushroom 7,
+	  plants     bush 4-7, flowerPatch 12, flowerBed 3 + 2 per flower + 1 per tall one (6×3 bed:
+	             10 flowers, 26; see its header), mushroom 7,
 	             giantMushroom 14-16, lilyPad 2-4,
-	             reeds 7, stump 4-6, log 3, flowerClump 3, berryBush 3 (cheap decor)
+	             reeds 7, stump 4-6, log 3, flowerClump 8, berryBush 3 (cheap decor); every flower
+	             is a petal plate <= 1.1 studs with a 0.4 contrasting eye (Props.bloomCentre)
 	  rocks      rock 1-4 (3-4 by default), boulder 5-6, rockPair 3, crystalCluster 10,
 	             rockArch 23-33
 	  furniture  lampPost 7, doubleLamp 12, torch 4, bench 8, picnicTable 10, crate 4,
 	             crateStack 12, barrel 4, hayBale 3, fenceSegment <= 12, fenceLine, signpost 4-5,
-	             billboard 9, flowerBox 7, planter 6-8, bunting <= 16, flagPole 6, campfire 10,
+	             billboard 9, flowerBox 9, planter 6-12, bunting <= 16, flagPole 6, campfire 10,
 	             parasol 6, beachChair 7, cooler 4, treasureChest 7-9, anchor 10,
 	             fishStatue 18, lifebuoy 4, fishingRodRack 11
 	  water      rowboat 14, sailboat 21, motorboat 17, buoy 4, dockSegment 9-11, shipwreck 63
@@ -1547,13 +1549,46 @@ function Props.bush(parent: any, cf: any, opts: { [string]: any }?): any
 end
 
 --[[
-	flowerPatch: 4 voxel flowers on short stems — a flat petal block with a cube centre on top,
-	two colours. No grass. 12 parts. opts: colors = {c1, c2} (default: a pair from Colors.Flowers).
+	Small voxel blooms — the map's colour pops (DESIGN.md §1): every flower is a petal plate at
+	most 1.1 studs across with a 0.4 contrasting eye on top, never a solid cube. Two shapes: a
+	"daisy" (a flat plate 0.9-1.1 wide, 0.4 thick: a disc of colour from above, a fleck from the
+	side) and a "cup" (a tulip 0.75 x 0.7 x 0.75 with the eye sunk into its top). 2 parts per
+	bloom. Props.bloomCentre(petal) -> the eye colour (brown for yellow / orange petals, yellow for
+	the rest); Props.bloom(builder...) is internal (the flower props below share it).
+]]
+local BROWN_EYE = shade(C.Coconut, 0.9)
+local SUN_EYE = C.Flowers[2]
+local function bloomCentre(petal: any): any
+	if petal.R > 0.8 and petal.G > 0.45 and petal.B < 0.35 then
+		return BROWN_EYE
+	end
+	return SUN_EYE
+end
+Props.bloomCentre = bloomCentre
+
+-- One bloom on builder b, its petals' foot at (x, y, z), petal width w (<= 1.1 after scale):
+-- 2 parts, all non-colliding. Returns the petal part.
+local function bloom(b: any, name: string, x: number, y: number, z: number, w: number, petal: any, cup: boolean?): any
+	local eye = bloomCentre(petal)
+	if cup then
+		local cw = w * 0.76
+		local p = b:vox(name, x, y + 0.35, z, cw, 0.7, cw, petal, DECOR)
+		b:vox(name .. "Eye", x, y + 0.71, z, 0.36, 0.16, 0.36, eye, DECOR)
+		return p
+	end
+	local p = b:vox(name, x, y + 0.2, z, w, 0.4, w, petal, DECOR)
+	b:vox(name .. "Eye", x, y + 0.46, z, 0.4, 0.2, 0.4, eye, DECOR)
+	return p
+end
+
+--[[
+	flowerPatch: 4 small flowers on thin stems at four heights, no grass — two daisies and two
+	tulip cups in a pair of colours. 12 parts. opts: colors = {c1, c2} (default: a pair from
+	Colors.Flowers).
 ]]
 function Props.flowerPatch(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "FlowerPatch", cf, opts, 53)
 	local o = b.opts
-	b.s *= 1.3
 	b.cf = cf * quarterTurn(b)
 	local c1 = o.colors and o.colors[1] or b:pick(C.Flowers)
 	local c2 = o.colors and o.colors[2] or b:pick(C.Flowers)
@@ -1561,23 +1596,19 @@ function Props.flowerPatch(parent: any, cf: any, opts: { [string]: any }?): any
 		c2 = C.Flowers[(table.find(C.Flowers, c1) or 1) % #C.Flowers + 1]
 	end
 	local spots = {
-		{ 0.0, 0.0, 2.0 },
-		{ 1.5, 0.6, 1.4 },
-		{ -1.1, 1.1, 1.6 },
-		{ 0.4, -1.4, 1.2 },
+		{ 0.0, 0.0, 2.1 },
+		{ 1.2, 0.5, 1.5 },
+		{ -0.9, 0.9, 1.75 },
+		{ 0.35, -1.15, 1.2 },
 	}
 	local first
 	for i, s in spots do
-		local x = s[1] + b:range(-0.25, 0.25)
-		local z = s[2] + b:range(-0.25, 0.25)
-		local h = s[3] + b:range(-0.15, 0.25)
-		local stem = b:span(`Stem{i}`, x - 0.17, -0.2, z - 0.17, x + 0.17, h, z + 0.17, C.Leaf1, DECOR)
+		local x = s[1] + b:range(-0.15, 0.15)
+		local z = s[2] + b:range(-0.15, 0.15)
+		local h = s[3] + b:range(-0.1, 0.2)
+		local stem = b:span(`Stem{i}`, x - 0.12, -0.2, z - 0.12, x + 0.12, h + 0.05, z + 0.12, C.Leaf1, DECOR)
 		first = first or stem
-		local col = if i % 2 == 1 then c1 else c2
-		local pw = if i == 1 then 1.35 else 1.1
-		b:vox(`Petals{i}`, x, h + 0.25, z, pw, 0.5, pw, col, DECOR)
-		local centre = if col == C.Yellow or col == C.Flowers[2] then C.White else C.Yellow
-		b:vox(`Centre{i}`, x, h + 0.62, z, pw * 0.45, 0.3, pw * 0.45, centre, DECOR)
+		bloom(b, `Bloom{i}`, x, h, z, if i == 1 then 1.1 else 0.95, if i % 2 == 1 then c1 else c2, i % 2 == 0)
 	end
 	return b:finish(first)
 end
@@ -1746,86 +1777,184 @@ local BLOOM_PAIRS = {
 Props.bloomPairs = BLOOM_PAIRS
 
 --[[
-	flowerBed: a planted bed (use it instead of flat colour slabs) — a low kerb, soil, a leafy mound and
-	a grid of flowers, each a thin stem with a bloom cube on top, 1.6–2 studs apart with staggered
-	heights, in two tones of one family. All parts non-colliding. The bed is centred on cf, its
-	width along local X, depth along Z, ground at y = 0.
+	flowerBed: a planted bed (use it instead of flat colour slabs) — a low kerb, soil, a leafy
+	mound with a lighter ridge of foliage along its middle, and many small flowers (see the bloom
+	helper above: a petal plate <= 1.1 wide with a contrasting eye) about 1.1-1.3 studs apart in
+	staggered rows at three heights: daisies on the mound, daisies on the ridge, and every fourth
+	one a daisy on a stem over them. A 6 x 3 bed holds 10 flowers, 6 x 4 about 15. Two tones
+	of one family in small drifts (c1 the main colour, c2 its partner). All parts non-colliding.
+	The bed is centred on cf, its width along local X, depth along Z, ground at y = 0.
 	opts: width (6), depth (3), colors = {c1, c2} (default: a pair from bloomPairs),
-	kerb = colour or false (default Limestone), leaves (colour), spacing (1.8),
-	stems = false (blooms sit on the mound: 1 part per flower), max (flower count cap, 12).
-	Parts: 3 (2 without kerb) + flowers × 2 (× 1 without stems); flowers = floor((width - 0.4) /
-	spacing) per row × floor((depth - 0.4) / spacing) rows, at most `max`: a 6×3 bed has one row
-	of 3 (9 parts), a 6×4.5 bed two rows (15).
+	scale (grows the bed's footprint, not the flowers), kerb = colour or false (default Limestone),
+	leaves (colour), spacing (legacy pitch of the old
+	cube blooms, 1.8: the flowers' pitch is 0.62 of it, within 1.1-1.3), stems = false (no tall
+	flowers on stems: two heights only), ridge = false (a flat mound), max (flower count cap, 14),
+	blades (number of leaf blades between the flowers, 0).
+	When the bed holds more flowers than `max`, the flowers gather in tight clumps of ~5 spread
+	along the bed (planted groups, leafy gaps between) instead of thinning out evenly.
+	Parts: kerb (or soil) 1 + leaves 1 + ridge 1 (beds at least 2.4 x 2.2) + 2 per flower + 1 per
+	tall flower (every fourth in a bed of 6 or more, with stems) + blades: a 6 x 3 bed 3 + 20 + 3
+	= 26; max = 5 or stems = false: exactly 3 + 2 per flower.
 ]]
 function Props.flowerBed(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "FlowerBed", cf, opts, 263)
 	local o = b.opts
-	local w, d = o.width or 6, o.depth or 3
+	-- (opts.scale grows the bed, never the flowers: they keep their size and pitch in studs)
+	local w, d = (o.width or 6) * b.s, (o.depth or 3) * b.s
+	b.s = 1
 	local pair = o.colors or b:pick(BLOOM_PAIRS)
 	local c1, c2 = pair[1], pair[2] or pair[1]
-	local sp = o.spacing or 1.8
-	local main
-	if o.kerb ~= false then
-		main = b:span(
+	local pitch = math.clamp((o.spacing or 1.8) * 0.62, 1.1, 1.3)
+	-- the base: a kerb (its top a 0.55 rim round the foliage) or, without one, the soil
+	local main = if o.kerb ~= false
+		then b:span(
 			"Kerb",
 			-w / 2 - 0.35,
 			-0.2,
 			-d / 2 - 0.35,
 			w / 2 + 0.35,
-			0.45,
+			0.6,
 			d / 2 + 0.35,
 			o.kerb or C.Limestone,
 			DECOR
 		)
+		else b:span("Soil", -w / 2, -0.1, -d / 2, w / 2, 0.6, d / 2, C.DirtDark, DECOR)
+	local leafC = o.leaves or C.Leaf1
+	local MOUND, RIDGE = 1.0, 1.45
+	b:span("Leaves", -w / 2 + 0.2, 0.55, -d / 2 + 0.2, w / 2 - 0.2, MOUND, d / 2 - 0.2, leafC, FOLIAGE)
+	-- the ridge: a lighter step of foliage along the bed's long axis, over its middle third
+	local long = w >= d
+	local rx, rz = 0, 0
+	if o.ridge ~= false and w >= 2.4 and d >= 2.2 then
+		if long then
+			rx, rz = w / 2 - 0.75, math.max(0.45, d * 0.2)
+		else
+			rx, rz = math.max(0.45, w * 0.2), d / 2 - 0.75
+		end
+		b:span("Ridge", -rx, MOUND - 0.05, -rz, rx, RIDGE, rz, lerpColor(leafC, C.LeafLight, 0.35), FOLIAGE)
 	end
-	local soil = b:span("Soil", -w / 2, 0, -d / 2, w / 2, 0.6, d / 2, C.DirtDark, DECOR)
-	main = main or soil
-	-- (a leafy mound, not a plate: the blooms nestle into it)
-	b:span("Leaves", -w / 2 + 0.25, 0.6, -d / 2 + 0.25, w / 2 - 0.25, 1.3, d / 2 - 0.25, o.leaves or C.Leaf1, FOLIAGE)
-	local nx = math.max(1, math.floor((w - 0.4) / sp))
-	local nz = math.max(1, math.floor((d - 0.4) / sp))
-	local cap, n = o.max or 12, 0
-	for iz = 1, nz do
-		for ix = 1, nx do
-			if n >= cap then
-				break
+	-- candidate spots: staggered rows along the long axis (rows ~0.85 pitch apart)
+	local hx, hz = math.max(0, w / 2 - 0.6), math.max(0, d / 2 - 0.6)
+	local ha, hb = if long then hx else hz, if long then hz else hx -- along / across the rows
+	local na = math.max(1, math.floor(2 * ha / pitch + 1e-6) + 1)
+	local rowPitch = pitch * 0.85
+	local nb = math.max(1, math.floor(2 * hb / rowPitch + 1e-6) + 1)
+	local cands = {}
+	for ib = 1, nb do
+		local across = (ib - (nb + 1) / 2) * rowPitch
+		local shift = if nb > 1 then (if ib % 2 == 0 then 0.25 else -0.25) * pitch else 0
+		for ia = 1, na do
+			local along = math.clamp((ia - (na + 1) / 2) * pitch + shift, -ha - 0.15, ha + 0.15)
+			table.insert(cands, { along = along, across = across, ia = ia, ib = ib })
+		end
+	end
+	-- more spots than `max`: tight clumps of ~5 spread along the bed (alternately a little to
+	-- each side of its middle), each taking the spots nearest its centre
+	local cap = o.max or 14
+	local chosen = cands
+	if #cands > cap then
+		chosen = {}
+		-- (clumps of 3-5: a long bed with a small cap gets two or three small ones, not one)
+		local k =
+			math.clamp(math.floor(ha / 2.5 + 0.5), math.max(1, math.ceil(cap / 5)), math.max(1, math.floor(cap / 2.5)))
+		local taken = {}
+		for i = 1, k do
+			local ca = ((i - 0.5) / k * 2 - 1) * ha
+			local cb = if k > 1 and nb > 2 then (if i % 2 == 0 then 0.3 else -0.3) * hb else 0
+			local quota = math.floor(cap / k) + (if i <= cap % k then 1 else 0)
+			local order = {}
+			for j, c in cands do
+				if not taken[j] then
+					local da, db = c.along - ca, c.across - cb
+					table.insert(order, { j = j, dist = da * da + db * db * 1.4 })
+				end
 			end
-			n += 1
-			-- rows offset by half a step: a staggered, planted look
-			local x = (ix - (nx + 1) / 2) * sp + (if iz % 2 == 0 then sp * 0.25 else -sp * 0.25) + b:range(-0.15, 0.15)
-			local z = (iz - (nz + 1) / 2) * sp + b:range(-0.15, 0.15)
-			-- short stems: the blooms nestle just over the leaves at staggered heights (a planted
-			-- bed, not lollipops), each bloom a little different in size
-			local h = 1.45 + b:range(0, 0.55)
-			local bw, bh = b:range(1.1, 1.35), b:range(0.7, 0.9)
-			local col = if (ix + iz) % 2 == 0 then c1 else c2
-			if o.stems ~= false then
-				b:span(`Stem{n}`, x - 0.16, 0.95, z - 0.16, x + 0.16, h, z + 0.16, C.Leaf2, DECOR)
-				b:vox(`Bloom{n}`, x, h + bh / 2 - 0.05, z, bw, bh, bw, col, DECOR)
-			else
-				b:vox(`Bloom{n}`, x, 1.5 + b:range(0, 0.2), z, bw * 0.9, 0.6, bw * 0.9, col, DECOR)
+			table.sort(order, function(p, q)
+				if p.dist ~= q.dist then
+					return p.dist < q.dist
+				end
+				return p.j < q.j
+			end)
+			for n = 1, math.min(quota, #order) do
+				taken[order[n].j] = true
+				table.insert(chosen, cands[order[n].j])
 			end
 		end
+	end
+	-- the flowers: on the ridge where it runs under them, on the mound elsewhere; every third
+	-- (in a scattered order) a tulip on a stem over the others
+	local drift = b:int(0, 3)
+	local single = nb == 1 -- (one row: the flowers zig-zag across it and bob up and down)
+	local n = 0
+	for _, c in chosen do
+		n += 1
+		local ja, jb = b:range(-0.16, 0.16), b:range(-0.14, 0.14)
+		if single then
+			jb = (if c.ia % 2 == 0 then 1 else -1) * math.min(0.3, hb + 0.1) + b:range(-0.08, 0.08)
+		end
+		local x = if long then c.along + ja else c.across + jb
+		local z = if long then c.across + jb else c.along + ja
+		local onRidge = math.abs(x) <= rx + 0.05 and math.abs(z) <= rz + 0.05
+		local base = if onRidge then RIDGE else MOUND
+		-- small drifts of each colour: pairs of columns by turns, shifted every other row
+		local col = if ((c.ia + drift + (if c.ib % 3 == 0 then 1 else 0)) // 2) % 3 == 2 then c2 else c1
+		local tall = o.stems ~= false and #chosen >= 6 and (c.ia * 3 + c.ib * 2 + drift) % 4 == 0
+		local wpet = b:range(0.9, 1.08)
+		if tall then
+			-- a daisy on a stem over its neighbours
+			local top = base + b:range(0.6, 0.95)
+			b:span(`Stem{n}`, x - 0.11, base - 0.3, z - 0.11, x + 0.11, top + 0.05, z + 0.11, C.Leaf2, DECOR)
+			bloom(b, `Bloom{n}`, x, top, z, wpet, col, false)
+		else
+			-- (half sunk into the foliage or sitting on it: heights differ by up to 0.3)
+			local lift = if single
+				then (if (c.ia + drift) % 3 == 0 then 0.3 else b:range(0, 0.12))
+				else b:range(0, 0.18)
+			bloom(b, `Bloom{n}`, x, base - 0.12 + lift, z, wpet, col, false)
+		end
+	end
+	-- leaf blades poking up between the flowers (opts.blades)
+	for i = 1, (o.blades or 0) do
+		local x, z = b:range(-hx, hx), b:range(-hz, hz)
+		local base = if math.abs(x) <= rx and math.abs(z) <= rz then RIDGE else MOUND
+		local tall = b:range(0.7, 1.2)
+		local thin = if b:chance(0.5) then 0.2 else 0.55
+		b:span(
+			`Blade{i}`,
+			x - thin / 2,
+			base - 0.2,
+			z - (0.75 - thin) / 2,
+			x + thin / 2,
+			base + tall,
+			z + (0.75 - thin) / 2,
+			lerpColor(leafC, C.Leaf3, 0.5),
+			DECOR
+		)
 	end
 	return b:finish(main)
 end
 
 --[[
-	flowerClump: cheap meadow decor — a leafy tuft with two big voxel blooms poking out of its top,
-	a harmonious pair (or one colour). 3 parts, all non-colliding. opts: colors = {c1, c2}
-	(default: a pair by seed), leaves (tuft colour).
+	flowerClump: cheap meadow decor — a leafy tuft with a lighter knob of leaves on it and three
+	small flowers (one on the knob, two on the tuft), a harmonious pair (or one
+	colour). 8 parts, all non-colliding. opts: colors = {c1, c2} (default: a pair by seed), leaves
+	(tuft colour).
 ]]
 function Props.flowerClump(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "FlowerClump", cf, opts, 251)
 	local o = b.opts
-	b.s *= b:range(0.9, 1.2)
+	b.s *= b:range(0.9, 1.15)
 	b.cf = cf * quarterTurn(b)
 	local pair = o.colors or b:pick(BLOOM_PAIRS)
 	local c1, c2 = pair[1], pair[2] or pair[1]
-	local tw = b:range(1.6, 1.9)
-	local tuft = b:span("Tuft", -tw, -0.3, -tw * 0.8, tw, 1.1, tw * 0.8, o.leaves or C.Leaf1, FOLIAGE)
-	b:span("BloomA", -tw * 0.5 - 0.7, 0.75, -0.95, -tw * 0.5 + 0.7, 2.2, 0.45, c1, DECOR)
-	b:span("BloomB", tw * 0.45 - 0.55, 0.8, -0.2, tw * 0.45 + 0.55, 1.95, 0.9, c2, DECOR)
+	local leafC = o.leaves or C.Leaf1
+	local tw = b:range(1.6, 1.85)
+	local tuft = b:span("Tuft", -tw, -0.3, -tw * 0.8, tw, 0.9, tw * 0.8, leafC, FOLIAGE)
+	local kx = b:range(-0.3, 0.2)
+	b:span("Knob", kx - 0.75, 0.85, -0.6, kx + 0.75, 1.55, 0.7, lerpColor(leafC, C.LeafLight, 0.35), FOLIAGE)
+	bloom(b, "BloomA", kx, 1.45, 0.05, 0.96, c1, false)
+	bloom(b, "BloomB", tw - 0.62, 0.85, -tw * 0.8 + 0.6, 0.94, c2, false)
+	bloom(b, "BloomC", -tw + 0.6, 0.85, tw * 0.8 - 0.58, 0.9, c1, false)
 	return b:finish(tuft)
 end
 
@@ -2418,8 +2547,9 @@ function Props.billboard(parent: any, cf: any, opts: { [string]: any }?): any
 end
 
 --[[
-	flowerBox: painted planter box with a light rim, greenery and 4 cube flowers. 7 parts.
-	opts: length (default 4), colors = {c1, c2}, color (box).
+	flowerBox: painted planter box with a light rim, greenery and small flowers along it (daisies
+	and a tulip cup by turns, one every ~1.2 studs: 3 on a 4-stud box). 3 + 2 per flower parts
+	(4 studs: 9). opts: length (default 4), colors = {c1, c2}, color (box).
 ]]
 function Props.flowerBox(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "FlowerBox", cf, opts, 137)
@@ -2431,17 +2561,18 @@ function Props.flowerBox(parent: any, cf: any, opts: { [string]: any }?): any
 	local box = b:span("Box", -L / 2, 0, -0.7, L / 2, 1.2, 0.7, boxC)
 	b:span("Rim", -L / 2 - 0.15, 1.15, -0.85, L / 2 + 0.15, 1.45, 0.85, lerpColor(boxC, C.White, 0.3), NOSHADOW)
 	b:span("Greens", -L / 2 + 0.25, 1.2, -0.5, L / 2 - 0.25, 1.95, 0.5, C.Leaf1, DECOR)
-	for i = 1, 4 do
-		local x = -L / 2 + 0.3 + (L - 0.6) * (i - 0.5) / 4
-		local z = if i % 2 == 0 then 0.18 else -0.18
-		b:vox(`Flower{i}`, x, 2.1 + (i % 2) * 0.12, z, 0.75, 0.6, 0.75, if i % 2 == 1 then c1 else c2, DECOR)
+	local n = math.max(2, math.floor((L - 0.4) / 1.2 + 0.5))
+	for i = 1, n do
+		local x = -L / 2 + 0.3 + (L - 0.6) * (i - 0.5) / n
+		local z = if i % 2 == 0 then 0.14 else -0.14
+		bloom(b, `Flower{i}`, x, 1.9 + (i % 2) * 0.1, z, 0.95, if i % 2 == 1 then c1 else c2, i % 3 == 2)
 	end
 	return b:finish(box)
 end
 
 --[[
-	planter: square raised bed (4 studs) with a light rim and soil, planted with a bush,
-	flowers or a topiary cube on a stick. 6-8 parts.
+	planter: square raised bed (4 studs) with a light rim and soil, planted with a bush, four
+	small flowers (petal plates with an eye) on greens or a topiary cube on a stick. 6-12 parts.
 	opts: variant = "bush" | "flowers" | "topiary" (default by seed), color (box), colors.
 ]]
 function Props.planter(parent: any, cf: any, opts: { [string]: any }?): any
@@ -2459,8 +2590,8 @@ function Props.planter(parent: any, cf: any, opts: { [string]: any }?): any
 	elseif variant == "flowers" then
 		local cs = o.colors or { b:pick(C.Flowers), b:pick(C.Flowers) }
 		b:span("Greens", -1.5, 2.0, -1.5, 1.5, 2.8, 1.5, C.Leaf1, FOLIAGE)
-		for i, p in { { -0.8, -0.8 }, { 0.8, -0.6 }, { -0.6, 0.8 }, { 0.8, 0.8 } } do
-			b:vox(`Flower{i}`, p[1], 3.05, p[2], 0.85, 0.6, 0.85, cs[(i - 1) % 2 + 1], DECOR)
+		for i, p in { { -0.75, -0.75 }, { 0.8, -0.55 }, { -0.55, 0.8 }, { 0.75, 0.75 } } do
+			bloom(b, `Flower{i}`, p[1], 2.75 + (i % 2) * 0.12, p[2], 0.95, cs[(i - 1) % 2 + 1], i == 4)
 		end
 	else
 		b:span("Bush", -1.5, 2.0, -1.5, 1.5, 4.0, 1.5, C.Leaf1, FOLIAGE)
@@ -3772,16 +3903,18 @@ function Props.hotAirBalloon(parent: any, cf: any, opts: { [string]: any }?): an
 end
 
 --[[
-	cloud: big floating voxel cloud — a flat rounded body in cool white (Palette Cloud, a touch
-	see-through, so the sky lightens its shaded sides) with a faintly blue, more see-through
-	underside (a breath of CloudShade), two puffs on top and puffs at the ends. cframe = bottom
-	centre. 7-8 parts, CanCollide/CastShadow/CanQuery = false (no shadow blotches on the island).
-	opts: size (length along local X, default 36 by seed 30..44).
+	cloud: big floating voxel cloud — a flat rounded body in a sky-tinted white (its shaded sides
+	read as sky, not as grey; a touch see-through), a sky-blue, more see-through underside
+	(CloudShade with a hint of the Palette's blue), sunlit white puffs on top and puffs at the
+	ends. cframe = bottom centre. 7-8 parts (lite: 4-5), CanCollide/CastShadow/CanQuery = false
+	(no shadow blotches on the island). opts: size (length along local X, default 36 by seed
+	30..44), lite = true (the far ring: one block puff on top, at most one end puff).
 ]]
 local CLOUD = merge(DECOR, { CastShadow = false, Transparency = 0.12 })
 local CLOUD_UNDER = merge(CLOUD, { Transparency = 0.2 })
--- the underside: a breath of the cool CloudShade (a full shade reads as a concrete slab)
-local CLOUD_SHADE = lerpColor(C.Cloud, C.CloudShade, 0.45)
+-- the shade: CloudShade tinted towards the sky blue (~206, 224, 250 on screen), never a grey
+local CLOUD_SHADE = lerpColor(C.CloudShade, C.Blue, 0.1)
+local CLOUD_BODY = lerpColor(C.Cloud, CLOUD_SHADE, 0.35)
 function Props.cloud(parent: any, cf: any, opts: { [string]: any }?): any
 	local b = begin(parent, "Cloud", cf, opts, 241)
 	local o = b.opts
@@ -3790,9 +3923,16 @@ function Props.cloud(parent: any, cf: any, opts: { [string]: any }?): any
 	local h = L * 0.1
 	local white = C.Cloud
 	-- flat white body (rounded "plus") with a shaded underside, rounded puffs on top, end puffs
-	local base = b:cross("Body", -L * 0.01, 0, 0, h * 1.3, L * 0.78, D * 0.82, 0.72, white, CLOUD)
+	local base = b:cross("Body", -L * 0.01, 0, 0, h * 1.3, L * 0.78, D * 0.82, 0.72, CLOUD_BODY, CLOUD)
 	b:span("Under", -L * 0.3, -h * 0.3, -D * 0.28, L * 0.28, 0.05, D * 0.28, CLOUD_SHADE, CLOUD_UNDER)
 	local x1 = b:range(-0.2, -0.08) * L
+	if o.lite then
+		b:span("Puff1", x1 - L * 0.17, h * 1.2, -D * 0.3, x1 + L * 0.17, h * 1.2 + L * 0.14, D * 0.3, white, CLOUD)
+		if b:chance(0.5) then
+			b:span("PuffEndL", -L * 0.5, h * 0.2, -D * 0.22, -L * 0.36, h * 1.15, D * 0.2, white, CLOUD)
+		end
+		return b:finish(base)
+	end
 	b:cross("Puff1", x1, h * 1.2, D * 0.01, h * 1.2 + L * 0.15, L * 0.38, D * 0.7, 0.7, white, CLOUD)
 	local x2 = b:range(0.12, 0.2) * L
 	b:span("Puff2", x2 - L * 0.14, h * 1.15, -D * 0.26, x2 + L * 0.14, h * 1.15 + L * 0.1, D * 0.28, white, CLOUD)
