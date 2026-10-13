@@ -12,6 +12,9 @@ export type BaseColor = {
 	Id: string,
 	Name: string,
 	Color: Color3,
+	-- Насколько затемнять тёмные оттенки (AccentShade < 0) этого цвета: 1 — как задано в шаблоне,
+	-- меньше — светлее (жёлтый не уходит в горчичный, зелёный не сливается с соснами).
+	RoofShadeScale: number?,
 }
 
 local BaseConfig = {
@@ -19,12 +22,12 @@ local BaseConfig = {
 	Colors = {
 		{ Id = "Red", Name = "Красная", Color = Color3.fromRGB(212, 74, 64) },
 		{ Id = "Blue", Name = "Синяя", Color = Color3.fromRGB(62, 114, 200) },
-		{ Id = "Yellow", Name = "Жёлтая", Color = Color3.fromRGB(230, 190, 62) },
+		{ Id = "Yellow", Name = "Жёлтая", Color = Color3.fromRGB(236, 192, 48), RoofShadeScale = 0.35 },
 		{ Id = "Purple", Name = "Фиолетовая", Color = Color3.fromRGB(128, 92, 192) },
-		{ Id = "Orange", Name = "Оранжевая", Color = Color3.fromRGB(226, 136, 56) },
-		{ Id = "Cyan", Name = "Лазурная", Color = Color3.fromRGB(40, 160, 214) },
+		{ Id = "Orange", Name = "Оранжевая", Color = Color3.fromRGB(226, 136, 56), RoofShadeScale = 0.6 },
+		{ Id = "Cyan", Name = "Лазурная", Color = Color3.fromRGB(52, 178, 226), RoofShadeScale = 0 },
 		{ Id = "Pink", Name = "Розовая", Color = Color3.fromRGB(210, 108, 158) },
-		{ Id = "Green", Name = "Изумрудная", Color = Color3.fromRGB(50, 156, 110) },
+		{ Id = "Green", Name = "Изумрудная", Color = Color3.fromRGB(36, 172, 118), RoofShadeScale = 0.45 },
 	} :: { BaseColor },
 
 	-- Спокойные тона стен домов (по номеру базы), чтобы 8 участков не были одинаковыми.

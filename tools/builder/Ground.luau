@@ -33,9 +33,9 @@ local STRATUM = 12
 local STRATA = {
 	Dirt = { rgb(166, 118, 78), rgb(148, 104, 70) },
 	-- cool slate in two bands: mountains recede behind the warm village
-	Mountainside = { rgb(150, 156, 172), rgb(130, 138, 156) }, -- cool slate (Palette.Slate*)
-	Stone = { rgb(150, 156, 172), rgb(130, 138, 156) },
-	Snow = { rgb(230, 238, 250), rgb(218, 228, 244) },
+	Mountainside = { rgb(132, 144, 180), rgb(112, 122, 160), rgb(160, 172, 204) }, -- cool blue slate (Palette.Slate*)
+	Stone = { rgb(132, 144, 180), rgb(112, 122, 160), rgb(160, 172, 204) },
+	Snow = { rgb(212, 226, 248), rgb(196, 214, 242) },
 	-- red-rock mesas: terracotta bands with a cream band every fourth stratum
 	Redrock = { rgb(190, 108, 78), rgb(206, 130, 92), rgb(222, 170, 124), rgb(232, 200, 160) },
 	Sandstone = { rgb(206, 162, 112), rgb(190, 144, 98), rgb(222, 186, 138) },
@@ -45,13 +45,13 @@ local KIND_STYLE = {
 	grass = { body = DIRT, name = "Grass", strata = "Dirt" }, -- cap shade by noise patch
 	meadow = { cap = rgb(138, 194, 88), body = DIRT, name = "Meadow", strata = "Dirt" },
 	path = { cap = rgb(206, 180, 136), body = DIRT, name = "Path", strata = "Dirt" },
-	sand = { cap = rgb(232, 212, 160), body = rgb(212, 188, 138), name = "Sand" },
+	sand = { cap = rgb(224, 202, 150), body = rgb(208, 184, 134), name = "Sand" },
 	shallow = { body = rgb(230, 212, 156), name = "Shallows" },
 	seabed = { body = rgb(178, 212, 176), name = "Seabed" },
 	deep = { body = rgb(70, 160, 182), name = "DeepSeabed" },
-	stone = { cap = rgb(176, 184, 198), body = rgb(150, 156, 172), name = "Stone", strata = "Stone" },
-	snow = { cap = rgb(246, 249, 252), body = rgb(230, 238, 250), name = "Snow" }, -- one icy body, no bands
-	grassRock = { body = rgb(150, 156, 172), name = "Mountainside", strata = "Mountainside" }, -- grass cap
+	stone = { cap = rgb(160, 172, 204), body = rgb(132, 144, 180), name = "Stone", strata = "Stone" },
+	snow = { cap = rgb(246, 249, 252), body = rgb(212, 226, 248), name = "Snow" }, -- one icy body, no bands
+	grassRock = { body = rgb(132, 144, 180), name = "Mountainside", strata = "Mountainside" }, -- grass cap
 	redrock = { body = rgb(190, 108, 78), name = "RedRock", strata = "Redrock" }, -- ochre/grass cap
 	mesa = { body = rgb(204, 160, 112), name = "Sandstone", strata = "Sandstone" }, -- grass cap, warm cliff
 }

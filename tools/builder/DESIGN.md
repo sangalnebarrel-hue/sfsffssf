@@ -63,10 +63,12 @@ Cobble/CobbleDark, RoofRed/RoofTerracotta/RoofBlue/RoofGreen/RoofSlate/RoofBrown
 parts only): Red, Orange, Yellow, Lime, Cyan, Blue, Purple, Pink, Gold, White, Cream, Navy, Iron.
 Lists: Flowers, BoatPaint, Festive. Light: Glow, LightColor, Flame*.
 
-Lighting (build.luau): sunny 14:30, Brightness 2.3, warm sun (ColorShift_Top 255,236,208),
-neutral-warm shadow fill (Ambient 130,124,118, OutdoorAmbient 152,148,146, EnvironmentDiffuseScale
-0.4), light atmosphere (Density 0.16, Haze 0.05), ColorCorrection saturation +0.1 / contrast +0.06,
-Bloom 0.35 (threshold 2.2, only Neon). Terrain water (36,156,186), transparency 0.55.
+Lighting (build.luau): sunny 14:30, Brightness 2.3 with ExposureCompensation -0.1, warm sun
+(ColorShift_Top 255,236,208), soft slightly cool sky fill (Ambient 130,124,118, OutdoorAmbient
+140,142,152, EnvironmentDiffuseScale 0.5), light atmosphere (Density 0.16, Haze 0.05),
+ColorCorrection saturation +0.1 / contrast +0.08, Bloom 0.35 (threshold 2.2, only Neon). Terrain
+water (36,156,186), transparency 0.55. Mountains are cool blue slate (Palette Slate*), snow sides
+pale blue.
 Colour band: Hasler colourfulness of the player/overview renders 75–105
 (`tools/preview/colourfulness.py`; v3 was 115–136 = garish, v4 round 1 56–76 = dull); palette_lint loud area 0.4–5 % of the map (bright accents exist, nothing big is
 candy; the hub's golden fish is the one big hero accent), grey <= 9 %.
@@ -173,7 +175,7 @@ models' pivots via `WorldPivotData`/PrimaryPart, part budgets respected, no Poin
 PointLight Range ≤ 16.
 
 Part budgets (runtime total target ≈ 16 000, plus fish models later): ground ≤ 4 000 (column
-caps, bodies, cliff strata, six mountains), 8 bases × ≤ 600, hub ≤ 2 200, map dressing
+caps, bodies, cliff strata, six mountains), 8 bases × ≤ 940, hub ≤ 2 200, map dressing
 (everything in `Workspace.Map` except Ground and Hub) ≤ 6 720 parts and 40 PointLights, of which
 Nature gets at least 2 500: Map.luau builds Nature last with whatever is left and fails the
 build when a cap is exceeded or Nature falls short.

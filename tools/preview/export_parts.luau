@@ -210,6 +210,8 @@ end
 
 -- House wall tones per base (BaseConfig.WallTones; parts with WallTone = true, shade WallShade).
 local wallTones: { any } = {}
+-- Per-colour scale of dark accent shades (BaseConfig.Colors[i].RoofShadeScale, like BaseService).
+local shadeScales: { number } = {}
 
 local function readBaseColors(): ({ any }, string)
 	local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -227,6 +229,10 @@ local function readBaseColors(): ({ any }, string)
 		local colorType: string = typeof(color)
 		if colorType == "Color3" then
 			table.insert(colors, color)
+			table.insert(
+				shadeScales,
+				if type(entry) == "table" and type(entry.RoofShadeScale) == "number" then entry.RoofShadeScale else 1
+			)
 		end
 	end
 	if #colors == 0 then
@@ -387,7 +393,11 @@ if simulateBases and template and slotFolder then
 				end
 				local color = inst.Color
 				if inst:GetAttribute("Accent") == true then
-					color = accentColor(baseColor, inst:GetAttribute("AccentShade"))
+					local shade = inst:GetAttribute("AccentShade")
+					if type(shade) == "number" and shade < 0 then
+						shade *= shadeScales[((math.floor(index) - 1) % math.max(#shadeScales, 1)) + 1] or 1
+					end
+					color = accentColor(baseColor, shade)
 				elseif inst:GetAttribute("WallTone") == true and #wallTones > 0 then
 					color = accentColor(
 						wallTones[((math.floor(index) - 1) % #wallTones) + 1],

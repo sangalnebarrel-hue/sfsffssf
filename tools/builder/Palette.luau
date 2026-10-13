@@ -27,7 +27,7 @@ local P: { [string]: any } = {
 	GrassTop3 = rgb(136, 200, 88),
 	Dirt = rgb(160, 112, 74),
 	DirtDark = rgb(128, 88, 60),
-	Sand = rgb(232, 212, 160),
+	Sand = rgb(224, 202, 150),
 	SandDark = rgb(212, 186, 134),
 	SandWet = rgb(220, 196, 146),
 	-- warm sandstone-like stone (neutral greys read as unpainted default parts)
@@ -35,9 +35,9 @@ local P: { [string]: any } = {
 	StoneDark = rgb(122, 110, 98),
 	StoneLight = rgb(214, 202, 178),
 	-- cool slate: mountains and cliffs only (recedes behind the warm village)
-	Slate = rgb(150, 156, 172),
-	SlateDark = rgb(130, 138, 156),
-	SlateLight = rgb(168, 176, 192),
+	Slate = rgb(132, 144, 180),
+	SlateDark = rgb(112, 122, 160),
+	SlateLight = rgb(160, 172, 204),
 	Snow = rgb(238, 242, 246),
 
 	-- wood and building materials
@@ -45,14 +45,14 @@ local P: { [string]: any } = {
 	WoodDark = rgb(150, 104, 70),
 	WoodLight = rgb(206, 162, 112),
 	Plank = rgb(194, 150, 104), -- decks, piers, boardwalks
-	Plaster = rgb(236, 226, 204), -- house walls
+	Plaster = rgb(228, 216, 194), -- house walls
 	PlasterShade = rgb(214, 200, 176),
 	Brick = rgb(172, 92, 70),
 	Cobble = rgb(196, 174, 140), -- paving
 	CobbleDark = rgb(156, 132, 106),
 	Flagstone = rgb(210, 184, 142), -- two-tone flag paving
 	FlagstoneDark = rgb(196, 168, 128),
-	Limestone = rgb(232, 218, 188), -- cream stone: plinths, steps, kerbs
+	Limestone = rgb(222, 208, 178), -- cream stone: plinths, steps, kerbs
 	RoofRed = rgb(178, 74, 60),
 	RoofTerracotta = rgb(190, 100, 66),
 	RoofBlue = rgb(72, 104, 150),

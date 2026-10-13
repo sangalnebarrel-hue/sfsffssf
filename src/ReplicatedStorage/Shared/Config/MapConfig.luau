@@ -67,9 +67,9 @@ local MapConfig = {
 		{ Name = "Peak", Angle = 315, Radius = 580, Size = 125, Height = 176, Style = "snow" }, -- с тропой
 		-- ещё две горы на внешнем кольце (за участками 3 и 5): Size — радиус подножия, Height — высота
 		{ Name = "PeakEast", Angle = 112.5, Radius = 612, Size = 120, Height = 150, Style = "snow" },
-		{ Name = "PeakSouth", Angle = 202.5, Radius = 620, Size = 112, Height = 96, Style = "sandstone" },
+		{ Name = "PeakSouth", Angle = 202.5, Radius = 620, Size = 112, Height = 96, Style = "green" },
 		{ Name = "PeakNorth", Angle = 22.5, Radius = 600, Size = 100, Height = 120, Style = "snow" }, -- за участком 1
-		{ Name = "PeakSouthEast", Angle = 157.5, Radius = 600, Size = 96, Height = 84, Style = "green" }, -- за 4
+		{ Name = "PeakSouthEast", Angle = 157.5, Radius = 600, Size = 96, Height = 84, Style = "sandstone" }, -- за 4
 		{ Name = "PeakWest", Angle = 252, Radius = 600, Size = 104, Height = 88, Style = "sandstone" }, -- за 6
 	},
 

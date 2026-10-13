@@ -191,7 +191,11 @@ local function createBase(template: Model, slot: BasePart, index: number, parent
 	local baseLabels: { TextLabel } = {}
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") and descendant:GetAttribute("Accent") == true then
-			descendant.Color = shadeColor(colorDef.Color, descendant:GetAttribute("AccentShade"))
+			local shade = descendant:GetAttribute("AccentShade")
+			if typeof(shade) == "number" and shade < 0 then
+				shade *= colorDef.RoofShadeScale or 1
+			end
+			descendant.Color = shadeColor(colorDef.Color, shade)
 		elseif descendant:IsA("BasePart") and descendant:GetAttribute("WallTone") == true then
 			descendant.Color = shadeColor(wallTone, descendant:GetAttribute("WallShade"))
 		elseif descendant:IsA("TextLabel") then

@@ -110,14 +110,14 @@ local lighting = game:GetService("Lighting")
 lighting.GeographicLatitude = 35
 lighting.TimeOfDay = "14:30:00"
 lighting.Brightness = 2.3
--- Warm sun, neutral-warm shadow fill: shaded gold, plaster and wood keep their colour.
+-- Warm sun with a soft, slightly cool sky fill on shaded faces.
 lighting.Ambient = rgb(130, 124, 118)
-lighting.OutdoorAmbient = rgb(152, 148, 146)
+lighting.OutdoorAmbient = rgb(140, 142, 152)
 lighting.ColorShift_Top = rgb(255, 236, 208)
 lighting.ColorShift_Bottom = rgb(0, 0, 0)
-lighting.EnvironmentDiffuseScale = 0.4
+lighting.EnvironmentDiffuseScale = 0.5
 lighting.EnvironmentSpecularScale = 0.15 -- less plastic sky reflection on the blocks
-lighting.ExposureCompensation = 0
+lighting.ExposureCompensation = -0.1 -- pale sand/plaster/snow do not clip under the bright sun
 lighting.GlobalShadows = true
 lighting.ShadowSoftness = 0.25
 -- Depth of field is a full-screen blur pass — too heavy for phones.
@@ -145,7 +145,7 @@ sunRays.Spread = 0.5
 local grade = lighting:FindFirstChildOfClass("ColorCorrectionEffect")
 	or U.new("ColorCorrectionEffect", { Name = "ColorCorrection" }, lighting)
 grade.Saturation = 0.1
-grade.Contrast = 0.06
+grade.Contrast = 0.08
 grade.Brightness = 0
 grade.TintColor = rgb(255, 252, 246)
 
