@@ -256,7 +256,50 @@ tests["base template: within the part budget, the base colour only on small part
 			end
 		end
 	end
-	t.ok(parts <= 860, `BaseTemplate has {parts} parts (budget 860)`)
+	t.ok(parts <= 940, `BaseTemplate has {parts} parts (budget 940)`)
+	sim:AssertNoErrors()
+end
+
+tests["base template: market arcades keep a clear aisle, the displays stand against a solid back wall"] = function(t)
+	local sim = boot(t)
+	local model = bases(sim):FindFirstChild("Base_1")
+	local root = model.PrimaryPart.CFrame
+	-- |x| of a part's inner (aisle-side) and outer faces in the base-local frame
+	local function span(part: any): (number, number)
+		local c = root:PointToObjectSpace(part.Position)
+		local half = part.Size.X / 2
+		if math.abs(part.CFrame.RightVector:Dot(root.RightVector)) < 0.5 then
+			half = part.Size.Z / 2 -- turned a quarter: its local Z runs across the arcade
+		end
+		return math.abs(c.X) - half, math.abs(c.X) + half
+	end
+	for _, side in { "West", "East" } do
+		local arcade = model.Arcades:FindFirstChild(side)
+		t.ok(arcade, `Arcades.{side}`)
+		local wall = arcade:FindFirstChild("BackWall")
+		t.ok(wall and wall:IsA("BasePart"), `Arcades.{side}.BackWall`)
+		local wallInner = span(wall)
+		local postOuter, roofs = 0, 0
+		for _, d in arcade:GetChildren() do
+			if d:IsA("BasePart") and d.Name == "Post" then
+				local _, outer = span(d)
+				postOuter = math.max(postOuter, outer)
+			elseif d:IsA("BasePart") and d.Name == "Roof" then
+				roofs += 1
+			end
+		end
+		t.ok(roofs >= 6, `Arcades.{side}: gabled market bays ({roofs} roof slopes)`)
+		for i = if side == "West" then 1 else 2, 12, 2 do
+			local slot = model.Tank.Slots:FindFirstChild(`Slot_{i}`)
+			local cabinetFront = span(slot.Pedestal)
+			t.ok(cabinetFront - postOuter >= 6, `Slot_{i}: aisle {cabinetFront - postOuter} studs wide (>= 6)`)
+			local _, backdropOuter = span(slot.Backdrop)
+			t.ok(
+				backdropOuter <= wallInner + 1e-3 and wallInner - backdropOuter < 0.3,
+				`Slot_{i}: backdrop against the back wall ({wallInner - backdropOuter})`
+			)
+		end
+	end
 	sim:AssertNoErrors()
 end
 

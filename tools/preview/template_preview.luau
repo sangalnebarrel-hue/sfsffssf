@@ -19,8 +19,8 @@
 	    picks the base colour from BaseConfig.Colors);
 	  * ServerStorage.BaseTemplate from tools/builder/BaseTemplate.luau;
 	  * ReplicatedStorage.Shared.Config.BaseConfig copied from src/ (base colours).
-	The stand-ins use the map's Palette colours and the same colour grading, water colour and haze
-	as tools/build.luau, so a preview looks like the base in the real map (export_parts paints the
+	The stand-ins use the map's Palette colours and the same lighting, colour grading, water colour
+	and haze as tools/build.luau, so a preview looks like the base in the real map (export_parts paints the
 	Accent parts in the base colour and the WallTone parts in the base's wall tone).
 ]]
 
@@ -87,12 +87,22 @@ slab(ground, "LagoonBed", -150, 150, -18, -14, -150, -12, P.SandDark)
 local water = U.folder(map, "Water")
 slab(water, "Lagoon", -150, 150, -14, -4, -150, 0, rgb(36, 156, 186))
 
--- The map's colour grading, water colour and haze (tools/build.luau), read by the renderer.
+-- The map's lighting, colour grading, water colour and haze (tools/build.luau), read by the
+-- renderer and seen when the preview place is opened in Studio.
 local lighting = game:GetService("Lighting")
+lighting.GeographicLatitude = 35
+lighting.TimeOfDay = "14:30:00"
+lighting.Brightness = 2.3
+lighting.Ambient = rgb(130, 124, 118)
+lighting.OutdoorAmbient = rgb(140, 142, 152)
+lighting.ColorShift_Top = rgb(255, 236, 208)
+lighting.EnvironmentDiffuseScale = 0.5
+lighting.EnvironmentSpecularScale = 0.15
+lighting.ExposureCompensation = -0.1
 local grade = lighting:FindFirstChildOfClass("ColorCorrectionEffect")
 	or U.new("ColorCorrectionEffect", { Name = "ColorCorrection" }, lighting)
 grade.Saturation = 0.1
-grade.Contrast = 0.06
+grade.Contrast = 0.08
 grade.Brightness = 0
 grade.TintColor = rgb(255, 252, 246)
 local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
