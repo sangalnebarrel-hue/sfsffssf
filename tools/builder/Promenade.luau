@@ -17,16 +17,21 @@
 	                  telescope and the district's touch (a crate of glass floats, a flower box,
 	                  an anchor, a picnic basket). Pile bents buried in the sand are left out.
 	                  buildBridges returns the kiosks' attachments for the build's self-check.
-	  Map.Promenade   the ring walk r 312..330 on flat GroundTop: warm honey sandstone flags
-	                  with darker flagstone joints, a terracotta brick runner down the middle
-	                  and cream limestone kerbs (open where the gateway roads and landmark paths
-	                  leave the ring); a warm sandstone sea wall on the lagoon side (two shades by
+	  Map.Promenade   the ring walk r 312..330 on flat GroundTop, laid as paving with a rhythm
+	                  (not a running track): big warm honey sandstone flags in two tones,
+	                  checkered across a brick runner down the middle that changes between two
+	                  calm brick tones half-way along each flag, a cream limestone band right
+	                  across the walk every 3.75° (~21 studs), cream limestone kerbs (open where
+	                  the gateway roads and landmark paths leave the ring); a warm sandstone sea
+	                  wall on the lagoon side (two shades by
 	                  turns, a cream coping) with a low seat-high parapet between pale stone
 	                  pillars (the lagoon, the coping ledge and the beach stay in view from the
 	                  walk), open at the 8 pier entrances (base ± 6°, with two broad steps down
 	                  to the beach on both sides of the pier) and 4 steps down to the beach
-	                  (between two plots); slim iron lamps on every other pillar, two-tone bunting
-	                  in the colour of each quarter, wooden benches and planters in front of the
+	                  (between two plots); slim iron lamps on every other pillar (every other
+	                  lamp with a banner on an iron arm), bunting and banners in the colour of
+	                  each quarter and its jewel partner (PARTNER), wooden benches and planters
+	                  (jewel bloom pairs) in front of the
 	                  plots and along the stretches between them, wooden direction signs at the
 	                  landmark paths, and a small stall on every stretch from a base's gate to its
 	                  bridge (Stops: an ice-cream cart, a fish smokehouse, a lemonade stall, a
@@ -37,7 +42,8 @@
 	                  fishing vignette (Vignettes): an upturned rowboat on the sand, a rod rack
 	                  and bait bucket or crates of the catch or lobster pots on the coping ledge,
 	                  a net laid over the parapet to dry, a beach parasol with a towel and a
-	                  cooler, a fish drying rack. No people, no animals.
+	                  cooler, a fish drying rack — boats, parasols and floats in jewel tones and
+	                  boat paint by turns (VIGNETTE_PAINT). No people, no animals.
 
 	Nothing is placed on the walking surface except along its two edges (the stops stand on
 	its outer half: ~10 studs of lane stay free), so players can run all the way round.
@@ -91,12 +97,18 @@ Promenade.Themes = {
 	},
 }
 
--- Materials of the walk (calm, large surfaces: DESIGN.md §1): warm honey sandstone flags
--- (~222, 202, 158), darker flagstone joints (~200, 173, 134) and a terracotta brick runner
--- (~183, 97, 68) that reads as a red line round the lagoon from the overview.
+-- Materials of the walk (calm, large surfaces: DESIGN.md §1): big warm honey sandstone flags
+-- in two tones (~222, 202, 158 and a shade ~6 % darker), darker flagstone joints (~196, 172,
+-- 134), a brick runner down the middle in two calm brick tones by turns (a terracotta ~184,
+-- 104, 76 and a lighter, dustier brick), cut at every flag joint by a cream limestone band
+-- right across the walk: a paved promenade with a rhythm, not one long red line (a running
+-- track).
 local WALK = lerp(lerp(C.Sand, C.Flagstone, 0.5), C.Limestone, 0.2)
+local WALK2 = lerp(WALK, C.FlagstoneDark, 0.55)
 local JOINT = lerp(C.FlagstoneDark, C.Limestone, 0.1)
-local RUNNER = lerp(C.Brick, C.RoofTerracotta, 0.6)
+local RUNNER = lerp(lerp(C.Brick, C.RoofTerracotta, 0.6), C.Sand, 0.06)
+local RUNNER2 = lerp(lerp(C.Brick, C.Sand, 0.45), C.RoofTerracotta, 0.15)
+local BAND = lerp(C.Limestone, C.Cream, 0.4)
 local KERB = C.Limestone
 -- sea wall blocks: warm sandstone in two shades by turns, under a cream limestone coping
 local WALL = { lerp(C.Flagstone, C.StoneLight, 0.3), lerp(C.FlagstoneDark, C.Stone, 0.35) }
@@ -141,6 +153,15 @@ end
 local function twoTone(color: any): { any }
 	return { color, C.Festive[3] }
 end
+
+-- The jewel partner of each district colour (Palette.Flowers: small accents only): the lamp
+-- banners and the promenade bunting of a quarter alternate the district colour with it.
+local PARTNER = {
+	[0] = C.Flowers[2], -- south (orange): sunflower yellow
+	[90] = C.Flowers[4], -- east (pink): violet
+	[180] = C.Flowers[2], -- north (blue): yellow
+	[270] = C.Flowers[1], -- west (green): poppy red
+}
 
 --[[
 	Wedge in a builder's local frame filling the box between two corners, its slope falling
@@ -641,16 +662,35 @@ local function quarterColor(a: number): any
 	return color
 end
 
+-- The jewel partner of the quarter around angle a (see PARTNER).
+local function quarterPartner(a: number): any
+	local best, color = math.huge, C.Flowers[2]
+	for angle in Promenade.Themes do
+		local d = Kit.angleDistance(a, angle)
+		if d < best then
+			best, color = d, PARTNER[angle] or C.Flowers[2]
+		end
+	end
+	return color
+end
+
 --[[
-	Iron lamp on a parapet pillar (3 parts, the lean sibling of Kit.lamp for the 32 lamps of the
-	ring): a slim post, a glowing Neon lantern and a dark cap with an overhang; every fourth one
-	carries a PointLight. Stands on cf (the pillar top).
+	Iron lamp on a parapet pillar (3 parts, 5 with a banner; the lean sibling of Kit.lamp for the
+	32 lamps of the ring): a slim post, a glowing Neon lantern and a dark cap with an overhang;
+	`banner` (every other lamp) hangs a banner in that colour from an iron arm over the walk's
+	edge; every fourth one carries a PointLight. Stands on cf (the pillar top).
 ]]
-local function pillarLamp(parent: any, cf: any, light: boolean)
+local function pillarLamp(parent: any, cf: any, light: boolean, banner: any?)
 	local b = Kit.builder(parent, "Lamp", cf)
 	local post = b:box("Post", -0.5, -0.4, -0.5, 0.5, 5.0, 0.5, C.Iron)
 	local glow = b:box("Glow", -0.95, 4.95, -0.95, 0.95, 7.2, 0.95, C.Glow, Kit.NEON)
 	b:box("Cap", -1.45, 7.15, -1.45, 1.45, 7.95, 1.45, C.Navy, Kit.NOSHADOW)
+	if banner then
+		-- a banner hanging from an iron arm off the post over the walk's edge (seen face-on
+		-- along the ring, its foot 5.6 over the walk)
+		b:box("Arm", -0.15, 4.45, 0.45, 0.15, 4.75, 2.6, C.Iron, Kit.DECOR)
+		b:box("Banner", -0.09, 2.0, 0.85, 0.09, 4.45, 2.35, banner, Kit.DECOR)
+	end
 	if light then
 		Kit.light(glow, 16, 1.3)
 	end
@@ -953,7 +993,11 @@ end
 	Each builder returns its first part and costs 6-9 parts. `paint` is a Palette boat paint.
 ]]
 local NETS = { lerp(C.RoofGreen, C.Rope, 0.25), lerp(C.RoofBlue, C.Rope, 0.3) }
-local PARASOLS = { C.RoofRed, lerp(C.Blue, C.Stone, 0.3), C.RoofGreen, C.RoofTerracotta }
+-- beach parasols in the Palette's jewel tones (small accents, with a cream band)
+local PARASOLS = { C.Flowers[1], C.Flowers[7], C.Flowers[6], C.Flowers[3] }
+-- boat paint of the vignettes (hulls, floats, ice crates, rods): jewel tones and calm boat paint
+-- by turns
+local VIGNETTE_PAINT = { C.Flowers[1], C.BoatPaint[2], C.Flowers[7], C.BoatPaint[4], C.Flowers[6], C.BoatPaint[5] }
 
 -- A thin block from (y0, z0) to (y1, z1) at x (oars and poles leaning on the wall).
 local function lean(
@@ -1110,8 +1154,8 @@ local STOPS = {
 	{ name = "FlowerCart", build = flowerCartStop },
 }
 
--- Wooden direction sign (8 parts) at a landmark path mouth: two dark posts on stone feet, a
--- painted board (white text with a dark outline) in a wooden frame, a small gabled roof.
+-- Wooden direction sign (6 parts) at a landmark path mouth: two dark posts, a painted board
+-- (white text with a dark outline) in a wooden frame, a small gabled roof.
 -- Stands on cf, front -Z.
 local function pathSign(parent: any, cf: any, text: string, color: any): any
 	local b = Kit.builder(parent, "PathSign", cf)
@@ -1120,7 +1164,6 @@ local function pathSign(parent: any, cf: any, text: string, color: any): any
 	for i, x in { -W / 2 + 1.6, W / 2 - 1.6 } do
 		local post = b:box(`Post{i}`, x - 0.6, -1, 0.2, x + 0.6, lift + H + 1.2, 1.4, C.WoodDark)
 		first = first or post
-		b:box(`Foot{i}`, x - 1.0, -0.4, -0.2, x + 1.0, 0.8, 1.8, C.StoneLight, Kit.NOSHADOW)
 	end
 	b:box("Frame", -W / 2 - 0.5, lift - 0.5, -0.3, W / 2 + 0.5, lift + H + 0.5, 0.2, C.Wood)
 	local board = b:box("Board", -W / 2, lift, -0.5, W / 2, lift + H, -0.3, color)
@@ -1138,28 +1181,41 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	local outer = inner + cfg.PromenadeWidth
 	local top = G + DECK_TOP
 
-	-- Paving: 48 light sandstone flags (7.5°), all one colour at one height (the chord
-	-- rectangles overlap near the inner edge: same colour, so no seam, no lip and no shimmer), a
-	-- darker joint strip across the walk on every flag boundary, a darker cobble runner down the
-	-- middle (over the joints) and light stone kerbs.
+	-- Paving: 48 big sandstone flags (7.5°, ~42 studs at the middle of the walk) in two tones
+	-- by turns, all at one height (the chord rectangles overlap near the inner edge: same colour,
+	-- so no seam, no lip and no shimmer); a brick runner down the middle in 48 pieces of two calm
+	-- brick tones by turns, offset by half a flag (so flag and runner change tone at different
+	-- bands); a cream limestone band right across the walk (over the runner) every 3.75°: the
+	-- flag joints and the half-way bands. The walk reads as laid paving with a rhythm.
 	local paving = U.model(promenade, "Paving")
 	local step = 360 / 96 -- railing post grid (3.75°)
 	local mid = (inner + 1.6 + outer - 1.4) / 2 -- middle of the open walk (coping to kerb)
 	for k = 0, 47 do
 		local a0 = k * 2 * step
-		ringPiece(paving, "Tile", a0, a0 + 2 * step, inner + 0.2, outer, G - 1, top, WALK, FLAT)
-		ringPiece(paving, "Runner", a0, a0 + 2 * step, mid - 2.0, mid + 2.0, top, top + 0.2, RUNNER, FLAT)
+		-- (checkered: the flags on the lagoon side and on the land side of the runner swap tones)
+		local flagIn = if k % 2 == 0 then WALK else WALK2
+		local flagOut = if k % 2 == 0 then WALK2 else WALK
+		-- (the two halves meet under the runner, which covers the seam at every angle)
+		ringPiece(paving, "Tile", a0, a0 + 2 * step, inner + 0.2, mid, G - 1, top, flagIn, FLAT)
+		ringPiece(paving, "Tile", a0, a0 + 2 * step, mid, outer, G - 1, top, flagOut, FLAT)
+		local r0 = a0 + step
+		local brick = if k % 2 == 0 then RUNNER else RUNNER2
+		ringPiece(paving, "Runner", r0, r0 + 2 * step, mid - 2.0, mid + 2.0, top, top + 0.2, brick, FLAT)
 	end
-	-- joint strips (2 wide, 0.12 proud) from the coping to the kerb
-	for k = 0, 47 do
-		local a = k * 2 * step
+	-- across the walk from the coping to the kerb, every 3.75°: on every flag joint a cream
+	-- limestone band (2.4 wide, 0.06 over the runner: it cuts the runner into panels), half-way
+	-- along each flag a darker flagstone joint (1.4 wide, 0.12 proud: under the runner's top,
+	-- where the runner changes its brick)
+	for k = 0, 95 do
+		local a = k * step
 		local p = U.polar(a, mid, 0)
+		local major = k % 2 == 0
 		U.part(
 			paving,
-			"Joint",
-			Vector3.new(2, 0.24, outer - inner - 3.0),
-			CFrame.new(p.X, top, p.Z) * CFrame.Angles(0, rad(a), 0),
-			JOINT,
+			if major then "Band" else "Joint",
+			if major then Vector3.new(2.4, 0.38, outer - inner - 3.0) else Vector3.new(1.4, 0.24, outer - inner - 3.0),
+			CFrame.new(p.X, if major then top + 0.07 else top, p.Z) * CFrame.Angles(0, rad(a), 0),
+			if major then BAND else JOINT,
 			nil,
 			FLAT
 		)
@@ -1271,7 +1327,12 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 			)
 			if isLamp(a) then
 				-- an iron lamp on the pillar
-				pillarLamp(lampModel, CFrame.new(p.X, top + PILLAR_TOP, p.Z) * turn, lamps % 4 == 0)
+				-- (a banner on every other lamp: the district colour and its jewel partner by turns)
+				local banner = if lamps % 2 == 1
+					then nil
+					elseif lamps % 4 == 0 then quarterColor(a)
+					else quarterPartner(a)
+				pillarLamp(lampModel, CFrame.new(p.X, top + PILLAR_TOP, p.Z) * turn, lamps % 4 == 0, banner)
 				lamps += 1
 			end
 			if j > 1 then
@@ -1334,7 +1395,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 			count = 3,
 			sag = 2.4,
 			name = "Bunting",
-			colors = twoTone(quarterColor(base + 11)),
+			colors = { quarterColor(base + 11), C.Festive[3], quarterPartner(base + 11) },
 		}))
 	end
 
@@ -1475,7 +1536,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 						elseif spec.frame == "parapet" then wallCf
 						else beachCf
 					local b = Kit.builder(vignettes, spec.name, cf)
-					local paint = C.BoatPaint[(nV * 3) % #C.BoatPaint + 1]
+					local paint = VIGNETTE_PAINT[nV % #VIGNETTE_PAINT + 1]
 					b:finish(spec.build(b, paint, nV))
 					break
 				end
