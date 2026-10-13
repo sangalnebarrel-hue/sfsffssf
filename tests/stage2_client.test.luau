@@ -1,0 +1,736 @@
+--[[
+	Stage 2 client tests (RbxSim against the built Place1.rbxl): FishingController (the local
+	player's fishing UI and input) and FishingFxController (bobbers, lines, rainbow fish).
+
+	The server half (FishingService) is not needed here: the harness plays the server — it puts
+	the rod Tool into the Backpack, sets the Player attributes (FishingState, BobberTarget,
+	CastTime, RodId, FishCaught) and fires the FishingState RemoteEvent; what the client asked
+	for is read back with sim:ServerEventsFor(player, "FishingCast" | ...).
+
+	Run: lune run tools/run_tests.luau stage2_client
+]]
+
+local fs = require("@lune/fs")
+local luau = require("@lune/luau")
+local roblox = require("@lune/roblox")
+
+local Enum = roblox.Enum
+local Vector3 = roblox.Vector3
+local CFrame = roblox.CFrame
+
+local PLACE = "Place1.rbxl"
+
+-- Pure config modules are read straight from src/ (same values the game uses).
+local function loadConfig(name: string): any
+	local path = `src/ReplicatedStorage/Shared/Config/{name}.luau`
+	local chunk = luau.load(fs.readFile(path), {
+		debugName = path,
+		environment = { Color3 = roblox.Color3, Vector3 = roblox.Vector3, Enum = roblox.Enum },
+		injectGlobals = true,
+	})
+	return chunk()
+end
+
+local BaseConfig = loadConfig("BaseConfig")
+local FishConfig = loadConfig("FishConfig")
+local FishingConfig = loadConfig("FishingConfig")
+
+local RETRACT_TIME = 0.45 -- FishingFxController: the bobber reels back to the rod tip
+local HINT_TIME = 3.5 -- FishingController: event hints hide after this
+
+local function rarityColor(id: string): any
+	for _, rarity in FishConfig.Rarities do
+		if rarity.Id == id then
+			return rarity.Color
+		end
+	end
+	error(`no rarity {id}`)
+end
+
+local function mutationColor(id: string): any
+	for _, mutation in FishConfig.Mutations do
+		if mutation.Id == id then
+			return mutation.Color
+		end
+	end
+	error(`no mutation {id}`)
+end
+
+--------------------------------------------------------------------------------
+-- Harness helpers
+--------------------------------------------------------------------------------
+
+local function boot(t: any): any
+	local sim = t.sim({ place = PLACE })
+	sim:StartServer()
+	sim:Advance(0.5)
+	return sim
+end
+
+local function addPlayer(sim: any, id: number, device: string?): any
+	local player = sim:AddPlayer({ UserId = id, Name = `Fisher{id}`, device = device or "desktop" })
+	sim:Advance(1)
+	return player
+end
+
+-- What FishingService does on every spawn: the start rod into the Backpack + attributes.
+local function giveRod(sim: any, player: any): any
+	local template = sim:Find("ReplicatedStorage.Assets.Rods.RodBamboo")
+	local rod = template:Clone()
+	rod.Name = template:GetAttribute("DisplayName")
+	rod.Parent = player:FindFirstChildOfClass("Backpack")
+	player:SetAttribute("RodId", "RodBamboo")
+	player:SetAttribute("FishingState", "Idle")
+	player:SetAttribute("FishCaught", 0)
+	sim:Advance(0.05)
+	return rod
+end
+
+local function equipRod(sim: any, player: any): any
+	local rod = giveRod(sim, player)
+	sim:EquipTool(player, rod)
+	sim:Advance(0.1)
+	return rod
+end
+
+local function gui(sim: any, player: any, path: string): any
+	local found = sim:Gui(player, `HUD.Fishing.{path}`)
+	assert(found, `HUD.Fishing.{path} not found`)
+	return found
+end
+
+local function caption(sim: any, player: any): string
+	return gui(sim, player, "ActionArea.ActionButton.Caption").Text
+end
+
+-- The harness counts as the server: fire FishingState to one client.
+local function serverSays(sim: any, player: any, state: string, data: any?)
+	sim:Find("ReplicatedStorage.Remotes.FishingState"):FireClient(player, state, data)
+	sim:Advance(0.05)
+end
+
+local function sent(sim: any, player: any, name: string): { any }
+	return sim:ServerEventsFor(player, name)
+end
+
+local function pressE(sim: any, player: any)
+	sim:PressKey(player, Enum.KeyCode.E)
+	sim:Advance(0.02)
+end
+
+local function ownBase(sim: any, player: any): any
+	return sim.workspace.Bases:FindFirstChild(`Base_{player:GetAttribute("BaseIndex")}`)
+end
+
+local function standAtSpot(sim: any, player: any)
+	local spot = ownBase(sim, player).FishingSpot
+	sim:Teleport(player, spot.CFrame.Position + Vector3.new(0, 3, 0))
+	sim:Advance(0.3)
+end
+
+local function controller(sim: any, player: any, name: string): any
+	local module = sim:Find(`Controllers.{name}`, player:FindFirstChildOfClass("PlayerScripts"))
+	assert(module, `{name} not found in PlayerScripts`)
+	return sim:Require(module, player)
+end
+
+local function colorNear(a: any, b: any, eps: number?): boolean
+	local e = eps or 0.01
+	return math.abs(a.R - b.R) < e and math.abs(a.G - b.G) < e and math.abs(a.B - b.B) < e
+end
+
+-- Client connections of `viewer` that mention `name` (a player's name) in their signal.
+local function connectionsAbout(sim: any, viewer: any, name: string): number
+	local ctxName = sim:ContextName(viewer)
+	return sim:CountConnections(function(conn: any)
+		return conn.ctx.name == ctxName and string.find(conn.signal:describe(), name, 1, true) ~= nil
+	end)
+end
+
+local function renderSteppedCount(sim: any, viewer: any): number
+	local ctxName = sim:ContextName(viewer)
+	return sim:CountConnections(function(conn: any)
+		return conn.ctx.name == ctxName and string.find(conn.signal:describe(), "RenderStepped", 1, true) ~= nil
+	end)
+end
+
+local MINIGAME = {
+	Rarity = "Legendary",
+	U0 = 0.25,
+	Speed = 1.25,
+	ZoneCenter = 0.7,
+	ZoneWidth = 0.17,
+	Hits = 0,
+	HitsNeeded = 2,
+	Timeout = 12,
+}
+
+local tests = {}
+
+--------------------------------------------------------------------------------
+-- Action button
+--------------------------------------------------------------------------------
+
+tests["action button: hidden without the rod, shown while it is equipped, key hint on desktop"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	local button = gui(sim, p, "ActionArea.ActionButton")
+	t.eq(button.Visible, false, "no rod")
+	local rod = giveRod(sim, p)
+	t.eq(button.Visible, false, "rod only in the Backpack")
+	sim:EquipTool(p, rod)
+	sim:Advance(0.1)
+	t.eq(button.Visible, true, "rod in hand")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ [E]")
+	t.ok(colorNear(button.BackgroundColor3, roblox.Color3.fromRGB(40, 132, 226)), "blue while Idle")
+	t.eq(gui(sim, p, "ActionArea.StopButton").Visible, false, "no line out")
+	sim:UnequipTools(p)
+	sim:Advance(0.1)
+	t.eq(button.Visible, false, "rod back in the Backpack")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["phone: the button is clickable, a tap casts once, ЖДЁМ… ignores taps, a lost reply unlocks it"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	equipRod(sim, p)
+	local button = gui(sim, p, "ActionArea.ActionButton")
+	local ok, why = sim:CanClick(p, button)
+	t.ok(ok, `ActionButton clickable on a phone: {why}`)
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "no key hint on touch screens")
+
+	local info = sim:Run(function()
+		return sim:Env(p).game:GetService("ContextActionService"):GetBoundActionInfo("FishingAction")
+	end, p)
+	t.eq(info.createTouchButton, false, "no CAS touch button")
+
+	sim:Click(p, button)
+	sim:Advance(0.1)
+	t.eq(#sent(sim, p, "FishingCast"), 1, "cast sent")
+	t.eq(caption(sim, p), "ЖДЁМ…")
+	sim:Click(p, button)
+	sim:Advance(0.1)
+	t.eq(#sent(sim, p, "FishingCast"), 1, "taps while waiting are ignored")
+
+	sim:Advance(1.5) -- the server never answered
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "pending times out")
+	sim:Click(p, button)
+	sim:Advance(0.1)
+	t.eq(#sent(sim, p, "FishingCast"), 2, "can cast again")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["states: captions, colours, Stop button; Hook is sent once from button, tool or key"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	equipRod(sim, p)
+	local button = gui(sim, p, "ActionArea.ActionButton")
+	local stop = gui(sim, p, "ActionArea.StopButton")
+	local alert = gui(sim, p, "BiteAlert")
+
+	pressE(sim, p)
+	t.eq(#sent(sim, p, "FishingCast"), 1, "E casts")
+	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = FishingConfig.CastFlightTime })
+	t.eq(caption(sim, p), "ЖДЁМ…")
+	t.eq(stop.Visible, true, "line is out")
+	t.ok(button.BackgroundTransparency > 0.2, "dimmed while waiting")
+	pressE(sim, p)
+	sim:ActivateTool(p)
+	sim:Advance(0.1)
+	t.eq(#sent(sim, p, "FishingCast"), 1, "no cast while waiting")
+	t.eq(#sent(sim, p, "FishingHook"), 0, "no hook while waiting (only cheaters hook early)")
+
+	serverSays(sim, p, "Bite", { Window = 1.8 })
+	t.eq(caption(sim, p), "ПОДСЕЧЬ! [E]")
+	t.ok(colorNear(button.BackgroundColor3, roblox.Color3.fromRGB(240, 140, 30)), "orange on bite")
+	t.eq(alert.Visible, true, "bite alert")
+	local timer = alert.Timer
+	local full = timer.Size.X.Scale
+	sim:Advance(0.9)
+	t.near(timer.Size.X.Scale, full * (1 - 0.95 / 1.8), 0.05, "bite timer shrinks over Window")
+	sim:ActivateTool(p) -- tap in the world
+	sim:Advance(0.1)
+	t.eq(#sent(sim, p, "FishingHook"), 1, "hook sent")
+	sim:Click(p, button)
+	sim:Advance(0.1)
+	pressE(sim, p)
+	t.eq(#sent(sim, p, "FishingHook"), 1, "hook sent only once")
+
+	serverSays(sim, p, "Minigame", MINIGAME)
+	t.eq(caption(sim, p), "ТЯНИ! [E]")
+	t.ok(colorNear(button.BackgroundColor3, roblox.Color3.fromRGB(64, 200, 96)), "green while reeling")
+	t.eq(alert.Visible, false, "bite alert gone")
+	t.eq(gui(sim, p, "Minigame").Visible, true)
+
+	sim:Click(p, stop)
+	sim:Advance(0.1)
+	t.eq(#sent(sim, p, "FishingStop"), 1, "stop sent")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ [E]")
+	t.eq(gui(sim, p, "Minigame").Visible, false)
+	t.eq(stop.Visible, false)
+	serverSays(sim, p, "Idle", { Reason = "stop" })
+	t.eq(gui(sim, p, "Hint").Text, "Леска смотана")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["console: R2 does the action and the caption shows [R2]"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "console")
+	equipRod(sim, p)
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ [R2]")
+	sim:PressKey(p, Enum.KeyCode.ButtonR2)
+	sim:Advance(0.05)
+	t.eq(#sent(sim, p, "FishingCast"), 1)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- Minigame
+--------------------------------------------------------------------------------
+
+tests["minigame: title, pips, zone, needle and time bar follow the payload; taps carry elapsed, rate-limited"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	equipRod(sim, p)
+	local rules = sim:Require(sim:Find("ReplicatedStorage.Shared.FishingRules"), p)
+	local mini = gui(sim, p, "Minigame")
+	local zone = mini.Track.Zone
+	local needle = mini.Track.Needle
+	local fill = mini.TimeBar.Fill
+	local idleRender = renderSteppedCount(sim, p)
+
+	local t0 = sim:Time()
+	serverSays(sim, p, "Minigame", MINIGAME)
+	t.eq(mini.Visible, true)
+	t.eq(mini.Title.Text, "ЛЕГЕНДАРНАЯ РЫБА!")
+	t.ok(colorNear(mini.Title.TextColor3, rarityColor("Legendary")), "title in the rarity colour")
+	t.eq(mini.Pips.Pip1.Visible, true)
+	t.eq(mini.Pips.Pip2.Visible, true)
+	t.eq(mini.Pips.Pip3.Visible, false, "only HitsNeeded pips")
+	local pipColor = mini.Pips.Pip1.BackgroundColor3
+	t.near(zone.Position.X.Scale, 0.7, 1e-6, "zone centre")
+	t.near(zone.Size.X.Scale, 0.17, 1e-6, "zone width")
+	t.ok(renderSteppedCount(sim, p) > idleRender, "needle animates on RenderStepped")
+
+	sim:Advance(0.5)
+	local elapsed = sim:Time() - t0
+	t.near(needle.Position.X.Scale, rules.Needle(0.25, 1.25, elapsed), 0.03, "needle = FishingRules.Needle")
+	t.near(fill.Size.X.Scale, 1 - elapsed / 12, 0.01, "time bar shrinks over Timeout")
+
+	local pressedAt = sim:Time()
+	pressE(sim, p)
+	local taps = sent(sim, p, "FishingTap")
+	t.eq(#taps, 1, "tap sent")
+	local tapElapsed = taps[1].args[1]
+	t.eq(type(tapElapsed), "number")
+	t.near(tapElapsed, pressedAt - t0, 0.03, "elapsed since Minigame was received")
+	pressE(sim, p)
+	sim:Advance(0.05)
+	pressE(sim, p)
+	t.eq(#sent(sim, p, "FishingTap"), 1, "taps faster than TapInterval are not sent")
+	sim:Advance(FishingConfig.TapInterval)
+	pressE(sim, p)
+	taps = sent(sim, p, "FishingTap")
+	t.eq(#taps, 2, "next tap after TapInterval")
+	t.ok(taps[2].args[1] - taps[1].args[1] >= FishingConfig.TapInterval - 1e-6, "taps spaced by TapInterval")
+
+	serverSays(sim, p, "Zone", { ZoneCenter = 0.2, Hits = 1 })
+	sim:Advance(0.3)
+	t.near(zone.Position.X.Scale, 0.2, 1e-3, "zone moved")
+	t.ok(colorNear(mini.Pips.Pip1.BackgroundColor3, roblox.Color3.fromRGB(64, 200, 96)), "first pip done")
+	t.ok(colorNear(mini.Pips.Pip2.BackgroundColor3, pipColor), "second pip still to do")
+	t.near(mini.Position.X.Scale, 0.5, 1e-6, "shake settles back")
+
+	serverSays(sim, p, "Lost", { Reason = "miss", Text = "Мимо! Рыба сорвалась" })
+	t.eq(mini.Visible, false, "minigame closed")
+	t.eq(gui(sim, p, "Hint").Text, "Мимо! Рыба сорвалась")
+	t.eq(gui(sim, p, "Hint").Visible, true)
+	t.eq(renderSteppedCount(sim, p), idleRender, "no RenderStepped while the minigame is hidden")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ [E]")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["minigame: garbage payloads are ignored safely"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	equipRod(sim, p)
+	serverSays(sim, p, "Minigame", { Rarity = 5, U0 = 0 / 0, Speed = math.huge, HitsNeeded = 99, Timeout = -1 })
+	sim:Advance(0.2)
+	local mini = gui(sim, p, "Minigame")
+	t.eq(mini.Visible, true)
+	t.eq(mini.Pips.Pip5.Visible, true, "HitsNeeded clamped to the pips")
+	local x = mini.Track.Needle.Position.X.Scale
+	t.ok(x == x and x >= 0 and x <= 1, "needle stays on the track")
+	serverSays(sim, p, 42, "nonsense")
+	serverSays(sim, p, "Zone", "nonsense")
+	serverSays(sim, p, "Caught", { Fish = { Id = 7 } })
+	t.eq(gui(sim, p, "CatchCard").Visible, false, "no card for a broken fish")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- Catch card and counter
+--------------------------------------------------------------------------------
+
+tests["catch card: rarity, name, mutation, info, turning model; counter; closes on tap, action or timeout"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	equipRod(sim, p)
+	local card = gui(sim, p, "CatchCard")
+	local counter = sim:Gui(p, "HUD.Status.CatchCounter")
+	t.eq(counter.Visible, false, "no catches yet")
+
+	serverSays(sim, p, "Minigame", MINIGAME)
+	p:SetAttribute("FishCaught", 1)
+	serverSays(sim, p, "Caught", {
+		Fish = { Id = "Perch", Rarity = "Common", Mutation = "Gold", Kg = 1.23, Value = 35, Income = 3.5 },
+		Total = 1,
+	})
+	t.eq(card.Visible, true)
+	t.ok(card.FxScale.Scale < 1, "card pops in")
+	t.eq(gui(sim, p, "Minigame").Visible, false, "minigame closed by the catch")
+	t.ok(colorNear(card.Banner.BackgroundColor3, rarityColor("Common")), "banner in the rarity colour")
+	t.eq(card.Banner.RarityLabel.Text, "ОБЫЧНАЯ")
+	t.eq(card.NameLabel.Text, "Окунь Полосатик")
+	t.eq(card.MutationLabel.Visible, true)
+	t.eq(card.MutationLabel.Text, "Золотая мутация ×2")
+	t.ok(colorNear(card.MutationLabel.BackgroundColor3, mutationColor("Gold")), "mutation colour")
+	t.eq(card.InfoLabel.Text, "1,2 кг · цена 35 💰")
+	t.eq(counter.Visible, true, "counter shown")
+	t.eq(counter.Label.Text, "Улов: 1")
+
+	local model = card.Viewport:FindFirstChildOfClass("Model")
+	t.ok(model, "fish model in the viewport")
+	t.eq(model.Name, "Gold", "the mutation's model")
+	t.ok(card.Viewport:FindFirstChildOfClass("Camera"), "viewport camera")
+	local look = model:GetPivot().LookVector
+	sim:Advance(0.5)
+	t.near(card.FxScale.Scale, 1, 1e-3, "pop-in finished")
+	t.ok(model:GetPivot().LookVector:Dot(look) < 0.999, "the fish turns")
+
+	sim:Click(p, card)
+	sim:Advance(0.05)
+	t.eq(card.Visible, false, "tap closes the card")
+	t.eq(card.Viewport:FindFirstChildOfClass("Model"), nil, "model removed")
+
+	serverSays(sim, p, "Caught", {
+		Fish = { Id = "DragonFish", Rarity = "Mythic", Kg = 14, Value = 2400, Income = 200 },
+		Total = 2,
+	})
+	t.eq(card.Visible, true)
+	t.eq(card.Banner.RarityLabel.Text, "МИФИЧЕСКАЯ")
+	t.eq(card.NameLabel.Text, "Рыба-Дракон")
+	t.eq(card.MutationLabel.Visible, false, "no mutation label without a mutation")
+	t.eq(card.InfoLabel.Text, "14 кг · цена 2400 💰")
+	t.eq(card.Viewport:FindFirstChildOfClass("Model").Name, "Normal")
+	t.eq(counter.Label.Text, "Улов: 2")
+	pressE(sim, p)
+	t.eq(card.Visible, false, "the action closes the card")
+	t.eq(#sent(sim, p, "FishingCast"), 0, "...and does not cast")
+
+	serverSays(sim, p, "Caught", { Fish = { Id = "Crucian", Rarity = "Common", Kg = 0.5, Value = 9 }, Total = 3 })
+	t.eq(card.Visible, true)
+	t.eq(card.InfoLabel.Text, "500 г · цена 9 💰")
+	sim:Advance(FishingConfig.CatchCardTime + 0.2)
+	t.eq(card.Visible, false, "closes by itself after CatchCardTime")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- Hints and the guide beam
+--------------------------------------------------------------------------------
+
+tests["hints: far → guide beam to the own FishingSpot, near → «Жми», Denied/Lost/Idle texts auto-hide"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	local hint = gui(sim, p, "Hint")
+	equipRod(sim, p)
+	sim:Advance(0.3)
+	t.eq(hint.Visible, true)
+	t.eq(hint.Text, "Иди на край своего пирса — к сверкающему кругу")
+	local root = sim:GetRoot(p)
+	local beam = root:FindFirstChild("FishingGuide")
+	t.ok(beam and beam:IsA("Beam"), "guide beam from the character")
+	t.eq(beam.Enabled, true)
+	t.ok(beam.Attachment1.Parent == ownBase(sim, p).FishingSpot, "beam goes to the own FishingSpot")
+
+	standAtSpot(sim, p)
+	t.eq(hint.Text, "Жми «Забросить»")
+	t.eq(beam.Enabled, false, "no guide at the spot")
+
+	serverSays(sim, p, "Denied", { Reason = "far", Text = "Подойди к краю своего пирса" })
+	t.eq(hint.Text, "Подойди к краю своего пирса")
+	sim:Advance(HINT_TIME + 0.3)
+	t.eq(hint.Text, "Жми «Забросить»", "event hint hides, the contextual one comes back")
+
+	serverSays(sim, p, "Denied", { Reason = "cooldown", Text = "" })
+	t.eq(hint.Text, "Жми «Забросить»", "empty Text shows nothing new")
+
+	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, 0), FlightTime = 0.7 })
+	sim:Advance(0.3)
+	t.eq(hint.Visible, false, "no contextual hint while fishing")
+	serverSays(sim, p, "Lost", { Reason = "late", Text = "Не успел подсечь!" })
+	t.eq(hint.Text, "Не успел подсечь!")
+	serverSays(sim, p, "Lost", { Reason = "timeout" })
+	t.eq(hint.Text, "Рыба устала ждать и уплыла", "default text when the server sends none")
+	serverSays(sim, p, "Idle", { Reason = "moved" })
+	t.match(hint.Text, "отошёл")
+	serverSays(sim, p, "Idle", { Reason = "stop" })
+	t.eq(hint.Text, "Леска смотана")
+
+	sim:UnequipTools(p)
+	sim:Advance(HINT_TIME + 0.3)
+	t.eq(hint.Visible, false, "no hints without the rod")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["attribute safety net: FishingState back to Idle without an event resets the UI"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	equipRod(sim, p)
+	p:SetAttribute("FishingState", "Waiting")
+	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, 0), FlightTime = 0.7 })
+	serverSays(sim, p, "Bite", { Window = 1.8 })
+	t.eq(caption(sim, p), "ПОДСЕЧЬ! [E]")
+	p:SetAttribute("FishingState", "Idle")
+	sim:Advance(0.1)
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ [E]")
+	t.eq(gui(sim, p, "BiteAlert").Visible, false)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- Respawn / unequip
+--------------------------------------------------------------------------------
+
+tests["unequip and respawn reset the fishing UI; no connections pile up"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	equipRod(sim, p)
+	sim:Advance(0.3)
+	local equippedConnections = sim:CountConnections(p)
+
+	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, 0), FlightTime = 0.7 })
+	serverSays(sim, p, "Bite", { Window = 1.8 })
+	t.eq(gui(sim, p, "BiteAlert").Visible, true)
+	sim:UnequipTools(p)
+	sim:Advance(0.1)
+	t.eq(gui(sim, p, "ActionArea.ActionButton").Visible, false)
+	t.eq(gui(sim, p, "ActionArea.StopButton").Visible, false)
+	t.eq(gui(sim, p, "BiteAlert").Visible, false, "bite alert closed on unequip")
+	local info = sim:Run(function()
+		return sim:Env(p).game:GetService("ContextActionService"):GetBoundActionInfo("FishingAction")
+	end, p)
+	t.eq(next(info), nil, "E/R2 unbound without the rod")
+	pressE(sim, p)
+	t.eq(#sent(sim, p, "FishingCast"), 0, "E does nothing without the rod")
+
+	sim:EquipTool(p, p.Backpack:FindFirstChildOfClass("Tool"))
+	sim:Advance(0.1)
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ [E]", "fresh state after re-equip")
+	serverSays(sim, p, "Minigame", MINIGAME)
+	t.eq(gui(sim, p, "Minigame").Visible, true)
+
+	sim:KillCharacter(p)
+	sim:Advance(0.1)
+	t.eq(gui(sim, p, "ActionArea.ActionButton").Visible, false, "hidden as soon as the character dies")
+	t.eq(gui(sim, p, "Minigame").Visible, false)
+	sim:Advance(BaseConfig.RespawnDelay + 1)
+	t.ok(sim:GetHumanoid(p) and sim:GetHumanoid(p).Health > 0, "respawned")
+	t.eq(gui(sim, p, "ActionArea.ActionButton").Visible, false, "no rod on the new character yet")
+	equipRod(sim, p)
+	sim:Advance(0.3)
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ [E]")
+	t.eq(gui(sim, p, "ActionArea.ActionButton").Visible, true)
+	t.eq(sim:CountConnections(p), equippedConnections, "same client connections as before the respawn")
+	pressE(sim, p)
+	t.eq(#sent(sim, p, "FishingCast"), 1, "casting works on the new character")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- Bobbers and lines (FishingFxController)
+--------------------------------------------------------------------------------
+
+tests["bobber: another player's cast flies to BobberTarget, bites, reels and is reeled in after Idle"] = function(t)
+	local sim = boot(t)
+	local watcher = addPlayer(sim, 1)
+	local fisher = addPlayer(sim, 2)
+	local fx = controller(sim, watcher, "FishingFxController")
+	local rod = equipRod(sim, fisher)
+	standAtSpot(sim, fisher)
+	t.eq(fx.GetBobber(fisher), nil, "no bobber while Idle")
+
+	local spot = ownBase(sim, fisher).FishingSpot
+	local out = spot.CFrame * CFrame.new(0, 0, -22)
+	local target = Vector3.new(out.Position.X, 0, out.Position.Z)
+	fisher:SetAttribute("BobberTarget", target)
+	fisher:SetAttribute("CastTime", sim.workspace:GetServerTimeNow())
+	fisher:SetAttribute("FishingState", "Waiting")
+	sim:Advance(0.05)
+
+	local bobber = fx.GetBobber(fisher)
+	t.ok(bobber, "bobber created for the other player")
+	t.eq(bobber.Parent.Name, "FishingFx")
+	t.ok(bobber.Parent.Parent == sim.workspace, "client folder in the Workspace")
+	local line = bobber:FindFirstChild("Line")
+	t.ok(line and line:IsA("Beam"), "fishing line")
+	t.ok(line.Attachment0 == rod.Handle.TipAttachment, "line starts at the rod tip")
+	t.ok(line.Attachment1 == bobber.Root.LineAttachment, "line ends at the bobber")
+	t.eq(line.Enabled, true)
+	local rest = target + Vector3.new(0, bobber:GetAttribute("FloatDepth"), 0)
+
+	sim:Advance(FishingConfig.CastFlightTime / 2 - 0.05)
+	local tip = rod.Handle.TipAttachment.WorldPosition
+	local mid = bobber:GetPivot().Position
+	t.ok(mid.Y > (tip.Y + rest.Y) / 2 + 1, "flies along an arc")
+
+	sim:Advance(FishingConfig.CastFlightTime / 2 + 0.3)
+	t.near(bobber:GetPivot().Position, rest, 0.2, "floats at the target, waterline on the water")
+
+	fisher:SetAttribute("FishingState", "Bite")
+	sim:Advance(0.2)
+	t.eq(bobber.Root.BiteAlert.Enabled, true, "«!» over the bobber on a bite")
+	t.ok(bobber.Root:FindFirstChildOfClass("ParticleEmitter"), "splash emitter")
+
+	fisher:SetAttribute("FishingState", "Reeling")
+	sim:Advance(1)
+	t.eq(bobber.Root.BiteAlert.Enabled, false)
+	local reel = bobber:GetPivot().Position
+	t.ok((reel - rest).Magnitude > 0.05, "thrashes / is drawn in while reeling")
+
+	-- every client draws the bobber (both the watcher's and the fisher's own)
+	local copies = 0
+	for _, folder in sim.workspace:GetChildren() do
+		if folder.Name == "FishingFx" and folder:FindFirstChild(`Bobber_{fisher.UserId}`) then
+			copies += 1
+		end
+	end
+	t.eq(copies, 2, "one bobber per client")
+
+	fisher:SetAttribute("FishingState", "Idle")
+	sim:Advance(0.1)
+	t.ok(fx.GetBobber(fisher) ~= nil, "still reeling in")
+	sim:Advance(RETRACT_TIME + 0.2)
+	t.eq(fx.GetBobber(fisher), nil, "removed after the reel-in")
+	t.eq(bobber.Parent, nil, "bobber destroyed")
+	for _, folder in sim.workspace:GetChildren() do
+		if folder.Name == "FishingFx" then
+			t.eq(#folder:GetChildren(), 0, "nothing left in FishingFx")
+		end
+	end
+	t.eq(renderSteppedCount(sim, watcher), 0, "no per-frame work without active bobbers")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["bobber: a late joiner sees a bobber already on the water"] = function(t)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1)
+	equipRod(sim, fisher)
+	fisher:SetAttribute("BobberTarget", Vector3.new(10, 0, 10))
+	fisher:SetAttribute("CastTime", sim.workspace:GetServerTimeNow())
+	fisher:SetAttribute("FishingState", "Waiting")
+	sim:Advance(2)
+	local late = addPlayer(sim, 2)
+	local fx = controller(sim, late, "FishingFxController")
+	sim:Advance(0.1)
+	local bobber = fx.GetBobber(fisher)
+	t.ok(bobber, "bobber exists for the late joiner")
+	t.near(bobber:GetPivot().Position, Vector3.new(10, 0.6, 10), 0.2, "already floating, no flight replay")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["leaks: a leaving player's bobber and connections disappear from other clients"] = function(t)
+	local sim = boot(t)
+	local watcher = addPlayer(sim, 1)
+	sim:Advance(0.5)
+	local baseline = sim:CountConnections(watcher)
+	local fisher = addPlayer(sim, 2)
+	local fx = controller(sim, watcher, "FishingFxController")
+	equipRod(sim, fisher)
+	fisher:SetAttribute("BobberTarget", Vector3.new(0, 0, 30))
+	fisher:SetAttribute("CastTime", sim.workspace:GetServerTimeNow())
+	fisher:SetAttribute("FishingState", "Bite")
+	sim:Advance(0.5)
+	local bobber = fx.GetBobber(fisher)
+	t.ok(bobber, "bobber while fishing")
+	t.ok(connectionsAbout(sim, watcher, fisher.Name) > 0, "watcher follows the fisher's attributes")
+	t.ok(sim:CountConnections(watcher) > baseline)
+
+	sim:RemovePlayer(fisher)
+	sim:Advance(0.2)
+	t.eq(connectionsAbout(sim, watcher, fisher.Name), 0, "no connections about the player who left")
+	t.eq(sim:CountConnections(watcher), baseline, "watcher back to its baseline")
+	t.eq(sim:CountConnections(fisher), 0, "the leaver's client is gone")
+	t.eq(fx.GetBobber(fisher), nil)
+	t.eq(bobber.Parent, nil, "bobber destroyed")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- Rainbow fish
+--------------------------------------------------------------------------------
+
+tests["rainbow fish: tagged models in the world and in the catch card shimmer; templates stay put"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	local template = sim:Find("ReplicatedStorage.Assets.Fish.Perch.Rainbow")
+	local fish = template:Clone()
+	fish.Parent = sim.workspace
+	sim:Advance(0.1)
+
+	local part, templatePart
+	for _, d in fish:GetDescendants() do
+		if d:IsA("BasePart") and d:GetAttribute("RainbowU") ~= nil then
+			part = d
+			templatePart = template:FindFirstChild(d.Name, true)
+			break
+		end
+	end
+	t.ok(part, "a rainbow part")
+	local function clientColor(target: any): any
+		return sim:Run(function()
+			return target.Color
+		end, p)
+	end
+	local c1 = clientColor(part)
+	sim:Advance(0.5)
+	local c2 = clientColor(part)
+	t.ok(not colorNear(c1, c2, 0.02), "colour changes over time")
+	local _, s, v = c2:ToHSV()
+	t.near(s, 0.72, 0.02, "saturation from the formula")
+	t.near(v, 0.55 + 0.45 * part:GetAttribute("RainbowV"), 0.02, "brightness from RainbowV")
+	t.ok(colorNear(clientColor(templatePart), templatePart.Color), "the ReplicatedStorage template is not animated")
+
+	fish:Destroy()
+	sim:Advance(0.1)
+	local gone = clientColor(part)
+	sim:Advance(0.5)
+	t.ok(colorNear(clientColor(part), gone), "no more recolouring once the model left the DataModel")
+
+	-- the same model in the catch card's ViewportFrame
+	equipRod(sim, p)
+	serverSays(sim, p, "Caught", {
+		Fish = { Id = "Perch", Rarity = "Common", Mutation = "Rainbow", Kg = 1, Value = 120 },
+		Total = 1,
+	})
+	local card = gui(sim, p, "CatchCard")
+	t.eq(card.MutationLabel.Text, "Радужная мутация ×5")
+	local cardFish = card.Viewport:FindFirstChildOfClass("Model")
+	t.eq(cardFish.Name, "Rainbow")
+	local cardPart = cardFish:FindFirstChild(part.Name, true)
+	local before = cardPart.Color
+	sim:Advance(0.5)
+	t.ok(not colorNear(before, cardPart.Color, 0.02), "the card's fish shimmers too")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+return tests
