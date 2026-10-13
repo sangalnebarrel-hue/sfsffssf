@@ -242,8 +242,9 @@ local function buildFishing(hud: any)
 		Size = UDim2.fromScale(1, 1),
 	}, hud)
 
-	-- Action area: 0.58H wide, 0.46H tall, in the bottom-right corner. The button sits in its
-	-- left part, so the rightmost ~0.33H stays free for the Jump button.
+	-- Action area: 0.58H wide, 0.46H tall (at most 300 x 240 px), in the bottom-right corner. The
+	-- button sits in its left part, so the rightmost ~0.33H (130 px on big screens) stays free
+	-- for the Jump button.
 	local area = U.new("Frame", {
 		Name = "ActionArea",
 		BackgroundTransparency = 1,
@@ -252,7 +253,9 @@ local function buildFishing(hud: any)
 		Size = UDim2.fromScale(0.58, 0.46),
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 	}, root)
-	U.new("UISizeConstraint", { MaxSize = Vector2.new(400, 320) }, area)
+	-- Capped on big screens, so on a 4:3 tablet the bottom-centre minigame still fits between
+	-- the thumbstick and the button.
+	U.new("UISizeConstraint", { MaxSize = Vector2.new(300, 240) }, area)
 	local action = U.new("TextButton", {
 		Name = "ActionButton",
 		AnchorPoint = Vector2.new(0, 1),
@@ -312,11 +315,11 @@ local function buildFishing(hud: any)
 		Visible = false,
 		BackgroundColor3 = rgb(240, 140, 30),
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.68),
-		Size = UDim2.fromScale(0.5, 0.13),
+		Position = UDim2.fromScale(0.5, 0.66),
+		Size = UDim2.fromScale(0.6, 0.15),
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 	}, root)
-	U.new("UIAspectRatioConstraint", { AspectRatio = 3.4 }, alert)
+	U.new("UISizeConstraint", { MaxSize = Vector2.new(400, 100) }, alert)
 	corner(alert, 0.35)
 	stroke(alert, 3, 0.1)
 	label(alert, "Label", {
@@ -344,9 +347,9 @@ local function buildFishing(hud: any)
 		BackgroundTransparency = 0.15,
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.5, 0.64),
-		Size = UDim2.fromScale(0.46, 0.22),
+		Size = UDim2.fromScale(0.4, 0.22),
 	}, root)
-	U.new("UISizeConstraint", { MaxSize = Vector2.new(620, 170), MinSize = Vector2.new(280, 90) }, mini)
+	U.new("UISizeConstraint", { MaxSize = Vector2.new(560, 160), MinSize = Vector2.new(280, 90) }, mini)
 	corner(mini, 0.18)
 	stroke(mini, 2, 0.3)
 	label(mini, "Title", {
@@ -445,7 +448,7 @@ local function buildFishing(hud: any)
 		Visible = false,
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.fromScale(0.5, 0.98),
-		Size = UDim2.fromScale(0.44, 0.07),
+		Size = UDim2.fromScale(0.38, 0.07),
 		Text = "",
 		BackgroundTransparency = 0.35,
 		BackgroundColor3 = C.panel,
