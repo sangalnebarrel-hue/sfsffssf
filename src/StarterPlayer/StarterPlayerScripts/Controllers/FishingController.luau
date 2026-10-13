@@ -11,7 +11,7 @@
 	    Надпись и цвет — по состоянию: «ЗАБРОСИТЬ» (синяя) → «ЖДЁМ…» (тусклая, нажатия
 	    не работают; так же после подсечки и CastCooldown секунд после конца рыбалки) →
 	    «ПОДСЕЧЬ!» (оранжевая, пульсирует) → «ТЯНИ!» (зелёная). Удочка в рюкзаке, а игрок стоит
-	    у точки рыбалки своей базы — кнопка «ВЗЯТЬ УДОЧКУ» (берёт её в руку).
+	    у точки рыбалки своей базы — кнопка «ВЗЯТЬ» с удочкой (берёт её в руку).
 	    То же действие — тап/клик удочкой по миру (Tool.Activated; на тач-экране — не в
 	    мини-игре: туда попадают и движения камеры) и клавиша F / R2 на геймпаде
 	    (ContextActionService, только пока удочка в руке; не E — E нужна ProximityPrompt).
@@ -108,8 +108,7 @@ local LOOKS: { [Phase]: Look } = {
 	Reeling = { Caption = "ТЯНИ!", Icon = "💪", Color = COLORS.Reel, Key = true, Dim = false },
 }
 -- Удочка в рюкзаке, игрок у точки рыбалки: кнопка берёт удочку в руку.
-local TAKE_LOOK: Look =
-	{ Caption = "ВЗЯТЬ УДОЧКУ", Icon = "🎣", Color = COLORS.Take, Key = false, Dim = false }
+local TAKE_LOOK: Look = { Caption = "ВЗЯТЬ", Icon = "🎣", Color = COLORS.Take, Key = false, Dim = false }
 
 type Minigame = {
 	Rarity: string,
@@ -173,7 +172,7 @@ local keyHint = ""
 
 local phase: Phase = "Idle"
 local rod: Tool? = nil -- удочка в руке
-local offerTake = false -- кнопка «ВЗЯТЬ УДОЧКУ» (удочка в рюкзаке, игрок у точки рыбалки)
+local offerTake = false -- кнопка «ВЗЯТЬ» (удочка в рюкзаке, игрок у точки рыбалки)
 local everEquipped = false -- брал ли игрок удочку в руку за эту игру (подсказка новичку)
 local castReadyAt = 0 -- os.clock(), с которого сервер снова примет заброс (CastCooldown)
 local cooldownThread: thread? = nil -- вернёт кнопке вид «ЗАБРОСИТЬ», когда кулдаун пройдёт
@@ -259,6 +258,12 @@ end
 
 local function isRod(instance: Instance): boolean
 	return instance:IsA("Tool") and typeof(instance:GetAttribute("RodId")) == "string"
+end
+
+local function isAlive(): boolean
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	return humanoid ~= nil and humanoid.Health > 0
 end
 
 local function hasBase(): boolean
@@ -438,7 +443,7 @@ local function refreshButtons()
 end
 
 -- Подсказка по месту: с удочкой, без рыбалки — «жми» у точки или «иди к кругу» + луч;
--- без удочки в руке у точки рыбалки — «возьми удочку» (и кнопка «ВЗЯТЬ УДОЧКУ»); новичку,
+-- без удочки в руке у точки рыбалки — «возьми удочку» (и кнопка «ВЗЯТЬ»); новичку,
 -- который ещё ни разу не брал удочку, — где она и куда идти.
 local function refreshContextHint()
 	local text: string? = nil
@@ -446,7 +451,7 @@ local function refreshContextHint()
 	local root = rootPart()
 	local spot = ownFishingSpot()
 	local near = root ~= nil and spot ~= nil and isNearSpot(root, spot)
-	local take = rod == nil and phase == "Idle" and near and backpackRod() ~= nil
+	local take = rod == nil and phase == "Idle" and near and isAlive() and backpackRod() ~= nil
 	if take ~= offerTake then
 		offerTake = take
 		refreshButtons()
@@ -843,8 +848,16 @@ local function onZone(data: { [string]: any })
 	flashHit()
 end
 
-local function onCaught(data: { [string]: any })
+-- Конец рыбалки по слову сервера: его CastCooldown пошёл сейчас — и наш отсчёт заново
+-- (если леску сматывал сам игрок, сервер узнал об этом позже клиента).
+local function endSessionByServer()
 	endSession()
+	startCastCooldown()
+	refreshButtons()
+end
+
+local function onCaught(data: { [string]: any })
+	endSessionByServer()
 	local fish = parseFish(data.Fish)
 	if fish then
 		openCard(fish)
@@ -855,14 +868,14 @@ local function onCaught(data: { [string]: any })
 end
 
 local function onLost(data: { [string]: any })
-	endSession()
+	endSessionByServer()
 	local reason = if typeof(data.Reason) == "string" then data.Reason else ""
 	local text = if typeof(data.Text) == "string" and data.Text ~= "" then data.Text else LOST_TEXT[reason]
 	showHint(text or "Рыба ушла", "warning")
 end
 
 local function onIdle(data: { [string]: any })
-	endSession()
+	endSessionByServer()
 	local text = if typeof(data.Reason) == "string" then IDLE_TEXT[data.Reason] else nil
 	if text then
 		showHint(text, "info")
@@ -920,9 +933,10 @@ local function equipRod(tool: Tool)
 	offerTake = false
 	everEquipped = true
 	rodTrove:Connect(tool.Activated, function()
-		-- На тач-экране Activated приходит и от движения камеры / джойстика: в мини-игре
+		-- С тач-экрана Activated приходит и от движения камеры / джойстика: в мини-игре
 		-- такое «нажатие» мимо зоны стоило бы рыбы, там считается только кнопка.
-		if UserInputService.TouchEnabled and phase == "Reeling" then
+		-- (Клик мышью по миру на ноутбуке с тач-экраном работает.)
+		if phase == "Reeling" and UserInputService:GetLastInputType() == Enum.UserInputType.Touch then
 			return
 		end
 		doAction()
@@ -1050,11 +1064,9 @@ local function readDefaults(): Defaults
 	}
 end
 
--- Подсказка клавиши на кнопке: только без тач-экрана.
+-- Подсказка клавиши на кнопке: есть клавиатура — [F], геймпад — [R2] (на телефоне — ничего).
 local function detectKeyHint(): string
-	if UserInputService.TouchEnabled then
-		return ""
-	elseif UserInputService.KeyboardEnabled then
+	if UserInputService.KeyboardEnabled then
 		return " [F]"
 	elseif UserInputService.GamepadEnabled then
 		return " [R2]"

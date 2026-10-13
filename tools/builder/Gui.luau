@@ -234,7 +234,7 @@ end
 	hidden):
 	  ActionArea              bottom-right container, sized by screen height
 	    ActionButton          big round button: Icon + Caption («ЗАБРОСИТЬ» / «ПОДСЕЧЬ!» / «ТЯНИ!»),
-	                          Ring (UIStroke) — shown while the rod is in hand («ВЗЯТЬ УДОЧКУ»
+	                          Ring (UIStroke) — shown while the rod is in hand («ВЗЯТЬ»
 	                          at the own fishing spot while the rod is in the backpack)
 	    StopButton            «СМОТАТЬ» pill above it (Caption) — while the line is out
 	  BiteAlert               «КЛЮЁТ!» (Label) with a shrinking Timer bar
@@ -250,6 +250,7 @@ local function buildFishing(hud: any)
 		Name = "Fishing",
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
+		ZIndex = 2, -- above HUD.Toasts (Sibling): the minigame, bite alert and card cover toasts
 	}, hud)
 
 	-- Action area: 0.58H wide, 0.46H tall (at most 320 x 240 px), in the bottom-right corner. The

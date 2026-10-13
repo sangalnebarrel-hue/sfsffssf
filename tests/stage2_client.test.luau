@@ -508,7 +508,7 @@ tests["hints: far → guide beam to the own FishingSpot, near → «Жми», De
 	t.eq(hint.Text, "Возьми удочку — кнопка справа")
 	local button = gui(sim, p, "ActionArea.ActionButton")
 	t.eq(button.Visible, true, "the button offers to take the rod")
-	t.eq(caption(sim, p), "ВЗЯТЬ УДОЧКУ")
+	t.eq(caption(sim, p), "ВЗЯТЬ")
 	sim:Click(p, button)
 	sim:Advance(0.3)
 	local inHand = p.Character:FindFirstChildOfClass("Tool")
@@ -538,11 +538,24 @@ tests["newcomer: «where is the rod» hint until the rod is first taken"] = func
 	t.eq(gui(sim, p, "ActionArea.ActionButton").Visible, false, "no button away from the spot")
 	standAtSpot(sim, p)
 	t.eq(hint.Text, "Возьми удочку — кнопка справа", "at the spot: take the rod")
-	t.eq(caption(sim, p), "ВЗЯТЬ УДОЧКУ")
+	t.eq(caption(sim, p), "ВЗЯТЬ")
 	sim:Click(p, gui(sim, p, "ActionArea.ActionButton"))
 	sim:Advance(0.3)
 	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "the rod is in hand (phone: no key hint)")
 	t.eq(hint.Text, "Жми «Забросить»")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["the «ВЗЯТЬ» button is not offered to a dead character"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	giveRod(sim, p)
+	standAtSpot(sim, p)
+	local button = gui(sim, p, "ActionArea.ActionButton")
+	t.eq(button.Visible, true, "alive at the spot: «ВЗЯТЬ»")
+	sim:GetHumanoid(p).Health = 0
+	sim:Advance(0.5)
+	t.eq(button.Visible, false, "dead: no button")
 	sim:AssertNoErrors({ warnings = true })
 end
 
