@@ -157,17 +157,17 @@ local C = {
 	Sand = P.Sand:Lerp(P.Foam, 0.5), -- pale aquarium sand
 	SeaFloor = tune(P.Water:Lerp(P.Cyan, 0.5), 1.05, 1.05), -- the tank's sea-blue gravel
 	Castle = P.Limestone,
-	CastleRoof = P.RoofTerracotta,
+	CastleRoof = P.Flowers[1]:Lerp(P.Flowers[3], 0.4),
 	Rock = P.RockLight, -- the reef's footing
 	RockLight = P.Foam:Lerp(P.RockLight, 0.4),
 	Kelp1 = P.Seaweed,
 	Kelp2 = P.Leaf2,
 	CoralPinkBase = P.Flowers[3]:Lerp(P.Flowers[4], 0.3),
 	CoralPink = P.Flowers[3],
-	CoralOrangeBase = P.Flowers[6]:Lerp(P.Autumn0, 0.3),
-	CoralOrange = P.Flowers[6],
+	CoralRedBase = P.Flowers[1]:Lerp(P.Flowers[3], 0.25),
+	CoralRed = P.Flowers[1]:Lerp(P.White, 0.12),
 	CoralViolet = P.Flowers[4],
-	BrainCoral = P.Flowers[2],
+	CoralWhite = P.Flowers[5],
 	Yellow = P.Yellow,
 	Orange = P.Orange,
 	Blue = P.Blue,
@@ -256,7 +256,7 @@ end
 local DECOR = { CanCollide = false, CastShadow = false }
 local NEON = { Material = M.Neon, CastShadow = false }
 local NEON_DECOR = { Material = M.Neon, CastShadow = false, CanCollide = false }
-local GLASS = { Material = M.Glass, Transparency = 0.15, CastShadow = false }
+local GLASS = { Material = M.Glass, Transparency = 0.15, Reflectance = 0.15, CastShadow = false }
 local FLAT = { CastShadow = false }
 -- Roofs over walkways never collide or take raycasts (the camera never pops in against them).
 local ROOF_OPTS = { CanCollide = false, CanQuery = false, CastShadow = true }
@@ -748,6 +748,8 @@ local function buildGrounds(template: any, plot: any)
 			end
 		end
 		bench(floor, facing(sx * 22.5, LAWN, 41.6, 90 * sx), LAWN, 5.4)
+		-- a clipped shrub in the front corner inside the fence
+		shrub(floor, sx * 33, LAWN, 23.6, 4.2, 2.2, sx)
 	end
 end
 
@@ -1009,7 +1011,7 @@ local function buildTank(template: any): (any, { any })
 	-- blue from the gate and the house does not show through it).
 	local glass = span(tank, "Glass", -hx, hx, TANK_BASE, TANK_TOP, TANK_Z0, TANK_Z1, C.TankGlass, {
 		Material = M.Glass,
-		Transparency = 0.6,
+		Transparency = 0.64,
 		CastShadow = false,
 	})
 	tank.PrimaryPart = glass
@@ -1129,14 +1131,14 @@ local function buildTank(template: any): (any, { any })
 	local reef = piece("Reef", -6, 4, -0.2, 1.4, 82, 92, C.Rock)
 	piece("Reef", -4, 2, 1.4, 2.4, 83.5, 90, C.RockLight)
 	U.new("PointLight", { Range = 16, Brightness = 2, Color = C.ReefLight, Shadows = false }, reef)
-	-- corals: branching pink and orange in the front corners, violet and yellow on the reef, a
-	-- yellow brain coral by the castle
+	-- corals (colours that stay bright through the blue water): branching pink and red in the front
+	-- corners, a violet fan and a white coral on the reef, a pink brain coral by the castle
 	piece("Coral", -10.8, -6.4, -0.2, 2, 73, 77.4, C.CoralPinkBase)
 	piece("CoralArm", -10, -7.6, 2, 4.2, 74, 76.2, C.CoralPink)
-	piece("Coral", 6.4, 10.8, -0.2, 2, 73, 77.4, C.CoralOrangeBase)
-	piece("CoralArm", 7.4, 9.8, 2, 4.4, 74.2, 76.4, C.CoralOrange)
+	piece("Coral", 6.4, 10.8, -0.2, 2, 73, 77.4, C.CoralRedBase)
+	piece("CoralArm", 7.4, 9.8, 2, 4.4, 74.2, 76.4, C.CoralRed)
 	piece("FanCoral", -2.6, -0.4, 2.4, 4.4, 85.4, 86.6, C.CoralViolet)
-	piece("Coral", 0.6, 2.6, 2.4, 3.6, 87.6, 89.6, C.BrainCoral)
+	piece("Coral", 0.6, 2.6, 2.4, 3.6, 87.6, 89.6, C.CoralWhite)
 	piece("BrainCoral", 7, 11, -0.2, 1.8, 98, 103, C.CoralPink)
 	-- kelp
 	piece("Kelp", -9.8, -8.2, -0.2, 4.4, 95, 96.6, C.Kelp1)
@@ -1144,8 +1146,8 @@ local function buildTank(template: any): (any, { any })
 	-- fish: a body and a tall tail fin; most swim across the tank (their profile shows from the gate)
 	for _, f in
 		{
-			{ -4, 2.8, 74.6, true, 1, 3.6, FL[2], FL[7] },
-			{ 5, 1.5, 80, true, -1, 3, FL[6], FL[5] },
+			{ -4, 2.8, 74.6, true, 1, 3.6, FL[5], FL[7] },
+			{ 5, 1.5, 80, true, -1, 3, FL[5], FL[1] },
 			{ -7, 3.3, 89, false, 1, 3.2, FL[7], FL[2] },
 			{ 3, 3.6, 84.5, true, -1, 3.2, FL[1], FL[5] },
 			{ 7.6, 2.4, 93, false, -1, 2.8, FL[4], FL[2] },
@@ -1341,7 +1343,7 @@ local function buildCourtGarden(template: any)
 	local garden = U.model(template, "CourtGarden")
 	for _, sx in { -1, 1 } do
 		local pair = if sx < 0 then JEWELS[3] else JEWELS[1]
-		flowerBed(garden, sx * 19, LAWN, 89, 26, 3.2, pair, { alongZ = true, stems = false, spacing = 2.6, max = 9 })
+		flowerBed(garden, sx * 19, LAWN, 89, 26, 3.2, pair, { alongZ = true, stems = false, spacing = 2.6, max = 8 })
 		for _, z in { 66 } do
 			local x = sx * 19
 			span(garden, "TopiaryPot", x - 1.4, x + 1.4, LAWN - 0.1, 1.8, z - 1.4, z + 1.4, C.Terracotta)
@@ -1454,7 +1456,7 @@ local function buildTerrace(template: any, plot: any)
 		ramp(terrace, "Ramp", ra, rb, -0.2, TERRACE, z0 - 9, z0 + 0.05, "-z", C.Plank)
 	end
 	-- the walk along the terrace's front: stairs -> porch, patio (-X), work yard (+X)
-	flagWalk(terrace, "TerraceWalk", -56, 56, z0 + 0.6, z0 + 4.4, TERRACE + 0.3, 22, function(u: number): boolean
+	flagWalk(terrace, "TerraceWalk", -56, 56, z0 + 0.6, z0 + 4.4, TERRACE + 0.3, 37, function(u: number): boolean
 		return math.abs(-56 + u) < 9
 	end)
 end
@@ -1851,14 +1853,14 @@ local function buildTackleShed(template: any)
 	local board = span(shed, "Board", xc - 4, xc + 4, 5.6, 7.8, z0 - 0.4, z0, C.Cream)
 	plainText(board, Enum.NormalId.Front, "СНАСТИ", C.Ink, false)
 	-- rods leaning on the front wall (towards the gate), a bait barrel, a crate
-	for i, x in { 48.6, 50.4, 55.6 } do
-		local lean = if i == 3 then -10 else 8 + i * 2
+	for i, x in { 49.4, 55.6 } do
+		local lean = if i == 2 then -10 else 11
 		make(
 			shed,
 			"Rod",
 			Vector3.new(0.3, 8.4, 0.3),
 			at(x, 4.1, z0 - 0.9) * CFrame.Angles(rad(-9), 0, rad(lean)),
-			if i == 2 then C.WoodDark else C.WoodLight,
+			if i == 1 then C.WoodDark else C.WoodLight,
 			DECOR
 		)
 	end
