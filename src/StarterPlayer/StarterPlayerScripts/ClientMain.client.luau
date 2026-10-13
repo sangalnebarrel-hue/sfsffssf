@@ -4,6 +4,13 @@
 	Ждёт интерфейс HUD (StarterGui.HUD копируется в PlayerGui при первом появлении персонажа)
 	и запускает контроллеры из папки Controllers по порядку.
 	Новый контроллер = ModuleScript с функцией Start(hud) + его имя в списке ORDER.
+
+	Контроллеры:
+	  NotifyController     — всплывающие уведомления (сервер и другие контроллеры);
+	  HudController        — плашка базы, кнопка «Домой» (Этап 1);
+	  FishingController    — рыбалка своего игрока: кнопка действия, мини-игра, карточка улова (Этап 2);
+	  FishingFxController  — поплавки и лески всех игроков, переливы радужных рыб (Этап 2);
+	  AmbientController    — «живой» мир: рыбки, чайки, мельница, лодки.
 ]]
 
 local Players = game:GetService("Players")
@@ -15,6 +22,8 @@ local controllers = script.Parent:WaitForChild("Controllers")
 local ORDER = {
 	"NotifyController",
 	"HudController",
+	"FishingController",
+	"FishingFxController",
 	"AmbientController",
 }
 
