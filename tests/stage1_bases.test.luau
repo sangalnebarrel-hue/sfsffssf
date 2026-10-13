@@ -172,6 +172,10 @@ tests["accent parts are painted in the base colour, AccentShade gives lighter/da
 		for _, d in model:GetDescendants() do
 			if d:IsA("BasePart") and d:GetAttribute("Accent") == true then
 				local shade = d:GetAttribute("AccentShade")
+				-- dark shades are scaled per colour (BaseConfig RoofShadeScale; 0 = no darkening)
+				if typeof(shade) == "number" and shade < 0 then
+					shade *= BaseConfig.Colors[i].RoofShadeScale or 1
+				end
 				local expected = shaded(color, shade)
 				local delta = math.max(
 					math.abs(d.Color.R - expected.R),
@@ -190,7 +194,11 @@ tests["accent parts are painted in the base colour, AccentShade gives lighter/da
 				end
 			end
 		end
-		t.ok(plain > 0 and lighter > 0 and darker > 0, `Base_{i}: plain {plain}, lighter {lighter}, darker {darker}`)
+		local needDarker = (BaseConfig.Colors[i].RoofShadeScale or 1) > 0
+		t.ok(
+			plain > 0 and lighter > 0 and (darker > 0 or not needDarker),
+			`Base_{i}: plain {plain}, lighter {lighter}, darker {darker}`
+		)
 	end
 	sim:AssertNoErrors()
 end
