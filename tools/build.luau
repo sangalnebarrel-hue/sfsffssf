@@ -103,21 +103,21 @@ if clouds then
 	clouds:Destroy()
 end
 
--- Lighting: sunny and neutral (art direction v4): the palette carries the colour, the grading adds none.
+-- Lighting: sunny but not overexposed (art direction v4): moderate sun, low exposure, light bloom.
 local lighting = game:GetService("Lighting")
 -- Sun ~50° high from the south-west: tops bright, one side lit, one side shaded — the classic
 -- three-tone voxel shading (a midday sun would light only the tops).
 lighting.GeographicLatitude = 35
 lighting.TimeOfDay = "14:30:00"
-lighting.Brightness = 2.3
+lighting.Brightness = 1.7
 -- Warm sun with a soft, slightly cool sky fill on shaded faces.
-lighting.Ambient = rgb(130, 124, 118)
-lighting.OutdoorAmbient = rgb(140, 142, 152)
-lighting.ColorShift_Top = rgb(255, 236, 208)
+lighting.Ambient = rgb(96, 94, 100)
+lighting.OutdoorAmbient = rgb(112, 116, 130)
+lighting.ColorShift_Top = rgb(236, 220, 196)
 lighting.ColorShift_Bottom = rgb(0, 0, 0)
-lighting.EnvironmentDiffuseScale = 0.5
-lighting.EnvironmentSpecularScale = 0.15 -- less plastic sky reflection on the blocks
-lighting.ExposureCompensation = -0.1 -- pale sand/plaster/snow do not clip under the bright sun
+lighting.EnvironmentDiffuseScale = 0.3
+lighting.EnvironmentSpecularScale = 0.08 -- less plastic sky reflection on the blocks
+lighting.ExposureCompensation = -0.3 -- no overexposure: pale sand/plaster/snow keep their colour
 lighting.GlobalShadows = true
 lighting.ShadowSoftness = 0.25
 -- Depth of field is a full-screen blur pass — too heavy for phones.
@@ -129,24 +129,24 @@ local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
 	or U.new("Atmosphere", { Name = "Atmosphere" }, lighting)
 atmosphere.Density = 0.16
 atmosphere.Offset = 0.25
-atmosphere.Color = rgb(205, 226, 248)
+atmosphere.Color = rgb(196, 214, 236)
 atmosphere.Decay = rgb(96, 150, 214)
 atmosphere.Glare = 0
 atmosphere.Haze = 0.05
 local bloom = lighting:FindFirstChildOfClass("BloomEffect") or U.new("BloomEffect", { Name = "Bloom" }, lighting)
 -- Only Neon blooms (sunlit cream/white surfaces stay crisp).
-bloom.Intensity = 0.35
-bloom.Size = 20
-bloom.Threshold = 2.2
+bloom.Intensity = 0.15
+bloom.Size = 18
+bloom.Threshold = 2.6
 local sunRays = lighting:FindFirstChildOfClass("SunRaysEffect")
 	or U.new("SunRaysEffect", { Name = "SunRays" }, lighting)
-sunRays.Intensity = 0.04
+sunRays.Intensity = 0.02
 sunRays.Spread = 0.5
 local grade = lighting:FindFirstChildOfClass("ColorCorrectionEffect")
 	or U.new("ColorCorrectionEffect", { Name = "ColorCorrection" }, lighting)
-grade.Saturation = 0.1
-grade.Contrast = 0.08
-grade.Brightness = 0
+grade.Saturation = 0.12
+grade.Contrast = 0.12
+grade.Brightness = -0.04
 grade.TintColor = rgb(255, 252, 246)
 
 --------------------------------------------------------------------------------

@@ -27,32 +27,32 @@ local P: { [string]: any } = {
 	GrassTop3 = rgb(136, 200, 88),
 	Dirt = rgb(160, 112, 74),
 	DirtDark = rgb(128, 88, 60),
-	Sand = rgb(224, 202, 150),
-	SandDark = rgb(212, 186, 134),
-	SandWet = rgb(220, 196, 146),
+	Sand = rgb(210, 188, 140),
+	SandDark = rgb(198, 172, 124),
+	SandWet = rgb(204, 180, 134),
 	-- warm sandstone-like stone (neutral greys read as unpainted default parts)
 	Stone = rgb(160, 148, 130),
 	StoneDark = rgb(122, 110, 98),
-	StoneLight = rgb(214, 202, 178),
+	StoneLight = rgb(200, 188, 164),
 	-- cool slate: mountains and cliffs only (recedes behind the warm village)
 	Slate = rgb(132, 144, 180),
 	SlateDark = rgb(112, 122, 160),
 	SlateLight = rgb(160, 172, 204),
-	Snow = rgb(238, 242, 246),
+	Snow = rgb(224, 230, 238),
 
 	-- wood and building materials
 	Wood = rgb(176, 122, 78),
 	WoodDark = rgb(150, 104, 70),
 	WoodLight = rgb(206, 162, 112),
 	Plank = rgb(194, 150, 104), -- decks, piers, boardwalks
-	Plaster = rgb(228, 216, 194), -- house walls
-	PlasterShade = rgb(214, 200, 176),
+	Plaster = rgb(214, 202, 182), -- house walls
+	PlasterShade = rgb(200, 186, 164),
 	Brick = rgb(172, 92, 70),
-	Cobble = rgb(196, 174, 140), -- paving
+	Cobble = rgb(184, 162, 130), -- paving
 	CobbleDark = rgb(156, 132, 106),
-	Flagstone = rgb(210, 184, 142), -- two-tone flag paving
-	FlagstoneDark = rgb(196, 168, 128),
-	Limestone = rgb(222, 208, 178), -- cream stone: plinths, steps, kerbs
+	Flagstone = rgb(196, 172, 132), -- two-tone flag paving
+	FlagstoneDark = rgb(182, 156, 118),
+	Limestone = rgb(208, 194, 166), -- cream stone: plinths, steps, kerbs
 	RoofRed = rgb(178, 74, 60),
 	RoofTerracotta = rgb(190, 100, 66),
 	RoofBlue = rgb(72, 104, 150),
@@ -112,8 +112,8 @@ local P: { [string]: any } = {
 	Blue = rgb(68, 124, 196),
 	Purple = rgb(126, 98, 180),
 	Pink = rgb(214, 120, 158),
-	White = rgb(242, 240, 234),
-	Cream = rgb(238, 228, 206),
+	White = rgb(228, 226, 220),
+	Cream = rgb(224, 214, 194),
 	Glass = rgb(170, 206, 222),
 	Gold = rgb(212, 170, 88), -- brass gold: rich, not candy
 	GoldLight = rgb(240, 212, 120),
@@ -122,8 +122,8 @@ local P: { [string]: any } = {
 	Dark = rgb(40, 40, 48),
 	WindowBlue = rgb(132, 186, 222),
 	Rope = rgb(214, 188, 136),
-	Canvas = rgb(232, 218, 186),
-	Sail = rgb(244, 240, 230),
+	Canvas = rgb(218, 204, 174),
+	Sail = rgb(230, 226, 216),
 
 	-- light and water
 	Glow = rgb(255, 220, 140), -- lantern cores (Neon)

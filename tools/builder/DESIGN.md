@@ -63,12 +63,13 @@ Cobble/CobbleDark, RoofRed/RoofTerracotta/RoofBlue/RoofGreen/RoofSlate/RoofBrown
 parts only): Red, Orange, Yellow, Lime, Cyan, Blue, Purple, Pink, Gold, White, Cream, Navy, Iron.
 Lists: Flowers, BoatPaint, Festive. Light: Glow, LightColor, Flame*.
 
-Lighting (build.luau): sunny 14:30, Brightness 2.3 with ExposureCompensation -0.1, warm sun
-(ColorShift_Top 255,236,208), soft slightly cool sky fill (Ambient 130,124,118, OutdoorAmbient
-140,142,152, EnvironmentDiffuseScale 0.5), light atmosphere (Density 0.16, Haze 0.05),
-ColorCorrection saturation +0.1 / contrast +0.08, Bloom 0.35 (threshold 2.2, only Neon). Terrain
-water (36,156,186), transparency 0.55. Mountains are cool blue slate (Palette Slate*), snow sides
-pale blue.
+Lighting (build.luau): sunny 14:30 but NOT overexposed (user feedback «пересвеченная»):
+Brightness 1.7, ExposureCompensation -0.3, sun ColorShift_Top (236,220,196), soft fill (Ambient
+96,94,100, OutdoorAmbient 112,116,130, EnvironmentDiffuseScale 0.3, specular 0.08), light
+atmosphere (Density 0.16, Haze 0.05), ColorCorrection saturation +0.12 / contrast +0.12 /
+brightness -0.04, Bloom 0.15 (threshold 2.6, only Neon). Pale materials (sand, plaster,
+limestone, flagstone, cream, snow) stay at value <= ~0.88. Terrain water (36,156,186), T 0.55.
+Mountains are cool blue slate (Palette Slate*), snow sides pale blue.
 Colour band: Hasler colourfulness of the player/overview renders 75–105
 (`tools/preview/colourfulness.py`; v3 was 115–136 = garish, v4 round 1 56–76 = dull); palette_lint loud area 0.4–5 % of the map (bright accents exist, nothing big is
 candy; the hub's golden fish and the bases' team-colour roofs are the big identity accents), grey <= 9 %.

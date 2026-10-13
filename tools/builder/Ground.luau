@@ -35,7 +35,7 @@ local STRATA = {
 	-- cool slate in two bands: mountains recede behind the warm village
 	Mountainside = { rgb(132, 144, 180), rgb(112, 122, 160), rgb(160, 172, 204) }, -- cool blue slate (Palette.Slate*)
 	Stone = { rgb(132, 144, 180), rgb(112, 122, 160), rgb(160, 172, 204) },
-	Snow = { rgb(212, 226, 248), rgb(196, 214, 242) },
+	Snow = { rgb(200, 214, 238), rgb(186, 202, 232) },
 	-- red-rock mesas: terracotta bands with a cream band every fourth stratum
 	Redrock = { rgb(190, 108, 78), rgb(206, 130, 92), rgb(222, 170, 124), rgb(232, 200, 160) },
 	Sandstone = { rgb(206, 162, 112), rgb(190, 144, 98), rgb(222, 186, 138) },
@@ -44,13 +44,13 @@ local DIRT = rgb(166, 118, 78)
 local KIND_STYLE = {
 	grass = { body = DIRT, name = "Grass", strata = "Dirt" }, -- cap shade by noise patch
 	meadow = { cap = rgb(138, 194, 88), body = DIRT, name = "Meadow", strata = "Dirt" },
-	path = { cap = rgb(206, 180, 136), body = DIRT, name = "Path", strata = "Dirt" },
-	sand = { cap = rgb(224, 202, 150), body = rgb(208, 184, 134), name = "Sand" },
-	shallow = { body = rgb(230, 212, 156), name = "Shallows" },
+	path = { cap = rgb(192, 168, 126), body = DIRT, name = "Path", strata = "Dirt" },
+	sand = { cap = rgb(210, 188, 140), body = rgb(196, 172, 124), name = "Sand" },
+	shallow = { body = rgb(214, 198, 146), name = "Shallows" },
 	seabed = { body = rgb(178, 212, 176), name = "Seabed" },
 	deep = { body = rgb(70, 160, 182), name = "DeepSeabed" },
 	stone = { cap = rgb(160, 172, 204), body = rgb(132, 144, 180), name = "Stone", strata = "Stone" },
-	snow = { cap = rgb(246, 249, 252), body = rgb(212, 226, 248), name = "Snow" }, -- one icy body, no bands
+	snow = { cap = rgb(230, 236, 244), body = rgb(200, 214, 238), name = "Snow" }, -- one icy body, no bands
 	grassRock = { body = rgb(132, 144, 180), name = "Mountainside", strata = "Mountainside" }, -- grass cap
 	redrock = { body = rgb(190, 108, 78), name = "RedRock", strata = "Redrock" }, -- ochre/grass cap
 	mesa = { body = rgb(204, 160, 112), name = "Sandstone", strata = "Sandstone" }, -- grass cap, warm cliff
