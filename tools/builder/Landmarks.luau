@@ -6,7 +6,8 @@
 
 	  Waterfall  a three-tier cascade off the mesa's lagoon-facing cliff, each tier 5-6 studs
 	             narrower than the one above (staggered curtains of light-blue columns 2-6 wide at
-	             different depths with pale streaks, ragged lips of warm stone with lumps of white
+	             different depths with pale streaks that the client slides up and down out of step
+	             (attribute Bob: the falls shimmer), ragged lips of warm stone with lumps of white
 	             foam breaking over them, two solid mossy sandstone shelves) into the pond: foam
 	             patches, bubbling foam cubes and splash rocks in rings of foam where it lands,
 	             rocks and reeds round the pool's rim; foam particles off every lip, spray and mist
@@ -29,14 +30,18 @@
 	             millstone, sacks, a lantern), a ladder up the back to the balcony (a 5-stud
 	             walkway, parapet, bench, telescope, petals drifting off it); planted beds on every
 	             other terrace ring all round (tulip clumps in segments with grass between at the
-	             front, lavender and sunflowers on the sides, wheat at the back), bush clumps and
+	             front, two jewel tones a ring; lavender and sunflowers on the sides; wheat at the
+	             back, a pale stubble band with the ripe ears standing along it), bush clumps and
 	             rocks on the lawn rings' risers, a little farm on the back (hay bales, a beehive);
 	             chunky 2-stud stairs up the front (invisible ramps over them), a timber rail
 	             fence round the top meadow.
 	  GiantTree  Props.giantTree (treehouse, swing, lanterns) on the meadow plateau, scaled to a
-	             real giant, with a long slide from the treehouse deck down to the meadow (the fun
-	             way down); steps up from the path with grassy cheek blocks filling the plateau's
-	             jagged edge beside them; a glowing giant mushroom with fireflies, lantern posts.
+	             real giant, with a fresher crown (a light top over a mid-green body), the
+	             treehouse in planks with glazed windows, bigger blossom clusters; a long slide
+	             from the treehouse deck down to the meadow (the fun way down); steps up from the
+	             path with grassy cheek blocks filling the plateau's jagged edge beside them; a
+	             glowing giant mushroom with fireflies, a fairy ring of little mushrooms, lantern
+	             posts.
 	  Peaks      the main Peak is climbed by the spiral trail VoxelWorld carves into it, walkable
 	             all the way: a path-tan wedge ramp on every riser. A base camp on a flat pad beside
 	             the end of its path (tents, a smoking fire ring with sparks), a roofed «ВЕРШИНА»
@@ -189,7 +194,9 @@ end
 	above, stepping out over two solid sandstone rock shelves from the lip into the pond. Each
 	tier is a staggered curtain of columns 2-6 studs wide, at different depths (up to 1.8 out)
 	and in two light blues, some starting a little under the lip, with a few pale streaks of
-	faster water 0.35 proud of them; the water runs over each shelf top to its edge. Every lip is
+	faster water 0.6 proud of them, each its own
+	Model the client bobs (attribute Bob), so the threads slide up and down out of step and the
+	falls shimmer; the water runs over each shelf top to its edge. Every lip is
 	ragged: rocks of warm stone (two shades) flank the water, one stands in the top lip's flow,
 	and irregular white foam caps (different widths, heights and overhangs, 1-2 studs out over
 	the edge) mark where it breaks over. Where it lands: overlapping foam patches of different
@@ -271,20 +278,29 @@ local function cascade(parent: any, site: any, frame: any, fmin: number, fmax: n
 					c = ci
 				end
 			end
-			local zf = min(fronts[c], fronts[min(c + 1, #cols)], fronts[max(c - 1, 1)]) - 0.35
+			local zf = min(fronts[c], fronts[min(c + 1, #cols)], fronts[max(c - 1, 1)]) - 0.6
 			local len = h * r(0.3, 0.9)
 			local yt = y1 - r(0.8, 3)
-			b:box(
-				`Streak{t}_{i}`,
-				sx,
-				max(yt - len, y0 + 0.3),
-				zf,
-				sx + sw,
-				yt,
-				f + 0.5,
+			local yb = max(yt - len, y0 + 0.3)
+			-- each streak is its own little Model that the client bobs (attribute Bob, about its
+			-- own centre, every one in its own phase): the white threads slide up and down the
+			-- curtain, so the falls shimmer instead of standing still
+			local centre = Vector3.new(sx + sw / 2, (yb + yt) / 2, (zf + f + 0.5) / 2)
+			local sb = Kit.builder(b.model, `Streak{t}_{i}`, b.cf * CFrame.new(centre))
+			sb:box(
+				"Streak",
+				-sw / 2,
+				yb - centre.Y,
+				zf - centre.Z,
+				sw / 2,
+				yt - centre.Y,
+				f + 0.5 - centre.Z,
 				if i % 2 == 0 then FOAM else STREAK,
 				WATER
 			)
+			sb:finish()
+			sb.model:SetAttribute("Bob", min(1.2, len * 0.12))
+			sb.model:SetAttribute("BobPeriod", 0.9 + (i % 3) * 0.25)
 		end
 		-- foam where it breaks over the lip: lumps of white of different sizes along the edge,
 		-- at different heights and overhangs (0.3-1.6 out over it), with gaps where the blue
@@ -650,7 +666,7 @@ local function lookout(parent: any, frame: any, st: any)
 	Kit.bench(b.model, frame * CFrame.new(st.bx0 + 5.5, y, st.zB0 + 5), { length = 6 })
 	Kit.prop("flagPole", b.model, frame * CFrame.new(st.bx0 + 1.8, y, st.zA0 + 2) * CFrame.Angles(0, rad(90), 0), {
 		height = 16,
-		color = C.Blue,
+		color = C.Flowers[7],
 	})
 	return b.model
 end
@@ -1158,7 +1174,14 @@ end
 local function hillFields(parent: any, world: any, site: any, corridor: (number, number) -> boolean): { any }
 	local model = U.model(parent, "Fields")
 	local cell = world.cell
-	local tulips = { C.Flowers[1], C.Flowers[3], C.Flowers[2], C.Flowers[4] }
+	-- each planted ring in two jewel tones of its own (red and yellow, pink and red, yellow
+	-- and orange, violet and blue)
+	local tulips = {
+		{ C.Flowers[1], C.Flowers[2] },
+		{ C.Flowers[3], C.Flowers[1] },
+		{ C.Flowers[2], C.Flowers[6] },
+		{ C.Flowers[4], C.Flowers[7] },
+	}
 	local lavenderLeaf = mix(C.Leaf1, C.StoneLight, 0.3)
 	local lavender = mix(C.Purple, C.Cream, 0.12)
 	local rr = Kit.rng(1351)
@@ -1265,8 +1288,8 @@ local function hillFields(parent: any, world: any, site: any, corridor: (number,
 				if lv >= 3 then
 					continue
 				end
-				local c1 = tulips[lv % #tulips + 1]
-				local c2 = mix(c1, C.White, 0.22)
+				local pair = tulips[lv % #tulips + 1]
+				local c1, c2 = pair[1], pair[2]
 				local segs, pos = {}, A0 + 0.3
 				while true do
 					local room = A1 - 0.3 - pos
@@ -1323,12 +1346,15 @@ local function hillFields(parent: any, world: any, site: any, corridor: (number,
 						strip("LavenderSpikes", c - 1.1, c + 1.1, B0 + 1.6, B1 - 1.6, h + 1.6, hi, lavender)
 					else
 						local hi = h + 4.1 + (t % 2) * 0.4
-						strip("Sunflower", c - 1.2, c + 1.2, B0 + 1.1, B1 - 1.1, h + 2.7, hi, C.Straw)
+						strip("Sunflower", c - 1.2, c + 1.2, B0 + 1.1, B1 - 1.1, h + 2.7, hi, C.Flowers[2])
 					end
 				end
 			elseif lv % 2 == 0 then
-				-- golden wheat on the back (the rings between stay lawn or hold the farm)
-				row("Wheat", x0 + 0.2, z0 + 0.2, x1 - 0.2, z1 - 0.2, h - 0.2, h + 2.6, C.Straw)
+				-- golden wheat on the back (the rings between stay lawn or hold the farm): a pale
+				-- stubble band with the ripe ears standing in a taller band along its middle
+				row("Wheat", x0 + 0.2, z0 + 0.2, x1 - 0.2, z1 - 0.2, h - 0.2, h + 1.5, C.StrawLight)
+				local ia, ib = if axis == "x" then 2.2 else 1.3, if axis == "z" then 2.2 else 1.3
+				row("WheatEars", x0 + ia, z0 + ib, x1 - ia, z1 - ib, h + 1.3, h + 2.9, C.Straw)
 			end
 		end
 	end
@@ -1440,7 +1466,7 @@ local function hillDressing(parent: any, world: any, site: any, corridor: (numbe
 				local bush = b:box("Leaves", o - w / 2, -0.4, -3, o + w / 2, r(2.8, 3.4), 0, C.Leaf1, Kit.DECOR)
 				b:box("Top", o - w / 2 + 0.8, 2.2, -2.3, o + w / 2 - 1.2, r(3.9, 4.4), 0.1, C.Leaf3, Kit.DECOR)
 				if kind == 1 then
-					b:box("Bloom", o + w / 2 - 2.1, 2.3, -3.3, o + w / 2 - 0.8, 3.6, -2, C.Pink, Kit.DECOR)
+					b:box("Bloom", o + w / 2 - 2.1, 2.3, -3.3, o + w / 2 - 0.8, 3.6, -2, C.Flowers[1], Kit.DECOR)
 				end
 				b:finish(bush)
 			end
@@ -1862,13 +1888,32 @@ local function buildGiantTree(root: any, cfg: any, world: any, site: any)
 	-- the tree faces the lagoon (ladder and swing towards the path); scaled up to the giant
 	-- height whatever the prop's own proportions are
 	local treeCF = Kit.facing(site.x, topY, site.z, 0, 0)
-	local opts = { scale = 1.25, roof = C.RoofTerracotta, name = "Tree" }
+	-- a fresher crown: a mid green body under a light top, so it reads as layers of leaves from
+	-- the bases, not as one dark box
+	local opts = { scale = 1.25, roof = C.RoofTerracotta, name = "Tree", leaves = { C.Leaf1, C.Leaf3, C.LeafLight } }
 	local tree = Kit.prop("giantTree", model, treeCF, opts)
 	local h = heightAbove(tree, topY)
 	if h < GIANT_TREE_HEIGHT * 0.92 then
 		tree:Destroy()
 		opts.scale = 1.25 * GIANT_TREE_HEIGHT / h
 		tree = Kit.prop("giantTree", model, treeCF, opts)
+	end
+	-- the treehouse in planks with glazed windows (two glowing squares read as a face), the
+	-- blossom clusters bigger, so the crown shows its pink from across the lagoon
+	local HUT =
+		{ HutWalls = true, HutBack = true, HutLeft = true, HutRightA = true, HutRightB = true, HutLintel = true }
+	for _, p in tree:GetDescendants() do
+		if p:IsA("BasePart") then
+			if HUT[p.Name] then
+				p.Color = C.WoodLight
+			elseif p.Name == "HutWindow1" or p.Name == "HutWindow2" then
+				p.Material = Enum.Material.SmoothPlastic
+				p.Color = C.WindowBlue
+				p.Size = Vector3.new(p.Size.X * 0.8, p.Size.Y * 1.2, p.Size.Z)
+			elseif string.sub(p.Name, 1, 7) == "Blossom" then
+				p.Size = p.Size * 1.45
+			end
+		end
 	end
 	treeSlide(model, world, tree)
 	-- steps up from the path onto the plateau
@@ -1913,7 +1958,17 @@ local function buildGiantTree(root: any, cfg: any, world: any, site: any)
 	for _, spec in { { 40, -13 }, { 40, 13 } } do
 		lanternPost(model, at(spec[1], spec[2]), 4)
 	end
-	Kit.flowerMeadow(model, at(36, -40), 3)
+	-- a fairy ring of little mushrooms on the meadow (red and cream caps on pale stems)
+	local ring = Kit.builder(model, "MushroomRing", at(34, -40))
+	for i = 1, 5 do
+		local a = rad(i * 72 + 10)
+		local x, z = 4.2 * math.sin(a), 4.2 * math.cos(a)
+		local s = 0.8 + (i % 3) * 0.2
+		ring:box(`Stem{i}`, x - 0.35 * s, -0.3, z - 0.35 * s, x + 0.35 * s, 1.6 * s, z + 0.35 * s, C.Cream, Kit.DECOR)
+		local cap = if i % 2 == 0 then C.Cream else C.Flowers[1]
+		ring:box(`Cap{i}`, x - 1.1 * s, 1.5 * s, z - 1.1 * s, x + 1.1 * s, 2.4 * s, z + 1.1 * s, cap, Kit.DECOR)
+	end
+	ring:finish()
 	Kit.claim(site.x, site.z, site.plateauRadius + 2)
 	-- the steps and their cheek blocks (no flowers growing through them)
 	for _, r in { site.plateauRadius - 4, site.plateauRadius + 4, site.plateauRadius + 12 } do
@@ -2230,7 +2285,7 @@ local function trailDressing(parent: any, world: any, site: any)
 			local x, z = spot(fi, 7.5, 0.6)
 			if x then
 				local q = info[fi]
-				local cols = { C.Festive[1], C.Festive[2], C.Festive[4], C.Festive[6] }
+				local cols = { C.Flowers[1], C.Flowers[2], C.Flowers[7], C.Flowers[6] }
 				pennant(model, facing(x, q.top, z, q.nx, q.nz), cols[(k // 2) % 4 + 1], 9)
 			end
 		end
@@ -2341,7 +2396,7 @@ local function summitDeck(parent: any, _world: any, cf: any, D: number)
 	local function on(lx: number, lz: number, yaw: number?): any
 		return cf * CFrame.new(lx, y, lz) * CFrame.Angles(0, rad(yaw or 0), 0)
 	end
-	local flag = bigFlag(b.model, on(D - 4, D - 4.5, 0), 24, 10, 6, C.Red)
+	local flag = bigFlag(b.model, on(D - 4, D - 4.5, 0), 24, 10, 6, C.Flowers[1])
 	Kit.sparkles(flag.Top, C.GoldLight, { rate = 3, size = 0.8, lifetime = 3, speed = 2 }) -- the goal glints
 	return b.model
 end
