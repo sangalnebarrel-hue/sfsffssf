@@ -6,12 +6,16 @@
 	< 0 darker in HSV), and every part with WallTone = true in the base's own calm wall tone
 	(BaseConfig.WallTones; optional WallShade, same rule), so the 8 houses differ.
 
-	Colour: lawn, warm two-tone flagstone walks, cream limestone, plank decks, timber, plaster.
-	The base colour (Accent) marks the base from afar without flooding it: the roofs (deep shade,
-	AccentShade -0.28, darker fascias and ridges) of the house, its lookout tower, the aquarium
-	pavilion and the two display arcades; small full-colour accents — the flag, the arcade banners,
-	the gate sign's frame, the tackle shed's awning, the patio parasol, the mailbox, the SpawnPad.
-	Any Accent part bigger than ~400 studs² uses a deep shade (<= -0.25; tested).
+	Colour: a lawn with darker mowing stripes, warm two-tone flagstone walks, cream limestone, plank
+	decks, timber, warm stone and plaster in a dark / mid / light hierarchy (stone base course, warm
+	stone ground floor, plaster upper floor). The base colour (Accent) marks the base at a glance
+	without flooding it: the roofs in a deep shade (house and tower -0.28, the two display arcades
+	-0.38 with -0.5 battens; fascias and ridges darker), the doors; small full-colour accents — the
+	flag, the arcade banners and eave boards, a band on every display cabinet, the gate sign's and
+	the aquarium plaque's frames, the tackle shed's awning, the patio parasol, the mailbox, the boat,
+	the small SpawnPad. Any Accent part bigger than ~400 studs² uses a deep shade (<= -0.25; tested).
+	The colour pops are jewel-tone flowers (Palette.Flowers via Props.flowerBed, window boxes,
+	flowering hedges), the aquarium's corals and fish, lanterns and the cyan light bars.
 
 	Base-local frame (Root at the origin, y = 0 is GroundTop; the world builder provides flat
 	grass under the plot):
@@ -20,27 +24,39 @@
 	  +Z     inland: the plot x = -68..68, lz = 18..168.
 	  +X/-X  sideways (+X is on the left of a player walking in through the gate).
 
-	Layout (front to back, symmetric about the flagstone axis):
+	Layout (front to back, symmetric about the flagstone axis). The vista from the gate and the
+	spawn runs over the low aquarium to the house, which stands on a 4.5-stud terrace at its end:
+	nothing on the axis rises above the line from the spawn eye to the house's upper floor.
 	  lz 18        roofed timber gate between stone piers (name board with OwnerLabel/BaseLabel on
-	               both faces, gold fish weathervane), flower beds; a stone-and-rail fence
-	  lz 22..54    front yard: the spawn rose (a two-tone flagstone compass rose with a cream ring
-	               round the SpawnPad), the flag (the base's beacon) and the signal mast (Alarm);
-	               the kitchen garden (-X: cabbages, pumpkins, bean poles), the tackle shed
-	               (+X: rods, bait barrel, an awning); the guard dog and its kennel are hidden here
-	               until the stage-4 upgrade
-	  lz 54..120   the aquarium court, a cloister: the big tank as a timber pavilion on a limestone
-	               terrace (tinted water, a castle and a reef inside, mullions, a gabled roof with a
-	               cupola and the «АКВАРИУМ» board) between two display arcades (plank deck, plaster
-	               back wall, lean-to roof on posts, hanging lanterns, banners) holding the 12
-	               display aquariums (Tank.Slots.Slot_1..12: a timber cabinet, a brass rim, a framed
-	               water cube with sand; odd slots in the -X arcade, slots 1-2 nearest the gate);
-	               flower borders between them; flagstone cross walks front and back
-	  side strips  +X: the fry pond (kerb, lilies, reeds, little jetty); -X: the net yard (drying
-	               nets, fish rack, crab traps, the well); fruit trees
-	  lz 124..168  a 3-stud stone terrace (stairs and plank ramps): the house — the base's main
-	               building, a T plan (stone ground floor, plaster upper floor in the wall tone,
-	               a cross-gabled front wing with porch and balcony, windows on every side) with a
-	               lookout tower (belvedere, telescope, stepped Accent roof, fish weathervane);
+	               both faces, gold fish weathervane), jewel flower beds; a stone-and-rail fence
+	               with posts every ~17 studs
+	  lz 22..54    front yard: the spawn rose (a two-tone flagstone compass rose, a cream stone
+	               rosette with a cobble rim round the small SpawnPad, a gold fish inlay) framed by
+	               flowering clipped hedges and two benches; the flag (the base's beacon) and the
+	               signal mast (Alarm); the kitchen garden (-X: cabbages, pumpkins, bean poles), the
+	               tackle shed (+X: rods, bait barrel, an awning) and a sitting spot with stepping
+	               stones to the fry pond; the guard dog and its kennel are hidden here until the
+	               stage-4 upgrade
+	  lz 54..121   the aquarium court: the big tank as a long, low pool of bright sea water on a
+	               flagstone terrace (a sea-blue gravel floor and back wall, a limestone castle,
+	               coral reef, kelp, big bright fish, timber rim and corner posts with lanterns, the
+	               «АКВАРИУМ» plaque at its foot) between two open display galleries (plank deck,
+	               timber posts, a stone parapet with a flower box at the back so the displays show
+	               from the side strips, a lean-to roof in the base colour over a light plank
+	               ceiling, hanging lanterns, banners) holding the 12 display aquariums
+	               (Tank.Slots.Slot_1..12: a timber cabinet with a base-colour band, a brass rim, a
+	               bright water cube with sand, a sea-blue backdrop and a glowing light bar; odd
+	               slots in the -X gallery, slots 1-2 nearest the gate); flower borders and potted
+	               topiaries between them; flagstone cross walks front and back
+	  side strips  +X: the fry pond (an L of water in kerbs and rim stones, lilies, reeds, a jetty
+	               and a bench); -X: the net yard (green nets drying with floats, a fish rack under
+	               a canvas lean-to, crab traps, the well, an upturned boat on trestles under repair,
+	               lobster pots); fruit trees
+	  lz 122..168  a 4.5-stud stone terrace (stairs with lanterns, plank ramps): the house — the
+	               base's main building, a T plan (warm stone ground floor, plaster upper floor in
+	               the wall tone, two dormers, a cross-gabled front wing with a porch, a balcony and
+	               a door in the base colour, window boxes, windows on every side) with a lookout tower
+	               (belvedere reached by a ladder, telescope, stepped Accent roof, fish weathervane);
 	               the smokehouse and the work yard (+X), the seating patio (-X); hedge at the back
 	  lz 0..-72    plank pier with rails and lanterns, a moored boat that bobs, the end platform
 	               with the FishingSpot, a shelter over a bench and the rod rack, crates, lifebuoy
@@ -58,7 +74,7 @@
 	  (attribute SlotIndex), Flag.Pole.SignAttachment.OwnerSign.{OwnerLabel, BaseLabel},
 	  Flag.Cloth (tests), Gate.Board.SignFront/SignBack.{OwnerLabel, BaseLabel}.
 
-	Budget: <= 800 parts (8 bases at runtime; asserted below and in tests/stage1_bases.test.luau).
+	Budget: <= 860 parts (8 bases at runtime; asserted below and in tests/stage1_bases.test.luau).
 	Deterministic: variation comes from seeds, never math.random.
 ]]
 
@@ -75,22 +91,30 @@ local UDim2 = U.UDim2
 local M = Enum.Material
 local rad = math.rad
 
-local BUDGET = 1000
+local BUDGET = 860
 
 ------------------------------------------------------------------------------------------
 -- Colours (all from Palette.luau, DESIGN.md §1) and plot numbers
 ------------------------------------------------------------------------------------------
 
+-- A palette colour with its HSV saturation and value scaled (a livelier water tint, ...).
+local function tune(color: any, sMul: number, vMul: number): any
+	local h, s, v = color:ToHSV()
+	return Color3.fromHSV(h, math.clamp(s * sMul, 0, 1), math.clamp(v * vMul, 0, 1))
+end
+
 local C = {
 	Lawn = P.GrassTop:Lerp(P.GrassTop3, 0.3), -- a kept lawn, a hair lighter than the island grass
+	LawnStripe = P.GrassTop2:Lerp(P.GrassTop, 0.3), -- the darker mowing stripes
 	Hedge = P.Leaf1,
 	HedgeTop = P.Leaf1:Lerp(P.Leaf2, 0.7),
 	Topiary = P.Leaf0:Lerp(P.Leaf1, 0.5),
 	Flag = P.Flagstone, -- walks: light flags with darker ones set in
-	FlagDark = P.FlagstoneDark,
+	FlagDark = P.FlagstoneDark:Lerp(P.CobbleDark, 0.45), -- the darker flags: they must read
 	Limestone = P.Limestone, -- cream stone: terraces, kerbs, steps
 	Gravel = P.SandDark:Lerp(P.Cobble, 0.45),
 	Stone = P.Stone,
+	StoneMid = P.Stone:Lerp(P.StoneLight, 0.35), -- the house's ground floor: a step darker than the plaster
 	StoneDark = P.StoneDark,
 	StoneLight = P.StoneLight,
 	Wood = P.Wood,
@@ -112,35 +136,38 @@ local C = {
 	Iron = P.Iron,
 	Gold = P.Gold,
 	Cream = P.Cream,
-	Rope = P.Rope,
 	Ink = P.Dark, -- text, door holes, eyes (small dark details only)
 	Glow = P.Glow, -- lantern cores (Neon)
 	LightColor = P.LightColor,
 	LampOff = P.Red:Lerp(P.Dark, 0.4), -- the alarm lamp when not alarmed (stage 4 lights it)
-	WindowGlass = P.WindowBlue:Lerp(P.Glass, 0.35),
+	WindowGlass = P.WindowBlue:Lerp(P.Cloud, 0.2), -- a bright sky-blue pane
 	Water = P.Water,
 	PondWater = P.Water:Lerp(P.WaterLight, 0.3),
 	PondBed = P.Water:Lerp(P.Navy, 0.45),
 	FishSilver = P.WindowBlue:Lerp(P.StoneLight, 0.45), -- drying fish
 	FishSilverDark = P.WindowBlue:Lerp(P.Stone, 0.3),
 	Cabinet = P.WoodLight:Lerp(P.CutWood, 0.35), -- display stands
-	-- aquarium: water-tinted glass, sand, a castle and a reef
-	TankGlass = P.Glass:Lerp(P.Cyan, 0.25), -- a clear sea-green tint
-	DisplayWater = P.WaterLight:Lerp(P.Cyan, 0.3),
-	SeaDeep = P.Water:Lerp(P.Navy, 0.3),
+	-- aquarium: bright sea water, light sand, a limestone castle and a coral reef
+	TankGlass = tune(P.Water:Lerp(P.Cyan, 0.4):Lerp(P.WaterLight, 0.35), 1, 1.04), -- sea water (calm: S < 0.6)
+	TankWater = tune(P.Water:Lerp(P.Cyan, 0.4), 1.08, 1.12), -- bright sea water ~ (55, 165, 205)
+	DisplayWater = tune(P.Glass:Lerp(P.Cyan, 0.08), 1.25, 1.07), -- ~ (168, 222, 238)
+	Backdrop = tune(P.Water:Lerp(P.Cyan, 0.5), 1.05, 1.14), -- ~ (60, 176, 206)
+	AquaGlow = tune(P.WaterLight:Lerp(P.Cyan, 0.2), 1.2, 1.1), -- Neon light bars ~ (120, 220, 240)
 	ReefLight = P.WaterLight,
-	Sand = P.SandDark:Lerp(P.Sand, 0.4),
-	Castle = P.Sand, -- a sandcastle with terracotta turrets: warm through the tinted glass
+	Sand = P.Sand:Lerp(P.Foam, 0.5), -- pale aquarium sand
+	SeaFloor = tune(P.Water:Lerp(P.Cyan, 0.5), 1.05, 1.05), -- the tank's sea-blue gravel
+	Castle = P.Limestone,
 	CastleRoof = P.RoofTerracotta,
-	Rock = P.Stone, -- the reef: warm sandstone
-	RockLight = P.StoneLight,
+	Rock = P.RockLight, -- the reef's footing
+	RockLight = P.Foam:Lerp(P.RockLight, 0.4),
 	Kelp1 = P.Seaweed,
 	Kelp2 = P.Leaf2,
-	CoralPinkBase = P.Pink:Lerp(P.Purple, 0.3),
-	CoralPink = P.Pink,
-	CoralOrangeBase = P.Autumn0,
-	CoralOrange = P.Orange,
-	BrainCoral = P.Gold,
+	CoralPinkBase = P.Flowers[3]:Lerp(P.Flowers[4], 0.3),
+	CoralPink = P.Flowers[3],
+	CoralOrangeBase = P.Flowers[6]:Lerp(P.Autumn0, 0.3),
+	CoralOrange = P.Flowers[6],
+	CoralViolet = P.Flowers[4],
+	BrainCoral = P.Flowers[2],
 	Yellow = P.Yellow,
 	Orange = P.Orange,
 	Blue = P.Blue,
@@ -148,15 +175,17 @@ local C = {
 	Red = P.Red,
 	RoofBlue = P.RoofBlue,
 	RoofBrown = P.RoofBrown,
-	Shingle = P.RoofBrown:Lerp(P.Wood, 0.35), -- the arcades' timber shingles
-	ShingleDark = P.RoofBrown:Lerp(P.WoodDark, 0.5),
+	Terracotta = P.RoofTerracotta, -- flower pots
+	Rope = P.Rope,
+	NetRope = P.Seaweed:Lerp(P.Navy, 0.3), -- drying nets: a fisherman's green in two tones
+	NetRopeLight = P.Seaweed:Lerp(P.Mint2, 0.4),
 	Brick = P.Brick,
+	CobbleDark = P.CobbleDark,
 	Boat = P.BoatPaint[2],
 	Fry = P.Orange,
 	-- the hidden guard dog (shown in stage 4): a shiba in warm, calm tones
 	Dog = P.Wood:Lerp(P.Orange, 0.55),
 	DogCream = P.Cream,
-	Tongue = P.Pink,
 }
 
 -- Accent shades (BaseService paints these parts in the base colour).
@@ -179,18 +208,19 @@ local WALL = wallTone(0)
 -- Floor layers: the world's grass is at y = 0; no two floor layers are coplanar, and a slab lying
 -- on another stands >= 0.15 above it (no shimmer from across the lagoon).
 local LAWN = 0.2 -- plot lawn slab
+local STRIPE = 0.35 -- the darker mowing stripes laid on the lawn
 local PATH = 0.5 -- flagstone walks (their darker flags stand 0.15 proud)
 local ROSE = 0.75 -- spawn compass rose: dark square
-local ROSE_TOP = 0.9 -- its light diamond
-local RING = 1.05 -- cream ring round the pad
+local ROSE_TOP = 0.9 -- its light star
+local RING = 1.05 -- the stone rosette round the pad
 local ARC_DECK = 0.9 -- display arcades' plank deck
-local TANK_TERRACE = 1.2 -- the aquarium's limestone terrace
-local TERRACE = 3.0 -- the house terrace (lawn top)
+local TANK_TERRACE = 1.2 -- the aquarium's flagstone terrace
+local TERRACE = 4.5 -- the house terrace (lawn top): the house stands high at the end of the vista
 local DECK = 0.6 -- pier and platform deck top
 local PLANK = 0.75 -- plank strips on the decks
 
 local SPAWN_Z = 36
-local TERRACE_Z = 124 -- the house terrace's front face
+local TERRACE_Z = 122 -- the house terrace's front face
 
 ------------------------------------------------------------------------------------------
 -- Part helpers
@@ -226,7 +256,7 @@ end
 local DECOR = { CanCollide = false, CastShadow = false }
 local NEON = { Material = M.Neon, CastShadow = false }
 local NEON_DECOR = { Material = M.Neon, CastShadow = false, CanCollide = false }
-local GLASS = { Material = M.Glass, Transparency = 0.3, CastShadow = false }
+local GLASS = { Material = M.Glass, Transparency = 0.15, CastShadow = false }
 local FLAT = { CastShadow = false }
 -- Roofs over walkways never collide or take raycasts (the camera never pops in against them).
 local ROOF_OPTS = { CanCollide = false, CanQuery = false, CastShadow = true }
@@ -599,50 +629,125 @@ local function flagWalk(
 	return base
 end
 
+-- Garden bench (seat on a leg block, a back rest) in frame `f` standing on y0; local -Z is where
+-- the sitter looks. 3 parts.
+local function bench(parent: any, f: any, y0: number, len: number)
+	box(parent, "BenchLegs", f, 0, y0 + 0.6, 0.1, len - 1.2, 1.2, 0.9, C.WoodDark)
+	box(parent, "BenchSeat", f, 0, y0 + 1.45, 0, len, 0.5, 1.9, C.WoodLight)
+	box(parent, "BenchBack", f, 0, y0 + 2.7, 0.8, len, 1.7, 0.4, C.Wood)
+end
+
+-- Two-tone clipped shrub: a dark body and a lighter top block set off-centre. 2 parts.
+local function shrub(parent: any, x: number, y: number, z: number, w: number, h: number, flip: number)
+	span(parent, "Shrub", x - w / 2, x + w / 2, y - 0.2, y + h, z - w * 0.42, z + w * 0.42, C.Leaf1, {
+		CanCollide = false,
+	})
+	local tx = x + flip * w * 0.12
+	span(
+		parent,
+		"ShrubTop",
+		tx - w * 0.3,
+		tx + w * 0.3,
+		y + h - 0.1,
+		y + h + 1,
+		z - w * 0.26,
+		z + w * 0.26,
+		C.Leaf3,
+		DECOR
+	)
+end
+
+-- Terracotta pot with a leafy ball and a bloom on top, standing on y0. 3 parts.
+local function pottedPlant(parent: any, x: number, y0: number, z: number, bloom: any)
+	span(parent, "Pot", x - 0.9, x + 0.9, y0, y0 + 1.5, z - 0.9, z + 0.9, C.Terracotta)
+	span(parent, "PotLeaves", x - 1.1, x + 1.1, y0 + 1.4, y0 + 2.9, z - 1.1, z + 1.1, C.Leaf2, DECOR)
+	span(parent, "PotBloom", x - 0.55, x + 0.45, y0 + 2.8, y0 + 3.5, z - 0.45, z + 0.55, bloom, DECOR)
+end
+
+-- Jewel-tone bloom pairs (Palette.Flowers: 1 red, 2 yellow, 3 pink, 4 violet, 5 white, 6 orange,
+-- 7 blue) for the base's beds, boxes and baskets: the plot's colour pops.
+local FL = P.Flowers
+local JEWELS = {
+	{ FL[1], FL[5] },
+	{ FL[3], FL[4] },
+	{ FL[2], FL[6] },
+	{ FL[7], FL[5] },
+	{ FL[6], FL[1] },
+	{ FL[4], FL[3] },
+}
+
 ------------------------------------------------------------------------------------------
--- Ground: lawn, flagstone walks, the compass-rose spawn square
+-- Ground: lawn with mowing stripes, flagstone walks, the compass-rose spawn square
 ------------------------------------------------------------------------------------------
+
+local ROSE_R = 6.5 -- half the spawn rose's dark square
 
 local function buildGrounds(template: any, plot: any)
 	local floor = U.model(template, "Grounds")
-	local hw, front, back = plot.halfWidth, plot.front, plot.back
+	local hw, front = plot.halfWidth, plot.front
 
 	-- Lawn over the whole plot (the fence, the hedge and the house terrace stand on it).
-	span(floor, "Lawn", -hw + 0.4, hw - 0.4, -0.4, LAWN, front + 0.4, back - 0.4, C.Lawn)
+	span(floor, "Lawn", -hw + 0.4, hw - 0.4, -0.4, LAWN, front + 0.4, plot.back - 0.4, C.Lawn)
+	-- Mowing stripes: darker 8-stud bands running inland (Grow a Garden style); the outer ones run
+	-- down the side strips to the house terrace.
+	for _, sx in { -1, 1 } do
+		for _, st in { { 8, 16, 54 }, { 24, 32, 54 }, { 40, 48, TERRACE_Z }, { 56, 64, TERRACE_Z } } do
+			local xa, xb = mirror(sx, st[1], st[2])
+			span(floor, "Stripe", xa, xb, LAWN - 0.1, STRIPE, front + 0.4, st[3] - 0.2, C.LawnStripe, FLAT)
+		end
+	end
 
 	-- The axis: gate -> spawn rose -> aquarium court (no flags where the rose covers the walk).
 	flagWalk(floor, "Walk", -5, 5, front + 0.2, 54, PATH, 6, function(u: number): boolean
 		local z = front + 0.2 + u
-		return z > SPAWN_Z - 14 and z < SPAWN_Z + 14
+		return z > SPAWN_Z - 10 and z < SPAWN_Z + 10
 	end)
 	-- Cross walks in front of and behind the aquarium terrace, joining the arcade decks.
-	flagWalk(floor, "CrossWalk", -22.2, 22.2, 54, 60, PATH, 8.8)
-	flagWalk(floor, "BackWalk", -22.2, 22.2, 114, 120, PATH, 8.8)
+	flagWalk(floor, "CrossWalk", -22.2, 22.2, 54, 60, PATH, 11)
+	span(floor, "BackWalk", -22.2, 22.2, PATH - 0.45, PATH, 114, 120, C.Flag, FLAT)
 	-- Side walks from the spawn rose to the kitchen garden (-X) and the tackle shed (+X).
-	flagWalk(floor, "GardenWalk", -31, -9.5, 34, 38, PATH, 10)
-	flagWalk(floor, "ShedWalk", 9.5, 45.6, 34, 38, PATH, 11)
+	span(floor, "GardenWalk", -31, -6, PATH - 0.45, PATH, 34, 38, C.Flag, FLAT)
+	span(floor, "ShedWalk", 6, 45.6, PATH - 0.45, PATH, 34, 38, C.Flag, FLAT)
 
-	-- Spawn rose: a dark square under a light diamond (an eight-point compass rose), a cream
-	-- ring round the pad (buildSpawn).
-	span(floor, "Rose", -9, 9, PATH - 0.3, ROSE, SPAWN_Z - 9, SPAWN_Z + 9, C.FlagDark, FLAT)
+	-- Spawn rose: a dark square under a light star (an eight-point compass rose); the stone rosette
+	-- round the pad is in buildSpawn.
+	local R = ROSE_R
+	span(floor, "Rose", -R, R, PATH - 0.3, ROSE, SPAWN_Z - R, SPAWN_Z + R, C.FlagDark, FLAT)
 	make(
 		floor,
 		"RoseStar",
-		Vector3.new(17, ROSE_TOP - ROSE + 0.3, 17),
+		Vector3.new(2 * R - 0.6, ROSE_TOP - ROSE + 0.3, 2 * R - 0.6),
 		at(0, (ROSE - 0.3 + ROSE_TOP) / 2, SPAWN_Z) * CFrame.Angles(0, rad(45), 0),
 		C.Flag,
 		FLAT
 	)
-	span(floor, "SpawnRing", -4.4, 4.4, ROSE, RING, SPAWN_Z - 4.4, SPAWN_Z + 4.4, C.Cream, FLAT)
-	-- a gold fish inlaid in the rose's front point (towards the gate)
-	local fz = SPAWN_Z - 8.6
-	span(floor, "RoseFish", -1.8, 1.2, ROSE_TOP - 0.2, ROSE_TOP + 0.15, fz - 0.8, fz + 0.8, C.Gold, FLAT)
-	span(floor, "RoseFishTail", 1.2, 2.4, ROSE_TOP - 0.2, ROSE_TOP + 0.15, fz - 1.2, fz + 1.2, C.Gold, FLAT)
+	-- a gold fish inlaid in the rose between the pad and the gate
+	local fz = SPAWN_Z - 5.6
+	span(floor, "RoseFish", -1.6, 1, ROSE_TOP - 0.2, ROSE_TOP + 0.15, fz - 0.7, fz + 0.7, C.Gold, FLAT)
+	span(floor, "RoseFishTail", 1, 2.1, ROSE_TOP - 0.2, ROSE_TOP + 0.15, fz - 1.1, fz + 1.1, C.Gold, FLAT)
 
-	-- Flower beds just inside the gate.
+	-- Flower beds just inside the gate: two rows of jewel blooms on stems over the leaves.
 	for _, sx in { -1, 1 } do
-		local pair = if sx < 0 then Props.bloomPairs[2] else Props.bloomPairs[4]
-		flowerBed(floor, sx * 8.4, LAWN, front + 6.4, 5.4, 2.6, pair, { spacing = 1.6, max = 3 })
+		local pair = if sx < 0 then JEWELS[1] else JEWELS[2]
+		flowerBed(floor, sx * 8.6, LAWN, front + 6.6, 6, 3.6, pair, { spacing = 1.6, max = 4 })
+	end
+
+	-- A low parterre round the rose: flowering clipped hedge blocks at its corners (jewel blooms
+	-- on top), a bench either side looking at the rose.
+	for _, sx in { -1, 1 } do
+		local pair = if sx < 0 then JEWELS[3] else JEWELS[6]
+		for i, zz in { { 25.5, 29.5 }, { 42.5, 46.5 } } do
+			local xa, xb = mirror(sx, 9.5, 16)
+			span(floor, "Parterre", xa, xb, LAWN - 0.1, 1.9, zz[1], zz[2], C.Hedge, { CanCollide = false })
+			local zc = (zz[1] + zz[2]) / 2
+			for j, bx in { 11.3, 14.2 } do
+				local x = sx * bx
+				local dz = if (i + j) % 2 == 0 then -0.6 else 0.7
+				local c = pair[(i + j) % 2 + 1]
+				span(floor, "HedgeBloom", x - 0.6, x + 0.6, 1.75, 2.5, zc + dz - 0.6, zc + dz + 0.6, c, DECOR)
+			end
+		end
+		bench(floor, facing(sx * 22.5, LAWN, 41.6, 90 * sx), LAWN, 5.4)
 	end
 end
 
@@ -685,16 +790,21 @@ local function buildFence(template: any, plot: any)
 		end
 	end
 
-	-- Front, either side of the gate (the gate piers end at x = +-16).
+	-- Front, either side of the gate (the gate piers end at x = +-16): posts every ~17 studs.
 	for _, sx in { -1, 1 } do
-		run(true, sx * 16, sx * (line + 0.8), sx * line, fz, { sx * 41, sx * line }, 0, 0)
+		local posts = {}
+		for i = 1, 3 do
+			table.insert(posts, sx * (16 + (line - 16) * i / 3))
+		end
+		run(true, sx * 16, sx * (line + 0.8), sx * line, fz, posts, 0, 0)
 	end
-	-- Sides: from the front fence to the terrace; a hedge along the terrace's sides.
+	-- Sides: from the front fence to the terrace (posts every ~17 studs); a hedge along the
+	-- terrace's sides.
 	for _, sx in { -1, 1 } do
 		local z0 = fz + 0.55
 		local posts = {}
-		for i = 1, 3 do
-			table.insert(posts, z0 + (TERRACE_Z - z0) * i / 3)
+		for i = 1, 5 do
+			table.insert(posts, z0 + (TERRACE_Z - z0) * i / 5)
 		end
 		run(false, z0 - 0.55, TERRACE_Z, TERRACE_Z, sx * line, posts, 0, 0)
 		local ha, hb = mirror(sx, hw - 3.4, hw - 0.6)
@@ -769,8 +879,22 @@ end
 ------------------------------------------------------------------------------------------
 
 local function buildSpawn(template: any)
-	-- The pad: -Z (the lagoon) is the facing on spawn. Pure base colour (tests check it).
-	span(template, "SpawnPad", -3.2, 3.2, RING - 0.2, RING + 0.3, SPAWN_Z - 3.2, SPAWN_Z + 3.2, 0, {
+	-- A cream stone rosette (an eight-point star of two squares) with a dark cobble rim round the
+	-- pad, set into the compass rose.
+	local grounds = template:FindFirstChild("Grounds")
+	local z = SPAWN_Z
+	make(
+		grounds,
+		"Rosette",
+		Vector3.new(7.4, RING - ROSE_TOP + 0.3, 7.4),
+		at(0, (ROSE_TOP - 0.3 + RING) / 2, z) * CFrame.Angles(0, rad(45), 0),
+		C.Limestone,
+		FLAT
+	)
+	span(grounds, "RosetteRim", -2.75, 2.75, RING - 0.2, RING + 0.15, z - 2.75, z + 2.75, C.CobbleDark, FLAT)
+	-- The pad: -Z (the lagoon) is the facing on spawn. Pure base colour (tests check it), a small
+	-- 4-stud field.
+	span(template, "SpawnPad", -2, 2, RING - 0.05, RING + 0.35, z - 2, z + 2, 0, {
 		CastShadow = false,
 	})
 end
@@ -838,7 +962,6 @@ local function buildAlarm(template: any)
 	span(alarm, "Platform", ax - 2, ax + 2, 13, 13.6, az - 2, az + 2, C.Wood)
 	span(alarm, "Lamp", ax - 1.3, ax + 1.3, 13.6, 16.2, az - 1.3, az + 1.3, C.LampOff, { CastShadow = false })
 	span(alarm, "Cap", ax - 1.9, ax + 1.9, 16.2, 17, az - 1.9, az + 1.9, -0.2)
-	span(alarm, "Finial", ax - 0.4, ax + 0.4, 17, 17.8, az - 0.4, az + 0.4, C.Iron, DECOR)
 	for _, sx in { -1, 1 } do
 		span(alarm, "Horn", ax + sx * 2, ax + sx * 3.2, 14.2, 15.4, az - 0.6, az + 0.6, C.Iron, DECOR)
 	end
@@ -852,23 +975,21 @@ local function buildMailbox(template: any)
 end
 
 ------------------------------------------------------------------------------------------
--- Aquarium pavilion: the big tank on its terrace
+-- The aquarium: a long, low show tank of bright sea water on its terrace
 ------------------------------------------------------------------------------------------
 
 local TANK_HALF_X = 12
 local TANK_Z0, TANK_Z1 = 69, 107
-local TANK_BASE = TANK_TERRACE + 2 -- plinth top = glass bottom
-local TANK_TOP = TANK_BASE + 11
-local PAV_EAVE = 18.6 -- the pavilion roof's eaves
+local TANK_BASE = TANK_TERRACE + 1.4 -- plinth top = glass bottom
+local TANK_TOP = TANK_BASE + 6 -- low: from the spawn the house shows over it
 
 local function buildTank(template: any): (any, { any })
 	local tank = U.model(template, "Tank")
 	local hx = TANK_HALF_X
 	local expected = {}
 
-	-- The court's centre: a limestone terrace with a step at the front, a stone plinth with a
-	-- light ledge.
-	span(tank, "Terrace", -16, 16, -0.2, TANK_TERRACE, 62, 114, C.Limestone, { CastShadow = true })
+	-- The court's centre: a flagstone terrace, a warm stone plinth with a cream ledge.
+	span(tank, "Terrace", -16, 16, -0.2, TANK_TERRACE, 62, 114, C.Flag, { CastShadow = true })
 	span(
 		tank,
 		"Plinth",
@@ -879,83 +1000,103 @@ local function buildTank(template: any): (any, { any })
 		TANK_Z0 - 1.6,
 		TANK_Z1 + 1.6,
 		C.Stone,
-		{
-			CastShadow = true,
-		}
+		{ CastShadow = true }
 	)
-	span(tank, "Ledge", -hx - 0.8, hx + 0.8, TANK_BASE - 0.6, TANK_BASE, TANK_Z0 - 0.8, TANK_Z1 + 0.8, C.StoneLight)
+	span(tank, "Ledge", -hx - 0.8, hx + 0.8, TANK_BASE - 0.6, TANK_BASE, TANK_Z0 - 0.8, TANK_Z1 + 0.8, C.Limestone)
 
-	-- The glass (one part = the whole water volume; fish swim inside it later), tinted like water.
+	-- The glass (one part: the whole volume; fish swim inside it later) with a light aqua tint, the
+	-- bright sea water inside it and a painted sea-blue back wall at the far end (the tank reads
+	-- blue from the gate and the house does not show through it).
 	local glass = span(tank, "Glass", -hx, hx, TANK_BASE, TANK_TOP, TANK_Z0, TANK_Z1, C.TankGlass, {
 		Material = M.Glass,
-		Transparency = 0.55,
+		Transparency = 0.6,
 		CastShadow = false,
 	})
 	tank.PrimaryPart = glass
+	local w = 0.3
+	span(
+		tank,
+		"BackWall",
+		-hx + w,
+		hx - w,
+		TANK_BASE,
+		TANK_TOP - 0.3,
+		TANK_Z1 - w - 0.4,
+		TANK_Z1 - w,
+		C.Backdrop,
+		DECOR
+	)
 	-- Stage 3/4 prompts: in front of the tank's entrance end (towards the gate).
 	local _, promptOffset = attachAt(glass, "PromptAttachment", at(0, TANK_TERRACE + 2, TANK_Z0 - 3))
 	table.insert(expected, { root = "template", path = { "Tank", "Glass", "PromptAttachment" }, offset = promptOffset })
 
-	-- Timber pavilion: corner and middle posts up to the eaves, mullions between them, a rim round
-	-- the glass top, wall plates and tie beams carrying a gabled roof with a cupola.
-	local plateY = PAV_EAVE - 0.8
-	local zm = (TANK_Z0 + TANK_Z1) / 2
+	-- Timber frame: corner posts (lanterns on the front pair), a rim round the top with light bars
+	-- under it; nothing else breaks the water.
 	for _, sx in { -1, 1 } do
-		for _, z in { TANK_Z0, zm, TANK_Z1 } do
-			local w = if z == zm then 0.6 else 0.85
-			span(tank, "Post", sx * hx - w, sx * hx + w, TANK_BASE, plateY, z - w, z + w, C.WoodDark, {
+		for _, z in { TANK_Z0, TANK_Z1 } do
+			local x = sx * hx
+			local lit = z == TANK_Z0 -- lanterns on the front posts, towards the gate
+			local top = if lit then TANK_TOP + 1.3 else TANK_TOP + 0.7
+			span(tank, "Post", x - 0.85, x + 0.85, TANK_BASE - 0.6, top, z - 0.85, z + 0.85, C.Wood, {
 				CastShadow = true,
 			})
+			if lit then
+				span(tank, "Lantern", x - 0.7, x + 0.7, top, top + 1.5, z - 0.7, z + 0.7, C.Glow, NEON_DECOR)
+				span(tank, "LanternCap", x - 1.1, x + 1.1, top + 1.5, top + 2.1, z - 1.1, z + 1.1, C.Iron, DECOR)
+			end
 		end
-		for _, z in { (TANK_Z0 + zm) / 2, (zm + TANK_Z1) / 2 } do
-			span(
-				tank,
-				"Mullion",
-				sx * hx - 0.3,
-				sx * hx + 0.3,
-				TANK_BASE,
-				TANK_TOP,
-				z - 0.3,
-				z + 0.3,
-				C.WoodDark,
-				DECOR
-			)
-		end
-		span(tank, "Rim", sx * hx - 0.6, sx * hx + 0.6, TANK_TOP, TANK_TOP + 0.7, TANK_Z0, TANK_Z1, C.WoodDark)
-		span(tank, "Plate", sx * hx - 0.9, sx * hx + 0.9, plateY, PAV_EAVE, TANK_Z0 - 2, TANK_Z1 + 2, C.WoodDark)
+		span(
+			tank,
+			"Rim",
+			sx * hx - 0.6,
+			sx * hx + 0.6,
+			TANK_TOP,
+			TANK_TOP + 0.7,
+			TANK_Z0 + 0.85,
+			TANK_Z1 - 0.85,
+			C.Wood
+		)
+		local lx = sx * (hx - 0.9)
+		span(
+			tank,
+			"LightBar",
+			lx - 0.25,
+			lx + 0.25,
+			TANK_TOP - 0.5,
+			TANK_TOP - 0.1,
+			TANK_Z0 + 1.2,
+			TANK_Z1 - 1.2,
+			C.AquaGlow,
+			NEON_DECOR
+		)
 	end
 	for _, z in { TANK_Z0, TANK_Z1 } do
-		span(tank, "Rim", -hx + 0.6, hx - 0.6, TANK_TOP, TANK_TOP + 0.7, z - 0.6, z + 0.6, C.WoodDark)
+		span(tank, "Rim", -hx + 0.85, hx - 0.85, TANK_TOP, TANK_TOP + 0.7, z - 0.6, z + 0.6, C.Wood)
 	end
-	for _, z in { TANK_Z0 - 1.3, TANK_Z1 + 1.3 } do
-		span(tank, "TieBeam", -hx - 0.9, hx + 0.9, plateY - 0.05, PAV_EAVE - 0.05, z - 0.7, z + 0.7, C.WoodDark)
-	end
-	local ridge = gableRoof(tank, -hx - 0.85, hx + 0.85, TANK_Z0, TANK_Z1, PAV_EAVE, 5.6, 1.6, 1.6, false, WALL)
-	-- cupola on the ridge (the pavilion's silhouette from the gate)
-	span(tank, "Cupola", -1.7, 1.7, ridge - 1, ridge + 2, zm - 1.7, zm + 1.7, C.WoodLight)
-	span(tank, "CupolaRoof", -2.5, 2.5, ridge + 2, ridge + 2.8, zm - 2.5, zm + 2.5, ROOF_TRIM)
-	span(tank, "CupolaTop", -1.5, 1.5, ridge + 2.8, ridge + 3.8, zm - 1.5, zm + 1.5, ROOF)
-	-- Name board hanging under the front tie beam, over the glass: read from the gate.
-	local sz = TANK_Z0 - 1.3
-	span(tank, "SignFrame", -8.2, 8.2, TANK_TOP + 1.1, plateY - 0.05, sz - 0.25, sz + 0.25, C.WoodDark)
-	local board = span(tank, "SignBoard", -7.6, 7.6, TANK_TOP + 1.5, plateY - 0.45, sz - 0.45, sz + 0.45, C.Cream)
+
+	-- The «АКВАРИУМ» plaque at the foot of the glass, facing the gate: a cream board in a frame of
+	-- the base colour (kept low: nothing over the tank hides the house from the spawn).
+	local pz = TANK_Z0 - 2.05
+	span(tank, "SignFrame", -7.6, 7.6, TANK_TERRACE - 0.1, TANK_BASE + 1, pz - 0.35, pz + 0.35, 0)
+	local board = span(tank, "SignBoard", -7, 7, TANK_TERRACE + 0.2, TANK_BASE + 0.7, pz - 0.5, pz + 0.1, C.Cream)
 	plainText(board, Enum.NormalId.Front, "АКВАРИУМ", C.Ink, false)
 
-	-- Inside: sand, a little castle with two towers at the entrance end (the show window seen from
-	-- the gate), a reef of stacked rocks in the middle, corals, kelp, fish, columns of rising
-	-- bubbles (particles). A soft PointLight on the reef lights it all.
-	local s = TANK_BASE + 0.9 -- sand top
-	local sand = span(tank, "Sand", -hx + 0.2, hx - 0.2, TANK_BASE, s, TANK_Z0 + 0.2, TANK_Z1 - 0.2, C.Sand, DECOR)
+	-- Inside: light sand, a coral reef in the front corners and on a rock in the middle, kelp, a
+	-- limestone castle at the back, a shoal of big bright fish, columns of rising bubbles
+	-- (particles). A PointLight on the reef lights it all.
+	local s = TANK_BASE + 0.7 -- sand top
+	local sand = span(tank, "Sand", -hx + 0.2, hx - 0.2, TANK_BASE, s, TANK_Z0 + 0.2, TANK_Z1 - 0.2, C.SeaFloor, DECOR)
+	span(tank, "SandBank", -8.5, 8.5, s - 0.3, s + 0.35, 94, 105.5, C.Sand, DECOR)
 	-- the water line: a light surface just under the rim
 	span(
 		tank,
 		"WaterSurface",
-		-hx + 0.15,
-		hx - 0.15,
-		TANK_TOP - 1,
-		TANK_TOP - 0.6,
-		TANK_Z0 + 0.15,
-		TANK_Z1 - 0.15,
+		-hx + 0.35,
+		hx - 0.35,
+		TANK_TOP - 0.5,
+		TANK_TOP - 0.25,
+		TANK_Z0 + 0.35,
+		TANK_Z1 - 0.35,
 		C.ReefLight,
 		{
 			Transparency = 0.35,
@@ -976,38 +1117,55 @@ local function buildTank(template: any): (any, { any })
 	): any
 		return span(tank, name, x0, x1, s + y0, s + y1, z0, z1, paint, DECOR)
 	end
-	-- castle
-	piece("Castle", -3, 3, -0.2, 4.2, 72.6, 77, C.Castle)
+	-- castle at the back: a keep, two towers with terracotta caps, a door
+	piece("Castle", -3.2, 3.2, -0.2, 2.6, 97, 102, C.Castle)
 	for _, sx in { -1, 1 } do
-		local xa, xb = mirror(sx, 2.8, 5.2)
-		piece("CastleTower", xa, xb, -0.2, 6.6, 72.2, 77.4, C.Castle)
-		piece("TowerRoof", xa - 0.4, xb + 0.4, 6.6, 7.6, 71.8, 77.8, C.CastleRoof)
-		local ma, mb = mirror(sx, 0.9, 2.4)
-		piece("Merlon", ma, mb, 4.2, 5.2, 72.6, 73.8, C.Castle)
+		local xa, xb = mirror(sx, 2.8, 5.4)
+		piece("CastleTower", xa, xb, -0.2, 3.5, 96.6, 102.4, C.Castle)
+		piece("TowerRoof", xa - 0.4, xb + 0.4, 3.5, 4.3, 96.2, 102.8, C.CastleRoof)
 	end
-	piece("CastleDoor", -0.9, 0.9, 0, 2.8, 72.4, 72.6, C.Ink)
-	-- reef
-	local reef = piece("Reef", -5, 4, -0.2, 2.8, 84, 93, C.Rock)
-	piece("Reef", -3.4, 2.6, 2.8, 5, 85.4, 91.6, C.RockLight)
-	U.new("PointLight", { Range = 16, Brightness = 1, Color = C.ReefLight, Shadows = false }, reef)
-	-- branching corals and a brain coral
-	piece("Coral", -10.6, -7, -0.2, 2.4, 79, 82.6, C.CoralPinkBase)
-	piece("CoralArm", -10, -8.2, 2.4, 6.4, 79.8, 81.6, C.CoralPink)
-	piece("Coral", 7, 10.6, -0.2, 2.4, 79, 82.6, C.CoralOrangeBase)
-	piece("CoralArm", 8.4, 10.2, 2.4, 6.8, 79.8, 81.6, C.CoralOrange)
-	piece("BrainCoral", 5.6, 10, -0.2, 2.6, 99.5, 104, C.BrainCoral)
-	-- kelp: two stacked blocks shifted against each other
-	piece("Kelp", -9.6, -8, -0.2, 7.6, 95, 96.6, C.Kelp1)
-	piece("Kelp", 7.6, 9.2, -0.2, 6.4, 90.5, 92.1, C.Kelp2)
-	-- fish: a body and a tall tail fin; the yellow tang crosses the show window
-	piece("Fish", -8, -4.8, 7.2, 9.2, 79.4, 81.6, C.Yellow)
-	piece("FishTail", -9.4, -8, 7, 9.4, 80.25, 80.75, C.Blue)
-	piece("Fish", -8.1, -5.9, 5.6, 7.6, 97.4, 100.6, C.Orange)
-	piece("FishTail", -7.25, -6.75, 5.4, 7.8, 100.6, 102, C.White)
-	piece("Fish", 5.5, 7.7, 7, 9, 86.4, 89.6, C.Blue)
-	piece("FishTail", 6.35, 6.85, 6.8, 9.2, 85, 86.4, C.Yellow)
+	piece("CastleDoor", -0.9, 0.9, 0, 2, 96.8, 97, C.Ink)
+	-- reef rock in the middle
+	local reef = piece("Reef", -6, 4, -0.2, 1.4, 82, 92, C.Rock)
+	piece("Reef", -4, 2, 1.4, 2.4, 83.5, 90, C.RockLight)
+	U.new("PointLight", { Range = 16, Brightness = 2, Color = C.ReefLight, Shadows = false }, reef)
+	-- corals: branching pink and orange in the front corners, violet and yellow on the reef, a
+	-- yellow brain coral by the castle
+	piece("Coral", -10.8, -6.4, -0.2, 2, 73, 77.4, C.CoralPinkBase)
+	piece("CoralArm", -10, -7.6, 2, 4.2, 74, 76.2, C.CoralPink)
+	piece("Coral", 6.4, 10.8, -0.2, 2, 73, 77.4, C.CoralOrangeBase)
+	piece("CoralArm", 7.4, 9.8, 2, 4.4, 74.2, 76.4, C.CoralOrange)
+	piece("FanCoral", -2.6, -0.4, 2.4, 4.4, 85.4, 86.6, C.CoralViolet)
+	piece("Coral", 0.6, 2.6, 2.4, 3.6, 87.6, 89.6, C.BrainCoral)
+	piece("BrainCoral", 7, 11, -0.2, 1.8, 98, 103, C.CoralPink)
+	-- kelp
+	piece("Kelp", -9.8, -8.2, -0.2, 4.4, 95, 96.6, C.Kelp1)
+	piece("Kelp", 8.4, 9.8, -0.2, 4, 86, 87.4, C.Kelp2)
+	-- fish: a body and a tall tail fin; most swim across the tank (their profile shows from the gate)
+	for _, f in
+		{
+			{ -4, 2.8, 74.6, true, 1, 3.6, FL[2], FL[7] },
+			{ 5, 1.5, 80, true, -1, 3, FL[6], FL[5] },
+			{ -7, 3.3, 89, false, 1, 3.2, FL[7], FL[2] },
+			{ 3, 3.6, 84.5, true, -1, 3.2, FL[1], FL[5] },
+			{ 7.6, 2.4, 93, false, -1, 2.8, FL[4], FL[2] },
+			{ -7.4, 2, 100.5, true, 1, 2.8, FL[3], FL[5] },
+		}
+	do
+		local x, y, z, alongX, dir, len = f[1], s + f[2], f[3], f[4], f[5], f[6]
+		local h = len * 0.6
+		local tx = x - dir * (len / 2 + 0.45) -- the tail behind the body
+		if alongX then
+			span(tank, "Fish", x - len / 2, x + len / 2, y - h / 2, y + h / 2, z - 0.6, z + 0.6, f[7], DECOR)
+			span(tank, "FishTail", tx - 0.45, tx + 0.45, y - h * 0.65, y + h * 0.65, z - 0.25, z + 0.25, f[8], DECOR)
+		else
+			local tz = z - dir * (len / 2 + 0.45)
+			span(tank, "Fish", x - 0.6, x + 0.6, y - h / 2, y + h / 2, z - len / 2, z + len / 2, f[7], DECOR)
+			span(tank, "FishTail", x - 0.25, x + 0.25, y - h * 0.65, y + h * 0.65, tz - 0.45, tz + 0.45, f[8], DECOR)
+		end
+	end
 	-- columns of bubbles (particles: they move and cost no parts); they live at most 3 s
-	for _, b in { { "BubblesWest", -3.6, 96 }, { "BubblesEast", 3.4, 82 } } do
+	for _, b in { { "BubblesWest", -3.6, 92 }, { "BubblesEast", 3.4, 80 } } do
 		local attachment, offset = attachAt(sand, b[1], at(b[2], s + 0.4, b[3]))
 		Props.fx(attachment, "bubbles", { rate = 3, size = 1.5, lifetime = U.roblox.NumberRange.new(2.6, 3) })
 		table.insert(expected, { root = "template", path = { "Tank", "Sand", b[1] }, offset = offset })
@@ -1020,36 +1178,38 @@ end
 -- Display arcades and the 12 display aquariums
 ------------------------------------------------------------------------------------------
 
-local ARC_IN, ARC_WALL = 22, 40 -- each arcade: deck from |x| = 22 (the aisle) to its back wall
-local ARC_Z0, ARC_Z1 = 54, 123
-local ARC_EAVE = 13.2 -- the lean-to roof's front (low) edge
-local ARC_TOP = 16.6 -- its back (high) edge, against the wall
+local ARC_IN, ARC_WALL = 22, 40 -- each arcade: deck from |x| = 22 (the aisle) to its back parapet
+local ARC_Z0, ARC_Z1 = 54, 121
+local ARC_EAVE = 16 -- the lean-to roof's front (low) edge: high, so the displays sit in daylight
+local ARC_TOP = 19.5 -- its back (high) edge, over the open back
 local ARC_POSTS = { ARC_Z0 + 1, 77.5, 99.5, ARC_Z1 - 1 }
-local SLOT_ROW_X = 32
+local PARAPET = 3 -- the open back's stone parapet (its coping on top)
+local SLOT_ROW_X = 30
 local SLOT_Z0, SLOT_PITCH = 61, 11
 
--- One display aquarium: a timber cabinet, a brass rim, a cube of tinted water with a sand floor,
--- a deep-sea backdrop and timber corner posts (the fish floats in its centre). Local frame: -Z faces the
--- aisle. The label (owner's fish or "Пусто") and the slot number are on the cabinet's front.
+-- One display aquarium: a timber cabinet with a band of the base colour, a brass rim, a cube of
+-- bright water with a sand floor, a sea-blue backdrop and a glowing light bar
+-- along its top (the fish floats in its centre). Local frame: -Z faces the aisle. The label
+-- (owner's fish or "Пусто") and the slot number are on the cabinet's front.
 local function buildSlot(slots: any, index: number, frame: any, expected: { any })
 	local slot = U.model(slots, `Slot_{index}`)
 	slot:SetAttribute("SlotIndex", index)
 	local y0 = ARC_DECK
 	local pedestal = box(slot, "Pedestal", frame, 0, y0 + 1.7, 0, 6.8, 3.4, 6.8, C.Cabinet, { CastShadow = true })
 	local top = y0 + 3.4
+	box(slot, "Band", frame, 0, top - 0.25, -3.45, 7, 0.5, 0.3, 0.1, DECOR)
 	box(slot, "Rim", frame, 0, top + 0.3, 0, 7.4, 0.6, 7.4, C.Gold)
 	local base = top + 0.6
 	local display = box(slot, "Display", frame, 0, base + 3.1, 0, 6.2, 6.2, 6.2, C.DisplayWater, {
 		Material = M.Glass,
-		Transparency = 0.5,
+		Transparency = 0.45,
 		CastShadow = false,
 	})
 	box(slot, "Sand", frame, 0, base + 0.35, 0, 5.8, 0.7, 5.8, C.Sand, DECOR)
-	-- a deep-sea backdrop on the back pane (the fish reads against it) and the front corner posts
-	box(slot, "Backdrop", frame, 0, base + 3.2, 3.05, 6.6, 6.4, 0.5, C.SeaDeep, DECOR)
-	for _, sx in { -1, 1 } do
-		box(slot, "Frame", frame, sx * 3.05, base + 3.2, -3.05, 0.5, 6.4, 0.5, C.WoodDark, DECOR)
-	end
+	-- a sea-blue backdrop on the back pane (the fish reads against it)
+	box(slot, "Backdrop", frame, 0, base + 3.2, 3.05, 6.6, 6.4, 0.5, C.Backdrop, DECOR)
+	-- the light bar along the top front edge
+	box(slot, "LightBar", frame, 0, base + 6.35, -2.95, 6.4, 0.3, 0.35, C.AquaGlow, NEON_DECOR)
 	slot.PrimaryPart = pedestal
 
 	-- The fish model floats in the centre of the display; prompts stand in front of the cabinet.
@@ -1071,8 +1231,8 @@ local function buildSlot(slots: any, index: number, frame: any, expected: { any 
 	local gui = surfaceGui(pedestal, "LabelGui", Enum.NormalId.Front, 50)
 	U.new("TextLabel", {
 		Name = "Label",
-		Position = UDim2.fromScale(0.06, 0.4),
-		Size = UDim2.fromScale(0.88, 0.5),
+		Position = UDim2.fromScale(0.06, 0.44),
+		Size = UDim2.fromScale(0.88, 0.48),
 		BackgroundTransparency = 1,
 		Text = "Пусто",
 		TextScaled = true,
@@ -1081,8 +1241,8 @@ local function buildSlot(slots: any, index: number, frame: any, expected: { any 
 	}, gui)
 	U.new("TextLabel", {
 		Name = "Number",
-		Position = UDim2.fromScale(0.3, 0.06),
-		Size = UDim2.fromScale(0.4, 0.3),
+		Position = UDim2.fromScale(0.3, 0.17),
+		Size = UDim2.fromScale(0.4, 0.25),
 		BackgroundTransparency = 1,
 		Text = `№{index}`,
 		TextScaled = true,
@@ -1101,10 +1261,11 @@ local function buildSlots(tank: any, expected: { any })
 	end
 end
 
--- The two arcades either side of the aquarium: plank deck, a plaster back wall (in the base's
--- wall tone) on a stone course between stone pillars, timber posts and beam, a shingled lean-to
--- roof with an eave board in the base colour, lanterns hanging between the display pairs, banners
--- in the base colour, windows outside.
+-- The two arcades either side of the aquarium: open timber galleries. A plank deck, timber posts
+-- and beam along the aisle and along the open back (over a stone parapet with a cream coping, so
+-- the displays show from the side strips), a lean-to roof in a deep shade of the base colour
+-- (darker battens, a lighter eave board), lanterns hanging between the display pairs, banners in
+-- the base colour, a flower box on the parapet, a light plank ceiling.
 local function buildArcades(template: any)
 	local arcades = U.model(template, "Arcades")
 	for _, sx in { -1, 1 } do
@@ -1116,70 +1277,77 @@ local function buildArcades(template: any)
 		span(arc, "Deck", xa, xb, -0.2, ARC_DECK, ARC_Z0, ARC_Z1, C.Plank, FLAT)
 		xa, xb = X(ARC_IN - 0.4, ARC_IN + 0.6)
 		span(arc, "DeckEdge", xa, xb, -0.2, ARC_DECK + 0.15, ARC_Z0 - 0.2, ARC_Z1 + 0.2, C.WoodDark, FLAT)
-		-- back wall
-		local wa, wb = X(ARC_WALL, ARC_WALL + 1.4)
-		span(arc, "Wall", wa, wb, 0, ARC_TOP + 0.2, ARC_Z0 + 0.3, ARC_Z1 - 0.3, WALL, { CastShadow = true })
+		-- the open back: a stone parapet with a cream coping between stone pillars, timber posts
+		-- carrying the wall plate (the roof's high beam)
 		xa, xb = X(ARC_WALL - 0.3, ARC_WALL + 1.7)
-		span(arc, "WallCourse", xa, xb, -0.2, 2.4, ARC_Z0 + 0.3, ARC_Z1 - 0.3, C.Stone)
-		xa, xb = X(ARC_WALL - 0.25, ARC_WALL + 1.65)
-		span(arc, "WallBand", xa, xb, 9, 9.8, ARC_Z0 + 0.3, ARC_Z1 - 0.3, C.WoodDark)
-		xa, xb = X(ARC_WALL - 0.4, ARC_WALL + 1.8)
-		span(arc, "WallPlate", xa, xb, ARC_TOP + 0.2, ARC_TOP + 1, ARC_Z0 + 0.3, ARC_Z1 - 0.3, C.WoodDark)
+		span(arc, "Parapet", xa, xb, -0.2, PARAPET, ARC_Z0 + 0.3, ARC_Z1 - 0.3, C.Stone, { CastShadow = true })
+		xa, xb = X(ARC_WALL - 0.6, ARC_WALL + 2)
+		span(arc, "Coping", xa, xb, PARAPET, PARAPET + 0.5, ARC_Z0 + 0.3, ARC_Z1 - 0.3, C.Limestone)
+		local plateBottom = ARC_EAVE - 1.1
+		xa, xb = X(ARC_WALL - 0.2, ARC_WALL + 1.6)
+		span(arc, "WallPlate", xa, xb, plateBottom, ARC_EAVE, ARC_Z0 + 0.3, ARC_Z1 - 0.3, C.WoodDark)
 		xa, xb = X(ARC_WALL - 0.6, ARC_WALL + 2)
 		for _, z in { ARC_Z0, ARC_Z1 } do
-			span(arc, "Pillar", xa, xb, -0.2, ARC_TOP + 1.6, z - 1.3, z + 1.3, C.Stone, { CastShadow = true })
+			span(arc, "Pillar", xa, xb, -0.2, ARC_EAVE, z - 1.3, z + 1.3, C.Stone, { CastShadow = true })
 		end
-		xa, xb = X(ARC_WALL + 0.6, ARC_WALL + 2)
+		xa, xb = X(ARC_WALL + 0.1, ARC_WALL + 1.3)
 		for _, z in { ARC_POSTS[2], ARC_POSTS[3] } do
-			span(arc, "Pilaster", xa, xb, -0.2, ARC_TOP + 0.4, z - 0.9, z + 0.9, C.StoneLight)
+			span(arc, "BackPost", xa, xb, PARAPET + 0.5, plateBottom, z - 0.6, z + 0.6, C.Wood, { CastShadow = true })
 		end
 		-- posts and the front beam
 		local beamBottom = ARC_EAVE - 1.2
 		xa, xb = X(ARC_IN + 0.4, ARC_IN + 1.6)
 		for _, z in ARC_POSTS do
-			span(arc, "Post", xa, xb, ARC_DECK, beamBottom, z - 0.6, z + 0.6, C.WoodDark, { CastShadow = true })
+			span(arc, "Post", xa, xb, ARC_DECK, beamBottom, z - 0.6, z + 0.6, C.Wood, { CastShadow = true })
 		end
 		xa, xb = X(ARC_IN + 0.2, ARC_IN + 1.8)
 		span(arc, "Beam", xa, xb, beamBottom, ARC_EAVE, ARC_Z0 - 0.4, ARC_Z1 + 0.4, C.WoodDark)
-		-- lean-to roof, its slope down towards the aisle, and a fascia along the eave
-		xa, xb = X(ARC_IN - 0.8, ARC_WALL)
+		-- lean-to roof in a deep shade of the base colour, its slope down towards the aisle; darker
+		-- battens over the posts, a lighter eave board
+		xa, xb = X(ARC_IN - 0.8, ARC_WALL + 2.2)
 		local down = if sx > 0 then "-x" else "+x"
-		ramp(arc, "Roof", xa, xb, ARC_EAVE, ARC_TOP, ARC_Z0 - 1.2, ARC_Z1 + 1.2, down, C.Shingle, ROOF_OPTS)
+		ramp(arc, "Roof", xa, xb, ARC_EAVE, ARC_TOP, ARC_Z0 - 1.2, ARC_Z1 + 1.2, down, -0.38, ROOF_OPTS)
 		for _, z in { ARC_POSTS[2], ARC_POSTS[3] } do
-			ramp(arc, "RoofBatten", xa, xb, ARC_EAVE + 0.3, ARC_TOP + 0.3, z - 0.8, z + 0.8, down, C.ShingleDark, DECOR)
+			ramp(arc, "RoofBatten", xa, xb, ARC_EAVE + 0.3, ARC_TOP + 0.3, z - 0.8, z + 0.8, down, -0.5, DECOR)
 		end
 		xa, xb = X(ARC_IN - 1.2, ARC_IN - 0.4)
 		span(arc, "Fascia", xa, xb, ARC_EAVE - 0.5, ARC_EAVE + 0.7, ARC_Z0 - 1.4, ARC_Z1 + 1.4, FASCIA, DECOR)
+		-- a light plank ceiling under the roof (the gallery is bright inside)
+		xa, xb = X(ARC_IN + 1.8, ARC_WALL - 0.2)
+		span(arc, "Ceiling", xa, xb, ARC_EAVE - 0.35, ARC_EAVE - 0.05, ARC_Z0 - 0.4, ARC_Z1 + 0.4, C.WoodLight, FLAT)
 		-- lanterns between the display pairs; banners on the middle posts, facing the aisle
 		for i, z in { 66.5, 88.5, 110.5 } do
 			hangLantern(arc, sx * (ARC_IN + 1), beamBottom, z, i == 2)
 		end
 		xa, xb = X(ARC_IN + 0.05, ARC_IN + 0.4)
 		for _, z in { ARC_POSTS[2], ARC_POSTS[3] } do
-			span(arc, "Banner", xa, xb, 6.2, 11.4, z - 1.2, z + 1.2, 0, DECOR)
+			span(arc, "Banner", xa, xb, 7.2, 12.6, z - 1.2, z + 1.2, 0, DECOR)
 		end
-		-- windows in the wall's outer face (towards the side strips), a climbing rose by the middle one
-		for _, z in { 66.5, 88.5, 110.5 } do
-			window(arc, facing(sx * (ARC_WALL + 1.4), 12.8, z, -90 * sx), 2.6, 3, "small")
-		end
-		xa, xb = X(ARC_WALL + 1.3, ARC_WALL + 2)
-		span(arc, "Climber", xa, xb, 2.2, 14.4, 90.6, 95.4, C.Leaf1, DECOR)
-		xa, xb = X(ARC_WALL + 1.3, ARC_WALL + 1.9)
-		span(arc, "Climber", xa, xb, 14.2, 16.4, 85.4, 94.4, C.Leaf2, DECOR)
-		xa, xb = X(ARC_WALL + 1.8, ARC_WALL + 2.4)
-		span(arc, "Rose", xa, xb, 8.6, 9.6, 92.4, 93.4, P.Flowers[3], DECOR)
-		span(arc, "Rose", xa, xb, 14.8, 15.8, 87.2, 88.2, C.Cream, DECOR)
+		-- a flower box on the parapet's middle bay
+		local pair = if sx < 0 then JEWELS[5] else JEWELS[2]
+		flowerBed(arc, sx * (ARC_WALL + 0.7), PARAPET + 0.5, (ARC_POSTS[2] + ARC_POSTS[3]) / 2, 14, 1.6, pair, {
+			alongZ = true,
+			kerb = C.Wood,
+			stems = false,
+			spacing = 2.6,
+			max = 5,
+		})
 	end
 end
 
--- Lawn borders between the aquarium terrace and the arcades: a long flower bed and a clipped
--- topiary cube each.
+-- Lawn borders between the aquarium terrace and the arcades: a long bed of jewel blooms and a
+-- clipped topiary (two stepped tiers in a terracotta pot) at the court's entrance.
 local function buildCourtGarden(template: any)
 	local garden = U.model(template, "CourtGarden")
 	for _, sx in { -1, 1 } do
-		local pair = if sx < 0 then Props.bloomPairs[3] else Props.bloomPairs[1]
-		flowerBed(garden, sx * 19, LAWN, 88, 26, 3.2, pair, { alongZ = true, stems = false, spacing = 2.6, max = 9 })
-		span(garden, "Topiary", sx * 19 - 1.5, sx * 19 + 1.5, LAWN - 0.1, 3.4, 64.5, 67.5, C.Topiary)
+		local pair = if sx < 0 then JEWELS[3] else JEWELS[1]
+		flowerBed(garden, sx * 19, LAWN, 89, 26, 3.2, pair, { alongZ = true, stems = false, spacing = 2.6, max = 9 })
+		for _, z in { 66 } do
+			local x = sx * 19
+			span(garden, "TopiaryPot", x - 1.4, x + 1.4, LAWN - 0.1, 1.8, z - 1.4, z + 1.4, C.Terracotta)
+			span(garden, "Topiary", x - 1.5, x + 1.5, 1.8, 4.2, z - 1.5, z + 1.5, C.Topiary, DECOR)
+			span(garden, "Topiary", x - 1, x + 1, 4.2, 6, z - 1, z + 1, C.Leaf3, DECOR)
+		end
 	end
 end
 
@@ -1187,7 +1355,7 @@ end
 -- The guard dog and its kennel (stage 4 upgrade): hidden
 ------------------------------------------------------------------------------------------
 
-local DOG_X, DOG_Z = 30, 46
+local DOG_X, DOG_Z = 31, 47
 local HIDDEN = { Transparency = 1, CanCollide = false, CanQuery = false, CastShadow = false }
 
 -- Blocky shiba lying by its kennel; local -Z = where it looks. Hidden (see the header): every
@@ -1198,14 +1366,13 @@ local function buildDog(template: any)
 	-- the kennel (the door looks towards -X, the spawn rose)
 	local kennel = U.model(dog, "DogHouse")
 	local k = facing(DOG_X, LAWN, DOG_Z, 90)
-	box(kennel, "Floor", k, 0, 0.3, 0, 7.6, 0.6, 7.6, C.WoodDark, HIDDEN)
-	box(kennel, "Walls", k, 0, 0.6 + 2.3, 0, 6.4, 4.6, 6.4, C.Wood, HIDDEN)
+	box(kennel, "Walls", k, 0, 0.6 + 2.3, 0, 6.4, 5.2, 6.4, C.Wood, HIDDEN)
 	box(kennel, "DoorHole", k, 0, 0.6 + 1.6, -3.25, 2.6, 3.2, 0.2, C.Ink, HIDDEN)
 	rampIn(kennel, "Roof", k, -4.2, 0, 5.2, 8.2, -4.2, 4.2, "-x", ROOF, HIDDEN)
 	rampIn(kennel, "Roof", k, 0, 4.2, 5.2, 8.2, -4.2, 4.2, "+x", ROOF, HIDDEN)
 
 	local S = 1.5
-	local f = facing(DOG_X - 8, LAWN, DOG_Z - 4, 60) -- beside the kennel door, looking at the rose
+	local f = facing(DOG_X - 6.5, LAWN, DOG_Z + 1.5, 70) -- beside the kennel door, looking at the rose
 	local function piece(
 		name: string,
 		x: number,
@@ -1223,15 +1390,13 @@ local function buildDog(template: any)
 	piece("Head", 0, 2.5, -1.1, 1.9, 1.6, 1.6, C.Dog)
 	piece("Muzzle", 0, 2.15, -2.1, 1.1, 0.65, 0.6, C.DogCream)
 	piece("Nose", 0, 2.42, -2.45, 0.4, 0.28, 0.2, C.Ink)
-	piece("Tongue", 0.15, 1.78, -2.38, 0.3, 0.32, 0.12, C.Tongue)
 	for _, sx in { -1, 1 } do
 		piece("Eye", sx * 0.46, 2.78, -1.93, 0.26, 0.36, 0.1, C.Ink)
 		piece("Ear", sx * 0.6, 3.55, -1.05, 0.5, 0.62, 0.42, C.Dog)
-		piece("FrontLeg", sx * 0.45, 0.4, -0.65, 0.5, 0.8, 0.5, C.DogCream)
-		piece("BackLeg", sx * 0.45, 0.4, 1.0, 0.5, 0.8, 0.5, C.Dog)
 	end
-	piece("Tail", 0, 2.1, 1.5, 0.5, 0.7, 0.5, C.Dog)
-	piece("TailTip", 0, 2.55, 1.25, 0.62, 0.5, 0.62, C.DogCream)
+	piece("FrontLegs", 0, 0.4, -0.65, 1.4, 0.8, 0.5, C.DogCream)
+	piece("BackLegs", 0, 0.4, 1.0, 1.4, 0.8, 0.5, C.Dog)
+	piece("Tail", 0, 2.25, 1.45, 0.6, 0.9, 0.6, C.DogCream)
 	piece("Collar", 0, 1.95, -0.8, 1.75, 0.36, 1.2, 0)
 	dog.PrimaryPart = body
 end
@@ -1240,9 +1405,9 @@ end
 -- The house terrace, the house with its lookout tower, the smokehouse
 ------------------------------------------------------------------------------------------
 
--- A 3-stud stone terrace across the back of the plot (lawn on top, limestone coping), central
--- stairs with lanterns on their cheeks, plank ramps at the side strips, a flagstone walk along
--- its front.
+-- A 4.5-stud stone terrace across the back of the plot (lawn on top, limestone coping): the house
+-- stands high at the end of the vista from the gate. Central stairs with lanterns on their
+-- cheeks, plank ramps at the side strips, a flagstone walk along its front.
 local function buildTerrace(template: any, plot: any)
 	local terrace = U.model(template, "Terrace")
 	local hw, back = plot.halfWidth - 2.4, plot.back - 0.2
@@ -1250,26 +1415,16 @@ local function buildTerrace(template: any, plot: any)
 	span(terrace, "Retaining", -hw, hw, -0.2, TERRACE - 0.2, z0, back, C.Stone, { CastShadow = true })
 	span(terrace, "TerraceLawn", -hw + 0.2, hw - 0.2, TERRACE - 0.4, TERRACE, z0 + 0.6, back - 0.2, C.Lawn, FLAT)
 	span(terrace, "Coping", -hw - 0.2, hw + 0.2, TERRACE - 0.5, TERRACE + 0.15, z0 - 0.6, z0 + 0.6, C.Limestone)
-	-- central stairs: three 1-stud steps
-	for i = 1, 3 do
-		span(terrace, "Step", -7, 7, -0.2, i, z0 - 4 + (i - 1) * 4 / 3, z0 + 0.1, C.Limestone)
+	-- central stairs: four 1.1-stud steps
+	local run = 5.2
+	for i = 1, 4 do
+		span(terrace, "Step", -7, 7, -0.2, i * 1.1, z0 - run + (i - 1) * run / 4, z0 + 0.1, C.Limestone)
 	end
 	for _, sx in { -1, 1 } do
 		local xa, xb = mirror(sx, 7, 8.4)
-		span(terrace, "StairCheek", xa, xb, -0.2, TERRACE + 0.6, z0 - 4.2, z0 + 0.6, C.Limestone)
+		span(terrace, "StairCheek", xa, xb, -0.2, TERRACE + 0.6, z0 - run - 0.2, z0 + 0.6, C.Limestone)
 		local lx = sx * 7.7
-		span(
-			terrace,
-			"LanternCap",
-			lx - 0.95,
-			lx + 0.95,
-			TERRACE + 2.2,
-			TERRACE + 2.7,
-			z0 - 3.55,
-			z0 - 1.65,
-			C.Iron,
-			DECOR
-		)
+		local lz = z0 - run / 2
 		span(
 			terrace,
 			"Lantern",
@@ -1277,27 +1432,47 @@ local function buildTerrace(template: any, plot: any)
 			lx + 0.7,
 			TERRACE + 0.6,
 			TERRACE + 2.2,
-			z0 - 3.3,
-			z0 - 1.9,
+			lz - 0.7,
+			lz + 0.7,
 			C.Glow,
 			NEON_DECOR
 		)
+		span(
+			terrace,
+			"LanternCap",
+			lx - 0.95,
+			lx + 0.95,
+			TERRACE + 2.2,
+			TERRACE + 2.7,
+			lz - 0.95,
+			lz + 0.95,
+			C.Iron,
+			DECOR
+		)
 		-- plank ramp up from the side strip
-		local ra, rb = mirror(sx, 49, 55)
-		ramp(terrace, "Ramp", ra, rb, -0.2, TERRACE, z0 - 7, z0 + 0.05, "-z", C.Plank)
+		local ra, rb = mirror(sx, 44, 50)
+		ramp(terrace, "Ramp", ra, rb, -0.2, TERRACE, z0 - 9, z0 + 0.05, "-z", C.Plank)
 	end
 	-- the walk along the terrace's front: stairs -> porch, patio (-X), work yard (+X)
-	flagWalk(terrace, "TerraceWalk", -58, 58, z0 + 0.6, z0 + 4.4, TERRACE + 0.3, 16, function(u: number): boolean
-		return math.abs(-58 + u) < 9
+	flagWalk(terrace, "TerraceWalk", -56, 56, z0 + 0.6, z0 + 4.4, TERRACE + 0.3, 22, function(u: number): boolean
+		return math.abs(-56 + u) < 9
 	end)
 end
 
-local MAIN_X, MAIN_Z0, MAIN_Z1 = 20, 146, 163.6 -- the house's main block
-local WING_X, WING_Z0 = 9, 138 -- the front wing (x = +-9, from lz 138 to the main block)
-local GF_TOP = 10.6 -- ground-floor stone walls top (the floor band above)
-local UF_BOT = 11.4 -- upper floor plaster from here
-local WALL_TOP = 17
-local EAVE = 17.8
+local MAIN_X, MAIN_Z0, MAIN_Z1 = 24, 140, 160 -- the house's main block
+local WING_X, WING_Z0 = 10, 132 -- the front wing (x = +-10, from lz 132 to the main block)
+local GF_TOP = 12 -- ground-floor stone walls top (the floor band above)
+local UF_BOT = 12.8 -- upper floor plaster from here
+local WALL_TOP = 20
+local EAVE = 20.8
+local GY, UY = 8.8, 16.4 -- window centres: ground floor, upper floor
+
+-- Window box with two blooms under a window centred at (x, y) on the front wall z. 3 parts.
+local function windowBox(parent: any, x: number, y: number, z: number, w: number, pair: { any })
+	span(parent, "WindowBox", x - w / 2 - 0.5, x + w / 2 + 0.5, y - 1.1, y, z - 1.2, z, C.Wood)
+	span(parent, "Bloom", x - w / 4 - 0.75, x - w / 4 + 0.55, y - 0.2, y + 0.7, z - 1.05, z - 0.25, pair[1], DECOR)
+	span(parent, "Bloom", x + w / 4 - 0.55, x + w / 4 + 0.65, y - 0.25, y + 0.6, z - 1, z - 0.3, pair[2], DECOR)
+end
 
 -- Returns the chimney smoke attachment's offset.
 local function buildHouse(template: any): any
@@ -1306,46 +1481,60 @@ local function buildHouse(template: any): any
 	local x0, x1, z0, z1 = -MAIN_X, MAIN_X, MAIN_Z0, MAIN_Z1
 	local zc = (z0 + z1) / 2
 
-	-- Main block: stone base course, a warm stone ground floor, a timber floor band, the plaster
-	-- upper floor (the base's wall tone) with timber corners, the wall plate, a gable roof in the
-	-- base colour (ridge along X, plaster gables jettied 1 out).
+	-- Main block: a dark stone base course, a warm stone ground floor, a timber floor band, the
+	-- plaster upper floor (the base's wall tone) with timber corners, the wall plate, a gable roof
+	-- in the base colour (ridge along X, plaster gables jettied 1 out).
 	span(house, "BaseCourse", x0 - 0.6, x1 + 0.6, F - 0.2, F + 1.4, z0 - 0.6, z1 + 0.6, C.Stone, { CastShadow = true })
-	span(house, "GroundWalls", x0, x1, F + 1.4, GF_TOP, z0, z1, C.StoneLight, { CastShadow = true })
+	span(house, "GroundWalls", x0, x1, F + 1.4, GF_TOP, z0, z1, C.StoneMid, { CastShadow = true })
 	span(house, "FloorBand", x0 - 0.3, x1 + 0.3, GF_TOP, UF_BOT, z0 - 0.3, z1 + 0.3, C.WoodDark)
 	span(house, "Walls", x0, x1, UF_BOT, WALL_TOP, z0, z1, WALL, { CastShadow = true })
 	for _, x in { x0, x1 } do
 		for _, z in { z0, z1 } do
 			local xa = if x == x0 then x - 0.35 else x - 0.85
 			local za = if z == z0 then z - 0.35 else z - 0.85
-			span(house, "Corner", xa, xa + 1.2, UF_BOT, WALL_TOP, za, za + 1.2, C.WoodDark)
+			span(house, "Corner", xa, xa + 1.2, UF_BOT, WALL_TOP, za, za + 1.2, C.Wood)
 		end
 	end
 	span(house, "WallPlate", x0 - 1.2, x1 + 1.2, WALL_TOP, EAVE, z0 - 0.3, z1 + 0.3, C.WoodDark, { CastShadow = true })
-	local mainRise = 9.5
+	local mainRise = 11
 	gableRoof(house, x0, x1, z0, z1, EAVE, mainRise, 2.2, 1, true, WALL)
+	local slope = mainRise / (zc - (z0 - 2.2)) -- rise per stud of the main slopes
 
 	-- Chimney through the back slope, a lazy plume of smoke above it.
-	local chimneyTop = 31.6
-	span(house, "Chimney", 11, 14.4, WALL_TOP, chimneyTop, zc + 2.5, zc + 5.9, C.StoneLight, { CastShadow = true })
-	local cap = span(house, "ChimneyCap", 10.6, 14.8, chimneyTop, chimneyTop + 0.8, zc + 2.1, zc + 6.3, C.Stone)
-	local smoke, smokeOffset = attachAt(cap, "SmokeAttachment", at(12.7, chimneyTop + 2.4, zc + 4.2))
+	local chimneyTop = EAVE + mainRise + 2
+	span(house, "Chimney", 13, 16.4, WALL_TOP, chimneyTop, zc + 2.5, zc + 5.9, C.StoneLight, { CastShadow = true })
+	local cap = span(house, "ChimneyCap", 12.6, 16.8, chimneyTop, chimneyTop + 0.8, zc + 2.1, zc + 6.3, C.Stone)
+	local smoke, smokeOffset = attachAt(cap, "SmokeAttachment", at(14.7, chimneyTop + 2.4, zc + 4.2))
 	Props.fx(smoke, "smoke", { rate = 2.5 })
+
+	-- Two dormers on the front slope either side of the wing: a plaster face with a window under a
+	-- little gable roof in the base colour.
+	for _, sx in { -1, 1 } do
+		local da, db = mirror(sx, 14.4, 19.6)
+		local dc = sx * 17
+		local dTop = EAVE + 5.8
+		span(house, "Dormer", da, db, EAVE, dTop, z0, z0 + 6.5, WALL, { CastShadow = true })
+		window(house, at(dc, EAVE + 3.6, z0), 2, 2, "small")
+		local dEnd = (z0 - 2.2) + (dTop + 2.2 - EAVE) / slope + 0.6
+		ramp(house, "DormerRoof", dc - 3, dc, dTop, dTop + 2.2, z0 - 0.8, dEnd, "-x", ROOF, { CastShadow = true })
+		ramp(house, "DormerRoof", dc, dc + 3, dTop, dTop + 2.2, z0 - 0.8, dEnd, "+x", ROOF, { CastShadow = true })
+	end
 
 	-- Front wing (a cross gable facing the gate): same storeys, its roof running into the main one.
 	local wx, wz0 = WING_X, WING_Z0
 	span(house, "WingCourse", -wx - 0.6, wx + 0.6, F - 0.2, F + 1.4, wz0 - 0.6, z0, C.Stone)
-	span(house, "WingGround", -wx, wx, F + 1.4, GF_TOP, wz0, z0 + 0.2, C.StoneLight, { CastShadow = true })
+	span(house, "WingGround", -wx, wx, F + 1.4, GF_TOP, wz0, z0 + 0.2, C.StoneMid, { CastShadow = true })
 	span(house, "WingBand", -wx - 0.3, wx + 0.3, GF_TOP, UF_BOT, wz0 - 0.3, z0, C.WoodDark)
 	span(house, "WingWalls", -wx, wx, UF_BOT, WALL_TOP, wz0, z0 + 0.2, WALL, { CastShadow = true })
 	for _, sx in { -1, 1 } do
 		local xa = if sx < 0 then -wx - 0.35 else wx - 0.85
-		span(house, "Corner", xa, xa + 1.2, UF_BOT, WALL_TOP, wz0 - 0.35, wz0 + 0.85, C.WoodDark)
+		span(house, "Corner", xa, xa + 1.2, UF_BOT, WALL_TOP, wz0 - 0.35, wz0 + 0.85, C.Wood)
 	end
-	local wg, we, wrise = 1.8, 1.6, 7.4
+	local wg, we, wrise = 1.8, 1.6, 8
 	span(house, "WingPlate", -wx - 0.3, wx + 0.3, WALL_TOP, EAVE, wz0 - wg - 0.2, z0, C.WoodDark)
 	local mainEaveZ = z0 - 2.2
 	local wtop = EAVE + wrise
-	local wzEnd = mainEaveZ + wrise * (zc - mainEaveZ) / mainRise -- where the wing ridge meets the main slope
+	local wzEnd = mainEaveZ + wrise / slope -- where the wing ridge meets the main slope
 	ramp(house, "WingRoof", -wx - we, 0, EAVE, wtop, wz0 - wg, wzEnd, "-x", ROOF, { CastShadow = true })
 	ramp(house, "WingRoof", 0, wx + we, EAVE, wtop, wz0 - wg, wzEnd, "+x", ROOF, { CastShadow = true })
 	for _, sx in { -1, 1 } do
@@ -1356,75 +1545,76 @@ local function buildHouse(template: any): any
 	local hg = wrise * wx / (wx + we)
 	ramp(house, "Gable", -wx, 0, EAVE, EAVE + hg, wz0 - wg - 0.1, wz0 - wg + 0.5, "-x", WALL)
 	ramp(house, "Gable", 0, wx, EAVE, EAVE + hg, wz0 - wg - 0.1, wz0 - wg + 0.5, "+x", WALL)
-	window(house, at(0, EAVE + 2.4, wz0 - wg - 0.1), 2.2, 2, "small")
+	window(house, at(0, EAVE + 2.6, wz0 - wg - 0.1), 2.4, 2.2, "small")
 
 	-- Porch under a balcony at the wing's front: plank deck, two posts, the balcony with rails and a
-	-- planted box, the front door, the balcony door, a wall lamp, a bench.
+	-- planted box, the front door (base colour), the balcony door, a wall lamp, a bench.
 	local pz0 = wz0 - 5
-	span(house, "Porch", -7.6, 7.6, F - 0.2, F + 0.8, pz0, wz0, C.Plank, { CastShadow = true })
+	span(house, "Porch", -8, 8, F - 0.2, F + 0.8, pz0, wz0, C.Plank, { CastShadow = true })
 	local by = UF_BOT + 0.1 -- balcony floor top
 	for _, sx in { -1, 1 } do
-		local pa, pb = mirror(sx, 6.6, 7.4)
+		local pa, pb = mirror(sx, 7, 7.8)
 		span(house, "PorchPost", pa, pb, F + 0.8, GF_TOP + 0.1, pz0 + 0.3, pz0 + 1.1, C.Wood, { CastShadow = true })
-		local na, nb = mirror(sx, 7.3, 8.0)
+		local na, nb = mirror(sx, 7.7, 8.4)
 		span(house, "Newel", na, nb, by, by + 3.2, pz0 - 0.2, pz0 + 0.5, C.Wood)
-		local ra, rb = mirror(sx, 7.35, 7.85)
+		local ra, rb = mirror(sx, 7.75, 8.25)
 		span(house, "BalconyRail", ra, rb, by + 2.4, by + 2.9, pz0 + 0.5, wz0, C.WoodLight)
 	end
-	span(house, "Balcony", -7.9, 7.9, GF_TOP + 0.1, by, pz0 - 0.3, wz0 - 0.05, C.Wood, { CastShadow = true })
-	span(house, "BalconyRail", -7.3, 7.3, by + 2.4, by + 2.9, pz0 - 0.15, pz0 + 0.35, C.WoodLight)
-	span(house, "BalconyBox", -4.6, 4.6, by + 1.5, by + 2.4, pz0 - 0.9, pz0 - 0.15, C.Wood, DECOR)
-	span(house, "BoxLeaves", -4.3, 4.3, by + 2.4, by + 2.8, pz0 - 0.8, pz0 - 0.25, C.Leaf2, DECOR)
-	span(house, "Bloom", -3.3, -1.9, by + 2.6, by + 3.4, pz0 - 0.9, pz0 - 0.15, P.Flowers[3], DECOR)
-	span(house, "Bloom", 1.9, 3.3, by + 2.6, by + 3.3, pz0 - 0.85, pz0 - 0.2, C.Cream, DECOR)
-	span(house, "DoorFrame", -2.4, 2.4, F + 0.8, 10, wz0 - 0.3, wz0, C.WoodDark)
-	span(house, "Door", -1.8, 1.8, F + 0.8, 9.4, wz0 - 0.45, wz0 - 0.25, C.Wood)
-	span(house, "DoorWindow", -0.8, 0.8, 7.0, 8.4, wz0 - 0.55, wz0 - 0.4, C.WindowGlass, GLASS)
-	span(house, "DoorKnob", 1, 1.5, 6.2, 6.7, wz0 - 0.75, wz0 - 0.4, C.Gold, DECOR)
-	span(house, "BalconyDoor", -1.9, 1.9, by - 0.1, 16.2, wz0 - 0.3, wz0, C.WoodDark)
-	span(house, "BalconyGlass", -1.4, 1.4, by, 15.7, wz0 - 0.45, wz0 - 0.25, C.WindowGlass, GLASS)
-	span(house, "LampBracket", 2.9, 3.5, 8.3, 8.7, wz0 - 1.1, wz0, C.Iron, DECOR)
-	local lamp = span(house, "WallLamp", 2.7, 3.7, 7.2, 8.3, wz0 - 1.1, wz0 - 0.1, C.Glow, NEON_DECOR)
+	span(house, "Balcony", -8.3, 8.3, GF_TOP + 0.1, by, pz0 - 0.3, wz0 - 0.05, C.Wood, { CastShadow = true })
+	span(house, "BalconyRail", -7.7, 7.7, by + 2.4, by + 2.9, pz0 - 0.15, pz0 + 0.35, C.WoodLight)
+	span(house, "BalconyBox", -5, 5, by + 1.5, by + 2.4, pz0 - 0.9, pz0 - 0.15, C.Wood, DECOR)
+	span(house, "BoxLeaves", -4.7, 4.7, by + 2.4, by + 2.8, pz0 - 0.8, pz0 - 0.25, C.Leaf2, DECOR)
+	for i, x in { -3, 1.7 } do
+		local c = if i == 2 then FL[5] else FL[1]
+		span(house, "Bloom", x, x + 1.3, by + 2.6, by + 3.4, pz0 - 0.9, pz0 - 0.15, c, DECOR)
+	end
+	span(house, "DoorFrame", -2.4, 2.4, F + 0.8, F + 7.6, wz0 - 0.3, wz0, C.WoodDark)
+	span(house, "Door", -1.8, 1.8, F + 0.8, F + 7, wz0 - 0.45, wz0 - 0.25, -0.3)
+	span(house, "DoorWindow", -0.8, 0.8, F + 4.6, F + 6, wz0 - 0.55, wz0 - 0.4, C.WindowGlass, GLASS)
+	span(house, "DoorKnob", 1, 1.5, F + 3.4, F + 3.9, wz0 - 0.75, wz0 - 0.4, C.Gold, DECOR)
+	span(house, "BalconyDoor", -1.9, 1.9, by - 0.1, by + 4.9, wz0 - 0.3, wz0, C.WoodDark)
+	span(house, "BalconyGlass", -1.4, 1.4, by, by + 4.4, wz0 - 0.45, wz0 - 0.25, C.WindowGlass, GLASS)
+	local lamp = span(house, "WallLamp", 2.7, 3.7, F + 4.9, F + 6, wz0 - 1.1, wz0 - 0.1, C.Glow, NEON_DECOR)
 	U.new("PointLight", { Range = 14, Brightness = 1, Color = C.LightColor, Shadows = false }, lamp)
-	span(house, "PorchBench", -7.2, -4.6, F + 0.8, F + 1.9, wz0 - 2.2, wz0 - 1, C.WoodLight)
+	span(house, "PorchBench", -7.4, -4.6, F + 0.8, F + 1.9, wz0 - 2.2, wz0 - 1, C.WoodLight)
 
 	-- Windows on every side.
 	for _, sx in { -1, 1 } do
-		-- wing front: simple windows either side of the door; small ones upstairs; one per side
-		window(house, at(sx * 6, 7.2, wz0), 2.4, 3.2, "simple")
-		window(house, at(sx * 5.4, 14.2, wz0), 2.2, 2.6, "small")
-		-- main front either side of the wing: full windows (shutters, window box), simple upstairs
-		local blooms = if sx < 0 then { P.Flowers[1], C.Cream } else { P.Flowers[3], C.Cream }
-		window(house, at(sx * 14.5, 7.2, z0), 3, 3.4, "full", blooms[1], blooms[2])
-		window(house, at(sx * 14.5, 14.2, z0), 3, 2.8, "small")
-		-- gable sides: a simple window downstairs, small ones upstairs and in the gable
+		-- wing front: simple windows either side of the door; small ones upstairs
+		window(house, at(sx * 6.2, GY, wz0), 2.4, 3.4, "small")
+		window(house, at(sx * 5.6, UY, wz0), 2.2, 2.8, "small")
+		-- main front either side of the wing: full windows (shutters, window box) downstairs, a
+		-- window with a window box upstairs
+		local pair = if sx < 0 then JEWELS[1] else JEWELS[2]
+		window(house, at(sx * 17, GY, z0), 3, 3.4, "full", pair[1], pair[2])
+		window(house, at(sx * 17, UY, z0), 3, 2.8, "small")
+		windowBox(house, sx * 17, UY - 1.85, z0, 3, if sx < 0 then JEWELS[3] else JEWELS[4])
+		-- gable sides: a simple window downstairs, a small one upstairs
 		local gx = sx * MAIN_X
-		window(house, facing(gx, 7.2, zc, -90 * sx), 3, 3.2, "simple")
-		window(house, facing(sx * (MAIN_X + 1.1), 20.6, zc, -90 * sx), 2.4, 2.4, "small")
+		window(house, facing(gx, GY, zc - 4, -90 * sx), 3, 3.2, "simple")
+		window(house, facing(gx, UY, zc + 4, -90 * sx), 2.6, 2.6, "small")
 	end
-	-- back (towards the hill path): a back door and small windows on both floors
-	for _, x in { -12, 13 } do
-		window(house, facing(x, 7.2, z1, 180), 2.6, 3, "small")
+	-- back (towards the hedge and the hill): a back door in the base colour, two windows upstairs
+	for _, x in { -14, 14 } do
+		window(house, facing(x, UY, z1, 180), 2.6, 2.6, "small")
 	end
-	for _, x in { -9, 9 } do
-		window(house, facing(x, 14.2, z1, 180), 2.4, 2.6, "small")
-	end
-	span(house, "BackDoorFrame", 2.6, 6.8, F + 1.4, 9.6, z1, z1 + 0.3, C.WoodDark)
-	span(house, "BackDoor", 3.1, 6.3, F + 1.4, 9.1, z1 + 0.25, z1 + 0.45, C.Wood)
+	span(house, "BackDoorFrame", 2.6, 6.8, F + 1.4, F + 8, z1, z1 + 0.3, C.WoodDark)
+	span(house, "BackDoor", 3.1, 6.3, F + 1.4, F + 7.5, z1 + 0.25, z1 + 0.45, -0.3)
 
 	-- Lookout tower at the front-left corner: stone shaft, timber bands, slit windows, an open
 	-- belvedere with rails and a telescope, a stepped roof in the base colour, a fish weathervane.
-	local tx0, tx1, tz0, tz1 = -28, -19, 137, z0 + 0.4
+	-- A ladder on its outer face climbs to the belvedere (an invisible TrussPart, rails and rungs).
+	local tx0, tx1, tz0, tz1 = -32.5, -23.5, 131, z0 + 0.4
 	local tcx, tcz = (tx0 + tx1) / 2, (tz0 + tz1) / 2
+	local bf = 30 -- belvedere floor (bottom)
 	span(house, "TowerBase", tx0 - 0.6, tx1 + 0.6, F - 0.2, F + 1.6, tz0 - 0.6, tz1, C.Stone, { CastShadow = true })
-	span(house, "Tower", tx0, tx1, F + 1.6, 24, tz0, tz1, C.StoneLight, { CastShadow = true })
+	span(house, "Tower", tx0, tx1, F + 1.6, bf, tz0, tz1, C.StoneLight, { CastShadow = true })
 	span(house, "TowerBand", tx0 - 0.3, tx1 + 0.3, GF_TOP, UF_BOT, tz0 - 0.3, tz1, C.WoodDark)
 	span(house, "TowerBand", tx0 - 0.3, tx1 + 0.3, WALL_TOP, EAVE, tz0 - 0.3, tz1, C.WoodDark)
-	for _, y in { 7.4, 14.2, 20.6 } do
+	for _, y in { UY - 2, 25.2 } do
 		window(house, at(tcx, y, tz0), 1.8, 2.6, "small")
 	end
-	window(house, facing(tx0, 17.4, tcz, 90), 1.8, 2.6, "small")
-	local bf = 24
+	window(house, facing(tx1, 25.2, tcz - 1.5, -90), 1.8, 2.6, "small")
 	span(house, "Belvedere", tx0 - 1.2, tx1 + 1.2, bf, bf + 1, tz0 - 1.2, tz1 + 0.8, C.Wood, { CastShadow = true })
 	local bt = bf + 6.6 -- roof base
 	local px0, px1, pz0b, pz1b = tx0 - 0.6, tx1 + 0.6, tz0 - 0.6, tz1 + 0.2
@@ -1433,9 +1623,9 @@ local function buildHouse(template: any): any
 			span(house, "BelvederePost", x - 0.45, x + 0.45, bf + 1, bt, z - 0.45, z + 0.45, C.WoodDark)
 		end
 	end
+	-- rails on three sides; the ladder arrives on the open -X side
 	span(house, "BelvedereRail", px0, px1, bf + 3.2, bf + 3.7, pz0b - 0.2, pz0b + 0.2, C.WoodLight)
 	span(house, "BelvedereRail", px0, px1, bf + 3.2, bf + 3.7, pz1b - 0.2, pz1b + 0.2, C.WoodLight)
-	span(house, "BelvedereRail", px0 - 0.2, px0 + 0.2, bf + 3.2, bf + 3.7, pz0b, pz1b, C.WoodLight)
 	span(house, "BelvedereRail", px1 - 0.2, px1 + 0.2, bf + 3.2, bf + 3.7, pz0b, pz1b, C.WoodLight)
 	span(house, "TelescopeStand", tcx + 1.6, tcx + 2.2, bf + 1, bf + 3.4, tz0 + 1.2, tz0 + 1.8, C.WoodDark, DECOR)
 	make(
@@ -1446,7 +1636,30 @@ local function buildHouse(template: any): any
 		C.Gold,
 		DECOR
 	)
-	local y = bt
+	-- the ladder: rails from the terrace to above the belvedere floor, rungs, the climbable truss
+	local lx = tx0 - 1.9
+	for _, dz in { -1.1, 1.1 } do
+		span(house, "LadderRail", lx - 0.25, lx + 0.25, F - 0.2, bf + 3.6, tcz + dz - 0.25, tcz + dz + 0.25, C.WoodDark)
+	end
+	local y = F + 2
+	while y < bf do
+		span(house, "Rung", lx - 0.2, lx + 0.2, y, y + 0.35, tcz - 0.9, tcz + 0.9, C.Wood, DECOR)
+		y += 4.6
+	end
+	local trussH = math.ceil((bf + 3 - F) / 2) * 2
+	U.partCount += 1
+	U.new("TrussPart", {
+		Name = "LadderTruss",
+		Size = Vector3.new(2, trussH, 2),
+		CFrame = at(lx - 0.6, F + trussH / 2, tcz),
+		Anchored = true,
+		Transparency = 1,
+		CastShadow = false,
+		CanTouch = false,
+		Color = C.Wood,
+	}, house)
+
+	y = bt
 	for i, layer in
 		{ { 14.4, 1, ROOF_TRIM }, { 12.4, 1.4, ROOF }, { 9.8, 1.4, -0.16 }, { 7, 1.4, ROOF }, { 4, 1.4, ROOF_TRIM } }
 	do
@@ -1461,10 +1674,10 @@ local function buildHouse(template: any): any
 	span(house, "VaneTail", tcx + 1.6, tcx + 2.8, y + 2.7, y + 5, tcz - 0.2, tcz + 0.2, C.Gold, DECOR)
 	Props.fx(fish, "sparkle", { rate = 1, size = 1.2 })
 
-	-- Planted beds along the main front, either side of the wing.
+	-- Planted beds along the main front either side of the wing.
 	for _, sx in { -1, 1 } do
-		local pair = if sx < 0 then Props.bloomPairs[1] else Props.bloomPairs[3]
-		flowerBed(house, sx * 14.5, F, z0 - 2.6, 8, 2.2, pair, { stems = false, max = 4 })
+		local pair = if sx < 0 then JEWELS[5] else JEWELS[6]
+		flowerBed(house, sx * 17, F, z0 - 2.6, 9, 2.4, pair, { stems = false, spacing = 1.8, max = 4 })
 	end
 	return smokeOffset
 end
@@ -1475,7 +1688,7 @@ end
 local function buildSmokehouse(template: any): any
 	local shed = U.model(template, "Smokehouse")
 	local F = TERRACE
-	local x0, x1, z0, z1 = 27, 41, 146, 160
+	local x0, x1, z0, z1 = 30, 43, 144, 158
 	local wallTop = F + 8.6
 	local eave = wallTop + 0.8
 	local xc = (x0 + x1) / 2
@@ -1494,42 +1707,63 @@ local function buildSmokehouse(template: any): any
 	plainText(board, Enum.NormalId.Front, "КОПТИЛЬНЯ", C.Ink, false)
 	-- Iron smoking pipe through the east slope.
 	local pipeTop = eave + 8.4
-	span(shed, "Pipe", 36.4, 37.6, eave + 2, pipeTop, 153, 154.2, C.Iron)
-	local cap = span(shed, "PipeCap", 36, 38, pipeTop, pipeTop + 0.6, 152.6, 154.6, C.Iron)
-	local smoke, smokeOffset = attachAt(cap, "SmokeAttachment", at(37, pipeTop + 1, 153.6))
+	span(shed, "Pipe", 39.4, 40.6, eave + 2, pipeTop, 151, 152.2, C.Iron)
+	local cap = span(shed, "PipeCap", 39, 41, pipeTop, pipeTop + 0.6, 150.6, 152.6, C.Iron)
+	local smoke, smokeOffset = attachAt(cap, "SmokeAttachment", at(40, pipeTop + 1, 151.6))
 	Props.fx(smoke, "smoke", { rate = 3 })
-	-- A fishing net drying on the east wall (towards the work yard) with two floats.
-	span(shed, "Net", x1 + 0.05, x1 + 0.3, F + 2.6, F + 7.6, 148, 158, C.Rope, {
-		Transparency = 0.35,
+	-- A fishing net drying on the east wall (towards the work yard) with an orange float.
+	span(shed, "Net", x1 + 0.05, x1 + 0.3, F + 2.6, F + 7.6, 146, 156, C.NetRope, {
 		CanCollide = false,
 		CastShadow = false,
 	})
-	span(shed, "NetFloat", x1 + 0.3, x1 + 0.9, F + 6.8, F + 7.8, 152.5, 153.5, C.Cream, DECOR)
+	span(shed, "NetFloat", x1 + 0.3, x1 + 0.9, F + 6.8, F + 7.8, 150.5, 151.5, FL[6], DECOR)
 	-- Lantern beside the doors.
 	span(shed, "WallLamp", xc + 5.4, xc + 6.4, F + 6.3, F + 7.4, z0 - 1, z0 - 0.1, C.Glow, NEON_DECOR)
 	return smokeOffset
 end
 
--- Work yard in front of the smokehouse: a woodpile, a chopping stump, a crate.
+-- Work yard in front of the smokehouse: a woodpile, a chopping stump, a sawhorse, a crate.
 local function buildWorkYard(template: any)
 	local yard = U.model(template, "WorkYard")
 	local F = TERRACE
-	span(yard, "Yard", 44, 62, F - 0.2, F + 0.3, 134, 160, C.Gravel, FLAT)
-	span(yard, "Logs", 57.4, 61.4, F + 0.2, F + 3, 141, 151, C.Bark, { CastShadow = true })
-	span(yard, "LogEnds", 57.25, 61.55, F + 0.3, F + 2.8, 141.2, 150.8, C.CutWood, DECOR)
-	span(yard, "LogsTop", 57.8, 61, F + 3, F + 4.5, 142, 150, C.Bark)
-	Props.stump(yard, facing(53, F + 0.3, 146, 30), { seed = 5, axe = true })
-	Props.crate(yard, facing(47.4, F + 0.3, 157.4, 10), { seed = 1, size = 3 })
+	span(yard, "Yard", 47, 61.5, F - 0.2, F + 0.3, 136, 154, C.Gravel, FLAT)
+	span(yard, "Logs", 57.4, 61.4, F + 0.2, F + 3, 140, 150, C.Bark, { CastShadow = true })
+	span(yard, "LogEnds", 57.25, 61.55, F + 0.3, F + 2.8, 140.2, 149.8, C.CutWood, DECOR)
+	span(yard, "LogsTop", 57.8, 61, F + 3, F + 4.5, 141, 149, C.Bark)
+	Props.stump(yard, facing(52.5, F + 0.3, 143, 30), { seed = 5, axe = true })
+	-- sawhorse with a log on it
+	span(yard, "SawhorseLegs", 50, 50.8, F + 0.3, F + 2.4, 147.2, 151.8, C.WoodDark)
+	span(yard, "SawhorseLegs", 54.2, 55, F + 0.3, F + 2.4, 147.2, 151.8, C.WoodDark)
+	span(yard, "SawLog", 49, 56, F + 2.4, F + 3.6, 148.9, 150.1, C.Bark)
+	Props.crate(yard, facing(48.8, F + 0.3, 139, 10), { seed = 1, size = 3 })
 end
 
--- Seating patio by the tower: flagstones, a trestle table with two benches under a parasol in the
--- base colour, a lantern post.
+-- Seating patio by the tower: flagstones edged by low stone planters, a trestle table with two
+-- benches under a parasol in the base colour, a potted plant, a lantern post.
 local function buildPatio(template: any)
 	local patio = U.model(template, "Patio")
 	local F = TERRACE
 	local top = F + 0.3
-	span(patio, "Paving", -58, -34, F - 0.2, top, 131, 147, C.Flag, FLAT)
-	local cx, cz = -46, 139
+	span(patio, "Paving", -53, -37, F - 0.2, top, 130.5, 143, C.Flag, FLAT)
+	span(patio, "Planter", -55.4, -53, F - 0.2, F + 1.4, 130.5, 145.4, C.Stone)
+	span(patio, "PlanterLeaves", -55.1, -53.3, F + 1.4, F + 2.3, 130.8, 145.1, C.Leaf1, DECOR)
+	span(patio, "Planter", -53, -38, F - 0.2, F + 1.4, 143, 145.4, C.Stone)
+	span(patio, "PlanterLeaves", -52.8, -38.3, F + 1.4, F + 2.3, 143.3, 145.1, C.Leaf1, DECOR)
+	for i, z in { 133.5, 139.5 } do
+		span(
+			patio,
+			"PlanterBloom",
+			-54.8,
+			-53.6,
+			F + 2.1,
+			F + 2.9,
+			z - 0.6,
+			z + 0.6,
+			FL[if i == 1 then 1 else 2],
+			DECOR
+		)
+	end
+	local cx, cz = -45, 136.5
 	span(patio, "TableTop", cx - 3.6, cx + 3.6, top + 2.4, top + 3, cz - 1.7, cz + 1.7, C.WoodLight)
 	for _, sx in { -1, 1 } do
 		local x = cx + sx * 2.6
@@ -1539,8 +1773,9 @@ local function buildPatio(template: any)
 		span(patio, "BenchLegs", cx - 2.8, cx + 2.8, top, top + 1.2, z - 0.4, z + 0.4, C.WoodDark)
 	end
 	cylY(patio, "ParasolPole", 0.4, 7.4, at(cx, top + 3.7, cz), C.Cream, DECOR)
-	span(patio, "Parasol", cx - 3.8, cx + 3.8, top + 6.2, top + 6.9, cz - 3.8, cz + 3.8, 0.12, { CanCollide = false })
-	lanternPost(patio, -36, 145.4, top, 6, true)
+	span(patio, "Parasol", cx - 3.8, cx + 3.8, top + 6.2, top + 6.9, cz - 3.8, cz + 3.8, 0, { CanCollide = false })
+	span(patio, "ParasolTop", cx - 1.6, cx + 1.6, top + 6.9, top + 7.5, cz - 1.6, cz + 1.6, 0.6, DECOR)
+	lanternPost(patio, -38.4, 141.6, top, 6, true)
 end
 
 ------------------------------------------------------------------------------------------
@@ -1642,25 +1877,35 @@ local function reeds(parent: any, x: number, y: number, z: number)
 	span(parent, "Cattail", x - 0.35, x + 0.35, y + 3.2, y + 4.6, z - 0.35, z + 0.35, P.Coconut, DECOR)
 end
 
+-- The fry pond: an L of water inside cream kerbs and chunky rim stones, lilies, reeds, the fry, a
+-- little plank jetty with a bench at its end, the sign.
 local function buildFryPond(template: any)
 	local pond = U.model(template, "FryPond")
-	local x0, x1, z0, z1 = 45, 63, 66, 100
 	local rim = 1.2
-	span(pond, "Kerb", x0, x1, -0.2, 1, z0, z0 + rim, C.Limestone)
-	span(pond, "Kerb", x0, x1, -0.2, 1, z1 - rim, z1, C.Limestone)
-	span(pond, "Kerb", x0, x0 + rim, -0.2, 1, z0 + rim, z1 - rim, C.Limestone)
-	span(pond, "Kerb", x1 - rim, x1, -0.2, 1, z0 + rim, z1 - rim, C.Limestone)
-	local wx0, wx1, wz0, wz1 = x0 + rim, x1 - rim, z0 + rim, z1 - rim
-	span(pond, "PondBed", wx0, wx1, -0.3, 0.4, wz0, wz1, C.PondBed, FLAT)
-	span(pond, "Water", wx0, wx1, 0.45, 0.8, wz0, wz1, C.PondWater, {
-		Transparency = 0.3,
-		CanCollide = false,
-		CastShadow = false,
-	})
+	-- water: the long arm (x 46.2..61.8, lz 67.2..98.8) and the short arm round the corner
+	local A = { 45 + rim, 63 - rim, 66 + rim, 100 - rim }
+	local B = { 52.2, 63 - rim, 100 - rim, 106 - rim }
+	for _, r in { A, B } do
+		span(pond, "PondBed", r[1], r[2], -0.3, 0.4, r[3], r[4], C.PondBed, FLAT)
+		span(pond, "Water", r[1], r[2], 0.45, 0.8, r[3], r[4], C.PondWater, {
+			Transparency = 0.3,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+	-- cream kerbs on the front, the inner corner and the back; chunky stones along the long sides
+	span(pond, "Kerb", 45, 63, -0.2, 1, 66, 66 + rim, C.Limestone)
+	span(pond, "Kerb", 45, 52.2, -0.2, 1, 100 - rim, 100, C.Limestone)
+	span(pond, "Kerb", 51, 52.2, -0.2, 1, 100, 106, C.Limestone)
+	span(pond, "Kerb", 52.2, 63, -0.2, 1, 106 - rim, 106, C.Limestone)
+	span(pond, "RimStone", 44.6, 46.2, -0.2, 1.6, 66 + rim, 81.4, C.Stone, { CastShadow = true })
+	span(pond, "RimStone", 44.8, 46.2, -0.2, 1.1, 85.6, 100 - rim, C.StoneLight)
+	span(pond, "RimStone", 61.8, 63.4, -0.2, 1.3, 66 + rim, 86, C.StoneLight)
+	span(pond, "RimStone", 61.8, 63.2, -0.2, 1.8, 86, 106 - rim, C.Stone, { CastShadow = true })
 	Props.lilyPad(pond, at(50, 0.8, 72.5), { seed = 3, flower = true })
-	Props.lilyPad(pond, at(52, 0.8, 95), { seed = 5, flower = true })
-	reeds(pond, 47.6, 0.4, 97.2)
-	reeds(pond, 60.6, 0.4, 69.2)
+	Props.lilyPad(pond, at(57, 0.8, 101.5), { seed = 5, flower = true })
+	reeds(pond, 47.6, 0.4, 96.4)
+	reeds(pond, 60.2, 0.4, 69.2)
 	for _, f in { { 55, 74, 0 }, { 56.6, 75.4, 1 } } do
 		local fx, fz = f[1], f[2]
 		if f[3] == 0 then
@@ -1669,42 +1914,58 @@ local function buildFryPond(template: any)
 			span(pond, "Fry", fx - 0.25, fx + 0.25, 0.5, 0.75, fz - 0.6, fz + 0.6, C.Fry, DECOR)
 		end
 	end
-	-- little plank jetty from the west kerb
-	span(pond, "Jetty", x0 - 1, 52.6, 0.9, 1.4, 81.6, 85.4, C.Plank)
+	-- little plank jetty from the west side, a bench at its land end looking over the water
+	span(pond, "Jetty", 44.6, 53, 0.9, 1.4, 81.6, 85.4, C.Plank)
 	for _, z in { 81.9, 85.1 } do
-		span(pond, "JettyPost", 52, 52.8, 0.4, 2.4, z - 0.4, z + 0.4, C.WoodDark)
+		span(pond, "JettyPost", 52.2, 53, 0.4, 2.6, z - 0.4, z + 0.4, C.WoodDark)
 	end
+	bench(pond, facing(43.4, LAWN, 89.2, -90), LAWN, 4.4)
 	-- the sign by the front kerb
-	span(pond, "SignPost", 47.7, 48.3, 0, 3.4, z0 - 2, z0 - 1.2, C.WoodDark)
-	local board = span(pond, "SignBoard", 45, 51, 3.2, 5.4, z0 - 2.2, z0 - 1.4, C.WoodLight)
+	span(pond, "SignPost", 47.7, 48.3, 0, 3.4, 66 - 2, 66 - 1.2, C.WoodDark)
+	local board = span(pond, "SignBoard", 45, 51, 3.2, 5.4, 66 - 2.2, 66 - 1.4, C.WoodLight)
 	plainText(board, Enum.NormalId.Front, "МАЛЬКИ", C.Ink, false)
 end
 
+-- The net yard: a gravel yard with a drying frame (two opaque nets with a float line), the fish
+-- drying rack, crab traps, the well, and a boat under repair (an upturned rowing boat on trestles
+-- beside a stack of lobster pots, a canvas lean-to over the rack).
 local function buildNetYard(template: any)
 	local yard = U.model(template, "NetYard")
 	span(yard, "Yard", -63, -45, -0.2, 0.45, 62, 101, C.Gravel, FLAT)
-	-- net-drying frame: three posts and a pole, two nets with floats
+	-- net-drying frame: three posts and a pole, two nets with a float line along their foot
 	local nx = -54
 	for _, z in { 66, 77, 88 } do
 		span(yard, "NetPost", nx - 0.45, nx + 0.45, 0, 9.2, z - 0.45, z + 0.45, C.WoodDark, { CastShadow = true })
 	end
 	span(yard, "NetPole", nx - 0.3, nx + 0.3, 8.4, 9, 65.4, 88.6, C.Wood)
-	for _, zs in { { 66.5, 76.5 }, { 77.5, 87.5 } } do
-		span(yard, "Net", nx - 0.12, nx + 0.12, 2.4, 8.4, zs[1], zs[2], C.Rope, {
-			Transparency = 0.35,
-			CanCollide = false,
-			CastShadow = false,
-		})
+	-- the nets hang over the pole in bunched folds of two greens, floats tied along their foot
+	for i, f in
+		{ { 66.6, 71.6, 3.4, 0.35 }, { 71.8, 76.6, 2.6, 0.55 }, { 77.4, 82.4, 3.8, 0.4 }, { 82.6, 87.4, 2.9, 0.6 } }
+	do
+		local c = if i % 2 == 1 then C.NetRope else C.NetRopeLight
+		span(yard, "Net", nx - f[4], nx + f[4], f[3], 8.4, f[1], f[2], c, { CanCollide = false, CastShadow = false })
 	end
-	for i, z in { 71.5, 82.5 } do
-		span(yard, "NetFloat", nx - 0.5, nx + 0.5, 2.1, 2.9, z - 0.5, z + 0.5, if i == 1 then C.Cream else C.Red, DECOR)
+	for i, z in { 72.4, 81.6 } do
+		span(
+			yard,
+			"NetFloat",
+			nx - 0.75,
+			nx + 0.75,
+			2.2,
+			3.2,
+			z - 0.55,
+			z + 0.55,
+			if i == 1 then FL[6] else FL[1],
+			DECOR
+		)
 	end
-	-- fish drying rack: two posts, a bar, three fish hung by the tail
+	-- fish drying rack under a canvas lean-to: two posts, a bar, two fish hung by the tail
 	local rz = 98
 	for _, x in { -60, -48 } do
 		span(yard, "RackPost", x - 0.45, x + 0.45, 0, 7.6, rz - 0.45, rz + 0.45, C.WoodDark)
 	end
 	span(yard, "RackBar", -60.3, -47.7, 6.8, 7.4, rz - 0.35, rz + 0.35, C.Wood)
+	ramp(yard, "Canvas", -61, -47, 7.4, 8.6, rz - 3.2, rz + 0.6, "-z", P.Canvas, { CanCollide = false })
 	for i, x in { -56, -52 } do
 		local c = if i % 2 == 1 then C.FishSilver else C.FishSilverDark
 		span(yard, "FishTail", x - 0.9, x + 0.9, 6, 6.8, rz - 0.2, rz + 0.2, c, DECOR)
@@ -1713,7 +1974,7 @@ local function buildNetYard(template: any)
 	-- crab traps stacked by the nets
 	span(yard, "CrabTrap", -49.6, -46.4, LAWN - 0.1, 2.4, 64.4, 67.6, C.WoodLight)
 	-- stone well with a little timber roof
-	local wx, wz = -51, 108
+	local wx, wz = -49, 108
 	span(yard, "WellRing", wx - 3, wx + 3, 0, 2.8, wz - 3, wz + 3, C.StoneLight, { CastShadow = true })
 	span(yard, "WellWater", wx - 2.2, wx + 2.2, 2.75, 2.95, wz - 2.2, wz + 2.2, C.Water, DECOR)
 	for _, sx in { -1, 1 } do
@@ -1723,6 +1984,31 @@ local function buildNetYard(template: any)
 	ramp(yard, "WellRoof", wx - 4, wx + 4, 8.6, 10.8, wz - 3.4, wz, "-z", C.RoofBrown, { CastShadow = true })
 	ramp(yard, "WellRoof", wx - 4, wx + 4, 8.6, 10.8, wz, wz + 3.4, "+z", C.RoofBrown)
 	span(yard, "Bucket", wx - 0.6, wx + 0.6, 4.6, 5.8, wz - 0.6, wz + 0.6, C.Wood, DECOR)
+	-- boat repair: an upturned rowing boat (keel up, a painted gunwale band) on two trestles
+	local bx, bz0, bz1 = -60, 106.5, 117.5
+	for _, z in { bz0 + 2.2, bz1 - 2.2 } do
+		span(yard, "Trestle", bx - 3, bx + 3, 0, 2.4, z - 0.4, z + 0.4, C.WoodDark)
+	end
+	span(yard, "Gunwale", bx - 2.5, bx + 2.5, 2.4, 3.1, bz0, bz1, -0.1)
+	ramp(yard, "UpturnedHull", bx - 2.3, bx, 3.1, 5, bz0 + 0.3, bz1 - 0.4, "-x", C.WoodLight, { CastShadow = true })
+	ramp(yard, "UpturnedHull", bx, bx + 2.3, 3.1, 5, bz0 + 0.3, bz1 - 0.4, "+x", C.WoodLight, { CastShadow = true })
+	span(yard, "Keel", bx - 0.35, bx + 0.35, 4.8, 5.4, bz0 + 0.5, bz1 - 0.1, C.WoodDark)
+	-- lobster pots stacked beside it
+	span(yard, "LobsterPot", -55.6, -52.8, LAWN - 0.1, 2.3, 113, 115.6, C.Wood)
+	span(yard, "LobsterPot", -55.6, -52.8, LAWN - 0.1, 2.3, 116.2, 118.8, C.WoodLight)
+end
+
+-- The empty front corner by the tackle shed: a sitting spot (a bench looking over the court, a
+-- lantern, a clipped shrub) and stepping stones from the shed walk to the fry pond.
+local function buildSitOut(template: any)
+	local spot = U.model(template, "SitOut")
+	bench(spot, facing(58, LAWN, 51, 90), LAWN, 5.4)
+	lanternPost(spot, 60.6, 56.4, LAWN, 5)
+	shrub(spot, 60.4, LAWN, 45.4, 4, 2.4, 1)
+	for i, p in { { 45.8, 43 }, { 47, 50.4 }, { 47.6, 57.8 } } do
+		local w = if i % 2 == 0 then 2.4 else 2.8
+		span(spot, "SteppingStone", p[1] - w / 2, p[1] + w / 2, LAWN - 0.1, PATH, p[2] - 1.1, p[2] + 1.1, C.Flag, FLAT)
+	end
 end
 
 -- Voxel tree from the prop library (layered dark / mid / light canopy, "lite + compact").
@@ -1918,29 +2204,11 @@ local function buildPierProps(template: any, pierEnd: number)
 	-- Crates and a barrel on the right.
 	span(props, "Crate", 11, 15, DECK, DECK + 4, pierEnd + 11, pierEnd + 15, C.Wood)
 	span(props, "Crate", 15.6, 18.6, DECK, DECK + 3, pierEnd + 12, pierEnd + 15, C.WoodLight)
-	span(props, "Crate", 12, 14.6, DECK + 4, DECK + 6.6, pierEnd + 12, pierEnd + 14.6, C.WoodLight)
 	cylY(props, "Barrel", 2.8, 3.4, at(16.6, DECK + 1.7, pierEnd + 7.6), C.WoodDark)
-	-- Lifebuoy hanging on the outside of the left rail (square ring, red and white).
+	-- Lifebuoy hanging on the outside of the left rail: a red ring (a square block) with a white band.
 	local bx, bz = -(PLAT_HALF + 1.35), pierEnd + 8
-	for i, s in { { 0, 1.1 }, { 0, -1.1 }, { 1.1, 0 }, { -1.1, 0 } } do
-		local col = if i <= 2 then C.Red else C.White
-		local dy, dz = s[1], s[2]
-		local sy = if dz == 0 then 0.8 else 3
-		local sz = if dz == 0 then 1.4 else 0.8
-		local y = DECK + 2.4 + dy
-		span(
-			props,
-			"Lifebuoy",
-			bx - 0.3,
-			bx + 0.3,
-			y - sy / 2,
-			y + sy / 2,
-			bz + dz - sz / 2,
-			bz + dz + sz / 2,
-			col,
-			DECOR
-		)
-	end
+	span(props, "Lifebuoy", bx - 0.3, bx + 0.3, DECK + 0.9, DECK + 3.9, bz - 1.5, bz + 1.5, C.Red, DECOR)
+	span(props, "LifebuoyBand", bx - 0.35, bx + 0.35, DECK + 2.1, DECK + 2.7, bz - 1.55, bz + 1.55, C.White, DECOR)
 end
 
 -- Little rowing boat moored at the right side of the pier, halfway out, its bow line tied to the
@@ -2010,6 +2278,7 @@ return function(game: any, mapCfg: any)
 	buildTackleShed(template)
 	buildFryPond(template)
 	buildNetYard(template)
+	buildSitOut(template)
 	buildTrees(template)
 	local lastPostZ = buildPier(template, pierEnd, pileBottom)
 	buildPavilion(template, pierEnd)

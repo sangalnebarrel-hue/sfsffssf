@@ -97,11 +97,11 @@ grade.Brightness = 0
 grade.TintColor = rgb(255, 252, 246)
 local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
 	or U.new("Atmosphere", { Name = "Atmosphere" }, lighting)
-atmosphere.Density = 0.22
+atmosphere.Density = 0.16
 atmosphere.Offset = 0.25
-atmosphere.Color = rgb(198, 222, 248)
-atmosphere.Decay = rgb(104, 150, 210)
-atmosphere.Haze = 0.2
+atmosphere.Color = rgb(205, 226, 248)
+atmosphere.Decay = rgb(96, 150, 214)
+atmosphere.Haze = 0.05
 local terrain = workspace:FindFirstChildOfClass("Terrain")
 if terrain then
 	terrain.WaterColor = rgb(36, 156, 186)
