@@ -34,40 +34,45 @@
 	               each) into the pool below, a spire with gold-framed fish medallions, a cream
 	               balcony ring on corbels with a balustrade and gold finials, a plaster shaft, an
 	               open lantern stage round a glowing gold core, a verdigris cap, and on top a huge
-	               crowned golden fish (the hub's one hero accent: warm gold, pale gold shine,
-	               russet fins) riding a water spout and slowly circling (Spin attribute, turned by
-	               the client's AmbientController); sparkles, spray and splashes as particles. A
+	               crowned golden fish (the hub's one hero accent, the map's only big saturated
+	               piece: yolk gold, amber scales, pale gold belly and shine, russet fins, a warm
+	               light under its belly) riding a water spout and slowly circling (Spin attribute,
+	               turned by the client's AmbientController); sparkles, spray and splashes as
+	               particles. A
 	               round plaza (r 66) of warm stone with an inlaid sandstone star in a dark
 	               outline, sandstone rays to the shop porches and the fun fair and a terracotta
 	               ring; benches and lamps 22.5° off the avenues and the shop diagonals (clear
 	               walkways to every bridge and counter), planters on the plaza rim
 	  avenues      θ = 0/90/180/270, 25 wide: cobbles between stone kerbs from the plaza to the
-	               bridge (r 62..153), a sandstone runner from the plaza star to the bridge, clipped
-	               box hedges, a lamp pair carrying iron masts with small pennants hung high (13+
-	               studs) across the avenue, a stone welcome gate «ОСТРОВ РЫБАКОВ» (inner side
+	               bridge (r 62..153), a sandstone runner from the plaza star to the bridge, low
+	               clipped box hedges, a lamp pair carrying iron masts with small pennants hung high
+	               (13+ studs) across the avenue, a stone welcome gate «ОСТРОВ РЫБАКОВ» (inner side
 	               «ХОРОШЕГО КЛЁВА!») at r 140 with a band and a topper in the district colour of
-	               its bridge and gateway, tall palms on the sand beside the bridge landing;
-	               HubSpawn on the θ 180 avenue at r 100, facing the tower (its lamps and bunting
-	               stand behind it)
+	               its bridge and gateway and low hedge wings with blooms, tall palms on the sand
+	               beside the bridge landing; a street frontage on both sides (beds of jewel-tone
+	               blooms along the street, rounded street trees in green, mint or blossom, a bench
+	               with a gravel walk out to the next lane); HubSpawn on the θ 180 avenue at r 100,
+	               facing the tower (its lamps and bunting stand behind it)
 	  shops        built 1.2× (modelled at 1/1.2), facing the tower from r 76 (porches on the
 	               plaza rim, customers stand on the porch, the counter closes the open shop front):
-	    θ 45       Shop «УДОЧКИ» — a two-storey half-timbered house (plaster, dark timber, red
-	               roof, green shutters, flower boxes); its plaza front: a striped awning over the
-	               counter, timber studs, two shuttered upper windows with flower boxes, the sign
+	    θ 45       Shop «УДОЧКИ» — a two-storey half-timbered house (plaster, dark timber, moss
+	               slate roof, green shutters, flower boxes); its plaza front: a striped awning over
+	               the counter, timber studs, two shuttered upper windows with flower boxes, the sign
 	               hanging from iron brackets under the eave, a dormer on the front slope; a rod
 	               wall inside, and a giant rod on a bracket at the eave with a fish twirling on its
 	               line in front of the roof
 	    θ 315      FishMarket «РЫБНЫЙ РЫНОК» — an open timber market hall on stone pedestals under a
-	               blue roof with a louvred lantern and a fish weather vane, the sign on the front
-	               fascia, a blue/cream awning, ice counters with fish, the scales on the front
-	               counter, crates and barrels
+	               blue-grey slate roof with a louvred lantern and a fish weather vane, the sign on
+	               the front fascia, a blue/cream awning, a fishmonger's slab of heaped ice with two
+	               rows of plump fish either side of the scales, side counters, crates and barrels
 	    θ 135      Workshop «МАСТЕРСКАЯ» — a brick workshop with stone quoins and a slate roof, its
 	               gable to the plaza carrying a big turning gear, the sign between two small
 	               iron-framed windows, a hoist beam with a pulley and a hook, a rolled-up garage
 	               door over the workbench, a forge inside, a chimney with smoke, a side door
 	  θ 225        fun fair on a flagstone ground: an entrance arch «АТТРАКЦИОНЫ» on the plaza rim,
-	               a path lined by three wooden food stalls with treats on their roofs and the
-	               striped «ИГРЫ» game tent, strings of lights across it, a carousel at its end and
+	               a path lined by three wooden food stalls with treats on their roofs (menu posters
+	               on their backs) and the striped «ИГРЫ» game tent (a banner on its back), strings
+	               of lights across it, a carousel at its end and
 	               a Ferris wheel in white and teal behind (their spinning parts never collide)
 	  gardens      parterres on four base lanes (θ 22.5, 112.5, 202.5, 292.5; r 98..128): planted
 	               beds (Props.flowerBed, one tone family each) either side of the lane's walk,
@@ -77,26 +82,32 @@
 	               floor, balcony, outside stair), an L-shaped cottage (cross gable, porch on posts),
 	               a red net loft (boat doors, hoist, lean-to, nets and floats) and a hip-roofed
 	               house (stepped roof, dormer, portico); each pair shares a yard on the lane (a
-	               dry-stone wall, hedges and a gate, a kitchen garden, a barrel, a woodpile and a
-	               washing line, a boat on trestles or a well), allotments line the lane's path
+	               dry-stone wall, hedges and a gate, a kitchen garden of cabbages and lettuces, a
+	               barrel, a woodpile, a beehive and a washing line, a boat on trestles or a well);
+	               roofs in clay, slate and moss slate, off the bases' team hues
 	  lawns        an orchard behind the Shop, a walled boat yard behind the Workshop (θ 128), the
 	               «СЦЕНА» bandstand on its own pad behind the Fish Market facing the harbour
 	               boardwalk (θ 318, benches on the boardwalk), a koi garden (θ 302: pond, plank
 	               bridge, stepping stones, stone lantern, bench, maple), two oaks
 	  terrace      a ring of 1-stud sand steps between the plaza and the beach (walk down anywhere)
-	  beach ring   zones beside the lanes: a café deck (θ 26), bathing huts on a deck (θ 63), a
-	               fishing corner (θ 112), a lifeguard tower (θ 161), a volleyball net (θ 205); big palms
-	               and dunes with grass tufts between them
-	  harbour      a plank boardwalk with lamps along the shore (θ 285..345) with a step down to the
-	               sand all along it, a pier from it to deep water with a T-head at θ 322, bobbing
-	               boats moored on open water (Bob attribute), a lifebuoy, an anchor, and a
+	  beach ring   a waterfront of zones beside the lanes: a thatched beach bar (θ 26), bathing huts
+	               on a deck (θ 63) with a swimming line of floats, a fishing corner (θ 112), a
+	               boathouse on stilts (θ 124), a lifeguard tower (θ 161), a volleyball net (θ 205),
+	               plank walks with lamps at the foot of the steps (θ 138..152, 218..236), bathing
+	               spots (parasols, loungers, towels in jewel tones) all round, canoes pulled up on
+	               the sand, a sandcastle; big palms, dunes and tufts of beach grass
+	  harbour      a plank boardwalk with lamps along the shore (θ 285..345), its boards in two tones
+	               with dark joints, a step down to the sand all along it, a pier from it to deep
+	               water with a T-head at θ 322, fish crates and a barrel at its root, a net-mending
+	               rack, bobbing boats moored on open water (Bob attribute), a lifebuoy, an anchor
+	               on a stone plinth, and a
 	               lighthouse on a rock islet with a breakwater at θ 305, clear of every base's pier
 	               corridor (checked: the build fails otherwise)
 
 	Every building is modelled in a local frame (origin = front centre at ground level, local −Z
 	towards the tower), so the customer side of every counter is local −Z; prompts sit about
 	3.5 studs above the porch, just in front of the counter.
-	Budget: ≤ 2600 parts and ≤ 12 PointLights (DESIGN.md §3; the build fails above either).
+	Budget: ≤ 2800 parts and ≤ 12 PointLights (DESIGN.md §3; the build fails above either).
 ]]
 
 local U = require("./Util")
@@ -114,7 +125,7 @@ local lerpColor = Props.lerpColor
 
 local rad, sqrt, floor, abs = math.rad, math.sqrt, math.floor, math.abs
 
-local MAX_PARTS = 2600
+local MAX_PARTS = 2800
 local MAX_LIGHTS = 12
 
 -- Layout radii (studs from the island centre); the ones tied to the ground's shore radii are set
@@ -152,15 +163,22 @@ local H = {
 	tile = C.RoofBlue, -- blue tile bands on the stone fountain
 	stoneWarm = lerpColor(C.Limestone, C.SandDark, 0.4), -- the fountain's warm sandstone
 	verdigris = lerpColor(C.RoofGreen, C.Cyan, 0.4), -- the spire's copper cap
-	-- the golden fish, the hub's one hero accent: a bright warm gold (the big body and head blocks
-	-- stay at HSV saturation < 0.6, so none of them is "loud"), pale gold shine and belly and
-	-- russet-orange fins (each fin < 400 studs²)
-	gold = lerpColor(C.GoldLight, C.Autumn2, 0.45),
-	goldHead = lerpColor(C.GoldLight, C.Autumn2, 0.25),
+	-- the golden fish, the hub's one hero accent (the only big saturated piece of the map,
+	-- exempt from the "no loud big part" rule in palette_lint): a rich yolk gold (≈ 248,190,52)
+	-- that stays gold on the shaded side and from below, a brighter head (≈ 250,204,70), amber
+	-- scales, a pale gold belly and shine, russet-orange fins
+	gold = lerpColor(C.Flowers[2], C.Autumn1, 0.13),
+	goldHead = lerpColor(C.Flowers[2], C.GoldLight, 0.15),
+	goldScale = lerpColor(C.Flowers[2], C.Autumn1, 0.45),
 	goldDeep = shade(C.Autumn2, 0.86), -- gold trims on stone (spouts, medallions, finials)
 	goldLight = lerpColor(C.GoldLight, C.White, 0.35),
-	goldBelly = lerpColor(C.GoldLight, C.Cream, 0.35),
+	goldBelly = lerpColor(C.GoldLight, C.Flowers[2], 0.55),
 	goldFin = C.Autumn1,
+	-- hub roofs stay off the saturated team hues (DESIGN.md §1): every sector's strongest roof
+	-- colour is its own base's
+	roofClay = lerpColor(C.RoofTerracotta, C.RoofBrown, 0.5), -- weathered clay tiles
+	roofSage = lerpColor(C.RoofGreen, C.RoofSlate, 0.45), -- moss-green slate
+	roofHarbour = lerpColor(C.RoofBlue, C.RoofSlate, 0.4), -- blue-grey slate
 	gravel = lerpColor(C.SandDark, C.Stone, 0.35), -- garden and yard paths
 	wall = lerpColor(C.Stone, C.Limestone, 0.3), -- low dry-stone walls
 	fair = C.Cyan, -- the fun fair's one accent (teal), with white and wood
@@ -977,6 +995,25 @@ local function smallFish(F: any, x: number, y: number, z: number, len: number, c
 	)
 end
 
+-- Plump fish lying on the ice along local X, its head at −X (dir = 1) or +X (dir = −1): a chunky
+-- body with the head end and a darker tail fin. 2 parts.
+local function plumpFish(F: any, x: number, y: number, z: number, len: number, color: any, dir: number)
+	local hx, tx = x - dir * len * 0.5, x + dir * len * 0.28
+	F:box("Fish", math.min(hx, tx), y, z - len * 0.2, math.max(hx, tx), y + len * 0.34, z + len * 0.2, color, DECOR)
+	local t1 = x + dir * len * 0.5
+	F:box(
+		"FishTail",
+		math.min(tx, t1),
+		y + 0.02,
+		z - len * 0.19,
+		math.max(tx, t1),
+		y + len * 0.32,
+		z + len * 0.19,
+		shade(color, 0.8),
+		DECOR
+	)
+end
+
 --[[
 	Voxel gear facing −Z in the local XY plane, centre (cx, cz), outer radius r: a rounded body
 	(plus of two blocks), 4 square teeth on the axes and 4 on the diagonals (pixel-art steps), and
@@ -1065,6 +1102,35 @@ local function pennants(parent: any, a: any, b: any, n: number, sag: number, w: 
 	end
 end
 
+--[[
+	Park bench standing on cf (you sit facing local −Z), length len: two dark end blocks, a plank
+	seat and a solid plank back resting on the seat's rear edge. 4 parts (Props.bench has 8).
+]]
+local function parkBench(parent: any, cf: any, len: number, color: any?): any
+	local F = newFrame(U.model(parent, "Bench"), cf)
+	local wood = color or C.Wood
+	local seat = F:box("Seat", -len / 2, 1.6, -0.95, len / 2, 2.15, 0.95, wood)
+	F:box("Back", -len / 2, 2.15, 0.45, len / 2, 4.1, 0.95, shade(wood, 0.9), NOSHADOW)
+	for i, x in { -len / 2 + 0.8, len / 2 - 0.8 } do
+		F:box(`Leg{i}`, x - 0.45, -0.2, -0.85, x + 0.45, 1.6, 0.85, C.WoodDark, NOSHADOW)
+	end
+	F.model.PrimaryPart = seat
+	seat.PivotOffset = seat.CFrame:Inverse() * cf
+	return F.model
+end
+
+--[[
+	Rounded street tree standing on the lawn at local (x, z) of frame F: a bark trunk and a crown
+	of two crossed blocks under a lighter cap (a rounded voxel silhouette; pal = { crown, cap }).
+	4 parts.
+]]
+local function roundedTree(F: any, name: string, x: number, z: number, pal: { any })
+	F:box(name .. "Trunk", x - 0.65, -0.3, z - 0.65, x + 0.65, 6.2, z + 0.65, C.Bark, NOSHADOW)
+	F:box(name .. "CrownX", x - 3.3, 5.6, z - 2.3, x + 3.3, 9.6, z + 2.3, pal[1])
+	F:box(name .. "CrownZ", x - 2.3, 5.2, z - 3.3, x + 2.3, 10.0, z + 3.3, shade(pal[1], 0.92))
+	F:box(name .. "Cap", x - 1.7, 10.0, z - 1.7, x + 1.7, 11.1, z + 1.7, pal[2], DECOR)
+end
+
 --------------------------------------------------------------------------------
 -- Shop buildings (local frame: origin = front centre at ground level, −Z = customers)
 --------------------------------------------------------------------------------
@@ -1111,7 +1177,7 @@ end
 --[[
 	Shop «УДОЧКИ» (sells rods): a two-storey half-timbered house — white plaster between dark
 	timber posts and rails on a stone base course, green shutters, flower boxes under the ground
-	floor windows, a red roof with a ridge beam, eave boards and plastered gables with attic
+	floor windows, a moss-slate roof with a ridge beam, eave boards and plastered gables with attic
 	windows, dormers on both slopes, a brick chimney with smoke. The plaza front: a red/cream
 	striped awning under the lintel beam, the upper storey framed by timber studs with two
 	shuttered windows (flower boxes) and between them the sign hanging from two iron brackets
@@ -1124,7 +1190,7 @@ end
 local function buildShop(hub: any, cf: any): (any, any)
 	local F = newFrame(U.model(hub, "Shop"), cf, SHOP_SCALE)
 	local wall, timber, trim = C.Plaster, C.WoodDark, C.Cream
-	local roof, accent, shutter = C.RoofRed, C.Red, C.RoofGreen
+	local roof, accent, shutter = H.roofSage, C.Red, C.RoofGreen
 	local h = 22
 	local course = FL + 2.2
 	local plinth = shopShell(F, h, {
@@ -1471,17 +1537,19 @@ end
 --[[
 	FishMarket «РЫБНЫЙ РЫНОК» (sells fish): an open timber market hall — six wooden posts on stone
 	pedestals, beams with knee braces, a plastered back wall with timber posts and shuttered
-	windows (a fish relief between them, the side the bases see), a blue roof with a ridge beam,
-	plastered gables and a louvred lantern on the ridge carrying a fish weather vane, the sign on
-	the front fascia (the roof and the lantern read above it), a blue/cream striped awning over
-	the counters. Wooden
-	counters with ice and fish, the scales (Scales.SellPromptAttachment) on the front counter
-	above a «Продать рыбу» panel, crates of fish, a «СВЕЖАЯ РЫБА» board inside, a hanging lamp,
-	a cooler, a barrel and a lifebuoy on the front post.
+	windows (a fish relief between them, the side the bases see), a blue-grey slate roof with a
+	ridge beam, plastered gables and a louvred lantern on the ridge carrying a fish weather vane,
+	the sign on the front fascia (the roof and the lantern read above it), a blue/cream striped
+	awning over the counters. Wooden counters with ice and fish (a fishmonger's slab: heaped ice
+	and two staggered rows of plump fish either side of the scales), the scales
+	(Scales.SellPromptAttachment) on the front counter above a «Продать рыбу» panel, crates of
+	fish, a «СВЕЖАЯ РЫБА» board inside, a hanging lamp, a cooler, a barrel and a lifebuoy on the
+	front post.
 ]]
 local function buildFishMarket(hub: any, cf: any): (any, any)
 	local F = newFrame(U.model(hub, "FishMarket"), cf, SHOP_SCALE)
-	local roof, timber, post, trim = C.RoofBlue, C.WoodDark, C.Wood, C.Cream
+	local roof, timber, post, trim = H.roofHarbour, C.WoodDark, C.Wood, C.Cream
+	local blue = C.RoofBlue -- shutters, awning stripes, the fishes' fins: the market's accent
 	local fishColors = H.fish
 	local px = HW - 2.4 -- inner face of the posts
 	local plinth = F:box("Plinth", -HW - 1, -0.5, -9, HW + 1, FL - 0.4, D + 1, C.Stone, FLAT)
@@ -1521,7 +1589,7 @@ local function buildFishMarket(hub: any, cf: any): (any, any)
 	for j, xc in { -14.2, 14.2 } do
 		window(F, `BackWin{j}`, "+z", D - 0.6, xc, FL + 4.4, 4.4, 6.4, {
 			trim = trim,
-			shutter = roof,
+			shutter = blue,
 			ledge = true,
 		})
 	end
@@ -1529,7 +1597,7 @@ local function buildFishMarket(hub: any, cf: any): (any, any)
 	bigFish(relief, 0.48, {
 		body = lerpColor(C.Cyan, C.RoofBlue, 0.3),
 		head = lerpColor(C.Cyan, C.Cream, 0.3),
-		fin = roof,
+		fin = blue,
 		lips = C.Pink,
 	}, { simple = true, side = -1 })
 	local fresh = F:box("FreshBoard", -10, 8.6, D - 3.7, 10, 13.4, D - 3.2, C.Cream, NOSHADOW)
@@ -1563,7 +1631,7 @@ local function buildFishMarket(hub: any, cf: any): (any, any)
 	-- the sign on the front fascia (the roof and its lantern read above it), the striped awning
 	-- over the counters
 	signBoard(F, "Sign", -13, 13, top - 0.9, top + 2.3, -3.6, trim, timber, "РЫБНЫЙ РЫНОК", nil, C.Navy)
-	awning(F, "Awning", -HW - 0.8, HW + 0.8, top - 1.5, -1.5, 6, 2.0, 7, roof, trim)
+	awning(F, "Awning", -HW - 0.8, HW + 0.8, top - 1.5, -1.5, 6, 2.0, 7, blue, trim)
 
 	-- a fish jumping on the lantern, turning on its pole like a weather vane
 	F:box("FishPole", -0.4, lanternTop, cz - 0.4, 0.4, lanternTop + 4.6, cz + 0.4, C.Iron, NOSHADOW)
@@ -1572,7 +1640,7 @@ local function buildFishMarket(hub: any, cf: any): (any, any)
 	local jumperBody = bigFish(jumper, 0.5, {
 		body = lerpColor(C.Cyan, C.RoofBlue, 0.2),
 		head = lerpColor(C.Cyan, C.Cream, 0.35),
-		fin = roof,
+		fin = blue,
 		lips = C.Pink,
 	}, { simple = true })
 	jumper.model.PrimaryPart = jumperBody
@@ -1585,8 +1653,17 @@ local function buildFishMarket(hub: any, cf: any): (any, any)
 	local sub = F:box("SubSign", -7.6, 1.35, 2.2, 7.6, 3.4, 2.45, C.Cream, NOSHADOW)
 	signText(sub, Enum.NormalId.Front, "Продать рыбу", C.Navy)
 	F:box("Ice", -10.3, 3.6, 2.1, 10.3, 4.2, 5.9, H.ice)
-	for i, x in { -8, -5, 5, 8 } do
-		smallFish(F, x, 4.2, 4.0 + (i % 2) * 0.5, 2.6, fishColors[i])
+	-- a fishmonger's slab: the ice heaped up either side of the scales, two staggered rows of
+	-- plump fish on it, heads alternating
+	for j, sx in { -1, 1 } do
+		F:box(`IceHeap{j}`, sx * 2.6, 4.2, 2.5, sx * 10.0, 4.75, 5.5, lerpColor(H.ice, C.White, 0.35))
+		for row = 1, 2 do
+			for k = 1, 2 do
+				local x = sx * (3.6 + (k - 1) * 3.4 + (if row == 2 then 1.5 else 0))
+				local n = (j * 2 + row * 3 + k) % #fishColors + 1
+				plumpFish(F, x, 4.75, 3.2 + (row - 1) * 1.7, 3.2, fishColors[n], if (row + k) % 2 == 0 then 1 else -1)
+			end
+		end
 	end
 	local scales = F:box("Scales", -1.8, 4.2, 2.6, 1.8, 5.2, 5.0, C.Iron)
 	F:box("ScalesDial", -1.1, 5.2, 3.3, 1.1, 6.6, 4.3, C.Cream)
@@ -1599,9 +1676,7 @@ local function buildFishMarket(hub: any, cf: any): (any, any)
 		F:box(`SideCounter{i}`, sx * (px - 2.8), FL, 7, sx * px, 3.6, 28, C.Wood)
 		F:box(`SideIce{i}`, sx * (px - 3.0), 3.6, 6.8, sx * px, 4.2, 28.2, H.ice)
 		smallFish(F, sx * 17.2, 4.2, 4.0, 2.6, fishColors[i + 3])
-		for k = 1, 2 do
-			smallFish(F, sx * (px - 1.4), 4.2, 7 + k * 7, 2.4, fishColors[(i * 3 + k) % #fishColors + 1])
-		end
+		smallFish(F, sx * (px - 1.4), 4.2, 15, 2.6, fishColors[(i * 3 + 1) % #fishColors + 1])
 		F:prop("crate", sx * 12.15, FL, 4.1, 0, { size = 3.4, color = C.Wood, seed = 30 + i })
 		smallFish(F, sx * 12.15, FL + 3.45, 4.1, 2.6, fishColors[i + 2])
 	end
@@ -1630,7 +1705,7 @@ local function buildFishMarket(hub: any, cf: any): (any, any)
 	end
 
 	-- outside: a cooler, a barrel, a lifebuoy hung on the front post
-	F:prop("cooler", 18.6, FL, -6, 0, { color = roof, seed = 13 })
+	F:prop("cooler", 18.6, FL, -6, 0, { color = blue, seed = 13 })
 	F:prop("barrel", -19.4, FL, -5.6, 0, { color = C.Wood, seed = 14 })
 	F:prop("lifebuoy", (px + HW) / 2, 6.6, -1.53, 0, { seed = 15 })
 	F.model.PrimaryPart = plinth
@@ -1967,26 +2042,21 @@ local function buildTower(hub: any, G: number)
 	local s, fishY = 1.7, top + 19.5
 	local fishCf = CFrame.new(0, fishY, 0) * CFrame.Angles(0, rad(45), 0)
 	local fish = F:child("GoldenFish", fishCf * CFrame.Angles(0, 0, rad(-26)))
+	-- (no Reflectance: in Studio it mirrors the blue sky into the gold and turns it khaki)
 	local body = bigFish(fish, s, {
 		body = H.gold,
 		head = H.goldHead,
 		belly = H.goldBelly,
 		fin = H.goldFin,
 		lips = lerpColor(C.Orange, C.Red, 0.3),
-		spots = H.goldDeep,
-	}, { crown = true, extra = { Reflectance = 0.2 } })
+		spots = H.goldScale,
+	}, { crown = true })
 	-- a pale gold shine along its back
-	fish:box(
-		"BackShine",
-		-7 * s,
-		4.75 * s,
-		-2.3 * s,
-		3.4 * s,
-		5.4 * s,
-		2.3 * s,
-		H.goldLight,
-		merge(DECOR, { Reflectance = 0.2 })
-	)
+	fish:box("BackShine", -7 * s, 4.75 * s, -2.3 * s, 3.4 * s, 5.4 * s, 2.3 * s, H.goldLight, DECOR)
+	-- a warm light just under the belly (it turns with the fish) lifts the underside the players
+	-- see from the plaza: the shaded gold stays gold instead of going olive
+	local under = U.new("Attachment", { Name = "UnderGlow", CFrame = CFrame.new(-2 * s, -7.6 * s, 0) }, body)
+	pointLight(under, 16, 1.6, lerpColor(C.LightColor, C.Glow, 0.4))
 	emitter(body, "Sparkles", {
 		rate = 6,
 		life = { 1.2, 2.0 },
@@ -2097,7 +2167,7 @@ local function buildPlazaFurniture(hub: any, G: number)
 	local m = U.model(hub, "PlazaFurniture")
 	for k = 0, 3 do
 		local a = 22.5 + k * 90
-		Props.bench(m, U.polarCFrame(a, 35, G + 0.2), { length = 8, color = C.Wood, seed = 40 + k })
+		parkBench(m, U.polarCFrame(a, 35, G + 0.2), 8, C.Wood)
 		streetLamp(m, U.polarCFrame(a + 45, 36, G + 0.2), 10, C.Iron, true)
 	end
 	-- wooden planters: a box with a dark rim, a green cushion and two clumps of flowers (5 parts)
@@ -2217,14 +2287,15 @@ local function buildAvenues(hub: any, cfg: any, G: number)
 				end
 			end
 			if k == buntingPair then
-				pennants(F.model, tops[1], tops[2], 9, 1.4, 1.3, 1.7, i * 3)
+				pennants(F.model, tops[1], tops[2], 6, 1.4, 1.3, 1.7, i * 3)
 			end
 		end
-		-- clipped box hedges outside the kerbs, broken by the lamp pair
+		-- low clipped box hedges outside the kerbs, broken by the lamp pair (the beds, benches and
+		-- street trees behind them come later: buildFrontages)
 		local hedges = if buntingPair == 1 then { { 70, 82 }, { 90, 134 } } else { { 70, 114 }, { 122, 134 } }
 		for j, sx in { -1, 1 } do
 			for k, zz in hedges do
-				F:box(`Hedge{j}_{k}`, sx * 15, -0.3, zz[1], sx * 17.6, 2.4, zz[2], C.Leaf1)
+				F:box(`Hedge{j}_{k}`, sx * 15, -0.3, zz[1], sx * 17.6, 1.8, zz[2], C.Leaf1)
 			end
 		end
 		welcomeGate(F, gateZ, accent, AVENUE_TOPPER[angle % 360] or "pinwheel")
@@ -2265,6 +2336,10 @@ local function kiosk(parent: any, cf: any, name: string, text: string, main: any
 	local sign = F:box("Sign", -4.6, 9.3, -5.3, 4.6, 11.9, -4.7, C.Cream)
 	F:box("SignFrame", -5.0, 9.2, -5.0, 5.0, 12.3, -4.6, C.WoodDark)
 	signText(sign, Enum.NormalId.Front, text, shade(main, 0.7))
+	-- the back (the side the avenue and the beach see): a painted menu poster in the stall's colour
+	F:box("PosterFrame", -3.6, 2.2, 3.55, 3.6, 7.6, 3.8, main, NOSHADOW)
+	local poster = F:box("Poster", -2.9, 2.8, 3.6, 2.9, 7.0, 3.95, C.Cream, NOSHADOW)
+	signText(poster, Enum.NormalId.Back, text, shade(main, 0.7))
 	local y = ridgeTop - 0.1
 	if product == "icecream" then
 		F:box("Cone1", -0.8, y, -0.8, 0.8, y + 1.2, 0.8, C.Straw)
@@ -2385,6 +2460,9 @@ local function gameTent(parent: any, cf: any)
 		F:box(`Bullseye{i}`, x - 0.5, 2.7, 3.4, x + 0.5, 3.7, 3.65, C.White, DECOR)
 	end
 	F:box("PrizeShelf", -6.2, 5.2, 2.6, 6.2, 5.6, 3.8, C.WoodLight, NOSHADOW)
+	-- a red banner on the back of the tent
+	local banner = F:box("BackBanner", -4.4, 2.4, 4.55, 4.4, 6.6, 4.8, accent, NOSHADOW)
+	signText(banner, Enum.NormalId.Back, "ИГРЫ", C.Cream)
 	local prizes = { H.fish[4], C.Orange, C.Purple }
 	for j, x in { -4, 0, 4 } do
 		smallFish(F, x, 5.6, 3.2, 3.0, prizes[j])
@@ -2497,7 +2575,7 @@ local function buildFair(hub: any, G: number)
 			F:box(`LightPole{k}_{j}`, sx * 9.2 - 0.3, -0.3, z - 0.3, sx * 9.2 + 0.3, 12, z + 0.3, C.Iron, NOSHADOW)
 			tops[j] = F:point(sx * 9.2, 11.8, z)
 		end
-		festoon(m, tops[1], tops[2], 6, 1.2)
+		festoon(m, tops[1], tops[2], 5, 1.2)
 	end
 	carousel(m, F:world(CFrame.new(0, 0, pathEnd + 7.4)))
 	local wheel = Props.ferrisWheel(m, U.polarCFrame(225, wheelR, G), { scale = scale, deck = C.Plank, seed = 1 })
@@ -2534,14 +2612,45 @@ local function woodpile(F: any, x: number, z: number, len: number)
 	F:box("WoodpileRoof", x - len / 2 - 0.3, 2.4, z - 1.3, x + len / 2 + 0.3, 2.8, z + 1.0, C.WoodDark, NOSHADOW)
 end
 
--- Kitchen garden: a soil bed (w along X, d along Z) with n rows of greens across it. 1 + n parts.
-local function vegPatch(F: any, name: string, cx: number, cz: number, w: number, d: number, n: number)
-	F:box(name, cx - w / 2, -0.3, cz - d / 2, cx + w / 2, 0.45, cz + d / 2, C.DirtDark, FLAT)
-	for k = 1, n do
-		local z = cz - d / 2 + (k - 0.5) * d / n
-		local col = if k % 2 == 0 then C.Leaf2 else C.Leaf3
-		F:box(`{name}Row{k}`, cx - w / 2 + 0.6, 0.4, z - 0.35, cx + w / 2 - 0.6, 1.05, z + 0.35, col, DECOR)
+--[[
+	Kitchen garden: a soil bed (w along X, d along Z) with n rows across it, each row a line of k
+	leafy clumps (cabbages and lettuces in two greens, staggered row to row, a few with an orange
+	or red crop showing), on a timber edging. 2 + n·k parts.
+]]
+local function vegPatch(F: any, name: string, cx: number, cz: number, w: number, d: number, n: number, k: number)
+	F:box(
+		name .. "Edge",
+		cx - w / 2 - 0.3,
+		-0.3,
+		cz - d / 2 - 0.3,
+		cx + w / 2 + 0.3,
+		0.6,
+		cz + d / 2 + 0.3,
+		C.Wood,
+		FLAT
+	)
+	F:box(name, cx - w / 2, -0.3, cz - d / 2, cx + w / 2, 0.75, cz + d / 2, C.DirtDark, FLAT)
+	local step = (w - 1.2) / k
+	for row = 1, n do
+		local z = cz - d / 2 + (row - 0.5) * d / n
+		for j = 1, k do
+			local x = cx - w / 2 + 0.6 + (j - 0.5) * step + (if row % 2 == 0 then 0.35 else -0.35)
+			local big = (row + j) % 2 == 0
+			local hw = if big then 0.75 else 0.6
+			local col = if big then C.Leaf3 else C.Mint2
+			if (row * 3 + j) % 5 == 0 then
+				col = if row % 2 == 0 then C.Orange else lerpColor(C.Red, C.Leaf1, 0.25) -- pumpkin / beet
+			end
+			F:box(`{name}Clump{row}_{j}`, x - hw, 0.7, z - hw, x + hw, if big then 2.0 else 1.7, z + hw, col, DECOR)
+		end
 	end
+end
+
+-- Beehive on a little stand at local (x, z): a cream box under a red lid. 3 parts.
+local function beehive(F: any, x: number, z: number)
+	F:box("HiveStand", x - 0.9, -0.3, z - 0.9, x + 0.9, 0.8, z + 0.9, C.WoodDark, NOSHADOW)
+	F:box("Hive", x - 1.2, 0.8, z - 1.1, x + 1.2, 3.2, z + 1.1, C.Cream)
+	F:box("HiveLid", x - 1.45, 3.2, z - 1.35, x + 1.45, 3.75, z + 1.35, C.RoofRed, NOSHADOW)
 end
 
 -- Washing line along local X from x0 to x1 at z: two posts, the line and three pieces of laundry.
@@ -2842,7 +2951,7 @@ local HOUSE_STYLES = {
 	harbourBlue = {
 		wall = C.Plaster,
 		wall2 = lerpColor(C.RoofBlue, C.Plaster, 0.38),
-		roof = C.RoofRed,
+		roof = H.roofClay,
 		trim = C.Cream,
 		shutter = C.RoofBlue,
 		door = C.RoofBlue,
@@ -2850,7 +2959,7 @@ local HOUSE_STYLES = {
 	},
 	butter = {
 		wall = lerpColor(C.Plaster, C.Yellow, 0.22),
-		roof = C.RoofSlate,
+		roof = H.roofHarbour,
 		trim = C.White,
 		shutter = C.RoofGreen,
 		door = C.RoofGreen,
@@ -2858,13 +2967,13 @@ local HOUSE_STYLES = {
 	},
 	netRed = {
 		wall = lerpColor(C.Brick, C.WoodDark, 0.2),
-		roof = C.RoofSlate,
+		roof = H.roofSage,
 		trim = C.Cream,
 		door = C.WoodDark,
 	},
 	rose = {
 		wall = lerpColor(C.Plaster, C.Pink, 0.14),
-		roof = C.RoofTerracotta,
+		roof = H.roofClay,
 		trim = C.Cream,
 		shutter = C.RoofBlue,
 		door = C.Wood,
@@ -2881,7 +2990,7 @@ local HOUSE_STYLES = {
 	harbourGreen = {
 		wall = C.Limestone,
 		wall2 = lerpColor(C.RoofGreen, C.Plaster, 0.42),
-		roof = C.RoofBlue,
+		roof = C.RoofSlate,
 		trim = C.Cream,
 		shutter = C.RoofGreen,
 		door = C.Wood,
@@ -2928,10 +3037,9 @@ local function buildCottages(hub: any, G: number)
 			Y:box(`Hedge{i}`, sx * 2.6, -0.3, 147.6, sx * 12.5, 1.8, 149.0, C.Leaf0)
 			Y:box(`GatePier{i}`, sx * 1.9 - 0.65, -0.3, 147.6, sx * 1.9 + 0.65, 2.6, 149.0, H.wall)
 		end
-		vegPatch(Y, "VegPatch", -7.6, 136.5, 6.4, 6, 3)
-		-- allotments either side of the lane's path between the plaza and the yard
-		for i, sx in { -1, 1 } do
-			vegPatch(Y, `Allotment{i}`, sx * 6.2, 108 + i * 4, 7.2, 12, 3)
+		vegPatch(Y, "VegPatch", -7.6, 136.5, 6.4, 6, 2, 3)
+		if ci > 1 then
+			beehive(Y, -5.4, 143.4) -- (cluster 1 has its washing line)
 		end
 		Props.barrel(cm, Y:at(-11.6, 0, 131.2), { seed = 310 + ci, color = C.Wood })
 		woodpile(Y, 9.4, 145.0, 5.2)
@@ -2984,8 +3092,8 @@ local function parterre(F: any, cx: number, tones: { any }, focal: string, seed:
 			width = 3.0,
 			depth = 16.3,
 			colors = tones,
-			spacing = 2.4,
-			max = 6,
+			spacing = 2.9,
+			max = 5,
 			kerb = C.Limestone,
 			seed = seed + i,
 		})
@@ -3060,7 +3168,7 @@ local function boatYard(parent: any, G: number)
 	Y:wedge("ShedRoof", 3.2, 5.2, 124.8, 11.0, 6.6, 130.4, C.RoofSlate, "-z")
 	Y:box("ShedDoor", 5.6, -0.3, 129.6, 8.0, 4.4, 129.9, C.WoodDark, NOSHADOW)
 	Y:box("Planks1", -10.6, -0.3, 145.2, -2.6, 0.9, 146.6, C.WoodLight)
-	Props.roundTree(parent, Y:at(14.8, 0, 132), { seed = 77, scale = 1.2 })
+	Props.roundTree(parent, Y:at(14.8, 0, 132), { seed = 77, scale = 1.2, lite = true })
 end
 
 --[[
@@ -3159,7 +3267,7 @@ local function buildBandstand(hub: any, cf: any, benchY: number)
 	pointLight(lamp, 16, 1.3)
 	-- the audience's benches in an arc on the boardwalk, facing the stage
 	for i, p in { { -9, -18.5, 205 }, { 0, -20.5, 180 }, { 9, -18.5, 155 } } do
-		Props.bench(F.model, F:at(p[1], benchY, p[2], p[3]), { length = 7, color = C.Wood, seed = 50 + i })
+		parkBench(F.model, F:at(p[1], benchY, p[2], p[3]), 7, C.Wood)
 	end
 	F.model.PrimaryPart = deck
 end
@@ -3172,13 +3280,155 @@ end
 local function buildLawns(hub: any, G: number)
 	local m = U.model(hub, "Lawns")
 	local g = polarFrame(m, 32, 0, G)
-	Props.cherryTree(m, g:at(-3, 0, 137), { seed = 71, scale = 1.4 })
-	Props.roundTree(m, g:at(9, 0, 143), { seed = 72, scale = 1.2 })
+	Props.cherryTree(m, g:at(-3, 0, 137), { seed = 71, scale = 1.4, lite = true })
+	Props.roundTree(m, g:at(9, 0, 143), { seed = 72, scale = 1.2, lite = true })
 	Props.flowerBed(m, g:at(2, 0, 127.5), { width = 10, depth = 2.4, colors = Props.bloomPairs[2], max = 5, seed = 73 })
 	boatYard(m, G)
 	koiGarden(m, G)
 	for _, t in { { 282, 130 }, { 209.5, 132 } } do
-		Props.oakTree(m, polarFrame(m, t[1], 0, G):at(0, 0, t[2]), { seed = floor(t[1]) + 4, scale = 1.4 })
+		Props.oakTree(m, polarFrame(m, t[1], 0, G):at(0, 0, t[2]), { seed = floor(t[1]) + 4, scale = 1.4, lite = true })
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Avenue frontages: pocket gardens on the lawns either side of every avenue
+--------------------------------------------------------------------------------
+
+-- per avenue (BridgeAngles order): the street trees' two leaf tones and the flower beds' two
+-- jewel tones (Palette.Flowers: 1 red, 2 yellow, 3 pink, 4 violet, 5 white, 6 orange, 7 blue)
+local FRONTAGE = {
+	{ trees = { C.Leaf2, C.Leaf3 }, beds = { 3, 2 } },
+	{ trees = { C.Blossom1, C.Blossom2 }, beds = { 4, 5 } },
+	{ trees = { C.Mint2, C.Mint3 }, beds = { 1, 2 } },
+	{ trees = { C.Blossom1, C.Blossom2 }, beds = { 7, 6 } },
+}
+
+-- Is the world point (x, z) within `margin` of a base's line of sight to the tower (the base
+-- lanes θ = 22.5 + k·45, which stay open)?
+local function nearLane(x: number, z: number, margin: number): boolean
+	for k = 0, 7 do
+		local a = rad(22.5 + k * 45)
+		local along = x * math.sin(a) + z * math.cos(a)
+		if along > 0 and abs(x * math.cos(a) - z * math.sin(a)) < margin then
+			return true
+		end
+	end
+	return false
+end
+
+-- Is the footprint circle (world x, z, radius) clear of every hub part reaching higher than
+-- G + minTop (default 0.7: paving, paths, kerbs and other flat slabs don't count)? Parts are taken
+-- as their oriented top-view boxes.
+local function groundClear(hub: any, G: number, x: number, z: number, radius: number, minTop: number?): boolean
+	for _, p in hub:GetDescendants() do
+		if p:IsA("BasePart") then
+			local cf, size = p.CFrame, p.Size
+			local top = 0
+			for _, d in { cf.RightVector * size.X, cf.UpVector * size.Y, cf.LookVector * size.Z } do
+				top += abs(d.Y) / 2
+			end
+			if cf.Position.Y + top > G + (minTop or 0.7) then
+				local l = cf:PointToObjectSpace(V(x, cf.Position.Y, z))
+				local dx = math.max(abs(l.X) - size.X / 2, 0)
+				local dz = math.max(abs(l.Z) - size.Z / 2, 0)
+				if dx * dx + dz * dz < radius * radius then
+					return false
+				end
+			end
+		end
+	end
+	return true
+end
+
+--[[
+	Street frontage on both sides of every avenue between the plaza and the welcome gate (built
+	after the cottages, gardens and lawns, so it fits round them), so the avenue reads as a street
+	of trees, flowers and benches rather than a road through a field: beside the low clipped hedge
+	a kerbed bed of jewel-tone blooms along the street, a bench behind it on the open side looking
+	over the flowers at the avenue, and rounded street trees out on the lawn (three on the open
+	side, one on the parterre side), each standing where nothing else of the hub does. ~40 parts
+	per avenue.
+]]
+local function buildFrontages(hub: any, cfg: any, G: number)
+	for i, angle in cfg.BridgeAngles do
+		local look = FRONTAGE[(i - 1) % #FRONTAGE + 1]
+		local F = radialFrame(hub:FindFirstChild("Avenues"):FindFirstChild(`Avenue{i}`), angle, G)
+		local zc = if angle % 360 == 180 then 104 else 112 -- the bed's middle (r): clear of the lamps
+		local c1, c2 = C.Flowers[look.beds[1]], C.Flowers[look.beds[2]]
+		-- the parterre side (+X, towards the garden on the next base lane) and the open side (−X)
+		for j, sx in { -1, 1 } do
+			Props.flowerBed(F.model, F:at(sx * 21.6, 0, zc), {
+				width = 3.6,
+				depth = 12,
+				colors = if sx < 0 then { c1, c2 } else { c2, c1 },
+				spacing = 2.0,
+				stems = false,
+				max = 5,
+				kerb = C.Limestone,
+				seed = 500 + i * 10 + j,
+			})
+			if sx < 0 then
+				parkBench(F.model, F:at(sx * 26.2, 0, zc, sx * 90), 7, C.Wood)
+				-- a gravel walk from the bench out to the next base lane's path (about r·tan 22.5°
+				-- out), or as far as the lawn is free
+				local x1 = zc * 0.414 + 0.5
+				while x1 > 32 do
+					local q = F:point(sx * x1, 0, zc)
+					if groundClear(hub, G, q.X, q.Z, 2.4) then
+						break
+					end
+					x1 -= 2
+				end
+				gravelPath(F, "SideWalk", sx * 27.4, zc - 1.5, sx * x1, zc + 1.5)
+			end
+			-- a low hedge wing along the welcome gate's line, out from its pillar foot, as far as
+			-- the lawn is free (a cottage may stand there)
+			local len = 16
+			while len > 3 do
+				local p = F:point(sx * (20.4 + len - 1), 0, 139.4)
+				if groundClear(hub, G, p.X, p.Z, 1.6) then
+					break
+				end
+				len -= 2
+			end
+			if len > 3 then
+				F:box(`GateWing{j}`, sx * 20.4, -0.3, 138.4, sx * (20.4 + len), 1.8, 140.4, C.Leaf1)
+				-- two blooms tucked into it, in the street's colours
+				for k, t in { 0.35, 0.75 } do
+					local bx = sx * (20.4 + len * t)
+					local col = if k == 1 then c1 else c2
+					F:box(`WingBloom{j}_{k}`, bx - 0.7, 1.4, 138.7, bx + 0.7, 2.4, 140.1, col, DECOR)
+				end
+			end
+			local want = if sx < 0 then 3 else 1
+			local candidates = if sx < 0
+				then {
+					{ 30, zc - 9 },
+					{ 34, zc + 8 },
+					{ 27, zc + 17 },
+					{ 37, zc - 3 },
+					{ 33, zc - 20 },
+					{ 24, zc - 19 },
+				}
+				else { { 23, zc + 19 }, { 21.8, zc - 16 }, { 27, zc + 24 } }
+			local placed = 0
+			for _, c in candidates do
+				if placed >= want then
+					break
+				end
+				-- the trunk clear of everything on the ground, the crown of everything tall, and
+				-- the whole tree off the bases' lines of sight to the tower
+				local p = F:point(sx * c[1], 0, c[2])
+				if
+					not nearLane(p.X, p.Z, 10)
+					and groundClear(hub, G, p.X, p.Z, 1.6)
+					and groundClear(hub, G, p.X, p.Z, 3.8, 5)
+				then
+					placed += 1
+					roundedTree(F, `StreetTree{j}_{placed}`, sx * c[1], c[2], look.trees)
+				end
+			end
+		end
 	end
 end
 
@@ -3288,30 +3538,73 @@ local function zoneFrame(parent: any, name: string, world: any, a: number, r: nu
 	return newFrame(U.model(parent, name), groundCf(world, a, r, 180))
 end
 
+-- Small beach parasol on local (x, z) of frame F, its foot at y0: a white pole and a canopy in
+-- `canopy` under a cream top. 3 parts.
+local function miniParasol(F: any, x: number, z: number, y0: number, canopy: any)
+	F:column("ParasolPole", 0.35, x, z, y0 - 0.3, y0 + 6.4, C.White, NOSHADOW)
+	F:box("Parasol", x - 3.2, y0 + 5.2, z - 3.2, x + 3.2, y0 + 5.8, z + 3.2, canopy, { CanCollide = false })
+	F:box("ParasolTop", x - 2.0, y0 + 5.8, z - 2.0, x + 2.0, y0 + 6.5, z + 2.0, C.Cream, DECOR)
+end
+
 --[[
-	Beach café (θ 22.5, base 1's lane): a plank deck on the sand, a bar with a back wall and two
-	posts under a blue and cream striped awning, the «КАФЕ» sign on top, two tables with parasols
-	and stools facing the lagoon. ~36 parts.
+	Beach bar (θ 26.6, base 1's lane): a plank deck on the sand, a plank hut with its counter to
+	the lagoon under a thatched roof on two front posts (a blue stripe on the counter, a shelf of
+	bottles behind it, three stools), the «КАФЕ» board on the ridge, two tables with parasols and
+	stools on the deck. ~32 parts.
 ]]
 local function beachCafe(parent: any, world: any)
 	local F = zoneFrame(parent, "BeachCafe", world, 26.6, 175)
 	local deck = F:box("Deck", -11, -0.6, -6.6, 11, 0.9, 7.2, C.Plank, FLAT)
-	F:box("BarBack", -6.4, 0.9, 6.0, 6.4, 8.4, 6.8, C.Plank)
-	F:box("Bar", -6.0, 0.9, 3.0, 6.0, 3.9, 4.4, C.Wood)
-	F:box("BarTop", -6.4, 3.9, 2.7, 6.4, 4.4, 4.7, C.WoodLight)
-	for i, sx in { -1, 1 } do
-		F:box(`BarPost{i}`, sx * 6.2 - 0.35, 0.9, 2.2, sx * 6.2 + 0.35, 8.0, 2.9, C.WoodDark)
+	-- the hut: the back room, the counter in front of it, the front posts
+	F:box("Hut", -6.4, 0.9, 2.2, 6.4, 7.6, 6.8, lerpColor(C.Plank, C.Plaster, 0.35))
+	F:box("Counter", -6.4, 0.9, -0.4, 6.4, 3.9, 2.2, C.Wood)
+	F:box("CounterTop", -6.8, 3.9, -0.8, 6.8, 4.4, 2.4, C.WoodLight)
+	F:box("CounterStripe", -6.45, 2.0, -0.55, 6.45, 2.8, 1.0, C.RoofBlue, NOSHADOW)
+	F:box("Shelf", -5.2, 5.4, 1.9, 5.2, 5.8, 2.3, C.WoodDark, NOSHADOW)
+	for k = 1, 4 do
+		local x = -4.2 + (k - 1) * 2.8
+		local col = C.Flowers[(k * 2) % #C.Flowers + 1]
+		F:box(`Bottle{k}`, x - 0.35, 5.8, 1.95, x + 0.35, 7.0, 2.25, col, DECOR)
 	end
-	awning(F, "Awning", -6.8, 6.8, 8.6, 6.0, 4.6, 1.3, 4, lerpColor(C.Blue, C.Cream, 0.15), C.Cream)
-	signBoard(F, "Sign", -3.2, 3.2, 9.3, 11.1, 6.4, C.Cream, C.WoodDark, "КАФЕ", "КАФЕ", C.Navy)
 	for i, sx in { -1, 1 } do
-		local x, z = sx * 5.6, -2.6
+		F:box(`Post{i}`, sx * 6.2 - 0.4, 0.9, -1.4, sx * 6.2 + 0.4, 8.4, -0.6, C.WoodDark)
+	end
+	-- thatched roof (ridge along X) over the counter and the hut
+	local ridgeTop = gableRoof(F, "Roof", 0, 2.6, "x", 6.8, 4.2, 8.2, 3.6, {
+		roof = C.Straw,
+		ridge = lerpColor(C.Straw, C.Wood, 0.45),
+		gables = {},
+		ov = 1.4,
+		og = 0.8,
+		noEaves = true,
+	})
+	signBoard(
+		F,
+		"Sign",
+		-3.2,
+		3.2,
+		ridgeTop + 0.6,
+		ridgeTop + 2.6,
+		2.6,
+		C.Cream,
+		C.WoodDark,
+		"КАФЕ",
+		"КАФЕ",
+		C.Navy
+	)
+	for k = 1, 3 do
+		local x = (k - 2) * 3.6
+		F:box(`BarStool{k}`, x - 0.7, 0.9, -2.6, x + 0.7, 3.0, -1.2, C.Wood)
+	end
+	-- two tables with parasols and stools out on the deck
+	for i, sx in { -1, 1 } do
+		local x, z = sx * 7.4, -5.2
 		F:box(`TablePost{i}`, x - 0.25, 0.9, z - 0.25, x + 0.25, 3.4, z + 0.25, C.WoodDark, NOSHADOW)
 		F:box(`Table{i}`, x - 1.3, 3.4, z - 1.3, x + 1.3, 3.8, z + 1.3, C.WoodLight)
 		for j, dx in { -1, 1 } do
 			F:box(`Stool{i}_{j}`, x + dx * 2.3 - 0.6, 0.9, z - 0.6, x + dx * 2.3 + 0.6, 2.5, z + 0.6, C.Wood)
 		end
-		Props.parasol(F.model, F:at(x, 0.9, z), { seed = 130 + i, color = if sx < 0 then C.RoofBlue else C.RoofRed })
+		miniParasol(F, x, z, 3.8, if sx < 0 then C.RoofBlue else C.Flowers[1])
 	end
 	F.model.PrimaryPart = deck
 end
@@ -3411,11 +3704,101 @@ local function dune(parent: any, world: any, a: number, r: number, w: number)
 end
 
 --[[
-	The beach ring is laid out in zones in front of the bases' lanes (set a little to the side of
-	each lane, so its middle stays open towards the tower): a café (θ 22.5), bathing huts
-	(θ 67.5), a fishing corner (θ 112.5), a lifeguard tower (θ 157.5), beach volleyball by the
-	fun fair (θ 205) and the harbour (θ 285 .. 345); big palms and dune humps with grass tufts in
-	between.
+	Bathing spot on the sand at local (x, z) of a zone frame (−Z towards the water): a parasol in
+	`canopy` over a lounger (a light wooden frame with a reclined cushion in `cushion`, its head
+	landwards) and a beach towel in a jewel tone beside it. 6 parts.
+]]
+local function bathingSpot(F: any, x: number, z: number, canopy: any, cushion: any?, towel: any)
+	miniParasol(F, x, z + 1.4, 0, canopy)
+	if cushion then
+		F:box("Lounger", x - 3.0, -0.2, z - 2.6, x - 0.8, 0.8, z + 2.6, C.WoodLight)
+		F:wedge("LoungerBack", x - 2.9, 0.8, z + 0.8, x - 0.9, 2.5, z + 2.6, cushion, "+z", NOSHADOW)
+	else -- a second towel instead
+		F:box("Towel2", x - 3.3, -0.1, z - 2.8, x - 0.9, 0.15, z + 1.6, lerpColor(towel, C.White, 0.5), FLAT)
+	end
+	F:box("Towel", x + 0.9, -0.1, z - 3.2, x + 3.3, 0.15, z + 1.2, towel, FLAT)
+end
+
+-- A canoe pulled up on the sand at local (x, z) along local Z: a painted hull, its dark inside and
+-- a paddle lying across it. 3 parts.
+local function canoe(F: any, x: number, z: number, col: any)
+	F:box("Canoe", x - 0.95, -0.2, z - 3.8, x + 0.95, 0.9, z + 3.8, col)
+	F:box("CanoeInside", x - 0.6, 0.6, z - 3.0, x + 0.6, 0.98, z + 3.0, shade(C.Wood, 0.75), DECOR)
+	F:box("Paddle", x - 2.4, 0.98, z - 0.25, x + 1.7, 1.2, z + 0.25, C.WoodLight, DECOR)
+end
+
+-- Beach lamp on local (x, z), its foot at y0: a dark post, a glowing cube and an iron cap. 3 parts.
+local function beachLamp(F: any, x: number, z: number, y0: number)
+	F:box("LampPost", x - 0.35, y0 - 0.3, z - 0.35, x + 0.35, y0 + 6.2, z + 0.35, C.WoodDark, NOSHADOW)
+	F:box("LampGlow", x - 0.75, y0 + 6.2, z - 0.75, x + 0.75, y0 + 7.8, z + 0.75, C.Glow, NEON_DECOR)
+	F:box("LampCap", x - 1.05, y0 + 7.8, z - 1.05, x + 1.05, y0 + 8.3, z + 1.05, C.Iron, DECOR)
+end
+
+--[[
+	Plank walk along the beach at the foot of the terrace steps (a chord from θ a0 to a1, its
+	middle at r): the deck a step above the sand, dark board joints across it and a beach lamp at
+	each end on the land side. 10 parts.
+]]
+local function beachWalk(parent: any, a0: number, a1: number, r: number)
+	local m = U.model(parent, "BeachWalk")
+	local mid = (a0 + a1) / 2
+	local F = radialFrame(m, mid, 0)
+	local len = 2 * r * math.tan(rad((a1 - a0) / 2))
+	m.PrimaryPart = F:box("Deck", -len / 2, 1.8, r - 2.2, len / 2, 2.7, r + 2.2, C.Plank, FLAT)
+	for k = 1, 3 do
+		local x = -len / 2 + len * k / 4
+		F:box(`Joint{k}`, x - 0.3, 2.7, r - 2.2, x + 0.3, 2.78, r + 2.2, shade(C.Plank, 0.72), DECOR)
+	end
+	for _, sx in { -1, 1 } do
+		beachLamp(F, sx * (len / 2 - 1.6), r - 1.4, 2.7)
+	end
+end
+
+--[[
+	Boathouse on stilts at the water's edge (θ 124, r 186): a plank deck from the beach out over
+	the shallows on two stilts, a seafoam plank shed with a big dark boat door to the lagoon and a
+	red bow peeking out of it, a clay roof (ridge towards the water). 9 parts.
+]]
+local function boathouse(parent: any)
+	local a, r = 124, 186
+	local p = U.polar(a, r, 0)
+	-- frame on the water surface, −Z out to the lagoon, +Z up the beach
+	local F = newFrame(U.model(parent, "Boathouse"), CFrame.new(p.X, 0, p.Z) * CFrame.Angles(0, rad(a + 180), 0))
+	local deck = F:box("Deck", -7, 2.2, -8.4, 7, 3.2, 6.4, C.Plank, FLAT)
+	for i, sx in { -1, 1 } do
+		F:box(`Stilt{i}`, sx * 6.2 - 0.6, -5, -8.0, sx * 6.2 + 0.6, 2.2, -6.8, C.WoodDark)
+	end
+	F:box("Shed", -5, 3.2, -5.2, 5, 9.6, 4.2, lerpColor(C.Cyan, C.Plaster, 0.55))
+	F:box("BoatDoor", -3.2, 3.2, -5.45, 3.2, 8.2, -5.0, shade(C.WoodDark, 0.6), NOSHADOW)
+	F:box("BoatBow", -1.1, 2.9, -7.8, 1.1, 4.4, -5.2, C.BoatPaint[1])
+	gableRoof(F, "Roof", 0, -0.5, "z", 4.7, 5.0, 9.6, 3.4, {
+		roof = H.roofClay,
+		gables = {},
+		ov = 0.9,
+		og = 0.9,
+		noEaves = true,
+	})
+	F.model.PrimaryPart = deck
+end
+
+-- Three tufts of beach grass in three greens round (θ a, r) on the sand. 3 parts.
+local function grassTufts(parent: any, world: any, a: number, r: number)
+	local F = zoneFrame(parent, "BeachGrass", world, a, r)
+	for k, t in { { -1.6, 0.4, 2.0, C.Leaf2 }, { 0.3, -0.5, 2.6, C.Palm3 }, { 1.9, 0.6, 1.6, C.Leaf3 } } do
+		F:box(`Tuft{k}`, t[1] - 0.6, -0.2, t[2] - 0.5, t[1] + 0.6, t[3], t[2] + 0.5, t[4], DECOR)
+	end
+	F.model.PrimaryPart = F.model:FindFirstChild("Tuft1")
+end
+
+--[[
+	The beach ring, a continuous waterfront in front of the bases' lanes (each zone set a little
+	to the side of its lane, so the lane's middle stays open towards the tower): the beach bar
+	(θ 26.6), bathing huts (θ 63) with bathing spots and a swimming line of floats beside them, the
+	fishing corner (θ 112.5), the boathouse on stilts (θ 124), a lifeguard tower (θ 161), beach
+	volleyball by the fun fair (θ 205), canoes pulled up on the sand, plank walks with lamps at the
+	foot of the steps (θ 138..152, 218..236), bathing spots with parasols, loungers and towels all
+	round, a sandcastle, big palms, dunes and tufts of beach grass; the harbour (θ 285 .. 345) has
+	its own boardwalk.
 ]]
 local function buildBeach(hub: any, world: any)
 	local m = U.model(hub, "Beach")
@@ -3429,8 +3812,55 @@ local function buildBeach(hub: any, world: any)
 	fishingCorner(m, world)
 	lifeguard(m, world)
 	volleyball(m, world)
-	for _, d in { { 46, 177, 3.4 }, { 128, 178, 3.0 }, { 196, 176, 3.6 }, { 238, 176, 3.2 } } do
+	boathouse(m)
+	for _, d in { { 46, 177, 3.4 }, { 196, 176, 3.6 }, { 238, 176, 3.2 } } do
 		dune(m, world, d[1], d[2], d[3])
+	end
+	beachWalk(m, 138, 152, 169)
+	beachWalk(m, 218.5, 236, 169)
+	-- bathing spots: θ, parasol, cushion, towel (jewel tones: the beach's colour pops)
+	local J = C.Flowers
+	for k, b in
+		{
+			{ 74, J[1], C.Cream, J[7] },
+			{ 79.5, J[7], false, J[3] },
+			{ 145, J[2], J[7], J[1] },
+			{ 168, J[3], false, J[6] },
+			{ 192, J[6], J[7], J[2] },
+			{ 223, J[7], false, J[5] },
+			{ 230, J[1], J[2], J[4] },
+		}
+	do
+		local Z = zoneFrame(m, "BathingSpot", world, b[1], if k % 2 == 0 then 178.5 else 177)
+		bathingSpot(Z, 0, 0, b[2], b[3] or nil, b[4])
+		Z.model.PrimaryPart = Z.model:FindFirstChild("Towel")
+	end
+	-- canoes pulled up by the water
+	for _, c in { { 100.5, 2 }, { 103.5, 1 }, { 252, 3 }, { 255.5, 4 } } do
+		local Z = zoneFrame(m, "Canoe", world, c[1], 180.5)
+		canoe(Z, 0, 0, C.BoatPaint[c[2]])
+		Z.model.PrimaryPart = Z.model:FindFirstChild("Canoe")
+	end
+	-- a sandcastle with a little flag
+	local S = zoneFrame(m, "Sandcastle", world, 171.5, 180)
+	S.model.PrimaryPart = S:box("Castle", -1.6, -0.2, -1.6, 1.6, 1.3, 1.6, C.SandDark, FLAT)
+	S:box("CastleTower", -0.8, 1.3, -0.8, 0.8, 2.8, 0.8, C.Sand)
+	S:box("CastleFlag", 0.1, 2.8, -0.05, 1.0, 3.5, 0.05, C.Red, DECOR)
+	-- a swimming line of floats off the bathing beach
+	for k = 0, 3 do
+		local q = U.polar(71.5 + k * 3.4, 193, 0.25)
+		U.part(
+			m,
+			"Float",
+			V(1.3, 1.3, 1.3),
+			CFrame.new(q),
+			if k % 2 == 0 then C.Red else C.White,
+			nil,
+			merge(DECOR, { Shape = Enum.PartType.Ball })
+		)
+	end
+	for _, a in { 95.5, 186.5, 245.5 } do
+		grassTufts(m, world, a, 167.6)
 	end
 end
 
@@ -3456,8 +3886,26 @@ local function buildBoardwalk(m: any, G: number): number
 	for k = 0, n - 1 do
 		local a = BOARDWALK[1] + (k + 0.5) * step
 		local F = polarFrame(bw, a, 0, 0)
-		-- all chords one colour: they overlap in thin wedges at the inner joints
-		F:box(`Deck{k + 1}`, -len / 2 - 0.1, top - 0.8, rIn, len / 2 + 0.1, top, rOut, C.Plank, FLAT)
+		-- boards in two tones chord by chord (the light ones 0.06 lower, so the thin wedges where
+		-- the chords overlap at the inner joints never share a plane), dark joints across each
+		local light = k % 2 == 1
+		local dTop = if light then top - 0.06 else top
+		local tone = if light then lerpColor(C.Plank, C.WoodLight, 0.5) else C.Plank
+		F:box(`Deck{k + 1}`, -len / 2 - 0.1, top - 0.8, rIn, len / 2 + 0.1, dTop, rOut, tone, FLAT)
+		for q, t in { -1 / 6, 1 / 6 } do
+			local x = t * len
+			F:box(
+				`DeckJoint{k + 1}_{q}`,
+				x - 0.25,
+				dTop,
+				rIn + 6,
+				x + 0.25,
+				dTop + 0.07,
+				rOut,
+				shade(C.Plank, 0.7),
+				DECOR
+			)
+		end
 		F:box(`Fascia{k + 1}`, -len / 2, 1.4, rOut - 0.8, len / 2, top - 0.1, rOut + 0.2, C.Wood, NOSHADOW)
 		-- the step chord is a little longer (it lies further out), so neighbours still meet; it
 		-- leaves a gap round the harbour pier's piles
@@ -3482,7 +3930,7 @@ local function buildBoardwalk(m: any, G: number): number
 			F:box(`Bollard{k}`, -0.7, 1.4, -0.7, 0.7, top + 1.4, 0.7, C.WoodDark)
 		end
 	end
-	Props.bench(bw, polarFrame(bw, 306, rOut - 3, top):at(0, 0, 0, 180), { length = 7, color = C.Wood, seed = 240 })
+	parkBench(bw, polarFrame(bw, 306, rOut - 3, top):at(0, 0, 0, 180), 7, C.Wood)
 	return rOut
 end
 
@@ -3552,8 +4000,26 @@ local function buildHarbour(hub: any, cfg: any, world: any)
 		P:box(`BuoyPost{i}`, 4.6, water - 8, z - 0.6, 5.8, deck + 4.4, z + 0.6, C.WoodDark)
 		Props.lifebuoy(m, P:at(5.2, deck + 3, z - 0.93, 0), { seed = 214 + i })
 	end
-	-- an anchor on the beach by the boardwalk
-	Props.anchor(m, groundCf(world, 338, r0 + 8, 70), { seed = 220, scale = 1.3 })
+	-- an anchor on a stone plinth on the beach by the boardwalk
+	local A = newFrame(U.model(m, "AnchorPlinth"), groundCf(world, 338, r0 + 8.5, 90))
+	A.model.PrimaryPart = A:box("PlinthBase", -5.6, -0.3, -2.2, 5.6, 0.6, 2.2, C.StoneDark)
+	A:box("Plinth", -5.0, 0.6, -1.6, 5.0, 1.6, 1.6, C.Limestone)
+	Props.anchor(m, A:at(0, 1.6, 0), { seed = 220, scale = 1.3 })
+	-- fish crates and a barrel at the pier's root, a net-mending rack with a net and floats
+	local Q = newFrame(U.model(m, "PierRoot"), U.polarCFrame(pierA - 3.2, r0 - 2.5, G - 0.4))
+	Q.model.PrimaryPart = Q:box("FishCrate", -1.4, 0, -1.2, 1.4, 1.8, 1.2, C.Wood)
+	Q:box("FishCrateFish", -1.1, 1.8, -0.9, 1.1, 2.15, 0.9, H.fish[1], DECOR)
+	Q:box("FishCrate2", -1.1, 1.8, -0.9, 1.4, 3.1, 1.0, C.WoodLight)
+	Props.barrel(m, Q:at(3.1, 0, -0.4), { seed = 221, color = C.Wood })
+	local N = newFrame(U.model(m, "NetRack"), U.polarCFrame(310, r0 - 3.2, G - 0.4))
+	for i, x in { -3.2, 3.2 } do
+		N:box(`RackPost{i}`, x - 0.3, 0, -0.3, x + 0.3, 6.0, 0.3, C.WoodDark, NOSHADOW)
+	end
+	N.model.PrimaryPart = N:box("RackBar", -3.6, 5.6, -0.25, 3.6, 6.2, 0.25, C.Wood, NOSHADOW)
+	N:box("Net", -2.9, 1.4, -0.12, 2.9, 5.6, 0.12, lerpColor(C.Twine, C.WoodDark, 0.35), DECOR)
+	for i, x in { -1.6, 0.4, 2.2 } do
+		N:box(`NetFloat{i}`, x - 0.4, 5.0, -0.3, x + 0.4, 5.6, 0.3, if i == 2 then C.Red else C.Orange, DECOR)
+	end
 
 	-- lighthouse on a stepped rock islet, joined to the boardwalk's step by a stone breakwater: at
 	-- θ 305, between base 7's pier (θ 292.5) and the harbour pier, its rocks 30+ studs clear of
@@ -3686,6 +4152,7 @@ return function(parent: any, cfg: any, world: any)
 	buildCottages(hub, G)
 	buildGardens(hub, G)
 	buildLawns(hub, G)
+	buildFrontages(hub, cfg, G)
 	buildTerrace(hub, cfg, G)
 	buildLandingPalms(hub, cfg, world, G)
 	buildBeach(hub, world)
