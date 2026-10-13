@@ -9,17 +9,23 @@
 
 	  • Кнопка действия (ActionArea.ActionButton) видна, пока удочка в руке персонажа.
 	    Надпись и цвет — по состоянию: «ЗАБРОСИТЬ» (синяя) → «ЖДЁМ…» (тусклая, нажатия
-	    не работают) → «ПОДСЕЧЬ!» (оранжевая, пульсирует) → «ТЯНИ!» (зелёная).
-	    То же действие — тап/клик удочкой по миру (Tool.Activated) и клавиша E / R2 на геймпаде
-	    (ContextActionService, только пока удочка в руке). Без тач-экрана на кнопке — подсказка
-	    клавиши: «ЗАБРОСИТЬ [E]».
+	    не работают; так же после подсечки и CastCooldown секунд после конца рыбалки) →
+	    «ПОДСЕЧЬ!» (оранжевая, пульсирует) → «ТЯНИ!» (зелёная). Удочка в рюкзаке, а игрок стоит
+	    у точки рыбалки своей базы — кнопка «ВЗЯТЬ УДОЧКУ» (берёт её в руку).
+	    То же действие — тап/клик удочкой по миру (Tool.Activated; на тач-экране — не в
+	    мини-игре: туда попадают и движения камеры) и клавиша F / R2 на геймпаде
+	    (ContextActionService, только пока удочка в руке; не E — E нужна ProximityPrompt).
+	    Без тач-экрана на кнопке — подсказка клавиши: «ЗАБРОСИТЬ [F]».
+	  • В мини-игре нажатие засчитывается в момент касания кнопки (MouseButton1Down), а не
+	    отпускания (двойной тап по «ПОДСЕЧЬ!» сервер не считает промахом — FishingConfig.HookTapGrace).
 	  • «СМОТАТЬ» (StopButton) — пока леска в воде.
 	  • Поклёвка (BiteAlert) мигает, полоска времени тает за Window секунд.
 	  • Мини-игра (Minigame): стрелка = FishingRules.Needle(U0, Speed, t), где t — сколько секунд
 	    прошло с получения "Minigame" (os.clock). Нажатие отправляет серверу это же t, а сервер
 	    проверяет попадание по той же формуле — игрок видит ровно то, что проверяет сервер.
 	  • Карточка улова (CatchCard): редкость, 3D-модель рыбы во ViewportFrame (медленно
-	    вращается), вес и цена; закрывается тапом, действием или сама через CatchCardTime.
+	    вращается), вес и цена; закрывается тапом, действием (не раньше CARD_INPUT_LOCK —
+	    лишний тап после победного не закроет её) или сама через CatchCardTime.
 	    Счётчик «Улов: N» — HUD.Status.CatchCounter.
 	  • Подсказка (Hint): почему заброс не принят, почему рыба ушла, куда идти. Если игрок с
 	    удочкой далеко от точки рыбалки своей базы — к ней тянется дорожка-луч (Beam, только у него).
@@ -53,14 +59,18 @@ local HINT_TIME = 3.5 -- сколько висит подсказка о соб�
 local CONTEXT_CHECK_INTERVAL = 0.25 -- как часто проверять, у точки ли рыбалки игрок, с
 local CARD_TURN_SPEED = 0.8 -- рыба в карточке поворачивается, радиан в секунду
 local CARD_FOV = 40
+local CARD_INPUT_LOCK = 0.5 -- столько секунд после появления карточку нельзя закрыть
 
 local HINT_NEAR = "Жми «Забросить»"
-local HINT_FAR = "Иди на край своего пирса — к сверкающему кругу"
+local HINT_FAR = "Встань в сверкающий круг на своём пирсе"
+local HINT_TAKE = "Возьми удочку — кнопка справа"
+local HINT_FIRST =
+	"Удочка — в рюкзаке внизу экрана. Иди на край своего пирса!"
 
 -- Почему рыба ушла (если сервер не прислал свой текст).
 local LOST_TEXT: { [string]: string } = {
 	early = "Рано! Рыба испугалась и уплыла",
-	late = "Не успел подсечь — рыба ушла",
+	late = "Поздно — рыба ушла",
 	miss = "Мимо! Рыба сорвалась",
 	timeout = "Рыба устала ждать и уплыла",
 }
@@ -68,7 +78,7 @@ local LOST_TEXT: { [string]: string } = {
 -- Почему рыбалка закончилась ("Idle"); причины без текста — молча.
 local IDLE_TEXT: { [string]: string } = {
 	stop = "Леска смотана",
-	moved = "Ты отошёл от края пирса — леска смотана",
+	moved = "Слишком далеко от края пирса — леска смотана",
 	unequipped = "Удочка убрана — леска смотана",
 	base = "Леска смотана",
 }
@@ -78,6 +88,7 @@ local COLORS = {
 	Wait = Color3.fromRGB(92, 104, 128),
 	Bite = Color3.fromRGB(240, 140, 30),
 	Reel = Color3.fromRGB(64, 200, 96),
+	Take = Color3.fromRGB(226, 136, 56),
 	PipDone = Color3.fromRGB(64, 200, 96),
 	Flash = Color3.fromRGB(255, 255, 255),
 	Guide = Color3.fromRGB(255, 214, 80),
@@ -96,6 +107,9 @@ local LOOKS: { [Phase]: Look } = {
 	Bite = { Caption = "ПОДСЕЧЬ!", Icon = "❗", Color = COLORS.Bite, Key = true, Dim = false },
 	Reeling = { Caption = "ТЯНИ!", Icon = "💪", Color = COLORS.Reel, Key = true, Dim = false },
 }
+-- Удочка в рюкзаке, игрок у точки рыбалки: кнопка берёт удочку в руку.
+local TAKE_LOOK: Look =
+	{ Caption = "ВЗЯТЬ УДОЧКУ", Icon = "🎣", Color = COLORS.Take, Key = false, Dim = false }
 
 type Minigame = {
 	Rarity: string,
@@ -159,6 +173,11 @@ local keyHint = ""
 
 local phase: Phase = "Idle"
 local rod: Tool? = nil -- удочка в руке
+local offerTake = false -- кнопка «ВЗЯТЬ УДОЧКУ» (удочка в рюкзаке, игрок у точки рыбалки)
+local everEquipped = false -- брал ли игрок удочку в руку за эту игру (подсказка новичку)
+local castReadyAt = 0 -- os.clock(), с которого сервер снова примет заброс (CastCooldown)
+local cooldownThread: thread? = nil -- вернёт кнопке вид «ЗАБРОСИТЬ», когда кулдаун пройдёт
+local cardOpenedAt = -math.huge
 local hookSent = false
 local minigame: Minigame? = nil
 local minigameStart = 0 -- os.clock() получения "Minigame"
@@ -173,6 +192,7 @@ local guide: Guide? = nil
 local characterTrove = Trove.new()
 local rodTrove = Trove.new()
 local phaseTrove = Trove.new()
+local actionPulseTrove = Trove.new() -- пульс кнопки на поклёвке (гаснет после подсечки)
 local cardTrove = Trove.new()
 
 --------------------------------------------------------------------------------
@@ -239,6 +259,25 @@ end
 
 local function isRod(instance: Instance): boolean
 	return instance:IsA("Tool") and typeof(instance:GetAttribute("RodId")) == "string"
+end
+
+local function hasBase(): boolean
+	local index = player:GetAttribute("BaseIndex")
+	return typeof(index) == "number" and index > 0
+end
+
+-- Удочка в рюкзаке (не в руке).
+local function backpackRod(): Tool?
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	if not backpack then
+		return nil
+	end
+	for _, item in backpack:GetChildren() do
+		if isRod(item) then
+			return item :: Tool
+		end
+	end
+	return nil
 end
 
 local function isLineOut(): boolean
@@ -371,38 +410,63 @@ local function setGuide(spot: BasePart?)
 	current.beam.Enabled = true
 end
 
--- Подсказка по месту: с удочкой, без рыбалки — «жми» у точки или «иди к кругу» + луч.
-local function refreshContextHint()
-	local text: string? = nil
-	local guideTo: BasePart? = nil
-	local root = rootPart()
-	local spot = ownFishingSpot()
-	if rod and phase == "Idle" and not ui.card.Visible and root and spot then
-		if isNearSpot(root, spot) then
-			text = HINT_NEAR
-		else
-			text = HINT_FAR
-			guideTo = spot
-		end
-	end
-	setGuide(guideTo)
-	setContextHint(text)
-end
-
 --------------------------------------------------------------------------------
 -- Кнопка действия и состояния рыбалки
 --------------------------------------------------------------------------------
 
+local function currentLook(): Look
+	if not rod then
+		return TAKE_LOOK
+	elseif phase == "Bite" and hookSent then
+		return LOOKS.Pending -- подсечка отправлена, ждём мини-игру
+	elseif phase == "Idle" and os.clock() < castReadyAt then
+		return LOOKS.Pending -- сервер ещё не примет заброс (CastCooldown)
+	end
+	return LOOKS[phase]
+end
+
 local function refreshButtons()
-	local look = LOOKS[phase]
+	local look = currentLook()
 	local button = ui.actionButton
-	button.Visible = rod ~= nil
+	button.Visible = rod ~= nil or offerTake
 	button.BackgroundColor3 = look.Color
 	button.BackgroundTransparency = if look.Dim then 0.35 else 0
 	button.AutoButtonColor = not look.Dim
 	ui.actionCaption.Text = look.Caption .. (if look.Key then keyHint else "")
 	ui.actionIcon.Text = look.Icon
 	ui.stopButton.Visible = rod ~= nil and isLineOut()
+end
+
+-- Подсказка по месту: с удочкой, без рыбалки — «жми» у точки или «иди к кругу» + луч;
+-- без удочки в руке у точки рыбалки — «возьми удочку» (и кнопка «ВЗЯТЬ УДОЧКУ»); новичку,
+-- который ещё ни разу не брал удочку, — где она и куда идти.
+local function refreshContextHint()
+	local text: string? = nil
+	local guideTo: BasePart? = nil
+	local root = rootPart()
+	local spot = ownFishingSpot()
+	local near = root ~= nil and spot ~= nil and isNearSpot(root, spot)
+	local take = rod == nil and phase == "Idle" and near and backpackRod() ~= nil
+	if take ~= offerTake then
+		offerTake = take
+		refreshButtons()
+	end
+	if not ui.card.Visible then
+		if rod and phase == "Idle" and root and spot then
+			if near then
+				text = HINT_NEAR
+			else
+				text = HINT_FAR
+				guideTo = spot
+			end
+		elseif take then
+			text = HINT_TAKE
+		elseif not rod and not everEquipped and hasBase() and backpackRod() then
+			text = HINT_FIRST
+		end
+	end
+	setGuide(guideTo)
+	setContextHint(text)
 end
 
 local function cancelPending()
@@ -417,6 +481,7 @@ end
 local function setPhase(newPhase: Phase)
 	cancelPending()
 	phaseTrove:Clean()
+	actionPulseTrove:Clean()
 	phase = newPhase
 	if newPhase ~= "Reeling" then
 		minigame = nil
@@ -427,9 +492,29 @@ local function setPhase(newPhase: Phase)
 	refreshContextHint()
 end
 
+-- Сервер не примет новый заброс ещё CastCooldown секунд — кнопка до тех пор тусклая.
+local function startCastCooldown()
+	castReadyAt = os.clock() + FishingConfig.CastCooldown
+	local previous = cooldownThread
+	if previous and coroutine.status(previous) == "suspended" then
+		task.cancel(previous)
+	end
+	cooldownThread = task.delay(FishingConfig.CastCooldown, function()
+		cooldownThread = nil
+		castReadyAt = 0 -- таймер может сработать на долю микросекунды «раньше» os.clock()
+		refreshButtons()
+	end)
+end
+
+-- Конец рыбалки (кулдаун заброса — только если леска была в воде).
 local function endSession()
+	local cooldown = isLineOut() or phase == "Pending"
 	hookSent = false
 	setPhase("Idle")
+	if cooldown then
+		startCastCooldown()
+		refreshButtons()
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -511,6 +596,7 @@ end
 
 local function openCard(fish: FishingRules.FishData)
 	cardTrove:Clean()
+	cardOpenedAt = os.clock()
 	fillCard(fish)
 	showFishModel(fish)
 	ui.card.Visible = true
@@ -556,7 +642,7 @@ local function enterBite(window: number)
 		timer.Size = full
 	end)
 	pulse(phaseTrove, ui.biteScale, 1.08, 0.36)
-	pulse(phaseTrove, ui.actionScale, 1.12, 0.4)
+	pulse(actionPulseTrove, ui.actionScale, 1.12, 0.4)
 end
 
 -- Сервер прислал непонятное — подстраиваемся под атрибут FishingState (его ставит сервер).
@@ -624,7 +710,7 @@ local function flashHit()
 	frame.Position = base
 	local shakeInfo = TweenInfo.new(0.04, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, 2, true)
 	local shake = TweenService:Create(frame, shakeInfo, {
-		Position = UDim2.fromScale(base.X.Scale + 0.008, base.Y.Scale),
+		Position = base + UDim2.fromScale(0.008, 0),
 	})
 	shake:Play()
 	phaseTrove:Add(function()
@@ -640,14 +726,29 @@ end
 -- Действие игрока: забросить / подсечь / тянуть / закрыть карточку
 --------------------------------------------------------------------------------
 
-local function tap()
-	local now = os.clock()
+local function tap(now: number)
 	if now - lastTap < FishingConfig.TapInterval then
 		return -- сервер всё равно не примет чаще
 	end
 	lastTap = now
 	Net.Event("FishingTap"):FireServer(now - minigameStart)
 	pop(ui.actionScale, 0.85, 0.15)
+end
+
+-- Взять удочку из рюкзака в руку.
+local function takeRod()
+	local tool = backpackRod()
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if tool and humanoid then
+		humanoid:EquipTool(tool)
+	end
+end
+
+local function tryCloseCard()
+	if os.clock() - cardOpenedAt >= CARD_INPUT_LOCK then
+		closeCard()
+	end
 end
 
 local function doAction()
@@ -657,10 +758,15 @@ local function doAction()
 	end
 	lastAction = now
 	if ui.card.Visible then
-		closeCard()
+		tryCloseCard()
 	elseif not rod then
-		return
+		if offerTake then
+			takeRod()
+		end
 	elseif phase == "Idle" then
+		if now < castReadyAt then
+			return -- кулдаун заброса: кнопка тусклая, сервер всё равно откажет
+		end
 		Net.Event("FishingCast"):FireServer()
 		startPending()
 		pop(ui.actionScale, 0.85, 0.2)
@@ -668,9 +774,11 @@ local function doAction()
 		if not hookSent then
 			hookSent = true
 			Net.Event("FishingHook"):FireServer()
+			actionPulseTrove:Clean() -- подсечка принята: кнопка гаснет до мини-игры
+			refreshButtons()
 		end
 	elseif phase == "Reeling" then
-		tap()
+		tap(now)
 	end
 end
 
@@ -730,9 +838,8 @@ local function onZone(data: { [string]: any })
 	mg.ZoneCenter = number(data.ZoneCenter, mg.ZoneCenter)
 	mg.Hits = number(data.Hits, mg.Hits + 1)
 	refreshPips(mg)
-	TweenService:Create(ui.zone, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = UDim2.fromScale(mg.ZoneCenter, 0.5),
-	}):Play()
+	-- Зона прыгает сразу (без скольжения): где она нарисована, там её и проверяет сервер.
+	ui.zone.Position = UDim2.fromScale(mg.ZoneCenter, 0.5)
 	flashHit()
 end
 
@@ -810,19 +917,19 @@ local function equipRod(tool: Tool)
 	end
 	unequipRod()
 	rod = tool
-	rodTrove:Connect(tool.Activated, doAction)
-	ContextActionService:BindAction(ACTION_NAME, onActionInput, false, Enum.KeyCode.E, Enum.KeyCode.ButtonR2)
+	offerTake = false
+	everEquipped = true
+	rodTrove:Connect(tool.Activated, function()
+		-- На тач-экране Activated приходит и от движения камеры / джойстика: в мини-игре
+		-- такое «нажатие» мимо зоны стоило бы рыбы, там считается только кнопка.
+		if UserInputService.TouchEnabled and phase == "Reeling" then
+			return
+		end
+		doAction()
+	end)
+	ContextActionService:BindAction(ACTION_NAME, onActionInput, false, Enum.KeyCode.F, Enum.KeyCode.ButtonR2)
 	rodTrove:Add(function()
 		ContextActionService:UnbindAction(ACTION_NAME)
-	end)
-	-- Подсказка «куда идти» нужна только с удочкой в руке.
-	local sinceCheck = 0
-	rodTrove:Connect(RunService.Heartbeat, function(dt: number)
-		sinceCheck += dt
-		if sinceCheck >= CONTEXT_CHECK_INTERVAL then
-			sinceCheck = 0
-			refreshContextHint()
-		end
 	end)
 	pop(ui.actionScale, 0.5, 0.3)
 	refreshButtons()
@@ -850,6 +957,16 @@ local function onCharacterAdded(character: Model)
 		if item == rod then
 			unequipRod()
 		end
+	end)
+	-- Подсказки по месту («возьми удочку», «встань в круг», новичку — где удочка).
+	local sinceCheck = 0
+	characterTrove:Connect(RunService.Heartbeat, function(dt: number)
+		sinceCheck += dt
+		if sinceCheck < CONTEXT_CHECK_INTERVAL then
+			return
+		end
+		sinceCheck = 0
+		refreshContextHint()
 	end)
 	endSession()
 	for _, item in character:GetChildren() do
@@ -938,7 +1055,7 @@ local function detectKeyHint(): string
 	if UserInputService.TouchEnabled then
 		return ""
 	elseif UserInputService.KeyboardEnabled then
-		return " [E]"
+		return " [F]"
 	elseif UserInputService.GamepadEnabled then
 		return " [R2]"
 	end
@@ -962,9 +1079,20 @@ function FishingController:Start(hud: ScreenGui)
 	ui.card.Visible = false
 	ui.hint.Visible = false
 
-	ui.actionButton.Activated:Connect(doAction)
+	-- В мини-игре нажатие считается в момент касания (MouseButton1Down приходит и от касания
+	-- пальцем), а не отпускания (Activated): стрелка за время касания успевает уехать.
+	ui.actionButton.MouseButton1Down:Connect(function()
+		if phase == "Reeling" then
+			doAction()
+		end
+	end)
+	ui.actionButton.Activated:Connect(function()
+		if phase ~= "Reeling" then
+			doAction()
+		end
+	end)
 	ui.stopButton.Activated:Connect(requestStop)
-	ui.card.Activated:Connect(closeCard)
+	ui.card.Activated:Connect(tryCloseCard)
 	Net.Event("FishingState").OnClientEvent:Connect(onFishingState)
 
 	-- Подстраховка: сервер закончил рыбалку, а ответ потерялся — не держим старое состояние.

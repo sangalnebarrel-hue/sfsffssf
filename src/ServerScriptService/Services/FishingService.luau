@@ -19,14 +19,17 @@
 	     промах — "Lost" miss, не успел за MinigameTimeout — "Lost" timeout.
 	  5. Поймал: атрибут FishCaught + 1, рыба в улове сессии (GetCatch), сигнал FishCaught,
 	     рыба над головой рыбака на HoldFishTime секунд (её видят все), о легендарной
-	     и мифической рыбе узнаёт весь сервер.
-	  6. Сам заканчивает рыбалку: персонаж умер или исчез ("died"), убрал удочку ("unequipped"),
+	     и мифической рыбе узнают остальные игроки.
+	  6. Сам заканчивает рыбалку: персонаж умер или исчез ("died"), убрал удочку ("unequipped",
+	     сразу по Tool.Unequipped),
 	     отошёл дальше KeepRadius ("moved"), база освободилась ("base"), игрок смотал леску
 	     (FishingStop → "stop"). Любой конец рыбалки → FishingState = "Idle" и кулдаун
 	     CastCooldown до следующего заброса.
 
 	Защита: у каждой рыбалки своя сессия с номером (Token); отложенные шаги (поклёвка,
 	опоздание, тайм-аут) проверяют, что их сессия всё ещё текущая, и отменяются при её конце.
+	Сеть: нажатие в мини-игре проверяется по времени клиента (в пределах MaxLag); после
+	попадания нажатия, сделанные до того, как клиент увидел новую зону, не считаются.
 	Запросы от клиента проверяются по типам (NaN / inf / не число), состоянию, расстоянию,
 	владению базой, кулдауну; общий лимит запросов на игрока — REQUEST_BURST / REQUEST_RATE.
 	Проверка активных рыбалок — раз в WATCH_INTERVAL секунд (Heartbeat), только по тем,
@@ -81,7 +84,7 @@ local HELD_FISH_GAP = 0.5
 local ANNOUNCED_RARITIES = { Legendary = true, Mythic = true }
 
 local DENIED_TEXT = {
-	far = "Встань на место рыбалки в конце своего пирса",
+	far = "Встань в сверкающий круг на своём пирсе",
 	nobase = "Сначала дождись своей базы",
 	busy = "Удочка уже заброшена",
 	cooldown = "",
@@ -148,6 +151,9 @@ local stateRemote = Net.Event("FishingState")
 
 local rodAssets: Instance
 local fishAssets: Instance
+
+-- Объявлена заранее: удочка (giveRod) сматывает леску, когда её убирают из руки.
+local stopSession: (player: Player, state: PlayerState, reason: string) -> ()
 
 --------------------------------------------------------------------------------
 -- Мелкие помощники
@@ -250,6 +256,14 @@ local function giveRod(player: Player, state: PlayerState, character: Model?): T
 	local tool = template:Clone()
 	local displayName = template:GetAttribute("DisplayName")
 	tool.Name = if typeof(displayName) == "string" then displayName else FishingRules.GetRod(state.RodId).Name
+	-- Убрал удочку — леска сматывается сразу (наблюдатель раз в WATCH_INTERVAL не заметит
+	-- быстрое «убрал и снова взял»). Соединение умирает вместе с удочкой (Destroy).
+	tool.Unequipped:Connect(function()
+		local session = state.Session
+		if session and session.Tool == tool then
+			stopSession(player, state, "unequipped")
+		end
+	end)
 	tool.Parent = backpack
 	state.Tool = tool
 	return tool
@@ -335,7 +349,8 @@ local function holdFish(state: PlayerState, character: Model, fish: FishData)
 	end)
 end
 
--- Объявление всему серверу о легендарной / мифической рыбе.
+-- Объявление остальным игрокам о легендарной / мифической рыбе (сам рыбак видит карточку
+-- улова — тост закрыл бы её).
 local function announce(player: Player, fish: FishData)
 	if not ANNOUNCED_RARITIES[fish.Rarity] then
 		return
@@ -346,7 +361,12 @@ local function announce(player: Player, fish: FishData)
 	if mutation then
 		details ..= `, {mutation}`
 	end
-	Notify.All(`Улов дня! {player.DisplayName} — «{FishingRules.DisplayName(fish)}» ({details})`, "success")
+	local text = `Улов дня! {player.DisplayName} — «{FishingRules.DisplayName(fish)}» ({details})`
+	for _, other in Players:GetPlayers() do
+		if other ~= player then
+			Notify.Send(other, text, "success")
+		end
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -390,6 +410,7 @@ end
 local function stop(player: Player, state: PlayerState, reason: string)
 	endSession(player, state, "Idle", { Reason = reason })
 end
+stopSession = stop
 
 local function catch(player: Player, state: PlayerState, session: Session)
 	local fish = session.Fish :: FishData
@@ -595,10 +616,14 @@ local function tapTime(session: Session, elapsed: number, now: number): number?
 end
 
 -- Нажатие в момент t мини-игры: попал — зона переезжает (или рыба поймана), мимо — рыба уходит.
-local function applyTap(player: Player, state: PlayerState, session: Session, t: number)
+-- now — когда нажатие пришло на сервер.
+local function applyTap(player: Player, state: PlayerState, session: Session, t: number, now: number)
 	session.LastT = t
 	local position = FishingRules.Needle(session.U0, session.Speed, t)
 	if not FishingRules.IsHit(position, session.ZoneCenter, session.ZoneWidth) then
+		if session.Hits == 0 and t < FishingConfig.HookTapGrace then
+			return -- второй тап двойного нажатия «Подсечь»: не промах (см. FishingConfig)
+		end
 		lose(player, state, "miss")
 		return
 	end
@@ -607,7 +632,15 @@ local function applyTap(player: Player, state: PlayerState, session: Session, t:
 		catch(player, state, session)
 		return
 	end
-	session.ZoneCenter = FishingRules.PickZoneCenter(rng, session.ZoneWidth, position)
+	-- Зона переезжает сейчас, а клиент увидит её только через пинг: до этого момента он
+	-- рисует старую зону. Его время мини-игры, когда придёт "Zone", ≈ серверное время сейчас
+	-- (оба сообщения идут к нему с одной задержкой). Нажатия раньше этого момента целились
+	-- в старую зону — они не считаются вовсе (ни попаданием, ни промахом), и новая зона
+	-- ставится подальше от стрелки, какой её увидит клиент.
+	local seenAt = now - session.StartedAt
+	session.LastT = math.max(t, seenAt)
+	local needleSeen = FishingRules.Needle(session.U0, session.Speed, seenAt)
+	session.ZoneCenter = FishingRules.PickZoneCenter(rng, session.ZoneWidth, needleSeen, session.ZoneCenter)
 	send(player, "Zone", { ZoneCenter = session.ZoneCenter, Hits = session.Hits })
 end
 
@@ -628,7 +661,7 @@ local function onTap(player: Player, rawElapsed: unknown)
 	local t = tapTime(session, elapsed, now)
 	if t then
 		session.LastTapAt = now
-		applyTap(player, state, session, t)
+		applyTap(player, state, session, t, now)
 	end
 end
 
@@ -721,6 +754,18 @@ local function onPlayerAdded(player: Player)
 	end)
 	state.Trove:Connect(player.CharacterRemoving, function(character: Model)
 		onCharacterRemoving(player, state, character)
+	end)
+	-- Если движок пересоздал рюкзак уже после CharacterAdded, удочка пропала бы вместе со
+	-- старым рюкзаком — кладём её в новый.
+	state.Trove:Connect(player.ChildAdded, function(child: Instance)
+		local character = state.Character
+		if child:IsA("Backpack") and character and player.Character == character then
+			task.defer(function()
+				if states[player] == state and state.Character == character and isAlive(character) then
+					giveRod(player, state, character)
+				end
+			end)
+		end
 	end)
 	local character = player.Character
 	if character then

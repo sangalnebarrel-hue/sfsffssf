@@ -640,7 +640,7 @@ tests["minigame: payload follows the rules, perfect taps catch the fish"] = func
 	sim:AssertNoErrors()
 end
 
-tests["minigame: a Mythic fish needs 3 hits, the zone jumps away from the needle, everyone hears"] = function(t)
+tests["minigame: a Mythic fish needs 3 hits, the zone jumps away from the needle, the others hear"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	local other = addPlayer(sim, 2)
@@ -677,7 +677,7 @@ tests["minigame: a Mythic fish needs 3 hits, the zone jumps away from the needle
 		return false
 	end
 	t.ok(heard(other), "the other player was told about the Mythic catch")
-	t.ok(heard(p), "the fisher too")
+	t.ok(not heard(p), "not the fisher: their catch card shows it (a toast would cover the card)")
 	sim:AssertNoErrors()
 end
 
@@ -918,16 +918,29 @@ tests["session ends: walking beyond KeepRadius (but not inside it)"] = function(
 	sim:AssertNoErrors()
 end
 
-tests["session ends: unequipping the rod (watcher, and at once on a hook)"] = function(t)
+tests["session ends: unequipping the rod (at once by Tool.Unequipped, also on a hook)"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	ready(sim, p)
 	castAndWaitBite(t, sim, p)
 	sim:UnequipTools(p)
-	local name, data = nextState(sim, p, 0.5)
+	sim:Advance(FRAME) -- the same frame: no waiting for the 0.2 s watcher
+	local name, data = lastState(sim, p)
 	t.eq(name, "Idle")
 	t.eq(data.Reason, "unequipped")
 	t.eq(p:GetAttribute("FishingState"), "Idle")
+
+	-- Unequip and re-equip before the watcher could notice: the session still ends (the
+	-- client resets its UI on unequip, so the server must not keep the line out).
+	sim:Advance(FishingConfig.CastCooldown + 0.05)
+	equipRod(sim, p)
+	castAndWaitBite(t, sim, p)
+	sim:UnequipTools(p)
+	equipRod(sim, p)
+	sim:Advance(FRAME)
+	name, data = lastState(sim, p)
+	t.eq(name, "Idle", "a quick unequip + re-equip still ends the session")
+	t.eq(data.Reason, "unequipped")
 
 	-- Unequip + hook in the same frame (before the watcher runs): no minigame.
 	sim:Advance(FishingConfig.CastCooldown + 0.05)

@@ -313,10 +313,19 @@ for _, rod in RodConfig.Rods do
 			end
 		end
 		expect(moved > 0, `{rod.Id}: Weld.C0 offsets not saved`)
+		-- The rod rises 35° forward from the hand (tools/builder/Assets.luau GRIP_TILT); an unset
+		-- (identity) Grip would point it sideways.
+		local tilt = math.rad(35)
+		local expectedLook = U.Vector3.new(math.cos(tilt), -math.sin(tilt), 0)
 		expect(
-			tool.Grip.Position.Magnitude < 1e-3 and tool.Grip.LookVector.Magnitude > 0.99,
-			`{rod.Id}: Grip not saved`
+			tool.Grip.Position.Magnitude < 1e-3 and (tool.Grip.LookVector - expectedLook).Magnitude < 1e-3,
+			`{rod.Id}: Grip not saved ({tool.Grip.LookVector})`
 		)
+		for _, d in tool:GetDescendants() do
+			if d:IsA("Weld") then
+				expect(d.Part0 == handle and d.Part1 == d.Parent, `{rod.Id}: Weld {d:GetFullName()} lost its parts`)
+			end
+		end
 	end
 	expect(find(checkAssets, { "Bobbers", rod.Id }) ~= nil, `Assets.Bobbers.{rod.Id} missing`)
 end

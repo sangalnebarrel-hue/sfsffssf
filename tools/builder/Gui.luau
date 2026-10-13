@@ -3,22 +3,29 @@
 	StarterGui.ScreenOrientation to LandscapeSensor).
 
 	Sizing rules (phones first):
-	  • everything is in Scale, never fixed pixels;
+	  • everything is in Scale, never fixed pixels — except HOTBAR: the fishing widgets stand
+	    that many pixels above the screen bottom, because the Roblox hotbar (CoreGui, drawn over
+	    PlayerGui) is a fixed-pixel band there (60 px slots, 5..65 px from the bottom, centred);
 	  • SizeConstraint RelativeYY makes widgets scale with screen HEIGHT, so they look the same
 	    on a phone and on a PC; UISizeConstraint caps them on big screens;
 	  • ScreenInsets = CoreUISafeInsets keeps widgets out of the notch and the Roblox top bar.
 
 	Screen grid (H = safe-area height), planned for all stages:
-	  Status        top-centre stack: base badge (St.1), money (St.3), shield timer (St.4).
+	  Status        top-centre stack: base badge (St.1), catch counter (St.2), money (St.3),
+	                shield timer (St.4).
 	                Top-left is the chat window, top-right the player list — both CoreGui.
 	  Toasts        centred column from y = 0.30H, width from screen WIDTH (never reaches
 	                the corners).
 	  RightButtons  column anchored at its BOTTOM (y = 0.64H) and growing upwards, so the
 	                bottom-right 0.36H stays free for the mobile Jump button (and the Stage 2
 	                cast button left of it). HudController moves it lower on non-touch screens.
-	  (Stage 2)     minigame bar bottom-centre; (Stage 5) shop as a centred modal.
+	  Fishing       (St.2) ActionArea bottom-right, LEFT of the mobile Jump button (phones: 70 px
+	                at 25..95 px from the right; screens over 500 px tall: 120 px at 50..170 px);
+	                Hint, then BiteAlert / Minigame stacked bottom-centre above the hotbar;
+	                CatchCard as a modal between the status stack and the hotbar.
+	  (Stage 5)     shop as a centred modal.
 
-	Controllers that use these names: HudController, NotifyController.
+	Controllers that use these names: HudController, NotifyController, FishingController.
 ]]
 
 local U = require("./Util")
@@ -32,6 +39,8 @@ local rgb = U.rgb
 
 local FONT = U.FONT
 local MIN_TEXT = 12 -- never let TextScaled shrink text below this on phones
+-- Pixels from the screen bottom to the fishing widgets: clears the Roblox hotbar (see above).
+local HOTBAR = 74
 
 local C = {
 	panel = rgb(22, 28, 48),
@@ -225,7 +234,8 @@ end
 	hidden):
 	  ActionArea              bottom-right container, sized by screen height
 	    ActionButton          big round button: Icon + Caption («ЗАБРОСИТЬ» / «ПОДСЕЧЬ!» / «ТЯНИ!»),
-	                          Ring (UIStroke) — shown while the rod is in hand
+	                          Ring (UIStroke) — shown while the rod is in hand («ВЗЯТЬ УДОЧКУ»
+	                          at the own fishing spot while the rod is in the backpack)
 	    StopButton            «СМОТАТЬ» pill above it (Caption) — while the line is out
 	  BiteAlert               «КЛЮЁТ!» (Label) with a shrinking Timer bar
 	  Minigame                Title (rarity, coloured), Track (Zone, Needle), Pips (Pip1..Pip5:
@@ -242,8 +252,8 @@ local function buildFishing(hud: any)
 		Size = UDim2.fromScale(1, 1),
 	}, hud)
 
-	-- Action area: 0.58H wide, 0.46H tall (at most 300 x 240 px), in the bottom-right corner. The
-	-- button sits in its left part, so the rightmost ~0.33H (130 px on big screens) stays free
+	-- Action area: 0.58H wide, 0.46H tall (at most 320 x 240 px), in the bottom-right corner. The
+	-- button sits in its left part, so the rightmost ~0.33H (190 px on big screens) stays free
 	-- for the Jump button.
 	local area = U.new("Frame", {
 		Name = "ActionArea",
@@ -255,7 +265,7 @@ local function buildFishing(hud: any)
 	}, root)
 	-- Capped on big screens, so on a 4:3 tablet the bottom-centre minigame still fits between
 	-- the thumbstick and the button.
-	U.new("UISizeConstraint", { MaxSize = Vector2.new(300, 240) }, area)
+	U.new("UISizeConstraint", { MaxSize = Vector2.new(320, 240) }, area)
 	local action = U.new("TextButton", {
 		Name = "ActionButton",
 		AnchorPoint = Vector2.new(0, 1),
@@ -291,8 +301,8 @@ local function buildFishing(hud: any)
 	local stop = U.new("TextButton", {
 		Name = "StopButton",
 		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.fromScale(0, 0.31),
-		Size = UDim2.fromScale(0.43, 0.18),
+		Position = UDim2.fromScale(0, 0.22),
+		Size = UDim2.fromScale(0.43, 0.2),
 		BackgroundColor3 = C.stop,
 		AutoButtonColor = true,
 		Text = "",
@@ -314,12 +324,12 @@ local function buildFishing(hud: any)
 		Name = "BiteAlert",
 		Visible = false,
 		BackgroundColor3 = rgb(240, 140, 30),
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.66),
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 0.92, -HOTBAR - 6),
 		Size = UDim2.fromScale(0.6, 0.15),
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 	}, root)
-	U.new("UISizeConstraint", { MaxSize = Vector2.new(400, 100) }, alert)
+	U.new("UISizeConstraint", { MaxSize = Vector2.new(380, 100) }, alert)
 	corner(alert, 0.35)
 	stroke(alert, 3, 0.1)
 	label(alert, "Label", {
@@ -345,9 +355,9 @@ local function buildFishing(hud: any)
 		Visible = false,
 		BackgroundColor3 = C.panel,
 		BackgroundTransparency = 0.15,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.64),
-		Size = UDim2.fromScale(0.4, 0.22),
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 0.92, -HOTBAR - 6),
+		Size = UDim2.fromScale(0.36, 0.22),
 	}, root)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(560, 160), MinSize = Vector2.new(280, 90) }, mini)
 	corner(mini, 0.18)
@@ -443,12 +453,13 @@ local function buildFishing(hud: any)
 		MaxTextSize = 20,
 	})
 
-	-- Hint: one line at the bottom centre, between the thumbstick and the action button.
+	-- Hint: one line at the bottom centre above the hotbar, between the thumbstick and the
+	-- action button; the Minigame / BiteAlert stand on top of it (0.92H - HOTBAR - 6).
 	local hint = label(root, "Hint", {
 		Visible = false,
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.fromScale(0.5, 0.98),
-		Size = UDim2.fromScale(0.38, 0.07),
+		Position = UDim2.new(0.5, 0, 1, -HOTBAR),
+		Size = UDim2.fromScale(0.36, 0.08),
 		Text = "",
 		BackgroundTransparency = 0.35,
 		BackgroundColor3 = C.panel,
@@ -456,20 +467,21 @@ local function buildFishing(hud: any)
 	})
 	corner(hint, 0.5)
 
-	-- Catch card: a centred modal (tap anywhere on it to close).
+	-- Catch card: a modal between the status stack (base badge, catch counter) and the hotbar
+	-- (tap anywhere on it to close).
 	local card = U.new("TextButton", {
 		Name = "CatchCard",
 		Visible = false,
 		AutoButtonColor = false,
 		Text = "",
 		BackgroundColor3 = C.card,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.47),
-		Size = UDim2.fromScale(0.78, 0.8),
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -HOTBAR),
+		Size = UDim2.fromScale(0.55, 0.56),
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 		ZIndex = 10,
 	}, root)
-	U.new("UISizeConstraint", { MaxSize = Vector2.new(440, 450) }, card)
+	U.new("UISizeConstraint", { MaxSize = Vector2.new(380, 400) }, card)
 	corner(card, 0.08)
 	stroke(card, 3, 0.1)
 	local banner = U.new("Frame", {

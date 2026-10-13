@@ -214,6 +214,8 @@ local function makeSplash(root: BasePart): ParticleEmitter
 	emitter.Size = NumberSequence.new(0.35, 0.05)
 	emitter.Transparency = NumberSequence.new(0.1, 1)
 	emitter.Color = ColorSequence.new(FX.SplashColor)
+	-- Встроенная текстура дыма читается как брызги (по умолчанию — искорки).
+	emitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
 	emitter.LightEmission = 0.3
 	emitter.Parent = root
 	return emitter

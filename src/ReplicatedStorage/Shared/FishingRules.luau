@@ -126,27 +126,43 @@ function FishingRules.IsHit(position: number, center: number, width: number): bo
 end
 
 -- Центр новой зоны: целиком на полосе (с отступом ZoneMargin от краёв) и не ближе
--- MinZoneJump к стрелке (needle), чтобы нельзя было попасть, не дождавшись стрелки.
-function FishingRules.PickZoneCenter(rng: Rng, width: number, needle: number?): number
+-- MinZoneJump к стрелке (needle), чтобы нельзя было попасть, не дождавшись стрелки, и к
+-- прошлой зоне (previous), чтобы прыжок зоны после попадания было видно. Если так нельзя —
+-- лучший из нескольких случайных вариантов (дальше всего от стрелки и прошлой зоны).
+function FishingRules.PickZoneCenter(rng: Rng, width: number, needle: number?, previous: number?): number
 	local lo = width / 2 + FishingConfig.ZoneMargin
 	local hi = 1 - width / 2 - FishingConfig.ZoneMargin
 	if hi <= lo then
 		return 0.5
 	end
-	local center = rng:NextNumber(lo, hi)
-	if needle then
-		for _ = 1, 8 do
-			if math.abs(center - needle) >= FishingConfig.MinZoneJump then
-				break
-			end
-			center = rng:NextNumber(lo, hi)
+	local function score(center: number): number
+		local gap = math.huge
+		if needle then
+			gap = math.min(gap, math.abs(center - needle))
 		end
-		if math.abs(center - needle) < FishingConfig.MinZoneJump then
-			-- не нашли случайно: ставим к дальнему от стрелки краю
-			center = if needle < 0.5 then hi else lo
+		if previous then
+			gap = math.min(gap, math.abs(center - previous))
+		end
+		return gap
+	end
+	local best, bestScore = lo, -1
+	for _ = 1, 10 do
+		local center = rng:NextNumber(lo, hi)
+		local gap = score(center)
+		if gap >= FishingConfig.MinZoneJump then
+			return center
+		end
+		if gap > bestScore then
+			best, bestScore = center, gap
 		end
 	end
-	return center
+	for _, edge in { lo, hi } do -- края полосы — самые далёкие точки
+		local gap = score(edge)
+		if gap > bestScore then
+			best, bestScore = edge, gap
+		end
+	end
+	return best
 end
 
 --------------------------------------------------------------------------------
