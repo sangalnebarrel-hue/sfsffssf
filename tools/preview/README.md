@@ -386,3 +386,224 @@ $LUNE run tools/terrain_check/inject.luau tools/base/Place1.base.rbxl \
 $TC /tmp/tt/place.rbxl
 ```
 
+## GUI previews
+
+See the HUD exactly as a player would — on a phone, a tablet or a PC — without Roblox Studio:
+still images of every HUD state and contact sheets of the animations, drawn over a real frame
+of the game (the pier view) with the Roblox CoreGui chrome on top. Made for design critique:
+everything is a PNG.
+
+```sh
+# the standard set: 33 states x phone + desktop, 14 animation sheets each, 2 overviews (~1.5 min)
+python3 tools/preview/gui_render.py --all --out /tmp/ui
+# a few scenarios (dumped first), with their animation sheets, on three devices
+python3 tools/preview/gui_render.py --scenario bite,catch_mythic --devices phone,tablet,desktop --sheets --out /tmp/ui
+# other moments: stills at 0.1 and 0.4 s, or a custom sheet window (from:to:fps)
+python3 tools/preview/gui_render.py --scenario hit --at 0.1,0.4 --out /tmp/ui
+python3 tools/preview/gui_render.py --scenario catch_rare --times 0:3:5 --out /tmp/ui
+# re-render existing dumps (e.g. after changing the renderer) — no Lune needed
+python3 tools/preview/gui_render.py /tmp/ui/json/phone/*.json --out /tmp/ui
+python3 tools/preview/gui_render.py --list          # scenario names and descriptions
+```
+
+Needs Python 3 with Pillow (with raqm) and numpy, and Lune 0.11 (`LUNE_BIN`, default
+`/opt/tools/l11/lune`) for dumping. Build the place first (`lune run tools/build.luau`); to
+preview another checkout's HUD, build it there and pass `--place /path/to/its/Place1.rbxl`
+(the scenarios and the renderer come from this checkout, the HUD and its controllers from the
+place).
+
+Output in `--out`:
+
+| file | what |
+|---|---|
+| `<device>/<scenario>.png` | the still: the whole screen + a caption bar (device, scenario, time). Several still times: `<scenario>@<t>.png` |
+| `<device>/<scenario>_sheet.png` | animation contact sheet: every frame of the scenario's sheet window cropped to its region of interest, each labelled with its time |
+| `overview_<device>.png` | every still of the device in one image (with `--all`, or more than 3 dumps) |
+| `json/<device>/<scenario>.json` | the dumps (see below) |
+
+Examples of the current HUD are in `docs/ui/`.
+
+### How it works
+
+1. `tools/preview/gui_dump.luau` (Lune) loads `Place1.rbxl` into RbxSim, replaces the source of
+   `ServerScriptService.Services.FishingService` with `return {}` (like
+   `tests/stage2_client.test.luau`), starts the server and, for each scenario, adds a fresh
+   player on the device (phone 844x390, tablet 1024x768, desktop 1280x720; touch on phone and
+   tablet), waits for the base, the character and the HUD plus `settle` seconds (4.2 s: the
+   welcome toast is gone), runs the scenario — the REAL client controllers react to what the
+   harness (playing the server) sends — and dumps the player's PlayerGui at the requested
+   times (60 fps virtual time in between). Script errors and warnings of the run go into the
+   dump and are printed.
+2. `tools/preview/gui_render.py` draws each dump at the device resolution, 2x supersampled:
+   the backdrop, every GuiObject in draw order (`gui/paint.py`, text in `gui/text.py`), then
+   the CoreGui chrome (`gui/backdrop.py`), and downsamples.
+   `--all` runs the dumps in parallel Lune processes (`--jobs`, default = CPU count, max 8,
+   split across devices) and renders in a process pool.
+
+Speed (4 cores): the standard set takes ~45 s to dump and ~35 s to render (66 stills,
+28 sheets); one scenario on one device ~2 s to dump, a still ~0.2-0.3 s.
+
+### Scenarios (`tools/preview/gui_scenarios.luau`)
+
+| scenario | state | sheet |
+|---|---|---|
+| `spawn_base` | the badge right when the server assigns the base (welcome toast) | 0..1.2 s, status |
+| `no_base` | all bases taken: «Ждём базу…» | |
+| `start` | just spawned, rod in the backpack, newcomer hint | |
+| `rod_far` | rod in hand, far from the fishing spot (hint) | |
+| `spot_take` | at the spot, rod in the backpack: «ВЗЯТЬ» | |
+| `spot_ready` | at the spot with the rod: «ЗАБРОСИТЬ» | 0..4 s @ 6 fps (idle shine) |
+| `cast` | tap «ЗАБРОСИТЬ» → waiting | 0..1 s, action area |
+| `waiting` | line in the water: «ЖДЁМ…» + «СМОТАТЬ» | |
+| `bite` | «КЛЮЁТ!» alert + «ПОДСЕЧЬ!» | 0..1.2 s |
+| `minigame_common` … `minigame_mythic` | the minigame for each rarity, needle mid-run (Epic 1/2, Mythic 2/3 hits done) | legendary: 0..1 s |
+| `hit` | a hit: zone jumps, pip fills | 0..0.9 s |
+| `miss` | a miss: «Мимо!» | 0..1.2 s |
+| `lost_late`, `denied_far` | hints of a lost fish / a refused cast | |
+| `catch_common`, `_rare`, `_epic`, `_legendary`, `_mythic` | catch card per rarity (time 0 = the card is visible) | common 0..1.6 s, mythic 0..2.4 s (whole screen) |
+| `catch_gold`, `catch_neon`, `catch_rainbow` | catch card with a mutation | rainbow 0..1.6 s |
+| `catch_close` | tap closes the card, the counter bumps | 0..1 s, whole screen |
+| `toast_info`, `toast_success`, `toast_warning`, `toast_danger` | one toast of each kind | success 0..0.8 s |
+| `toast_stack` | three toasts (the cap), then the oldest leaves | 3..4.4 s |
+| `home_cooldown` | «ДОМОЙ» pressed, cooldown draining | 0..0.8 s |
+| `selftest` (not in `--all`) | a synthetic ScreenGui, one cell per renderer feature — check the renderer here | |
+
+Scenarios find widgets by name only (`HUD.Fishing.ActionArea.ActionButton`, `HUD.Fishing.CatchCard`,
+`HUD.RightButtons.HomeButton`, ...), so they survive restyles; a missing or hidden widget is a
+warning, not a crash (clicks are forced). A scenario is
+`{ name, desc, run = function(h) ... end, still = t | {t...}, sheet = { from, to, fps, roi = {paths}, margin }, fresh?, settle?, standard? }`;
+time 0 is when `run` returns. The harness `h` is documented in the file's header:
+`h:advance`, `h:gui`, `h:visible`, `h:waitFor`, `h:waitVisible`, `h:click`, `h:press`,
+`h:serverSays(state, data)` (FishingState), `h:notify(text, kind)`, `h:giveRod`, `h:equipRod`,
+`h:standAtSpot`, `h:standFar`, `h:config`, `h:minigame(rarity, extra)`, `h:caught(fish, total)`.
+The sheet region is the union of the `roi` objects' screen boxes over all sheet frames plus
+`margin` x screen height (none listed or none visible = the whole screen).
+
+### gui_dump.luau
+
+```
+lune run tools/preview/gui_dump.luau --device phone|tablet|desktop|console --scenario a,b|all --out DIR
+    [--place Place1.rbxl] [--at T,T] [--sheets] [--times A:B:FPS] [--no-stills] [--check] [--verbose]
+lune run tools/preview/gui_dump.luau --list
+```
+
+`--check` compares the dump's layout with RbxSim's `AbsolutePosition/AbsoluteSize` and prints
+the differences (expected only where RbxSim is approximate: list alignment, UIScale, rotation).
+
+The dumper lays the GUI out itself (RbxSim ignores UIScale, rotation and list alignment):
+UDim2 Size/Position, AnchorPoint, SizeConstraint, UISizeConstraint, UIAspectRatioConstraint
+(FitWithinMaxSize / ScaleWithParentSize + DominantAxis), UIPadding, UIListLayout (direction,
+both alignments, padding, LayoutOrder/Name sort), UIGridLayout (cell size/padding, alignment,
+FillDirectionMaxCells), ScrollingFrame canvas, ScreenGui insets (`IgnoreGuiInset` / `ScreenInsets`
+None and DeviceSafeInsets = full screen, CoreUISafeInsets = below the 58 px top bar).
+Then:
+
+* **UIScale** scales the object and its whole subtree visually about the object's AnchorPoint —
+  offsets, corner radii, stroke thickness and text sizes included; nested scales multiply.
+* **Rotation** turns the object and its subtree about the object's (scaled) centre; rotations
+  accumulate.
+* **Clipping**: ClipsDescendants, CanvasGroup and ScrollingFrame clip descendants to the
+  object's screen rectangle — ignored when the object or an ancestor is rotated (Roblox rule).
+  CanvasGroup's GroupTransparency multiplies the opacity of its subtree.
+* **Draw order**: ScreenGuis by DisplayOrder; `ZIndexBehavior.Sibling`: a parent before its
+  children, siblings by ZIndex then child order; `Global`: everything by ZIndex then tree order.
+
+One JSON per device and scenario: `{ version, scenario, desc, device, viewport, touch, inset,
+sheet, frames = [{ t, still, sheet, tools = [{name, equipped}], objects = [...] }], errors,
+warnings }`. Objects are the effectively visible GuiObjects in draw order, in screen pixels:
+`path, class, name, z, x, y, w, h` (the box before rotation; rotate about its centre),
+`rot, k` (accumulated rotation and UIScale), `clip, alpha, bg, bgT, radius / radii`
+(UICorner in px), `border` (legacy, only without UICorner and a Border UIStroke),
+`strokes` (`color, t, offset, tr, target border|text, pos Outer|Center|Inner, join, grad`),
+`grad` (UIGradient: `c` colour keypoints, `a` transparency keypoints, `rot, off, type, tile,
+scale`), `text` (`s, rich, c, tr, sc, st, scaled, size, wrap, xa, ya, font, weight, style, lh,
+min, max, pad, trunc, graphemes`), `image`, `viewport` (`models` = name, fish id, mutation,
+title, rarity), `auto` (AutomaticSize — flagged, not applied). The full field list is in the
+script's header.
+
+Lune notes: Lune 0.11's reflection database stores `UICorner` as four per-corner radii
+(`TopLeftRadius`...; `CornerRadius` cannot be read back from a saved place, while one set at
+runtime can), knows `UIGradient.Type/TileMode/Scale` and
+`UIStroke.BorderStrokePosition/StrokeSizingMode/BorderOffset` — all read by the dumper. New
+GuiObjects have `BorderSizePixel = 1`, so a visible background without UICorner/UIStroke gets
+Roblox's 1 px dark border, as in the game.
+
+### gui_render.py
+
+| option | default | meaning |
+|---|---|---|
+| `DUMP.json ...` | | render these dumps (no dumping) |
+| `--all` | | the standard set (every scenario but `selftest`), stills + sheets, overviews |
+| `--scenario LIST` | | dump and render these scenarios |
+| `--devices LIST` | `phone,desktop` | `phone`, `tablet`, `desktop`, `console` |
+| `--sheets` | off (on with `--all`) | also the animation sheets |
+| `--at T,T` / `--times A:B:FPS` | | still times / sheet window for every scenario |
+| `--out DIR` | | output directory (required) |
+| `--bg MODE` | `pier` | `pier` (rendered game frame), `plain` (sky/sea gradient), or an image path (cover-fitted) |
+| `--no-chrome` | | no Roblox CoreGui overlay |
+| `--no-caption` | | no caption bar under the stills |
+| `--no-overview` | | no overview images |
+| `--ss N` | 2 | supersampling |
+| `--place FILE` | `Place1.rbxl` | the place to dump (and to render the backdrop from) |
+| `--jobs N` | CPU count (max 8) | parallel Lune dumps / render workers |
+| `--list`, `-v` | | list scenarios / print every dump log line |
+
+**Backdrop** (`--bg pier`): `render.py`'s perspective renderer at the device resolution — the
+Roblox default third-person camera (12.5 studs behind the head, 18 deg down, vertical FOV 70)
+behind a blocky stand-in avatar (classic R6 colours, bamboo rod raised) on base 1's
+FishingSpot, looking over the lagoon. Parts/terrain come from `export_parts.luau` /
+`export_terrain.luau`; the image is cached in `tools/preview/gui/.cache/` (git-ignored; key =
+place path, size, mtime + resolution; `GUI_PREVIEW_CACHE` moves it), ~3 s per new resolution.
+If it cannot be rendered, `docs/preview_pier.png` is cropped instead.
+
+**CoreGui chrome** (drawn over the HUD at 80 % opacity, so overlaps stay visible): the 58 px
+top bar (Roblox menu button, chat/more pill); on desktop the open chat window (top-left,
+360x180) and the player list (top-right); the hotbar — 60 px slots centred, 5..65 px above the
+bottom, one per tool from the dump (number, wrapped name, white frame on the equipped one);
+on touch devices the classic thumbstick and the Jump button: short side <= 500 px: 70 px at
+25..95 px from the right and 20..90 px from the bottom (thumbstick mirrored on the left);
+bigger screens: 120 px at (W-170..W-50, H-210..H-90) (thumbstick at x 60..180).
+
+**Painting** (Roblox rules as implemented; the `selftest` scenario shows each one):
+
+* Shapes are signed-distance anti-aliased at 2x: UICorner radius = scale x the shorter side +
+  offset, clamped to half the shorter side, per corner.
+* UIStroke on a border (`Border`, or `Contextual` on a non-text object): a ring OUTSIDE the box
+  by default (outer corners rounded r + thickness — round joins), Center/Inner per
+  `BorderStrokePosition`, shifted by `BorderOffset`, thickness x the shorter side with
+  `StrokeSizingMode.ScaledSize`; coloured by its own UIGradient across the object's box;
+  independent of BackgroundTransparency.
+* UIGradient on the object multiplies BackgroundColor3 and TextColor3 (not emoji) and the
+  opacity. Linear: `t = 0.5 + ((u-0.5-Offset.X) cos R + (v-0.5-Offset.Y) sin R) / Scale` over the
+  normalised box (Rotation 90 = top to bottom); Elliptical: 2 x the normalised distance from the
+  centre; Radial: a circle fitted to the shorter side; Conical: the angle from Rotation,
+  clockwise; TileMode Clamp/Repeat/Mirror.
+* Text: TextSize is the line height (Nunito's ascent + descent are scaled to it, so the em is
+  TextSize / 1.364); TextScaled picks the largest whole size <= MaxTextSize (100 without a
+  UITextSizeConstraint) and >= MinTextSize whose text, wrapped at spaces, fits the box without
+  splitting a word; if none fits, the min size is used, long words are split and the text may
+  overflow (that is what MinTextSize 9 on «ДОМОЙ» avoids). Alignment X/Y, LineHeight,
+  TextWrapped, TextTruncate AtEnd, MaxVisibleGraphemes (typewriter: the full layout, first N
+  graphemes drawn), RichText tags stripped, UIPadding on the label.
+* Font: Nunito (variable, `FontFace.Weight` 200-1000) from `tools/preview/fonts/Nunito.ttf`
+  (SIL OFL 1.1, `fonts/OFL.txt`) for every family (others warn once); characters Nunito lacks
+  (→, ★) use DejaVu Sans Bold. Colour emoji from Noto Color Emoji (`GUI_PREVIEW_EMOJI_FONT`
+  overrides the path), drawn at the text's em size (1.17 em tall, 1.25 em advance), mixed with
+  text in the same line.
+* Text outlines: a UIStroke on a text object (`Contextual`) outlines glyphs and emoji with its
+  thickness, under the fill; the legacy TextStroke is a thin outline of max(1, 0.045 x TextSize)
+  px; both fade with TextTransparency.
+* ViewportFrame: the fish sprite `docs/gear/<Fish>_iso.png` (`_Gold/_Neon/_Rainbow.png` for a
+  mutation) with the render's light background and Neon glow keyed out (a ViewportFrame has no
+  bloom), fitted (6 % margin) and centred, tinted by ImageColor3/ImageTransparency. The fish is
+  found by the model's `Title` attribute in `ReplicatedStorage.Assets.Fish`.
+* ImageLabel/ImageButton: images cannot be fetched (rbxasset/rbxassetid) — a soft glow tinted
+  with ImageColor3 stands in.
+
+**Known limits**: no AutomaticSize (flagged in the dump, printed by the renderer), UIFlexItem /
+flex layouts, UIPageLayout/UITableLayout, rich-text styling, TextBox placeholders, device
+safe-area insets (notches), rounded clipping of CanvasGroups, or particles/3D world effects
+(only the GUI). Roblox's exact font metrics and legacy TextStroke width are approximations;
+TextScaled sizes may differ from Roblox by a pixel or two. Treat the renders as faithful for
+layout, colour and composition, approximate for text rasterisation.
+
