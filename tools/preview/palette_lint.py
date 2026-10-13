@@ -14,8 +14,9 @@ plus its four sides; underwater ground and invisible parts are skipped):
     and the biggest loud parts.
 Targets (art direction v4): loud 1–4 % of the map (accents exist, nothing big is candy), grey <= 9 %.
 Exit code 1 when a single loud part is larger than --max-loud-part studs² (default 400, parts with
-the attribute-free name list HERO exempt), when the whole map is louder than 5 %, duller than 0.8 %
-(bright but not garish is a band) or greyer than 12 %.
+the attribute-free name list HERO exempt), when the whole map is louder than 5 %, duller than 0.4 %
+(bright but not garish is a band; accents are small parts, so their area share is low — the image-based
+check is tools/preview/colourfulness.py, target 75–105) or greyer than 12 %.
 """
 
 import argparse
@@ -88,7 +89,7 @@ def main(argv=None):
 
     T = max(total, 1)
     print(
-        f"visible area {total:,.0f} studs²: loud {100 * loud / T:.1f}% (target 1–4), grey {100 * grey / T:.1f}% "
+        f"visible area {total:,.0f} studs²: loud {100 * loud / T:.1f}% (band 0.4–5), grey {100 * grey / T:.1f}% "
         f"(target <= 9), neon {100 * neon / T:.2f}%"
     )
     print("\ngroups (loud % / grey % / mean value):")
@@ -110,8 +111,8 @@ def main(argv=None):
     if not args.only and grey / T > 0.12:
         print(f"FAIL: the map is too grey ({100 * grey / T:.1f}% > 12%)")
         status = 1
-    if not args.only and loud / T < 0.008:
-        print(f"FAIL: hardly any accent colour ({100 * loud / T:.2f}% < 0.8%) — the map is getting dull")
+    if not args.only and loud / T < 0.004:
+        print(f"FAIL: hardly any accent colour ({100 * loud / T:.2f}% < 0.4%) — the map is getting dull")
         status = 1
     if status == 0:
         print("\nOK")
