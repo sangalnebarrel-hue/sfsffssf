@@ -117,3 +117,126 @@ Particle textures: `rbxasset://textures/particles/sparkles_main.dds`, `smoke_mai
 Sounds (client content; harmless if a file is missing): `rbxasset://sounds/swoosh.wav`,
 `rbxasset://sounds/electronicpingshort.wav`, `rbxasset://sounds/impact_water.mp3`,
 `rbxasset://sounds/action_swim.mp3`, `rbxasset://sounds/button.wav`, `rbxasset://sounds/clickfast.wav`.
+
+## 6. API (UI v1 foundation)
+
+Where things live:
+
+| what | file | side |
+|---|---|---|
+| colours: palette tokens, rarity/mutation styles, toast kinds, confetti mixes, FX limits | `src/ReplicatedStorage/Shared/Config/UIConfig.luau` (pure: Color3 only) | both |
+| builder helpers (candies, labels, icons, gradients) | `tools/builder/gui/Theme.luau` (reads UIConfig via `U.loadPure`) | Lune |
+| motion library | `src/ReplicatedStorage/Shared/UiFx.luau` | client |
+| reference implementation | `gui/Hud.luau` + `HudController` + `NotifyController` | both |
+| tests | `tests/uifx.test.luau`, `tests/hud_style.test.luau` | sim |
+
+### 6.1 UIConfig (one source of colours)
+
+`Ink`, `White`; `Palette.<Sky|Sun|Leaf|Berry|Grape|Gold|Night|Cream|Slate>` = `{ Top, Bottom, Lip }`
+(Slate = disabled / waiting; Lip = the dark bottom band of a candy); `Rarity.<Common|Rare|Epic|
+Legendary|Mythic>` = `{ Top, Bottom, Lip, Rainbow, Rays = {…}, Confetti = {…}, ConfettiCount, Flash }`;
+`Mutations.<Gold|Neon|Rainbow>` = `{ Top, Bottom, Lip, Icon, Effect = "sparkles"|"pulse"|"rainbow" }`;
+`Rainbow` (7 hues), `Confetti` (vivid mix); `ToastKinds.<info|success|warning|danger>` =
+`{ Token, Icon }`; `KindColors` (flat colour per kind = palette Bottom); `NoBaseColor`;
+`Tint = { Bottom, Lip }` (runtime-colour candies); `Fx = { ConfettiMaxTouch = 40, ConfettiMax = 60,
+ShineInterval, FlashMinInterval, StrokeHeight = 720 }`. FishConfig's rarity/mutation `Color`s stay
+the flat colours the stage-2 tests check; use `UIConfig.Rarity` / `Mutations` for gradients and FX.
+
+### 6.2 The candy (structure contract shared by Theme and UiFx)
+
+```
+<Root>       any GuiObject, BackgroundTransparency 1, attributes CandyFace = "<face name>", CandyRadius
+  Lip        Frame, full size, ZIndex z, Palette.X.Lip, UICorner, UIStroke Ink 3 px (BaseThickness = 3)
+  <Face>     Frame "Face" (BaseBadge: "Swatch"), top 92 % (LIP = 0.08), ZIndex z+1,
+             white + UIGradient "Fill" Top → Bottom (Rotation 90), UICorner
+    Gloss    white band in the top 44 %, UIGradient "Fade" 0.42 → 1
+    Shine    full-size white overlay, UIGradient "Band" (Rotation 20, Offset (-1, 0) = hidden)
+  …content   Icon / Caption / Label at ZIndex z+2 (Theme.Z.Content); overlays at Z.Overlay (5)
+```
+
+Runtime-colour candies (the base badge): `Face.BackgroundColor3 = colour`, `Fill` = white → grey
+(`Tint.Bottom`), `Lip = colour × Tint.Lip`. Children render above their parent (ZIndexBehavior
+Sibling), so anything that must appear *behind* a candy (glow, rays) is a child with ZIndex 0.
+Outlines are drawn for a 720 px tall screen: every UIStroke made by Theme/UiFx carries a
+`BaseThickness` attribute and `UiFx.fitStrokes(hud)` (HudController) scales them to the real screen
+height (×0.65 … ×1.5), including widgets cloned later. Note: Lune stores `UICorner.CornerRadius` as
+the four per-corner radii, so in RbxSim read `TopLeftRadius` (or `CandyRadius`), not `CornerRadius`.
+
+### 6.3 Theme (builder, `tools/builder/gui/Theme.luau`)
+
+| function | what |
+|---|---|
+| `Theme.UI`, `Theme.P`, `Theme.INK`, `Theme.WHITE` | UIConfig, its palette, Ink, white |
+| `Theme.Z` | ZIndex layers inside a candy: `Behind 0, Lip 1, Face 2, Content 3, Overlay 5, Top 6` |
+| `Theme.LIP`, `Theme.STROKE`, `Theme.FONT`, `Theme.MIN_TEXT`, `Theme.HOTBAR` | 0.08, 3 px, Nunito ExtraBold, 12 px, 74 px |
+| `Theme.gradient(parent, top, bottom, rotation?, name?)` | UIGradient "Fill" (vertical by default) |
+| `Theme.multiGradient(parent, colors, rotation?, name?)`, `Theme.sequence(colors)`, `Theme.numbers({{t, v}…})` | multi-stop gradients, sequences |
+| `Theme.candy(root, token, opts?)` → face | makes `root` a candy; opts: `radius` (0.5), `lip`, `stroke` (3; 0 = none), `color` (runtime colour), `transparency`, `faceName`, `gloss` / `shine` (false to omit), `z` |
+| `Theme.candyButton(parent, name, token, props)` → TextButton | candy button with `Icon` / `Caption` children; props: any TextButton props + `Icon`, `Caption`, `Layout` ("stack": icon over caption, "row"), `Radius` (0.3), `Square`, `MaxTextSize`, `MinTextSize`, `CandyOpts` |
+| `Theme.pill(parent, name, token, props)` → Frame | candy pill with an overhanging emoji `Icon` (or a white `IconSocket` with `Socket = true`) and a centred `Label`; props: `Icon`, `IconScale` (1.35), `Text`, `MaxTextSize`, `Color`, `CandyOpts`, `LabelProps` |
+| `Theme.panel(parent, name, props)` → Frame | Night glass panel (or `Token = "Cream"` card), radius 0.16, thin gloss |
+| `Theme.socket(parent, name, emoji, props)` → Frame | white round socket with an emoji child (`IconName`, default "Icon") |
+| `Theme.label(parent, name, props)` → TextLabel | white Nunito text, Ink TextStroke; extra keys `MaxTextSize`, `MinTextSize`, `Outline = px` (UIStroke "Outline" on the text), `OutlineColor`, `TextGradient = {top, bottom}` (UIGradient "TextFill") |
+| `Theme.icon(parent, name, emoji, props?)` → TextLabel | emoji label, no outline, Rotation −8, ZIndex Content |
+| `Theme.gloss(face, radius, props?)`, `Theme.shine(face, radius)` | the two face layers on their own |
+| `Theme.rarityGradient(parent, rarityId, rotation?)` | rarity gradient; Mythic gets rainbow stops + attribute `Rainbow = true` (animate with `UiFx.rainbow`) |
+| `Theme.corner`, `Theme.stroke(parent, px, transparency?, color?)`, `Theme.C` | legacy helpers (gui/Fishing.luau); `stroke` is now Ink + BaseThickness |
+
+### 6.4 UiFx (client, `require(ReplicatedStorage.Shared.UiFx)`)
+
+"timers" = TweenService + `task.delay` only (no connection); "frame" = the shared scheduler (one
+RenderStepped connection for all running frame effects, disconnected when none runs).
+
+| function | kind | notes |
+|---|---|---|
+| `press(button, {scale?, sound?})` → unbind | 3 conns | squash 0.88 on press, Back-Out spring on release (also when the finger leaves the button) |
+| `popIn(gui, {from?, time?, delay?, rotate?})` | timers | UIScale from → 1, Back Out (0.3 s), optional −6° → 0 |
+| `popOut(gui, {time?, to?, destroy?, hide?})` | timers | Back In to `to`, then destroy / hide |
+| `bump(gui, peak?, time?)` | timers | 1.22 → 1 spring (counters, rewards) |
+| `slam(gui, from?, time?)` / `stamp(gui, rotate?, time?)` | timers | 2.2 → 1 + small shake / 3 → 1 with a −16° turn |
+| `pulse(gui, peak?, period?)` → stop | timers | 1 ↔ 1.08, Sine, 0.8 s |
+| `wiggle(gui, angle?, swings?, time?)` | timers | ±6°, 3 swings, 0.4 s; restarts cleanly, returns to the rest rotation |
+| `shake(gui, amount?, time?)` | timers | Position jitter ±1.5 %; **no effect inside a UIListLayout** (use wiggle there) |
+| `shine(gui, time?)` | timers | sweeps the candy's `Shine.Band`; non-candies get a temporary overlay with the same UICorner |
+| `shineLoop(gui, {interval?, time?, delay?, when?})` → stop | timers | idle shine every 3.5 s while visible (and `when()`) |
+| `glowRing(gui, {color?, time?, scale?, thickness?, filled?, loop?, interval?, z?})` → stop | timers | expanding ring (or a filled copy behind a candy) 1 → 1.5, fading |
+| `ripple(gui, color?)` | timers | small one-shot ring for taps |
+| `rays(gui, {colors?, count?, speed?, size?, width?, transparency?, glow?, z?})` → stop | timers | sunburst (core + halo rays, glow discs) behind `gui` (ZIndex 0), rotating 20°/s, breathing |
+| `confetti(container, {count?, colors?, origin?, spread?, power?, duration?, z?})` → stop | frame | squares/strips, gravity, flutter, fade in the last 30 %; ≤ 40 alive on touch devices, ≤ 60 otherwise (all bursts together; `confettiCap()`, `liveConfetti()`) |
+| `burst(container, {count?, colors?, origin?, power?, time?, z?})` → stop | frame | round sparks flying out of `origin` (hit in the zone, reward) |
+| `sparkles(gui, {icons?, rate?, size?, area?, duration?, z?})` → stop | timers | ✨/⭐ popping around the edges |
+| `floatText(container, text, {position?, size?, color?, colors?, rise?, time?, rotate?, z?})` → label | timers | «ОТЛИЧНО!», «+1»: pop, rise 8 %, fade (0.8 s) |
+| `countUp(label, from, to, time?, format?)` → stop | frame | Quad Out; `format` is a function or `"%d"`; stop jumps to the final value |
+| `rainbow(gradient, {speed?, colors?, spin?})` → stop | frame | hue cycle (30 Hz); stop restores the colours |
+| `timerBar(fill, duration, colors?)` → stop | frame | width 1 → 0, green → yellow → red |
+| `flash(layer, color?, time?)` | timers | full-screen 0.6 → 1; at most 3 per second |
+| `flyTo(layer, from, to, {text?, time?, size?, arc?, onArrive?})` → stop | frame | an emoji flies on an arc between two widgets (card → counter) |
+| `trail(gui, {count?, lag?, transparency?})` → stop | frame | ghost copies following a moving widget (minigame needle) |
+| `cameraShake(amplitude?, time?)` → stop | render step | gentle translation-only shake (Legendary/Mythic) |
+| `fadeOut(gui, time?)` | timers | every background/text/stroke under `gui` to transparent |
+| `setCandy(root, token \| swatch \| Color3)` | — | recolour a candy (states, toast kinds, base colour) |
+| `fitStrokes(root)` → unbind | 2 conns | see 6.2 |
+| `sound(name, volume?)` | — | "click", "tick", "pop", "swoosh", "splash" (built-in rbxasset sounds) |
+| `scaleOf(gui)`, `faceOf(root)`, `tween(…)`, `stagger(items, gap?, fn)`, `sequence(colors)`, `sampleColors(colors, k)`, `lighten`, `darken`, `schedule(step, cleanup?)` → stop, `activeJobs()` | — | helpers; `scaleOf` returns the shared UIScale "FxScale" (FishingController uses the same one) |
+
+### 6.5 Rules for the next agents
+
+- Build widgets with Theme (candy / candyButton / pill / panel / label / icon) and animate with
+  UiFx — no hand-rolled colours or tweens; new colours go into UIConfig.
+- Bind `UiFx.press` once per button at Start (its connections live as long as the HUD).
+- **Idle and ambient effects must be timer-based** (shineLoop, pulse, glowRing loop, rays,
+  sparkles): client tests compare connection counts at two moments (stage2_client "unequip and
+  respawn…", "leaks…", hud_style "idle HUD"). Frame effects (confetti, burst, countUp, rainbow,
+  timerBar, flyTo, trail) are for events and must be stopped — keep their stop function in the
+  widget's Trove; a rainbow left running on a hidden card is a leak.
+- Inside a UIListLayout, Position is ignored and a UIScale re-flows the siblings (the scale origin
+  is the AnchorPoint): prefer wiggle / bump there, never shake.
+- Keep names: animate by adding children (FxScale, FxRing, FxRays, FxFloat… are created and removed
+  by UiFx), never by renaming or re-parenting contract widgets.
+- Recipes. Catch card: `rays(raysHolder, {colors = UIConfig.Rarity[r].Rays})` in a transparent
+  holder behind the card, `popIn(card, {rotate = -6})`, `shine(card)` after 0.3 s, `confetti(hud,
+  {count = Rarity[r].ConfettiCount, colors = Rarity[r].Confetti})`, `countUp(priceLabel, 0, value)`,
+  `stamp(mutationBadge)`, Legendary/Mythic: `flash(hud)` + `cameraShake()`; on close `flyTo(hud,
+  card, counter, {onArrive = function() UiFx.bump(counter) end})`. Action button:
+  `Theme.candyButton(…, "Sky", {Radius = 0.5, Square = true})`, `setCandy` per state,
+  `glowRing(button, {loop = true})` while it matters, `shineLoop` when idle, `ripple` on tap.
