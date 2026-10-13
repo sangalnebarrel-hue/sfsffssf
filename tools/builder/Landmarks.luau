@@ -5,7 +5,7 @@
 	(flowers, flags, lanterns), no figures.
 
 	  Waterfall  a three-tier cascade off the mesa's lagoon-facing cliff, each tier 5-6 studs
-	             narrower than the one above (staggered curtains of light-blue columns 2-6 wide at
+	             narrower than the one above (staggered curtains of opaque aqua-white columns 2-6 wide at
 	             different depths with pale streaks that the client slides up and down out of step
 	             (attribute Bob: the falls shimmer), ragged lips of warm stone with lumps of white
 	             foam breaking over them, two solid mossy sandstone shelves) into the pond: foam
@@ -22,26 +22,28 @@
 	             a stepped sandstone grotto («РОДНИК») the spring flows out of, a small glowing
 	             crystal cluster with sparkles on top, a paved path to it from the lookout, a
 	             picnic grove (fruit and blossom trees, a hammock, a blanket, flowers), a rope swing
-	             near the lip, stepping stones across the stream.
+	             near the lip, stepping stones across the stream, a plank footbridge right over the top
+	             of the fall between two cliff pines.
 	  Windmill   the hero tower mill on the ziggurat top (see heroMill: a stone ground floor, a
 	             timber band, plaster tiers with framed windows, green shutters and a flower box, a
 	             pitched red cap, canvas sails spinning as "Blades" on an axle high over the
 	             balcony): a walk-through room on the ground floor (front and back doors, a
 	             millstone, sacks, a lantern), a ladder up the back to the balcony (a 5-stud
-	             walkway, parapet, bench, telescope, petals drifting off it); planted beds on every
-	             other terrace ring all round (tulip clumps in segments with grass between at the
-	             front, two jewel tones a ring; lavender and sunflowers on the sides; wheat at the
-	             back, a pale stubble band with the ripe ears standing along it), bush clumps and
-	             rocks on the lawn rings' risers, a little farm on the back (hay bales, a beehive);
-	             chunky 2-stud stairs up the front (invisible ramps over them), a timber rail
-	             fence round the top meadow.
-	  GiantTree  Props.giantTree (treehouse, swing, lanterns) on the meadow plateau, scaled to a
-	             real giant, with a fresher crown (a light top over a mid-green body), the
-	             treehouse in planks with glazed windows, bigger blossom clusters; a long slide
-	             from the treehouse deck down to the meadow (the fun way down); steps up from the
-	             path with grassy cheek blocks filling the plateau's jagged edge beside them; a
-	             glowing giant mushroom with fireflies, a fairy ring of little mushrooms, lantern
-	             posts.
+	             walkway, parapet, bench, telescope, petals drifting off it); every terrace ring
+	             planted end to end in two heights (see hillFields: tulip rows over leafy rows at
+	             the front, red, white and pink by ring; sunflower hedges and ripe wheat on the
+	             sides; wheat on the back), a little farm on the back's odd rings (hay bales, a
+	             beehive); chunky 2-stud stairs up the front (invisible ramps over them), a hay
+	             cart parked at their foot, apple trees either side, a timber rail fence round
+	             the top meadow.
+	  GiantTree  Props.giantTree (treehouse, swing, slide) on the meadow plateau, scaled to a real
+	             giant, its crown rebuilt (see giantCrown: a central crown and five offset clumps
+	             on visible branch arms, dark undersides, blossom clusters and a lantern under each
+	             clump), the treehouse in planks with glazed windows under a pitched roof, a rope
+	             bridge out to a second platform with a rope ladder; a long slide from the
+	             treehouse deck down to the meadow (the fun way down); steps up from the path with
+	             grassy cheek blocks filling the plateau's jagged edge beside them; a glowing giant
+	             mushroom with fireflies, a fairy ring of little mushrooms, lantern posts.
 	  Peaks      the main Peak is climbed by the spiral trail VoxelWorld carves into it, walkable
 	             all the way: a path-tan wedge ramp on every riser. A base camp on a flat pad beside
 	             the end of its path (tents, a smoking fire ring with sparks), a roofed «ВЕРШИНА»
@@ -72,12 +74,14 @@ local Landmarks = {}
 local WATER_SHEET = { CanCollide = false, CastShadow = false, CanQuery = false } -- opaque stream/pool sheets
 local BRASS = mix(C.Gold, C.WoodDark, 0.3) -- telescopes, finials
 local INK = Kit.shade(C.WoodDark, 0.7) -- dark brown sign text on cream boards
--- falling and shallow water: light, so the falls read as white water, not panels of glass
-local FALL_A = U.rgb(120, 196, 226)
-local FALL_B = U.rgb(150, 210, 234)
-local STREAK = U.rgb(200, 234, 246)
-local FOAM = U.rgb(240, 248, 252)
-local DEEP = mix(FALL_A, C.Water, 0.45) -- deeper water in pools
+-- falling and shallow water: opaque light aqua-white (vertical faces turn away from the sun and
+-- render darker), so the falls read as white water, not panels of steel-blue glass
+local FALL_A = U.rgb(172, 222, 242)
+local FALL_B = U.rgb(206, 236, 248)
+local STREAK = U.rgb(246, 251, 253)
+local FOAM = U.rgb(244, 250, 252)
+local POOL_A = U.rgb(120, 196, 226) -- the stream and the spring pool on the mesa top
+local DEEP = mix(POOL_A, C.Water, 0.45) -- deeper water in pools
 
 -- A wedge in a builder's frame (its tall face at local +Z, the slope falling towards -Z).
 local function wedge(b: any, name: string, size: any, lcf: any, color: any, extra: any?): any
@@ -209,7 +213,7 @@ local function cascade(parent: any, site: any, frame: any, fmin: number, fmax: n
 	local b = Kit.builder(parent, "Waterfall", frame)
 	local r = Kit.rng(4507)
 	local top = site.cliffTop + 0.9 -- over the stream sheet
-	local blues = { FALL_A, FALL_B }
+	local blues = { FALL_A, FALL_B, FALL_A, FOAM } -- (every fourth column white water)
 	local hw1 = W / 2
 	-- the rock shelves: the upper one is a solid block from the lower shelf up out of the cliff
 	-- (the narrower middle tier falls down its face), the lower one stands in the pond
@@ -262,7 +266,7 @@ local function cascade(parent: any, site: any, frame: any, fmin: number, fmax: n
 			local out = floor(r(0, 3.99)) * 0.6 + (c % 2) * 0.05
 			local drop = if r() < 0.35 then r(0.6, 1.6) else 0
 			fronts[c] = f - out
-			b:box(`Curtain{t}_{c}`, q[1], y0, f - out, q[2], y1 - drop, k, blues[(c + t) % 2 + 1], WATER)
+			b:box(`Curtain{t}_{c}`, q[1], y0, f - out, q[2], y1 - drop, k, blues[(c + t) % 4 + 1], WATER)
 		end
 		-- streaks of faster water down the columns: thin white threads and pale ribbons of
 		-- different lengths, each in its own slot across the tier
@@ -311,9 +315,9 @@ local function cascade(parent: any, site: any, frame: any, fmin: number, fmax: n
 		while cx < hw - 1 do
 			nf += 1
 			local w = min(r(2.4, 4.2), hw + 0.4 - cx)
-			local hgt = r(1.2, 2.4)
+			local hgt = r(1.8, 3)
 			-- (overhangs and tops never on a column's front or top plane)
-			local over = floor(r(0, 2.99)) * 0.6 + 0.3 + (nf % 3) * 0.07
+			local over = floor(r(0, 2.99)) * 0.6 + 0.8 + (nf % 3) * 0.07
 			local yb = y1 - r(0.6, 1.4)
 			if abs(yb + hgt - y1) < 0.15 then
 				hgt += 0.3
@@ -680,7 +684,7 @@ end
 local function mesaStream(parent: any, world: any, site: any, frame: any, lipLz: number, W: number)
 	local top = site.cliffTop
 	local b = Kit.builder(parent, "Stream", frame)
-	local water = FALL_A
+	local water = POOL_A
 	local deep = DEEP
 	local sand, sandDark = C.Sand, C.SandDark
 	local SAND_TOP, WATER_TOP = top + 0.25, top + 0.5
@@ -715,18 +719,6 @@ local function mesaStream(parent: any, world: any, site: any, frame: any, lipLz:
 	b:box("PoolB", px - 10.3, top - 0.4, pz0, px + 10.3, WATER_TOP + 0.12, pz1 + 2.4, water, WATER_SHEET)
 	b:box("PoolDeep", px - 7, top - 0.2, pz0 + 7, px + 7, WATER_TOP + 0.24, pz1 - 4, deep, WATER_SHEET)
 	b:finish()
-
-	local function place(lx: number, lz: number, yaw: number?): any
-		return frame * CFrame.new(lx, top, lz) * CFrame.Angles(0, rad(yaw or 0), 0)
-	end
-	-- a lily pad (on the deep sheet's level), flowers on the banks
-	for i, p in { { px - 6, pz0 + 8 } } do
-		Kit.prop("lilyPad", parent, place(p[1], p[2], i * 40) * CFrame.new(0, WATER_TOP + 0.36 - top, 0), {
-			seed = i * 5,
-			scale = 1.2,
-			flower = true,
-		})
-	end
 	return {
 		{ 0, lipLz + 3, 17 },
 		{ -6, lipLz + 12, 14 },
@@ -1112,6 +1104,36 @@ local function buildWaterfall(root: any, cfg: any, world: any, site: any)
 
 	-- the mesa top's destination
 	mesaGarden(model, world, site, frame, lipLz, pool, st)
+	-- a plank footbridge across the stream right over the top of the fall (rails on posts), and
+	-- two pines standing on the cliff top either side of it: the fall reads as a place from the
+	-- promenade, not a blue panel on a brown block
+	local top = site.cliffTop
+	local br = Kit.builder(model, "Footbridge", frame * CFrame.new(0, top, lipLz + 4.5))
+	local deck = br:box("Deck", -18, 1.2, -2.2, 18, 1.9, 2.2, C.Plank)
+	for i, sz in { -1, 1 } do
+		br:box(`Rail{i}`, -17.6, 4.3, sz * 2 - 0.3, 17.6, 4.9, sz * 2 + 0.3, C.Wood, Kit.NOSHADOW)
+		for k, sx in { -1, 1 } do
+			br:box(
+				`Post{i}_{k}`,
+				sx * 17.2 - 0.45,
+				0.2,
+				sz * 2 - 0.45,
+				sx * 17.2 + 0.45,
+				5.1,
+				sz * 2 + 0.45,
+				C.WoodDark
+			)
+		end
+	end
+	br:finish(deck)
+	for i, p in { { -20, lipLz + 12.5 }, { 38, lipLz + 8 } } do
+		Kit.voxelTree(model, frame * CFrame.new(p[1], top, p[2]) * CFrame.Angles(0, rad(i * 30), 0), "pine", {
+			scale = 1.35,
+			name = "CliffPine",
+		})
+		local cx, cz = W(p[1], p[2])
+		Kit.claim(cx, cz, 6)
+	end
 
 	-- mossy ledges and vine curtains on the cliffs (not behind the fall or the staircase)
 	cliffLedges(model, frame, faceRange, {
@@ -1151,40 +1173,31 @@ end
 --------------------------------------------------------------------------------------------
 
 --[[
-	Flower and crop rows on the windmill hill's terraces, all round. The hill is a ziggurat of
-	one-cell (8-stud) rings, 4 studs per ring, so the rows follow the rings: every cell whose
-	outward direction is mostly along X takes a row along Z and vice versa, and runs of equal
-	height merge into one long row (the straight faces of the hill give long rows, the diagonal
-	corners short ones). Every other ring stays lawn, so the hill reads as terraced garden beds
-	with grass between, and every row is green leaves with its colour on top, narrower (a planted
-	bed, not a painted plank). By the cell's direction from the mill:
-	  front (towards the lagoon and the stairs)  tulips on the two lower rings: segments of two
-	                                             or three square bloom bunches (2.4, 1 apart, zig-
-	                                             zag, two tints, two heights) on a strip of green
-	                                             stems, 5-7 studs of grass between the segments;
-	                                             pink, yellow by ring; the top ring stays lawn
-	  sides                                      lavender (grey-green mounds with separate purple
-	                                             spike tufts) on one side, tall sunflowers (a stem
-	                                             hedge with separate straw-gold heads) on the other
-	  back                                       golden wheat on every other planted ring; the
-	                                             rings between hold the farm (see hillFarm)
-	Lone cells on the sides and the back stay grass (a row needs two cells). Returns the cells
-	left free on the back's farm rings: { x, z, h, d, a } (a: degrees from straight back).
+	Planted rows on every ring of the windmill hill's terraces, all round (the critics' "bare lime
+	ziggurat" with lone bricks on lawn rings is gone). The hill is a ziggurat of one-cell (8-stud)
+	rings, 4 studs per ring, so the rows follow the rings: every cell whose outward direction is
+	mostly along X takes a row along Z and vice versa, and runs of equal height merge into one
+	long row (the straight faces of the hill give long rows, the jagged corners stay grass). Each
+	row is planted end to end in two heights, its colour on a leafy body (never a painted plank),
+	long rows broken into beds a stud apart. By the cell's direction from the mill:
+	  front (towards the lagoon and the stairs)  tulips on every ring, each ring its own jewel
+	                                             tone over a leafy row (bands of colour climbing
+	                                             the hill to the mill)
+	  sides                                      tall sunflowers (a stem hedge under a band of
+	                                             gold heads) on the even rings, ripe wheat on the
+	                                             odd ones
+	  back                                       golden wheat (pale stalks, ripe ears) on the even
+	                                             rings; the odd rings hold the farm (see hillFarm)
+	Returns the cells left free on the back's farm rings: { x, z, h, d, a } (a: degrees from
+	straight back).
 ]]
 local function hillFields(parent: any, world: any, site: any, corridor: (number, number) -> boolean): { any }
 	local model = U.model(parent, "Fields")
 	local cell = world.cell
-	-- each planted ring in two jewel tones of its own (red and yellow, pink and red, yellow
-	-- and orange, violet and blue)
-	local tulips = {
-		{ C.Flowers[1], C.Flowers[2] },
-		{ C.Flowers[3], C.Flowers[1] },
-		{ C.Flowers[2], C.Flowers[6] },
-		{ C.Flowers[4], C.Flowers[7] },
-	}
-	local lavenderLeaf = mix(C.Leaf1, C.StoneLight, 0.3)
-	local lavender = mix(C.Purple, C.Cream, 0.12)
-	local rr = Kit.rng(1351)
+	-- the tulip rings, from the foot up: red, white and pink by turns (whole rows of them, so the
+	-- calmer accent reds and pinks rather than the jewel tones of single blooms)
+	local tulips = { C.Red, C.Cream, C.Pink, C.Cream, C.Red, C.Cream, C.Pink }
+	local sunHead = C.Yellow
 	local towards = Vector3.new(-site.x, 0, -site.z).Unit -- the lagoon direction
 	local R = site.hillRadius
 	local G = world.cfg.GroundTop
@@ -1207,7 +1220,7 @@ local function hillFields(parent: any, world: any, site: any, corridor: (number,
 		local zone = if facing >= 0.45 then "front" elseif facing <= -0.45 then "back" else "side"
 		local side = if dx * towards.Z - dz * towards.X > 0 then 1 else -1
 		local level = floor((h - G) / 4)
-		if level % 2 == 1 then -- (lawn between the beds; on the back, the farm)
+		if zone == "back" and level % 2 == 1 then -- (the farm's rings)
 			return nil
 		end
 		return h, if abs(dx) > abs(dz) then "z" else "x", zone, side, level
@@ -1253,18 +1266,19 @@ local function hillFields(parent: any, world: any, site: any, corridor: (number,
 			for k = 0, n - 1 do
 				used[(ix + sx * k) * 4096 + iz + sz * k] = true
 			end
-			if n == 1 and zone ~= "front" then
+			if n == 1 then -- (a lone corner cell stays grass: a gap between the beds)
 				continue
 			end
+			local lv = level :: number
 			-- the row's footprint: inset from the cell edges, long along the run
 			local ax0, az0 = ix * cell, iz * cell
 			local ax1, az1 = (ix + 1 + sx * (n - 1)) * cell, (iz + 1 + sz * (n - 1)) * cell
-			local ex, ez = if axis == "x" then 0.9 else 1.4, if axis == "z" then 0.9 else 1.4
-			local x0, x1, z0, z1 = ax0 + ex, ax1 - ex, az0 + ez, az1 - ez
-			local lv = (level :: number) // 2
+			local ex, ez = if axis == "x" then 0.9 else 1.2, if axis == "z" then 0.9 else 1.2
 			-- along the row (a) and across it (b)
-			local A0, A1 = if axis == "x" then x0 else z0, if axis == "x" then x1 else z1
-			local B0, B1 = if axis == "x" then z0 else x0, if axis == "x" then z1 else x1
+			local A0 = if axis == "x" then ax0 + ex else az0 + ez
+			local A1 = if axis == "x" then ax1 - ex else az1 - ez
+			local B0 = if axis == "x" then az0 + ez else ax0 + ex
+			local B1 = if axis == "x" then az1 - ez else ax1 - ex
 			local function strip(
 				name: string,
 				a0: number,
@@ -1281,80 +1295,46 @@ local function hillFields(parent: any, world: any, site: any, corridor: (number,
 					row(name, b0, a0, b1, a1, y0, y1, colour)
 				end
 			end
+			-- long rows are planted as beds a stud apart (about 20 long)
+			local beds = Kit.clumps(A0, A1, if zone == "front" then 15 else 20, 1.2)
 			if zone == "front" then
-				-- tulips in segments of two or three square bunches (2.4, 1 apart, zig-zag, two
-				-- tints and two heights by turns) on a strip of green stems, 5-7 studs of grass
-				-- between the segments: planted clumps, not stripes. The top ring stays lawn.
-				if lv >= 3 then
-					continue
+				local c = tulips[(lv - 1) % #tulips + 1]
+				strip("TulipLeaves", A0, A1, B0, B1, h - 0.2, h + 1.6, C.Leaf1)
+				for k, q in beds do
+					strip("Tulips", q[1] + 0.3, q[2] - 0.3, B0 + 1.1, B1 - 1.1, h + 1.35, h + 2.25 + (k % 2) * 0.3, c)
 				end
-				local pair = tulips[lv % #tulips + 1]
-				local c1, c2 = pair[1], pair[2]
-				local segs, pos = {}, A0 + 0.3
-				while true do
-					local room = A1 - 0.3 - pos
-					local k = if room >= 9.8 then 3 elseif room >= 6.4 then 2 elseif room >= 3 then 1 else 0
-					if k == 0 then
-						break
-					end
-					local len = k * 3.4 - 0.4
-					table.insert(segs, { pos, pos + len, k })
-					pos += len + rr(5, 7)
-				end
-				local shift = if #segs > 0 then (A1 - 0.3 - segs[#segs][2]) / 2 else 0
-				for si, sg in segs do
-					local s0, s1 = sg[1] + shift, sg[2] + shift
-					local bm = (B0 + B1) / 2
-					strip("Stems", s0, s1, bm - 1.9, bm + 1.9, h - 0.2, h + 1.4, C.Leaf1)
-					for k = 1, sg[3] do
-						local c0 = s0 + 0.3 + (k - 1) * 3.4
-						local odd = (k + si) % 2 == 1
-						local top = h + 2.3 + (if odd then 0 else 0.6) + (k % 3) * 0.12
-						local zig = if k % 2 == 0 then 0.45 else -0.45
-						strip(
-							"Tulips",
-							c0,
-							c0 + 2.4,
-							bm + zig - 1.2,
-							bm + zig + 1.2,
-							h + 1.2,
-							top,
-							if odd then c1 else c2
-						)
-					end
+			elseif zone == "side" and lv % 2 == 0 then
+				strip("SunStems", A0, A1, B0 + 0.8, B1 - 0.8, h - 0.2, h + 3.6, C.Leaf1)
+				for k, q in beds do
+					strip(
+						"Sunflowers",
+						q[1] + 0.2,
+						q[2] - 0.2,
+						B0 + 1.3,
+						B1 - 1.3,
+						h + 3.3,
+						h + 4.6 + (k % 2) * 0.3,
+						sunHead
+					)
 				end
 			elseif zone == "side" then
-				-- lavender (a grey-green mound with separate purple spike tufts) on one side,
-				-- sunflowers (a stem hedge with separate gold heads) on the other
-				local lav = side == 1
-				local inset = if lav then 0.4 else 0.6
-				strip(
-					if lav then "Lavender" else "SunStems",
-					A0 + inset,
-					A1 - inset,
-					B0 + inset,
-					B1 - inset,
-					h - 0.2,
-					h + (if lav then 1.8 else 2.9),
-					if lav then lavenderLeaf else C.Leaf1
-				)
-				local k = math.clamp(floor((A1 - A0) / 6), 1, 2)
-				for t = 1, k do
-					local c = A0 + (A1 - A0) * (t - 0.5) / k + (if t % 2 == 0 then 0.4 else -0.3)
-					if lav then
-						local hi = h + 2.9 + (t % 2) * 0.4
-						strip("LavenderSpikes", c - 1.1, c + 1.1, B0 + 1.6, B1 - 1.6, h + 1.6, hi, lavender)
-					else
-						local hi = h + 4.1 + (t % 2) * 0.4
-						strip("Sunflower", c - 1.2, c + 1.2, B0 + 1.1, B1 - 1.1, h + 2.7, hi, C.Flowers[2])
-					end
+				for k, q in beds do
+					strip("Wheat", q[1], q[2], B0 + 0.6, B1 - 0.6, h - 0.2, h + 2.8 + (k % 2) * 0.3, C.Straw)
 				end
-			elseif lv % 2 == 0 then
-				-- golden wheat on the back (the rings between stay lawn or hold the farm): a pale
-				-- stubble band with the ripe ears standing in a taller band along its middle
-				row("Wheat", x0 + 0.2, z0 + 0.2, x1 - 0.2, z1 - 0.2, h - 0.2, h + 1.5, C.StrawLight)
-				local ia, ib = if axis == "x" then 2.2 else 1.3, if axis == "z" then 2.2 else 1.3
-				row("WheatEars", x0 + ia, z0 + ib, x1 - ia, z1 - ib, h + 1.3, h + 2.9, C.Straw)
+			else
+				strip("Stubble", A0, A1, B0 + 0.3, B1 - 0.3, h - 0.2, h + 2.2, C.StrawLight)
+				for k, q in beds do
+					strip(
+						"WheatEars",
+						q[1] + 0.3,
+						q[2] - 0.3,
+						B0 + 1.3,
+						B1 - 1.3,
+						h + 2,
+						h + 3.4 + (k % 2) * 0.2,
+						C.Straw
+					)
+				end
 			end
 		end
 	end
@@ -1386,93 +1366,6 @@ local function hillFields(parent: any, world: any, site: any, corridor: (number,
 		end
 	end
 	return farm
-end
-
---[[
-	Bush clumps and rocks at the foot of the windmill hill's risers on the lawn rings (the rings
-	between the planted ones) at the front and the sides: their backs 0.3 into the riser towards
-	the mill, a spread-out pick (22+ apart) of up to n, clear of the stairs. 2-3 parts each.
-]]
-local function hillDressing(parent: any, world: any, site: any, corridor: (number, number) -> boolean, n: number)
-	local model = U.model(parent, "Dressing")
-	local cell = world.cell
-	local G = world.cfg.GroundTop
-	local towards = Vector3.new(-site.x, 0, -site.z).Unit
-	local r = Kit.rng(1871)
-	local R = site.hillRadius
-	local spots = {}
-	for iz = floor((site.z - R) / cell), floor((site.z + R) / cell) do
-		for ix = floor((site.x - R) / cell), floor((site.x + R) / cell) do
-			local x, z = (ix + 0.5) * cell, (iz + 0.5) * cell
-			local dx, dz = x - site.x, z - site.z
-			local d = sqrt(dx * dx + dz * dz)
-			local h = world:heightAt(x, z)
-			if d > site.topRadius + 6 and d < R - 4 and h > G and not corridor(x, z) then
-				local facing = (dx * towards.X + dz * towards.Z) / d
-				if floor((h - G) / 4) % 2 == 1 and facing > -0.3 then
-					local ux, uz = 0, 0
-					if abs(dx) > abs(dz) then
-						ux = if dx > 0 then -1 else 1
-					else
-						uz = if dz > 0 then -1 else 1
-					end
-					if world:heightAt(x + ux * cell, z + uz * cell) == h + 4 then
-						table.insert(spots, { x = x, z = z, h = h, ux = ux, uz = uz, score = r() })
-					end
-				end
-			end
-		end
-	end
-	table.sort(spots, function(a, b)
-		return a.score > b.score
-	end)
-	local placed = {}
-	for _, s in spots do
-		if #placed >= n then
-			break
-		end
-		local ok = true
-		for _, o in placed do
-			if (o[1] - s.x) ^ 2 + (o[2] - s.z) ^ 2 < 22 * 22 then
-				ok = false
-				break
-			end
-		end
-		if ok then
-			table.insert(placed, { s.x, s.z })
-			local wx, wz = s.x + s.ux * (cell / 2 + 0.3), s.z + s.uz * (cell / 2 + 0.3)
-			local cf = CFrame.new(wx, s.h, wz) * CFrame.Angles(0, math.atan2(s.ux, s.uz), 0)
-			local o = r(-1.5, 1.5)
-			local kind = #placed % 3
-			if kind == 0 then
-				local b = Kit.builder(model, "Rocks", cf)
-				local w = r(3, 4.2)
-				local stone = b:box("Rock", o - w / 2, -0.6, -2.6, o + w / 2, r(1.8, 2.6), 0, C.Stone)
-				b:box(
-					"RockTop",
-					o - w / 2 + 0.5,
-					1.2,
-					-2,
-					o + w / 2 - 0.9,
-					r(2.8, 3.3),
-					0.1,
-					C.StoneLight,
-					Kit.NOSHADOW
-				)
-				b:finish(stone)
-			else
-				local b = Kit.builder(model, "Bush", cf)
-				local w = r(4, 5.4)
-				local bush = b:box("Leaves", o - w / 2, -0.4, -3, o + w / 2, r(2.8, 3.4), 0, C.Leaf1, Kit.DECOR)
-				b:box("Top", o - w / 2 + 0.8, 2.2, -2.3, o + w / 2 - 1.2, r(3.9, 4.4), 0.1, C.Leaf3, Kit.DECOR)
-				if kind == 1 then
-					b:box("Bloom", o + w / 2 - 2.1, 2.3, -3.3, o + w / 2 - 0.8, 3.6, -2, C.Flowers[1], Kit.DECOR)
-				end
-				b:finish(bush)
-			end
-		end
-	end
-	return model
 end
 
 -- Beehive on a little stand (4 parts): legs, a straw hive with an amber band, a plank roof.
@@ -1722,7 +1615,6 @@ local function buildWindmill(root: any, cfg: any, world: any, site: any)
 	-- the hero mill on the meadow, its open doorway facing the stairs (the plinth is a 1-stud step)
 	local mill = heroMill(model, Kit.facing(site.x, topY, site.z, 0, 0), 20)
 	hillFarm(model, site, hillFields(model, world, site, corridor))
-	hillDressing(model, world, site, corridor, 5)
 	-- stairs from the hill foot up to the top meadow (Kit.stairs adds a first step if needed):
 	-- chunky 2-stud steps, an invisible ramp over their nosings so the climb is a walk
 	local foot = Vector3.new(site.x - ux * (site.hillRadius + 4), 0, site.z - uz * (site.hillRadius + 4))
@@ -1761,6 +1653,50 @@ local function buildWindmill(root: any, cfg: any, world: any, site: any)
 			k += 1
 			Kit.ramp(stairs, a, c, { width = 8, thick = 0.4, invisible = true, name = `Ramp{k}` })
 			i = j + 1
+		end
+	end
+	-- at the foot of the stairs: a hay cart parked beside them, two apple trees either side (each
+	-- only where its ground is flat lawn)
+	local px, pz = -uz, ux -- across the stairs
+	local function flatAt(x: number, z: number, r: number): number?
+		local h = world:heightAt(x, z)
+		for _, c in { { -r, -r }, { r, -r }, { r, r }, { -r, r } } do
+			if world:heightAt(x + c[1], z + c[2]) ~= h or world:kindAt(x + c[1], z + c[2]) == "path" then
+				return nil
+			end
+		end
+		return h
+	end
+	for _, off in { 12, -12, 16, -16 } do
+		local x = site.x - ux * (site.hillRadius + 5) + px * off
+		local z = site.z - uz * (site.hillRadius + 5) + pz * off
+		local h = flatAt(x, z, 3.5)
+		if h then
+			local cb =
+				Kit.builder(model, "HayCart", CFrame.lookAt(Vector3.new(x, h, z), Vector3.new(x + ux, h, z + uz)))
+			local bed = cb:box("Bed", -2.1, 1.5, -3.2, 2.1, 2.3, 3.2, C.Wood)
+			cb:box("Hay", -1.8, 2.3, -2.8, 1.8, 4.5, 2.6, C.Straw)
+			for i, sx in { -1, 1 } do
+				cb:block(`Wheel{i}`, Vector3.new(0.6, 3, 3), CFrame.new(sx * 2.4, 1.5, 0.6), C.WoodDark, {
+					Shape = Enum.PartType.Cylinder,
+					CastShadow = false,
+				})
+			end
+			cb:box("Shaft", -0.4, 1.5, -7, 0.4, 1.9, -3.2, C.Wood, Kit.NOSHADOW)
+			cb:finish(bed)
+			Kit.claim(x, z, 6)
+			break
+		end
+	end
+	for i, off in { 26, -26 } do
+		local x = site.x - ux * (site.hillRadius + 2) + px * off
+		local z = site.z - uz * (site.hillRadius + 2) + pz * off
+		if flatAt(x, z, 3) and not world:isReserved(x, z, 2) then
+			Kit.voxelTree(model, CFrame.new(x, world:heightAt(x, z), z) * CFrame.Angles(0, rad(i * 40), 0), "fruit", {
+				scale = 1.35,
+				name = "AppleTree",
+			})
+			Kit.claim(x, z, 7)
 		end
 	end
 	local lagoonA = deg(atan2(-site.x, -site.z))
@@ -1876,6 +1812,156 @@ local function treeSlide(parent: any, world: any, tree: any)
 	end
 end
 
+--[[
+	The giant tree's crown, rebuilt over Props.giantTree's trunk, deck and hut (cf: the tree's
+	frame, s: its scale; prop units): instead of one lumpy mound in light greens (from above it
+	read as a pale hill in the meadow), a central crown and five offset clumps round it on
+	branch arms that show in the gaps between them — dark undersides (Leaf0), Leaf1 bodies,
+	Leaf2 tops, LeafLight only on the crown's cap — with blossom clusters on their outer faces and
+	tops, a lantern hanging under every clump; the hut gets a pitched roof, and a rope bridge from
+	the deck runs out to a second platform hung from the right clump on a post, with a rope ladder
+	down from it. ~48 parts for the prop's 39 it replaces.
+]]
+local OLD_CROWN = {
+	CanopyLow = true,
+	CanopyLowB = true,
+	Canopy = true,
+	CanopyB = true,
+	CanopyTop = true,
+	CanopyTopB = true,
+	CanopyCrown = true,
+	CanopyCrownB = true,
+	Cap = true,
+	Branch1 = true,
+	Branch2 = true,
+	Branch3 = true,
+	HutRoof1 = true,
+	HutRoof2 = true,
+	HutRoof3 = true,
+}
+
+local function giantCrown(tree: any, cf: any, s: number)
+	for _, p in tree:GetDescendants() do
+		if p:IsA("BasePart") then
+			local n = p.Name
+			if
+				OLD_CROWN[n]
+				or string.match(n, "^Bump%d+$")
+				or string.match(n, "^Blossom%d+$")
+				or string.match(n, "^Lantern%d+$")
+			then
+				p:Destroy()
+			end
+		end
+	end
+	local b = Kit.builder(tree, "Crown", cf)
+	local BODY = { CanCollide = false, CanQuery = false }
+	local function box(
+		name: string,
+		x0: number,
+		y0: number,
+		z0: number,
+		x1: number,
+		y1: number,
+		z1: number,
+		c: any,
+		extra: any?
+	): any
+		return b:box(name, x0 * s, y0 * s, z0 * s, x1 * s, y1 * s, z1 * s, c, extra or Kit.DECOR)
+	end
+	local function arm(name: string, a: any, c: any, w: number)
+		local p, q = a * s, c * s
+		b:block(
+			name,
+			Vector3.new(w * s, w * s, (q - p).Magnitude + w * s * 0.6),
+			CFrame.lookAt((p + q) / 2, q),
+			C.Bark,
+			Kit.NOSHADOW
+		)
+	end
+	-- the central crown over the trunk (set back from the hut)
+	box("CrownBase", -13, 43.5, -10, 13, 49, 14, C.Leaf0)
+	box("Crown", -16, 48.5, -8, 16, 66, 12, C.Leaf1, BODY)
+	box("CrownB", -10, 48.4, -14, 10, 66.1, 18, C.Leaf1, BODY)
+	box("CrownTop", -11, 65.5, -7, 11, 72, 11, C.Leaf2)
+	box("CrownCap", -6, 71.6, -3, 6, 77, 8, C.LeafLight)
+	-- the five clumps on their arms, a lantern under each, blossoms on their outer faces
+	local clumps = {
+		{ 26, 3, 0, C.Leaf1 },
+		{ -26, 1, 2, C.Leaf2 },
+		{ 1, 27, -1, C.Leaf2 },
+		{ 18, -20, 3, C.Leaf2 },
+		{ -19, -19, 1, C.Leaf1 },
+	}
+	for i, q in clumps do
+		local x, z, dy = q[1], q[2], q[3]
+		local y = 51 + dy
+		box(`Under{i}`, x - 8, y, z - 8, x + 8, y + 3.2, z + 8, C.Leaf0)
+		box(`Clump{i}`, x - 10, y + 2.8, z - 9, x + 10, y + 11.5, z + 9, q[4], BODY)
+		box(
+			`ClumpTop{i}`,
+			x - 7,
+			y + 11.1,
+			z - 6.5,
+			x + 7,
+			y + 14.6,
+			z + 6.5,
+			if q[4] == C.Leaf1 then C.Leaf2 else C.Leaf1
+		)
+		arm(`Arm{i}`, Vector3.new(x * 0.12, 39, z * 0.12), Vector3.new(x * 0.8, y + 0.6, z * 0.8), 2.4)
+		local lx, lz = x * 0.72, z * 0.72
+		box(`Chain{i}`, lx - 0.15, y - 1.6, lz - 0.15, lx + 0.15, y + 0.2, lz + 0.15, C.Iron)
+		local lamp = box(`Lantern{i}`, lx - 0.9, y - 3.4, lz - 0.9, lx + 0.9, y - 1.6, lz + 0.9, C.Glow, Kit.NEON_DECOR)
+		-- a blossom cluster half sunk into the clump's outer face
+		local d = math.sqrt(x * x + z * z)
+		local ox, oz = x + x / d * 9.4, z + z / d * 8.4
+		local bl = box(
+			`Blossom{i}`,
+			ox - 2,
+			y + 5,
+			oz - 2,
+			ox + 2,
+			y + 8.6,
+			oz + 2,
+			if i % 2 == 0 then C.Blossom0 else C.Blossom1
+		)
+		if i == 2 or i == 4 then
+			Kit.petals(bl, { rate = 2 })
+		end
+		if i == 1 then
+			Kit.light(lamp, 12, 0.9)
+		end
+	end
+	-- three more blossom clusters on the crown's shoulders (pink from the overview)
+	for i, p in { { 11, 66.5, -6 }, { -12, 64, 6 }, { 6, 70.5, 10 } } do
+		box(`CrownBlossom{i}`, p[1] - 2.2, p[2], p[3] - 2.2, p[1] + 2.2, p[2] + 3.4, p[3] + 2.2, C.Blossom1)
+	end
+	-- the hut's pitched roof (its gables to the sides) with a ridge beam
+	local roofC = C.RoofTerracotta
+	local Y = 28
+	wedge(b, "HutRoofF", Vector3.new(21 * s, 5 * s, 6 * s), CFrame.new(0, (Y + 10.5) * s, -14.75 * s), roofC)
+	wedge(
+		b,
+		"HutRoofB",
+		Vector3.new(21 * s, 5 * s, 6 * s),
+		CFrame.new(0, (Y + 10.5) * s, -8.75 * s) * CFrame.Angles(0, math.pi, 0),
+		roofC
+	)
+	box("HutRidge", -10.8, Y + 12.6, -12.3, 10.8, Y + 13.5, -11.2, C.WoodDark, Kit.NOSHADOW)
+	-- the second platform: a rope bridge out from the deck's right side, the platform on a post,
+	-- hung from the right clump, a rope ladder down from it
+	box("BridgePlanks", 13.6, Y - 0.6, -4.4, 19.6, Y - 0.1, -1.4, C.Plank, Kit.NOSHADOW)
+	for i, z in { -4.3, -1.5 } do
+		box(`BridgeRope{i}`, 13.6, Y + 1.8, z - 0.12, 19.6, Y + 2.05, z + 0.12, C.Rope)
+	end
+	box("Platform", 19.4, Y - 1, -7, 27.4, Y, 1, C.Plank, { CanQuery = true })
+	box("PlatformRail", 26.6, Y, -7, 27.4, Y + 2.2, 1, C.Wood, Kit.NOSHADOW)
+	box("PlatformPost", 25.4, -1, -1, 26.6, Y - 1, 0.2, C.Wood, { CastShadow = true })
+	box("HangRope", 23.2, Y, -3.2, 23.5, 51, -2.9, C.Rope)
+	box("RopeLadder", 20.4, 0.5, -7.25, 22.6, Y - 1, -7.05, C.Rope)
+	return b:finish()
+end
+
 local function buildGiantTree(root: any, cfg: any, world: any, site: any)
 	local model = U.model(root, "GiantTree")
 	local topY = world:heightAt(site.x, site.z)
@@ -1898,8 +1984,7 @@ local function buildGiantTree(root: any, cfg: any, world: any, site: any)
 		opts.scale = 1.25 * GIANT_TREE_HEIGHT / h
 		tree = Kit.prop("giantTree", model, treeCF, opts)
 	end
-	-- the treehouse in planks with glazed windows (two glowing squares read as a face), the
-	-- blossom clusters bigger, so the crown shows its pink from across the lagoon
+	-- the treehouse in planks with glazed windows (two glowing squares read as a face)
 	local HUT =
 		{ HutWalls = true, HutBack = true, HutLeft = true, HutRightA = true, HutRightB = true, HutLintel = true }
 	for _, p in tree:GetDescendants() do
@@ -1910,11 +1995,10 @@ local function buildGiantTree(root: any, cfg: any, world: any, site: any)
 				p.Material = Enum.Material.SmoothPlastic
 				p.Color = C.WindowBlue
 				p.Size = Vector3.new(p.Size.X * 0.8, p.Size.Y * 1.2, p.Size.Z)
-			elseif string.sub(p.Name, 1, 7) == "Blossom" then
-				p.Size = p.Size * 1.45
 			end
 		end
 	end
+	giantCrown(tree, treeCF, opts.scale)
 	treeSlide(model, world, tree)
 	-- steps up from the path onto the plateau
 	local ux, uz = site.x / site.radius, site.z / site.radius
@@ -1960,8 +2044,8 @@ local function buildGiantTree(root: any, cfg: any, world: any, site: any)
 	end
 	-- a fairy ring of little mushrooms on the meadow (red and cream caps on pale stems)
 	local ring = Kit.builder(model, "MushroomRing", at(34, -40))
-	for i = 1, 5 do
-		local a = rad(i * 72 + 10)
+	for i = 1, 3 do
+		local a = rad(i * 120 + 10)
 		local x, z = 4.2 * math.sin(a), 4.2 * math.cos(a)
 		local s = 0.8 + (i % 3) * 0.2
 		ring:box(`Stem{i}`, x - 0.35 * s, -0.3, z - 0.35 * s, x + 0.35 * s, 1.6 * s, z + 0.35 * s, C.Cream, Kit.DECOR)
