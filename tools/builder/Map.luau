@@ -43,7 +43,7 @@ local Props = require("./Props")
 
 local Vector3 = U.Vector3
 
-local DRESSING_BUDGET = 6720 -- parts (base slots, bridges, promenade, gateways, landmarks, water, sky, nature, walls)
+local DRESSING_BUDGET = 6900 -- parts (base slots, bridges, promenade, gateways, landmarks, water, sky, nature, walls)
 local LIGHT_BUDGET = 40 -- PointLights of the dressing
 local NATURE_MIN = 2050 -- parts Nature is guaranteed (the hills must look lush)
 
