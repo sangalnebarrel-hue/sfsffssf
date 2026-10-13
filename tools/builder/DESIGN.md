@@ -71,7 +71,7 @@ water (36,156,186), transparency 0.55. Mountains are cool blue slate (Palette Sl
 pale blue.
 Colour band: Hasler colourfulness of the player/overview renders 75–105
 (`tools/preview/colourfulness.py`; v3 was 115–136 = garish, v4 round 1 56–76 = dull); palette_lint loud area 0.4–5 % of the map (bright accents exist, nothing big is
-candy; the hub's golden fish is the one big hero accent), grey <= 9 %.
+candy; the hub's golden fish and the bases' team-colour roofs are the big identity accents), grey <= 9 %.
 Team colours alternate warm/cool around the ring (BaseConfig.Colors); hub and gateway buildings
 avoid saturated team hues on big roofs (slate, brown, straw, wood) so every sector's strongest
 roof colour is its own base.

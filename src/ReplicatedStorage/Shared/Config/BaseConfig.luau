@@ -22,10 +22,10 @@ local BaseConfig = {
 	Colors = {
 		{ Id = "Red", Name = "Красная", Color = Color3.fromRGB(212, 74, 64) },
 		{ Id = "Blue", Name = "Синяя", Color = Color3.fromRGB(62, 114, 200) },
-		{ Id = "Yellow", Name = "Жёлтая", Color = Color3.fromRGB(236, 192, 48), RoofShadeScale = 0.35 },
+		{ Id = "Yellow", Name = "Жёлтая", Color = Color3.fromRGB(236, 192, 48), RoofShadeScale = 0.55 },
 		{ Id = "Purple", Name = "Фиолетовая", Color = Color3.fromRGB(128, 92, 192) },
 		{ Id = "Orange", Name = "Оранжевая", Color = Color3.fromRGB(226, 136, 56), RoofShadeScale = 0.6 },
-		{ Id = "Cyan", Name = "Лазурная", Color = Color3.fromRGB(52, 178, 226), RoofShadeScale = 0 },
+		{ Id = "Cyan", Name = "Лазурная", Color = Color3.fromRGB(52, 178, 226), RoofShadeScale = 0.45 },
 		{ Id = "Pink", Name = "Розовая", Color = Color3.fromRGB(210, 108, 158) },
 		{ Id = "Green", Name = "Изумрудная", Color = Color3.fromRGB(36, 172, 118), RoofShadeScale = 0.45 },
 	} :: { BaseColor },

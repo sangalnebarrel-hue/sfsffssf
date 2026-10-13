@@ -13,8 +13,8 @@ plus its four sides; underwater ground and invisible parts are skipped):
   * per group (Map.<child>.<child> and the bases), the share of loud and grey area, mean value,
     and the biggest loud parts.
 Targets (art direction v4): loud 1–4 % of the map (accents exist, nothing big is candy), grey <= 9 %.
-Exit code 1 when a single loud part is larger than --max-loud-part studs² (default 400, parts with
-the attribute-free name list HERO exempt), when the whole map is louder than 5 %, duller than 0.4 %
+Exit code 1 when a single loud part is larger than --max-loud-part studs² (default 400; the hub's golden
+fish (HERO) and the bases' team-colour roofs are exempt — they are the map's identity accents), when the whole map is louder than 5 %, duller than 0.4 %
 (bright but not garish is a band; accents are small parts, so their area share is low — the image-based
 check is tools/preview/colourfulness.py, target 75–105) or greyer than 12 %.
 """
@@ -27,6 +27,11 @@ from collections import defaultdict
 
 LOUD_S, LOUD_V = 0.6, 0.8
 HERO = ("Hub.FishTower.GoldenFish.",)  # the one hero accent allowed to be big and saturated
+
+
+def team_roof(path):
+    """A base's roof in its team colour: the plot's identity, allowed to be big and bright."""
+    return path.startswith("VirtualBase") and path.rsplit(".", 1)[-1].endswith("Roof")
 GREY_S, WHITE_V = 0.15, 0.92
 
 
@@ -81,7 +86,7 @@ def main(argv=None):
         elif s > LOUD_S and v > LOUD_V:
             loud += a
             g[1] += a
-            if not any(h in path for h in HERO):
+            if not any(h in path for h in HERO) and not team_roof(path):
                 louds.append((a, path, p["size"], p["color"]))
         elif s < GREY_S and v <= WHITE_V and p.get("material") != "Glass" and p.get("transparency", 0) < 0.3:
             grey += a
