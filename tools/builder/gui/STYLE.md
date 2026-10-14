@@ -110,23 +110,34 @@ timers. Stagger groups by 0.03–0.06 s.
   the HUD has `CounterHold`); Home button (Mint candy, dark caption ribbon like the action button,
   🏠 wiggle on press; cooldown: draining veil, digits on the face, «ЖДИ» over the veil, the house
   fades; one shine when ready); toasts (candy pills by kind with an icon in a socket, slide-down +
-  bounce, shine; 3 on a PC, 2 on touch, 1 while a fishing widget is up, the rest queue; Legendary
-  gold and Mythic rainbow broadcasts with 👑, bigger and longer; leaving: rise + fade, ≥ 0.7 s apart).
+  bounce, shine; a column right under the status stack — 3 on a PC (clear of the chat window), 2
+  on a tablet, 1 on a phone (above the avatar's head); none while the catch is on screen, 1 over
+  the bite / minigame (on phones none but danger), the rest queue — a toast pushed off in the
+  first half of its life comes back; Legendary (gold, 🌟) and Mythic (rainbow, 🌈) broadcasts
+  in two lines — who (Small) over what (up to Title, the rarity word in capitals, light-gold /
+  running-rainbow letters), Mythic adds one thin rainbow edge pulse; leaving: rise + fade, ≥ 0.7 s apart).
   Only the primary CTA idles (shine + breathing); the chrome stays calm.
 - **Fishing UI** (tools/builder/gui/Fishing.luau, FishingController): the action button is the star —
   a big round candy button (ActionArea, 0.66 of the HUD height, max 320 x 240) whose gradient, icon and
   caption ribbon change by state (ЗАБРОСИТЬ 🎣 → ЖДЁМ… with a bobbing float and 1–2 nibbles «?» →
-  ПОДСЕЧЬ! «!» → ЛОВИ! 🎯; Slate ⏳ while waiting on the server, К ПИРСУ 🧭 far from the spot, ВЗЯТЬ
+  ПОДСЕЧЬ! «!» → ЛОВИ! 🎯; Slate ⏳ while waiting on the server, К ПИРСУ 🧭 far from the spot — it
+  shows the way, never scolds: a calm 💡 hint, the compass turns, the guide beam flares; ВЗЯТЬ
   in gold at the spot), glow rings while it matters, shine on idle, press squash, ripple on tap; a key
-  chip («F» / «R2») on its shoulder without touch. Bite alert: «КЛЮЁТ!» slams in with a sun flash and a
+  chip («F» / «R2») on its shoulder without touch. «СМОТАТЬ» (≥ 44 px, ≥ 22 px above the circle)
+  only while waiting: it pops out once a fish bites. Bite alert: «КЛЮЁТ!» slams in with a sun flash and a
   FOV punch, sun edge glow, one BITE_BEAT for the plate, the button and the swinging «!» glyphs, a
-  gradient countdown bar (green→yellow→red). Minigame: candy track, glossy green zone with a 🐟 rider
-  and a glow pulse, needle ▼ with two fading ghost copies (under the zone), Epic+ outline/aura in the
-  rarity colours; the hit is shown at once (the needle freezes gold, sparks, rising pitch) with
+  gradient countdown bar (green→yellow→red); on touch the plate is a tap pad, a 👆 helps the first
+  two bites, and the plate gets a little lower (or moves aside) when it would hide the own diving
+  bobber. Minigame: candy track, glossy green zone with a rider by rarity (🐟 🐠 🐡 🦈 🐉; Legendary+
+  bigger and glowing) and a glow pulse, needle ▼ with two fading ghost copies (under the zone), a
+  light Rare rim, Epic+ outline/aura in the rarity colours, Legendary/Mythic slam the giant rarity
+  word over the panel once; on phones the panel stands beside the own bobber when it would cover
+  it; the hit is shown at once (the needle freezes gold, sparks, rising pitch) with
   «ОТЛИЧНО!» → «СУПЕР!» → «МЕГА!» or «ИДЕАЛЬНО!» (within 25 % of the zone centre), pip turns into a
   ⭐; on touch the panel itself is a tap pad and a 👆 cue helps the first games; on miss / timeout a
-  copy (FxMinigameMiss) blushes, shakes and says «МИМО!» / «ВРЕМЯ!». Hint: a pill in the kind colour
-  (💡 / ⚠️ / 🚨 in a white socket), up to two lines, springs up from below. The catch (UI v2) shows the world
+  copy (FxMinigameMiss) blushes, shakes and says «МИМО!» / «ВРЕМЯ!», and is gone before the reason
+  hint springs up. Hint: a pill in the kind colour (💡 / ⚠️ / 🚨 in a white socket), up to two lines,
+  pops up from a few px below (the hotbar is right under it). The catch (UI v2) shows the world
   first: the minigame plays its win («ПОЙМАНА!», FxMinigameWin) and leaves, the button freezes, Epic+
   get an edge vignette (Legendary/Mythic a heartbeat) while the fish leaps; on the landing
   (`FishingFxController.OwnFishLanded`) a flash, shake and FOV punch, confetti from the held fish and,
@@ -140,14 +151,16 @@ timers. Stagger groups by 0.03–0.06 s.
   Rarity tiers (dim, rays, confetti volleys, hold, auto-close): `REVEAL` in FishingController.
 - **World FX** (FishingFxController, + FishingService for the broadcast): cast with a sparkly trail on
   the bobber and a whoosh, a splash + expanding ripple rings on landing, slow ripples and nibbles
-  (the bobber dips) while waiting, the bite: a plunge, a big splash, rings, a bouncing «!» badge with
+  (the own bobber — 2.2× the template — dips half a stud with a ring, drops and a «?») while
+  waiting, the bite: a plunge, a big splash, rings, a bouncing «!» badge with
   stars and a blinking outline on your own bobber; a wake while reeling. On a catch a spout, then the
   fish **leaps out of the water** and flies in an arc (spinning, rarity-coloured sparkle trail) to
   above the fisher's head — `OwnFishLanded` fires the frame it lands — then a halo, a nameplate
   (rarity, name, mutation, price) and the rarity aura around the held fish for
   `FishingRules.HoldFishTime(rarity)` s; Legendary/Mythic: a light pillar (narrower on your own
-  screen) and a confetti burst, seen by everyone. A lost fish: the line flashes, the bobber pops up,
-  a splash and a tail flick away.
+  screen; for everyone else wider with distance — ≥ 25 px from the neighbouring pier — and longer,
+  `Fx.PillarTimeOther`; their broadcast toast lands with it) and a confetti burst, seen by everyone.
+  A lost fish: the line flashes, the bobber pops up, a splash and a tail flick away.
 
 ## 4. Budgets (phones first)
 
@@ -192,8 +205,8 @@ Life?, Priority? }` (danger icon 🚨; unknown kinds render as info); `KindColor
 kind = palette Bottom); `NoBaseColor`; `BaseSwatches.<Id>` and `swatchFor(color) -> swatch` (base
 colours, §1); `Type = { Title = 22, Button = 18, Body = 16, Small = 14 }`, `TypeHeight = 390`,
 `TypeMaxScale = 1.6` (§1); `CatchCardTime.<rarity>` = 2.2 / 2.8 / 3.4 / 4.5 / 5.5 s (client-only
-auto-close of the catch card); `ToastDuration`, `MaxToasts = 3`, `MaxToastsTouch = 2`,
-`ToastGap = 0.7`; `Fishing = { PipDone (64,200,96 — the e2e bot looks for it), TrackBottom,
+auto-close of the catch card); `ToastDuration`, `MaxToasts = 3`, `MaxToastsTouch = 2` (tablet),
+`MaxToastsPhone = 1`, `ToastGap = 0.7`; `Fishing = { PipDone (64,200,96 — the e2e bot looks for it), TrackBottom,
 PipShade, NeedleShade, Muted, Guide, ZoneGlow, TimeBar = {cool, Sun, Berry} }` (fishing colours
 outside the palette); `Fx = { ConfettiMaxTouch = 40, ConfettiMax = 60, ShineInterval,
 FlashMinInterval = 0.34, StrokeHeight = 720, TextStrokeMin = 2, FovPunchMax = 8, SoundPool = 4 }`.
@@ -298,9 +311,12 @@ RenderStepped connection for all running frame effects, disconnected when none r
   tick at pitch 1.3). `flyTo(hud, from, counter, {onArrive = …})` stays the way to fly the fish.
 - **Toasts**: `NotifyController.Show(text, kind?, look?)` from any client module; kinds as in
   `UIConfig.ToastKinds` (`"Legendary"` / `"Mythic"` for server-wide rare-catch broadcasts; the
-  server sends them as the Notify kind); `look = { swatch?, icon? }` overrides the colour/icon.
-  While `HUD.Fishing.Minigame`, `BiteAlert` or `CatchCard` is Visible only one toast shows (the
-  rest queue); keep those names and drive them through `Visible`.
+  server sends them as the Notify kind, one string «Who: what» that the client splits at the
+  first ": " into two lines); `look = { swatch?, icon? }` overrides the colour/icon.
+  No toast while the catch is on screen (the HUD has `CounterHold`, or `HUD.Fishing.CatchCard` is
+  Visible); while `Minigame` or `BiteAlert` is Visible, or its ghost (`FxMinigameWin` /
+  `FxMinigameMiss`) plays, one toast shows — on phones none but danger (the rest queue); keep
+  those names and drive them through `Visible`.
 - **Base banner** (`HUD.BaseBanner`): HudController only; never shown by other modules.
 - **Catch card time**: `UIConfig.CatchCardTime[rarity]` (seconds of auto-close).
 

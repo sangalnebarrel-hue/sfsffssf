@@ -39,6 +39,7 @@ export type Fish = {
 export type Mutation = {
 	Id: string, -- "Gold" | "Neon" | "Rainbow" — как в tools/builder/Gear.luau
 	Name: string, -- прилагательное для карточки улова («Золотой Карасик»)
+	NameLower: string, -- то же строчными: «золотая» (объявление «… золотая рыба «Акулёнок» ×2!»)
 	Chance: number, -- 0..1, вероятность именно этой мутации (сумма всех ≤ 1)
 	Multiplier: number, -- множитель цены и дохода
 	Color: Color3, -- цвет значка мутации в интерфейсе
@@ -159,12 +160,27 @@ local FishConfig = {
 		{
 			Id = "Rainbow",
 			Name = "Радужная",
+			NameLower = "радужная",
 			Chance = 0.01,
 			Multiplier = 5,
 			Color = Color3.fromRGB(255, 96, 200),
 		},
-		{ Id = "Neon", Name = "Неоновая", Chance = 0.03, Multiplier = 3, Color = Color3.fromRGB(60, 236, 220) },
-		{ Id = "Gold", Name = "Золотая", Chance = 0.06, Multiplier = 2, Color = Color3.fromRGB(255, 200, 40) },
+		{
+			Id = "Neon",
+			Name = "Неоновая",
+			NameLower = "неоновая",
+			Chance = 0.03,
+			Multiplier = 3,
+			Color = Color3.fromRGB(60, 236, 220),
+		},
+		{
+			Id = "Gold",
+			Name = "Золотая",
+			NameLower = "золотая",
+			Chance = 0.06,
+			Multiplier = 2,
+			Color = Color3.fromRGB(255, 200, 40),
+		},
 	} :: { Mutation },
 
 	-- Цена и доход растут с размером: самая мелкая рыба вида — × SizeValue.Min,

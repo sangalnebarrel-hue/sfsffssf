@@ -39,7 +39,9 @@
 	(right, up, forward) so the backdrop renders base 1's pier with the very same camera.
 	The sim's character is lifted so its head matches the stand-in's (see Capture.HEAD) and the
 	rod is moved so its TipAttachment sits at the stand-in's rod tip (Capture.ROD_TIP) — then
-	the fishing line, the cast and the held fish line up with the drawn avatar.
+	the fishing line, the cast and the held fish line up with the drawn avatar. The client's
+	Workspace.CurrentCamera is put on this camera every step too (observe), so the controllers'
+	Camera:WorldToScreenPoint maths match the drawing.
 
 	API (used by gui_dump.luau):
 	  Capture.installHooks()                   before Sim.new: ParticleEmitter:Emit recorder
@@ -520,8 +522,16 @@ function Capture:spawnParticles(emitter: any, count: number)
 end
 
 -- Appearances / disappearances of the top-level FishingFx children and of HeldFish, at the
--- sim's time (client context). Runs on every step from the capture's creation on.
+-- sim's time (client context). Runs on every step from the capture's creation on. It also puts
+-- the client's camera where the backdrop's camera is (with the CameraOffset), so the
+-- controllers' own screen maths (Camera:WorldToScreenPoint: where the catch card is born, what
+-- the bobber is under) agree with what is drawn.
 function Capture:_observe()
+	local cam = self:cameraNow()
+	local camera = self.sim.workspace.CurrentCamera
+	if camera then
+		camera.CFrame = CFrame.lookAt(cam.eyeW, cam.eyeW + cam.f)
+	end
 	local now = {}
 	local folder = self:fxFolder()
 	if folder then

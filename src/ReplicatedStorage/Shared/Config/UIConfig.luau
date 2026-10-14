@@ -194,7 +194,8 @@ local UIConfig = {
 	-- Всплывающие уведомления (тосты) вверху экрана.
 	ToastDuration = 3.5, -- сколько секунд висит уведомление
 	MaxToasts = 3, -- сколько уведомлений видно одновременно (компьютер)
-	MaxToastsTouch = 2, -- … на телефоне и планшете (иначе столбик закрывает персонажа)
+	MaxToastsTouch = 2, -- … на планшете (иначе столбик закрывает персонажа)
+	MaxToastsPhone = 1, -- … на телефоне (HUD ниже 500 px): второе легло бы на голову персонажа
 	ToastGap = 0.7, -- уведомления уходят не чаще, чем раз в столько секунд
 
 	--[[
@@ -253,9 +254,10 @@ local UIConfig = {
 		danger = { Token = "Berry", Icon = "🚨", Priority = 3 },
 		-- Своя база (HudController красит «конфету» в цвет базы, см. BaseSwatches).
 		base = { Token = "Leaf", Icon = "🚩", Priority = 2 },
-		-- Громкие новости на весь сервер: легендарный и мифический улов.
-		Legendary = { Token = "Gold", Icon = "👑", Big = true, Life = 4.5, Priority = 2 },
-		Mythic = { Token = "Grape", Icon = "👑", Rainbow = true, Big = true, Life = 4.5, Priority = 2 },
+		-- Громкие новости на весь сервер: легендарный и мифический улов (в две строки: кто — мелко,
+		-- что поймал — крупно, золотом / радугой; у мифической ещё и радужные края экрана).
+		Legendary = { Token = "Gold", Icon = "🌟", Big = true, Life = 4.5, Priority = 2 },
+		Mythic = { Token = "Grape", Icon = "🌈", Rainbow = true, Big = true, Life = 4.5, Priority = 2 },
 	} :: { [string]: ToastKind },
 
 	-- Сплошной цвет по виду (подсказки рыбалки и всё, что без градиента).

@@ -615,6 +615,13 @@ return function(M)
 
 	local FOV = math.rad(70)
 
+	-- "Screen" points (WorldToScreenPoint / ScreenPointToRay) are in the same space as the
+	-- sim's AbsolutePosition. Roblox reports both below the GUI inset; RbxSim lays every GUI out
+	-- in viewport px (inset ScreenGuis start at y = 58), so here screen = viewport (`inset` is
+	-- kept for the call sites, but subtracts nothing) — Camera:WorldToScreenPoint(p) -
+	-- gui.AbsolutePosition is the same as in Roblox.
+	local SCREEN_INSET = 0
+
 	local function project(sim, real, pos, inset)
 		local vp = sim:_viewportFor(sim.sched:context())
 		local lp = real.CFrame:PointToObjectSpace(pos)
@@ -624,7 +631,7 @@ return function(M)
 			return Vector3.new(vp.X / 2, vp.Y / 2, depth), false
 		end
 		local x = vp.X / 2 + lp.X / depth * f
-		local y = vp.Y / 2 - lp.Y / depth * f - (inset and 58 or 0)
+		local y = vp.Y / 2 - lp.Y / depth * f - (inset and SCREEN_INSET or 0)
 		local on = x >= 0 and x <= vp.X and y >= 0 and y <= vp.Y
 		return Vector3.new(x, y, depth), on
 	end
@@ -632,7 +639,7 @@ return function(M)
 	local function pointRay(sim, real, x, y, depth, inset)
 		local vp = sim:_viewportFor(sim.sched:context())
 		local f = (vp.Y / 2) / math.tan(FOV / 2)
-		local yy = y + (inset and 58 or 0)
+		local yy = y + (inset and SCREEN_INSET or 0)
 		local dirLocal = Vector3.new((x - vp.X / 2) / f, -(yy - vp.Y / 2) / f, -1).Unit
 		local cf = real.CFrame
 		return roblox.Ray.new(cf.Position, cf:VectorToWorldSpace(dirLocal) * (depth or 1))

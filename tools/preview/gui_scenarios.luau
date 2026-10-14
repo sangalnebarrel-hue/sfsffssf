@@ -102,6 +102,48 @@ local function catchScenario(h: any, fish: { [string]: any })
 	h:waitVisible("HUD.Fishing.CatchCard", 4)
 end
 
+-- A real cast with the live FishingService (scenarios with server = true, world = true), posed
+-- like the backdrop's stand-in: rod in hand at the own spot, tap «ЗАБРОСИТЬ», wait for the bite;
+-- with `hook`, tap «ПОДСЕЧЬ!» after 0.3 s and wait for the minigame. Returns the last event
+-- ({ time, state, data }) or nil (a warning is logged by the harness on a timeout).
+local function castReal(h: any, fish: { [string]: any }, hook: boolean?): any
+	h:forceFish(fish)
+	h:standAtSpot()
+	h:equipRod()
+	h:poseLikeBackdrop()
+	h:advance(0.4)
+	local action = "HUD.Fishing.ActionArea.ActionButton"
+	local function after(count: number, state: string): any
+		for i, e in h:stateEvents() do
+			if i > count and e.state == state then
+				return e
+			end
+		end
+		return nil
+	end
+	local count = #h:stateEvents()
+	h:click(action)
+	local bite = h:waitFor(function()
+		return after(count, "Bite")
+	end, 15)
+	if not bite or not hook then
+		return bite
+	end
+	h:advance(0.3)
+	count = #h:stateEvents()
+	h:click(action)
+	return h:waitFor(function()
+		return after(count, "Minigame")
+	end, 2)
+end
+
+-- The local player's own FishingFxController (client side).
+local function clientFx(h: any): any
+	local scripts = h.player:FindFirstChildOfClass("PlayerScripts")
+	local module = scripts and h.sim:Find("Controllers.FishingFxController", scripts)
+	return module and h.sim:Require(module, h.player)
+end
+
 local CARD_ROI = { "HUD.Fishing.CatchCard" }
 local FISHING_ROI = { "HUD.Fishing.Minigame", "HUD.Fishing.BiteAlert", "HUD.Fishing.ActionArea" }
 local HIT_ROI = { "HUD.Fishing.Minigame", "HUD.Fishing.ActionArea" }
@@ -627,7 +669,10 @@ local scenarios = {
 			readyAtSpot(h)
 			h:click("HUD.Fishing.ActionArea.ActionButton")
 			h:advance(0.1)
-			h:serverSays("Denied", { Reason = "far", Text = "Встань в сверкающий круг" })
+			h:serverSays(
+				"Denied",
+				{ Reason = "far", Text = "Иди в сверкающий круг на краю пирса" }
+			)
 		end,
 	},
 	-- Catch (UI v2, FUI-01…12): time 0 = the card is on screen; stills after its last beat.
@@ -834,20 +879,93 @@ local scenarios = {
 	},
 	{
 		name = "toast_legendary",
-		desc = "Broadcast of someone's Legendary catch: the big Gold toast with 👑",
+		desc = "Broadcast of someone's Legendary catch: the Gold toast with 🌟, who (small) over what (big, gold)",
 		still = 0.7,
 		sheet = { from = 0, to = 0.9, fps = 15, roi = { "HUD.Toasts" }, margin = 0.05 },
 		run = function(h: any)
-			h:notify("КапитанКрюк: легендарная рыба «Акулёнок»!", "Legendary")
+			h:notify(
+				"КапитанКрюк (Лазурная база): легендарная рыба «Акулёнок»!",
+				"Legendary"
+			)
 		end,
 	},
 	{
 		name = "toast_mythic",
-		desc = "Broadcast of someone's Mythic catch with a mutation: the rainbow toast with 👑",
+		desc = "Broadcast of someone's Mythic Rainbow catch: the rainbow toast with 🌈, running rainbow letters, rainbow screen edges",
 		still = 0.7,
 		sheet = { from = 0, to = 0.9, fps = 15, roi = { "HUD.Toasts" }, margin = 0.05 },
 		run = function(h: any)
-			h:notify("КапитанКрюк: мифическая рыба «Рыба-дракон» ×2!", "Mythic")
+			h:notify(
+				"КапитанКрюк (Лазурная база): мифическая радужная рыба «Рыба-дракон» ×5!",
+				"Mythic"
+			)
+		end,
+	},
+	{
+		name = "toast_minigame",
+		desc = "A broadcast arrives during the own minigame: it waits (phones) and comes out after the miss",
+		still = { 0.5, 2.2 },
+		run = function(h: any)
+			toMinigame(h, "Rare", { ZoneCenter = 0.3, U0 = 0.1 })
+			h:advance(0.3)
+			h:notify(
+				"КапитанКрюк (Лазурная база): легендарная золотая рыба «Акулёнок» ×2!",
+				"Legendary"
+			)
+			h:advance(0.4)
+			h:serverSays("Lost", { Reason = "miss", Text = "Мимо! Рыба сорвалась с крючка" })
+		end,
+	},
+	--------------------------------------------------------------------------------
+	-- World + HUD (the live FishingService and the world capture; not in --all): the own bobber
+	-- under the bite plate and the minigame, the nibble at the bobber.
+	--------------------------------------------------------------------------------
+	{
+		name = "bite_world",
+		desc = "A real bite with the world: the bobber dives above the «КЛЮЁТ!» plate (not under it)",
+		server = true,
+		world = true,
+		standard = false,
+		still = { 0.2, 0.45 },
+		burst = { from = 0, to = 0.8, fps = 15, roi = {} },
+		run = function(h: any)
+			castReal(h, { Id = "SharkPup" })
+		end,
+	},
+	{
+		name = "minigame_world",
+		desc = "A real Legendary minigame with the world: where the reeling bobber is",
+		server = true,
+		world = true,
+		standard = false,
+		still = { 0.6, 2.0 },
+		burst = false,
+		run = function(h: any)
+			castReal(h, { Id = "SharkPup" }, true)
+		end,
+	},
+	{
+		name = "nibble_world",
+		desc = "A nibble while waiting: the own bobber dips with a ring, drops and a «?»",
+		server = true,
+		world = true,
+		standard = false,
+		still = { 0.12, 0.3 },
+		burst = { from = 0, to = 0.6, fps = 15, roi = {} },
+		run = function(h: any)
+			h:forceFish({ Id = "Crucian" })
+			h:standAtSpot()
+			h:equipRod()
+			h:poseLikeBackdrop()
+			h:advance(0.4)
+			h:click("HUD.Fishing.ActionArea.ActionButton")
+			h:advance(2.6) -- landed, past the controller's own nibbles (≤ 1.9 s), before the bite
+			local fx = clientFx(h)
+			if fx then
+				h.sim:Run(function()
+					fx.Nibble()
+				end, h.player)
+			end
 		end,
 	},
 	{

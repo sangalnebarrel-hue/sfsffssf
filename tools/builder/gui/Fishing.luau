@@ -12,9 +12,10 @@
 	  MutationLabel, InfoLabel, TapHint}
 	UI v2, the playing widgets (FishingController): ActionArea.ActionButton.{KeyChip.Key, TapCue,
 	Bobber} (the desktop key chip, the first-timer 👆, the waiting look's icon),
-	BiteAlert.{IconLeft, IconRight} (the «!» glyphs), Minigame.{Clock, TapPad, Track.Rider,
-	Track.Needle.Head} (⏱, the touch tap pad over the panel, the 🐟 riding the zone, the ▼ needle
-	head), Hint.IconSocket.Icon (the hint's emoji).
+	BiteAlert.{IconLeft, IconRight, TapPad} (the «!» glyphs, the touch tap pad over the plate),
+	Minigame.{Clock, TapPad, Track.Rider, Track.Needle.Head} (⏱, the touch tap pad over the
+	panel, the fish riding the zone — its glyph by rarity, the ▼ needle head),
+	Hint.IconSocket.Icon (the hint's emoji).
 	Value-holding labels on candies (Hint, CatchCard.MutationLabel, CatchCard.InfoLabel) keep
 	their Text as the contract value but draw it through children (children render above their
 	parent, so the candy face would hide the label's own text): Hint.Label, MutationLabel.Caption,
@@ -245,15 +246,19 @@ local function buildActionArea(root: any)
 	})
 
 	-- «СМОТАТЬ»: a Berry candy pill above the action button with the 🧵 inside its left end;
-	-- 0.285 of the area tall (≈44 px on a phone: a full-size tap target) and narrow enough to
-	-- stay clear of the Home button on the right.
+	-- 0.3 of the area tall and never under 44 px (a full-size tap target on every phone), its
+	-- bottom 0.18 of the area down: ≥ 22 px above the action circle on phones, so a thumb
+	-- mashing the big button does not slip onto it (FishingController also hides it while a
+	-- fish is on the hook: the bite and the minigame). Narrow enough to stay clear of the Home
+	-- button on the right.
 	local stop = Theme.candyButton(area, "StopButton", "Berry", {
 		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.fromScale(0, 0.28),
-		Size = UDim2.fromScale(0.56, 0.285),
+		Position = UDim2.fromScale(0, 0.18),
+		Size = UDim2.fromScale(0.56, 0.3),
 		Visible = false,
 		Radius = 0.5,
 	})
+	U.new("UISizeConstraint", { MinSize = Vector2.new(0, 44) }, stop)
 	Theme.icon(stop, "Icon", "🧵", {
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 		AnchorPoint = Vector2.new(0, 0.5),
@@ -344,6 +349,19 @@ local function buildBiteAlert(root: any)
 	corner(timer, 0.5)
 	stroke(timer, 1.5)
 	miniGloss(timer, 2)
+
+	-- Touch screens: a tap on the plate hooks like «ПОДСЕЧЬ!» (kids tap the big «КЛЮЁТ!»
+	-- first). Transparent, on top of the plate; FishingController shows it with a touch screen.
+	U.new("TextButton", {
+		Name = "TapPad",
+		Visible = false,
+		Active = true,
+		AutoButtonColor = false,
+		BackgroundTransparency = 1,
+		Text = "",
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 9,
+	}, alert)
 end
 
 --------------------------------------------------------------------------------
@@ -958,7 +976,8 @@ end
 	                          «ПОДСЕЧЬ!» / «ЛОВИ!» / «ВЗЯТЬ»), Ring (white halo), KeyChip.Key
 	                          («F» / «R2»), TapCue (👆), Bobber (the waiting look's icon)
 	    StopButton            «СМОТАТЬ» Berry pill above it (Icon 🧵 inside, Caption)
-	  BiteAlert               Sun pill: «КЛЮЁТ!» (Label), «!» IconLeft/IconRight, TimerTrack + Timer
+	  BiteAlert               Sun pill: «КЛЮЁТ!» (Label), «!» IconLeft/IconRight, TimerTrack + Timer,
+	                          TapPad (touch: a tap on the plate hooks)
 	  Minigame                Night panel (AuraStroke.AuraFill for Epic+): Title (rarity
 	                          gradient), Track (Zone: Glow, candy, Flash; Rider 🐟; Needle: Head ▼),
 	                          Clock ⏱ + TimeBar (Fill), Pips (Pip1..Pip5 with a Star), Help, TapPad

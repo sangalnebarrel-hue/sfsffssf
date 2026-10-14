@@ -330,7 +330,10 @@ tests["layout: the chrome fits on phone, tablet and desktop without overlaps"] =
 				table.insert(toasts, c)
 			end
 		end
-		local cap = if device == "desktop" then UIConfig.MaxToasts else UIConfig.MaxToastsTouch
+		local cap = if device == "desktop"
+			then UIConfig.MaxToasts
+			elseif device == "phone" then UIConfig.MaxToastsPhone
+			else UIConfig.MaxToastsTouch
 		t.eq(#toasts, cap, `{device}: {cap} toasts (the device cap)`)
 
 		local rects: { [string]: Rect } = { badge = badge, counter = counter, home = home }
@@ -490,13 +493,17 @@ tests["type scale: tiered labels share one size per tier, scaled from phone to d
 	end
 	check(phone, 390, "phone")
 	check(desktop, 720, "desktop")
-	-- A big broadcast toast cloned later is fitted too (Button tier).
-	notify(sim, phone, "Рыбак: легендарный «Акулёнок»!", "Legendary")
+	-- A big broadcast toast cloned later: «кто» (Byline) at the Small tier, «что» (Label) sized by
+	-- its box between Body and Title (on a phone Title − 2: both lines end above the avatar's head).
+	notify(sim, phone, "Рыбак: легендарная рыба «Акулёнок»!", "Legendary")
 	sim:Advance(0.1)
 	local toast = liveToasts(phone)[1]
-	t.eq(toast.Label:GetAttribute("TextTier"), "Button")
-	local _, hi = limits(toast.Label)
-	t.eq(hi, UIConfig.Type.Button, "phone Button size on the cloned toast")
+	t.eq(toast.Byline:GetAttribute("TextTier"), "Small")
+	t.eq(select(2, limits(toast.Byline)), UIConfig.Type.Small, "phone Small size on the byline")
+	t.eq(toast.Label:GetAttribute("TextTier"), nil, "the headline is box-driven")
+	local lo, hi = limits(toast.Label)
+	t.eq(hi, UIConfig.Type.Title - 2, "phone: the headline up to Title − 2")
+	t.eq(lo, UIConfig.Type.Body, "… never under Body")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -687,47 +694,100 @@ tests["toasts: colour and icon by kind, width by text, slots, leave and reflow"]
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["toasts: one at a time while a fishing widget is up; the rest wait; danger pushes in"] = function(t)
+tests["toasts: phones — one at a time, none over the minigame or the catch; they wait and come back"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "phone")
 	sim:Advance(5)
-	local minigame = p.PlayerGui.HUD.Fishing.Minigame
+	local hud = p.PlayerGui.HUD
+	local minigame = hud.Fishing.Minigame
 	local function setMinigame(visible: boolean)
 		sim:Run(function()
 			minigame.Visible = visible
 		end, p)
 	end
-	-- Touch screens show two at most.
+	-- A phone shows one at most (a second one would lie on the avatar's head).
 	notify(sim, p, "Один", "info")
 	notify(sim, p, "Два", "info")
-	notify(sim, p, "Три", "info")
 	sim:Advance(0.6)
-	t.eq(#liveToasts(p), UIConfig.MaxToastsTouch, "two toasts on a phone")
-	sim:Advance(6)
+	t.eq(#liveToasts(p), UIConfig.MaxToastsPhone, "one toast on a phone")
+	sim:Advance(8)
 	t.eq(#liveToasts(p), 0)
-	-- The minigame opens: one slot only; the rest wait in a queue.
-	setMinigame(true)
+	-- A toast just shown when the minigame opens goes back into the queue.
 	notify(sim, p, "Первое", "info")
-	sim:Advance(0.2)
-	notify(sim, p, "Второе", "success")
 	sim:Advance(0.6)
-	local live = liveToasts(p)
-	t.eq(#live, 1, "only one toast above the minigame")
-	t.eq(live[1].Label.Text, "Первое")
-	-- A danger toast does not wait: it pushes the info out.
+	setMinigame(true)
+	sim:Advance(0.3)
+	t.eq(#liveToasts(p), 0, "nothing under the minigame on a phone")
+	notify(sim, p, "Рыбак: легендарная рыба «Акулёнок»!", "Legendary")
+	sim:Advance(0.6)
+	t.eq(#liveToasts(p), 0, "a broadcast waits too")
+	-- A danger toast does not wait.
 	notify(sim, p, "Твою базу грабят!", "danger")
 	sim:Advance(0.6)
-	live = liveToasts(p)
+	local live = liveToasts(p)
 	t.eq(#live, 1)
-	t.eq(live[1].Label.Text, "Твою базу грабят!", "danger evicts info")
-	-- The minigame closes: the waiting toast comes out.
+	t.eq(live[1].Label.Text, "Твою базу грабят!", "danger shows even over the minigame")
+	sim:Advance(6)
+	-- The minigame closes: the waiting ones come out, one at a time, in order.
 	setMinigame(false)
 	sim:Advance(0.6)
 	live = liveToasts(p)
-	t.eq(#live, 2, "the queued toast shows once there is room")
-	t.eq(live[2].Label.Text, "Второе")
+	t.eq(#live, 1)
+	t.eq(live[1].Label.Text, "Первое", "the evicted toast comes back first")
+	-- The catch (CounterHold from "Caught" to the 🐟 arriving): nothing, even on a PC.
+	sim:Run(function()
+		hud:SetAttribute("CounterHold", 0)
+	end, p)
+	sim:Advance(0.3)
+	t.eq(#liveToasts(p), 0, "no toast during the catch")
+	sim:Run(function()
+		hud:SetAttribute("CounterHold", nil)
+	end, p)
+	sim:Advance(0.6)
+	live = liveToasts(p)
+	t.eq(#live, 1)
+	t.eq(live[1].Label.Text, "Первое", "the catch sent it back into the queue too: it returns first")
+	sim:Advance(UIConfig.ToastDuration + 0.8)
+	live = liveToasts(p)
+	t.eq(#live, 1)
+	t.eq(live[1]:GetAttribute("Kind"), "Legendary", "then the broadcast")
 	sim:Advance(8)
 	t.eq(#liveToasts(p), 0, "everyone leaves")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["toasts: a PC keeps one toast over the minigame, none over the catch card; the column clears the chat"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "desktop")
+	sim:Advance(5)
+	local hud = p.PlayerGui.HUD
+	local column = hud.Toasts
+	local vp = sim.players.state[sim:Unwrap(p)].viewport
+	-- The Roblox chat window is in the top-left corner (≈ 370 px wide): the column stays clear.
+	t.ok(column.AbsolutePosition.X >= 368 + 48, `the column starts at x {column.AbsolutePosition.X}`)
+	t.ok(column.AbsoluteSize.X >= 320, "still wide enough")
+	t.near(column.AbsolutePosition.X + column.AbsoluteSize.X / 2, vp.X / 2, 1, "centred")
+	local minigame, card = hud.Fishing.Minigame, hud.Fishing.CatchCard
+	sim:Run(function()
+		minigame.Visible = true
+	end, p)
+	notify(sim, p, "Первое", "info")
+	notify(sim, p, "Второе", "info")
+	sim:Advance(0.6)
+	t.eq(#liveToasts(p), 1, "one over the minigame")
+	sim:Run(function()
+		minigame.Visible = false
+		card.Visible = true
+	end, p)
+	sim:Advance(0.6)
+	t.eq(#liveToasts(p), 0, "none over the catch card")
+	sim:Run(function()
+		card.Visible = false
+	end, p)
+	sim:Advance(0.6)
+	t.eq(#liveToasts(p), 2, "back after the card")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -746,12 +806,24 @@ tests["toasts: Legendary is a gold candy, Mythic a spinning rainbow — 👑, bi
 	local legendary, mythic, plain = live[1], live[2], live[3]
 	local gold = UIConfig.Palette.Gold
 	t.ok(colorNear(legendary.Face.Fill.Color.Keypoints[1].Value, gold.Top), "Legendary: Gold candy")
-	t.eq(legendary.IconSocket.Icon.Text, "👑")
-	t.eq(mythic.IconSocket.Icon.Text, "👑")
+	t.eq(legendary.IconSocket.Icon.Text, "🌟")
+	t.eq(mythic.IconSocket.Icon.Text, "🌈")
 	t.ok(#mythic.Face.Fill.Color.Keypoints >= 6, "Mythic: rainbow face")
+	-- Two lines: who (small) over what (big; the rarity word in capitals, gold / running rainbow).
+	t.eq(legendary.Byline.Text, "Рыбак")
+	t.eq(legendary.Label.Text, "ЛЕГЕНДАРНЫЙ «Акулёнок»!")
+	t.eq(mythic.Byline.Text, "Рыбак")
+	t.eq(mythic.Label.Text, "МИФИЧЕСКАЯ рыба «Рыба-дракон» ×2!")
+	t.ok(legendary.Byline.AbsolutePosition.Y < legendary.Label.AbsolutePosition.Y, "who above what")
+	t.ok(colorNear(legendary.Label.TextFill.Color.Keypoints[1].Value, Color3.new(1, 1, 1)), "light gold letters")
+	t.ok(#mythic.Label.TextFill.Color.Keypoints >= 6, "rainbow letters")
+	t.eq(plain:FindFirstChild("Byline"), nil, "a plain toast stays one label")
+	t.ok(p.PlayerGui.HUD:FindFirstChild("FxVignette"), "Mythic: one thin rainbow pulse on the screen edges")
+	local hue0 = mythic.Label.TextFill.Color.Keypoints[1].Value
 	local r0 = mythic.Face.Fill.Rotation
 	sim:Advance(0.5)
 	t.ok(mythic.Face.Fill.Rotation ~= r0, "… slowly spinning")
+	t.ok(mythic.Label.TextFill.Color.Keypoints[1].Value ~= hue0, "… and the rainbow letters run")
 	t.ok(legendary.Size.Y.Scale > plain.Size.Y.Scale * 1.1, "broadcasts are bigger")
 	-- They outlive a plain toast (4.5 s vs 3.5 s); an unknown kind shows as info.
 	notify(sim, p, "???", "nonsense")

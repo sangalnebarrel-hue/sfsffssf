@@ -80,9 +80,8 @@ local CARD_GONE = UIConfig.CatchCardTime.Mythic + 1.6
 -- Hints that are not an outcome (FishingController's context and first-spawn hints).
 local CONTEXT_HINTS = {
 	["Жми «Забросить»"] = true,
-	["Встань в сверкающий круг"] = true,
+	[FishingConfig.Texts.Denied.far] = true, -- also the newcomer's «where to go» (UI v2, M4)
 	["Возьми удочку — кнопка справа"] = true,
-	["Иди на край своего пирса!"] = true,
 }
 
 local SERVICE_PATH = "ServerScriptService.Services.FishingService"
@@ -437,11 +436,12 @@ function Fisher:look()
 	if stage == "idle" or self:done() then
 		return
 	end
-	-- With the line out «СМОТАТЬ» is on screen and the button never says «ЗАБРОСИТЬ». Once the
-	-- line is in (after the cast was answered) — or the card shows — this try is over and the
-	-- player waits to see how it went: the catch card, or a hint why the fish got away. (Right
-	-- after it the button says «ЖДЁМ…» for CastCooldown, then «ЗАБРОСИТЬ».)
-	local lineIn = not hud.stop.Visible and stage ~= "waiting"
+	-- With the line out the button never says «ЗАБРОСИТЬ», and «СМОТАТЬ» is on screen while waiting
+	-- (UI v2: with a fish on the hook — the bite and the minigame — it hides). Once the line is in
+	-- (after the cast was answered) — or the card shows — this try is over and the player waits to
+	-- see how it went: the catch card, or a hint why the fish got away. (Right after it the button
+	-- says «ЖДЁМ…» for CastCooldown, then «ЗАБРОСИТЬ».)
+	local lineIn = not hud.stop.Visible and not hud.bite.Visible and stage ~= "waiting"
 	if (startsWith(self:caption(), CAPTION_CAST) or hud.card.Visible or lineIn) and not hud.minigame.Visible then
 		self.idleAt = self.idleAt or now
 		local eventHint = hud.hint.Visible and not CONTEXT_HINTS[hud.hint.Text]
