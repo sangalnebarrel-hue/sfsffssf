@@ -1444,9 +1444,12 @@ export type FloatOptions = {
 	time: number?, -- 0.8 с
 	rotate: number?, -- поворот (случайно ±6°)
 	z: number?, -- ZIndex (20)
+	to: UDim2?, -- сначала вылететь из position сюда (Back Out за travel), потом подниматься
+	travel: number?, -- 0.3 с
 }
 
--- «ОТЛИЧНО!», «+1 🐟»: выскакивает, поднимается и тает. Возвращает надпись (удалится сама).
+-- «ОТЛИЧНО!», «+1 🐟»: выскакивает, поднимается и тает; с `to` — сперва вылетает из position
+-- туда (растёт по пути: «+N 💰» из фишки цены). Возвращает надпись (удалится сама).
 function UiFx.floatText(container: GuiBase2d, text: string, opts: FloatOptions?): TextLabel
 	local o: FloatOptions = opts or {}
 	local time = o.time or 0.8
@@ -1483,8 +1486,21 @@ function UiFx.floatText(container: GuiBase2d, text: string, opts: FloatOptions?)
 	scale.Scale = 0.4
 	scale.Parent = label
 	label.Parent = container
-	tween(scale, 0.2, { Scale = 1 }, BACK, OUT)
-	tween(label, time, { Position = start - UDim2.fromScale(0, o.rise or 0.08) }, QUAD, OUT)
+	local target = o.to
+	if target then
+		-- Вылет (Back Out), потом подъём — отдельным твином, когда вылет кончился.
+		local travel = math.min(o.travel or 0.3, time * 0.6)
+		tween(scale, travel, { Scale = 1 }, BACK, OUT)
+		tween(label, travel, { Position = target }, BACK, OUT)
+		task.delay(travel, function()
+			if label.Parent then
+				tween(label, time - travel, { Position = target - UDim2.fromScale(0, o.rise or 0.08) }, QUAD, OUT)
+			end
+		end)
+	else
+		tween(scale, 0.2, { Scale = 1 }, BACK, OUT)
+		tween(label, time, { Position = start - UDim2.fromScale(0, o.rise or 0.08) }, QUAD, OUT)
+	end
 	tween(label, time * 0.5, { TextTransparency = 1 }, QUAD, IN, time * 0.5)
 	tween(outline, time * 0.5, { Transparency = 1 }, QUAD, IN, time * 0.5)
 	task.delay(time + 0.05, function()
@@ -2222,6 +2238,18 @@ local function isText(item: Instance?): boolean
 	return item ~= nil and (item:IsA("TextLabel") or item:IsA("TextButton") or item:IsA("TextBox"))
 end
 
+-- Множитель толщины обводок под высоту экрана и толщина обводки base под него (fitStrokes).
+local function strokeFactor(): number
+	local camera = Workspace.CurrentCamera
+	local height = if camera then camera.ViewportSize.Y else Fx.StrokeHeight
+	return if height > 1 then math.clamp(height / Fx.StrokeHeight, 0.65, 1.5) else 1
+end
+
+local function fittedStroke(stroke: UIStroke, base: number, factor: number): number
+	local floor = if isText(stroke.Parent) then Fx.TextStrokeMin else 1
+	return math.max(floor, math.floor(base * factor * 2 + 0.5) / 2)
+end
+
 --[[
 	Обводки (UIStroke с атрибутом BaseThickness — их ставит Theme) нарисованы для экрана высотой
 	720 px; здесь их толщина подгоняется под настоящий экран (телефон — тоньше, 4K — толще), в том
@@ -2231,21 +2259,16 @@ end
 function UiFx.fitStrokes(root: Instance): Stop
 	local camera = Workspace.CurrentCamera
 	local factor = 1
-	local function measure()
-		local height = if camera then camera.ViewportSize.Y else Fx.StrokeHeight
-		factor = if height > 1 then math.clamp(height / Fx.StrokeHeight, 0.65, 1.5) else 1
-	end
 	local function apply(item: Instance)
 		if item:IsA("UIStroke") then
 			local base = item:GetAttribute("BaseThickness")
 			if typeof(base) == "number" then
-				local floor = if isText(item.Parent) then Fx.TextStrokeMin else 1
-				item.Thickness = math.max(floor, math.floor(base * factor * 2 + 0.5) / 2)
+				item.Thickness = fittedStroke(item, base, factor)
 			end
 		end
 	end
 	local function applyAll()
-		measure()
+		factor = strokeFactor()
 		for _, item in root:GetDescendants() do
 			apply(item)
 		end
@@ -2259,6 +2282,16 @@ function UiFx.fitStrokes(root: Instance): Stop
 			resized:Disconnect()
 		end
 	end
+end
+
+-- Толщина обводки «в покое» на этом экране — та, что ставит fitStrokes (BaseThickness под высоту
+-- экрана); без атрибута — текущая. Для эффектов, которые обводку утолщают и потом возвращают.
+function UiFx.strokeThickness(stroke: UIStroke): number
+	local base = stroke:GetAttribute("BaseThickness")
+	if typeof(base) == "number" then
+		return fittedStroke(stroke, base, strokeFactor())
+	end
+	return stroke.Thickness
 end
 
 -- Множитель шкалы текста для экрана высотой height: 1 на телефоне (390 px), до 1.6 на больших.

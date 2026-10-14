@@ -57,14 +57,15 @@ Short words, upper case for buttons and titles («ЗАБРОСИТЬ», «КЛЮ
 |---|---|---|
 | `Title` | 22 | base badge, minigame title, rarity banner, fish name |
 | `Button` | 18 | action caption, «СМОТАТЬ», «ДОМОЙ», Legendary/Mythic broadcasts |
-| `Body` | 16 | hints, Help, toasts, the catch counter |
-| `Small` | 14 | chips (weight, price), «Тапни, чтобы закрыть» |
+| `Body` | 16 | hints, Help, toasts, the catch counter, «Тапни — забрать!» |
+| `Small` | 14 | chips (weight) |
 
 A label gets its tier with `Theme.label(…, { Tier = "Body" })` (attribute `TextTier`);
 `UiFx.fitText(hud)` (HudController) sets Max = tier × clamp(H / 390, 1, 1.6), Min = Max − 2 for
 every tiered label, also ones cloned later. Give the box at least that height; long copy is
 shortened (or the widget grows a line), never shrunk below its tier. Display text (the giant
-rarity title, the base banner name, cooldown digits) is box-driven, not tiered. Text outlines
+rarity title, the base banner name, cooldown digits, the catch card's price — up to 1.4 × Title,
+never under Button − 2) is box-driven, not tiered. Text outlines
 are at least 2 px on any screen (`UIConfig.Fx.TextStrokeMin`).
 
 **Icons.** Emoji in their own TextLabel (TextStrokeTransparency 1), slightly rotated (−8°) for life:
@@ -174,25 +175,39 @@ timers. Stagger groups by 0.03–0.06 s.
   none for Common). The rarity shows on the card itself: small rays behind the fish; Epic+ a live
   rim (Epic Grape pulse, Legendary gold sweep, Mythic spinning rainbow — with a mutation it moves
   to the banner's outline and the mutation keeps the card's), Legendary/Mythic a face tinted
-  towards the rarity (Mythic: a slow pastel rainbow). Its beats, one at a time, ≥ 0.25 s apart,
-  each with its own motion: rarity (the title flies into the banner and the banner grows out of
-  it at 70 % of the flight while the title fades out in 0.08 s and the banner's label fades in —
-  never two readable words; without a title the banner unrolls from the middle, Quint Out) → name (slides in from the
-  right, Quint Out, fading in) → «НОВИНКА!» (a stamp — only stamps use Back Out) → chips (rise,
-  Quad Out, the price 0.08 s later) → price count-up and landing (the chip squashes 1.25 × 0.85
-  and springs back, Elastic Out; «+N 💰» stamps in over it and floats up — Rare+ or a mutation;
-  Legendary/Mythic 💰 rain beside the card, behind it, and a confetti volley; Mythic a rim flare,
-  rainbow sparks and a little shake) → mutation (the base price only ticks and breathes 0.3 s;
-  corner stamp, «×N», recount — the party goes to the full price —, the outline in its colours) →
-  the close hint and the action button's «ЗАБРАТЬ!» (Leaf 👍, white rings); then everything calms
-  down and a Mythic card breathes (grows upward, its bottom stays). Mythic's confetti comes in
-  three volleys (landing, +1 s, the price) under the touch cap. A tap skips to the end, a tap at
-  least 0.6 s later closes; the card shrinks towards the counter (the first catch: the counter
-  pops in with «Улов: 0»), a 🐟 with ★ in the rarity colours flies out of it into the counter
-  (which holds its number meanwhile and greets the fish in the rarity colour); right after the
+  towards the rarity (Mythic: a slow pastel rainbow). The name is born with the card (it slides
+  in from the right while the card settles, Quint Out — no blank right half). Then its beats, one
+  at a time — Common/Rare (fished dozens of times) ≥ 0.2 s apart, Epic+ ≥ 0.27 s —, each with its
+  own motion: rarity (the title flies into the banner and the banner grows out of it at 70 % of the
+  flight while the title fades out in 0.08 s and the banner's label fades in — never two readable
+  words; without a title the banner unrolls from the middle, Quint Out) → «НОВИНКА!» (a stamp — only stamps use
+  Back Out) → chips (rise, Quad Out, the price 0.08 s later) → price count-up (a soft ease-out
+  that keeps running into the landing: 0.15 s before it ≤ ~92 %) and landing (the chip squashes
+  1.25 × 0.85 and springs back, Elastic Out; the price itself is the card's biggest number; 0.12 s
+  later «+N 💰» flies OUT of the chip — Back Out to the free space right of the card, never over
+  the price or «×N», smaller where tight, over the weight row only as a last resort — rises and
+  fades, the chip bumps as its source — Rare+, a new species or a mutation; Legendary/Mythic 💰
+  rain beside the card, behind it, and a confetti volley; Mythic a rim flare, rainbow sparks and a
+  little shake) → mutation (the base price only ticks and breathes one beat; corner stamp, «×N»,
+  recount — the party goes to the full price —, the outline in its colours) → the close hint
+  «Тапни — забрать!» (Body tier, breathing 0 ↔ 0.15) and the action button's «ЗАБРАТЬ!» (Leaf 👍,
+  white halo and rings); then everything calms down and a Mythic card breathes (grows upward, its
+  bottom stays). A NEW species of a Common/Rare fish gets a small fanfare (the first catch of a
+  new player is usually one): a light dim, brighter rays with gold and green, sparks + a handful
+  of confetti + a ping at «НОВИНКА!», a «+N 💰»; a known Common stays calm. On phones the card is
+  never shorter than 165 px (the smallest phone's Common card). Mythic's confetti comes in three
+  volleys (landing, +1 s, the price) under the touch cap. A tap on the card skips to the end, a tap
+  at least 0.6 s later closes; the action button (F / R2, the rod) never skips — it only closes
+  the settled card, and not while it is being mashed (< 0.3 s since the previous press). The card
+  closes by itself after `UIConfig.CatchCardTime` (at least 0.6 s after its last beat). Closing:
+  the card itself is the projectile — it flies into the counter shrinking to a speck (the first
+  catch: the counter pops in with «Улов: 0»; the card aims at its slot in the Status list), a 🐟
+  with ★ in the rarity colours leaves beside it and they land together (tap → «+1» ≈ 0.35 s; the
+  counter holds its number meanwhile and greets the fish in the rarity colour); right after the
   «+1» the trophy over the head flashes once more (`FishingFxController.ReplayOwnTrophy`; the own
   nameplate pops in only now — it stayed hidden while the catch was on screen) and stays ≈ 3 s.
-  Rarity tiers (dim, rays, confetti volleys, burst, hold, auto-close): `REVEAL` in FishingController.
+  Rarity tiers (dim, rays, confetti volleys, burst, hold, beat, count, auto-close): `REVEAL` in
+  FishingController; the card's tuning (float, new-species fanfare, collect flight): `CARD`.
 - **World FX** (FishingFxController, + FishingService for the broadcast): cast with a sparkly trail on
   the bobber and a whoosh, a splash + expanding ripple rings on landing, slow ripples and nibbles
   (the own bobber — 2.2× the template — dips half a stud with a ring, drops and a «?») while
@@ -335,7 +350,7 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `confettiPop(container, {same options})` → stop | timers | the same pieces on tweens only (arc up Quad Out, down Quad In, spin, fade): no frame job — for moments when the rest is idle (joining, the base banner) and cheap bursts; shares the confetti cap |
 | `burst(container, {count?, colors?, origin?, power?, time?, z?, size?})` → stop | frame | round sparks flying out of `origin` (hit in the zone, reward); `size` multiplies the spark size |
 | `sparkles(gui, {icons?, rate?, size?, area?, duration?, z?})` → stop | timers | ✨/⭐ popping around the edges |
-| `floatText(container, text, {position?, size?, color?, colors?, rise?, time?, rotate?, z?})` → label | timers | «ОТЛИЧНО!», «+1»: pop, rise 8 %, fade (0.8 s) |
+| `floatText(container, text, {position?, size?, color?, colors?, rise?, time?, rotate?, z?, to?, travel?})` → label | timers | «ОТЛИЧНО!», «+1»: pop, rise 8 %, fade (0.8 s); with `to` it first flies out of `position` to `to` (Back Out, `travel` 0.3 s, growing on the way), then rises — «+N 💰» out of the price chip |
 | `countUp(label, from, to, time?, format?)` → stop | frame | Quad Out; `format` is a function or `"%d"`; stop jumps to the final value |
 | `rainbow(gradient, {speed?, colors?, spin?})` → stop | frame | hue cycle (30 Hz); stop restores the colours |
 | `timerBar(fill, duration, colors?)` → stop | frame | width 1 → 0, green → yellow → red |
@@ -350,6 +365,7 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `fadeOut(gui, time?)` | timers | every background/text/stroke/ViewportFrame under `gui` to transparent |
 | `setCandy(root, token \| swatch \| Color3)` | — | recolour a candy (states, toast kinds, base swatch; a Color3 becomes `swatchFor`) |
 | `fitStrokes(root)` → unbind | 2 conns | see 6.2 (text outlines ≥ 2 px) |
+| `strokeThickness(stroke)` → px | — | the stroke's rest thickness on this screen (what fitStrokes sets from `BaseThickness`): restore to it, never to a live value another tween may have changed |
 | `fitText(root)` → unbind | 2 conns | the type scale for every `TextTier` label, also ones added later (§1); HudController runs it on the HUD |
 | `textSize(tier)` → px | — | the tier's size on this screen (what fitText sets) — for width maths |
 | `sound(name, volume?, pitch?)` | — | "click", "tick", "pop"/"ping", "swoosh", "splash" (pitch 0.5 = heartbeat), "swim" or an rbxasset id; 4 pooled copies per sound (round robin), `pitch` = PlaybackSpeed |
@@ -413,7 +429,10 @@ RenderStepped connection for all running frame effects, disconnected when none r
   `popIn(card, {rotate = -6})`, `confetti(hud, {count = …, origin = the held fish on screen})`,
   a count-up with `FishingRules.FormatCoins`, `stamp(mutationBadge)`, Legendary/Mythic:
   `shockwave(hud, origin)` + `cameraShake()` + `fovPunch()` at the landing (never a full-screen
-  flash); on close `flyTo(hud, card, counter, {onArrive = clear CounterHold and CounterIncoming})`. Mind the phone fill: the card's big candy draws its lip as a
-  band (no full-size lip quad), the dim is bands around the card. Action button:
+  flash); on close `flyTo(hud, start, counter, {onArrive = clear CounterHold and CounterIncoming})`
+  from a fixed start point (an invisible `FxFlyFrom` frame placed once — `flyTo` reads `from`
+  when each icon starts, so never a widget that is destroyed meanwhile). Mind the phone fill: the
+  card's big candy draws its lip as a band (no full-size lip quad), the dim is bands around the
+  card. Action button:
   `Theme.candyButton(…, "Sky", {Radius = 0.5, Square = true})`, `setCandy` per state,
   `glowRing(button, {loop = true})` while it matters, `shineLoop` when idle, `ripple` on tap.

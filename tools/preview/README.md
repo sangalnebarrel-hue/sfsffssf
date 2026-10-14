@@ -508,10 +508,11 @@ safe area).
 | `lost_late`, `denied_far` | hints of a lost fish / a refused cast | |
 | `catch_win` | the winning tap (Legendary, time 0 = "Caught"): win morph (needle where tapped) sinking away, «ПОЙМАНА!» left of the character, tension, the landing shockwave and edge glow (no full-screen flash), rays around the fish, giant title, the card | 0..2.6 s (whole screen) |
 | `catch_hold` | the winning tap before the server answers: the needle freezes gold where tapped, the zone glows, the panel bumps | 0..0.6 s, minigame |
-| `catch_common`, `_rare`, `_epic`, `_legendary`, `_mythic` | catch card per rarity (time 0 = the card is visible; stills after its last beat, Rare / Legendary / Mythic also at the price landing with «+N 💰») | common 0..2.2 s, legendary 0..3.0 s, mythic 0..3.2 s (whole screen) |
-| `catch_gold`, `catch_neon`, `catch_rainbow` | catch card with a mutation (the base price ticks, stamp, «×N», recount with the party, outline) | rainbow 1.9..3.5 s |
+| `catch_common`, `_rare`, `_epic`, `_legendary`, `_mythic` | catch card per rarity (time 0 = the card with its name is visible; stills after its last beat, Common at «НОВИНКА!» too, Rare / Legendary / Mythic also while «+N 💰» flies out beside the card). The first Common is a NEW species: its small fanfare | common 0..2.2 s, legendary 0..3.0 s, mythic 0..3.2 s (whole screen) |
+| `catch_common_again` | a known Common (the second Карасик): calm — no dim, no confetti, no «+N 💰», 0.2 s beats | 0..2.3 s (whole screen) |
+| `catch_gold`, `catch_neon`, `catch_rainbow` | catch card with a mutation (the base price ticks, stamp, «×N», recount with the party, outline) | rainbow 1.4..3.0 s |
 | `catch_skip` | a tap during the reveal (Epic) shows every beat at once | 0..0.5 s |
-| `catch_close` | tap closes the settled card: it shrinks towards the counter (the first catch: «Улов: 0» pops in), 🐟 ★ fly out of it, +1 in the rarity colour | 0..1 s, whole screen |
+| `catch_close` | tap closes the settled card: the card itself flies into the counter shrinking to a speck (the first catch: «Улов: 0» pops in), 🐟 ★ beside it, +1 in the rarity colour ≈ 0.33 s after the tap (stills 0.2 / 0.36 s) | 0..1 s, whole screen |
 | `toast_info`, `toast_success`, `toast_warning`, `toast_danger` | one toast of each kind | success 0..0.8 s |
 | `toast_stack` | three toasts (the cap), then the oldest leaves | 3..4.4 s |
 | `home_cooldown` | «ДОМОЙ» pressed, cooldown draining | 0..0.8 s |
