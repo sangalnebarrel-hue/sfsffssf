@@ -1,4 +1,4 @@
--- Рыба-Дракон (Mythic): the rarest fish in the game. Violet dragon head with a lighter muzzle and
+-- Рыба-дракон (Mythic): the rarest fish in the game. Violet dragon head with a lighter muzzle and
 -- big eyes, gold horns at the head corners and long gold whiskers that reach forward past the nose
 -- and droop (a dragon moustache); a glowing turquoise crest of three spikes rising towards the head;
 -- pink belly; the tail flows violet -> pink tail root -> a big turquoise fan split into an upper and
@@ -6,7 +6,7 @@
 return {
 	id = "DragonFish",
 	kind = "fish",
-	title = "Рыба-Дракон",
+	title = "Рыба-дракон",
 	rarity = "Mythic",
 	length = 20,
 	blocks = {

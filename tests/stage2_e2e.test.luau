@@ -59,7 +59,7 @@ local UIConfig = loadConfig("UIConfig")
 local CAPTION_CAST = "ЗАБРОСИТЬ"
 local CAPTION_WAIT = "ЖДЁМ…"
 local CAPTION_HOOK = "ПОДСЕЧЬ!"
-local CAPTION_REEL = "ТЯНИ!"
+local CAPTION_REEL = "ЛОВИ!"
 local PIP_DONE = Color3.fromRGB(64, 200, 96) -- a filled «hit» pip of the minigame
 local RETRACT_TIME = 0.45 -- FishingFxController: a bobber reels back in this long after Idle
 
@@ -80,9 +80,9 @@ local CARD_GONE = UIConfig.CatchCardTime.Mythic + 1.6
 -- Hints that are not an outcome (FishingController's context and first-spawn hints).
 local CONTEXT_HINTS = {
 	["Жми «Забросить»"] = true,
-	["Встань в сверкающий круг на своём пирсе"] = true,
+	["Встань в сверкающий круг"] = true,
 	["Возьми удочку — кнопка справа"] = true,
-	["Удочка — в рюкзаке внизу экрана. Иди на край своего пирса!"] = true,
+	["Иди на край своего пирса!"] = true,
 }
 
 local SERVICE_PATH = "ServerScriptService.Services.FishingService"
@@ -206,6 +206,7 @@ local function hudOf(sim: any, player: any): any
 	return {
 		action = find("Fishing.ActionArea.ActionButton"),
 		caption = find("Fishing.ActionArea.ActionButton.Caption"),
+		keyChip = find("Fishing.ActionArea.ActionButton.KeyChip"),
 		stop = find("Fishing.ActionArea.StopButton"),
 		bite = find("Fishing.BiteAlert"),
 		minigame = find("Fishing.Minigame"),
@@ -602,7 +603,7 @@ local function cleanCatch(t: any, latency: number)
 	castAndPlay(t, sim, fisher)
 	t.ok(fisher.biteAt ~= nil, "the player saw the bite (BiteAlert + «ПОДСЕЧЬ!»)")
 	t.eq(fisher.biteCaption, CAPTION_HOOK, "the button says «ПОДСЕЧЬ!» on the bite")
-	t.eq(fisher.reelCaption, CAPTION_REEL, "the button says «ТЯНИ!» in the minigame")
+	t.eq(fisher.reelCaption, CAPTION_REEL, "the button says «ЛОВИ!» in the minigame")
 	local fish = checkCatch(t, sim, p, hud, fisher, 1)
 	local landedAt = sim:Time() -- checkCatch waited for the held fish (the leap landed)
 
@@ -907,18 +908,19 @@ end
 -- (6) PC: the F key (not E — E belongs to ProximityPrompts)
 --------------------------------------------------------------------------------
 
-tests["(6) desktop: F casts, hooks and taps; F closes the catch card; the button shows [F]"] = function(t)
+tests["(6) desktop: F casts, hooks and taps; F closes the catch card; the button shows the F key"] = function(t)
 	local sim = boot(t, 0)
 	local p = join(t, sim, 1, "desktop")
 	local hud = goFish(t, sim, p)
-	t.eq(hud.caption.Text, `{CAPTION_CAST} [F]`, "desktop: the key hint on the button")
+	t.eq(hud.caption.Text, CAPTION_CAST)
+	t.ok(hud.keyChip.Visible and hud.keyChip.Key.Text == "F", "desktop: the F key chip on the button")
 
 	local fisher = Fisher.new(sim, p, hud, { key = true })
 	fisher:cast()
 	t.eq(hud.caption.Text, CAPTION_WAIT, "F cast the line")
 	t.ok(fishUntilDone(sim, { fisher }, 20), `the try ends\n{fisher:describe()}`)
-	t.eq(fisher.biteCaption, `{CAPTION_HOOK} [F]`, "«ПОДСЕЧЬ! [F]» on the bite")
-	t.eq(fisher.reelCaption, `{CAPTION_REEL} [F]`, "«ТЯНИ! [F]» in the minigame")
+	t.eq(fisher.biteCaption, CAPTION_HOOK, "«ПОДСЕЧЬ!» on the bite")
+	t.eq(fisher.reelCaption, CAPTION_REEL, "«ЛОВИ!» in the minigame")
 	checkCatch(t, sim, p, hud, fisher, 1)
 	t.eq(#sim:ServerEventsFor(p, "FishingCast"), 1, "one cast request")
 	t.eq(#sim:ServerEventsFor(p, "FishingHook"), 1, "one hook request")

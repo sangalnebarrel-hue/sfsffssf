@@ -10,32 +10,48 @@
 
 	  • Кнопка действия (ActionArea.ActionButton) видна, пока удочка в руке персонажа. Это
 	    большая круглая «конфета»; цвет, значок и надпись — по состоянию: «ЗАБРОСИТЬ» (Sky 🎣,
-	    блик раз в несколько секунд) → «ЖДЁМ…» (Slate ⏳, песочные часы переворачиваются; нажатия
-	    не работают; так же после подсечки и CastCooldown секунд после конца рыбалки) →
-	    «ПОДСЕЧЬ!» (Sun ❗, пульсирует, светится кольцами) → «ТЯНИ!» (Leaf 💪). Удочка в рюкзаке,
-	    а игрок стоит у точки рыбалки своей базы — кнопка «ВЗЯТЬ» (Gold 🎣, зовёт сиянием) берёт
-	    удочку в руку. Смена состояния — кнопка выскакивает; нажатие — сжимается (UiFx.press),
-	    от каждого касания расходится рябь.
+	    единственная «живая» кнопка в покое: блик и лёгкое дыхание) → «ЖДЁМ…» (Water: поплавок
+	    покачивается, по кнопке расходятся круги, точки бегут, рыба 1–2 раза «пробует» наживку —
+	    кнопка вздрагивает, всплывает «?», поплавок в мире притапливается) → «ПОДСЕЧЬ!» (Sun,
+	    знак «!», пульсирует и светится кольцами в такт поклёвке) → «ЛОВИ!» (Leaf 🎯). «ЖДЁМ…» на
+	    Slate ⏳ (песочные часы переворачиваются; нажатия не работают) — пока сервер отвечает на
+	    заброс, после подсечки и CastCooldown секунд после конца рыбалки. С удочкой, но далеко
+	    от точки рыбалки — «К ПИРСУ» (Slate 🧭): нажатие не забрасывает, а показывает дорогу
+	    (подсказка и луч к точке вспыхивают). Удочка в рюкзаке, а игрок у точки рыбалки своей
+	    базы — «ВЗЯТЬ» (Gold 🎣, зовёт белыми кольцами) берёт удочку в руку. Смена состояния —
+	    кнопка выскакивает; нажатие — сжимается (UiFx.press), от каждого касания — рябь.
 	    То же действие — тап/клик удочкой по миру (Tool.Activated; на тач-экране — не в
 	    мини-игре: туда попадают и движения камеры) и клавиша F / R2 на геймпаде
 	    (ContextActionService, только пока удочка в руке; не E — E нужна ProximityPrompt).
-	    Без тач-экрана на кнопке — подсказка клавиши: «ЗАБРОСИТЬ [F]».
+	    Без тач-экрана клавиша нарисована на плече кнопки — «клавиша» KeyChip («F» / «R2»).
 	  • В мини-игре нажатие засчитывается в момент касания кнопки (MouseButton1Down), а не
 	    отпускания (двойной тап по «ПОДСЕЧЬ!» сервер не считает промахом — FishingConfig.HookTapGrace).
-	  • «СМОТАТЬ» (StopButton, ягодная «пилюля») — пока леска в воде.
-	  • Поклёвка (BiteAlert): «КЛЮЁТ!» влетает «ударом», короткая солнечная вспышка, за плашкой
-	    вращаются лучи, ❗ по краям качаются, полоска времени тает за Window секунд
-	    (зелёная → жёлтая → красная).
+	    На тач-экране так же считается касание самой панели мини-игры (Minigame.TapPad).
+	  • «СМОТАТЬ» (StopButton, ягодная «пилюля» с 🧵) — пока леска в воде.
+	  • Поклёвка (BiteAlert): «КЛЮЁТ!» влетает «ударом», солнечная вспышка, камера на миг
+	    «приближается» (UiFx.fovPunch), края экрана светятся солнцем; всё дальше — в одном такте
+	    BITE_BEAT: плашка и кнопка пульсируют вместе, кольцо от кнопки на каждый такт, знаки «!»
+	    по краям качаются по очереди; к концу окна такт ускоряется. Полоска времени тает за
+	    Window секунд (зелёная → жёлтая → красная), за плашкой — спокойные лучи.
 	  • Мини-игра (Minigame): стрелка = FishingRules.Needle(U0, Speed, t), где t — сколько секунд
 	    прошло с получения "Minigame" (os.clock). Нажатие отправляет серверу это же t, а сервер
-	    проверяет попадание по той же формуле — игрок видит ровно то, что проверяет сервер.
-	    Заголовок — в цветах редкости (мифическая — бегущая радуга), за стрелкой — шлейф
-	    (он проходит ПОД зоной), зона мягко светится. Попал: искры из зоны (из-под полосы),
-	    над панелью «ОТЛИЧНО!» / «СУПЕР!» (второе попадание) / «ИДЕАЛЬНО!» (стрелка была не дальше
-	    PERFECT_SHARE ширины зоны от её центра), зона выскакивает на новом месте, в кружке
-	    попаданий «печатается» ⭐, кнопка подпрыгивает. Промах (Lost miss) или конец времени:
-	    мини-игра сразу закрывается, а её копия (FxMinigameMiss) ещё полсекунды краснеет,
-	    качается и показывает «МИМО!» / «ВРЕМЯ!». Эффекты никогда не закрывают стрелку и зону.
+	    проверяет попадание по той же формуле — игрок видит ровно то, что проверяет сервер (и
+	    зона по ширине всегда нарисована ровно такой, какой её проверяет сервер: «выскакивает»
+	    она только по высоте). Заголовок — белый в цвет редкости (мифическая — бегущая радуга),
+	    у стрелки — головка ▼ и шлейф из двух голубых теней (ПОД зоной), на зоне едет 🐟
+	    (под стрелкой), зона мягко «дышит» светом. Эпическая и выше — обводка панели в цвет
+	    редкости, лучи за панелью и цветные края экрана; легендарная и мифическая — ещё «удар»
+	    заголовка со вспышкой и стук сердца. Новичку (первые мини-игры за игру) 👆 показывает на
+	    кнопку, пока стрелка в зоне. Попадание видно сразу, не дожидаясь сервера (он судит по
+	    тому же t): стрелка на миг замирает и вспыхивает золотом, панель вздрагивает, искры, звук
+	    всё выше, слово «ОТЛИЧНО!» → «СУПЕР!» → «МЕГА!» (или «ИДЕАЛЬНО!» — стрелка была не дальше
+	    PERFECT_SHARE ширины зоны от центра: золото, звёзды, вспышка, края экрана). Последнее,
+	    победное попадание здесь не празднуется — это начало карточки улова. Ответ сервера
+	    ("Zone") переносит зону (🐟 перепрыгивает за ней) и «печатает» ⭐ в кружке попаданий.
+	    Промах (Lost miss) или конец времени: мини-игра сразу закрывается, а её копия
+	    (FxMinigameMiss) ещё полсекунды краснеет, качается и показывает «МИМО!» / «ВРЕМЯ!»
+	    (🐟 уплывает за край), потом уходит вверх и тает; подсказка с причиной — следом.
+	    Эффекты никогда не закрывают стрелку и зону.
 	  • Улов (UI v2, порядок — в разделе «Улов» ниже): сначала мир, потом карточка. На
 	    "Caught" копия мини-игры (FxMinigameWin) «побеждает» — ⭐, золотая зона, «ПОЙМАНА!» — и
 	    уходит; кнопка «замирает» (тусклое «ЖДЁМ…»), подсказки нет; у эпической и выше по краям
@@ -55,9 +71,12 @@
 	    ✨ летит в него. Счётчик улова (HUD.Status.CatchCounter) ведёт HudController: от
 	    "Caught" до прилёта 🐟 у HUD стоит атрибут CounterHold (прошлое число), плашки
 	    статуса под карточкой гаснут.
-	  • Подсказка (Hint, тёмная «пилюля» со значком 💡 / ⚠️, въезжает снизу с пружиной): почему
-	    заброс не принят, почему рыба ушла, куда идти. Если игрок с удочкой далеко от точки
-	    рыбалки своей базы — к ней тянется дорожка-луч (Beam, только у него).
+	  • Подсказка (Hint, «пилюля» в цвет вида — тёмная 💡 / солнечная ⚠️ / ягодная 🚨, значок в
+	    белом кружке, въезжает снизу с пружиной; до двух строк): почему заброс не принят, почему
+	    рыба ушла, куда идти. Тексты причин — общие с сервером (FishingConfig.Texts). Если игрок с
+	    удочкой далеко от точки рыбалки своей базы — к ней тянется дорожка-луч (Beam, только у
+	    него). Подсказка, поклёвка и мини-игра — одна колонка внизу по центру (между джойстиком
+	    и кнопкой действия; на узком экране колонка сдвигается) и не показываются вместе.
 
 	Уборка: всё, что живёт с персонажем, — в characterTrove; пока удочка в руке — в rodTrove;
 	анимации текущего состояния — в phaseTrove (кадровые эффекты — шлейф, искры, радуга,
@@ -97,50 +116,46 @@ local PERFECT_SHARE = 0.25 -- «ИДЕАЛЬНО!»: стрелка не дал�
 local MISS_HOLD = 0.55 -- столько «доигрывает» копия мини-игры после промаха, с
 local DIM_TIME = 0.25 -- затемнение за карточкой появляется / уходит, с
 
+-- Подсказки по месту (только клиент). «Встань в круг» — тот же текст, что у сервера (Denied far).
+local TEXTS = FishingConfig.Texts
 local HINT_NEAR = "Жми «Забросить»"
-local HINT_FAR = "Встань в сверкающий круг на своём пирсе"
+local HINT_FAR = TEXTS.Denied.far
 local HINT_TAKE = "Возьми удочку — кнопка справа"
-local HINT_FIRST =
-	"Удочка — в рюкзаке внизу экрана. Иди на край своего пирса!"
+local HINT_FIRST = "Иди на край своего пирса!"
 
--- Значок подсказки по её виду.
+-- Значок подсказки по её виду (в белом кружке) и цвет «пилюли» (палитра UIConfig).
 local HINT_ICONS: { [string]: string } = {
 	info = "💡",
 	warning = "⚠️",
 	success = "🎉",
-	danger = "⛔",
+	danger = "🚨",
+}
+local HINT_TOKENS: { [string]: string } = {
+	warning = "Sun",
+	danger = "Berry",
 }
 
--- Почему рыба ушла (если сервер не прислал свой текст).
-local LOST_TEXT: { [string]: string } = {
-	early = "Рано! Рыба испугалась и уплыла",
-	late = "Поздно — рыба ушла",
-	miss = "Мимо! Рыба сорвалась",
-	timeout = "Рыба устала ждать и уплыла",
-}
-
--- Почему рыбалка закончилась ("Idle"); причины без текста — молча.
-local IDLE_TEXT: { [string]: string } = {
-	stop = "Леска смотана",
-	moved = "Слишком далеко от края пирса — леска смотана",
-	unequipped = "Удочка убрана — леска смотана",
-	base = "Леска смотана",
-}
+-- Почему рыба ушла / почему рыбалка закончилась: общие с сервером тексты по коду причины
+-- (FishingConfig.Texts; сервер присылает и сам текст — он важнее). Причины без текста — молча.
+local LOST_TEXT: { [string]: string } = TEXTS.Lost
+local IDLE_TEXT: { [string]: string } = TEXTS.Idle
 
 local Palette = UIConfig.Palette
 local WHITE = UIConfig.White
 
 local COLORS = {
-	PipDone = Color3.fromRGB(64, 200, 96), -- закрашенный кружок попадания (его ищут тесты)
-	Guide = Color3.fromRGB(255, 214, 80),
+	PipDone = UIConfig.Fishing.PipDone, -- закрашенный кружок попадания (его ищут тесты)
+	Guide = UIConfig.Fishing.Guide,
 }
 
--- Полоска времени: зелёная → жёлтая → красная.
+-- Полоска поклёвки: зелёная → жёлтая → красная (в мини-игре — своя, без зелёного: UIConfig.Fishing.TimeBar).
 local TIME_COLORS = { Palette.Leaf.Top, Palette.Sun.Top, Palette.Berry.Bottom }
 
 type Phase = "Idle" | "Pending" | "Waiting" | "Bite" | "Reeling"
 
 -- Вид кнопки действия: цвет — токен палитры UIConfig, Ring — белый ореол (прозрачность, цвет).
+-- Glyph — значок не эмодзи, а знак текстом (белый → золотой, с обводкой): «!» поклёвки;
+-- Bobber — вместо значка нарисованный поплавок (ожидание поклёвки).
 type Look = {
 	Name: string,
 	Caption: string,
@@ -149,6 +164,8 @@ type Look = {
 	Key: boolean,
 	Ring: number,
 	RingColor: Color3,
+	Glyph: boolean?,
+	Bobber: boolean?,
 }
 
 local CAST_LOOK: Look = {
@@ -169,23 +186,35 @@ local WAIT_LOOK: Look = {
 	Ring = 1,
 	RingColor = WHITE,
 }
+-- Леска в воде, ждём поклёвку: «водяная» кнопка с поплавком (WATER_DOTS — бегущие точки).
+local WATER_LOOK: Look = {
+	Name = "Water",
+	Caption = "ЖДЁМ…",
+	Icon = "",
+	Token = "Water",
+	Key = false,
+	Ring = 1,
+	RingColor = WHITE,
+	Bobber = true,
+}
 local BITE_LOOK: Look = {
 	Name = "Bite",
 	Caption = "ПОДСЕЧЬ!",
-	Icon = "❗",
+	Icon = "!",
 	Token = "Sun",
 	Key = true,
 	Ring = 0,
 	RingColor = WHITE,
+	Glyph = true,
 }
 local REEL_LOOK: Look = {
 	Name = "Reel",
-	Caption = "ТЯНИ!",
-	Icon = "💪",
+	Caption = "ЛОВИ!",
+	Icon = "🎯",
 	Token = "Leaf",
 	Key = true,
 	Ring = 0.35,
-	RingColor = Palette.Leaf.Top,
+	RingColor = WHITE,
 }
 -- Удочка в рюкзаке, игрок у точки рыбалки: кнопка берёт удочку в руку.
 local TAKE_LOOK: Look = {
@@ -197,12 +226,22 @@ local TAKE_LOOK: Look = {
 	Ring = 0.15,
 	RingColor = Palette.Gold.Top,
 }
+-- Удочка в руке, но до точки рыбалки далеко: кнопка не забрасывает, а показывает дорогу.
+local FAR_LOOK: Look = {
+	Name = "Far",
+	Caption = "К ПИРСУ",
+	Icon = "🧭",
+	Token = "Slate",
+	Key = false,
+	Ring = 1,
+	RingColor = WHITE,
+}
 
 -- Как выглядит кнопка действия в каждом состоянии.
 local LOOKS: { [Phase]: Look } = {
 	Idle = CAST_LOOK,
 	Pending = WAIT_LOOK,
-	Waiting = WAIT_LOOK,
+	Waiting = WATER_LOOK,
 	Bite = BITE_LOOK,
 	Reeling = REEL_LOOK,
 }
@@ -219,10 +258,16 @@ local CATCH_LOOK: Look = {
 	RingColor = WHITE,
 }
 
--- Надписи и цвета попаданий.
-local HIT_FIRST = { text = "ОТЛИЧНО!", colors = { WHITE, Palette.Leaf.Top } }
-local HIT_NEXT = { text = "СУПЕР!", colors = { WHITE, Palette.Sky.Top } }
-local HIT_PERFECT = { text = "ИДЕАЛЬНО!", colors = { Palette.Gold.Top, Palette.Sun.Bottom } }
+-- Надписи и цвета попаданий: от попадания к попаданию всё громче (третье и дальше — радуга),
+-- идеальное — золотом.
+type HitWord = { text: string, colors: { Color3 }, rainbow: boolean? }
+local HIT_FIRST: HitWord = { text = "ОТЛИЧНО!", colors = { Palette.Leaf.Top, Palette.Leaf.Bottom } }
+local HIT_NEXT: HitWord = { text = "СУПЕР!", colors = { Palette.Sky.Top, Palette.Sky.Bottom } }
+local HIT_MEGA: HitWord = { text = "МЕГА!", colors = UIConfig.Rainbow, rainbow = true }
+local HIT_PERFECT: HitWord = {
+	text = "ИДЕАЛЬНО!",
+	colors = { Palette.Gold.Top, Palette.Gold.Top, WHITE, Palette.Gold.Top, Palette.Gold.Top },
+}
 
 type Minigame = {
 	Rarity: string,
@@ -295,6 +340,22 @@ type Ui = {
 	titleSlamFill: UIGradient,
 	titleLetters: Frame,
 	dimBands: { Frame },
+	-- UI v2, игра (кнопка, поклёвка, мини-игра, подсказка):
+	actionArea: Frame,
+	actionOutline: UIStroke, -- обводка знака «!» на кнопке (у эмодзи выключена)
+	actionFill: UIGradient, -- его заливка белый → золотой
+	actionBobber: Frame, -- поплавок вместо значка, пока ждём поклёвку
+	keyChip: Frame,
+	keyLabel: TextLabel,
+	tapCue: TextLabel, -- 👆 новичку
+	stopCaption: TextLabel,
+	aura: UIStroke, -- обводка панели мини-игры в цвет редкости (эпическая и выше)
+	auraFill: UIGradient,
+	rider: TextLabel, -- 🐟 на зоне
+	timeBar: Frame,
+	pipsFrame: Frame,
+	tapPad: GuiButton, -- касание панели мини-игры = нажатие (тач-экран)
+	hintSocket: Frame,
 }
 
 -- Исходные значения из шаблона HUD (возвращаются после анимаций).
@@ -313,6 +374,17 @@ type Defaults = {
 	trackMidY: number,
 	namePosition: UDim2,
 	mutationPosition: UDim2,
+	-- UI v2, игра:
+	alertPosition: UDim2,
+	hintSize: UDim2,
+	riderY: number,
+	glowSize: UDim2,
+	timeBarSize: UDim2,
+	bobberPosition: UDim2,
+	tapCuePosition: UDim2,
+	stopPosition: UDim2,
+	stopSize: UDim2,
+	minigameSize: UDim2,
 }
 
 type Guide = { beam: Beam, from: Attachment, to: Attachment, spot: BasePart }
@@ -484,6 +556,154 @@ end
 -- Подсказка внизу экрана и дорожка к точке рыбалки
 --------------------------------------------------------------------------------
 
+--[[
+	Центральная колонка (подсказка, поклёвка, мини-игра) стоит по центру экрана, но не ближе
+	COLUMN_GAP к джойстику (тач-экран) и к кнопке действия с её лентой подписи: на узком
+	экране (маленький телефон, планшет 4:3) колонка сдвигается влево, а подсказка ещё и
+	сужается. Сдвиг — Position.X.Offset (X.Scale остаётся 0.5); пересчёт — при смене размера HUD.
+]]
+local COLUMN_GAP = 24 -- до джойстика и кнопки действия (с запасом на обводки и рамку редкости), px
+-- Кнопки Roblox на тач-экране (короткая сторона экрана ≤ 500 px — маленькие): правый край
+-- джойстика от левого края; кнопка прыжка — отступы от правого и нижнего края и размер, px.
+local STICK_SMALL, STICK_BIG = 95, 180
+local JUMP_SMALL = { right = 25, bottom = 20, size = 70 }
+local JUMP_BIG = { right = 50, bottom = 90, size = 120 }
+
+local function smallTouchScreen(): boolean
+	local camera = Workspace.CurrentCamera
+	local view = if camera then camera.ViewportSize else Vector2.new(1280, 720)
+	return math.min(view.X, view.Y) <= 500
+end
+
+-- Ширина и высота элемента по его Size, SizeConstraint и UISizeConstraint (в px) — без
+-- AbsoluteSize: раскладка верна, даже пока HUD ещё не измерен.
+local function boxSize(gui: GuiObject, width: number, height: number): Vector2
+	local size = gui.Size
+	local yy = gui.SizeConstraint == Enum.SizeConstraint.RelativeYY
+	local w = size.X.Scale * (if yy then height else width) + size.X.Offset
+	local h = size.Y.Scale * height + size.Y.Offset
+	local cap = gui:FindFirstChildOfClass("UISizeConstraint")
+	if cap then
+		w = math.clamp(w, cap.MinSize.X, cap.MaxSize.X)
+		h = math.clamp(h, cap.MinSize.Y, cap.MaxSize.Y)
+	end
+	return Vector2.new(w, h)
+end
+
+-- Свойство меняется, только если значение другое (без лишних событий раскладки).
+local function assign(gui: GuiObject, key: "Size" | "Position", value: UDim2)
+	if (gui :: any)[key] ~= value then
+		(gui :: any)[key] = value
+	end
+end
+
+local laidOutFor: Vector2? = nil -- размер HUD, под который колонка разложена
+
+local function layoutColumn()
+	local size = ui.hud.AbsoluteSize
+	local width, height = size.X, size.Y
+	if width < 2 or height < 2 then
+		return
+	end
+	laidOutFor = size
+	local touch = UserInputService.TouchEnabled
+	local small = smallTouchScreen()
+	-- Кнопка действия — у левого края своей области; лента подписи шире круга.
+	local area = boxSize(ui.actionArea, width, height)
+	local button = ui.actionButton.Size.Y.Scale * area.Y
+	local ribbon = ui.actionButton:FindFirstChild("CaptionRibbon")
+	local overhang = if ribbon and ribbon:IsA("GuiObject") then button * math.max(ribbon.Size.X.Scale - 1, 0) / 2 else 0
+	local right = width - area.X - overhang - COLUMN_GAP
+	-- Слева — джойстик; значок подсказки в кружке выступает за её левый край.
+	local socket = ui.hintSocket
+	local hintHeight = boxSize(ui.hint, width, height).Y
+	local socketOut = socket.Size.X.Scale * hintHeight * socket.AnchorPoint.X
+	local left = (if touch then (if small then STICK_SMALL else STICK_BIG) else 0) + COLUMN_GAP + socketOut
+	-- Подсказка и мини-игра сужаются до просвета (планшет 4:3, маленький телефон); их
+	-- содержимое — в долях, а MinSize панели не даёт ей стать нечитаемой.
+	local function fit(gui: GuiObject, rest: UDim2): number
+		local target = rest
+		local yy = gui.SizeConstraint == Enum.SizeConstraint.RelativeYY
+		local cap = gui:FindFirstChildOfClass("UISizeConstraint")
+		local w = rest.X.Scale * (if yy then height else width) + rest.X.Offset
+		if cap then
+			w = math.clamp(w, cap.MinSize.X, cap.MaxSize.X)
+		end
+		if w > right - left and right - left > 0 then
+			w = math.floor(math.max(right - left, if cap then cap.MinSize.X else 0))
+			target = UDim2.new(0, w, rest.Y.Scale, rest.Y.Offset) -- смещение UDim — целые пиксели
+		end
+		assign(gui, "Size", target)
+		return w
+	end
+	local hint = ui.hint
+	local widest = math.max(
+		fit(hint, defaults.hintSize),
+		boxSize(ui.biteAlert, width, height).X,
+		fit(ui.minigame, defaults.minigameSize)
+	)
+	local center = width / 2
+	if right - left >= widest then
+		center = math.clamp(center, left + widest / 2, right - widest / 2)
+	else
+		center = (left + right) / 2
+	end
+	local shift = math.floor(center - width / 2 + 0.5)
+	local function place(gui: GuiObject, rest: UDim2): UDim2
+		local placed = UDim2.new(rest.X.Scale, shift, rest.Y.Scale, rest.Y.Offset)
+		assign(gui, "Position", placed)
+		return placed
+	end
+	defaults.hintPosition = place(hint, defaults.hintPosition)
+	defaults.alertPosition = place(ui.biteAlert, defaults.alertPosition)
+	defaults.minigamePosition = place(ui.minigame, defaults.minigamePosition)
+
+	-- «СМОТАТЬ» над кнопкой действия: на большом тач-экране (планшет) кнопка прыжка выше —
+	-- тогда «пилюля» поднимается, чтобы между ними было COLUMN_GAP; поднятая, она встаёт рядом
+	-- с колонкой кнопок справа («ДОМОЙ») — и сужается, если до неё ближе COLUMN_GAP (левый край
+	-- не двигается: слева от него — карточка улова).
+	local stop = ui.stopButton
+	local rest = defaults.stopPosition
+	local restSize = defaults.stopSize
+	local stopSize =
+		Vector2.new(restSize.X.Scale * area.X + restSize.X.Offset, restSize.Y.Scale * area.Y + restSize.Y.Offset)
+	local stopRight = width - area.X + rest.X.Scale * area.X + rest.X.Offset + stopSize.X
+	local stopBottom = height - area.Y + rest.Y.Scale * area.Y + rest.Y.Offset
+	local lift = 0
+	if touch then
+		local jump = if small then JUMP_SMALL else JUMP_BIG
+		local jumpLeft = width - jump.right - jump.size
+		local jumpTop = height - jump.bottom - jump.size
+		if stopRight + COLUMN_GAP > jumpLeft and stopBottom + COLUMN_GAP > jumpTop then
+			lift = math.ceil(stopBottom + COLUMN_GAP - jumpTop)
+		end
+	end
+	local narrow = 0
+	local column = ui.hud:FindFirstChild("RightButtons")
+	if column and column:IsA("GuiObject") then
+		local box = boxSize(column, width, height)
+		local columnLeft = column.Position.X.Scale * width + column.Position.X.Offset - column.AnchorPoint.X * box.X
+		local columnBottom = column.Position.Y.Scale * height
+			+ column.Position.Y.Offset
+			+ (1 - column.AnchorPoint.Y) * box.Y
+		-- Лента подписи кнопок колонки шире самих кнопок.
+		local ribbonOut = 0
+		for _, item in column:GetChildren() do
+			local band = item:FindFirstChild("CaptionRibbon")
+			if item:IsA("GuiObject") and band and band:IsA("GuiObject") then
+				ribbonOut = math.max(ribbonOut, box.X * (band.Size.X.Scale - 1) / 2)
+			end
+		end
+		columnLeft -= ribbonOut
+		local stopTop = stopBottom - lift - stopSize.Y
+		if stopTop < columnBottom + COLUMN_GAP then
+			narrow = math.max(math.ceil(stopRight + COLUMN_GAP - columnLeft), 0)
+		end
+	end
+	assign(stop, "Position", UDim2.new(rest.X.Scale, rest.X.Offset, rest.Y.Scale, rest.Y.Offset - lift))
+	assign(stop, "Size", UDim2.new(restSize.X.Scale, restSize.X.Offset - narrow, restSize.Y.Scale, restSize.Y.Offset))
+end
+
 -- Подсказка въезжает снизу с пружиной, значок выскакивает (у предупреждения — ещё и качается).
 local function animateHint(kind: string)
 	local hint = ui.hint
@@ -491,17 +711,21 @@ local function animateHint(kind: string)
 	hint.Position = rest + UDim2.fromScale(0, 0.05)
 	UiFx.tween(hint, 0.42, { Position = rest }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 	UiFx.popIn(hint, { from = 0.7, time = 0.35 })
-	UiFx.popIn(ui.hintIcon, { from = 0, time = 0.4, delay = 0.08, rotate = -25 })
+	UiFx.popIn(ui.hintSocket, { from = 0, time = 0.4, delay = 0.08, rotate = -25 })
 	if kind == "warning" or kind == "danger" then
 		task.delay(0.45, function()
 			if hint.Visible then
-				UiFx.wiggle(ui.hintIcon, 16, 3, 0.45)
+				UiFx.wiggle(ui.hintSocket, 16, 3, 0.45)
 			end
 		end)
 	end
 end
 
+-- Пока на месте подсказки доигрывает копия мини-игры (промах), подсказка ждёт (os.clock()).
+local hintHeldUntil = 0
+
 -- Подсказка о событии (eventHint) важнее постоянной подсказки по месту (contextHint).
+-- Цвет «пилюли» — по виду: предупреждение — солнечная, опасность — ягодная, остальное — тёмная.
 local function renderHint(force: boolean?)
 	local hint = ui.hint
 	local text: string? = nil
@@ -511,14 +735,18 @@ local function renderHint(force: boolean?)
 	elseif contextHint then
 		text = contextHint
 	end
-	if not text then
+	if not text or os.clock() < hintHeldUntil then
 		hint.Visible = false
 		return
 	end
 	local changed = force == true or not hint.Visible or hint.Text ~= text
+	if not hint.Visible then
+		layoutColumn()
+	end
 	hint.Text = text
 	ui.hintLabel.Text = text
 	ui.hintIcon.Text = HINT_ICONS[kind] or HINT_ICONS.info
+	UiFx.setCandy(hint, HINT_TOKENS[kind] or "Night")
 	hint.Visible = true
 	if changed then
 		animateHint(kind)
@@ -537,6 +765,19 @@ local function showHint(text: string, kind: string)
 		eventHint = nil
 		renderHint()
 	end)
+end
+
+-- Убрать подсказку о событии сразу (поклёвка и мини-игра занимают её место в колонке).
+local function clearEventHint()
+	local thread = hintThread
+	hintThread = nil
+	if thread and thread ~= coroutine.running() and coroutine.status(thread) == "suspended" then
+		task.cancel(thread)
+	end
+	if eventHint then
+		eventHint = nil
+		renderHint()
+	end
 end
 
 local function setContextHint(text: string?)
@@ -604,6 +845,19 @@ end
 -- Кнопка действия и состояния рыбалки
 --------------------------------------------------------------------------------
 
+local TweenService = game:GetService("TweenService")
+
+-- Удочка в руке, леска не в воде, а до точки рыбалки своей базы далеко (тот же допуск, что у
+-- сервера): кнопка «К ПИРСУ» не забрасывает. Без базы — «ЗАБРОСИТЬ» (сервер объяснит отказ).
+local function isFar(): boolean
+	if not rod or phase ~= "Idle" then
+		return false
+	end
+	local root = rootPart()
+	local spot = ownFishingSpot()
+	return root ~= nil and spot ~= nil and not isNearSpot(root, spot)
+end
+
 local function currentLook(): Look
 	if not rod then
 		return TAKE_LOOK
@@ -611,8 +865,29 @@ local function currentLook(): Look
 		return WAIT_LOOK -- подсечка отправлена, ждём мини-игру
 	elseif phase == "Idle" and os.clock() < castReadyAt then
 		return WAIT_LOOK -- сервер ещё не примет заброс (CastCooldown)
+	elseif isFar() then
+		return FAR_LOOK
 	end
 	return LOOKS[phase]
+end
+
+local BREATHE_PEAK, BREATHE_PERIOD = 1.04, 1.6 -- «дыхание» главной кнопки в покое
+local WATER_DOTS = { "ЖДЁМ…", "ЖДЁМ.", "ЖДЁМ.." } -- бегущие точки ожидания (по 0.4 с)
+local WATER_DOTS_STEP = 0.4
+local BOBBER_BOB = 0.06 -- поплавок на кнопке качается на столько (доля кнопки) …
+local BOBBER_PERIOD = 1.2 -- … за столько секунд туда-обратно; так же часто — круг по воде
+
+-- Белые кольца от кнопки (ВЗЯТЬ, ЛОВИ!, такт поклёвки): тонкий чёткий контур, 1 → 1.3 —
+-- читается на дереве, воде и небе и не дотягивается до кнопки прыжка.
+local function whiteRings(interval: number): UiFx.Stop
+	return UiFx.glowRing(ui.actionButton, {
+		loop = true,
+		color = WHITE,
+		scale = 1.3,
+		thickness = 5,
+		time = 0.6,
+		interval = interval,
+	})
 end
 
 -- «Фон» вида кнопки: только таймеры и твины (без покадровых соединений).
@@ -622,22 +897,29 @@ local function startLookFx(look: Look)
 	local icon = ui.actionIcon
 	icon.Rotation = defaults.iconRotation
 	if look == CAST_LOOK then
+		-- Главная кнопка «дышит» и блестит; больше в покое на экране ничего не шевелится.
 		lookTrove:Add(UiFx.shineLoop(button, { interval = UIConfig.Fx.ShineInterval }))
-		every(lookTrove, 4.6, function()
-			if button.Visible then
-				UiFx.wiggle(icon, 12, 2, 0.5)
+		-- Вдох-выдох — один твин туда-обратно за такт; нажатие (свой твин масштаба) его прерывает,
+		-- а следующий такт начинается, только когда кнопка снова в покое.
+		local scale = UiFx.scaleOf(button)
+		local breathInfo = TweenInfo.new(BREATHE_PERIOD / 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, true)
+		local breath: Tween? = nil
+		every(lookTrove, BREATHE_PERIOD, function()
+			if button.Visible and math.abs(scale.Scale - 1) < 0.01 then
+				local created = TweenService:Create(scale, breathInfo, { Scale = BREATHE_PEAK })
+				created:Play()
+				breath = created
 			end
-		end, 2.2)
+		end, 0.8)
+		lookTrove:Add(function()
+			if breath and breath.PlaybackState == Enum.PlaybackState.Playing then
+				breath:Cancel()
+				scale.Scale = 1
+			end
+		end)
 	elseif look == TAKE_LOOK then
 		lookTrove:Add(UiFx.shineLoop(button, { interval = 2.4, delay = 0.6 }))
-		lookTrove:Add(UiFx.glowRing(button, {
-			loop = true,
-			filled = true,
-			color = Palette.Gold.Top,
-			scale = 1.45,
-			time = 0.9,
-			interval = 1.3,
-		}))
+		lookTrove:Add(whiteRings(1.0))
 		every(lookTrove, 2.6, function()
 			if button.Visible then
 				UiFx.wiggle(icon, 14, 3, 0.5)
@@ -663,17 +945,39 @@ local function startLookFx(look: Look)
 			end
 			icon.Rotation = defaults.iconRotation
 		end)
-	elseif look == REEL_LOOK then
-		lookTrove:Add(UiFx.glowRing(button, {
+	elseif look == WATER_LOOK then
+		-- Поплавок качается на «воде» кнопки, от него расходятся круги, точки бегут.
+		local bobber = ui.actionBobber
+		local rest = defaults.bobberPosition
+		bobber.Position = rest - UDim2.fromScale(0, BOBBER_BOB / 2)
+		local bob = TweenService:Create(
+			bobber,
+			TweenInfo.new(BOBBER_PERIOD / 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+			{ Position = rest + UDim2.fromScale(0, BOBBER_BOB / 2) }
+		)
+		bob:Play()
+		lookTrove:Add(function()
+			bob:Cancel()
+			bobber.Position = rest
+		end)
+		lookTrove:Add(UiFx.glowRing(bobber, {
 			loop = true,
-			color = Palette.Leaf.Top,
-			scale = 1.32,
-			thickness = 4,
-			time = 0.7,
-			interval = 1.1,
+			color = WHITE,
+			scale = 2.1,
+			thickness = 2.5,
+			time = 1,
+			interval = BOBBER_PERIOD,
 		}))
+		local step = 0
+		every(lookTrove, WATER_DOTS_STEP, function()
+			step = step % #WATER_DOTS + 1
+			ui.actionCaption.Text = WATER_DOTS[step]
+		end)
+	elseif look == REEL_LOOK then
+		lookTrove:Add(whiteRings(1.1))
 	end
-	-- BITE_LOOK: пульс и свечение — в actionPulseTrove (enterBite), до подсечки.
+	-- BITE_LOOK: пульс и кольца в такт — в actionPulseTrove (enterBite), до подсечки.
+	-- FAR_LOOK: спокойная серая кнопка (без блика и колец).
 end
 
 -- Перекрасить кнопку под вид; animate — кнопка выскакивает (смена состояния).
@@ -681,12 +985,16 @@ local function applyLook(look: Look, animate: boolean)
 	local button = ui.actionButton
 	UiFx.setCandy(button, look.Token)
 	ui.actionIcon.Text = look.Icon
+	-- «!» — знак текстом: белый → золотой с обводкой; эмодзи — как есть.
+	ui.actionOutline.Enabled = look.Glyph == true
+	ui.actionFill.Enabled = look.Glyph == true
+	ui.actionBobber.Visible = look.Bobber == true
 	ui.actionRing.Color = look.RingColor
 	ui.actionRing.Transparency = look.Ring
 	startLookFx(look)
 	if animate then
 		UiFx.popIn(button, { from = 0.8, time = 0.28 })
-		UiFx.popIn(ui.actionIcon, { from = 0.2, time = 0.34, delay = 0.04 })
+		UiFx.popIn(if look.Bobber then ui.actionBobber else ui.actionIcon, { from = 0.2, time = 0.34, delay = 0.04 })
 	end
 end
 
@@ -696,7 +1004,10 @@ local function refreshButtons()
 	local wasVisible = button.Visible
 	local visible = rod ~= nil or offerTake
 	button.Visible = visible
-	ui.actionCaption.Text = look.Caption .. (if look.Key then keyHint else "")
+	ui.actionCaption.Text = look.Caption
+	-- Клавиша действия (F / R2) — на «клавише» у плеча кнопки, когда действие ею доступно.
+	ui.keyChip.Visible = look.Key and keyHint ~= ""
+	ui.keyLabel.Text = keyHint
 	if look ~= shownLook then
 		local first = shownLook == nil
 		shownLook = look
@@ -719,7 +1030,9 @@ end
 
 -- Подсказка по месту: с удочкой, без рыбалки — «жми» у точки или «иди к кругу» + луч;
 -- без удочки в руке у точки рыбалки — «возьми удочку» (и кнопка «ВЗЯТЬ»); новичку,
--- который ещё ни разу не брал удочку, — где она и куда идти.
+-- который ещё ни разу не брал удочку, — куда идти. Ушёл от точки / вернулся — кнопка
+-- меняется между «ЗАБРОСИТЬ» и «К ПИРСУ».
+local shownFar = false
 local function refreshContextHint()
 	local text: string? = nil
 	local guideTo: BasePart? = nil
@@ -727,8 +1040,10 @@ local function refreshContextHint()
 	local spot = ownFishingSpot()
 	local near = root ~= nil and spot ~= nil and isNearSpot(root, spot)
 	local take = rod == nil and phase == "Idle" and near and isAlive() and backpackRod() ~= nil
-	if take ~= offerTake then
+	local far = isFar()
+	if take ~= offerTake or far ~= shownFar then
 		offerTake = take
+		shownFar = far
 		refreshButtons()
 	end
 	if not catchScreen then
@@ -747,6 +1062,26 @@ local function refreshContextHint()
 	end
 	setGuide(guideTo)
 	setContextHint(text)
+end
+
+-- «К ПИРСУ» нажата: вместо заброса — показать дорогу (подсказка выскакивает заново, луч к
+-- точке рыбалки на миг становится толще и ярче).
+local function pointToSpot()
+	showHint(HINT_FAR, "warning")
+	UiFx.wiggle(ui.actionIcon, 18, 3, 0.45)
+	UiFx.sound("tick", 0.35, 0.9)
+	local current = guide
+	if current and current.beam.Enabled then
+		local beam = current.beam
+		beam.Width0, beam.Width1 = 0.7, 2.2
+		beam.Transparency = NumberSequence.new(0.2, 0)
+		UiFx.tween(beam, 0.6, { Width0 = 0.3, Width1 = 0.8 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		task.delay(0.6, function()
+			if beam.Parent then
+				beam.Transparency = NumberSequence.new(0.55, 0.15)
+			end
+		end)
+	end
 end
 
 local function cancelPending()
@@ -2636,34 +2971,94 @@ end
 -- Поклёвка и мини-игра
 --------------------------------------------------------------------------------
 
+-- Поклёвка в одном такте: плашка и кнопка пульсируют вместе, кольцо от кнопки и край экрана —
+-- на каждый такт, знаки «!» качаются по очереди (каждый — раз в два такта). После
+-- BITE_HURRY окна такт ускоряется (пульс сильнее). Вспышки края экрана не чаще 3 раз в секунду.
+local BITE_BEAT = 0.45
+local BITE_FAST_BEAT = 0.3
+local BITE_HURRY = 0.65
+local BITE_EDGE = 0.2 -- толщина солнечных краёв экрана, доля высоты
+
 local function enterBite(window: number)
 	setPhase("Bite")
 	hookSent = false
+	clearEventHint() -- колонка внизу — для поклёвки
+	layoutColumn()
 	local alert = ui.biteAlert
+	alert.Position = defaults.alertPosition
 	alert.Visible = true
 
-	-- «КЛЮЁТ!» влетает ударом, солнечная вспышка, лучи позади.
-	UiFx.slam(alert, 2.3, 0.38)
+	-- «КЛЮЁТ!» влетает ударом (2.3 → 1 и лёгкая тряска — небольшая: плашка стоит у самой
+	-- панели предметов): солнечная вспышка, камера на миг «приближается», свист и звон.
+	local slam = UiFx.scaleOf(alert)
+	slam.Scale = 2.3
+	UiFx.tween(slam, 0.38, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+	later(phaseTrove, 0.21, function()
+		UiFx.shake(alert, 0.006, 0.22)
+	end)
 	UiFx.flash(ui.hud, Palette.Sun.Top, 0.22)
-	UiFx.sound("pop", 0.5)
+	UiFx.fovPunch(-4, 0.06, 0.25)
+	UiFx.sound("swoosh", 0.4, 1.4)
+	UiFx.sound("ping", 0.45, 1.8)
+	-- Спокойные лучи (не закрывают «!» над головой в мире) и солнечные края экрана в такт.
 	phaseTrove:Add(UiFx.rays(alert, {
 		colors = { Palette.Sun.Top, WHITE, Palette.Gold.Top },
 		count = 12,
-		speed = 45,
-		size = 3.4,
-		transparency = 0.22,
+		speed = 24,
+		size = 1.6,
+		transparency = 0.45,
+		halo = false,
+		breathe = false,
 	}))
-	later(phaseTrove, 0.42, function()
-		phaseTrove:Add(UiFx.pulse(alert, 1.06, 0.36))
+	-- Края экрана начинают светиться с первым тактом (после удара и вспышки — заливка на
+	-- телефоне не складывается).
+	local stopVignette: ((number?) -> ())? = nil
+	later(phaseTrove, BITE_BEAT, function()
+		stopVignette = UiFx.edgeVignette(
+			ui.hud,
+			{ Palette.Sun.Top, Palette.Sun.Bottom },
+			0.55,
+			BITE_BEAT,
+			{ fadeIn = 0.15, size = BITE_EDGE }
+		)
+	end)
+	phaseTrove:Add(function()
+		if stopVignette then
+			stopVignette()
+		end
+	end)
+
+	-- Такт: после удара плашка и кнопка пульсируют вместе; к концу окна — быстрее и сильнее.
+	local stopAlertPulse: UiFx.Stop? = nil
+	phaseTrove:Add(function()
+		if stopAlertPulse then
+			stopAlertPulse()
+		end
+	end)
+	local function pulseBoth(period: number, peak: number)
+		actionPulseTrove:Clean()
+		if stopAlertPulse then
+			stopAlertPulse()
+		end
+		stopAlertPulse = UiFx.pulse(alert, peak, period)
+		actionPulseTrove:Add(UiFx.pulse(ui.actionButton, peak + 0.04, period))
+		actionPulseTrove:Add(whiteRings(BITE_BEAT))
+	end
+	later(phaseTrove, BITE_BEAT, function()
+		if not hookSent then
+			pulseBoth(BITE_BEAT, 1.06)
+		end
+	end)
+	later(phaseTrove, math.max(window * BITE_HURRY, BITE_BEAT * 1.5), function()
+		if not hookSent then
+			pulseBoth(BITE_FAST_BEAT, 1.1)
+		end
 	end)
 	for index, icon in ui.biteIcons do
-		every(phaseTrove, 0.55, function()
-			UiFx.wiggle(icon, 18, 2, 0.4)
-		end, 0.1 + index * 0.14)
+		every(phaseTrove, BITE_BEAT * 2, function()
+			UiFx.wiggle(icon, 16, 2, 0.36)
+		end, BITE_BEAT * index)
 	end
-	every(phaseTrove, 0.9, function()
-		UiFx.wiggle(ui.biteLabel, 4, 2, 0.3)
-	end, 0.5)
 
 	-- Полоска времени тает (зелёная → жёлтая → красная).
 	local timer = ui.biteTimer
@@ -2675,16 +3070,8 @@ local function enterBite(window: number)
 		timer.BackgroundColor3 = defaults.biteTimerColor
 	end)
 
-	-- Кнопка зовёт: пульс, солнечное сияние, белый ореол (Ring — в виде BITE_LOOK).
-	actionPulseTrove:Add(UiFx.pulse(ui.actionButton, 1.1, 0.4))
-	actionPulseTrove:Add(UiFx.glowRing(ui.actionButton, {
-		loop = true,
-		filled = true,
-		color = Palette.Sun.Top,
-		scale = 1.6,
-		time = 0.55,
-		interval = 0.45,
-	}))
+	-- Кнопка зовёт с первого кадра: кольцо сразу (пульс — с первого такта).
+	actionPulseTrove:Add(whiteRings(BITE_BEAT))
 end
 
 -- Сервер прислал непонятное — подстраиваемся под атрибут FishingState (его ставит сервер).
@@ -2709,6 +3096,27 @@ local function startPending()
 	end)
 end
 
+-- Мини-игра: предсказанные попадания, 🐟 на зоне, подсказка новичку, обводка редкости.
+local NEEDLE_HOLD = 0.05 -- при попадании стрелка на миг «замирает» (только картинка)
+local CUE_MINIGAMES = 2 -- первые столько мини-игр за игру 👆 показывает на кнопку
+local RIDER_TILT = 12 -- 🐟 покачивается ±градусов …
+local RIDER_SWING = 0.3 -- … раз в столько секунд
+local PIPS_SHARE, PIPS_PAD = 0.3, 0.04 -- рамка кружков попаданий: доля ширины панели, зазор (доля рамки)
+local TIME_BAR_LEFT, PANEL_EDGE = 0.105, 0.955 -- полоска времени начинается тут; кружки кончаются тут
+local RARITY_RANK: { [string]: number } = { Common = 1, Rare = 2, Epic = 3, Legendary = 4, Mythic = 5 }
+-- Мифический заголовок — радуга без самых тёмных (синего и фиолетового) цветов: на тёмной
+-- панели они не читаются.
+local MYTHIC_TITLE = { table.unpack(UIConfig.Rainbow, 1, 5) }
+local AURA_EDGE = 0.16 -- толщина цветных краёв экрана в мини-игре, доля высоты
+
+local needleHoldUntil = 0
+local needleHoldAt = 0
+local predictedHit: number? = nil -- номер попадания, уже отыгранного по предсказанию (до "Zone")
+local minigamesShown = 0
+local cueOn = false
+local riderWiggle: Tween? = nil
+local auraEdge = false -- края экрана уже светятся цветом редкости (идеальное — без второй виньетки)
+
 local function refreshPips(mg: Minigame)
 	for index, pip in ui.pips do
 		local done = index <= mg.Hits
@@ -2716,52 +3124,256 @@ local function refreshPips(mg: Minigame)
 		pip.BackgroundColor3 = if done then COLORS.PipDone else defaults.pipColor
 		local star = pip:FindFirstChild("Star")
 		if star and star:IsA("TextLabel") then
-			star.TextTransparency = if done then 0 else 0.72
+			star.Text = if done then "⭐" else "★"
+			star.TextTransparency = if done then 0 else 0.55
 		end
+	end
+	-- Полоска времени тянется до кружков (их 1–5): без пустого места посередине.
+	local frame = ui.pipsFrame.AbsoluteSize
+	local count = math.clamp(mg.HitsNeeded, 1, #ui.pips)
+	local base = defaults.timeBarSize
+	if frame.X > 1 then
+		local used = PIPS_SHARE * (count * frame.Y / frame.X + (count - 1) * PIPS_PAD)
+		local width = math.clamp(PANEL_EDGE - used - 0.035 - TIME_BAR_LEFT, 0.2, base.X.Scale + PIPS_SHARE)
+		ui.timeBar.Size = UDim2.new(width, 0, base.Y.Scale, base.Y.Offset)
+	else
+		ui.timeBar.Size = base
 	end
 end
 
--- Каждый кадр: стрелка по общей формуле и полоска оставшегося времени.
+-- Центр кружка попадания index из count видимых, в долях панели (кружки прижаты вправо).
+local function pipPoint(index: number, count: number): Vector2
+	local panel = ui.minigame.AbsoluteSize
+	local frame = ui.pipsFrame.AbsoluteSize
+	if panel.X < 1 or frame.X < 1 then
+		return Vector2.new(PANEL_EDGE, 0.72)
+	end
+	local pip = frame.Y / panel.X -- кружок (квадрат по высоте рамки) в долях ширины панели
+	local pad = PIPS_PAD * frame.X / panel.X
+	local fromRight = count - index
+	local x = PANEL_EDGE - (fromRight + 0.5) * pip - fromRight * pad
+	return Vector2.new(x, 0.72)
+end
+
+-- Каждый кадр: стрелка по общей формуле, полоска оставшегося времени и 👆 новичку.
 local function updateMinigameFrame()
 	local mg = minigame
 	if not mg then
 		return
 	end
-	local elapsed = os.clock() - minigameStart
-	ui.needle.Position = UDim2.fromScale(FishingRules.Needle(mg.U0, mg.Speed, elapsed), defaults.needleY)
+	local now = os.clock()
+	local elapsed = now - minigameStart
+	local u = FishingRules.Needle(mg.U0, mg.Speed, elapsed)
+	ui.needle.Position = UDim2.fromScale(if now < needleHoldUntil then needleHoldAt else u, defaults.needleY)
 	local spent = math.clamp(elapsed / mg.Timeout, 0, 1)
 	ui.timeFill.Size = UDim2.fromScale(1 - spent, 1)
-	ui.timeFill.BackgroundColor3 = UiFx.sampleColors(TIME_COLORS, spent)
+	ui.timeFill.BackgroundColor3 = UiFx.sampleColors(UIConfig.Fishing.TimeBar, spent)
+	if cueOn then
+		ui.tapCue.Visible = predictedHit == nil and FishingRules.IsHit(u, mg.ZoneCenter, mg.ZoneWidth)
+	end
 end
 
--- Заголовок в цветах редкости (мифическая — бегущая радуга).
+-- Заголовок: белый сверху, цвет редкости снизу (мифическая — бегущая радуга).
 local function styleTitle(rarityId: string)
 	local style = UIConfig.Rarity[rarityId] or UIConfig.Rarity.Common
 	local fill = ui.titleFill
 	if style.Rainbow then
-		fill.Color = UiFx.sequence(UIConfig.Rainbow)
+		fill.Color = UiFx.sequence(MYTHIC_TITLE)
 		fill.Rotation = 0
-		phaseTrove:Add(UiFx.rainbow(fill, { speed = 0.5 }))
+		phaseTrove:Add(UiFx.rainbow(fill, { speed = 0.5, colors = MYTHIC_TITLE }))
 	else
-		-- Низ градиента чуть светлее: на тёмной панели буквы читаются целиком.
-		fill.Color = ColorSequence.new(style.Top, UiFx.lighten(style.Bottom, 0.3))
+		fill.Color = ColorSequence.new(WHITE, style.Top)
 		fill.Rotation = 90
 	end
 end
 
+local function startRiderWiggle()
+	local rider = ui.rider
+	if riderWiggle then
+		riderWiggle:Cancel()
+	end
+	rider.Rotation = -RIDER_TILT
+	local wiggle = TweenService:Create(
+		rider,
+		TweenInfo.new(RIDER_SWING, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Rotation = RIDER_TILT }
+	)
+	wiggle:Play()
+	riderWiggle = wiggle
+end
+
+local function stopRiderWiggle()
+	local wiggle = riderWiggle
+	riderWiggle = nil
+	if wiggle then
+		wiggle:Cancel()
+	end
+end
+
+-- 🐟 на зоне: стоит на её верхнем крае (над зоной, под стрелкой) и покачивается; у легендарной
+-- и мифической — светится кольцами.
+local function showRider(mg: Minigame)
+	local rider = ui.rider
+	rider.Position = UDim2.fromScale(mg.ZoneCenter, defaults.riderY)
+	rider.Visible = true
+	UiFx.popIn(rider, { from = 0, time = 0.35, delay = 0.15 })
+	startRiderWiggle()
+	if (RARITY_RANK[mg.Rarity] or 1) >= 4 then
+		local style = UIConfig.Rarity[mg.Rarity] or UIConfig.Rarity.Common
+		phaseTrove:Add(UiFx.glowRing(rider, {
+			loop = true,
+			color = if style.Rainbow then WHITE else style.Top,
+			scale = 1.9,
+			thickness = 2.5,
+			time = 0.7,
+			interval = 0.8,
+		}))
+	end
+	phaseTrove:Add(function()
+		stopRiderWiggle()
+		rider.Visible = false
+		rider.Rotation = 0
+		rider.Position = UDim2.fromScale(0.5, defaults.riderY)
+	end)
+end
+
+-- Зона прыгнула: 🐟 перелетает за ней дугой с кувырком, в конце — всплеск 💦.
+local function hopRider(to: number)
+	local rider = ui.rider
+	if not rider.Visible then
+		return
+	end
+	stopRiderWiggle()
+	local from = rider.Position.X.Scale
+	local y = defaults.riderY
+	local quad = Enum.EasingStyle.Quad
+	UiFx.tween(rider, 0.1, { Position = UDim2.fromScale((from + to) / 2, y - 0.9) }, quad, Enum.EasingDirection.Out)
+	UiFx.tween(rider, 0.2, { Rotation = rider.Rotation + 360 }, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+	later(phaseTrove, 0.1, function()
+		UiFx.tween(rider, 0.1, { Position = UDim2.fromScale(to, y) }, quad, Enum.EasingDirection.In)
+	end)
+	later(phaseTrove, 0.2, function()
+		startRiderWiggle()
+		UiFx.bump(rider, 1.25, 0.25)
+		UiFx.floatText(ui.track, "💦", {
+			position = UDim2.fromScale(to, -0.45),
+			size = UDim2.fromScale(0.1, 0.9),
+			rise = 0.5,
+			time = 0.45,
+			z = 5,
+		})
+	end)
+end
+
+-- Эпическая и выше: обводка панели в цвет редкости (легендарная — с золотым бликом по кругу,
+-- мифическая — вращающаяся радуга), лучи за панелью, края экрана «дышат» цветом редкости;
+-- легендарная и мифическая — ещё «удар» заголовка со вспышкой и стук сердца.
+local function minigameAura(mg: Minigame)
+	local rank = RARITY_RANK[mg.Rarity] or 1
+	if rank < 3 then
+		return
+	end
+	local style = UIConfig.Rarity[mg.Rarity] or UIConfig.Rarity.Common
+	local aura, fill = ui.aura, ui.auraFill
+	aura.Enabled = true
+	local loop: Tween? = nil
+	if style.Rainbow then
+		fill.Color = UiFx.sequence(UIConfig.Rainbow)
+		fill.Rotation = 0
+		loop = TweenService:Create(
+			fill,
+			TweenInfo.new(2, Enum.EasingStyle.Linear, Enum.EasingDirection.In, -1),
+			{ Rotation = 360 }
+		)
+	elseif rank >= 4 then
+		fill.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Palette.Gold.Bottom),
+			ColorSequenceKeypoint.new(0.4, Palette.Gold.Top),
+			ColorSequenceKeypoint.new(0.5, WHITE),
+			ColorSequenceKeypoint.new(0.6, Palette.Gold.Top),
+			ColorSequenceKeypoint.new(1, Palette.Gold.Bottom),
+		})
+		fill.Rotation = 0
+		fill.Offset = Vector2.new(-1, 0)
+		loop = TweenService:Create(
+			fill,
+			TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1),
+			{ Offset = Vector2.new(1, 0) }
+		)
+	else
+		fill.Color = ColorSequence.new(style.Top, style.Bottom)
+		fill.Rotation = 90
+	end
+	if loop then
+		loop:Play()
+	end
+	phaseTrove:Add(function()
+		if loop then
+			loop:Cancel()
+		end
+		aura.Enabled = false
+		fill.Rotation = 0
+		fill.Offset = Vector2.zero
+	end)
+	phaseTrove:Add(UiFx.rays(ui.minigame, {
+		colors = style.Rays,
+		count = 12,
+		size = 1.9,
+		transparency = 0.55,
+		speed = 30,
+		halo = false,
+		breathe = false,
+	}))
+	-- Узкие полосы (AURA_EDGE экрана): виньетка живёт всю мини-игру — бережём заливку на телефоне
+	-- (у легендарной и мифической — после вспышки входа, чтобы не сложились).
+	local edge: Color3 | { Color3 } = if style.Rainbow then { UIConfig.Rainbow[1], UIConfig.Rainbow[7] } else style.Top
+	local stopEdge: ((number?) -> ())? = nil
+	auraEdge = true
+	later(phaseTrove, if rank >= 4 then 0.35 else 0, function()
+		stopEdge = UiFx.edgeVignette(ui.hud, edge, 0.85, 0.9, { pulseTo = 0.65, fadeIn = 0.5, size = AURA_EDGE })
+	end)
+	phaseTrove:Add(function()
+		auraEdge = false
+		if stopEdge then
+			stopEdge()
+		end
+	end)
+	if rank >= 4 then
+		UiFx.slam(ui.title, 2.2, 0.35)
+		UiFx.flash(ui.hud, style.Top, 0.3, 0.7)
+		every(phaseTrove, 0.8, function()
+			UiFx.sound("splash", 0.2, 0.5)
+		end, 0.4)
+	end
+end
+
 local function showMinigame(mg: Minigame)
+	clearEventHint() -- колонка внизу — для мини-игры
+	layoutColumn()
+	minigamesShown += 1
+	cueOn = minigamesShown <= CUE_MINIGAMES
+	predictedHit = nil
+	needleHoldUntil = 0
 	local rarity = FishingRules.GetRarity(mg.Rarity)
 	ui.title.Text = `{upper(if rarity then rarity.Name else "Неизвестная")} РЫБА!`
 	styleTitle(mg.Rarity)
 	refreshPips(mg)
+	-- Зона по ширине с первого кадра такая, какой её проверяет сервер; «вырастает» по высоте.
 	ui.zone.Position = UDim2.fromScale(mg.ZoneCenter, 0.5)
-	ui.zone.Size = UDim2.fromScale(mg.ZoneWidth, defaults.zoneHeight)
+	ui.zone.Size = UDim2.fromScale(mg.ZoneWidth, 0)
+	UiFx.tween(
+		ui.zone,
+		0.3,
+		{ Size = UDim2.fromScale(mg.ZoneWidth, defaults.zoneHeight) },
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out,
+		0.08
+	)
 	ui.zoneFlash.BackgroundTransparency = 1
 	ui.minigame.Position = defaults.minigamePosition
 	updateMinigameFrame()
 	ui.minigame.Visible = true
 	UiFx.popIn(ui.minigame, { from = 0.6, time = 0.3 })
-	UiFx.popIn(ui.zone, { from = 0.3, time = 0.32, delay = 0.08 })
 	for index, pip in ui.pips do
 		if pip.Visible then
 			local star = pip:FindFirstChild("Star")
@@ -2772,14 +3384,53 @@ local function showMinigame(mg: Minigame)
 	end
 	phaseTrove:Connect(RunService.RenderStepped, updateMinigameFrame)
 
-	-- Шлейф стрелки: копии идут ПОД зоной (не закрывают её); зона мягко «дышит» свечением.
-	phaseTrove:Add(UiFx.trail(ui.needle, { count = 3, lag = 0.03, transparency = 0.6 }))
+	-- Шлейф стрелки: две голубые тени ПОД зоной (ни зону не закрывают, ни за стрелки не сойдут).
+	phaseTrove:Add(UiFx.trail(ui.needle, { count = 2, lag = 0.035, transparency = 0.75 }))
 	for _, item in ui.track:GetChildren() do
 		if item.Name == "FxGhost" and item:IsA("GuiObject") then
 			item.ZIndex = 2
+			item.BackgroundColor3 = Palette.Sky.Top
+			item.Size = UDim2.fromScale(ui.needle.Size.X.Scale, 0.9)
 		end
 	end
-	phaseTrove:Add(UiFx.pulse(ui.zoneGlow, 1.12, 0.9))
+	-- Свет под зоной «дышит» — только по высоте (по ширине зона не врёт).
+	local glow = ui.zoneGlow
+	local glowRest = defaults.glowSize
+	glow.Size = glowRest
+	local breathe = TweenService:Create(
+		glow,
+		TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Size = UDim2.new(glowRest.X.Scale, glowRest.X.Offset, glowRest.Y.Scale * 1.25, glowRest.Y.Offset) }
+	)
+	breathe:Play()
+	phaseTrove:Add(function()
+		breathe:Cancel()
+		glow.Size = glowRest
+	end)
+
+	showRider(mg)
+	-- Тач-экран: касание панели — тоже нажатие.
+	ui.tapPad.Visible = UserInputService.TouchEnabled
+	-- Новичку: 👆 «нажимает» кнопку, пока стрелка в зоне (видимость — каждый кадр).
+	local cue = ui.tapCue
+	if cueOn then
+		cue.Position = defaults.tapCuePosition
+		local bounce = TweenService:Create(
+			cue,
+			TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+			{ Position = defaults.tapCuePosition + UDim2.fromScale(0, 0.08) }
+		)
+		bounce:Play()
+		phaseTrove:Add(function()
+			bounce:Cancel()
+			cue.Position = defaults.tapCuePosition
+		end)
+	end
+	phaseTrove:Add(function()
+		ui.tapPad.Visible = false
+		cue.Visible = false
+	end)
+	minigameAura(mg)
 end
 
 -- Точка на полосе (доля 0..1) в долях панели мини-игры: центр по высоте полосы.
@@ -2787,16 +3438,134 @@ local function trackPoint(u: number): Vector2
 	return Vector2.new(defaults.trackLeft + u * defaults.trackWidth, defaults.trackMidY)
 end
 
--- Попадание: искры из зоны, надпись над панелью, зона выскакивает на новом месте, ⭐, кнопка.
-local function celebrateHit(mg: Minigame, oldCenter: number)
-	local hitNeedle, hitZone = tapNeedle, tapZone
-	local perfect = hitNeedle ~= nil
-		and hitZone ~= nil
-		and math.abs(hitNeedle - hitZone) <= mg.ZoneWidth * PERFECT_SHARE
-	local hit = if perfect then HIT_PERFECT elseif mg.Hits >= 2 then HIT_NEXT else HIT_FIRST
-	local origin = trackPoint(oldCenter)
+-- Слово попадания над зоной: выскакивает 0 → 1.3 → 1 и поднимается; «ИДЕАЛЬНО!» — «удар»
+-- 2 → 1 и белый блик по золотым буквам; «МЕГА!» — радуга вдоль букв.
+local function hitWord(word: HitWord, x: number, perfect: boolean)
+	local label = UiFx.floatText(ui.minigame, word.text, {
+		position = UDim2.fromScale(math.clamp(x, 0.36, 0.64), -0.14),
+		size = UDim2.fromScale(0.7, if perfect then 0.62 else 0.55),
+		colors = word.colors,
+		rise = 0.35,
+		time = 0.85,
+		rotate = if perfect then -4 else nil,
+		z = 8,
+	})
+	local gradient = label:FindFirstChild("TextFill")
+	local scale = label:FindFirstChildOfClass("UIScale")
+	if word.rainbow and gradient and gradient:IsA("UIGradient") then
+		gradient.Rotation = 0
+	end
+	if not scale then
+		return
+	end
+	if perfect then
+		scale.Scale = 2
+		UiFx.tween(scale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		if gradient and gradient:IsA("UIGradient") then
+			gradient.Rotation = 20
+			gradient.Offset = Vector2.new(-1, 0)
+			UiFx.tween(
+				gradient,
+				0.5,
+				{ Offset = Vector2.new(1, 0) },
+				Enum.EasingStyle.Quad,
+				Enum.EasingDirection.InOut,
+				0.15
+			)
+		end
+	else
+		scale.Scale = 0
+		UiFx.tween(scale, 0.12, { Scale = 1.3 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		task.delay(0.12, function()
+			if scale.Parent then
+				UiFx.tween(scale, 0.13, { Scale = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			end
+		end)
+	end
+end
 
-	-- Искры вылетают из-под полосы (ZIndex 3 < полосы): стрелку и зону не закрывают.
+-- «ИДЕАЛЬНО!»: 8 ⭐ разлетаются от зоны, панель на миг вспыхивает белым, края экрана —
+-- золотом, камера на миг «приближается».
+local function perfectBurst(origin: Vector2)
+	local panel = ui.minigame
+	local size = panel.AbsoluteSize
+	local aspect = if size.X > 1 then size.Y / size.X else 0.35
+	for index = 1, 8 do
+		local star = Instance.new("TextLabel")
+		star.Name = "FxStar"
+		star.BackgroundTransparency = 1
+		star.Text = "⭐"
+		star.TextScaled = true
+		star.AnchorPoint = Vector2.new(0.5, 0.5)
+		star.SizeConstraint = Enum.SizeConstraint.RelativeYY
+		local s = 0.12 + 0.025 * (index % 3)
+		star.Size = UDim2.fromScale(s, s)
+		star.Position = UDim2.fromScale(origin.X, origin.Y)
+		star.Rotation = (index * 37) % 50 - 25
+		star.ZIndex = 8
+		star.Parent = panel
+		local angle = math.rad(index * 45 + 20)
+		local reach = 0.62
+		local target = UDim2.fromScale(origin.X + math.cos(angle) * reach * aspect, origin.Y + math.sin(angle) * reach)
+		UiFx.tween(
+			star,
+			0.55,
+			{ Position = target, Rotation = star.Rotation + 140 },
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.Out
+		)
+		UiFx.tween(star, 0.25, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0.32)
+		task.delay(0.6, function()
+			star:Destroy()
+		end)
+	end
+	local flash = Instance.new("Frame")
+	flash.Name = "FxPanelFlash"
+	flash.BackgroundColor3 = WHITE
+	flash.BackgroundTransparency = 0.35
+	flash.BorderSizePixel = 0
+	flash.Size = UDim2.fromScale(1, 0.95)
+	flash.ZIndex = 7
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.2, 0)
+	corner.Parent = flash
+	flash.Parent = panel
+	UiFx.tween(flash, 0.12, { BackgroundTransparency = 1 })
+	task.delay(0.14, function()
+		flash:Destroy()
+	end)
+	if not auraEdge then
+		UiFx.edgeVignette(ui.hud, Palette.Gold.Top, 0.8, nil, { fadeIn = 0, hold = 0, size = AURA_EDGE })
+	end
+	UiFx.fovPunch(-3, 0.05, 0.15)
+end
+
+-- Удар попадания (сразу по нажатию — сервер судит по тому же t): стрелка на миг замирает и
+-- вспыхивает золотом, панель вздрагивает, зона вспыхивает, крупные искры над панелью, слово
+-- (от попадания к попаданию громче), звук всё выше, кнопка подпрыгивает.
+local function punchHit(mg: Minigame, index: number, perfect: boolean, tapU: number, zoneCenter: number)
+	local word = if perfect
+		then HIT_PERFECT
+		elseif index >= 3 then HIT_MEGA
+		elseif index == 2 then HIT_NEXT
+		else HIT_FIRST
+	local origin = trackPoint(zoneCenter)
+	needleHoldUntil = os.clock() + NEEDLE_HOLD
+	needleHoldAt = tapU
+	ui.needle.BackgroundColor3 = Palette.Gold.Top
+	UiFx.tween(ui.needle, 0.15, { BackgroundColor3 = WHITE })
+	UiFx.bump(ui.minigame, 1.06, 0.18)
+	if index == 2 and not perfect then
+		UiFx.shake(ui.minigame, 3 / math.max(ui.hud.AbsoluteSize.X, 1), 0.2) -- ±3 px
+	end
+	ui.zoneFlash.BackgroundTransparency = 0.2
+	UiFx.tween(ui.zoneFlash, 0.2, { BackgroundTransparency = 1 })
+	UiFx.glowRing(ui.zone, {
+		color = if perfect then Palette.Gold.Top else WHITE,
+		scale = if perfect then 1.8 else 1.5,
+		thickness = 3,
+		time = 0.45,
+	})
 	phaseTrove:Add(UiFx.burst(ui.minigame, {
 		origin = origin,
 		count = if perfect then 24 else 18,
@@ -2804,41 +3573,58 @@ local function celebrateHit(mg: Minigame, oldCenter: number)
 			then { WHITE, Palette.Gold.Top, Palette.Sun.Top, Palette.Berry.Top }
 			else { WHITE, Palette.Leaf.Top, Palette.Gold.Top },
 		power = if perfect then 1.7 else 1.4,
-		z = 3,
-	}))
-	UiFx.floatText(ui.minigame, hit.text, {
-		position = UDim2.fromScale(math.clamp(origin.X, 0.2, 0.8), -0.16),
-		size = UDim2.fromScale(if perfect then 0.5 else 0.42, 0.34),
-		colors = hit.colors,
-		rise = 0.22,
-		time = 0.85,
+		size = 2.4,
 		z = 8,
-	})
+	}))
+	hitWord(word, origin.X, perfect)
+	UiFx.sound("pop", if perfect then 0.6 else 0.5, if perfect then 1.25 else 1 + 0.15 * index)
+	UiFx.bump(ui.actionButton, 1.15, 0.3)
+	if perfect then
+		perfectBurst(origin)
+	end
+end
 
-	-- Зона выскакивает на новом месте и вспыхивает.
-	UiFx.popIn(ui.zone, { from = 0.35, time = 0.3 })
-	ui.zoneFlash.BackgroundTransparency = 0.05
-	UiFx.tween(ui.zoneFlash, 0.35, { BackgroundTransparency = 1 })
-	-- Кольцо от зоны (позади неё: ни зону, ни стрелку не закрывает); у идеального — золотое и шире.
-	UiFx.glowRing(ui.zone, {
-		color = if perfect then Palette.Gold.Top else Palette.Leaf.Top,
-		scale = if perfect then 1.8 else 1.5,
-		thickness = 3,
-		time = 0.45,
-	})
-
-	-- ⭐ «печатается» в кружке попадания, кнопка подпрыгивает.
+-- Ответ сервера на попадание ("Zone"): зона на новом месте «вырастает» по высоте, 🐟 прыгает
+-- за ней, ⭐ «печатается» в кружке попадания (от 2 до 1, с искрами). Если удар не был
+-- предсказан (нажатие не отсюда / зона уже ждала ответа) — он играется сейчас.
+local function celebrateHit(mg: Minigame, oldCenter: number, predicted: boolean)
+	if not predicted then
+		local perfect = tapNeedle ~= nil
+			and tapZone ~= nil
+			and math.abs(tapNeedle - tapZone) <= mg.ZoneWidth * PERFECT_SHARE
+		punchHit(mg, mg.Hits, perfect, tapNeedle or oldCenter, oldCenter)
+	end
+	ui.zone.Size = UDim2.fromScale(mg.ZoneWidth, defaults.zoneHeight * 0.3)
+	UiFx.tween(
+		ui.zone,
+		0.3,
+		{ Size = UDim2.fromScale(mg.ZoneWidth, defaults.zoneHeight) },
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	)
+	UiFx.glowRing(ui.zone, { color = Palette.Leaf.Top, scale = 1.4, thickness = 3, time = 0.4 })
+	hopRider(mg.ZoneCenter)
 	local pip = ui.pips[mg.Hits]
 	local star = pip and pip:FindFirstChild("Star")
 	if star and star:IsA("GuiObject") then
-		UiFx.stamp(star, -24, 0.3)
+		local scale = UiFx.scaleOf(star)
+		scale.Scale = 2
+		UiFx.tween(scale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		UiFx.wiggle(star, 20, 2, 0.35)
+		phaseTrove:Add(UiFx.burst(ui.minigame, {
+			origin = pipPoint(mg.Hits, math.clamp(mg.HitsNeeded, 1, #ui.pips)),
+			count = 6,
+			colors = { WHITE, Palette.Gold.Top, Palette.Leaf.Top },
+			power = 0.45,
+			time = 0.45,
+			z = 8,
+		}))
 	end
-	UiFx.bump(ui.actionButton, 1.2, 0.3)
-	UiFx.sound("pop", if perfect then 0.55 else 0.4)
+	UiFx.sound("tick", 0.3, 1.5)
 end
 
 -- Промах / время вышло: мини-игра закрывается сразу, а её копия ещё полсекунды краснеет,
--- качается и показывает надпись, потом сжимается и тает.
+-- качается и показывает надпись (🐟 уплывает за край), потом уходит вверх, сжимается и тает.
 local function missGhost(text: string)
 	local source = ui.minigame
 	if not source.Visible then
@@ -2846,6 +3632,20 @@ local function missGhost(text: string)
 	end
 	local ghost = source:Clone()
 	ghost.Name = "FxMinigameMiss"
+	ghost.Active = false
+	-- Копия не ловит касания и не тащит за собой эффекты живой панели (слова, искры, лучи).
+	local strip: { Instance } = {}
+	for _, item in ghost:GetDescendants() do
+		local name = item.Name
+		if name == "TapPad" or (string.sub(name, 1, 2) == "Fx" and name ~= "FxScale" and name ~= "FxGhost") then
+			table.insert(strip, item)
+		end
+	end
+	for _, item in strip do
+		if item.Parent then
+			item:Destroy()
+		end
+	end
 	ghost.Parent = source.Parent
 	local track = ghost:FindFirstChild("Track")
 	if track and track:IsA("GuiObject") then
@@ -2865,11 +3665,23 @@ local function missGhost(text: string)
 		if zone and zone:IsA("GuiObject") then
 			UiFx.setCandy(zone, "Berry")
 		end
+		local rider = track:FindFirstChild("Rider")
+		if rider and rider:IsA("TextLabel") and rider.Visible then
+			local quad, inDir = Enum.EasingStyle.Quad, Enum.EasingDirection.In
+			UiFx.tween(
+				rider,
+				0.3,
+				{ Position = UDim2.fromScale(1.12, rider.Position.Y.Scale), Rotation = 30 },
+				quad,
+				inDir
+			)
+			UiFx.tween(rider, 0.3, { TextTransparency = 1 }, quad, inDir)
+		end
 	end
 	UiFx.wiggle(ghost, 4, 3, 0.4)
 	UiFx.floatText(ghost, text, {
-		position = UDim2.fromScale(0.5, -0.16),
-		size = UDim2.fromScale(0.46, 0.36),
+		position = UDim2.fromScale(0.5, -0.14),
+		size = UDim2.fromScale(0.62, 0.5),
 		colors = { Palette.Berry.Top, Palette.Berry.Bottom },
 		rise = 0.2,
 		time = MISS_HOLD + 0.15,
@@ -2877,9 +3689,18 @@ local function missGhost(text: string)
 		z = 8,
 	})
 	UiFx.sound("tick", 0.4)
+	UiFx.sound("pop", 0.35, 0.6)
 	task.delay(MISS_HOLD, function()
-		UiFx.popOut(ghost, { time = 0.22, to = 0.6, destroy = true })
-		UiFx.fadeOut(ghost, 0.2)
+		if ghost.Parent == nil then
+			return
+		end
+		local quad, inDir = Enum.EasingStyle.Quad, Enum.EasingDirection.In
+		UiFx.tween(ghost, 0.25, { Position = ghost.Position - UDim2.fromScale(0, 0.05) }, quad, inDir)
+		UiFx.tween(UiFx.scaleOf(ghost), 0.25, { Scale = 0.6 }, quad, inDir)
+		UiFx.fadeOut(ghost, 0.25)
+		task.delay(0.27, function()
+			ghost:Destroy()
+		end)
 	end)
 end
 
@@ -2894,8 +3715,20 @@ local function tap(now: number)
 	lastTap = now
 	local mg = minigame
 	if mg then
-		tapNeedle = FishingRules.Needle(mg.U0, mg.Speed, now - minigameStart)
+		local u = FishingRules.Needle(mg.U0, mg.Speed, now - minigameStart)
+		tapNeedle = u
 		tapZone = mg.ZoneCenter
+		-- Попадание видно сразу: сервер судит по этому же t. Не предсказываем победное (это
+		-- начало карточки улова — onCaught) и пока ждём новую зону (сервер не засчитает старую);
+		-- промах решает сервер ("Lost" → копия мини-игры краснеет, даже после удара).
+		if
+			predictedHit == nil
+			and mg.Hits + 1 < mg.HitsNeeded
+			and FishingRules.IsHit(u, mg.ZoneCenter, mg.ZoneWidth)
+		then
+			predictedHit = mg.Hits + 1
+			punchHit(mg, mg.Hits + 1, math.abs(u - mg.ZoneCenter) <= mg.ZoneWidth * PERFECT_SHARE, u, mg.ZoneCenter)
+		end
 	end
 	Net.Event("FishingTap"):FireServer(now - minigameStart)
 end
@@ -2938,6 +3771,10 @@ local function doAction(fromButton: boolean?)
 		if now < castReadyAt then
 			return -- кулдаун заброса: кнопка тусклая, сервер всё равно откажет
 		end
+		if isFar() then
+			pointToSpot() -- «К ПИРСУ»: сервер всё равно откажет — показываем дорогу
+			return
+		end
 		Net.Event("FishingCast"):FireServer()
 		startPending()
 		UiFx.sound("swoosh", 0.35)
@@ -2973,9 +3810,58 @@ end
 -- Ответы сервера (FishingState)
 --------------------------------------------------------------------------------
 
+--[[
+	Ожидание поклёвки «живое»: 1–2 раза за ожидание рыба «пробует» наживку (только на этом
+	клиенте, через NIBBLE_FROM..NIBBLE_TO с после заброса — поклёвка не раньше BiteDelay.Min):
+	кнопка вздрагивает и качается, над ней всплывает «?», поплавок в мире притапливается
+	(FishingFxController.Nibble). Нажатия в это время по-прежнему ничего не отправляют.
+]]
+local NIBBLE_FROM, NIBBLE_TO = 0.8, 1.9
+local nibbleRandom = Random.new()
+local fishingFx: any = nil -- FishingFxController (берётся при первой «примерке»), false — нет
+
+local function nibbleWorld()
+	if fishingFx == nil then
+		local module = script.Parent and script.Parent:FindFirstChild("FishingFxController")
+		local ok, controller = pcall(function(): any
+			return if module and module:IsA("ModuleScript") then require(module) :: any else nil
+		end)
+		fishingFx = if ok and controller then controller else false
+	end
+	if fishingFx and type(fishingFx.Nibble) == "function" then
+		pcall(fishingFx.Nibble)
+	end
+end
+
+local function nibble()
+	local button = ui.actionButton
+	if phase ~= "Waiting" or not button.Visible then
+		return
+	end
+	-- Кнопка вздрагивает, поплавок на ней качается (качается не вся кнопка: справа кнопка прыжка).
+	UiFx.bump(button, 0.94, 0.3)
+	UiFx.wiggle(ui.actionBobber, 14, 2, 0.35)
+	-- «?» — над левым плечом кнопки: справа кнопка прыжка.
+	UiFx.floatText(button, "?", {
+		position = UDim2.fromScale(0.22, 0.1),
+		size = UDim2.fromScale(0.42, 0.42),
+		rise = 0.14,
+		time = 0.4,
+		rotate = -12,
+		z = 12,
+	})
+	UiFx.sound("tick", 0.25, 1.6)
+	nibbleWorld()
+end
+
 local function onWaiting(_data: { [string]: any })
 	hookSent = false
 	setPhase("Waiting")
+	local first = nibbleRandom:NextNumber(NIBBLE_FROM, NIBBLE_TO - 0.5)
+	later(phaseTrove, first, nibble)
+	if nibbleRandom:NextNumber() < 0.5 then
+		later(phaseTrove, math.min(first + nibbleRandom:NextNumber(0.35, 0.6), NIBBLE_TO), nibble)
+	end
 end
 
 local function onBite(data: { [string]: any })
@@ -3011,10 +3897,12 @@ local function onZone(data: { [string]: any })
 	local oldCenter = mg.ZoneCenter
 	mg.ZoneCenter = number(data.ZoneCenter, mg.ZoneCenter)
 	mg.Hits = number(data.Hits, mg.Hits + 1)
+	local predicted = predictedHit == mg.Hits -- удар уже сыгран по нажатию
+	predictedHit = nil
 	refreshPips(mg)
 	-- Зона прыгает сразу (без скольжения): где она нарисована, там её и проверяет сервер.
 	ui.zone.Position = UDim2.fromScale(mg.ZoneCenter, 0.5)
-	celebrateHit(mg, oldCenter)
+	celebrateHit(mg, oldCenter, predicted)
 end
 
 -- Конец рыбалки по слову сервера: его CastCooldown пошёл сейчас — и наш отсчёт заново
@@ -3043,12 +3931,22 @@ end
 
 local function onLost(data: { [string]: any })
 	local reason = if typeof(data.Reason) == "string" then data.Reason else ""
-	if phase == "Reeling" then
+	local ghost = phase == "Reeling" and ui.minigame.Visible
+	if ghost then
 		missGhost(if reason == "timeout" then "ВРЕМЯ!" else "МИМО!")
 	end
 	endSessionByServer()
 	local text = if typeof(data.Text) == "string" and data.Text ~= "" then data.Text else LOST_TEXT[reason]
-	showHint(text or "Рыба ушла", "warning")
+	if ghost then
+		-- Подсказка — когда копия мини-игры уходит (они стоят в одной колонке и не спорят).
+		hintHeldUntil = os.clock() + MISS_HOLD - 0.02
+		ui.hint.Visible = false
+		later(phaseTrove, MISS_HOLD, function()
+			showHint(text or "Рыба ушла", "warning")
+		end)
+	else
+		showHint(text or "Рыба ушла", "warning")
+	end
 end
 
 local function onIdle(data: { [string]: any })
@@ -3228,7 +4126,7 @@ local function collectUi(hud: ScreenGui): Ui
 		timeFill = child(child(mini, "TimeBar"), "Fill"),
 		hint = hint,
 		hintLabel = child(hint, "Label"),
-		hintIcon = child(hint, "Icon"),
+		hintIcon = child(child(hint, "IconSocket"), "Icon"),
 		dim = child(fishing, "CatchDim"),
 		rays = child(fishing, "CatchRays"),
 		card = card,
@@ -3269,6 +4167,22 @@ local function collectUi(hud: ScreenGui): Ui
 			child(child(fishing, "CatchDim"), "Left"),
 			child(child(fishing, "CatchDim"), "Right"),
 		},
+		-- UI v2, игра:
+		actionArea = area,
+		actionOutline = child(child(action, "Icon"), "Outline"),
+		actionFill = child(child(action, "Icon"), "TextFill"),
+		actionBobber = child(action, "Bobber"),
+		keyChip = child(action, "KeyChip"),
+		keyLabel = child(child(action, "KeyChip"), "Key"),
+		tapCue = child(action, "TapCue"),
+		stopCaption = child(child(area, "StopButton"), "Caption"),
+		aura = child(mini, "AuraStroke"),
+		auraFill = child(child(mini, "AuraStroke"), "AuraFill"),
+		rider = child(track, "Rider"),
+		timeBar = child(mini, "TimeBar"),
+		pipsFrame = pipsFolder,
+		tapPad = child(mini, "TapPad"),
+		hintSocket = child(hint, "IconSocket"),
 	}
 end
 
@@ -3289,15 +4203,26 @@ local function readDefaults(): Defaults
 		trackMidY = track.Position.Y.Scale + (0.5 - track.AnchorPoint.Y) * track.Size.Y.Scale,
 		namePosition = ui.nameLabel.Position,
 		mutationPosition = ui.mutationLabel.Position,
+		-- UI v2, игра:
+		alertPosition = ui.biteAlert.Position,
+		hintSize = ui.hint.Size,
+		riderY = ui.rider.Position.Y.Scale,
+		glowSize = ui.zoneGlow.Size,
+		timeBarSize = ui.timeBar.Size,
+		bobberPosition = ui.actionBobber.Position,
+		tapCuePosition = ui.tapCue.Position,
+		stopPosition = ui.stopButton.Position,
+		stopSize = ui.stopButton.Size,
+		minigameSize = ui.minigame.Size,
 	}
 end
 
--- Подсказка клавиши на кнопке: есть клавиатура — [F], геймпад — [R2] (на телефоне — ничего).
+-- Клавиша действия на «клавише» у кнопки: есть клавиатура — F, геймпад — R2 (на телефоне — нет).
 local function detectKeyHint(): string
 	if UserInputService.KeyboardEnabled then
-		return " [F]"
+		return "F"
 	elseif UserInputService.GamepadEnabled then
-		return " [R2]"
+		return "R2"
 	end
 	return ""
 end
@@ -3320,6 +4245,18 @@ function FishingController:Start(hud: ScreenGui)
 	ui.dim.Visible = false
 	ui.rays.Visible = false
 	ui.hint.Visible = false
+	ui.tapPad.Visible = false
+	ui.tapCue.Visible = false
+	ui.actionBobber.Visible = false
+	ui.keyChip.Visible = false
+
+	-- Центральная колонка — между джойстиком и кнопкой действия (и при смене размера экрана).
+	layoutColumn()
+	hud:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		if hud.AbsoluteSize ~= laidOutFor then
+			layoutColumn()
+		end
+	end)
 
 	-- Нажатие «сжимает» кнопки (связи живут, пока жив HUD — всю сессию).
 	UiFx.press(ui.actionButton, { sound = "click" })
@@ -3339,6 +4276,12 @@ function FishingController:Start(hud: ScreenGui)
 		end
 	end)
 	ui.stopButton.Activated:Connect(requestStop)
+	-- Тач-экран: касание панели мини-игры — то же, что касание «ЛОВИ!» (кнопка отзывается).
+	ui.tapPad.MouseButton1Down:Connect(function()
+		if phase == "Reeling" then
+			doAction(false)
+		end
+	end)
 	ui.card.Activated:Connect(tryCloseCard)
 	Net.Event("FishingState").OnClientEvent:Connect(onFishingState)
 

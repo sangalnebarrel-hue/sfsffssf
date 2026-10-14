@@ -393,10 +393,10 @@ end
 local scenarios = {
 	{
 		name = "spawn_base",
-		desc = "Base badge the moment the server assigns the base",
+		desc = "The base arrives: «ТВОЯ БАЗА» banner, then it flies into the badge (lands ≈2.4 s)",
 		fresh = true, -- run right after the player joins (no waiting for the base)
-		still = 1.2,
-		sheet = { from = 0, to = 1.2, fps = 15, roi = { "HUD.Status" }, margin = 0.05 },
+		still = { 0.6, 2.25, 2.9 },
+		sheet = { from = 0, to = 3.2, fps = 8, roi = { "HUD.Status", "HUD.BaseBanner" }, margin = 0.05 },
 		run = function(h: any)
 			h:waitFor(function()
 				local index = h.player:GetAttribute("BaseIndex")
@@ -424,7 +424,7 @@ local scenarios = {
 	},
 	{
 		name = "rod_far",
-		desc = "Rod in hand, far from the fishing spot",
+		desc = "Rod in hand, far from the fishing spot: «К ПИРСУ» 🧭 + hint + guide beam",
 		still = 0.8,
 		run = function(h: any)
 			h:giveRod()
@@ -477,8 +477,9 @@ local scenarios = {
 	},
 	{
 		name = "waiting",
-		desc = "Line in the water: «ЖДЁМ…» and «СМОТАТЬ»",
+		desc = "Line in the water: Water «ЖДЁМ…» with the bobbing bobber, ripples, dots, nibbles; «СМОТАТЬ»",
 		still = 1.5,
+		sheet = { from = 0, to = 2.4, fps = 10, roi = { "HUD.Fishing.ActionArea" }, margin = 0.06 },
 		run = function(h: any)
 			readyAtSpot(h)
 			h:serverSays("Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
@@ -486,7 +487,7 @@ local scenarios = {
 	},
 	{
 		name = "bite",
-		desc = "A bite: «КЛЮЁТ!» alert and «ПОДСЕЧЬ!»",
+		desc = "A bite: «КЛЮЁТ!» slam, «!» glyphs, Sun edges, one 0.45 s beat; «ПОДСЕЧЬ!»",
 		still = 0.35,
 		sheet = { from = 0, to = 1.2, fps = 15, roi = FISHING_ROI, margin = 0.04 },
 		run = function(h: any)
@@ -578,8 +579,8 @@ local scenarios = {
 	},
 	{
 		name = "miss",
-		desc = "A miss: the fish breaks free",
-		still = 0.25,
+		desc = "A miss: the ghost turns red with «МИМО!» (🐟 swims off), then the hint as it leaves",
+		still = { 0.25, 0.9 },
 		sheet = {
 			from = 0,
 			to = 1.2,
@@ -592,7 +593,7 @@ local scenarios = {
 			h:advance(0.3)
 			h:click("HUD.Fishing.ActionArea.ActionButton", true)
 			h:advance(0.05)
-			h:serverSays("Lost", { Reason = "miss", Text = "Мимо! Рыба сорвалась" })
+			h:serverSays("Lost", { Reason = "miss", Text = "Мимо! Рыба сорвалась с крючка" })
 		end,
 	},
 	{
@@ -615,7 +616,7 @@ local scenarios = {
 			h:advance(0.3)
 			h:serverSays("Bite", { Window = 1.8 })
 			h:advance(1.9)
-			h:serverSays("Lost", { Reason = "late", Text = "Поздно — рыба ушла" })
+			h:serverSays("Lost", { Reason = "late", Text = "Слишком поздно — рыба уплыла" })
 		end,
 	},
 	{
@@ -626,7 +627,7 @@ local scenarios = {
 			readyAtSpot(h)
 			h:click("HUD.Fishing.ActionArea.ActionButton")
 			h:advance(0.1)
-			h:serverSays("Denied", { Reason = "far", Text = "Подойди к краю своего пирса" })
+			h:serverSays("Denied", { Reason = "far", Text = "Встань в сверкающий круг" })
 		end,
 	},
 	-- Catch (UI v2, FUI-01…12): time 0 = the card is on screen; stills after its last beat.
@@ -651,7 +652,7 @@ local scenarios = {
 	},
 	{
 		name = "catch_rare",
-		desc = "Catch card: Rare (Фугу Пуфик)",
+		desc = "Catch card: Rare (Фугу-пуфик)",
 		still = 2.1,
 		run = function(h: any)
 			catchScenario(h, CATCHES.Rare)
@@ -676,7 +677,7 @@ local scenarios = {
 	},
 	{
 		name = "catch_mythic",
-		desc = "Catch card: Mythic (Рыба-Дракон) — the rainbow sunburst",
+		desc = "Catch card: Mythic (Рыба-дракон) — the rainbow sunburst",
 		still = 2.8,
 		sheet = { from = 0, to = 2.7, fps = 10, roi = {}, margin = 0 },
 		run = function(h: any)
@@ -685,7 +686,7 @@ local scenarios = {
 	},
 	{
 		name = "catch_gold",
-		desc = "Catch card: Gold mutation (Окунь Полосатик) — stamp, «×2», recount, gold rim",
+		desc = "Catch card: Gold mutation (Окунь-полосатик) — stamp, «×2», recount, gold rim",
 		still = 2.8,
 		run = function(h: any)
 			local perch = { Id = "Perch", Rarity = "Common", Kg = 1.23, Value = 18, Income = 1.8 }
@@ -694,7 +695,7 @@ local scenarios = {
 	},
 	{
 		name = "catch_neon",
-		desc = "Catch card: Neon mutation (Фугу Пуфик)",
+		desc = "Catch card: Neon mutation (Фугу-пуфик)",
 		still = 2.9,
 		run = function(h: any)
 			catchScenario(h, withMutation(CATCHES.Rare, "Neon", 3))
@@ -745,7 +746,7 @@ local scenarios = {
 		still = 0.6,
 		sheet = { from = 0, to = 0.8, fps = 15, roi = { "HUD.Toasts" }, margin = 0.05 },
 		run = function(h: any)
-			h:notify("Улов дня! Рыбак — «Рыба-Дракон» (Мифическая)", "success")
+			h:notify("Отличный улов!", "success")
 		end,
 	},
 	{
@@ -785,6 +786,79 @@ local scenarios = {
 		run = function(h: any)
 			h:standFar()
 			h:click("HUD.RightButtons.HomeButton")
+		end,
+	},
+	--------------------------------------------------------------------------------
+	-- UI v2, playing: the far-from-spot tap, the first-timer cue, the «МЕГА!» word, the
+	-- rare-catch broadcasts (the server's Notify kinds "Legendary" / "Mythic") and a long toast.
+	--------------------------------------------------------------------------------
+	{
+		name = "far_tap",
+		desc = "Tap «К ПИРСУ» far from the spot: no cast — the hint pops again, the guide beam flares",
+		still = 0.3,
+		sheet = {
+			from = 0,
+			to = 0.8,
+			fps = 15,
+			roi = { "HUD.Fishing.ActionArea", "HUD.Fishing.Hint" },
+			margin = 0.05,
+		},
+		run = function(h: any)
+			h:giveRod()
+			h:standFar()
+			h:equipRod()
+			h:advance(0.8)
+			h:click("HUD.Fishing.ActionArea.ActionButton")
+		end,
+	},
+	{
+		name = "minigame_cue",
+		desc = "A first-timer's minigame: the needle in the zone, 👆 taps «ЛОВИ!» (first 2 per session)",
+		still = 0.55,
+		run = function(h: any)
+			-- Common: the needle runs 0.05 → 0.49 by 0.55 s, inside the zone 0.35..0.65.
+			toMinigame(h, "Common", { ZoneCenter = 0.5, U0 = 0.05 })
+		end,
+	},
+	{
+		name = "hit_mega",
+		desc = "A third hit before the last one (a 4-hit payload): «МЕГА!» in rainbow",
+		still = 0.15,
+		run = function(h: any)
+			toMinigame(h, "Mythic", { ZoneCenter = 0.75, U0 = 0.3, Hits = 2, HitsNeeded = 4 })
+			h:advance(0.2)
+			h:click("HUD.Fishing.ActionArea.ActionButton", true)
+			h:advance(0.05)
+			h:serverSays("Zone", { ZoneCenter = 0.2, Hits = 3 })
+		end,
+	},
+	{
+		name = "toast_legendary",
+		desc = "Broadcast of someone's Legendary catch: the big Gold toast with 👑",
+		still = 0.7,
+		sheet = { from = 0, to = 0.9, fps = 15, roi = { "HUD.Toasts" }, margin = 0.05 },
+		run = function(h: any)
+			h:notify("КапитанКрюк: легендарная «Акулёнок»!", "Legendary")
+		end,
+	},
+	{
+		name = "toast_mythic",
+		desc = "Broadcast of someone's Mythic catch with a mutation: the rainbow toast with 👑",
+		still = 0.7,
+		sheet = { from = 0, to = 0.9, fps = 15, roi = { "HUD.Toasts" }, margin = 0.05 },
+		run = function(h: any)
+			h:notify("КапитанКрюк: мифическая «Рыба-дракон» ×2!", "Mythic")
+		end,
+	},
+	{
+		name = "toast_long",
+		desc = "A long toast: wraps to two lines, the pill grows taller",
+		still = 0.7,
+		run = function(h: any)
+			h:notify(
+				"Сервер перезапустится через минуту — успей поймать ещё одну рыбу!",
+				"info"
+			)
 		end,
 	},
 	{

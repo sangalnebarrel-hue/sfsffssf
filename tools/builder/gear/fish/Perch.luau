@@ -1,11 +1,11 @@
--- Окунь Полосатик (Common): a perky striped perch. The three dark stripes are body segments that
+-- Окунь-полосатик (Common): a perky striped perch. The three dark stripes are body segments that
 -- wrap all the way round; a chunky head with big eyes bulging above the head line and a dark jaw
 -- tucked under the snout; the red dorsal and lower fins overhang the body behind them so they
 -- read as swept back, and the tail is a broad red paddle.
 return {
 	id = "Perch",
 	kind = "fish",
-	title = "Окунь Полосатик",
+	title = "Окунь-полосатик",
 	rarity = "Common",
 	length = 10,
 	blocks = {

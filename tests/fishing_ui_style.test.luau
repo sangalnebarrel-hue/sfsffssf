@@ -225,8 +225,14 @@ tests["parts: the fishing widgets are candies with their decorations; text never
 	t.ok(isCandy(alert, Palette.Sun), "BiteAlert: Sun")
 	t.eq(alert.Label.Text, "КЛЮЁТ!")
 	t.ok(alert.Label:FindFirstChild("TextFill") and alert.Label:FindFirstChild("Outline"), "gradient, outlined title")
-	t.eq(alert.IconLeft.Text, "❗")
-	t.eq(alert.IconRight.Text, "❗")
+	-- UI v2 (FUI-08): «!» glyphs — white → gold text with an Ink outline, not the ❗ emoji.
+	for _, side in { alert.IconLeft, alert.IconRight } do
+		t.eq(side.Text, "!")
+		t.ok(
+			side:FindFirstChild("TextFill") and side:FindFirstChild("Outline"),
+			`{side.Name}: gradient, outlined glyph`
+		)
+	end
 	t.ok(alert.TimerTrack.ZIndex < alert.Timer.ZIndex, "the timer bar sits on its track")
 
 	local mini = f.Minigame
@@ -234,7 +240,7 @@ tests["parts: the fishing widgets are candies with their decorations; text never
 	t.ok(isCandy(mini, Palette.Night), "Minigame: a Night panel")
 	t.ok(mini.Title:FindFirstChild("TextFill") and mini.Title:FindFirstChild("Outline"), "rarity-gradient title")
 	for i = 1, 5 do
-		t.eq(mini.Pips[`Pip{i}`].Star.Text, "⭐", `Pip{i} has a star`)
+		t.eq(mini.Pips[`Pip{i}`].Star.Text, "★", `Pip{i} has a white star glyph (⭐ when stamped)`)
 	end
 	local track, zone, needle = mini.Track, mini.Track.Zone, mini.Track.Needle
 	checkCandy(t, zone, "Zone")
@@ -296,13 +302,20 @@ tests["action button: a look per state (Take, Cast, Wait, Bite, Reel), pop on ch
 	local rod = giveRod(sim, p)
 	standAtSpot(sim, p)
 
-	-- «ВЗЯТЬ»: Gold, the ring lit gold, glow rings call the player.
+	-- «ВЗЯТЬ»: Gold, the ring lit gold, white glow rings call the player (UI v2: a crisp white
+	-- ring every 1 s, 0.6 s long — sampled over a second).
 	t.eq(button.Visible, true)
 	t.eq(button.Caption.Text, "ВЗЯТЬ")
 	t.ok(isCandy(button, Palette.Gold), "«ВЗЯТЬ» is a Gold candy")
 	t.ok(button.Ring.Transparency < 0.5, "the ring is lit")
-	sim:Advance(1.4)
-	t.ok(count(button, "FxRing") > 0, "gold glow rings while «ВЗЯТЬ» waits")
+	local sawRing = false
+	for _ = 1, 12 do
+		sim:Advance(0.1)
+		if count(button, "FxRing") > 0 then
+			sawRing = true
+		end
+	end
+	t.ok(sawRing, "glow rings while «ВЗЯТЬ» waits")
 
 	-- «ЗАБРОСИТЬ»: Sky 🎣, the button pops in when the rod comes into the hand.
 	sim:EquipTool(p, rod)
@@ -314,25 +327,39 @@ tests["action button: a look per state (Take, Cast, Wait, Bite, Reel), pop on ch
 	sim:Advance(0.6)
 	t.near(button.FxScale.Scale, 1, 1e-3, "settles")
 
-	-- A tap: ripple + squash; «ЖДЁМ…»: Slate ⏳ that flips.
+	-- A tap: ripple + squash; «ЖДЁМ…» while the server answers: Slate ⏳ that flips.
 	sim:Click(p, button)
 	sim:Advance(0.05)
 	t.ok(count(button, "FxRing") > 0, "a ripple on the tap")
 	t.eq(button.Caption.Text, "ЖДЁМ…")
-	t.ok(isCandy(button, Palette.Slate), "Slate while waiting")
+	t.ok(isCandy(button, Palette.Slate), "Slate while the cast is pending")
 	t.eq(button.Icon.Text, "⏳")
-	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
 	local rest = button.Icon.Rotation
-	sim:Advance(1.4)
+	sim:Advance(0.8)
 	t.ok(math.abs(button.Icon.Rotation - rest) > 90, "the hourglass flips")
+	-- UI v2 (FUI-19): the line in the water — a Water candy with a bobbing bobber and running dots.
+	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
+	t.ok(isCandy(button, Palette.Water), "Water while waiting for a bite")
+	t.eq(button.Icon.Text, "", "the bobber replaces the emoji")
+	t.eq(button.Bobber.Visible, true, "a drawn bobber")
+	local bobY = button.Bobber.Position.Y.Scale
+	local captions = {}
+	for _ = 1, 14 do
+		sim:Advance(0.1)
+		captions[button.Caption.Text] = true
+	end
+	t.ok(math.abs(button.Bobber.Position.Y.Scale - bobY) > 1e-3, "the bobber bobs")
+	t.ok(captions["ЖДЁМ."] and captions["ЖДЁМ.."], "the dots run")
 	t.ok(fishing(p).ActionArea.StopButton.Visible, "«СМОТАТЬ» while the line is out")
 
-	-- «ПОДСЕЧЬ!»: Sun ❗, white halo, pulse and glow rings.
+	-- «ПОДСЕЧЬ!»: Sun with the «!» glyph, white halo, pulse and glow rings.
 	serverSays(sim, p, "Bite", { Window = 1.8 })
 	sim:Advance(0.5)
 	t.eq(button.Caption.Text, "ПОДСЕЧЬ!")
 	t.ok(isCandy(button, Palette.Sun), "Sun on the bite")
-	t.eq(button.Icon.Text, "❗")
+	t.eq(button.Icon.Text, "!")
+	t.ok(button.Icon.Outline.Enabled and button.Icon.TextFill.Enabled, "the «!» is an outlined white → gold glyph")
+	t.eq(button.Bobber.Visible, false)
 	t.ok(button.Ring.Transparency < 0.1, "white halo")
 	t.ok(count(button, "FxRing") > 0, "glow rings")
 	local scales = {}
@@ -343,15 +370,16 @@ tests["action button: a look per state (Take, Cast, Wait, Bite, Reel), pop on ch
 	t.ok(math.max(table.unpack(scales)) - math.min(table.unpack(scales)) > 0.02, "the button pulses")
 	t.near(button.Icon.Rotation, rest, 1e-3, "the hourglass is back at rest")
 
-	-- Hook: dims until the minigame; «ТЯНИ!»: Leaf 💪.
+	-- Hook: dims until the minigame; «ЛОВИ!»: Leaf 🎯 (UI v2 FUI-06: not «ТЯНИ!» 💪 — one tap, not mashing).
 	sim:Click(p, button)
 	sim:Advance(0.3)
 	t.ok(isCandy(button, Palette.Slate), "dim after the hook")
 	t.near(button.FxScale.Scale, 1, 1e-3, "the pulse stopped with the hook")
 	serverSays(sim, p, "Minigame", minigame("Common"))
-	t.eq(button.Caption.Text, "ТЯНИ!")
+	t.eq(button.Caption.Text, "ЛОВИ!")
 	t.ok(isCandy(button, Palette.Leaf), "Leaf while reeling")
-	t.eq(button.Icon.Text, "💪")
+	t.eq(button.Icon.Text, "🎯")
+	t.eq(button.Icon.Outline.Enabled, false, "an emoji again, no glyph outline")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -382,11 +410,11 @@ tests["bite alert: slams in with a Sun flash and rays, the timer drains green �
 	local wiggled = false
 	for _ = 1, 22 do
 		sim:Advance(0.05)
-		if math.abs(alert.IconLeft.Rotation + 14) > 2 or math.abs(alert.IconRight.Rotation - 14) > 2 then
+		if math.abs(alert.IconLeft.Rotation + 10) > 2 or math.abs(alert.IconRight.Rotation - 10) > 2 then
 			wiggled = true
 		end
 	end
-	t.ok(wiggled, "the ❗ wiggle")
+	t.ok(wiggled, "the «!» glyphs wiggle")
 	t.ok(timer.Size.X.Scale < full * 0.2, "the timer drained")
 	t.ok(timer.BackgroundColor3.R > timer.BackgroundColor3.G, "…and turned red")
 
@@ -419,17 +447,22 @@ tests["minigame: rarity title, needle trail under the zone, hit juice: ИДЕА�
 	-- A slow needle right at the zone centre: the first tap is perfect.
 	serverSays(sim, p, "Minigame", minigame("Legendary", { U0 = 0.5, Speed = 0.05, ZoneCenter = 0.5, HitsNeeded = 3 }))
 	t.eq(mini.Visible, true)
+	-- UI v2 (FUI-14): white → rarity colour, so the title reads on the dark panel.
 	local fill = mini.Title.TextFill
-	t.ok(colorNear(fill.Color.Keypoints[1].Value, UIConfig.Rarity.Legendary.Top), "Legendary gradient title")
+	local keys = fill.Color.Keypoints
+	t.ok(colorNear(keys[1].Value, roblox.Color3.new(1, 1, 1)), "white at the top of the title")
+	t.ok(colorNear(keys[#keys].Value, UIConfig.Rarity.Legendary.Top), "Legendary colour at the bottom")
 	sim:Advance(0.5) -- the pips and the zone have popped in
+	local zoneHeight = zone.Size.Y.Scale
 	local ghosts = 0
 	for _, c in track:GetChildren() do
 		if c.Name == "FxGhost" then
 			ghosts += 1
 			t.ok(c.ZIndex < zone.ZIndex, "the trail passes UNDER the zone")
+			t.ok(c.BackgroundTransparency >= 0.75 - 1e-6, "faint ghosts (never read as more needles)")
 		end
 	end
-	t.eq(ghosts, 3, "three ghost copies trail the needle")
+	t.eq(ghosts, 2, "two ghost copies trail the needle (UI v2 FUI-06)")
 	t.ok(needle.ZIndex > zone.ZIndex, "the needle over the zone")
 	t.eq(mini.Pips.Pip1.Star.TextTransparency > 0.5, true, "pips start as ghost stars")
 
@@ -441,8 +474,10 @@ tests["minigame: rarity title, needle trail under the zone, hit juice: ИДЕА�
 	t.ok(float.Position.Y.Scale < 0, "the float text is above the panel (never over the needle or zone)")
 	local burst = mini:FindFirstChild("FxBurst")
 	t.ok(burst, "sparks burst from the zone")
-	t.ok(burst.ZIndex < track.ZIndex, "…from behind the track")
-	t.ok(zone.FxScale.Scale < 1, "the zone pops in at its new place")
+	t.ok(burst.ZIndex > track.ZIndex, "…big, over the panel (UI v2 FUI-11)")
+	-- UI v2 (FUI-13): the zone pops in HEIGHT only — its width is what the server checks.
+	t.ok(zone.Size.Y.Scale < zoneHeight, "the zone pops in at its new place (height)")
+	t.near(zone.Size.X.Scale, 0.17, 1e-6, "…its width stays the server's from the first frame")
 	t.near(zone.Position.X.Scale, 0.15, 1e-6, "the zone jumped (no slide)")
 	t.ok(mini.Pips.Pip1.Star.FxScale.Scale > 1, "the star is stamped")
 	t.eq(mini.Pips.Pip1.Star.TextTransparency, 0)
@@ -450,7 +485,7 @@ tests["minigame: rarity title, needle trail under the zone, hit juice: ИДЕА�
 	sim:Advance(0.9)
 	t.eq(mini:FindFirstChild("FxFloat"), nil, "float gone")
 	t.eq(mini:FindFirstChild("FxBurst"), nil, "sparks gone")
-	t.near(zone.FxScale.Scale, 1, 1e-3)
+	t.near(zone.Size.Y.Scale, zoneHeight, 1e-3)
 
 	-- Second hit, away from the centre: «СУПЕР!».
 	pressF(sim, p)
@@ -460,7 +495,7 @@ tests["minigame: rarity title, needle trail under the zone, hit juice: ИДЕА�
 
 	-- A fresh minigame, a hit without a perfect tap: «ОТЛИЧНО!».
 	serverSays(sim, p, "Minigame", minigame("Epic"))
-	t.eq(count(mini, "FxGhost"), 3, "the old trail is gone, a new one follows the needle")
+	t.eq(count(mini, "FxGhost"), 2, "the old trail is gone, a new one follows the needle")
 	serverSays(sim, p, "Zone", { ZoneCenter = 0.2, Hits = 1 })
 	t.eq(mini.FxFloat.Text, "ОТЛИЧНО!", "the first hit")
 
@@ -491,12 +526,17 @@ tests["miss: the minigame closes at once, its ghost flashes red with «МИМО!
 	t.ok(ghost:FindFirstChild("FxFloat") and ghost.FxFloat.Text == "МИМО!", "«МИМО!»")
 	t.ok(ghost.Track:FindFirstChild("FxMissFlash"), "a red flash on the track")
 	t.ok(isCandy(ghost.Track.Zone, Palette.Berry), "the ghost's zone turns red")
+	t.eq(ghost:FindFirstChild("TapPad"), nil, "the ghost never takes taps")
+	t.eq(UiFx.activeJobs(), 0, "the ghost runs on timers only")
+	-- UI v2 (FUI-15): the hint shares the column with the minigame — it comes as the ghost leaves.
+	t.eq(f.Hint.Visible, false, "no hint over the ghost")
+	sim:Advance(0.6)
 	t.eq(f.Hint.Visible, true)
 	t.eq(f.Hint.Label.Text, "Мимо! Рыба сорвалась", "the hint shows the reason")
-	t.eq(f.Hint.Icon.Text, "⚠️", "a warning hint")
-	t.eq(UiFx.activeJobs(), 0, "the ghost runs on timers only")
+	t.eq(f.Hint.IconSocket.Icon.Text, "⚠️", "a warning hint")
+	t.ok(isCandy(f.Hint, Palette.Sun), "a warning is a Sun pill")
 
-	sim:Advance(1.2)
+	sim:Advance(0.6)
 	t.eq(f:FindFirstChild("FxMinigameMiss"), nil, "the ghost is gone")
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
 	t.eq(frameConnections(sim, p), idleFrames, "no frame connection left")
@@ -886,12 +926,14 @@ tests["hint: a Night pill with an icon by kind, slides up with a bounce"] = func
 	t.eq(hint.Visible, true)
 	t.eq(hint.Text, "Жми «Забросить»")
 	t.eq(hint.Label.Text, hint.Text, "the label shows the value")
-	t.eq(hint.Icon.Text, "💡", "info: 💡")
+	t.eq(hint.IconSocket.Icon.Text, "💡", "info: 💡 (in a white socket, like the toasts)")
+	t.ok(isCandy(hint, Palette.Night), "info: a Night pill")
 	local rest = hint.Position
 
 	serverSays(sim, p, "Denied", { Reason = "far", Text = "Подойди к краю своего пирса" })
 	t.eq(hint.Label.Text, "Подойди к краю своего пирса")
-	t.eq(hint.Icon.Text, "⚠️", "warning: ⚠️")
+	t.eq(hint.IconSocket.Icon.Text, "⚠️", "warning: ⚠️")
+	t.ok(isCandy(hint, Palette.Sun), "warning: a Sun pill")
 	t.ok(hint.Position.Y.Scale > rest.Y.Scale, "slides up from below")
 	t.ok(hint.FxScale.Scale < 1, "pops")
 	sim:Advance(0.6)
@@ -900,7 +942,8 @@ tests["hint: a Night pill with an icon by kind, slides up with a bounce"] = func
 
 	serverSays(sim, p, "Idle", { Reason = "stop" })
 	t.eq(hint.Label.Text, "Леска смотана")
-	t.eq(hint.Icon.Text, "💡", "info again")
+	t.eq(hint.IconSocket.Icon.Text, "💡", "info again")
+	t.ok(isCandy(hint, Palette.Night), "a Night pill again")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -925,6 +968,249 @@ tests["idle with the rod: only timers (shine, wiggle) — no frame effects, no c
 	t.eq(sim:CountConnections(p), idle, "no connection churn")
 	t.eq(frameConnections(sim, p), frames, "no frame connection")
 	t.eq(UiFx.activeJobs(), 0)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- UI v2, playing: key chip, «К ПИРСУ», predicted hits, rider, aura, tap pad, cue, nibbles
+--------------------------------------------------------------------------------
+
+tests["v2 parts: tiers on the playing widgets, key chip, «!» glyph slot, bobber, rider, ▼ head, ⏱, tap pad"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	local f = fishing(p)
+	local button = f.ActionArea.ActionButton
+	-- Type tiers (FND-03): the caption scale is the same on every screen; never under 12 px.
+	local tiers = {
+		[button.Caption] = "Button",
+		[f.ActionArea.StopButton.Caption] = "Button",
+		[f.Minigame.Title] = "Title",
+		[f.Minigame.Help] = "Body",
+		[f.Hint.Label] = "Body",
+		[button.KeyChip.Key] = "Small",
+	}
+	for label, tier in tiers do
+		t.eq(label:GetAttribute("TextTier"), tier, `{label:GetFullName()}: tier {tier}`)
+	end
+	for _, root in { f.ActionArea, f.BiteAlert, f.Minigame, f.Hint } do
+		for _, d in root:GetDescendants() do
+			local constraint = d:FindFirstChildOfClass("UITextSizeConstraint")
+			if d:IsA("TextLabel") and constraint then
+				t.ok(constraint.MinTextSize >= 12, `{d:GetFullName()}: min text {constraint.MinTextSize} ≥ 12`)
+			end
+		end
+	end
+	-- The key chip instead of a «[F]» suffix; the «!» glyph styling waits on the icon (off).
+	t.eq(button.KeyChip.Key.Text, "F")
+	t.eq(button.Icon.Outline.Enabled, false)
+	t.eq(button.Icon.TextFill.Enabled, false)
+	t.eq(button.TapCue.Text, "👆")
+	t.eq(button.TapCue.Visible, false)
+	t.eq(button.Bobber.Visible, false)
+	-- Minigame: the 🐟 rider under the needle, the ▼ head on the needle, ⏱ by the time bar.
+	local track = f.Minigame.Track
+	t.eq(track.Rider.Text, "🐟")
+	t.ok(
+		track.Rider.ZIndex > track.Zone.ZIndex and track.Rider.ZIndex < track.Needle.ZIndex,
+		"rider: over the zone, under the needle"
+	)
+	t.eq(track.Needle.Head.Text, "▼")
+	t.eq(f.Minigame.Clock.Text, "⏱")
+	t.ok(f.Minigame.TapPad:IsA("GuiButton") and f.Minigame.TapPad.BackgroundTransparency == 1, "a transparent tap pad")
+	t.eq(f.Minigame.AuraStroke.Enabled, false, "no rarity rim until an Epic+ minigame")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["far from the spot: «К ПИРСУ» 🧭 casts nothing — the hint pops and the beam flares"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	local rod = giveRod(sim, p)
+	sim:EquipTool(p, rod) -- at the spawn, far from the fishing spot
+	sim:Advance(0.5)
+	local f = fishing(p)
+	local button = f.ActionArea.ActionButton
+	t.eq(button.Caption.Text, "К ПИРСУ")
+	t.eq(button.Icon.Text, "🧭")
+	t.ok(isCandy(button, Palette.Slate), "a calm Slate button")
+	t.eq(button.KeyChip.Visible, false, "no key: the key does not cast here")
+	t.eq(f.Hint.Label.Text, "Встань в сверкающий круг")
+	local beam = sim:GetRoot(p):FindFirstChild("FishingGuide")
+	local width = beam.Width1
+	sim:Advance(0.4)
+	pressF(sim, p)
+	t.eq(#sim:ServerEventsFor(p, "FishingCast"), 0, "no cast far from the spot")
+	t.ok(beam.Width1 > width, "the guide beam flares")
+	t.ok(isCandy(f.Hint, Palette.Sun), "the hint pops again as a warning")
+	standAtSpot(sim, p)
+	t.eq(button.Caption.Text, "ЗАБРОСИТЬ", "at the spot: «ЗАБРОСИТЬ»")
+	t.eq(button.KeyChip.Visible, true, "the F key chip on a PC")
+	pressF(sim, p)
+	t.eq(#sim:ServerEventsFor(p, "FishingCast"), 1, "casts at the spot")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["predicted hit: the punch plays on the tap; the final hit is the catch's; a rejected hit ends in the miss ghost"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	ready(sim, p)
+	local mini = fishing(p).Minigame
+	-- A slow needle right in the zone, 2 hits needed: the first tap is a hit.
+	serverSays(sim, p, "Minigame", minigame("Common", { U0 = 0.6, Speed = 0.02, ZoneCenter = 0.62, HitsNeeded = 2 }))
+	sim:Advance(0.4)
+	pressF(sim, p)
+	t.eq(#sim:ServerEventsFor(p, "FishingTap"), 1)
+	local word = mini:FindFirstChild("FxFloat")
+	t.ok(word, "the word before the server answers")
+	t.eq(word.Text, "ИДЕАЛЬНО!", "at the zone centre: perfect")
+	t.ok(mini:FindFirstChild("FxBurst") and mini:FindFirstChild("FxStar"), "sparks and ⭐ fly")
+	t.near(mini.Track.Zone.Position.X.Scale, 0.62, 1e-6, "the zone waits for the server")
+	serverSays(sim, p, "Zone", { ZoneCenter = 0.2, Hits = 1 })
+	t.eq(count(mini, "FxFloat"), 1, "no second word when the server confirms")
+	t.near(mini.Track.Zone.Position.X.Scale, 0.2, 1e-6, "the zone jumps on the answer")
+	t.ok(mini.Pips.Pip1.Star.FxScale.Scale > 1, "the pip is stamped on the answer")
+	sim:Advance(1)
+
+	-- The last hit: no punch here (it starts the catch card — onCaught).
+	serverSays(
+		sim,
+		p,
+		"Minigame",
+		minigame("Common", { U0 = 0.6, Speed = 0.02, ZoneCenter = 0.62, Hits = 1, HitsNeeded = 2 })
+	)
+	sim:Advance(0.4)
+	pressF(sim, p)
+	t.eq(count(mini, "FxFloat"), 0, "the winning tap is not celebrated as a hit")
+	sim:Advance(0.5)
+
+	-- A predicted hit the server rejects: the miss ghost wins.
+	serverSays(sim, p, "Minigame", minigame("Rare", { U0 = 0.6, Speed = 0.02, ZoneCenter = 0.62, HitsNeeded = 2 }))
+	sim:Advance(0.4)
+	pressF(sim, p)
+	t.ok(mini:FindFirstChild("FxFloat"), "predicted")
+	serverSays(sim, p, "Lost", { Reason = "miss", Text = "" })
+	local ghost = fishing(p):FindFirstChild("FxMinigameMiss")
+	t.ok(ghost and ghost.FxFloat.Text == "МИМО!", "«МИМО!» overrides the prediction")
+	t.eq(count(ghost, "FxFloat"), 1, "the ghost carries no copy of the predicted word")
+	sim:Advance(1.5)
+	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["minigame rarity: 🐟 rides the zone and hops with it; Epic+ rim, rays and edges stop with the minigame"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	ready(sim, p)
+	local hud = p.PlayerGui.HUD
+	local mini = fishing(p).Minigame
+	local rider = mini.Track.Rider
+	local idleFrames = frameConnections(sim, p)
+
+	serverSays(sim, p, "Minigame", minigame("Rare", { ZoneCenter = 0.4 }))
+	sim:Advance(0.4)
+	t.eq(rider.Visible, true)
+	t.near(rider.Position.X.Scale, 0.4, 1e-6, "the rider sits on the zone")
+	t.eq(mini.AuraStroke.Enabled, false, "Rare: no rarity rim")
+	t.eq(mini:FindFirstChild("FxRays"), nil, "Rare: no rays")
+	serverSays(sim, p, "Zone", { ZoneCenter = 0.8, Hits = 1 })
+	sim:Advance(0.3)
+	t.near(rider.Position.X.Scale, 0.8, 1e-3, "the rider hopped to the new zone")
+
+	serverSays(sim, p, "Minigame", minigame("Legendary", { ZoneCenter = 0.3 }))
+	sim:Advance(0.6)
+	t.eq(mini.AuraStroke.Enabled, true, "Legendary: a gold rim")
+	t.ok(mini:FindFirstChild("FxRays"), "rays behind the panel")
+	t.eq(mini.FxRays.ZIndex, 0, "…behind the candy")
+	t.ok(hud:FindFirstChild("FxVignette"), "the screen edges glow")
+	serverSays(sim, p, "Lost", { Reason = "timeout", Text = "" })
+	t.eq(mini.AuraStroke.Enabled, false, "the rim goes with the minigame")
+	t.eq(rider.Visible, false)
+	sim:Advance(1.5)
+	t.eq(hud:FindFirstChild("FxVignette"), nil, "the edges faded away")
+	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
+	t.eq(frameConnections(sim, p), idleFrames, "no frame work left")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["touch: a tap on the minigame panel counts; 👆 shows a first-timer the button while the needle is in"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	ready(sim, p)
+	local mini = fishing(p).Minigame
+	local cue = fishing(p).ActionArea.ActionButton.TapCue
+	-- The needle runs 0.1 → 0.9 (speed 0.4): out of the zone, then in it.
+	serverSays(sim, p, "Minigame", minigame("Common", { U0 = 0.1, Speed = 0.4, ZoneCenter = 0.75 }))
+	t.eq(mini.TapPad.Visible, true, "the tap pad is on with a touch screen")
+	t.eq(cue.Visible, false, "no cue while the needle is out of the zone")
+	local shown = false
+	for _ = 1, 30 do
+		sim:Advance(0.05)
+		if cue.Visible then
+			shown = true
+			break
+		end
+	end
+	t.ok(shown, "👆 while the needle is in the zone")
+	sim:Click(p, mini.TapPad)
+	sim:Advance(0.05)
+	t.eq(#sim:ServerEventsFor(p, "FishingTap"), 1, "a panel tap is a tap")
+	serverSays(sim, p, "Lost", { Reason = "miss", Text = "" })
+	t.eq(mini.TapPad.Visible, false, "the pad goes with the minigame")
+	t.eq(cue.Visible, false)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["hint: hidden while the bite and the minigame are up (they share the column)"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	ready(sim, p)
+	local f = fishing(p)
+	serverSays(sim, p, "Denied", { Reason = "busy", Text = "Удочка уже заброшена" })
+	t.eq(f.Hint.Visible, true)
+	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
+	serverSays(sim, p, "Bite", { Window = 1.8 })
+	t.eq(f.Hint.Visible, false, "the bite takes the column")
+	t.eq(f.BiteAlert.Position.Y.Offset, f.Minigame.Position.Y.Offset, "one bottom line")
+	pressF(sim, p)
+	serverSays(sim, p, "Minigame", minigame("Common"))
+	t.eq(f.Hint.Visible, false, "the minigame takes the column")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["waiting: 1–2 nibbles twitch the button with «?» and send nothing"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	ready(sim, p)
+	local button = fishing(p).ActionArea.ActionButton
+	local idleConnections = sim:CountConnections(p)
+	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
+	local nibbles = 0
+	local seen = false
+	for _ = 1, 44 do
+		sim:Advance(0.05)
+		local q = button:FindFirstChild("FxFloat")
+		if q and q.Text == "?" then
+			if not seen then
+				nibbles += 1
+			end
+			seen = true
+		else
+			seen = false
+		end
+	end
+	t.ok(nibbles >= 1 and nibbles <= 2, `1–2 nibbles (saw {nibbles})`)
+	t.eq(#sim:ServerEventsFor(p, "FishingHook"), 0, "a nibble is not a bite")
+	t.eq(#sim:ServerEventsFor(p, "FishingTap"), 0)
+	serverSays(sim, p, "Idle", { Reason = "stop" })
+	sim:Advance(4)
+	t.eq(sim:CountConnections(p), idleConnections, "timers only")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -1092,8 +1378,8 @@ tests["layout: the fishing UI fits on phone, tablet and desktop without overlaps
 			{ "stop", "hint" },
 			{ "stop", "card" },
 			{ "stop", "button" },
-			{ "minigame", "hint" },
-			{ "alert", "hint" },
+			-- UI v2: the hint, the bite alert and the minigame share the column's bottom line and
+			-- never show together (see "hint: hidden while the bite and the minigame are up").
 		}
 		for _, pair in pairs do
 			local a, b = all[pair[1]], all[pair[2]]

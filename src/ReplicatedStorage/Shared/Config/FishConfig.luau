@@ -18,7 +18,7 @@ export type Rarity = {
 	Id: string,
 	Name: string, -- как показывать игроку: «Мифическая»
 	-- То же строчными: «мифическая» (string.lower в Luau не понимает кириллицу) — для фраз
-	-- вроде «Рыбак: мифическая «Рыба-Дракон»!» (объявление FishingService).
+	-- вроде «Рыбак: мифическая «Рыба-дракон»!» (объявление FishingService).
 	NameLower: string,
 	Weight: number, -- относительный шанс редкости
 	LuckPower: number, -- вес умножается на Luck ^ LuckPower (удочки лучше — редкие чаще)
@@ -46,7 +46,7 @@ export type Mutation = {
 
 local FishConfig = {
 	-- Шансы видов (вес редкости × доля вида): Карасик 35 %, Окунь 25 %, Фугу 25 %,
-	-- Меч-рыба 10 %, Акулёнок 4 %, Рыба-Дракон 1 % — с базовой удочкой.
+	-- Меч-рыба 10 %, Акулёнок 4 %, Рыба-дракон 1 % — с базовой удочкой.
 	Rarities = {
 		{
 			Id = "Common",
@@ -103,7 +103,7 @@ local FishConfig = {
 		},
 		{
 			Id = "Perch",
-			Name = "Окунь Полосатик",
+			Name = "Окунь-полосатик",
 			Rarity = "Common",
 			Weight = 25,
 			Value = 15,
@@ -113,7 +113,7 @@ local FishConfig = {
 		},
 		{
 			Id = "Puffer",
-			Name = "Фугу Пуфик",
+			Name = "Фугу-пуфик",
 			Rarity = "Rare",
 			Weight = 1,
 			Value = 45,
@@ -143,7 +143,7 @@ local FishConfig = {
 		},
 		{
 			Id = "DragonFish",
-			Name = "Рыба-Дракон",
+			Name = "Рыба-дракон",
 			Rarity = "Mythic",
 			Weight = 1,
 			Value = 1800,

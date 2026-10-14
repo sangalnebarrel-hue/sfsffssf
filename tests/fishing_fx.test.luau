@@ -611,7 +611,14 @@ tests["cast, waiting, bite, reeling: trail, landing rings, ripples, bouncing «!
 		landingRings += 1
 	end
 	t.eq(landingRings, 3, "three rings spread when the bobber lands")
-	local ring = next(rings)
+	-- The first (biggest) ring: the burst shrinks each next ring by 14 %, and `next` would pick
+	-- any of them (table order changes from run to run).
+	local ring = nil
+	for candidate in rings do
+		if ring == nil or candidate.Size.X > ring.Size.X then
+			ring = candidate
+		end
+	end
 	t.ok(ring.Ring:IsA("SurfaceGui") and ring.Ring.Outer.UIStroke ~= nil, "a ring: SurfaceGui with a stroke circle")
 	local lift = ring.Position.Y - fisher:GetAttribute("BobberTarget").Y
 	t.ok(lift > 0.2 and lift < 0.4, `on the water, above its small waves ({lift} above it)`)
@@ -947,6 +954,10 @@ tests["bobber: 1.7× bigger, waterline kept; the own one outlined with the big �
 	t.eq(theirs.Root.BiteAlert.AlwaysOnTop, false, "another player's «!» does not")
 
 	-- Nibble: only on the local player's own bobber, only while waiting, only on this client.
+	-- UI v2 (FUI-19): FishingController nibbles by itself 1–2 times within NIBBLE_TO (1.9 s)
+	-- of the cast; let those dips pass before measuring one of our own (the bite comes no
+	-- earlier than CastFlightTime + BiteDelay.Min = 3.2 s after the cast).
+	sim:Advance(1.1)
 	local function smallRings(fx: any): number
 		local count = 0
 		for _, instance in fx.GetEffects(fisher) do
@@ -1014,7 +1025,7 @@ tests["nameplate and mutation aura: Rare+ fish get a nameplate; a mutation recol
 	t.ok(bottom >= box.Position.Y + boxSize.Y / 2 - 0.05, "above the fish")
 	t.eq(plate.Plate.Rarity.Text, "РЕДКАЯ")
 	t.ok(plate.Plate.Rarity.Fill:IsA("UIGradient"), "the rarity word in rarity colours")
-	t.eq(plate.Plate.FishName.Text, "Фугу Пуфик")
+	t.eq(plate.Plate.FishName.Text, "Фугу-пуфик")
 	t.eq(plate.Plate.Mutation.Text, "👑 Золотая ×2")
 	t.eq(plate.Plate.Price.Text, `💰 {rules(sim).FormatCoins(fish.Value)}`)
 	sim:Advance(0.6)

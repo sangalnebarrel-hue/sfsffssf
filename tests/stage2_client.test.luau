@@ -82,8 +82,23 @@ local function giveRod(sim: any, player: any): any
 	return rod
 end
 
-local function equipRod(sim: any, player: any): any
+local function ownBase(sim: any, player: any): any
+	return sim.workspace.Bases:FindFirstChild(`Base_{player:GetAttribute("BaseIndex")}`)
+end
+
+local function standAtSpot(sim: any, player: any)
+	local spot = ownBase(sim, player).FishingSpot
+	sim:Teleport(player, spot.CFrame.Position + Vector3.new(0, 3, 0))
+	sim:Advance(0.3)
+end
+
+-- The rod in hand at the own fishing spot (far from it the button is «К ПИРСУ» and casts
+-- nothing — UI v2); `far` = equip it where the player stands.
+local function equipRod(sim: any, player: any, far: boolean?): any
 	local rod = giveRod(sim, player)
+	if not far then
+		standAtSpot(sim, player)
+	end
 	sim:EquipTool(player, rod)
 	sim:Advance(0.1)
 	return rod
@@ -97,6 +112,13 @@ end
 
 local function caption(sim: any, player: any): string
 	return gui(sim, player, "ActionArea.ActionButton.Caption").Text
+end
+
+-- The key on the button's key chip ("" = no chip shown). UI v2: «F» / «R2» on a key cap instead
+-- of a «[F]» suffix in the caption.
+local function keyChip(sim: any, player: any): string
+	local chip = gui(sim, player, "ActionArea.ActionButton.KeyChip")
+	return if chip.Visible then chip.Key.Text else ""
 end
 
 -- The harness counts as the server: fire FishingState to one client.
@@ -113,16 +135,6 @@ end
 local function pressF(sim: any, player: any)
 	sim:PressKey(player, Enum.KeyCode.F)
 	sim:Advance(0.02)
-end
-
-local function ownBase(sim: any, player: any): any
-	return sim.workspace.Bases:FindFirstChild(`Base_{player:GetAttribute("BaseIndex")}`)
-end
-
-local function standAtSpot(sim: any, player: any)
-	local spot = ownBase(sim, player).FishingSpot
-	sim:Teleport(player, spot.CFrame.Position + Vector3.new(0, 3, 0))
-	sim:Advance(0.3)
 end
 
 local function controller(sim: any, player: any, name: string): any
@@ -184,9 +196,17 @@ tests["action button: hidden without the rod, shown while it is equipped, key hi
 	sim:EquipTool(p, rod)
 	sim:Advance(0.1)
 	t.eq(button.Visible, true, "rod in hand")
-	t.eq(caption(sim, p), "ЗАБРОСИТЬ [F]")
+	-- UI v2 (FUI-16): far from the fishing spot the button shows the way instead of casting.
+	t.eq(caption(sim, p), "К ПИРСУ", "far from the spot")
+	t.eq(keyChip(sim, p), "", "no key chip: the key does not cast here")
+	t.ok(isCandy(button, UIConfig.Palette.Slate), "a calm Slate candy far from the spot")
+	standAtSpot(sim, p)
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ")
+	t.eq(keyChip(sim, p), "F", "the key chip on desktop")
 	t.ok(isCandy(button, UIConfig.Palette.Sky), "a Sky (blue) candy while Idle")
 	t.eq(gui(sim, p, "ActionArea.StopButton").Visible, false, "no line out")
+	sim:Teleport(p, ownBase(sim, p).SpawnPad.Position + Vector3.new(0, 5, 0))
+	sim:Advance(0.3)
 	sim:UnequipTools(p)
 	sim:Advance(0.1)
 	t.eq(button.Visible, false, "rod back in the Backpack")
@@ -202,7 +222,8 @@ tests["phone: the button is clickable, a tap casts once, ЖДЁМ… ignores tap
 	local button = gui(sim, p, "ActionArea.ActionButton")
 	local ok, why = sim:CanClick(p, button)
 	t.ok(ok, `ActionButton clickable on a phone: {why}`)
-	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "no key hint on touch screens")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ")
+	t.eq(keyChip(sim, p), "", "no key chip on touch screens")
 
 	local info = sim:Run(function()
 		return sim:Env(p).game:GetService("ContextActionService"):GetBoundActionInfo("FishingAction")
@@ -238,7 +259,7 @@ tests["states: captions, colours, Stop button; Hook is sent once from button, to
 	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = FishingConfig.CastFlightTime })
 	t.eq(caption(sim, p), "ЖДЁМ…")
 	t.eq(stop.Visible, true, "line is out")
-	t.ok(isCandy(button, UIConfig.Palette.Slate), "a dim Slate candy while waiting")
+	t.ok(isCandy(button, UIConfig.Palette.Water), "a Water candy while the line is in the water (UI v2)")
 	pressF(sim, p)
 	sim:ActivateTool(p)
 	sim:Advance(0.1)
@@ -246,7 +267,8 @@ tests["states: captions, colours, Stop button; Hook is sent once from button, to
 	t.eq(#sent(sim, p, "FishingHook"), 0, "no hook while waiting (only cheaters hook early)")
 
 	serverSays(sim, p, "Bite", { Window = 1.8 })
-	t.eq(caption(sim, p), "ПОДСЕЧЬ! [F]")
+	t.eq(caption(sim, p), "ПОДСЕЧЬ!")
+	t.eq(keyChip(sim, p), "F")
 	t.ok(isCandy(button, UIConfig.Palette.Sun), "a Sun (orange) candy on bite")
 	t.eq(alert.Visible, true, "bite alert")
 	local timer = alert.Timer
@@ -263,7 +285,8 @@ tests["states: captions, colours, Stop button; Hook is sent once from button, to
 	t.eq(#sent(sim, p, "FishingHook"), 1, "hook sent only once")
 
 	serverSays(sim, p, "Minigame", MINIGAME)
-	t.eq(caption(sim, p), "ТЯНИ! [F]")
+	t.eq(caption(sim, p), "ЛОВИ!")
+	t.eq(keyChip(sim, p), "F")
 	t.ok(isCandy(button, UIConfig.Palette.Leaf), "a Leaf (green) candy while reeling")
 	t.eq(alert.Visible, false, "bite alert gone")
 	t.eq(gui(sim, p, "Minigame").Visible, true)
@@ -279,15 +302,16 @@ tests["states: captions, colours, Stop button; Hook is sent once from button, to
 	serverSays(sim, p, "Idle", { Reason = "stop" })
 	t.eq(gui(sim, p, "Hint").Text, "Леска смотана")
 	sim:Advance(FishingConfig.CastCooldown)
-	t.eq(caption(sim, p), "ЗАБРОСИТЬ [F]", "back to «ЗАБРОСИТЬ» after CastCooldown")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "back to «ЗАБРОСИТЬ» after CastCooldown")
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["console: R2 does the action and the caption shows [R2]"] = function(t)
+tests["console: R2 does the action and the key chip shows R2"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "console")
 	equipRod(sim, p)
-	t.eq(caption(sim, p), "ЗАБРОСИТЬ [R2]")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ")
+	t.eq(keyChip(sim, p), "R2")
 	sim:PressKey(p, Enum.KeyCode.ButtonR2)
 	sim:Advance(0.05)
 	t.eq(#sent(sim, p, "FishingCast"), 1)
@@ -315,9 +339,10 @@ tests["minigame: title, pips, zone, needle and time bar follow the payload; taps
 	serverSays(sim, p, "Minigame", MINIGAME)
 	t.eq(mini.Visible, true)
 	t.eq(mini.Title.Text, "ЛЕГЕНДАРНАЯ РЫБА!")
+	local titleKeys = mini.Title.TextFill.Color.Keypoints
 	t.ok(
-		colorNear(mini.Title.TextFill.Color.Keypoints[1].Value, UIConfig.Rarity.Legendary.Top),
-		"title in the rarity gradient"
+		colorNear(titleKeys[#titleKeys].Value, UIConfig.Rarity.Legendary.Top),
+		"title in the rarity gradient (UI v2: white → rarity colour)"
 	)
 	t.eq(mini.Pips.Pip1.Visible, true)
 	t.eq(mini.Pips.Pip2.Visible, true)
@@ -358,12 +383,13 @@ tests["minigame: title, pips, zone, needle and time bar follow the payload; taps
 
 	serverSays(sim, p, "Lost", { Reason = "miss", Text = "Мимо! Рыба сорвалась" })
 	t.eq(mini.Visible, false, "minigame closed")
+	sim:Advance(0.6) -- UI v2: the hint comes as the miss ghost leaves (they share the column)
 	t.eq(gui(sim, p, "Hint").Text, "Мимо! Рыба сорвалась")
 	t.eq(gui(sim, p, "Hint").Visible, true)
 	t.eq(renderSteppedCount(sim, p), idleRender, "no RenderStepped while the minigame is hidden")
 	t.eq(caption(sim, p), "ЖДЁМ…", "dim during CastCooldown")
 	sim:Advance(FishingConfig.CastCooldown)
-	t.eq(caption(sim, p), "ЗАБРОСИТЬ [F]")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -434,7 +460,7 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	t.ok(card.FxScale.Scale < 1, "card pops in")
 	t.ok(isCandy(card.Banner, UIConfig.Rarity.Common), "banner in the rarity gradient")
 	t.eq(card.Banner.RarityLabel.Text, "ОБЫЧНАЯ")
-	t.eq(card.NameLabel.Text, "Окунь Полосатик")
+	t.eq(card.NameLabel.Text, "Окунь-полосатик")
 	t.eq(card.MutationLabel.Visible, true)
 	t.eq(card.MutationLabel.Text, "Золотая мутация ×2")
 	t.ok(isCandy(card.MutationLabel, UIConfig.Mutations.Gold), "mutation stamp in the Gold style")
@@ -470,7 +496,7 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	})
 	t.ok(waitCard(sim, p))
 	t.eq(card.Banner.RarityLabel.Text, "МИФИЧЕСКАЯ")
-	t.eq(card.NameLabel.Text, "Рыба-Дракон")
+	t.eq(card.NameLabel.Text, "Рыба-дракон")
 	t.eq(card.MutationLabel.Visible, false, "no mutation stamp without a mutation")
 	t.eq(card.InfoLabel.Text, "14 кг · цена 2400 💰")
 	t.eq(card.Viewport:FindFirstChildOfClass("Model").Name, "Normal")
@@ -509,10 +535,10 @@ tests["hints: far → guide beam to the own FishingSpot, near → «Жми», De
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	local hint = gui(sim, p, "Hint")
-	equipRod(sim, p)
+	equipRod(sim, p, true)
 	sim:Advance(0.3)
 	t.eq(hint.Visible, true)
-	t.eq(hint.Text, "Встань в сверкающий круг на своём пирсе")
+	t.eq(hint.Text, "Встань в сверкающий круг")
 	local root = sim:GetRoot(p)
 	local beam = root:FindFirstChild("FishingGuide")
 	t.ok(beam and beam:IsA("Beam"), "guide beam from the character")
@@ -537,7 +563,11 @@ tests["hints: far → guide beam to the own FishingSpot, near → «Жми», De
 	serverSays(sim, p, "Lost", { Reason = "late", Text = "Не успел подсечь!" })
 	t.eq(hint.Text, "Не успел подсечь!")
 	serverSays(sim, p, "Lost", { Reason = "timeout" })
-	t.eq(hint.Text, "Рыба устала ждать и уплыла", "default text when the server sends none")
+	t.eq(
+		hint.Text,
+		"Время вышло — рыба ушла",
+		"default text (shared with the server) when it sends none"
+	)
 	serverSays(sim, p, "Idle", { Reason = "moved" })
 	t.match(hint.Text, "далеко от края пирса")
 	serverSays(sim, p, "Idle", { Reason = "stop" })
@@ -554,7 +584,7 @@ tests["hints: far → guide beam to the own FishingSpot, near → «Жми», De
 	sim:Advance(0.3)
 	local inHand = p.Character:FindFirstChildOfClass("Tool")
 	t.ok(inHand and inHand:GetAttribute("RodId") == "RodBamboo", "the rod is in hand")
-	t.eq(caption(sim, p), "ЗАБРОСИТЬ [F]")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ")
 
 	-- Away from the spot without the rod in hand: no button, no hint.
 	sim:UnequipTools(p)
@@ -572,17 +602,15 @@ tests["newcomer: «where is the rod» hint until the rod is first taken"] = func
 	giveRod(sim, p)
 	sim:Advance(0.5)
 	t.eq(hint.Visible, true)
-	t.eq(
-		hint.Text,
-		"Удочка — в рюкзаке внизу экрана. Иди на край своего пирса!"
-	)
+	t.eq(hint.Text, "Иди на край своего пирса!")
 	t.eq(gui(sim, p, "ActionArea.ActionButton").Visible, false, "no button away from the spot")
 	standAtSpot(sim, p)
 	t.eq(hint.Text, "Возьми удочку — кнопка справа", "at the spot: take the rod")
 	t.eq(caption(sim, p), "ВЗЯТЬ")
 	sim:Click(p, gui(sim, p, "ActionArea.ActionButton"))
 	sim:Advance(0.3)
-	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "the rod is in hand (phone: no key hint)")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "the rod is in hand")
+	t.eq(keyChip(sim, p), "", "phone: no key chip")
 	t.eq(hint.Text, "Жми «Забросить»")
 	sim:AssertNoErrors({ warnings = true })
 end
@@ -623,12 +651,12 @@ tests["attribute safety net: FishingState back to Idle without an event resets t
 	p:SetAttribute("FishingState", "Waiting")
 	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, 0), FlightTime = 0.7 })
 	serverSays(sim, p, "Bite", { Window = 1.8 })
-	t.eq(caption(sim, p), "ПОДСЕЧЬ! [F]")
+	t.eq(caption(sim, p), "ПОДСЕЧЬ!")
 	p:SetAttribute("FishingState", "Idle")
 	sim:Advance(0.1)
 	t.eq(caption(sim, p), "ЖДЁМ…", "line in: dim during CastCooldown")
 	sim:Advance(FishingConfig.CastCooldown)
-	t.eq(caption(sim, p), "ЗАБРОСИТЬ [F]")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ")
 	t.eq(gui(sim, p, "BiteAlert").Visible, false)
 	sim:AssertNoErrors({ warnings = true })
 end
@@ -649,7 +677,8 @@ tests["unequip and respawn reset the fishing UI; no connections pile up"] = func
 	t.eq(gui(sim, p, "BiteAlert").Visible, true)
 	sim:UnequipTools(p)
 	sim:Advance(0.1)
-	t.eq(gui(sim, p, "ActionArea.ActionButton").Visible, false)
+	-- At the fishing spot without the rod in hand the button offers to take it again.
+	t.eq(caption(sim, p), "ВЗЯТЬ", "the fishing look is gone: «ВЗЯТЬ» at the spot")
 	t.eq(gui(sim, p, "ActionArea.StopButton").Visible, false)
 	t.eq(gui(sim, p, "BiteAlert").Visible, false, "bite alert closed on unequip")
 	local info = sim:Run(function()
@@ -663,7 +692,7 @@ tests["unequip and respawn reset the fishing UI; no connections pile up"] = func
 	sim:Advance(0.1)
 	t.eq(caption(sim, p), "ЖДЁМ…", "re-equipped within CastCooldown of the unequip")
 	sim:Advance(FishingConfig.CastCooldown)
-	t.eq(caption(sim, p), "ЗАБРОСИТЬ [F]", "fresh state after re-equip")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "fresh state after re-equip")
 	serverSays(sim, p, "Minigame", MINIGAME)
 	t.eq(gui(sim, p, "Minigame").Visible, true)
 
@@ -676,7 +705,7 @@ tests["unequip and respawn reset the fishing UI; no connections pile up"] = func
 	t.eq(gui(sim, p, "ActionArea.ActionButton").Visible, false, "no rod on the new character yet")
 	equipRod(sim, p)
 	sim:Advance(0.3)
-	t.eq(caption(sim, p), "ЗАБРОСИТЬ [F]")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ")
 	t.eq(gui(sim, p, "ActionArea.ActionButton").Visible, true)
 	t.eq(sim:CountConnections(p), equippedConnections, "same client connections as before the respawn")
 	pressF(sim, p)
@@ -762,7 +791,7 @@ end
 tests["bobber: a late joiner sees a bobber already on the water"] = function(t)
 	local sim = boot(t)
 	local fisher = addPlayer(sim, 1)
-	equipRod(sim, fisher)
+	equipRod(sim, fisher, true)
 	fisher:SetAttribute("BobberTarget", Vector3.new(10, 0, 10))
 	fisher:SetAttribute("CastTime", sim.workspace:GetServerTimeNow())
 	fisher:SetAttribute("FishingState", "Waiting")
@@ -783,7 +812,7 @@ tests["leaks: a leaving player's bobber and connections disappear from other cli
 	local baseline = sim:CountConnections(watcher)
 	local fisher = addPlayer(sim, 2)
 	local fx = controller(sim, watcher, "FishingFxController")
-	equipRod(sim, fisher)
+	equipRod(sim, fisher, true)
 	fisher:SetAttribute("BobberTarget", Vector3.new(0, 0, 30))
 	fisher:SetAttribute("CastTime", sim.workspace:GetServerTimeNow())
 	fisher:SetAttribute("FishingState", "Bite")

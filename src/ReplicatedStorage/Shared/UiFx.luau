@@ -1254,6 +1254,7 @@ export type BurstOptions = {
 	power: number?, -- дальность (1)
 	time: number?, -- 0.55 с
 	z: number?, -- ZIndex (40)
+	size: number?, -- множитель размера искр (1; попадание в мини-игре — крупнее)
 }
 
 -- Взрыв искр во все стороны (попадание в зону, награда): круглые точки разлетаются и гаснут.
@@ -1275,7 +1276,7 @@ function UiFx.burst(container: GuiBase2d, opts: BurstOptions?): Stop
 	for index = 1, count do
 		local angle = (index / count) * math.pi * 2 + rng:NextNumber(-0.25, 0.25)
 		local speed = unit * 0.55 * (o.power or 1) * rng:NextNumber(0.8, 1.3)
-		local size = unit * rng:NextNumber(0.011, 0.019)
+		local size = unit * rng:NextNumber(0.011, 0.019) * (o.size or 1)
 		local frame = Instance.new("Frame")
 		frame.Name = "Spark"
 		frame.AnchorPoint = Vector2.new(0.5, 0.5)
