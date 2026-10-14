@@ -445,7 +445,10 @@ function Fisher:look()
 	if (startsWith(self:caption(), CAPTION_CAST) or hud.card.Visible or lineIn) and not hud.minigame.Visible then
 		self.idleAt = self.idleAt or now
 		local eventHint = hud.hint.Visible and not CONTEXT_HINTS[hud.hint.Text]
-		if hud.card.Visible or eventHint or now - self.idleAt >= OUTCOME_WAIT then
+		-- A miss shows at once as the minigame's red copy («МИМО!» / «ВРЕМЯ!»); the reason hint
+		-- only follows after it (MISS_HOLD), when CastCooldown is nearly over.
+		local missGhost = hud.minigame.Parent:FindFirstChild("FxMinigameMiss") ~= nil
+		if hud.card.Visible or eventHint or missGhost or now - self.idleAt >= OUTCOME_WAIT then
 			self.stage = if hud.card.Visible then "caught" else "lost"
 			self.endedAt = now
 			self.endHint = if hud.hint.Visible then hud.hint.Text else nil
@@ -793,9 +796,8 @@ tests["(4) a deliberate miss: hint, back to Idle, a new cast works after the coo
 	local tap = missing.taps[1]
 	t.ok(math.abs(tap.needle - tap.zone) > tap.width / 2 + 0.1, "the tap was clearly outside")
 
-	-- The hint says why, the state is Idle on both sides, nothing was caught.
-	t.eq(hud.hint.Visible, true, "a hint shows")
-	t.ok(string.find(hud.hint.Text, "Мимо", 1, true) ~= nil, `the hint says it was a miss: «{hud.hint.Text}»`)
+	-- The miss plays on the minigame's copy; the state is Idle on both sides, nothing was caught.
+	t.ok(hud.minigame.Parent:FindFirstChild("FxMinigameMiss"), "«МИМО!» on the minigame's red copy")
 	t.eq(p:GetAttribute("FishingState"), "Idle", "server: Idle")
 	t.ok(
 		startsWith(hud.caption.Text, CAPTION_CAST) or hud.caption.Text == CAPTION_WAIT,
@@ -820,6 +822,10 @@ tests["(4) a deliberate miss: hint, back to Idle, a new cast works after the coo
 	t.eq(p:GetAttribute("FishingState"), "Idle", "server: still Idle")
 	sim:Advance(math.max(0, lostAt + FishingConfig.CastCooldown + 0.05 - sim:Time()))
 	t.eq(hud.caption.Text, CAPTION_CAST, "the button is back to «ЗАБРОСИТЬ»")
+	-- The copy has left by now: the hint says why.
+	sim:Advance(0.2)
+	t.eq(hud.hint.Visible, true, "a hint shows")
+	t.ok(string.find(hud.hint.Text, "Мимо", 1, true) ~= nil, `the hint says it was a miss: «{hud.hint.Text}»`)
 
 	-- After the cooldown a new cast works and can be played to a catch.
 	sim:Advance(math.max(0, lostAt + FishingConfig.CastCooldown + 0.05 - sim:Time()))
