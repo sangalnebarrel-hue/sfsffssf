@@ -50,7 +50,8 @@ local KIND_STYLE = {
 	seabed = { body = rgb(178, 212, 176), name = "Seabed" },
 	deep = { body = rgb(70, 160, 182), name = "DeepSeabed" },
 	stone = { cap = rgb(160, 172, 204), body = rgb(132, 144, 180), name = "Stone", strata = "Stone" },
-	snow = { cap = rgb(230, 236, 244), body = rgb(200, 214, 238), name = "Snow" }, -- one icy body, no bands
+	-- snow cap a touch below white: lit LEGO studs (art direction v5) must not clip
+	snow = { cap = rgb(222, 230, 242), body = rgb(200, 214, 238), name = "Snow" }, -- one icy body, no bands
 	grassRock = { body = rgb(132, 144, 180), name = "Mountainside", strata = "Mountainside" }, -- grass cap
 	redrock = { body = rgb(190, 108, 78), name = "RedRock", strata = "Redrock" }, -- ochre/grass cap
 	mesa = { body = rgb(204, 160, 112), name = "Sandstone", strata = "Sandstone" }, -- grass cap, warm cliff

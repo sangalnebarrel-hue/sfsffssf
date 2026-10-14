@@ -1,10 +1,10 @@
-# World v3 «Остров Рыбаков» (voxel atoll), art direction v4 — design contract
+# World v3 «Остров Рыбаков» (voxel atoll), art direction v5 (v4 + LEGO studs) — design contract
 
 This file is the contract every builder module follows. Numbers here are mirrored in
 `src/ReplicatedStorage/Shared/Config/MapConfig.luau` (v3); builders read them from the cfg
 argument and fall back to the values below.
 
-## 1. The look: rich, natural voxel island (art direction v4)
+## 1. The look: rich, natural voxel island (art direction v4) built from LEGO (v5)
 
 Target: the charm and readability of top Roblox simulators (*Grow a Garden*, *Steal a
 Brainrot*) — chunky blocks, clear shapes, sunny — but with a **calm, harmonious, natural
@@ -44,9 +44,39 @@ Rules:
 * **Grid sizes.** Prefer dimensions that are multiples of 1 stud (props) / 2 or 4 studs
   (buildings) / 8 studs (ground). Rotations: buildings/props facing any angle is fine, but a
   prop's own parts stay orthogonal to each other.
-* **Materials.** `SmoothPlastic` for almost everything. `Neon` for glowing accents (lamps,
-  signs' rims, siren, magic). `Glass` (Transparency 0.4–0.6) for aquariums/windows.
+* **Materials.** Builders make `SmoothPlastic` for almost everything. `Neon` for glowing accents
+  (lamps, signs' rims, siren, magic). `Glass` (Transparency 0.4–0.6) for aquariums/windows.
   `WoodPlanks`/`Brick`/`Cobblestone` textures are NOT used — colour carries the material.
+* **LEGO studs (art direction v5, like *Steal a Brainrot*).** One build post-pass,
+  `tools/builder/Studs.luau` (run by `tools/build.luau` on `Workspace.Map` and
+  `ServerStorage.BaseTemplate`, not on `Assets`), turns block parts into LEGO bricks with the
+  engine's own surfaces: **Plastic + `Studs` on the face pointing world-up, `Inlet` on the face
+  pointing down**, the four sides `Smooth` (surfaces render only on Plastic). No textures, no
+  extra parts or draw calls.
+  * **Studded:** opaque (Transparency ≤ 0.02) SmoothPlastic/Plastic `Part`s (Block shape, also
+    `SpawnLocation`) with an axis pointing straight up and an up face of at least 2 × 2 studs —
+    ground caps, lawns, sand, decks, floors, paths and paving (variant A), flat roof tops and
+    ridges, foliage tops, tables, benches and planters of 2 × 2 and up. A face under 6 studs on
+    both sides must be whole studs (± 0.1): small props get no cut studs.
+  * **Smooth:** walls and other vertical faces, wedges (LEGO slopes are smooth), cylinders and
+    balls, tilted parts, small props (< 2 studs, or fractional under 6), Neon, Glass, transparent
+    parts, water / foam / pools / clouds (by name), `Map.Sky`, `Map.Boundaries`,
+    `Ground.Underwater` (the seabed), `BaseSlots`, runtime FX parts, rods, bobbers and fish.
+  * **Builders' controls:** attribute `Studs = false` on a part or model = smooth (hard opt-out);
+    `Studs = true` = studded even with a water-like name (geometry rules still apply). Knobs in
+    Studs.luau: `PATHS_AS_TILES` (variant B: paving, avenues, plaza, bridges, walks stay smooth
+    LEGO tiles) and `FOLIAGE`.
+  * **Coplanar tops:** two overlapping up faces at one height with different stud grids (or studs
+    on flat) shimmer, so the post-pass moves one top 0.02 (the smaller up first; never a
+    gameplay part, never onto or past another layer; ~180 parts, 0.02–0.04) or, when there is
+    no room, makes that paving piece a flat SmoothPlastic tile. Builders keep layered decor
+    ≥ 0.02 apart as before; same-colour aligned grids may stay level.
+  * **Stud pitch is the engine's (1 stud)**; the grid is assumed to start at a face corner (the
+    previews do; to verify in Studio): whole-stud sizes and offsets keep neighbouring grids in
+    line, ring segments and fractional parts show a seam.
+  * **Runtime parts** (`src/`): `Instance.new("Part")` is Plastic with Studs on top by default —
+    every part made at runtime sets `Material` explicitly (FX: `SmoothPlastic`), checked by
+    `tests/studs.test.luau`.
 * **Colour.** See the v4 colour rules above: calm materials, small accents. Two or three
   shades of the same hue give the "voxel shading" (e.g. leaves: dark / mid / light blocks).
 * **Chunky + exaggerated.** Thick posts, big signs with big text, oversized fish statues,
@@ -62,6 +92,9 @@ Cobble/CobbleDark, RoofRed/RoofTerracotta/RoofBlue/RoofGreen/RoofSlate/RoofBrown
 (Leaf*, Pine*, Palm*, Mint*, BirchLeaf*, Blossom*, Autumn*), Rock*, Straw, Bark*. Accents (small
 parts only): Red, Orange, Yellow, Lime, Cyan, Blue, Purple, Pink, Gold, White, Cream, Navy, Iron.
 Lists: Flowers, BoatPaint, Festive. Light: Glow, LightColor, Flame*.
+
+Studs and colour: the stud pattern averages to the face colour (colourfulness of the views
+unchanged, 78–104); pale caps stay below white (snow cap 222,230,242) so lit studs do not clip.
 
 Lighting (build.luau): sunny 14:30 but NOT overexposed (user feedback «пересвеченная»):
 Brightness 1.7, ExposureCompensation -0.3, sun ColorShift_Top (236,220,196), soft fill (Ambient
@@ -168,6 +201,7 @@ lays its own floor/paths/borders on top (slab tops at y ≈ 0.2; nothing coplana
 | `tools/builder/Landmarks.luau` | map | `Map.Landmarks` — waterfall (stream, cliff stairs, lookout), windmill (tulip terraces, stairs, fence), giant tree, peaks |
 | `tools/builder/Coast.luau` | map | `Map.Lagoon`, `Map.Ocean` (islets, shipwreck, rock arch, whale, far sailboats), `Map.Sky` (clouds) |
 | `tools/builder/Nature.luau` | map | `Map.Nature` — groves by noise + visibility within the part budget left over by the others |
+| `tools/builder/Studs.luau` | core | LEGO studs post-pass over Map and BaseTemplate (`apply`, `resolveCoplanar`, `coplanarPairs`) |
 
 Builder conventions (unchanged): deterministic (no `math.random`, seeds only), anchored parts
 via `Util.part`, `CanTouch = false` by default, foliage/tiny details `CanCollide = false` and
@@ -190,7 +224,8 @@ with `KeepUpright = true` stay level.
 `lune run tools/build.luau <in> <out>` → `lune run tools/preview/export_parts.luau <out> parts.json`
 → `python3 tools/preview/render.py parts.json --out-dir DIR [--terrain water.bin] --zoom x,z,r,az`.
 Read the PNGs and judge them against section 1. Iterate until it looks like a polished
-simulator map, not a prototype.
+simulator map, not a prototype. The exporter writes stud surfaces (Plastic parts only) and the
+renderer draws them per pixel (`--no-studs` hides them).
 
 ## 5. VoxelWorld API (for Hub/Map decorators)
 

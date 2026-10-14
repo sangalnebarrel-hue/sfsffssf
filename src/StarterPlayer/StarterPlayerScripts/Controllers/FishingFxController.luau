@@ -465,6 +465,7 @@ local function quietPart(name: string, size: Vector3, cframe: CFrame): Part
 	part.CanQuery = false
 	part.CanTouch = false
 	part.CastShadow = false
+	part.Material = Enum.Material.SmoothPlastic -- без LEGO-шипов (их рисует только Plastic)
 	part.TopSurface = Enum.SurfaceType.Smooth
 	part.BottomSurface = Enum.SurfaceType.Smooth
 	part.Size = size

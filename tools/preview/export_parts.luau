@@ -299,6 +299,23 @@ local function addPart(part: any, cf: any, color: any, kind: string, path: strin
 			(entry :: any)[k] = v
 		end
 	end
+	-- Surfaces (studs/inlets) render only on Plastic in the engine: export them only there.
+	if part.Material.Name == "Plastic" and part.ClassName ~= "TrussPart" then
+		local surf = {}
+		local any = false
+		for _, face in { "Top", "Bottom", "Front", "Back", "Left", "Right" } do
+			local ok, st = pcall(function()
+				return part[face .. "Surface"]
+			end)
+			if ok and st and st.Name ~= "Smooth" and st.Name ~= "SmoothNoOutlines" then
+				surf[face] = st.Name
+				any = true
+			end
+		end
+		if any then
+			(entry :: any).surfaces = surf
+		end
+	end
 	table.insert(parts, entry)
 	stats[kind] += 1
 

@@ -45,7 +45,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PREVIEW = os.path.dirname(HERE)
 REPO = os.path.dirname(os.path.dirname(PREVIEW))
 CACHE = os.environ.get("GUI_PREVIEW_CACHE", os.path.join(HERE, ".cache"))
-VERSION = 3  # bump when the camera/avatar changes
+VERSION = 4  # bump when the camera/avatar or the export format changes (4: stud surfaces)
 INSET = 58
 
 # Camera: Roblox default third-person, focus on the head.

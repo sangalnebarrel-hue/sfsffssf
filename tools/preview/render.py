@@ -173,6 +173,66 @@ def _half_extents(shape, size):
 
 
 # --------------------------------------------------------------------------------------
+# LEGO studs (BasePart surfaces). The engine draws them only on Plastic parts, one stud per
+# 1x1 stud cell of the face, as a baked albedo multiplier (fixed light direction in face UV
+# space, not lit by the sun). The exporter writes `surfaces` only for Plastic parts.
+# --------------------------------------------------------------------------------------
+
+SURFACE_CODE = {"Studs": 1, "Inlet": 2, "Universal": 1}
+# Block faces in _block_mesh() order -> (Roblox NormalId, local U axis, local V axis)
+BLOCK_FACES = (("Left", 2, 1), ("Right", 2, 1), ("Bottom", 0, 2), ("Top", 0, 2), ("Front", 0, 1), ("Back", 0, 1))
+STUD_R = 0.30  # stud radius in cells (LEGO: 4.8 mm stud on an 8 mm pitch)
+STUD_BEVEL = 0.075  # width of the shaded rim
+STUD_LIGHT = np.array([-0.70710678, -0.70710678])  # baked light direction in face UV
+STUD_TOP = 1.035  # flat stud top
+STUD_RIM = 0.30  # +- on the rim (lit / shadow side)
+STUD_SHADOW = 0.84  # contact shadow beside the stud, away from the light
+INLET_FLOOR = 0.74
+STUD_FADE_PX = (1.5, 4.5)  # stud cell size (output px) where the pattern fades out / is full
+
+
+def _smooth(e0, e1, x):
+    t = np.clip((x - e0) / np.maximum(e1 - e0, 1e-6), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def stud_mult(u, v, kind, cell_px):
+    """Albedo multiplier (N,) for points at face coordinates u, v (studs from the face's min
+    corner) on studded (kind 1) or inlet (kind 2) faces; cell_px = size of one stud cell in
+    output pixels (pattern fades to its mean below STUD_FADE_PX, like mipmapping)."""
+    fu = u - np.floor(u) - 0.5
+    fv = v - np.floor(v) - 0.5
+    d = np.sqrt(fu * fu + fv * fv)
+    ca = (fu * STUD_LIGHT[0] + fv * STUD_LIGHT[1]) / np.maximum(d, 1e-6)
+    aa = np.clip(0.75 / np.maximum(cell_px * 2, 1e-3), 0.01, 0.2)  # edge softness (cells)
+    inside = 1 - _smooth(STUD_R - aa, STUD_R + aa, d)
+    rim = _smooth(STUD_R - STUD_BEVEL - aa, STUD_R - STUD_BEVEL + aa, d) * inside
+    # studs
+    sx, sy = fu - STUD_LIGHT[0] * 0.07, fv - STUD_LIGHT[1] * 0.07
+    sd = np.sqrt(sx * sx + sy * sy)
+    shadow = (1 - _smooth(STUD_R + 0.02 - aa, STUD_R + 0.02 + aa, sd)) * (1 - inside)
+    m_stud = 1 + (STUD_TOP - 1) * inside + STUD_RIM * ca * rim - (1 - STUD_SHADOW) * shadow
+    # inlets: dark hole, the wall facing the light source is lit (opposite side)
+    m_inlet = 1 + (INLET_FLOOR - 1) * inside - 0.6 * STUD_RIM * ca * rim
+    m = np.where(kind == 2, m_inlet, m_stud)
+    mean = np.where(kind == 2, INLET_MEAN, STUD_MEAN)
+    w = _smooth(STUD_FADE_PX[0], STUD_FADE_PX[1], cell_px)
+    return (mean + (m - mean) * w).astype(np.float32)
+
+
+def _pattern_mean(kind, n=256):
+    g = (np.arange(n) + 0.5) / n
+    u, v = np.meshgrid(g, g)
+    global STUD_MEAN, INLET_MEAN
+    STUD_MEAN = INLET_MEAN = 1.0
+    return float(stud_mult(u.ravel(), v.ravel(), np.full(n * n, kind), np.full(n * n, 100.0)).mean())
+
+
+STUD_MEAN = INLET_MEAN = 1.0
+STUD_MEAN, INLET_MEAN = _pattern_mean(1), _pattern_mean(2)
+
+
+# --------------------------------------------------------------------------------------
 # Scene: all faces of all parts as padded polygon arrays.
 # --------------------------------------------------------------------------------------
 
@@ -209,6 +269,13 @@ class Scene:
         unlit[water] = False
 
         polys, counts, normals, centroids, groups, owners = [], [], [], [], [], []
+        studs_list, uvs_list = [], []
+        surf = np.zeros((n, 6), np.int8)
+        for i, p in enumerate(parts):
+            s = p.get("surfaces")
+            if s:
+                for j, (face, _, _) in enumerate(BLOCK_FACES):
+                    surf[i, j] = SURFACE_CODE.get(s.get(face), 0)
         group_base = 0
         shape_of = np.array([p.get("shape", "Block") for p in parts])
         special = [s for s in MESHES if s != "Block"]
@@ -238,6 +305,17 @@ class Scene:
                 centroids.append(cen)
                 groups.append(group_base + np.arange(len(idx)) * ngroups + fg)
                 owners.append(idx)
+                if shape == "Block":
+                    _, ua, va = BLOCK_FACES[fg]
+                    studs_list.append(surf[idx, fg])
+                    U = rot[idx][:, :, ua]
+                    V = rot[idx][:, :, va]
+                    uo = -np.einsum("ni,ni->n", U, pos[idx]) + size[idx, ua] / 2
+                    vo = -np.einsum("ni,ni->n", V, pos[idx]) + size[idx, va] / 2
+                    uvs_list.append(np.concatenate([U, uo[:, None], V, vo[:, None]], 1))
+                else:
+                    studs_list.append(np.zeros(len(idx), np.int8))
+                    uvs_list.append(np.zeros((len(idx), 8)))
             group_base += len(idx) * ngroups
 
         if polys:
@@ -247,7 +325,11 @@ class Scene:
             self.centroid = np.concatenate(centroids)
             self.group = np.concatenate(groups).astype(np.int32)
             owner = np.concatenate(owners)
+            self.face_stud = np.concatenate(studs_list).astype(np.int8)
+            self.face_uv = np.concatenate(uvs_list)
         else:
+            self.face_stud = np.zeros(0, np.int8)
+            self.face_uv = np.zeros((0, 8))
             self.poly = np.zeros((0, MAX_POLY, 3))
             self.count = np.zeros(0, int)
             self.normal = np.zeros((0, 3))
@@ -719,6 +801,8 @@ def with_terrain(scene, mesh):
     )
     out.face_bias = np.concatenate([scene.face_bias, np.zeros(n)])
     out.face_water = np.concatenate([scene.face_water, mesh["water"]])
+    out.face_stud = np.concatenate([scene.face_stud, np.zeros(n, np.int8)])
+    out.face_uv = np.concatenate([scene.face_uv, np.zeros((n, 8))])
     return out
 
 
@@ -841,6 +925,31 @@ def render(scene: Scene, cam: Camera, outlines=True, face_filter=None):
     _depth_pass(raster, opaque, zbuf, fidx)
     img = _buffer("img", (H, W, 3), np.uint8)
     np.take(table, fidx, axis=0, out=img, mode="clip")
+    if STUDS_ON and hasattr(scene, "face_stud") and (scene.face_stud > 0).any():
+        stud_tab = np.concatenate([scene.face_stud, np.zeros(H, np.int8)])
+        for r0 in range(0, H, 256):
+            rows = fidx[r0 : r0 + 256]
+            sk = stud_tab[rows]
+            sm = sk > 0
+            if not sm.any():
+                continue
+            yy, xx = np.nonzero(sm)
+            fs = rows[sm]
+            d = zbuf[r0 : r0 + 256][sm].astype(np.float64) - scene.face_bias[fs]
+            P = (
+                cam.center[None, :]
+                + cam.r[None, :] * ((xx + 0.5 - W / 2) / s)[:, None]
+                - cam.u[None, :] * ((yy + r0 + 0.5 - H / 2) / s)[:, None]
+                + cam.f[None, :] * d[:, None]
+            )
+            uv = scene.face_uv[fs]
+            uu = (uv[:, 0:3] * P).sum(1) + uv[:, 3]
+            vv = (uv[:, 4:7] * P).sum(1) + uv[:, 7]
+            cos = np.abs(scene.normal[fs] @ cam.f)
+            cell_px = cam.scale * np.sqrt(np.maximum(cos, 1e-3))
+            m = stud_mult(uu, vv, sk[sm], cell_px)
+            sub = img[r0 : r0 + 256]
+            sub[sm] = (sub[sm] * m[:, None]).clip(0, 255).astype(np.uint8)
 
     # Outlines where the visible smoothing group changes (background = -1).
     if outlines:
@@ -1018,6 +1127,7 @@ class _Rasterizer:
 # Colour grading of the place (its ColorCorrectionEffect, exported by export_parts.luau), applied
 # to every rendered image so previews show the colours Studio shows. None = no grading.
 GRADE = None
+STUDS_ON = True  # draw stud/inlet surfaces (--no-studs turns them off)
 
 
 def apply_grade(im, grade):
@@ -1253,6 +1363,10 @@ def render_persp(scene, cam: PerspCamera, outlines=True, fog=(FOG_START, FOG_END
 
     # Shade in row chunks: sky, face colour, outlines, transparent layer, fog.
     table = scene.face_rgb[faces].astype(np.float32)
+    stud = scene.face_stud[faces] if hasattr(scene, "face_stud") else np.zeros(len(faces), np.int8)
+    stud_any = bool(STUDS_ON and (stud > 0).any())
+    uvm = scene.face_uv[faces] if stud_any else None
+    nrm = scene.normal[faces] if stud_any else None
     water = scene.face_water[faces] if hasattr(scene, "face_water") else np.zeros(len(faces), bool)
     X = ((np.arange(W, dtype=np.float32) + 0.5) - W / 2) / fp
     Yall = (H / 2 - (np.arange(H, dtype=np.float32) + 0.5)) / fp
@@ -1267,6 +1381,25 @@ def render_persp(scene, cam: PerspCamera, outlines=True, fog=(FOG_START, FOG_END
         hit = f_ >= 0
         col = sky.copy()
         col[hit] = table[f_[hit]]
+        if stud_any:
+            fh = f_[hit]
+            sk = stud[fh]
+            sm = sk > 0
+            if sm.any():
+                fs = fh[sm]
+                gx = np.broadcast_to(X[None, :], hit.shape)[hit][sm].astype(np.float64)
+                gy = np.broadcast_to(Y, hit.shape)[hit][sm].astype(np.float64)
+                t = -1.0 / zbuf[r0:r1][hit][sm].astype(np.float64)
+                ray = cam.f[None, :] + gx[:, None] * cam.r[None, :] + gy[:, None] * cam.u[None, :]
+                P = cam.eye[None, :] + t[:, None] * ray
+                uu = (uvm[fs, 0:3] * P).sum(1) + uvm[fs, 3]
+                vv = (uvm[fs, 4:7] * P).sum(1) + uvm[fs, 7]
+                rl = np.linalg.norm(ray, axis=1)
+                cos = np.abs((nrm[fs] * ray).sum(1)) / rl
+                cell_px = fp * np.sqrt(np.maximum(cos, 1e-3)) / (t * rl * ss)
+                sub = col[hit]
+                sub[sm] *= stud_mult(uu, vv, sk[sm], cell_px)[:, None]
+                col[hit] = sub
         dist = np.full(hit.shape, np.inf, np.float32)
         dist[hit] = -norm[hit] / zbuf[r0:r1][hit]
         if outlines:
@@ -1954,6 +2087,7 @@ def main(argv=None):
                     help="zoom: hide parts farther than radius*FACTOR from the centre (0 = off)")
     ap.add_argument("--no-outlines", action="store_true")
     ap.add_argument("--no-labels", action="store_true")
+    ap.add_argument("--no-studs", action="store_true", help="do not draw stud/inlet surfaces")
     ap.add_argument("--terrain", metavar="FILE",
                     help="also draw smooth terrain: heightfield .npz/.json from terrain_export.py, "
                          "or a raw SmoothGrid .bin from export_terrain.luau")
@@ -1976,6 +2110,8 @@ def main(argv=None):
         if argv[i] in ("--zoom", "--bounds", "--persp") and argv[i + 1].startswith("-"):
             argv[i : i + 2] = [f"{argv[i]}={argv[i + 1]}", ""]
     args = ap.parse_args([a for a in argv if a != ""])
+    global STUDS_ON
+    STUDS_ON = not args.no_studs
     if args.no_fog:
         args.fog = None
     if args.views is None:

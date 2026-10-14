@@ -18,6 +18,7 @@
 	  * Workspace.Map.BaseSlots.Slot_1 at the origin (attribute Index = baseIndex, default 1:
 	    picks the base colour from BaseConfig.Colors);
 	  * ServerStorage.BaseTemplate from tools/builder/BaseTemplate.luau;
+	  * LEGO studs (tools/builder/Studs.luau) on the stand-ins and the template, as in the build;
 	  * ReplicatedStorage.Shared.Config.BaseConfig copied from src/ (base colours).
 	The stand-ins use the map's Palette colours and the same lighting, colour grading, water colour
 	and haze as tools/build.luau, so a preview looks like the base in the real map (export_parts paints the
@@ -31,6 +32,7 @@ local roblox = require("@lune/roblox")
 local U = require("../builder/Util")
 local Palette = require("../builder/Palette")
 local buildBaseTemplate = require("../builder/BaseTemplate")
+local Studs = require("../builder/Studs")
 
 local Vector3 = U.Vector3
 local CFrame = U.CFrame
@@ -122,6 +124,10 @@ local slots = U.folder(map, "BaseSlots")
 U.marker(slots, "Slot_1", Vector3.new(4, 0.2, 4), CFrame.new(0, 0, 0), { Attributes = { Index = baseIndex } })
 
 local result = buildBaseTemplate(game, MapConfig)
+-- LEGO studs on the stand-ins and the template, like tools/build.luau does on the real map.
+Studs.apply(map)
+Studs.apply(result.template)
+Studs.resolveCoplanar({ result.template })
 
 -- Base colours for export_parts (it executes the ModuleScript source in a sandbox).
 local shared = U.folder(game:GetService("ReplicatedStorage"), "Shared")

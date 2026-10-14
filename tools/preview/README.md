@@ -78,6 +78,7 @@ JSON layout:
     "className": "Part", "shape": "Block",        // Block | Ball | Cylinder | Wedge | CornerWedge
     "cf": [x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22],
     "size": [sx, sy, sz], "color": [r, g, b], "transparency": 0, "material": "Wood",
+    "surfaces": { "Top": "Studs", "Bottom": "Inlet" }, // only Plastic parts, only non-Smooth faces
     "kind": "base", "baseIndex": 1                // baseIndex only for kind "base"
   }],
   "slots": [{ "index": 1, "name": "Slot1", "cf": [...], "color": [r, g, b] }],
@@ -86,6 +87,10 @@ JSON layout:
   "baseColorSource": "BaseConfig"
 }
 ```
+
+`surfaces` (faces Top/Bottom/Front/Back/Left/Right → SurfaceType name) is written only for
+`Plastic` parts (not trusses), like the engine draws surfaces only on Plastic: a part that lost
+its Material shows up without studs in the preview too.
 
 `cf` is the CFrame: position, then the rotation matrix row-major (`world = R * local + p`,
 the look vector is the negated third column). `contentMin/contentMax` ignore parts wider
@@ -109,6 +114,7 @@ python3 tools/preview/render.py <parts.json> --out-dir <dir> [options]
 | `--bounds XMIN,ZMIN,XMAX,ZMAX` | | frame this XZ rectangle instead |
 | `--zoom-cull F` | 2.0 | zoom views hide parts farther than `radius * F` from the centre so they don't block the view (0 = off) |
 | `--no-outlines` | | no dark edge lines |
+| `--no-studs` | | do not draw stud / inlet surfaces |
 | `--no-labels` | | no base-slot number markers |
 | `--terrain FILE` | | also draw smooth terrain: heightfield `.npz`/`.json` from `terrain_export.py`, or a raw SmoothGrid `.bin` (decoded on the fly). See [Terrain](#terrain). |
 | `--terrain-step STUDS` | auto | terrain quad size: 4 = native voxel columns, 8/16/... = averaged. Auto picks the smallest of 4, 8, 16, ... studs whose quads cover >= 5 output pixels (full 1400-stud world at 1600 px: 8; zooms: 4; persp: per distance ring, see below). |
@@ -140,6 +146,16 @@ sphere; `Wedge` has a full bottom and full back (+Z) face, slope facing -Z/+Y;
 `CornerWedge` has a rectangular base and the apex above the (+X, -Z) corner.
 
 Shading: flat, ambient + half-Lambert from a fixed sun; `Neon` is unshaded and brighter.
+
+Studs (LEGO, `tools/builder/Studs.luau`): block faces with `Studs` (or `Universal`) in
+`surfaces` get one stud per 1 × 1-stud cell, `Inlet` faces one hole per cell, drawn per pixel as
+an albedo multiplier like the engine's studs atlas: a round stud of radius 0.3 cells with a lit
+rim towards a fixed light direction in face space, a darker rim and a contact shadow on the
+other side; inlets are dark holes with the far wall lit. The cell grid starts at the face's
+min corner (an assumption: fractional faces get cut studs at the far edges). Below ~4.5 output
+pixels per cell the pattern fades to its average (like mipmapping), so far ground stays calm
+and the mean brightness of a face does not change. Ortho and persp views both draw them;
+`--no-studs` turns them off. Costs ~0.3–1 s per view.
 Water is drawn as semi-transparent blue whatever its colour/transparency; other parts
 use `1 - Transparency` as opacity. Only the nearest transparent surface per pixel is
 blended (adjacent water volumes merge without seams; glass in front of water hides the
@@ -785,8 +801,10 @@ Roblox default third-person camera (12.5 studs behind the head, 18 deg down, ver
 a world dump's per-frame camera when it has one) behind a blocky stand-in avatar (classic R6
 colours, bamboo rod raised) on base 1's FishingSpot, looking over the lagoon. Parts/terrain
 come from `export_parts.luau` / `export_terrain.luau`; the image and its depth buffer are
-cached in `tools/preview/gui/.cache/` (git-ignored; key = place path, size, mtime + resolution
-+ camera; `GUI_PREVIEW_CACHE` moves it), ~3 s per new resolution or camera. If it cannot be
+cached in `tools/preview/gui/.cache/` (ignored by version control; key = place path, size,
+mtime, `backdrop.VERSION` (bumped when the export format changes, e.g. 4 = stud surfaces) +
+resolution + camera; `GUI_PREVIEW_CACHE` moves it), ~3–5 s per new resolution or camera. The
+pier is drawn with its LEGO studs like the map renders. If it cannot be
 rendered, `docs/preview_pier.png` is cropped instead (no occlusion then).
 
 **CoreGui chrome** (drawn over the HUD at 80 % opacity, so overlaps stay visible; the shapes

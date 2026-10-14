@@ -10,7 +10,7 @@
 	  1. load the input place and remove everything this script manages (so it is repeatable);
 	  2. world settings (streaming off, manual character spawning, lighting, water look);
 	  3. Workspace.Map (voxel ground, hub, bridges, promenade, decor, base slots) + Terrain water;
-	  4. ServerStorage.BaseTemplate;
+	  4. ServerStorage.BaseTemplate; LEGO studs on both (tools/builder/Studs.luau);
 	  5. ReplicatedStorage.Remotes from RemoteNames, ReplicatedStorage.Assets (rods, bobbers, fish);
 	  6. StarterGui.HUD;
 	  7. all scripts from src/;
@@ -29,6 +29,7 @@ local buildMap = require("./builder/Map")
 local buildBaseTemplate = require("./builder/BaseTemplate")
 local buildAssets = require("./builder/Assets")
 local buildGui = require("./builder/Gui")
+local Studs = require("./builder/Studs")
 local Scripts = require("./builder/Scripts")
 local Sourcemap = require("./builder/Sourcemap")
 
@@ -159,6 +160,13 @@ grade.TintColor = rgb(255, 252, 246)
 
 local mapResult = buildMap(game, MapConfig, world)
 local templateResult = buildBaseTemplate(game, MapConfig)
+
+-- LEGO studs (art direction v5): Plastic + Studs on the up faces of the map and the base template
+-- (not Assets: rods and fish stay smooth), then no two overlapping tops left at one height.
+local studsMap = Studs.apply(mapResult.map)
+local studsTemplate = Studs.apply(templateResult.template)
+local coplanarMap = Studs.resolveCoplanar({ mapResult.map })
+local coplanarTemplate = Studs.resolveCoplanar({ templateResult.template })
 
 local replicatedStorage = game:GetService("ReplicatedStorage")
 local remotes = U.folder(replicatedStorage, "Remotes")
@@ -342,6 +350,53 @@ for _, fish in FishConfig.Fish do
 	end
 end
 
+-- LEGO studs: surfaces only on Plastic (elsewhere the engine draws none: a forgotten Material is
+-- a silent bug), one Studs face pointing up per studded part, never on glass / water / sky /
+-- seabed, none in Assets, the studded count in its band, no shimmering coplanar tops left.
+local function studsCheck(root: any, label: string, band: { number }): number
+	local studded = 0
+	for _, d in root:GetDescendants() do
+		if d:IsA("BasePart") and not d:IsA("TrussPart") then
+			local nonSmooth = false
+			for _, face in Studs.ALL_FACES do
+				if d[face] ~= Enum.SurfaceType.Smooth then
+					nonSmooth = true
+				end
+			end
+			expect(not nonSmooth or d.Material == Enum.Material.Plastic, `{d:GetFullName()}: surfaces on {d.Material}`)
+			if Studs.isStudded(d) then
+				studded += 1
+				expect(Studs.studsFaceUp(d), `{d:GetFullName()}: studs not (only) on the face pointing up`)
+				expect(d.Transparency <= Studs.MAX_TRANSPARENCY, `{d:GetFullName()}: studs on a transparent part`)
+				local x = d.Parent
+				while x and x ~= root.Parent do
+					expect(not Studs.SKIP_ANCESTOR[x.Name], `{d:GetFullName()}: studs under {x.Name}`)
+					x = x.Parent
+				end
+			end
+		end
+	end
+	expect(studded >= band[1] and studded <= band[2], `{label}: {studded} studded parts, expected {band[1]}..{band[2]}`)
+	return studded
+end
+local checkMap = find(check:GetService("Workspace"), { "Map" })
+local studdedMap = studsCheck(checkMap, "Map", Studs.EXPECTED.map)
+local studdedTemplate = if checkTemplate then studsCheck(checkTemplate, "BaseTemplate", Studs.EXPECTED.template) else 0
+for _, d in (if checkAssets then checkAssets:GetDescendants() else {}) do
+	if d:IsA("BasePart") and not d:IsA("TrussPart") then
+		for _, face in Studs.ALL_FACES do
+			expect(d[face] == Enum.SurfaceType.Smooth, `{d:GetFullName()}: {face} is not Smooth`)
+		end
+	end
+end
+local leftMap = Studs.coplanarPairs({ checkMap })
+local leftTemplate = if checkTemplate then Studs.coplanarPairs({ checkTemplate }) else 0
+expect(leftMap + leftTemplate == 0, `{leftMap + leftTemplate} coplanar stud overlaps left (map {leftMap})`)
+expect(
+	coplanarMap.inverted + coplanarTemplate.inverted == 0,
+	`coplanar fix flipped {coplanarMap.inverted + coplanarTemplate.inverted} layer pairs`
+)
+
 if #problems > 0 then
 	error("Self-check of the built place failed:\n  - " .. table.concat(problems, "\n  - "))
 end
@@ -371,6 +426,12 @@ print(
 	`  assets: {assetsResult.rods} rods, {assetsResult.fish} fish × 4 variants ({assetsResult.partCount} parts, not in Workspace)`
 )
 print(`  ≈ parts at runtime: {runtimeParts}`)
+print(
+	`  studs: map {studdedMap}, template {studdedTemplate} × {MapConfig.BaseCount}`
+		.. ` (≈ {studdedMap + studdedTemplate * MapConfig.BaseCount} at runtime; {studsMap.ok + studsTemplate.ok} qualified); coplanar tops fixed:`
+		.. ` raised {coplanarMap.raised + coplanarTemplate.raised}, lowered {coplanarMap.lowered + coplanarTemplate.lowered},`
+		.. ` flattened {coplanarMap.flattened + coplanarTemplate.flattened}, left {coplanarMap.left + coplanarTemplate.left}`
+)
 local nature = {}
 for kind, count in mapResult.natureCounts or {} do
 	table.insert(nature, `{kind}={count}`)
