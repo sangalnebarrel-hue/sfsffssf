@@ -490,19 +490,19 @@ safe area).
 
 | scenario | state | sheet |
 |---|---|---|
-| `spawn_base` | the badge right when the server assigns the base (welcome toast) | 0..1.2 s, status |
+| `spawn_base` | the base arrives: the «ТВОЯ БАЗА» banner, then it flies into the badge (stills 0.6 / 2.25 / 2.9 s) | 0..3.2 s @ 8 fps, status + banner |
 | `no_base` | all bases taken: «Ждём базу…» | |
 | `start` | just spawned, rod in the backpack, newcomer hint | |
-| `rod_far` | rod in hand, far from the fishing spot (hint) | |
+| `rod_far` | rod in hand, far from the fishing spot: «К ПИРСУ» 🧭, hint, guide beam | |
 | `spot_take` | at the spot, rod in the backpack: «ВЗЯТЬ» | |
 | `take_rod` | tap «ВЗЯТЬ»: the rod in hand, the button pops into «ЗАБРОСИТЬ» | 0..0.8 s, action area |
 | `spot_ready` | at the spot with the rod: «ЗАБРОСИТЬ» | 0..4 s @ 6 fps (idle shine) |
 | `cast` | tap «ЗАБРОСИТЬ» → waiting | 0..1 s, action area |
-| `waiting` | line in the water: «ЖДЁМ…» + «СМОТАТЬ» | |
-| `bite` | «КЛЮЁТ!» alert + «ПОДСЕЧЬ!» | 0..1.2 s |
+| `waiting` | line in the water: the Water «ЖДЁМ…» (bobber, ripples, dots, 1–2 nibbles) + «СМОТАТЬ» | 0..2.4 s, action area |
+| `bite` | «КЛЮЁТ!» slam, «!» glyphs, Sun edges, one 0.45 s beat + «ПОДСЕЧЬ!» | 0..1.2 s |
 | `minigame_common` … `minigame_mythic` | the minigame for each rarity, needle mid-run (Epic 1/2, Mythic 2/3 hits done) | legendary: 0..1 s |
 | `hit`, `hit_perfect`, `hit_super` | a hit: zone jumps, pip fills (off-centre / perfect / the second Mythic hit) | 0..0.9 s |
-| `miss`, `minigame_timeout` | a miss: «Мимо!» / the time is up | miss 0..1.2 s |
+| `miss`, `minigame_timeout` | a miss: «МИМО!» / «ВРЕМЯ!» on the ghost (🐟 swims off), the hint as it leaves (miss stills 0.25 / 0.9 s) | miss 0..1.2 s |
 | `lost_late`, `denied_far` | hints of a lost fish / a refused cast | |
 | `catch_common`, `_rare`, `_epic`, `_legendary`, `_mythic` | catch card per rarity (time 0 = the card is visible) | common 0..1.6 s, mythic 0..2.4 s (whole screen) |
 | `catch_gold`, `catch_neon`, `catch_rainbow` | catch card with a mutation | rainbow 0..1.6 s |
@@ -510,6 +510,11 @@ safe area).
 | `toast_info`, `toast_success`, `toast_warning`, `toast_danger` | one toast of each kind | success 0..0.8 s |
 | `toast_stack` | three toasts (the cap), then the oldest leaves | 3..4.4 s |
 | `home_cooldown` | «ДОМОЙ» pressed, cooldown draining | 0..0.8 s |
+| `far_tap` | tap «К ПИРСУ» far from the spot: no cast, the hint pops again, the guide beam flares | 0..0.8 s, action area + hint |
+| `minigame_cue` | a first-timer's minigame: the needle in the zone, 👆 taps «ЛОВИ!» | |
+| `hit_mega` | the third hit before the last one (a 4-hit payload): «МЕГА!» in rainbow | |
+| `toast_legendary`, `toast_mythic` | someone else's rare catch: the big Gold / rainbow toast with 👑 (Notify kinds "Legendary" / "Mythic") | 0..0.9 s, toasts |
+| `toast_long` | a long toast wrapping to two lines | |
 | `selftest` (not in `--all`) | a synthetic ScreenGui, one cell per renderer feature — check the renderer here | |
 
 Bursts (`--bursts`; `--all` makes them on the phone): 0..0.8 s at 30 fps of `bite`, `take_rod`, `hit`,

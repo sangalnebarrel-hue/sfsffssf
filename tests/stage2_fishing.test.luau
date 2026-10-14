@@ -675,7 +675,7 @@ tests["minigame: a Mythic fish needs 3 hits, the zone jumps away from the needle
 
 	local function heard(player: any): boolean
 		for _, text in notifyTexts(sim, player) do
-			if string.find(text, "Рыба-Дракон", 1, true) and string.find(text, "Игрок1", 1, true) then
+			if string.find(text, "Рыба-дракон", 1, true) and string.find(text, "Игрок1", 1, true) then
 				return true
 			end
 		end
@@ -683,11 +683,11 @@ tests["minigame: a Mythic fish needs 3 hits, the zone jumps away from the needle
 	end
 	t.ok(heard(other), "the other player was told about the Mythic catch")
 	t.ok(not heard(p), "not the fisher: their catch card shows it (a toast would cover the card)")
-	-- «Игрок1: мифическая «Рыба-Дракон»!» in the Mythic toast style (kind = the rarity id).
+	-- «Игрок1: мифическая «Рыба-дракон»!» in the Mythic toast style (kind = the rarity id).
 	local args = sim:LastClientEvent(other, "Notify")
 	t.eq(
 		args[1],
-		"Игрок1: мифическая «Рыба-Дракон»!",
+		"Игрок1: мифическая «Рыба-дракон»!",
 		"lower-case rarity (NameLower), the fish in «ёлочки»"
 	)
 	t.eq(args[2], "Mythic", "kind = the rarity id (NotifyController draws it in the rarity's colours)")

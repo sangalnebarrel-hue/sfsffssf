@@ -20,7 +20,7 @@
 	     промах — "Lost" miss, не успел за MinigameTimeout — "Lost" timeout.
 	  5. Поймал: атрибут FishCaught + 1, рыба в улове сессии (GetCatch), сигнал FishCaught,
 	     о легендарной и мифической рыбе узнают остальные игроки (Notify с kind = редкость:
-	     «Рыбак: мифическая «Рыба-Дракон» ×2!», ×N — множитель мутации). Рыба выпрыгивает из воды
+	     «Рыбак: мифическая «Рыба-дракон» ×2!», ×N — множитель мутации). Рыба выпрыгивает из воды
 	     у поплавка и летит к рыбаку (это рисуют клиенты, см. атрибут FishFx ниже), а через
 	     LeapTime, когда она долетела, рыба (модель HeldFish в персонаже, атрибуты FishId, Rarity,
 	     Mutation, Kg, Value — для таблички над ней) появляется над головой рыбака на
@@ -89,20 +89,9 @@ local FUTURE_SLACK = 0.05
 -- О каких редкостях объявлять всему серверу.
 local ANNOUNCED_RARITIES = { Legendary = true, Mythic = true }
 
-local DENIED_TEXT = {
-	far = "Встань в сверкающий круг на своём пирсе",
-	nobase = "Сначала дождись своей базы",
-	busy = "Удочка уже заброшена",
-	cooldown = "",
-	norod = "Возьми удочку в руки",
-}
-
-local LOST_TEXT = {
-	early = "Слишком рано — рыба испугалась",
-	late = "Слишком поздно — рыба уплыла",
-	miss = "Мимо! Рыба сорвалась с крючка",
-	timeout = "Время вышло — рыба ушла",
-}
+-- Тексты для игрока по коду причины — общие с клиентом (FishingConfig.Texts).
+local DENIED_TEXT = FishingConfig.Texts.Denied
+local LOST_TEXT = FishingConfig.Texts.Lost
 
 type Session = {
 	Token: number, -- номер сессии (отложенные шаги сверяют его)
@@ -382,7 +371,7 @@ local function broadcastFx(player: Player, state: PlayerState, kind: string, fis
 	player:SetAttribute("FishFx", `{state.FxSerial}|{kind}|{id}|{mutation}|{rarity}`)
 end
 
--- Текст объявления: «Рыбак: мифическая «Рыба-Дракон» ×2!» (×N — множитель мутации).
+-- Текст объявления: «Рыбак: мифическая «Рыба-дракон» ×2!» (×N — множитель мутации).
 local function announcement(player: Player, fish: FishData): string
 	local rarity = FishingRules.GetRarity(fish.Rarity)
 	local adjective = if rarity then rarity.NameLower else fish.Rarity

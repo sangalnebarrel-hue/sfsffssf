@@ -5,6 +5,10 @@
 
 	Notify.Send(player, "Твоя база: Красная", "success")
 	Notify.All("Сервер перезапустится через минуту", "warning")
+
+	Вид (Kind) — ключ UIConfig.ToastKinds: info / success / warning / danger, а громкие новости на
+	весь сервер (легендарный и мифический улов, FishingService) — Id редкости "Legendary" / "Mythic":
+	NotifyController рисует их в цветах редкости, крупнее и дольше.
 ]]
 
 local Players = game:GetService("Players")
@@ -12,7 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Net = require(ReplicatedStorage.Shared.Net)
 
-export type Kind = "info" | "success" | "warning" | "danger"
+export type Kind = "info" | "success" | "warning" | "danger" | "Legendary" | "Mythic"
 
 local remote = Net.Event("Notify")
 

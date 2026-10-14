@@ -14,14 +14,16 @@
 	  Status        top-centre stack: base badge (St.1), catch counter (St.2), money (St.3),
 	                shield timer (St.4).
 	                Top-left is the chat window, top-right the player list — both CoreGui.
-	  Toasts        centred column from y = 0.30H, width from screen WIDTH (never reaches
-	                the corners).
+	  Toasts        centred column from y = 0.27H, width from screen WIDTH (never reaches
+	                the corners); while a fishing widget is up only its first slot shows.
 	  RightButtons  column anchored at its BOTTOM (y = 0.64H) and growing upwards, so the
 	                bottom-right 0.36H stays free for the mobile Jump button (and the Stage 2
 	                cast button left of it). HudController moves it lower on non-touch screens.
 	  Fishing       (St.2) ActionArea bottom-right, LEFT of the mobile Jump button (phones: 70 px
 	                at 25..95 px from the right; screens over 500 px tall: 120 px at 50..170 px);
-	                Hint, then BiteAlert / Minigame stacked bottom-centre above the hotbar;
+	                the centre column — Hint, BiteAlert, Minigame (never shown together) — on one
+	                bottom line 16 px above the hotbar, between the thumbstick and the action
+	                button (FishingController shifts it on narrow screens);
 	                CatchCard as a modal between the status stack and the hotbar.
 	  (Stage 5)     shop as a centred modal.
 

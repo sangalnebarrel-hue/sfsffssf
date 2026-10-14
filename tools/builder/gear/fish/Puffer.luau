@@ -1,10 +1,10 @@
--- Фугу Пуфик (Rare): a puffed-up, almost cubic yellow puffer. Huge surprised eyes, pink pursed lips
+-- Фугу-пуфик (Rare): a puffed-up, almost cubic yellow puffer. Huge surprised eyes, pink pursed lips
 -- around a dark "o" mouth, a cream belly that rounds off the chin, a two-step spiky crest on top,
 -- spikes out to both sides, back and belly, tiny orange paddle fins and a tiny tail.
 return {
 	id = "Puffer",
 	kind = "fish",
-	title = "Фугу Пуфик",
+	title = "Фугу-пуфик",
 	rarity = "Rare",
 	length = 10,
 	blocks = {
