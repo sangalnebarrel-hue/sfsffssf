@@ -504,9 +504,11 @@ safe area).
 | `hit`, `hit_perfect`, `hit_super` | a hit: zone jumps, pip fills (off-centre / perfect / the second Mythic hit) | 0..0.9 s |
 | `miss`, `minigame_timeout` | a miss: «Мимо!» / the time is up | miss 0..1.2 s |
 | `lost_late`, `denied_far` | hints of a lost fish / a refused cast | |
-| `catch_common`, `_rare`, `_epic`, `_legendary`, `_mythic` | catch card per rarity (time 0 = the card is visible) | common 0..1.6 s, mythic 0..2.4 s (whole screen) |
-| `catch_gold`, `catch_neon`, `catch_rainbow` | catch card with a mutation | rainbow 0..1.6 s |
-| `catch_close` | tap closes the card, the counter bumps | 0..1 s, whole screen |
+| `catch_win` | the winning tap (Legendary, time 0 = "Caught"): win morph «ПОЙМАНА!», tension, landing flash, giant title, the card | 0..2.6 s (whole screen) |
+| `catch_common`, `_rare`, `_epic`, `_legendary`, `_mythic` | catch card per rarity (time 0 = the card is visible; stills after its last beat) | common 0..1.8 s, legendary / mythic 0..2.7 s (whole screen) |
+| `catch_gold`, `catch_neon`, `catch_rainbow` | catch card with a mutation (stamp, «×N», recount, outline) | rainbow 1.6..3.2 s |
+| `catch_skip` | a tap during the reveal (Epic) shows every beat at once | 0..0.5 s |
+| `catch_close` | tap closes the settled card: it shrinks towards the counter, 🐟 ✨ fly in, +1 | 0..1 s, whole screen |
 | `toast_info`, `toast_success`, `toast_warning`, `toast_danger` | one toast of each kind | success 0..0.8 s |
 | `toast_stack` | three toasts (the cap), then the oldest leaves | 3..4.4 s |
 | `home_cooldown` | «ДОМОЙ» pressed, cooldown draining | 0..0.8 s |

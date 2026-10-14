@@ -389,13 +389,29 @@ end
 -- Catch card and counter
 --------------------------------------------------------------------------------
 
-tests["catch card: rarity, name, mutation, info, turning model; counter; closes on tap, action or timeout"] = function(
+-- UI v2 (FUI-01): the card opens when the caught fish has landed over the head
+-- (FishingFxController.OwnFishLanded; without a leap — the harness sends "Caught" without the
+-- server's FishFx — LeapTime + 0.3 s) plus a per-rarity hold of at most 0.55 s.
+local CARD_OPENS = FishingConfig.LeapTime + 0.3 + 0.6
+
+local function waitCard(sim: any, player: any): boolean
+	local card = gui(sim, player, "CatchCard")
+	return sim:WaitFor(function()
+		return card.Visible
+	end, CARD_OPENS + 0.5, 1 / 60) == true
+end
+
+-- (UI v2: the card opens after the leap, not on "Caught"; a tap during its reveal skips to the
+-- end and the next one closes it; the counter keeps the previous number until the 🐟 flies in —
+-- deliberate changes of the timing this test checked before.)
+tests["catch card: opens after the fish lands; rarity, name, mutation, info, turning model; counter held; tap skips, then closes"] = function(
 	t
 )
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	equipRod(sim, p)
 	local card = gui(sim, p, "CatchCard")
+	local hud = sim:Gui(p, "HUD")
 	local counter = sim:Gui(p, "HUD.Status.CatchCounter")
 	t.eq(counter.Visible, false, "no catches yet")
 
@@ -405,18 +421,24 @@ tests["catch card: rarity, name, mutation, info, turning model; counter; closes 
 		Fish = { Id = "Perch", Rarity = "Common", Mutation = "Gold", Kg = 1.23, Value = 35, Income = 3.5 },
 		Total = 1,
 	})
-	t.eq(card.Visible, true)
-	t.ok(card.FxScale.Scale < 1, "card pops in")
 	t.eq(gui(sim, p, "Minigame").Visible, false, "minigame closed by the catch")
+	t.ok(gui(sim, p, "FxMinigameWin"), "…its copy plays the win")
+	t.eq(card.Visible, false, "no card yet: the fish leaps first (the world is shown first)")
+	t.eq(caption(sim, p), "ЖДЁМ…", "the action button is frozen meanwhile")
+	t.eq(hud:GetAttribute("CounterHold"), 0, "the counter holds the previous number")
+	t.eq(counter.Visible, false, "…so it stays hidden until the first 🐟 flies in")
+	pressF(sim, p)
+	t.eq(#sent(sim, p, "FishingCast"), 0, "the action does not cast while the catch is on screen")
+
+	t.ok(waitCard(sim, p), "the card opens after the landing")
+	t.ok(card.FxScale.Scale < 1, "card pops in")
 	t.ok(isCandy(card.Banner, UIConfig.Rarity.Common), "banner in the rarity gradient")
 	t.eq(card.Banner.RarityLabel.Text, "ОБЫЧНАЯ")
 	t.eq(card.NameLabel.Text, "Окунь Полосатик")
 	t.eq(card.MutationLabel.Visible, true)
 	t.eq(card.MutationLabel.Text, "Золотая мутация ×2")
-	t.ok(isCandy(card.MutationLabel, UIConfig.Mutations.Gold), "mutation badge in the Gold style")
+	t.ok(isCandy(card.MutationLabel, UIConfig.Mutations.Gold), "mutation stamp in the Gold style")
 	t.eq(card.InfoLabel.Text, "1,2 кг · цена 35 💰")
-	t.eq(counter.Visible, true, "counter shown")
-	t.eq(counter.Label.Text, "Улов: 1")
 
 	local model = card.Viewport:FindFirstChildOfClass("Model")
 	t.ok(model, "fish model in the viewport")
@@ -429,32 +451,51 @@ tests["catch card: rarity, name, mutation, info, turning model; counter; closes 
 
 	sim:Click(p, card)
 	sim:Advance(0.05)
-	t.eq(card.Visible, false, "tap closes the card")
+	t.eq(card.Visible, true, "a tap during the reveal skips to its end")
+	t.eq(card.InfoLabel.Price.Label.Text, "35", "…the whole price at once")
+	sim:Click(p, card)
+	sim:Advance(0.05)
+	t.eq(card.Visible, false, "the next tap closes the card")
 	t.eq(card.Viewport:FindFirstChildOfClass("Model"), nil, "model removed")
+	sim:Advance(0.9)
+	t.eq(hud:GetAttribute("CounterHold"), nil, "the 🐟 flew in: the hold is released")
+	t.eq(counter.Visible, true, "counter shown")
+	t.eq(counter.Label.Text, "Улов: 1")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ [F]", "the button is back")
 
+	p:SetAttribute("FishCaught", 2)
 	serverSays(sim, p, "Caught", {
 		Fish = { Id = "DragonFish", Rarity = "Mythic", Kg = 14, Value = 2400, Income = 200 },
 		Total = 2,
 	})
-	t.eq(card.Visible, true)
+	t.ok(waitCard(sim, p))
 	t.eq(card.Banner.RarityLabel.Text, "МИФИЧЕСКАЯ")
 	t.eq(card.NameLabel.Text, "Рыба-Дракон")
-	t.eq(card.MutationLabel.Visible, false, "no mutation label without a mutation")
+	t.eq(card.MutationLabel.Visible, false, "no mutation stamp without a mutation")
 	t.eq(card.InfoLabel.Text, "14 кг · цена 2400 💰")
 	t.eq(card.Viewport:FindFirstChildOfClass("Model").Name, "Normal")
-	t.eq(counter.Label.Text, "Улов: 2")
+	t.eq(counter.Label.Text, "Улов: 1", "the counter still holds the previous number")
 	pressF(sim, p)
-	t.eq(card.Visible, true, "a trailing tap right after the catch does not close the card")
+	t.eq(card.Visible, true, "a trailing tap right after the card opens does nothing")
 	sim:Advance(0.5)
 	pressF(sim, p)
-	t.eq(card.Visible, false, "the action closes the card")
+	t.eq(card.Visible, true, "the action skips the reveal…")
+	t.eq(card.InfoLabel.Price.Label.Text, "2\u{00A0}400", "…the price with a thousands space")
+	sim:Advance(0.1)
+	pressF(sim, p)
+	t.eq(card.Visible, false, "…and then closes the card")
 	t.eq(#sent(sim, p, "FishingCast"), 0, "...and does not cast")
+	sim:Advance(0.9)
+	t.eq(counter.Label.Text, "Улов: 2", "+1 when the 🐟 arrives")
 
+	p:SetAttribute("FishCaught", 3)
 	serverSays(sim, p, "Caught", { Fish = { Id = "Crucian", Rarity = "Common", Kg = 0.5, Value = 9 }, Total = 3 })
-	t.eq(card.Visible, true)
+	t.ok(waitCard(sim, p))
 	t.eq(card.InfoLabel.Text, "500 г · цена 9 💰")
-	sim:Advance(FishingConfig.CatchCardTime + 0.2)
-	t.eq(card.Visible, false, "closes by itself after CatchCardTime")
+	-- Closes by itself: UIConfig.CatchCardTime per rarity, never sooner than a second after its
+	-- last beat (a Common card: about 2.7 s).
+	sim:Advance(UIConfig.CatchCardTime.Common + 0.8)
+	t.eq(card.Visible, false, "closes by itself")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -810,6 +851,7 @@ tests["rainbow fish: tagged models in the world and in the catch card shimmer; t
 		Total = 1,
 	})
 	local card = gui(sim, p, "CatchCard")
+	t.ok(waitCard(sim, p), "the card opens after the landing")
 	t.eq(card.MutationLabel.Text, "Радужная мутация ×5")
 	local cardFish = card.Viewport:FindFirstChildOfClass("Model")
 	t.eq(cardFish.Name, "Rainbow")

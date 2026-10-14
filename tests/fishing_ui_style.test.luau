@@ -506,10 +506,30 @@ tests["miss: the minigame closes at once, its ghost flashes red with «МИМО!
 end
 
 --------------------------------------------------------------------------------
--- Catch card
+-- Catch (UI v2, FUI-01…12: the world first, then the card; tiers; beats; skip; exit)
 --------------------------------------------------------------------------------
 
-tests["catch card: Common reveal — dim, rays, pop-in with a turn, «НОВАЯ!», count-up, confetti"] = function(t)
+-- The card opens when the fish has landed over the head (FishingFxController.OwnFishLanded;
+-- without a leap — here "Caught" comes without the server's FishFx — LeapTime + 0.3 s) plus a
+-- per-rarity hold (at most 0.55 s).
+local CARD_OPENS = FishingConfig.LeapTime + 0.3 + 0.6
+
+local function waitFor(sim: any, fn: () -> boolean, timeout: number): boolean
+	return sim:WaitFor(fn, timeout, 1 / 60) == true
+end
+
+local function openCard(sim: any, p: any): boolean
+	local card = fishing(p).CatchCard
+	return waitFor(sim, function()
+		return card.Visible
+	end, CARD_OPENS + 0.5)
+end
+
+-- (Deliberate UI v2 changes against the v1 version of this test: a Common fish has no dim and
+-- no confetti; the texts appear by beats; «НОВИНКА!» instead of «НОВАЯ!».)
+tests["catch card: Common reveal — calm (no dim, no confetti), pop-in with a turn, beats, «НОВИНКА!», count-up"] = function(
+	t
+)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	ready(sim, p)
@@ -518,9 +538,10 @@ tests["catch card: Common reveal — dim, rays, pop-in with a turn, «НОВАЯ
 	local price = card.InfoLabel.Price.Label
 
 	catch(sim, p, CATCHES.Common, 1)
-	t.eq(card.Visible, true)
-	t.eq(f.CatchDim.Visible, true, "the screen dims")
-	t.ok(f.CatchRays.Visible and f.CatchRays:FindFirstChild("FxRays"), "rays behind the card")
+	t.eq(card.Visible, false, "the fish leaps first")
+	t.ok(openCard(sim, p), "the card opens after the landing")
+	t.eq(f.CatchDim.Visible, false, "no dim for a Common fish")
+	t.ok(f.CatchRays.Visible and f.CatchRays:FindFirstChild("FxRays"), "calm rays behind the card")
 	t.eq(count(f.CatchRays, "FxRays"), 1, "one ring of rays for a Common fish")
 	t.ok(colorNear(f.CatchRays.FxRays.Ray1.BackgroundColor3, UIConfig.Rarity.Common.Rays[1]), "rays in rarity colours")
 	t.ok(card.FxScale.Scale < 1, "the card pops in")
@@ -529,29 +550,41 @@ tests["catch card: Common reveal — dim, rays, pop-in with a turn, «НОВАЯ
 	t.eq(card.InfoLabel.Text, "840 г · цена 11 💰", "InfoLabel holds the summary at once")
 	t.eq(card.InfoLabel.Weight.Label.Text, "840 г")
 	t.eq(price.Text, "0", "the price starts at 0")
-	t.ok(p.PlayerGui.HUD:FindFirstChild("FxConfetti"), "confetti")
+	t.eq(card.Banner.FxScale.Scale, 0, "the rarity waits for its beat")
+	t.eq(card.NameLabel.FxScale.Scale, 0, "…so does the name")
+	t.eq(card.TapHint.TextTransparency, 1, "…and the close hint")
+	t.eq(p.PlayerGui.HUD:FindFirstChild("FxConfetti"), nil, "no confetti for a Common fish")
 	t.eq(p.PlayerGui.HUD:FindFirstChild("FxFlash"), nil, "no screen flash for a Common fish")
-	t.eq(card.NewStamp.Visible, true, "the first Crucian of the session is «НОВАЯ!»")
+	t.eq(f.TitleSlam.Visible, false, "no giant title for a Common fish")
+	t.eq(card.NewStamp.Visible, true, "the first Crucian of the session is «НОВИНКА!»")
+	t.eq(card.NewStamp.Label.Text, "НОВИНКА!")
 
 	sim:Advance(0.55)
 	t.near(card.FxScale.Scale, 1, 1e-3, "popped in")
 	t.near(card.Rotation, 0, 1e-3, "and turned straight")
-	local partial = tonumber(price.Text)
-	t.ok(partial ~= nil, "the price is a number while counting")
+	t.ok(card.Banner.FxScale.Scale > 0.5, "the rarity is up (c+0.2)")
+	sim:Advance(0.6)
+	local partial = price.Text
+	t.ok(tonumber(partial) ~= nil, "the price is a number while counting")
 	sim:Advance(1)
 	t.eq(price.Text, "11", "the price counted up to the value")
-	t.near(card.NewStamp.FxScale.Scale, 1, 1e-3, "«НОВАЯ!» stamped")
+	t.near(card.NewStamp.FxScale.Scale, 1, 1e-3, "«НОВИНКА!» stamped")
+	t.ok(card.TapHint.TextTransparency < 0.5, "the close hint shows after the last beat")
 	t.ok(count(card.FishGlow, "FxSparkle") > 0 or count(card, "FxSparkle") > 0, "sparkles around the fish")
 
-	-- The same species again: no «НОВАЯ!».
-	sim:Advance(FishingConfig.CatchCardTime)
+	-- The same species again: no «НОВИНКА!».
+	sim:Advance(UIConfig.CatchCardTime.Common)
 	t.eq(card.Visible, false, "closed by itself")
+	sim:Advance(1)
 	catch(sim, p, CATCHES.Common, 2)
+	t.ok(openCard(sim, p))
 	t.eq(card.NewStamp.Visible, false, "a second Crucian is not new")
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["catch card: Legendary and Mythic are louder — flash, camera shake, second ring, rainbow banner"] = function(t)
+tests["catch: Legendary and Mythic are louder — tension, flash at the landing, giant title, dim, second ring, rainbow"] = function(
+	t
+)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	ready(sim, p)
@@ -560,21 +593,48 @@ tests["catch card: Legendary and Mythic are louder — flash, camera shake, seco
 	local hud = p.PlayerGui.HUD
 
 	catch(sim, p, CATCHES.Common, 1)
+	t.ok(openCard(sim, p))
 	local commonRays = count(f.CatchRays.FxRays, "Ray1") > 0 and #f.CatchRays.FxRays:GetChildren() or 0
 	sim:Advance(1)
+	sim:Click(p, card)
+	sim:Advance(0.1)
 	sim:Click(p, card)
 	sim:Advance(3)
 
 	catch(sim, p, CATCHES.Legendary, 2)
-	t.ok(hud:FindFirstChild("FxFlash"), "Legendary: a screen flash")
+	sim:Advance(0.6)
+	t.ok(hud:FindFirstChild("FxVignette"), "Legendary: the screen edges glow while the fish leaps")
+	t.ok(
+		waitFor(sim, function()
+			return f.TitleSlam.Visible
+		end, CARD_OPENS),
+		"Legendary: the giant title"
+	)
+	t.ok(hud:FindFirstChild("FxFlash"), "…right after the landing flash")
+	t.eq(f.TitleSlam.Letters:FindFirstChild("L12").Text, "!", "«ЛЕГЕНДАРНАЯ!» letter by letter")
+	t.eq(f.TitleSlam.Label.Visible, false)
+	t.ok(openCard(sim, p))
+	t.eq(f.CatchDim.Visible, true, "Legendary: the screen dims around the card")
 	t.eq(count(f.CatchRays, "FxRays"), 2, "Legendary: an extra ring of rays")
 	t.ok(isCandy(card.Banner, UIConfig.Rarity.Legendary), "Legendary banner")
-	sim:Advance(1)
+	sim:Advance(0.7)
+	t.eq(f.TitleSlam.Visible, false, "the title flew into the banner")
+	t.eq(#f.TitleSlam.Letters:GetChildren(), 0, "…its letters are gone")
+	t.near(card.Banner.FxScale.Scale, 1, 0.15, "the banner took over")
+	sim:Click(p, card)
+	sim:Advance(0.1)
 	sim:Click(p, card)
 	sim:Advance(3)
 
 	catch(sim, p, CATCHES.Mythic, 3)
+	t.ok(
+		waitFor(sim, function()
+			return f.TitleSlam.Visible
+		end, CARD_OPENS),
+		"Mythic: the giant title"
+	)
 	t.ok(hud:FindFirstChild("FxFlash"), "Mythic: a screen flash")
+	t.ok(openCard(sim, p))
 	t.eq(count(f.CatchRays, "FxRays"), 2, "Mythic: an extra ring of rays")
 	local mythicRays = 0
 	for _, holder in f.CatchRays:GetChildren() do
@@ -586,10 +646,12 @@ tests["catch card: Legendary and Mythic are louder — flash, camera shake, seco
 	local fill = card.Banner.Face.Fill
 	t.eq(fill.Rotation, 0, "a horizontal rainbow banner")
 	local before = fill.Color.Keypoints[1].Value
-	sim:Advance(0.4)
+	sim:Advance(0.6)
 	t.ok(not colorNear(before, fill.Color.Keypoints[1].Value, 0.02), "the rainbow runs")
 	t.ok(count(card.Banner, "FxSparkle") > 0, "sparkles on the Mythic banner")
 	sim:Advance(1)
+	sim:Click(p, card)
+	sim:Advance(0.1)
 	sim:Click(p, card)
 	sim:Advance(3)
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
@@ -597,29 +659,39 @@ tests["catch card: Legendary and Mythic are louder — flash, camera shake, seco
 
 	-- Back to a common catch: the banner is vertical again.
 	catch(sim, p, CATCHES.Rare, 4)
+	t.ok(openCard(sim, p))
 	t.eq(card.Banner.Face.Fill.Rotation, 90, "a Rare banner is a vertical gradient again")
 	t.ok(isCandy(card.Banner, UIConfig.Rarity.Rare), "Rare banner")
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["mutation badges: stamped in; Gold sparkles, Neon glows, Rainbow runs"] = function(t)
+-- (UI v2: the mutation is a stamp on the fish's corner after the base price lands, «ЗОЛОТАЯ ×2!»
+-- on it, «×N» slammed on the price, the price recounted, the card outline in its colours.)
+tests["mutation: stamped after the base price — «×N», recount, outline; Gold sparkles, Neon glows, Rainbow runs"] = function(
+	t
+)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	ready(sim, p)
 	local card = fishing(p).CatchCard
 	local badge = card.MutationLabel
+	local outline = card.Lip:FindFirstChildOfClass("UIStroke")
+	local price = card.InfoLabel.Price.Label
 	local cases = {
-		{ "Gold", "Золотая мутация ×2" },
-		{ "Neon", "Неоновая мутация ×3" },
-		{ "Rainbow", "Радужная мутация ×5" },
+		{ "Gold", "Золотая мутация ×2", "ЗОЛОТАЯ ×2!", "×2", 2 },
+		{ "Neon", "Неоновая мутация ×3", "НЕОНОВАЯ ×3!", "×3", 3 },
+		{ "Rainbow", "Радужная мутация ×5", "РАДУЖНАЯ ×5!", "×5", 5 },
 	}
 	for index, case in cases do
 		local fish = table.clone(CATCHES.Rare)
 		fish.Mutation = case[1]
+		fish.Value = CATCHES.Rare.Value * case[5]
 		catch(sim, p, fish, index)
+		t.ok(openCard(sim, p))
 		t.eq(badge.Visible, true)
 		t.eq(badge.Text, case[2], `{case[1]}: the value`)
-		t.eq(badge.Caption.Text, case[2], `{case[1]}: shown on the badge`)
+		t.eq(badge.Caption.Text, case[3], `{case[1]}: the stamp`)
+		t.eq(card.InfoLabel.Price.Multiplier.Text, case[4], `{case[1]}: «×N» for the price`)
 		t.eq(badge.Icon.Text, UIConfig.Mutations[case[1]].Icon)
 		local style = UIConfig.Mutations[case[1]]
 		if style.Effect == "rainbow" then
@@ -628,10 +700,16 @@ tests["mutation badges: stamped in; Gold sparkles, Neon glows, Rainbow runs"] = 
 		else
 			t.ok(isCandy(badge, style), `{case[1]}: its style`)
 		end
-		t.eq(badge.FxScale.Scale, 0, `{case[1]}: waits for its stamp`)
+		t.eq(badge.FxScale.Scale, 0, `{case[1]}: waits for its beat`)
+		-- The base price lands first (Rare: c+0.95 + 0.6 s), the stamp 0.15 s later.
+		sim:Advance(1.62)
+		t.eq(price.Text, tostring(CATCHES.Rare.Value), `{case[1]}: the base price first`)
+		t.eq(badge.FxScale.Scale, 0, `{case[1]}: the stamp not yet`)
 		sim:Advance(0.9)
 		t.near(badge.FxScale.Scale, 1, 0.02, `{case[1]}: stamped in`)
-		sim:Advance(0.2)
+		t.eq(card.InfoLabel.Price.Multiplier.Visible, true, `{case[1]}: «×N» slammed`)
+		t.eq(price.Text, tostring(fish.Value), `{case[1]}: recounted to the full price`)
+		t.ok(outline:FindFirstChild("FxRimFill"), `{case[1]}: the card outline in its colours`)
 		if case[1] == "Gold" then
 			t.ok(count(badge, "FxSparkle") > 0, "Gold: sparkles")
 		elseif case[1] == "Neon" then
@@ -641,15 +719,24 @@ tests["mutation badges: stamped in; Gold sparkles, Neon glows, Rainbow runs"] = 
 			sim:Advance(0.3)
 			t.ok(not colorNear(before, badge.Face.Fill.Color.Keypoints[1].Value, 0.02), "Rainbow: runs")
 		end
+		sim:Advance(0.3) -- past the last beat: a tap closes
 		sim:Click(p, card)
-		sim:Advance(0.5)
+		sim:Advance(0.05)
+		t.eq(card.Visible, false, `{case[1]}: closed`)
+		t.eq(outline:FindFirstChild("FxRimFill"), nil, `{case[1]}: the outline is Ink again`)
+		t.ok(colorNear(outline.Color, UIConfig.Ink), `{case[1]}: Ink outline`)
+		sim:Advance(1)
 	end
 	sim:Advance(3)
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["closing: the card hides at once, its ghost pops out, a 🐟 flies to the counter; nothing leaks"] = function(t)
+-- (UI v2: a tap during the reveal skips it; the card shrinks towards the counter and a 🐟 with
+-- ✨ flies in 0.05 s later; the rays shrink with it — timings this test checked before.)
+tests["closing: skip, then close — the card hides, its ghost shrinks to the counter, 🐟 flies, +1; nothing leaks"] = function(
+	t
+)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	ready(sim, p)
@@ -664,38 +751,125 @@ tests["closing: the card hides at once, its ghost pops out, a 🐟 flies to the 
 	t.eq(UiFx.activeJobs(), 0, "idle")
 
 	catch(sim, p, CATCHES.Rare, 1)
+	t.eq(hud:GetAttribute("CounterHold"), 0, "the counter holds the old number")
+	t.ok(openCard(sim, p))
 	t.ok(frameConnections(sim, p) > idleFrames, "the reveal animates per frame")
-	sim:Advance(0.3)
+	sim:Advance(0.02)
 	sim:Click(p, card)
 	sim:Advance(0.02)
-	t.eq(card.Visible, true, "locked for CARD_INPUT_LOCK (a trailing tap does not close it)")
+	t.eq(card.Visible, true, "locked for CARD_INPUT_LOCK (a trailing tap does nothing)")
+	t.eq(card.Banner.FxScale.Scale, 0, "…and does not skip either")
+	sim:Advance(0.4)
+	sim:Click(p, card)
+	sim:Advance(0.02)
+	t.eq(card.Visible, true, "a tap during the reveal skips it")
+	t.near(card.Banner.FxScale.Scale, 1, 0.2, "…every beat at once")
+	t.eq(card.InfoLabel.Price.Label.Text, "58")
 	sim:Advance(0.3)
 	sim:Click(p, card)
 	sim:Advance(0.02)
 	t.eq(card.Visible, false, "hidden at once")
 	t.eq(card.Viewport:FindFirstChildOfClass("Model"), nil, "the fish model is gone from the card")
-	t.ok(f:FindFirstChild("FxCardOut"), "its ghost pops out")
+	t.ok(f:FindFirstChild("FxCardOut"), "its ghost shrinks away")
+	sim:Advance(0.06)
 	t.ok(hud:FindFirstChild("FxFly"), "a 🐟 flies")
-	t.eq(hud.FxFly.Text, "🐟")
-	t.eq(f.CatchRays:FindFirstChild("FxRays"), nil, "the rays stop with the card")
-	sim:Advance(0.65)
-	t.ok(counter.FxScale.Scale > 1, "the counter bumps when the fish arrives")
+	sim:Advance(0.25)
+	t.eq(f.CatchRays:FindFirstChild("FxRays"), nil, "the rays shrank with the card")
 	t.eq(f:FindFirstChild("FxCardOut"), nil, "the ghost is gone")
 	t.eq(f.CatchDim.Visible, false, "the dim faded away")
+	sim:Advance(0.3)
+	t.eq(hud:GetAttribute("CounterHold"), nil, "the 🐟 arrived: the hold is released")
+	t.eq(counter.Label.Text, "Улов: 1")
+	t.ok(counter.FxScale.Scale > 1, "the counter bumps when the fish arrives")
 	sim:Advance(3)
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
 	t.eq(UiFx.activeJobs(), 0, "no frame effects")
 	t.eq(frameConnections(sim, p), idleFrames, "no RenderStepped/Heartbeat left")
 	t.eq(sim:CountConnections(p), idleConnections, "connections back to the idle count")
 
-	-- Closing by CatchCardTime does the same.
+	-- Closing by itself (UIConfig.CatchCardTime) does the same.
 	catch(sim, p, CATCHES.Legendary, 2)
-	sim:Advance(FishingConfig.CatchCardTime + 0.05)
+	t.ok(openCard(sim, p))
+	sim:Advance(UIConfig.CatchCardTime.Legendary + 0.05)
 	t.eq(card.Visible, false, "closed by itself")
 	sim:Advance(3)
+	t.eq(counter.Label.Text, "Улов: 2")
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
 	t.eq(frameConnections(sim, p), idleFrames)
 	t.eq(sim:CountConnections(p), idleConnections)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["catch: the card owns the screen — frozen button, no hint, status faded; all back after the 🐟"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	ready(sim, p)
+	sim:Advance(1)
+	local f = fishing(p)
+	local hud = p.PlayerGui.HUD
+	local button = f.ActionArea.ActionButton
+	local badgeLabel = hud.Status.BaseBadge.Label
+	t.eq(f.Hint.Visible, true, "the standing hint by the spot")
+	t.eq(button.Caption.Text, "ЗАБРОСИТЬ")
+
+	serverSays(sim, p, "Minigame", minigame("Epic"))
+	sim:Advance(0.3)
+	catch(sim, p, CATCHES.Rare, 1)
+	t.ok(f:FindFirstChild("FxMinigameWin"), "the minigame plays its win")
+	t.eq(button.Caption.Text, "ЖДЁМ…", "the button is frozen")
+	t.eq(f.Hint.Visible, false, "no hint over the catch")
+	local rotation = button.Icon.Rotation
+	t.ok(openCard(sim, p))
+	t.ok(button.Face.BackgroundTransparency > 0.2, "…and dimmed")
+	sim:Advance(1.2)
+	t.eq(button.Icon.Rotation, rotation, "no hourglass flips while the card is up")
+	t.ok(badgeLabel.TextTransparency > 0.95, "the base badge faded under the card")
+	pressF(sim, p)
+	t.eq(#sim:ServerEventsFor(p, "FishingCast"), 0, "no cast while the catch is on screen")
+
+	sim:Advance(1.5)
+	sim:Click(p, f.CatchCard)
+	sim:Advance(0.05)
+	t.eq(f.CatchCard.Visible, false)
+	sim:Advance(0.25)
+	t.ok(badgeLabel.TextTransparency < 0.05, "the badge is back")
+	sim:Advance(1)
+	t.eq(button.Caption.Text, "ЗАБРОСИТЬ", "the button is back")
+	t.ok(button.Face.BackgroundTransparency < 0.05, "…at full colour")
+	t.eq(f.Hint.Visible, true, "the hint is back")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["catch: the card opens on the landing signal (OwnFishLanded) plus the rarity's hold, sooner than the fallback"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	ready(sim, p)
+	local card = fishing(p).CatchCard
+	local module = sim:Find("Controllers.FishingFxController", p:FindFirstChildOfClass("PlayerScripts"))
+	local fx = sim:Require(module, p)
+
+	catch(sim, p, CATCHES.Legendary, 1)
+	sim:Advance(0.3)
+	t.eq(card.Visible, false, "the fish is still in the air")
+	sim:Run(function()
+		fx.OwnFishLanded:Fire("Legendary", Vector3.new(0, 10, 0))
+	end, p)
+	sim:Advance(0.3)
+	t.eq(card.Visible, false, "Legendary: a 0.4 s hold after the landing")
+	sim:Advance(0.2)
+	t.eq(card.Visible, true, "the card is up — well before LeapTime + 0.3 s")
+	sim:Advance(6)
+
+	-- No leap at all (no character / no model): the signal comes before "Caught" — still used.
+	sim:Run(function()
+		fx.OwnFishLanded:Fire("Common", Vector3.new(0, 10, 0))
+	end, p)
+	sim:Advance(0.05)
+	catch(sim, p, CATCHES.Common, 2)
+	sim:Advance(0.2)
+	t.eq(card.Visible, true, 'a landing just before "Caught" opens the card at once (+ hold)')
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -928,7 +1102,12 @@ tests["layout: the fishing UI fits on phone, tablet and desktop without overlaps
 		local chrome = { badge = badge, counter = counter, home = home }
 		for cname, crect in chrome do
 			for name, rect in all do
-				t.eq(overlap(crect, rect), 0, `{device}: {name} {fmt(rect)} overlaps {cname} {fmt(crect)}`)
+				-- (UI v2: the catch card is placed when it opens, and the status stack fades
+				-- under it — see "catch card layout"; its unopened builder box is not checked
+				-- against the status stack.)
+				if not (name == "card" and cname ~= "home") then
+					t.eq(overlap(crect, rect), 0, `{device}: {name} {fmt(rect)} overlaps {cname} {fmt(crect)}`)
+				end
 			end
 		end
 		-- Touch screens: clear of the Jump button and the thumbstick (CoreGui).
@@ -951,6 +1130,52 @@ tests["layout: the fishing UI fits on phone, tablet and desktop without overlaps
 		t.ok(button.w >= 56 and button.h >= 56, `{device}: the action button is big ({fmt(button)})`)
 		t.ok(stop.h >= 24, `{device}: «СМОТАТЬ» tall enough ({fmt(stop)})`)
 		t.ok(mini.h >= 90, `{device}: the minigame is readable ({fmt(mini)})`)
+	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["catch card layout: a landscape trophy card on phones, square on tablet / desktop; clear of the controls"] = function(
+	t
+)
+	local sim = boot(t)
+	local devices = { "phone", "tablet", "desktop" }
+	local players = {}
+	for i, device in devices do
+		players[device] = addPlayer(sim, i, device)
+	end
+	for _, device in devices do
+		local p = players[device]
+		ready(sim, p)
+		p:SetAttribute("FishCaught", 2)
+		sim:Advance(0.2)
+		catch(sim, p, CATCHES.Legendary, 3)
+	end
+	sim:Advance(CARD_OPENS + 0.8)
+	for _, device in devices do
+		local p = players[device]
+		local hud = p.PlayerGui.HUD
+		local f = hud.Fishing
+		local vp = sim.players.state[sim:Unwrap(p)].viewport
+		local card = rectOf(sim, p, f.CatchCard)
+		local button = rectOf(sim, p, f.ActionArea.ActionButton.CaptionRibbon)
+		t.ok(f.CatchCard.Visible, `{device}: the card is up`)
+		if device == "phone" then
+			t.ok(card.w > card.h * 1.4, `{device}: a landscape card {fmt(card)}`)
+			t.ok(card.h >= 200, `{device}: big on the phone {fmt(card)}`)
+			local fish = rectOf(sim, p, f.CatchCard.Viewport)
+			t.ok(fish.h >= 150, `{device}: a big fish {fmt(fish)}`)
+		else
+			t.near(card.w / card.h, 380 / 384, 0.05, `{device}: the square card {fmt(card)}`)
+		end
+		t.ok(card.x + card.w * 1.04 <= button.x, `{device}: clear of the action button {fmt(card)} / {fmt(button)}`)
+		t.ok(card.y + card.h <= vp.Y - HOTBAR_TOP - 16, `{device}: above the hotbar {fmt(card)}`)
+		t.ok(card.y >= INSET, `{device}: below the top bar {fmt(card)}`)
+		if device ~= "desktop" then
+			local small = math.min(vp.X, vp.Y) <= 500
+			local stickRight = if small then 95 else 180
+			t.ok(card.x >= stickRight + 8, `{device}: clear of the thumbstick {fmt(card)}`)
+		end
+		t.ok(hud.Status.BaseBadge.Label.TextTransparency > 0.95, `{device}: the status stack faded under the card`)
 	end
 	sim:AssertNoErrors({ warnings = true })
 end

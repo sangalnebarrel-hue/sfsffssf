@@ -119,12 +119,18 @@ timers. Stagger groups by 0.03–0.06 s.
   behind, a gradient countdown bar (green→yellow→red). Minigame: candy track, glossy green zone with
   a glow pulse, needle with 2–3 fading ghost copies (motion trail), on hit — burst of sparks from the
   zone, «ОТЛИЧНО!/СУПЕР!/ИДЕАЛЬНО!» float text (perfect = within 25 % of the zone centre), pip turns
-  into a ⭐ with a pop; on miss — red flash, shake, «МИМО!». Catch card: the big reveal — dim backdrop,
-  rays in rarity colours, card drops/pops in with a little rotation, rarity banner (Mythic: animated
-  rainbow), shine sweep, confetti (more and longer for rarer fish), sparkles around the fish, price
-  counts up, mutation badge stamps in, «НОВАЯ!» stamp the first time a species is caught this
-  session; Legendary/Mythic add a screen flash and a gentle camera shake. A 🐟 flies from the card to
-  the catch counter when the card closes.
+  into a ⭐ with a pop; on miss — red flash, shake, «МИМО!». The catch (UI v2) shows the world
+  first: the minigame plays its win («ПОЙМАНА!», FxMinigameWin) and leaves, the button freezes, Epic+
+  get an edge vignette (Legendary/Mythic a heartbeat) while the fish leaps; on the landing
+  (`FishingFxController.OwnFishLanded`) a flash, shake and FOV punch, confetti from the held fish and,
+  for Epic+, the giant rarity title (TitleSlam; Legendary/Mythic letter by letter) — then the card is
+  born at the fish and settles: a landscape trophy card on phones (fish left, name and chips right),
+  the 380 x 384 square elsewhere, a dim around it (letterbox bars on phones; none for Common) and the
+  rarity rays. Its beats: rarity (the title flies into the banner) → name → «НОВИНКА!» → chips →
+  price count-up and landing → mutation (corner stamp, «×N», recount, the outline in its colours) →
+  the close hint; then everything calms down. A tap skips to the end, the next one closes; the card
+  shrinks towards the counter and a 🐟 with ✨ flies in (the counter holds its number meanwhile).
+  Rarity tiers (dim, rays, confetti volleys, hold, auto-close): `REVEAL` in FishingController.
 - **World FX** (FishingFxController, + FishingService for the broadcast): cast with a sparkly trail on
   the bobber and a whoosh, a splash + expanding ripple rings on landing, slow ripples while waiting,
   a big splash, ripple burst and a bouncing «!» on the bite, spray while reeling; on a catch the fish
@@ -275,7 +281,8 @@ RenderStepped connection for all running frame effects, disconnected when none r
 - **Catch counter** (`HUD.Status.CatchCounter`): HudController owns its `Label.Text` («Улов: N») and
   `Visible` from the Player attribute `FishCaught`. While the HUD ScreenGui has a number attribute
   `CounterHold`, the counter shows that number and plays nothing; set it (e.g. to `Total − 1`
-  from the Caught data) synchronously when the catch card opens — HudController reacts to
+  from the Caught data) synchronously when the catch starts (FishingController: on "Caught",
+  before the leap and the card) — HudController reacts to
   `FishCaught` one frame later, so the same frame is enough. Clear it (`nil`) when the flying 🐟
   arrives: the counter shows `FishCaught` and plays the arrival (bump 1.3, 🐟 wiggle, «+N»,
   tick at pitch 1.3). `flyTo(hud, from, counter, {onArrive = …})` stays the way to fly the fish.
@@ -307,10 +314,12 @@ RenderStepped connection for all running frame effects, disconnected when none r
   is the AnchorPoint): prefer wiggle / bump there, never shake.
 - Keep names: animate by adding children (FxScale, FxRing, FxRays, FxFloat… are created and removed
   by UiFx), never by renaming or re-parenting contract widgets.
-- Recipes. Catch card: `rays(raysHolder, {colors = UIConfig.Rarity[r].Rays})` in a transparent
-  holder behind the card, `popIn(card, {rotate = -6})`, `shine(card)` after 0.3 s, `confetti(hud,
-  {count = Rarity[r].ConfettiCount, colors = Rarity[r].Confetti})`, `countUp(priceLabel, 0, value)`,
-  `stamp(mutationBadge)`, Legendary/Mythic: `flash(hud)` + `cameraShake()`; on close `flyTo(hud,
-  card, counter, {onArrive = function() UiFx.bump(counter) end})`. Action button:
+- Recipes. Catch card (FishingController): `rays(raysHolder, {colors = UIConfig.Rarity[r].Rays,
+  maxPx = …})` in a transparent holder behind the card and `rays:settle()` after the last beat,
+  `popIn(card, {rotate = -6})`, `confetti(hud, {count = …, origin = the held fish on screen})`,
+  a count-up with `FishingRules.FormatCoins`, `stamp(mutationBadge)`, Legendary/Mythic:
+  `flash(hud)` + `cameraShake()` + `fovPunch()` at the landing; on close `flyTo(hud, card, counter,
+  {onArrive = clear CounterHold})`. Mind the phone fill: the card's big candy draws its lip as a
+  band (no full-size lip quad), the dim is bands around the card. Action button:
   `Theme.candyButton(…, "Sky", {Radius = 0.5, Square = true})`, `setCandy` per state,
   `glowRing(button, {loop = true})` while it matters, `shineLoop` when idle, `ripple` on tap.

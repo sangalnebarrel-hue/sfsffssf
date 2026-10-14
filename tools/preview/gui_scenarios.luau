@@ -84,15 +84,22 @@ local function toMinigame(h: any, rarity: string, extra: { [string]: any }?)
 	h:minigame(rarity, extra)
 end
 
--- The catch card of `fish`: time 0 = the moment the card is on screen.
-local function catchScenario(h: any, fish: { [string]: any })
+-- The winning moment of `fish`: time 0 = "Caught" (UI v2: the minigame's win morph, then the
+-- leap — here no leap runs, so the card opens LeapTime + 0.3 s + the rarity's hold later).
+local function caughtScenario(h: any, fish: { [string]: any })
 	toMinigame(h, fish.Rarity)
 	h:advance(0.6)
 	h:click("HUD.Fishing.ActionArea.ActionButton", true)
 	h:advance(0.05)
 	h.player:SetAttribute("FishCaught", 1)
 	h:caught(fish, 1)
-	h:waitVisible("HUD.Fishing.CatchCard", 3)
+end
+
+-- The catch card of `fish`: time 0 = the moment the card is on screen (its beats follow:
+-- rarity 0.2 s, name 0.5, chips 0.85, price from 0.95, mutation, then the close hint).
+local function catchScenario(h: any, fish: { [string]: any })
+	caughtScenario(h, fish)
+	h:waitVisible("HUD.Fishing.CatchCard", 4)
 end
 
 local CARD_ROI = { "HUD.Fishing.CatchCard" }
@@ -622,11 +629,22 @@ local scenarios = {
 			h:serverSays("Denied", { Reason = "far", Text = "Подойди к краю своего пирса" })
 		end,
 	},
+	-- Catch (UI v2, FUI-01…12): time 0 = the card is on screen; stills after its last beat.
+	{
+		name = "catch_win",
+		desc = "The winning tap (Legendary): win morph «ПОЙМАНА!», tension, landing, giant title, card",
+		still = { 0.15, 1.35 },
+		sheet = { from = 0, to = 2.6, fps = 10, roi = {}, margin = 0 },
+		burst = { from = 0, to = 0.8, fps = 30, roi = { "HUD.Fishing.FxMinigameWin" }, margin = 0.12 },
+		run = function(h: any)
+			caughtScenario(h, CATCHES.Legendary)
+		end,
+	},
 	{
 		name = "catch_common",
-		desc = "Catch card: Common (Карасик)",
-		still = 1.0,
-		sheet = { from = 0, to = 1.6, fps = 10, roi = CARD_ROI, margin = 0.08 },
+		desc = "Catch card: Common (Карасик) — calm: no dim, no confetti, a smaller card",
+		still = 1.9,
+		sheet = { from = 0, to = 1.8, fps = 10, roi = CARD_ROI, margin = 0.08 },
 		run = function(h: any)
 			catchScenario(h, CATCHES.Common)
 		end,
@@ -634,41 +652,41 @@ local scenarios = {
 	{
 		name = "catch_rare",
 		desc = "Catch card: Rare (Фугу Пуфик)",
-		still = 1.0,
+		still = 2.1,
 		run = function(h: any)
 			catchScenario(h, CATCHES.Rare)
 		end,
 	},
 	{
 		name = "catch_epic",
-		desc = "Catch card: Epic (Меч-рыба)",
-		still = 1.0,
+		desc = "Catch card: Epic (Меч-рыба) — the giant title flies into the banner",
+		still = 2.3,
 		run = function(h: any)
 			catchScenario(h, CATCHES.Epic)
 		end,
 	},
 	{
 		name = "catch_legendary",
-		desc = "Catch card: Legendary (Акулёнок) — flash, camera shake, two rings of rays",
-		still = 1.0,
-		sheet = { from = 0, to = 2.4, fps = 10, roi = {}, margin = 0 },
+		desc = "Catch card: Legendary (Акулёнок) — gold rays (two rings), 💰 rain",
+		still = 2.6,
+		sheet = { from = 0, to = 2.7, fps = 10, roi = {}, margin = 0 },
 		run = function(h: any)
 			catchScenario(h, CATCHES.Legendary)
 		end,
 	},
 	{
 		name = "catch_mythic",
-		desc = "Catch card: Mythic (Рыба-Дракон) — the big reveal",
-		still = 1.0,
-		sheet = { from = 0, to = 2.4, fps = 10, roi = {}, margin = 0 },
+		desc = "Catch card: Mythic (Рыба-Дракон) — the rainbow sunburst",
+		still = 2.8,
+		sheet = { from = 0, to = 2.7, fps = 10, roi = {}, margin = 0 },
 		run = function(h: any)
 			catchScenario(h, CATCHES.Mythic)
 		end,
 	},
 	{
 		name = "catch_gold",
-		desc = "Catch card: Gold mutation (Окунь Полосатик)",
-		still = 1.0,
+		desc = "Catch card: Gold mutation (Окунь Полосатик) — stamp, «×2», recount, gold rim",
+		still = 2.8,
 		run = function(h: any)
 			local perch = { Id = "Perch", Rarity = "Common", Kg = 1.23, Value = 18, Income = 1.8 }
 			catchScenario(h, withMutation(perch, "Gold", 2))
@@ -677,7 +695,7 @@ local scenarios = {
 	{
 		name = "catch_neon",
 		desc = "Catch card: Neon mutation (Фугу Пуфик)",
-		still = 1.0,
+		still = 2.9,
 		run = function(h: any)
 			catchScenario(h, withMutation(CATCHES.Rare, "Neon", 3))
 		end,
@@ -685,20 +703,31 @@ local scenarios = {
 	{
 		name = "catch_rainbow",
 		desc = "Catch card: Rainbow mutation (Акулёнок)",
-		still = 1.0,
-		sheet = { from = 0, to = 1.6, fps = 10, roi = CARD_ROI, margin = 0.08 },
+		still = 3.2,
+		sheet = { from = 1.6, to = 3.2, fps = 10, roi = CARD_ROI, margin = 0.08 },
 		run = function(h: any)
 			catchScenario(h, withMutation(CATCHES.Legendary, "Rainbow", 5))
 		end,
 	},
 	{
+		name = "catch_skip",
+		desc = "A tap during the reveal (Epic) skips to the end: every beat at once, the card bumps",
+		still = 0.4,
+		sheet = { from = 0, to = 0.5, fps = 15, roi = CARD_ROI, margin = 0.08 },
+		run = function(h: any)
+			catchScenario(h, CATCHES.Epic)
+			h:advance(0.6)
+			h:click("HUD.Fishing.CatchCard")
+		end,
+	},
+	{
 		name = "catch_close",
-		desc = "Closing the catch card (tap): the card leaves, the counter bumps",
-		still = 0.6,
+		desc = "Closing the catch card (tap): it shrinks towards the counter, 🐟 ✨ fly in, +1",
+		still = 0.75,
 		sheet = { from = 0, to = 1.0, fps = 15, roi = {}, margin = 0 },
 		run = function(h: any)
 			catchScenario(h, CATCHES.Rare)
-			h:advance(0.8)
+			h:advance(2)
 			h:click("HUD.Fishing.CatchCard")
 		end,
 	},

@@ -13,7 +13,9 @@
 	Value-holding labels on candies (Hint, CatchCard.MutationLabel, CatchCard.InfoLabel) keep
 	their Text as the contract value but draw it through children (children render above their
 	parent, so the candy face would hide the label's own text): Hint.Label, MutationLabel.Caption,
-	InfoLabel.Weight / InfoLabel.Price (pills; the price counts up).
+	InfoLabel.Weight / InfoLabel.Price (pills; the price counts up). The catch also uses (by name)
+	CatchCard.{FishGlow, NewStamp, Lip (its outline), InfoLabel.Price.Multiplier} and
+	TitleSlam.{Label, Letters} (the giant rarity title).
 	Minigame pips keep a visible BackgroundColor3 (filled = green 64,200,96, as the e2e bot reads
 	it); the zone and the needle keep Position.X = centre and Size.X = width in track fractions.
 ]]
@@ -446,32 +448,49 @@ local function buildHint(root: any)
 end
 
 --------------------------------------------------------------------------------
--- Catch card: the big reveal
+-- Catch card: the big reveal (UI v2: FUI-02 / 03 / 07 / 12)
 --------------------------------------------------------------------------------
 
+--[[
+	The card as built here is the SQUARE layout (desktop / tablet, 380 x 384 at most). On short
+	screens (HUD under 500 px tall: phones) FishingController re-lays the same instances out as
+	a landscape trophy card (CARD_WIDE in the controller): the fish on the left, name / chips /
+	tap hint in a right column, the same child names. The controller also places the card (and
+	its CatchRays) itself every time it opens: centred in its slot, born at the held fish.
+]]
+local CARD_RADIUS = 0.09
+
+-- Name text on the cream card: a dark rarity gradient with a white outline (FUI-12).
+local NAME_COMMON = { P.Night.Top, INK }
+
 local function buildCatch(root: any)
-	-- The dim behind the card (darker at the top and bottom). Not Active: never blocks input.
+	-- The dim around the card: four Ink bands (Top, Bottom, Left, Right) that FishingController
+	-- places AROUND the card's rest box each time it opens (they reach a little under its rounded
+	-- edges and far past the screen edges: notches and the inset band). The card covers the middle
+	-- anyway, so no pixel is dimmed twice — a quarter less GPU fill on a phone than one
+	-- full-screen frame. The CatchDim root draws nothing; never Active: never blocks input.
 	local dim = U.new("Frame", {
 		Name = "CatchDim",
 		Visible = false,
 		Active = false,
-		BackgroundColor3 = INK,
-		BackgroundTransparency = 0.3,
-		BorderSizePixel = 0,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(1.6, 2), -- with a margin: covers notches and the inset band too
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
 		ZIndex = 6,
 	}, root)
-	U.new("UIGradient", {
-		Name = "Vignette",
-		Rotation = 90,
-		Transparency = Theme.numbers({ { 0, 0 }, { 0.25, 0.12 }, { 0.5, 0.5 }, { 0.75, 0.12 }, { 1, 0 } }),
-	}, dim)
+	for _, band in { "Top", "Bottom", "Left", "Right" } do
+		U.new("Frame", {
+			Name = band,
+			Active = false,
+			BackgroundColor3 = INK,
+			BackgroundTransparency = 0.4,
+			BorderSizePixel = 0,
+			ZIndex = 6,
+		}, dim)
+	end
 
 	-- Same box as the card: UiFx.rays sizes its sunburst by this holder's height.
 	local cardSize = UDim2.fromScale(0.58, 0.58)
-	local cardPosition = UDim2.new(0.5, 0, 1, -HOTBAR)
+	local cardPosition = UDim2.new(0.5, 0, 1, -HOTBAR - 16) -- 16 px more: clear of the hotbar
 	local rays = U.new("Frame", {
 		Name = "CatchRays",
 		Visible = false,
@@ -484,8 +503,11 @@ local function buildCatch(root: any)
 	}, root)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(380, 400) }, rays)
 
-	-- The card: a modal between the status stack (base badge, catch counter) and the hotbar
-	-- (tap anywhere on it to close). A Cream candy.
+	-- The card: a modal above the hotbar (tap anywhere on it: skip the reveal / close). A Cream
+	-- candy with only a thin gloss line (a big gloss band on cream is invisible but costs fill).
+	-- Its Lip keeps the outline but draws no background: the lip colour is a LipBand along the
+	-- bottom (the face hides all but its lowest 3.5 % anyway) — a quarter of the phone screen
+	-- less to blend. A mutation recolours that outline (FishingController, FUI-07).
 	local card = U.new("TextButton", {
 		Name = "CatchCard",
 		Visible = false,
@@ -498,11 +520,29 @@ local function buildCatch(root: any)
 		ZIndex = 10,
 	}, root)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(380, 400) }, card)
-	corner(card, 0.09)
-	Theme.candy(card, "Cream", { radius = 0.09, lip = 0.035 })
+	corner(card, CARD_RADIUS)
+	local face = Theme.candy(card, "Cream", { radius = CARD_RADIUS, lip = 0.035 })
+	local lip = card:FindFirstChild("Lip")
+	lip.BackgroundTransparency = 1
+	local lipBand = U.new("Frame", {
+		Name = "LipBand",
+		BackgroundColor3 = P.Cream.Lip,
+		BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.fromScale(1, 0.2),
+		ZIndex = lip.ZIndex,
+	}, card)
+	corner(lipBand, 0.45) -- ≈ the card's corner radius (its shorter side is its height)
+	local gloss = face:FindFirstChild("Gloss")
+	if gloss then
+		gloss.Size = UDim2.fromScale(0.9, 0.06)
+		gloss.Position = UDim2.fromScale(0.5, 0.025)
+	end
 
 	-- Rarity banner overhanging both sides (FishingController: UiFx.setCandy with
-	-- UIConfig.Rarity[r]; Mythic: an animated rainbow + sparkles).
+	-- UIConfig.Rarity[r]; Mythic: an animated rainbow + sparkles; Epic+: the giant TitleSlam
+	-- flies into it).
 	local banner = U.new("Frame", {
 		Name = "Banner",
 		AnchorPoint = Vector2.new(0.5, 0),
@@ -519,7 +559,8 @@ local function buildCatch(root: any)
 		Text = "ОБЫЧНАЯ",
 		Outline = 2.5,
 		ZIndex = Z.Content,
-		MaxTextSize = 34,
+		MaxTextSize = 40,
+		MinTextSize = 14,
 	})
 	for _, side in { { "StarLeft", 0.075, -14 }, { "StarRight", 0.925, 14 } } do
 		Theme.icon(banner, side[1], "⭐", {
@@ -532,8 +573,8 @@ local function buildCatch(root: any)
 		})
 	end
 
-	-- The fish on a soft rarity glow: three discs (halo, disc, white core) in a transparent root
-	-- that FishingController breathes; it tints Halo and Disc with the rarity colour.
+	-- The fish on a soft rarity glow: a disc in a transparent root that FishingController
+	-- breathes and tints with the rarity colour.
 	local glow = U.new("Frame", {
 		Name = "FishGlow",
 		BackgroundTransparency = 1,
@@ -543,7 +584,7 @@ local function buildCatch(root: any)
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 		ZIndex = 3,
 	}, card)
-	for i, disc in { { "Halo", 1.32, 0.78, common.Top }, { "Disc", 1, 0.5, common.Top }, { "Core", 0.6, 0.3, WHITE } } do
+	for i, disc in { { "Disc", 0.82, 0.5, common.Top } } do
 		local frame = U.new("Frame", {
 			Name = disc[1],
 			BackgroundColor3 = disc[4],
@@ -567,45 +608,36 @@ local function buildCatch(root: any)
 		LightDirection = Vector3.new(-1, -1.4, -0.8),
 		ZIndex = 5,
 	}, card)
-	-- «НОВАЯ!»: stamped on the first catch of a species this session.
+
+	-- «НОВИНКА!»: stamped on the top-left corner of the fish (first catch of a species this
+	-- session). Neutral for any fish name («НОВАЯ! Акулёнок» did not agree).
 	Theme.pill(card, "NewStamp", "Berry", {
 		Visible = false,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.23, 0.245),
-		Size = UDim2.fromScale(0.36, 0.088),
+		Position = UDim2.fromScale(0.21, 0.25),
+		Size = UDim2.fromScale(0.34, 0.088),
 		Rotation = -12,
 		ZIndex = 8,
-		Icon = "✨",
-		IconScale = 1.25,
-		Text = "НОВАЯ!",
+		Text = "НОВИНКА!",
 		MaxTextSize = 24,
 	})
 
-	label(card, "NameLabel", {
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.585),
-		Size = UDim2.fromScale(0.92, 0.105),
-		Text = "Карасик",
-		Outline = 3,
-		TextGradient = { WHITE, common.Top },
-		ZIndex = 6,
-		MaxTextSize = 44,
-	})
-
-	-- Mutation badge (UIConfig.Mutations: Gold / Neon / Rainbow candies with their icon);
-	-- MutationLabel.Text is the value, MutationLabel.Caption shows it.
+	-- Mutation stamp on the top-right corner of the fish (FUI-07): a candy in the mutation's
+	-- colours with its icon; MutationLabel.Text is the value («Золотая мутация ×2»),
+	-- MutationLabel.Caption shows the stamp («ЗОЛОТАЯ ×2!»).
 	local mutation = U.new("TextLabel", {
 		Name = "MutationLabel",
 		Visible = false,
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.697),
-		Size = UDim2.fromScale(0.88, 0.078),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.77, 0.25),
+		Size = UDim2.fromScale(0.42, 0.09),
+		Rotation = 10,
 		Text = "",
 		TextTransparency = 1,
 		TextStrokeTransparency = 1,
 		FontFace = Theme.FONT,
-		ZIndex = 7,
+		ZIndex = 8,
 	}, card)
 	local gold = UI.Mutations.Gold
 	Theme.candy(mutation, { Top = gold.Top, Bottom = gold.Bottom, Lip = gold.Lip }, { radius = 0.5, stroke = 2.5 })
@@ -620,63 +652,125 @@ local function buildCatch(root: any)
 	label(mutation, "Caption", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.fromScale(0.95, FACE * 0.5),
-		Size = UDim2.fromScale(0.83, FACE * 0.8),
+		Size = UDim2.fromScale(0.8, FACE * 0.74),
 		Text = "",
 		Outline = 2,
 		ZIndex = Z.Content,
-		MaxTextSize = 24,
+		MaxTextSize = 30,
+		MinTextSize = 14,
+	})
+
+	-- The name: the hero of the card (display text, box-driven like the banner), a dark rarity
+	-- gradient with a white outline (readable on cream); two lines on the landscape card.
+	label(card, "NameLabel", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0.6),
+		Size = UDim2.fromScale(0.92, 0.11),
+		Text = "Карасик",
+		TextWrapped = true,
+		Outline = 2.5,
+		OutlineColor = WHITE,
+		TextGradient = NAME_COMMON,
+		ZIndex = 6,
+		MaxTextSize = 44,
+		MinTextSize = 18,
 	})
 
 	-- Weight and price chips; InfoLabel.Text is the summary «1,2 кг · цена 35 💰» (the value),
-	-- Price.Label counts up from 0.
+	-- Price.Label counts up from 0. Weight is a Cream chip with Ink text (never the rarity's
+	-- colour again), the price a Gold one (it is what a thief steals) with the «×N» of a
+	-- mutation slammed on its corner.
 	local info = U.new("TextLabel", {
 		Name = "InfoLabel",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.79),
-		Size = UDim2.fromScale(0.84, 0.08),
+		Position = UDim2.fromScale(0.5, 0.74),
+		Size = UDim2.fromScale(0.86, 0.1),
 		Text = "",
 		TextTransparency = 1,
 		TextStrokeTransparency = 1,
 		FontFace = Theme.FONT,
 		ZIndex = 6,
 	}, card)
-	Theme.pill(info, "Weight", "Sky", {
+	Theme.pill(info, "Weight", "Cream", {
 		AnchorPoint = Vector2.new(0, 0),
-		Position = UDim2.fromScale(0.04, 0),
-		Size = UDim2.fromScale(0.42, 1),
+		Position = UDim2.fromScale(0.05, 0),
+		Size = UDim2.fromScale(0.41, 1),
 		Icon = "⚖️",
 		IconScale = 1.3,
 		Text = "1 кг",
-		MaxTextSize = 24,
+		Tier = "Body",
+		LabelProps = { Outline = false, TextColor3 = INK, TextStrokeTransparency = 1 },
 	})
-	Theme.pill(info, "Price", "Gold", {
+	local price = Theme.pill(info, "Price", "Gold", {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.fromScale(0.44, 1),
+		Size = UDim2.fromScale(0.45, 1),
 		Icon = "💰",
 		IconScale = 1.45,
 		Text = "0",
-		MaxTextSize = 26,
+		Tier = "Button",
+	})
+	label(price, "Multiplier", {
+		Visible = false,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.97, 0.02),
+		Size = UDim2.fromScale(0.42, 0.95),
+		Rotation = 12,
+		Text = "×2",
+		Outline = 3,
+		TextGradient = { WHITE, P.Gold.Top },
+		ZIndex = Z.Top,
+		MaxTextSize = 34,
+		MinTextSize = 14,
 	})
 
+	-- The close hint: muted on cream, Small tier; hidden until the last beat of the reveal.
 	label(card, "TapHint", {
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.fromScale(0.5, 0.952),
-		Size = UDim2.fromScale(0.8, 0.062),
-		Text = "Нажми, чтобы закрыть",
-		TextColor3 = rgb(130, 120, 100),
+		Position = UDim2.fromScale(0.5, 0.955),
+		Size = UDim2.fromScale(0.8, 0.075),
+		Text = "Тапни, чтобы закрыть",
+		TextColor3 = UI.Fishing.Muted,
 		TextStrokeTransparency = 1,
 		ZIndex = 6,
-		MaxTextSize = 16,
-		MinTextSize = 9,
+		Tier = "Small",
 	})
+
+	-- The giant rarity title (Epic and rarer, FUI-03): slams in at the centre of the screen when
+	-- the fish lands, then flies into the card's banner. Label: the whole word (Epic); Letters:
+	-- FishingController puts one label per letter there (Legendary / Mythic wave).
+	local title = U.new("Frame", {
+		Name = "TitleSlam",
+		Visible = false,
+		Active = false,
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.4),
+		Size = UDim2.fromScale(0.9, 0.17),
+		ZIndex = 12,
+	}, root)
+	label(title, "Label", {
+		Size = UDim2.fromScale(1, 1),
+		Text = "ЭПИЧЕСКАЯ!",
+		Outline = 5,
+		TextGradient = { WHITE, UI.Rarity.Epic.Top },
+		ZIndex = 2,
+		MaxTextSize = 120,
+		MinTextSize = 14,
+	})
+	U.new("Frame", {
+		Name = "Letters",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 2,
+	}, title)
 end
 
 --[[
 	Fishing UI (stage 2), all under HUD.Fishing (FishingController drives it; everything starts
 	hidden). ZIndex inside Fishing: Hint / BiteAlert / Minigame 4, CatchDim 6, CatchRays 7,
-	ActionArea 9, CatchCard 10.
+	ActionArea 9, CatchCard 10, TitleSlam 12.
 	  ActionArea              bottom-right container, sized by screen height
 	    ActionButton          big round candy: Icon, CaptionRibbon + Caption («ЗАБРОСИТЬ» /
 	                          «ЖДЁМ…» / «ПОДСЕЧЬ!» / «ТЯНИ!» / «ВЗЯТЬ»), Ring (white halo)
@@ -686,9 +780,14 @@ end
 	                          Track (Zone: Glow, candy, Flash; Needle), TimeBar (Fill), Help
 	  Hint                    Night pill: Icon + Label (Hint.Text = the value)
 	  CatchDim, CatchRays     the reveal's dim and the holder of its sunburst, behind the card
-	  CatchCard               TextButton (tap to close): Banner (RarityLabel, stars), FishGlow,
-	                          Viewport (the fish model), NewStamp, NameLabel, MutationLabel
-	                          (Icon, Caption), InfoLabel (Weight, Price pills), TapHint
+	  CatchCard               TextButton (tap: skip the reveal / close): Banner (RarityLabel,
+	                          stars), FishGlow, Viewport (the fish model), NewStamp «НОВИНКА!»,
+	                          NameLabel, MutationLabel (corner stamp: Icon, Caption), InfoLabel
+	                          (Weight, Price pills; Price.Multiplier «×N»), TapHint, LipBand.
+	                          Square here; phones: the landscape layout of FishingController
+	                          (same children)
+	  TitleSlam               the giant rarity title of Epic+ (Label, Letters), flies into the
+	                          banner
 ]]
 local function buildFishing(hud: any)
 	local root = U.new("Frame", {

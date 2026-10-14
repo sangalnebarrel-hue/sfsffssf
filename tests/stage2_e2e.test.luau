@@ -53,6 +53,7 @@ end
 
 local FishConfig = loadConfig("FishConfig")
 local FishingConfig = loadConfig("FishingConfig")
+local UIConfig = loadConfig("UIConfig")
 
 -- What the player sees on the action button (FishingController LOOKS) and in the HUD.
 local CAPTION_CAST = "ЗАБРОСИТЬ"
@@ -70,8 +71,11 @@ local MISS_AFTER = 0.4 -- the deliberate miss comes this long after the minigame
 -- The button went back to «ЗАБРОСИТЬ» but neither the card nor a hint showed for this long →
 -- the try ended without an outcome on screen. (RbxSim replicates attributes instantly but
 -- delays remotes by remoteLatency, so the FishingState attribute can end the session on the
--- client a moment before the "Caught" / "Lost" event arrives.)
-local OUTCOME_WAIT = 1
+-- client a moment before the "Caught" / "Lost" event arrives. UI v2: the catch card opens only
+-- when the fish has leapt over the head — LeapTime — plus a per-rarity hold of up to 0.55 s.)
+local OUTCOME_WAIT = FishingConfig.LeapTime + 1.2
+-- The longest a catch card can stay up by itself, plus the 🐟 flying into the counter.
+local CARD_GONE = UIConfig.CatchCardTime.Mythic + 1.6
 -- Standing hints (not about an event) that FishingController shows by the fishing spot.
 -- Hints that are not an outcome (FishingController's context and first-spawn hints).
 local CONTEXT_HINTS = {
@@ -535,9 +539,15 @@ local function checkCatch(t: any, sim: any, player: any, hud: any, fisher: any, 
 	t.eq(hud.cardName.Text, fishDef(fish.Id).Name, "the card names the caught fish")
 	t.eq(hud.cardRarity.Text, upper(rarityDef(fish.Rarity).Name), "the card shows its rarity")
 	t.ok(hud.cardViewport:FindFirstChildOfClass("Model"), "the fish model is in the card")
-	-- the counter
-	t.eq(hud.counter.Visible, true, "the catch counter shows")
-	t.eq(hud.counterLabel.Text, `Улов: {total}`, "the catch counter")
+	-- the counter: it keeps the previous number until the 🐟 flies in from the card (UI v2,
+	-- the HUD attribute CounterHold)
+	local screen = hud.counter.Parent.Parent
+	t.eq(screen:GetAttribute("CounterHold"), total - 1, "the counter holds the previous number")
+	if total > 1 then
+		t.eq(hud.counterLabel.Text, `Улов: {total - 1}`, "the catch counter (before the 🐟 arrives)")
+	else
+		t.eq(hud.counter.Visible, false, "no counter until the first 🐟 arrives")
+	end
 	t.eq(player:GetAttribute("FishCaught"), total, "FishCaught attribute")
 
 	-- the fish above the head (server-side model in the character: everyone sees it)
@@ -557,7 +567,7 @@ local function checkCatch(t: any, sim: any, player: any, hud: any, fisher: any, 
 	t.eq(player:GetAttribute("FishingState"), "Idle", "server state Idle")
 	t.ok(
 		startsWith(hud.caption.Text, CAPTION_CAST) or hud.caption.Text == CAPTION_WAIT,
-		`the button says «{CAPTION_CAST}» again (or «{CAPTION_WAIT}» during CastCooldown)`
+		`the button says «{CAPTION_CAST}» again (or «{CAPTION_WAIT}» while the catch is on screen)`
 	)
 	t.eq(hud.minigame.Visible, false, "the minigame is closed")
 	t.eq(hud.bite.Visible, false, "no bite alert")
@@ -596,9 +606,9 @@ local function cleanCatch(t: any, latency: number)
 	local fish = checkCatch(t, sim, p, hud, fisher, 1)
 	local landedAt = sim:Time() -- checkCatch waited for the held fish (the leap landed)
 
-	-- The card closes by itself; the held fish stays a little longer (HoldFishTime per rarity);
-	-- the player can fish again.
-	sim:Advance(FishingConfig.CatchCardTime + 0.1)
+	-- The card closes by itself (UIConfig.CatchCardTime per rarity); the 🐟 flies into the counter;
+	-- the held fish stays a little longer (HoldFishTime per rarity); the player can fish again.
+	sim:Advance(UIConfig.CatchCardTime[fish.Rarity] + 1.6)
 	t.eq(hud.card.Visible, false, "the card closes after CatchCardTime")
 	sim:Advance(math.max(0, landedAt + FishingConfig.HoldFishTime[fish.Rarity] + 0.1 - sim:Time()))
 	t.eq(p.Character:FindFirstChild("HeldFish"), nil, "the held fish is gone after HoldFishTime")
@@ -880,6 +890,7 @@ tests["(5) two players fish at once: each sees the other's bobber and line, both
 	end
 	t.ok(fishUntilDone(sim, { fisherA, fisherB }, 25), `both tries end\n{fisherA:describe()}\n{fisherB:describe()}`)
 	t.ok(checked.A and checked.B, "both catches checked")
+	sim:Advance(CARD_GONE) -- the cards close and the 🐟 fly into the counters
 	t.eq(hudA.counterLabel.Text, "Улов: 1", "A's own counter")
 	t.eq(hudB.counterLabel.Text, "Улов: 1", "B's own counter")
 
@@ -913,14 +924,17 @@ tests["(6) desktop: F casts, hooks and taps; F closes the catch card; the button
 	t.eq(#sim:ServerEventsFor(p, "FishingHook"), 1, "one hook request")
 	t.eq(#sim:ServerEventsFor(p, "FishingTap"), #fisher.taps, "one tap request per F press in the minigame")
 
-	-- F with the card open closes the card (no cast; not in the first CARD_INPUT_LOCK 0.5 s);
-	-- the next F casts.
+	-- F with the card open skips its reveal, the next F closes the card (no cast; nothing in the
+	-- first CARD_INPUT_LOCK 0.35 s); once the 🐟 is in the counter the next F casts.
 	sim:Advance(0.5)
+	sim:PressKey(p, Enum.KeyCode.F)
+	sim:Advance(0.1)
+	t.eq(hud.card.Visible, true, "F skipped the reveal")
 	sim:PressKey(p, Enum.KeyCode.F)
 	sim:Advance(0.1)
 	t.eq(hud.card.Visible, false, "F closed the card")
 	t.eq(#sim:ServerEventsFor(p, "FishingCast"), 1, "…without casting")
-	sim:Advance(FishingConfig.CastCooldown)
+	sim:Advance(math.max(FishingConfig.CastCooldown, 1))
 	local again = Fisher.new(sim, p, hud, { key = true })
 	castAndPlay(t, sim, again)
 	checkCatch(t, sim, p, hud, again, 2)
