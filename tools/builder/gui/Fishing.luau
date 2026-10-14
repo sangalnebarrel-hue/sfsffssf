@@ -878,9 +878,10 @@ local function buildCatch(root: any)
 	})
 
 	-- Weight and price chips; InfoLabel.Text is the summary «1,2 кг · цена 35 💰» (the value),
-	-- Price.Label counts up from 0 (FishingController raises it to the Title tier on a full-size
-	-- card). Weight is a Cream chip with Ink text (never the rarity's colour again), the price a
-	-- Gold one (it is what a thief steals) with the «×N» of a mutation slammed on its corner.
+	-- Price.Label counts up from 0: the hero number, a tall label (0.8 of the chip face) that
+	-- FishingController turns into display text (box-driven, up to 1.4 × Title, never under
+	-- Button − 2). Weight is a Cream chip with Ink text (never the rarity's colour again), the
+	-- price a Gold one (it is what a thief steals) with the «×N» of a mutation slammed on its corner.
 	local info = U.new("TextLabel", {
 		Name = "InfoLabel",
 		BackgroundTransparency = 1,
@@ -910,7 +911,8 @@ local function buildCatch(root: any)
 		Icon = "💰",
 		IconScale = 1.45,
 		Text = "0",
-		Tier = "Button",
+		Tier = "Title",
+		LabelProps = { Size = UDim2.fromScale(0.78, FACE * 0.8) },
 	})
 	label(price, "Multiplier", {
 		Visible = false,
@@ -926,16 +928,17 @@ local function buildCatch(root: any)
 		MinTextSize = 14,
 	})
 
-	-- The close hint: muted on cream, Small tier; hidden until the last beat of the reveal.
+	-- The close hint, named like the button's «ЗАБРАТЬ!»: muted on cream, Body tier (≥ 14 px on
+	-- the smallest phone); hidden until the last beat of the reveal, then it breathes gently.
 	label(card, "TapHint", {
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.fromScale(0.5, 0.955),
 		Size = UDim2.fromScale(0.8, 0.075),
-		Text = "Тапни, чтобы закрыть",
+		Text = "Тапни — забрать!",
 		TextColor3 = UI.Fishing.Muted,
 		TextStrokeTransparency = 1,
 		ZIndex = 6,
-		Tier = "Small",
+		Tier = "Body",
 	})
 
 	-- The giant rarity title (Epic and rarer, FUI-03): slams in at the centre of the screen when

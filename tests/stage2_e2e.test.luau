@@ -60,6 +60,7 @@ local CAPTION_CAST = "ЗАБРОСИТЬ"
 local CAPTION_WAIT = "ЖДЁМ…"
 local CAPTION_HOOK = "ПОДСЕЧЬ!"
 local CAPTION_REEL = "ЛОВИ!"
+local CAPTION_COLLECT = "ЗАБРАТЬ!" -- the catch card is shown whole: the button closes it
 local PIP_DONE = Color3.fromRGB(64, 200, 96) -- a filled «hit» pip of the minigame
 local RETRACT_TIME = 0.45 -- FishingFxController: a bobber reels back in this long after Idle
 
@@ -933,20 +934,28 @@ tests["(6) desktop: F casts, hooks and taps; F closes the catch card; the button
 	t.eq(#sim:ServerEventsFor(p, "FishingHook"), 1, "one hook request")
 	t.eq(#sim:ServerEventsFor(p, "FishingTap"), #fisher.taps, "one tap request per F press in the minigame")
 
-	-- F with the card open skips its reveal, the next F closes the card (no cast; nothing in the
-	-- first CARD_INPUT_LOCK 0.35 s, nor in the 0.6 s after the skip — a mashed F does not hide the
-	-- card); once the 🐟 is in the counter the next F casts.
-	sim:Advance(0.5)
+	-- (Wave D, F1.) F with the card open does not skip its reveal — only a click on the card does:
+	-- «ЛОВИ!» / F is mashed on after the win. Once the card is shown whole («ЗАБРАТЬ!») an F after
+	-- a pause (CARD.Mash 0.3 s) closes it, without casting; a still-mashed F does not. Once the 🐟
+	-- is in the counter the next F casts.
+	t.ok(sim:WaitFor(function()
+		return hud.card.Visible
+	end, 3, FRAME) == true, "the card opens")
+	local mashes = 0
+	while hud.caption.Text ~= CAPTION_COLLECT and mashes < 40 do
+		sim:PressKey(p, Enum.KeyCode.F)
+		sim:Advance(0.15)
+		mashes += 1
+		t.eq(hud.card.Visible, true, "F mashed during the reveal leaves the card up")
+	end
+	t.eq(hud.caption.Text, CAPTION_COLLECT, "the card settles by itself while F is mashed («ЗАБРАТЬ!»)")
 	sim:PressKey(p, Enum.KeyCode.F)
 	sim:Advance(0.1)
-	t.eq(hud.card.Visible, true, "F skipped the reveal")
+	t.eq(hud.card.Visible, true, "an F still mashed right after leaves the settled card up")
+	sim:Advance(0.4)
 	sim:PressKey(p, Enum.KeyCode.F)
 	sim:Advance(0.1)
-	t.eq(hud.card.Visible, true, "a second F right after the skip leaves the card up")
-	sim:Advance(0.5)
-	sim:PressKey(p, Enum.KeyCode.F)
-	sim:Advance(0.1)
-	t.eq(hud.card.Visible, false, "F closed the card")
+	t.eq(hud.card.Visible, false, "F after a pause closed the card")
 	t.eq(#sim:ServerEventsFor(p, "FishingCast"), 1, "…without casting")
 	sim:Advance(math.max(FishingConfig.CastCooldown, 1))
 	local again = Fisher.new(sim, p, hud, { key = true })

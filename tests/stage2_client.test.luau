@@ -525,14 +525,24 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	t.eq(card.Visible, true, "a trailing tap right after the card opens does nothing")
 	sim:Advance(0.5)
 	pressF(sim, p)
-	t.eq(card.Visible, true, "the action skips the reveal…")
+	t.eq(card.Visible, true, "the action does not skip the reveal (only a tap on the card does)…")
+	t.ok(card.InfoLabel.Price.Label.Text ~= "2\u{00A0}400", "…the price is still to come")
+	-- (Wave D, F1: «ЛОВИ!» is mashed on after the win — the action closes only the card shown
+	-- whole, «ЗАБРАТЬ!», and only after a pause.)
+	for _ = 1, 20 do
+		pressF(sim, p)
+		sim:Advance(0.13)
+	end
+	t.eq(
+		caption(sim, p),
+		"ЗАБРАТЬ!",
+		"mashing F every 0.15 s: the card settles by itself («ЗАБРАТЬ!»)…"
+	)
+	t.eq(card.Visible, true, "…and the mashing does not close it")
 	t.eq(card.InfoLabel.Price.Label.Text, "2\u{00A0}400", "…the price with a thousands space")
-	sim:Advance(0.2)
+	sim:Advance(0.4)
 	pressF(sim, p)
-	t.eq(card.Visible, true, "…a mashed F right after the skip leaves it up")
-	sim:Advance(SKIP_DWELL)
-	pressF(sim, p)
-	t.eq(card.Visible, false, "…and then closes the card")
+	t.eq(card.Visible, false, "…F after a pause closes the card")
 	t.eq(#sent(sim, p, "FishingCast"), 0, "...and does not cast")
 	sim:Advance(0.9)
 	t.eq(counter.Label.Text, "Улов: 2", "+1 when the 🐟 arrives")
@@ -541,8 +551,8 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	serverSays(sim, p, "Caught", { Fish = { Id = "Crucian", Rarity = "Common", Kg = 0.5, Value = 9 }, Total = 3 })
 	t.ok(waitCard(sim, p))
 	t.eq(card.InfoLabel.Text, "500 г · цена 9 💰")
-	-- Closes by itself: UIConfig.CatchCardTime per rarity, never sooner than a second after its
-	-- last beat (a new Common species: about 3.05 s — its beats are ≥ 0.25 s apart).
+	-- Closes by itself: UIConfig.CatchCardTime per rarity, never sooner than CARD.Linger (0.6 s)
+	-- after its last beat (a new Common species: the 0.2 s ladder settles at ≈ 1.25 s, so 2.2 s).
 	sim:Advance(UIConfig.CatchCardTime.Common + 1.1)
 	t.eq(card.Visible, false, "closes by itself")
 	sim:AssertNoErrors({ warnings = true })

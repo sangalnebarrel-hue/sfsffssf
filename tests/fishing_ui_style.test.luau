@@ -617,11 +617,12 @@ local function openCard(sim: any, p: any): boolean
 	end, CARD_OPENS + 0.5)
 end
 
--- (Deliberate UI v2 changes against the v1 version of this test: a Common fish has no dim and
--- no confetti; the texts appear by beats; «НОВИНКА!» instead of «НОВАЯ!».)
-tests["catch card: Common reveal — calm (no dim, no confetti), pop-in with a turn, beats, «НОВИНКА!», count-up"] = function(
-	t
-)
+-- (Deliberate UI v2 changes against the v1 version of this test: a known Common fish has no dim
+-- and no confetti; the texts appear by beats; «НОВИНКА!» instead of «НОВАЯ!». Wave D: the name is
+-- born with the card, and a NEW Common species gets a small fanfare — a light dim, brighter rays
+-- with gold and green, sparks + confetti + a ping at «НОВИНКА!», a «+N 💰»; the same species again
+-- is calm.)
+tests["catch card: Common reveal — a new species gets a small fanfare, a known one stays calm"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	ready(sim, p)
@@ -632,10 +633,10 @@ tests["catch card: Common reveal — calm (no dim, no confetti), pop-in with a t
 	catch(sim, p, CATCHES.Common, 1)
 	t.eq(card.Visible, false, "the fish leaps first")
 	t.ok(openCard(sim, p), "the card opens after the landing")
-	t.eq(f.CatchDim.Visible, false, "no dim for a Common fish")
-	t.ok(f.CatchRays.Visible and f.CatchRays:FindFirstChild("FxRays"), "calm rays behind the card")
+	t.eq(f.CatchDim.Visible, true, "a NEW Common species: a light dim (its small fanfare)")
+	t.ok(f.CatchRays.Visible and f.CatchRays:FindFirstChild("FxRays"), "rays behind the card")
 	t.eq(count(f.CatchRays, "FxRays"), 1, "one ring of rays for a Common fish")
-	t.ok(colorNear(f.CatchRays.FxRays.Ray1.BackgroundColor3, UIConfig.Rarity.Common.Rays[1]), "rays in rarity colours")
+	t.ok(colorNear(f.CatchRays.FxRays.Ray1.BackgroundColor3, Palette.Gold.Top), "…brighter: gold among them")
 	t.ok(card.FxScale.Scale < 1, "the card pops in")
 	t.ok(card.Rotation < 0, "…with a little turn")
 	t.ok(isCandy(card.Banner, UIConfig.Rarity.Common), "the banner in the rarity gradient")
@@ -643,23 +644,34 @@ tests["catch card: Common reveal — calm (no dim, no confetti), pop-in with a t
 	t.eq(card.InfoLabel.Weight.Label.Text, "840 г")
 	t.eq(price.Text, "0", "the price starts at 0")
 	t.eq(card.Banner.FxScale.Scale, 0, "the rarity waits for its beat")
-	t.eq(card.NameLabel.FxScale.Scale, 0, "…so does the name")
-	t.eq(card.TapHint.TextTransparency, 1, "…and the close hint")
-	t.eq(p.PlayerGui.HUD:FindFirstChild("FxConfetti"), nil, "no confetti for a Common fish")
+	t.eq(card.NameLabel.FxScale.Scale, 1, "the name is born with the card (no blank right half)")
+	t.eq(card.NameLabel.TextTransparency, 0, "…readable at once")
+	t.eq(card.TapHint.TextTransparency, 1, "the close hint waits for the last beat")
+	t.eq(f:FindFirstChild("FxConfetti"), nil, "no confetti before «НОВИНКА!»")
 	t.eq(p.PlayerGui.HUD:FindFirstChild("FxFlash"), nil, "no screen flash for a Common fish")
 	t.eq(f.TitleSlam.Visible, false, "no giant title for a Common fish")
 	t.eq(card.NewStamp.Visible, true, "the first Crucian of the session is «НОВИНКА!»")
 	t.eq(card.NewStamp.Label.Text, "НОВИНКА!")
 
-	sim:Advance(0.55)
+	sim:Advance(0.45)
 	t.near(card.FxScale.Scale, 1, 1e-3, "popped in")
 	t.near(card.Rotation, 0, 1e-3, "and turned straight")
-	t.ok(card.Banner.FxScale.Scale > 0.5, "the rarity is up (c+0.28)")
+	t.ok(card.Banner.FxScale.Scale > 0.5, "the rarity is up (c+0.18)")
 	t.ok(card.FishGlow:FindFirstChild("FxRays"), "small rays behind the fish")
-	sim:Advance(0.8)
+	t.ok(card.NewStamp.FxScale.Scale > 0, "«НОВИНКА!» stamps in (c+0.38)…")
+	t.ok(f:FindFirstChild("FxConfetti"), "…with a handful of confetti")
+	t.ok(f:FindFirstChild("FxBurst"), "…and sparks from the stamp")
+	sim:Advance(0.45)
 	local partial = price.Text
 	t.ok(tonumber(partial) ~= nil, "the price is a number while counting")
-	sim:Advance(1)
+	t.ok(
+		waitFor(sim, function()
+			return f:FindFirstChild("FxPriceFloat") ~= nil
+		end, 1),
+		"a new species: «+11 💰» flies out of the price"
+	)
+	t.eq(f.FxPriceFloat.Text, "+11 💰")
+	sim:Advance(0.5)
 	t.eq(price.Text, "11", "the price counted up to the value")
 	t.near(card.NewStamp.FxScale.Scale, 1, 1e-3, "«НОВИНКА!» stamped")
 	t.ok(card.TapHint.TextTransparency < 0.5, "the close hint shows after the last beat")
@@ -675,13 +687,26 @@ tests["catch card: Common reveal — calm (no dim, no confetti), pop-in with a t
 		"a plain Common card keeps its Ink outline"
 	)
 
-	-- The same species again: no «НОВИНКА!».
+	-- The same species again: calm — no «НОВИНКА!», no dim, no confetti, no «+N 💰», rarity rays.
 	sim:Advance(UIConfig.CatchCardTime.Common + 1)
 	t.eq(card.Visible, false, "closed by itself")
-	sim:Advance(1)
+	sim:Advance(2)
 	catch(sim, p, CATCHES.Common, 2)
 	t.ok(openCard(sim, p))
 	t.eq(card.NewStamp.Visible, false, "a second Crucian is not new")
+	t.eq(f.CatchDim.Visible, false, "…no dim")
+	t.ok(colorNear(f.CatchRays.FxRays.Ray1.BackgroundColor3, UIConfig.Rarity.Common.Rays[1]), "…calm rarity rays")
+	local float, confetti = false, false
+	for _ = 1, 90 do
+		sim:Advance(1 / 30)
+		float = float or f:FindFirstChild("FxPriceFloat") ~= nil
+		confetti = confetti
+			or f:FindFirstChild("FxConfetti") ~= nil
+			or p.PlayerGui.HUD:FindFirstChild("FxConfetti") ~= nil
+	end
+	t.eq(price.Text, "11", "…the price lands")
+	t.eq(float, false, "…without «+N 💰»")
+	t.eq(confetti, false, "…and without confetti")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -831,7 +856,8 @@ tests["mutation: stamped after the base price — «×N», recount, outline; Gol
 			t.ok(isCandy(badge, style), `{case[1]}: its style`)
 		end
 		t.eq(badge.FxScale.Scale, 0, `{case[1]}: waits for its beat`)
-		-- The base price lands first (only a tick), then it breathes 0.3 s before the stamp.
+		-- The base price lands first (only a tick), then it breathes one beat (0.2 s for a Rare)
+		-- before the stamp.
 		t.ok(
 			waitFor(sim, function()
 				return price.Text == tostring(CATCHES.Rare.Value)
@@ -870,13 +896,17 @@ tests["mutation: stamped after the base price — «×N», recount, outline; Gol
 	sim:AssertNoErrors({ warnings = true })
 end
 
--- UI v2 (motion M4): the card's beats come one by one — rarity → name → «НОВИНКА!» → chips →
--- price landing (→ mutation stamp → full price) → close hint — never two within ~0.25 s, on the
--- plain path (Common: the banner unrolls at c+0.28) and on the title path (Legendary: the giant
--- title flies into the banner from c+0, the banner grows out of it at its end).
-local BEAT_MIN = 0.25 - 1 / 60 -- one 60 fps frame of measuring slack
+-- UI v2 (motion M4): the card's beats come one by one — rarity → «НОВИНКА!» → chips → price
+-- landing (→ mutation stamp → full price) → close hint; the name is born with the card (wave D:
+-- no blank right half). Tempo by rarity (wave D, R3-3): Common and Rare — fished dozens of times —
+-- never two within ~0.18 s (a 0.2 s ladder; the banner unrolls at c+0.18), Epic and rarer never
+-- within ~0.25 s (0.27 s; the giant title flies into the banner from c+0, the banner grows out of
+-- it at its end). The count-up runs into the landing (R3-2): 0.15 s before it the label shows at
+-- most ~92 % of the price.
+local BEAT_MIN_CALM = 0.18 - 1 / 60 -- one 60 fps frame of measuring slack
+local BEAT_MIN = 0.25 - 1 / 60
 
-tests["catch card beats: one at a time, ≥ 0.25 s apart, in order (plain, title and mutation paths)"] = function(t)
+tests["catch card beats: one at a time, ≥ 0.18 s (Common / Rare) or ≥ 0.25 s (Epic+) apart, in order"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "phone")
 	ready(sim, p)
@@ -888,9 +918,10 @@ tests["catch card beats: one at a time, ≥ 0.25 s apart, in order (plain, title
 	gold.Mutation = "Gold"
 	gold.Value = CATCHES.Rare.Value * 2
 	local cases = {
-		{ name = "Common", fish = CATCHES.Common, base = CATCHES.Common.Value },
-		{ name = "Legendary", fish = CATCHES.Legendary, base = CATCHES.Legendary.Value },
-		{ name = "Gold Perch", fish = gold, base = CATCHES.Rare.Value },
+		{ name = "Common", fish = CATCHES.Common, base = CATCHES.Common.Value, gap = BEAT_MIN_CALM, new = true },
+		{ name = "Legendary", fish = CATCHES.Legendary, base = CATCHES.Legendary.Value, gap = BEAT_MIN, new = true },
+		{ name = "Gold Perch", fish = gold, base = CATCHES.Rare.Value, gap = BEAT_MIN_CALM, new = true },
+		{ name = "Common again", fish = CATCHES.Common, base = CATCHES.Common.Value, gap = BEAT_MIN_CALM, new = false },
 	}
 	local function scale(gui: any): number
 		local found = gui:FindFirstChild("FxScale")
@@ -899,24 +930,16 @@ tests["catch card beats: one at a time, ≥ 0.25 s apart, in order (plain, title
 	for index, case in cases do
 		catch(sim, p, case.fish, index)
 		t.ok(openCard(sim, p), `{case.name}: the card opens`)
+		t.ok(
+			scale(card.NameLabel) > 0.95 and card.NameLabel.TextTransparency < 0.05,
+			`{case.name}: the name is born with the card`
+		)
 		local mutated = case.fish.Mutation ~= nil
 		local probes: { { name: string, shown: () -> boolean } } = {
 			{
 				name = "banner",
 				shown = function()
 					return scale(card.Banner) > 0.05
-				end,
-			},
-			{
-				name = "name",
-				shown = function()
-					return scale(card.NameLabel) > 0.05 and card.NameLabel.TextTransparency < 0.95
-				end,
-			},
-			{
-				name = "new",
-				shown = function()
-					return card.NewStamp.Visible and scale(card.NewStamp) > 0.05
 				end,
 			},
 			{
@@ -938,14 +961,25 @@ tests["catch card beats: one at a time, ≥ 0.25 s apart, in order (plain, title
 				end,
 			},
 		}
+		if case.new then
+			table.insert(probes, 2, {
+				name = "new",
+				shown = function()
+					return card.NewStamp.Visible and scale(card.NewStamp) > 0.05
+				end,
+			})
+		else
+			t.eq(card.NewStamp.Visible, false, `{case.name}: a known species is not «НОВИНКА!»`)
+		end
 		if mutated then
-			table.insert(probes, 6, {
+			local at = #probes -- before the close hint
+			table.insert(probes, at, {
 				name = "mutation",
 				shown = function()
 					return scale(card.MutationLabel) > 0.05
 				end,
 			})
-			table.insert(probes, 7, {
+			table.insert(probes, at + 1, {
 				name = "full price",
 				shown = function()
 					return price.Text == tostring(case.fish.Value)
@@ -953,6 +987,7 @@ tests["catch card beats: one at a time, ≥ 0.25 s apart, in order (plain, title
 			})
 		end
 		local times: { [string]: number } = { card = 0 }
+		local shownPrice: { { at: number, value: number } } = {}
 		local elapsed, found = 0, 0
 		while elapsed < 4 and found < #probes do
 			for _, probe in probes do
@@ -961,8 +996,26 @@ tests["catch card beats: one at a time, ≥ 0.25 s apart, in order (plain, title
 					found += 1
 				end
 			end
+			local value = tonumber((string.gsub(price.Text, "\u{00A0}", "")))
+			if value then
+				table.insert(shownPrice, { at = elapsed, value = value })
+			end
 			sim:Advance(1 / 60)
 			elapsed += 1 / 60
+		end
+		-- The count-up runs into the landing: 0.15 s before it, at most ~92 % of the price.
+		local landedAt = times.price
+		if landedAt then
+			local before = 0
+			for _, sample in shownPrice do
+				if sample.at <= landedAt - 0.15 then
+					before = sample.value
+				end
+			end
+			t.ok(
+				before <= case.base * 0.93,
+				`{case.name}: still counting 0.15 s before the landing ({before} of {case.base})`
+			)
 		end
 		local order = { "card" }
 		for _, probe in probes do
@@ -977,7 +1030,10 @@ tests["catch card beats: one at a time, ≥ 0.25 s apart, in order (plain, title
 		for i = 2, #order do
 			local a, b = times[order[i - 1]], times[order[i]]
 			if a and b then
-				t.ok(b - a >= BEAT_MIN, `{case.name}: {order[i - 1]} → {order[i]} ≥ 0.25 s apart ({summary})`)
+				t.ok(
+					b - a >= case.gap,
+					`{case.name}: {order[i - 1]} → {order[i]} ≥ {string.format("%.2f", case.gap)} s apart ({summary})`
+				)
 			end
 		end
 		sim:Click(p, card)
@@ -1001,8 +1057,8 @@ tests["mutation: a skip mid-stamp settles it — no recount from the base price 
 	fish.Value = CATCHES.Rare.Value * 2
 	catch(sim, p, fish, 1)
 	t.ok(openCard(sim, p))
-	-- The stamp beat begins 0.3 s after the base price lands; its «×N» comes 0.15 s later, the
-	-- recount 0.25 s later.
+	-- The stamp beat begins one beat (0.2 s, Rare) after the base price lands; its «×N» comes
+	-- 0.15 s later, the recount 0.25 s later.
 	t.ok(
 		waitFor(sim, function()
 			return card.InfoLabel.Price.Multiplier.Visible
@@ -1026,10 +1082,11 @@ tests["mutation: a skip mid-stamp settles it — no recount from the base price 
 	sim:AssertNoErrors({ warnings = true })
 end
 
--- (UI v2: a tap during the reveal skips it; the card shrinks towards the counter and a 🐟 with
--- ★ flies out of it 0.2 s later; the rays shrink with it — timings this test checked before. The
--- first catch: the counter appears with «Улов: 0» as the card leaves, so the 🐟 has a target.)
-tests["closing: skip, then close — the card hides, its ghost shrinks to the counter, 🐟 flies, +1; nothing leaks"] = function(
+-- (UI v2: a tap during the reveal skips it; wave D: the card itself is the projectile — it flies
+-- into the counter shrinking to a speck, a 🐟 with ★ leaves beside it 0.05 s later and they land
+-- together; the rays shrink with it — timings this test checked before. The first catch: the
+-- counter appears with «Улов: 0» as the card leaves, so the 🐟 has a target.)
+tests["closing: skip, then close — the card itself flies into the counter, 🐟 ★ with it, +1 ≈ 0.35 s; nothing leaks"] = function(
 	t
 )
 	local sim = boot(t)
@@ -1079,10 +1136,13 @@ tests["closing: skip, then close — the card hides, its ghost shrinks to the co
 	t.eq(hud:GetAttribute("CounterIncoming"), "Rare", "…towards the counter, which knows what flies in")
 	t.eq(counter.Visible, true, "the first catch: the counter appears…")
 	t.eq(counter.Label.Text, "Улов: 0", "…with the number before the fish")
-	t.eq(hud:FindFirstChild("FxFly"), nil, "the 🐟 waits until the card has shrunk")
-	sim:Advance(0.22)
-	t.ok(ghost.FxScale.Scale < 0.8, `the ghost shrinks ({ghost.FxScale.Scale})`)
-	t.ok(hud:FindFirstChild("FxFly"), "a 🐟 flies out of it")
+	t.eq(button.Ring.Transparency, 1, "the frozen button has no halo during the flight")
+	-- (Wave D, R3-6: the card itself is the projectile — it flies almost into the counter,
+	-- shrinking to a speck; the 🐟 and ★ leave at once from near its start and land with it.)
+	sim:Advance(0.06)
+	t.ok(hud:FindFirstChild("FxFly"), "a 🐟 leaves right away, beside the flying card")
+	sim:Advance(0.16)
+	t.ok(ghost.FxScale.Scale < 0.6, `the card shrinks as it flies ({ghost.FxScale.Scale})`)
 	local stars = 0
 	for _, item in hud:GetChildren() do
 		if item.Name == "FxFly" and item.Text == "★" then
@@ -1090,16 +1150,19 @@ tests["closing: skip, then close — the card hides, its ghost shrinks to the co
 		end
 	end
 	t.ok(stars > 0, "★ in the rarity colours follow it")
-	sim:Advance(0.15)
+	t.eq(hud:GetAttribute("CounterHold"), 0, "the counter still holds its number while they fly")
+	t.eq(button.Ring.Transparency, 1, "…still no halo on the frozen button")
+	sim:Advance(0.15) -- close + 0.39 s
 	t.eq(f.CatchRays:FindFirstChild("FxRays"), nil, "the rays shrank with the card")
-	t.eq(f:FindFirstChild("FxCardOut"), nil, "the ghost is gone")
+	t.eq(f:FindFirstChild("FxCardOut"), nil, "the card is gone into the counter")
 	t.eq(f.CatchDim.Visible, false, "the dim faded away")
-	sim:Advance(0.3)
-	t.eq(hud:GetAttribute("CounterHold"), nil, "the 🐟 arrived: the hold is released")
-	t.eq(hud:GetAttribute("CounterIncoming"), nil, "…and the incoming mark")
+	t.eq(hud:GetAttribute("CounterHold"), nil, "the 🐟 arrived with the card (tap → +1 ≈ 0.35 s)")
+	t.eq(hud:GetAttribute("CounterIncoming"), nil, "…and the incoming mark is cleared")
 	t.eq(counter.Label.Text, "Улов: 1")
 	t.ok(counter.FxScale.Scale > 1, "the counter bumps when the fish arrives")
 	t.ok(counter:FindFirstChild("FxRing"), "…with a ring in the rarity colour")
+	sim:Advance(0.3)
+	t.eq(hud:FindFirstChild("FxFlyFrom"), nil, "the 🐟's start point is gone once the last ★ left")
 	sim:Advance(3)
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
 	t.eq(UiFx.activeJobs(), 0, "no frame effects")
@@ -1116,6 +1179,128 @@ tests["closing: skip, then close — the card hides, its ghost shrinks to the co
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
 	t.eq(frameConnections(sim, p), idleFrames)
 	t.eq(sim:CountConnections(p), idleConnections)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- Wave D (F1, F2): after the winning tap the kid keeps mashing the action button (now the frozen
+-- «ЖДЁМ…»). An action input never skips the reveal — only a tap on the card does — and closes the
+-- card only once it is shown whole («ЗАБРАТЬ!») and the mashing has paused (CARD.Mash 0.3 s).
+-- «ЗАБРАТЬ!» keeps its white halo (the button's unfade does not fight its look) and the frozen
+-- button has none during the 🐟 flight.
+tests["catch: mashing the action button never skips the reveal; «ЗАБРАТЬ!» (with its halo) closes after a pause"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	ready(sim, p)
+	local f = fishing(p)
+	local card = f.CatchCard
+	local button = f.ActionArea.ActionButton
+	local price = card.InfoLabel.Price.Label
+	serverSays(sim, p, "Minigame", minigame("Legendary"))
+	sim:Advance(0.3)
+	catch(sim, p, CATCHES.Legendary, 1)
+
+	-- 5 Hz from the win.
+	local elapsed = 0
+	local opened: number? = nil
+	local settledAt: number? = nil
+	local midPrice: string? = nil
+	local seen: { [string]: boolean } = {}
+	local distinct = 0
+	local function mash(untilOpen: number)
+		while opened == nil or elapsed < opened + untilOpen do
+			sim:Click(p, button)
+			for _ = 1, 12 do
+				sim:Advance(1 / 60)
+				elapsed += 1 / 60
+				if card.Visible then
+					opened = opened or elapsed
+					if not seen[price.Text] then
+						seen[price.Text] = true
+						distinct += 1
+					end
+					if midPrice == nil and elapsed >= (opened :: number) + 1.2 then
+						midPrice = price.Text
+					end
+					if settledAt == nil and button.Caption.Text == "ЗАБРАТЬ!" then
+						settledAt = elapsed
+					end
+				end
+			end
+			if elapsed > CARD_OPENS + 5 then
+				break
+			end
+		end
+	end
+	mash(1.5)
+	t.ok(opened ~= nil, "the card opened while the button was mashed")
+	t.eq(card.Visible, true, "open + 1.5 s: still up (the mashing neither skipped nor closed it)")
+	t.ok(midPrice ~= nil and midPrice ~= "590", `open + 1.2 s: the price still counting ({midPrice})`)
+	t.ok(distinct >= 4, `the price counted up through {distinct} values`)
+	mash(2.6) -- the card settles at ≈ c + 1.84 (Legendary): keep mashing past it
+	t.ok(settledAt ~= nil, "the card settled by itself: «ЗАБРАТЬ!»")
+	t.eq(card.Visible, true, "…and the mashing does not close it")
+	t.eq(price.Text, "590")
+	t.ok(
+		button.Ring.Transparency < 0.3,
+		`«ЗАБРАТЬ!» has its white halo 0.3 s after settling (Ring {button.Ring.Transparency})`
+	)
+	sim:Advance(0.4)
+	sim:Click(p, button)
+	sim:Advance(0.02)
+	t.eq(card.Visible, false, "a press after a pause closes the card")
+	t.eq(button.Caption.Text, "ЖДЁМ…", "the button freezes while the 🐟 flies…")
+	for _ = 1, 12 do
+		sim:Advance(1 / 60)
+		t.eq(button.Ring.Transparency, 1, "…with no halo")
+	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- Wave D (F6): the Mythic price flare (rim 1.35× thicker for 0.4 s) dies with the card — a tap in
+-- its last 0.1 s used to leave the card outline fat for the rest of the session — and a rim takes
+-- its base thickness from the builder (BaseThickness), never from the live stroke.
+tests["rims: the Mythic price flare dies with the card; a rim restores the builder's thickness"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	ready(sim, p)
+	local card = fishing(p).CatchCard
+	local outline = card.Lip:FindFirstChildOfClass("UIStroke")
+	local price = card.InfoLabel.Price.Label
+	local base = outline.Thickness
+	catch(sim, p, CATCHES.Mythic, 1)
+	t.ok(openCard(sim, p))
+	t.ok(
+		waitFor(sim, function()
+			return price.Text == "2\u{00A0}400"
+		end, 3),
+		"the Mythic price lands (its rim flares)"
+	)
+	t.ok(
+		waitFor(sim, function()
+			return card.TapHint.TextTransparency < 0.95
+		end, 0.4),
+		"…the card settles one beat later, inside the 0.4 s flare"
+	)
+	sim:Click(p, card)
+	sim:Advance(0.6)
+	t.eq(card.Visible, false, "closed during the flare")
+	t.near(outline.Thickness, base, 1e-3, "the outline is back to its own thickness")
+
+	-- Whatever leaves the stroke thick, the next rim does not take that for its base.
+	outline.Thickness = base * 3
+	sim:Advance(2)
+	catch(sim, p, CATCHES.Legendary, 2)
+	t.ok(openCard(sim, p))
+	t.ok(outline:FindFirstChild("FxRimFill"), "a Legendary rim on the card")
+	sim:Advance(0.5)
+	sim:Click(p, card)
+	sim:Advance(SKIP_DWELL + 0.1)
+	sim:Click(p, card)
+	sim:Advance(0.6)
+	t.eq(card.Visible, false)
+	t.near(outline.Thickness, base, 1e-3, "the rim restores the builder's thickness")
 	sim:AssertNoErrors({ warnings = true })
 end
 
