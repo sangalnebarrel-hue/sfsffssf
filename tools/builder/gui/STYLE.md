@@ -231,6 +231,20 @@ timers. Stagger groups by 0.03–0.06 s.
   `Fx.PillarTimeOther`; their broadcast toast lands with it, `FishingFxController.OtherTrophy`
   points the HUD chip at it) and a confetti burst, seen by everyone. A lost fish: the line flashes, the bobber pops up, a splash and
   a tail flick away.
+- **The fisher's body** (FisherAnimController + FisherRig / FisherPoses / FisherRod; every client
+  animates every fisher within 150 studs, writing joint.Transform in PreSimulation over the default
+  Animate pose): a wind-up with the bobber hanging at the rod tip until `CastTime` (= cast +
+  `FishingConfig.CastWindUp` 0.3 s, so all clients see it), the throw exactly when the bobber leaves
+  the tip, waiting sway + looking at the bobber, bite startle and tip jerks with the bobber's dips,
+  a strike, the reel fight (braced legs, left-hand crank at 2.2 Hz, body and rod swung in phase
+  with the bobber's thrashing), catch (yank, look up at the leap, both hands up under the fish over
+  the head, a hop and «pumps»; a held trophy is carried overhead while walking), loss (slump, head
+  shake). The rod bends towards the line under load and whips on the cast (a spring, ≈6 Hz); its
+  TipAttachment moves with the bend, so the line and the flying bobber follow the bent tip. Poses
+  and timings: FisherPoses (key-pose sheets: tools/preview/pose_dump.luau + pose_sheet.py). While
+  walking, torso and head go back to the normal animation at once (arms stay posed); every
+  transition is a crossfade, nothing pops. Rules: no uploaded / Studio-registered animations, no
+  C0 writes (AnimationConstraint rigs), no per-frame work when nobody fishes nearby.
 
 ## 4. Budgets (phones first)
 
@@ -238,6 +252,9 @@ timers. Stagger groups by 0.03–0.06 s.
   everything destroyed when done. No RenderStepped/Heartbeat connection while nothing animates.
 - World: at most 2 ParticleEmitters active per player at a time; parts for ripples/pillars are
   client-side, CanCollide/CanQuery/CanTouch false, CastShadow false, destroyed after use.
+- Fisher animation: one PreSimulation connection for all fishers, only while someone within 150
+  studs fishes / holds a trophy / finishes a short move; ≈15 Transform writes + ≤ 14 rod-weld C0
+  writes per animated fisher per frame, no Instance created per frame.
 - Animations never block input; widgets keep their names (controllers and tests find them by name)
   and stay inside the layout rules of tools/builder/Gui.luau (above the Roblox hotbar, left of the
   Jump button, out of the status stack).

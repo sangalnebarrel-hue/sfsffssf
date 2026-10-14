@@ -345,6 +345,10 @@ return function(M)
 			return sim.misc:playingTracks(real)
 		end),
 		AnimationPlayed = M.signal(),
+		-- rigged characters: true on frames sim:ThrottleAnimator skips (tools/sim/rigs.luau)
+		EvaluationThrottled = M.prop(function(sim, real)
+			return sim.rigs:isThrottled(real)
+		end),
 		StepAnimations = M.method(noop),
 		ApplyJointVelocities = M.method(noop),
 	}
@@ -396,56 +400,66 @@ return function(M)
 		KeyframeReached = M.signal(),
 	})
 
-	local function attachmentParentCF(real)
+	-- As the running context sees it (client-local moves / attachment edits included).
+	local function attachmentParentCF(sim, real)
 		local parent = real.Parent
 		if parent and parent:IsA("BasePart") then
-			return parent.CFrame
+			return sim.world:partCFrame(parent)
 		end
 		return CFrame.identity
 	end
 
+	-- The attachment's own CFrame as the running context sees it.
+	local function attachmentCF(sim, real)
+		return sim.proxy:get(real, "CFrame")
+	end
+
+	local function attachmentWorld(sim, real)
+		return attachmentParentCF(sim, real) * attachmentCF(sim, real)
+	end
+
 	M.define("Attachment", {
-		Position = M.prop(function(_, real)
-			return real.CFrame.Position
+		Position = M.prop(function(sim, real)
+			return attachmentCF(sim, real).Position
 		end, function(sim, real, v)
 			expect(v, "Vector3", "Position")
-			sim.proxy:setProperty(real, "CFrame", CFrame.new(v) * real.CFrame.Rotation)
+			sim.proxy:setProperty(real, "CFrame", CFrame.new(v) * attachmentCF(sim, real).Rotation)
 		end),
-		Orientation = M.prop(function(_, real)
-			return World.orientationOf(real.CFrame)
+		Orientation = M.prop(function(sim, real)
+			return World.orientationOf(attachmentCF(sim, real))
 		end, function(sim, real, v)
 			expect(v, "Vector3", "Orientation")
-			local cf = CFrame.new(real.CFrame.Position)
+			local cf = CFrame.new(attachmentCF(sim, real).Position)
 				* CFrame.fromOrientation(math.rad(v.X), math.rad(v.Y), math.rad(v.Z))
 			sim.proxy:setProperty(real, "CFrame", cf)
 		end),
-		WorldCFrame = M.prop(function(_, real)
-			return attachmentParentCF(real) * real.CFrame
+		WorldCFrame = M.prop(function(sim, real)
+			return attachmentWorld(sim, real)
 		end, function(sim, real, v)
 			expect(v, "CFrame", "WorldCFrame")
-			sim.proxy:setProperty(real, "CFrame", attachmentParentCF(real):Inverse() * v)
+			sim.proxy:setProperty(real, "CFrame", attachmentParentCF(sim, real):Inverse() * v)
 		end),
-		WorldPosition = M.prop(function(_, real)
-			return (attachmentParentCF(real) * real.CFrame).Position
+		WorldPosition = M.prop(function(sim, real)
+			return attachmentWorld(sim, real).Position
 		end, function(sim, real, v)
 			expect(v, "Vector3", "WorldPosition")
-			local world = CFrame.new(v) * (attachmentParentCF(real) * real.CFrame).Rotation
-			sim.proxy:setProperty(real, "CFrame", attachmentParentCF(real):Inverse() * world)
+			local world = CFrame.new(v) * attachmentWorld(sim, real).Rotation
+			sim.proxy:setProperty(real, "CFrame", attachmentParentCF(sim, real):Inverse() * world)
 		end),
-		WorldOrientation = M.prop(function(_, real)
-			return World.orientationOf(attachmentParentCF(real) * real.CFrame)
+		WorldOrientation = M.prop(function(sim, real)
+			return World.orientationOf(attachmentWorld(sim, real))
 		end),
-		WorldAxis = M.prop(function(_, real)
-			return (attachmentParentCF(real) * real.CFrame).XVector
+		WorldAxis = M.prop(function(sim, real)
+			return attachmentWorld(sim, real).XVector
 		end),
-		WorldSecondaryAxis = M.prop(function(_, real)
-			return (attachmentParentCF(real) * real.CFrame).YVector
+		WorldSecondaryAxis = M.prop(function(sim, real)
+			return attachmentWorld(sim, real).YVector
 		end),
-		Axis = M.prop(function(_, real)
-			return real.CFrame.XVector
+		Axis = M.prop(function(sim, real)
+			return attachmentCF(sim, real).XVector
 		end),
-		SecondaryAxis = M.prop(function(_, real)
-			return real.CFrame.YVector
+		SecondaryAxis = M.prop(function(sim, real)
+			return attachmentCF(sim, real).YVector
 		end),
 	})
 

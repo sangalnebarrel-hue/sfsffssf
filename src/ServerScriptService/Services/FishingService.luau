@@ -11,8 +11,9 @@
 	     SpotMaxHeight по вертикали), удочка в руке, нет кулдауна → состояние "Waiting",
 	     поплавок летит в воду от пирса на CastDistance удочки и на FishingConfig.CastSide studs
 	     правее (с пирса в лагуну): камера за спиной рыбака видит поплавок правее его головы.
-	     Иначе → "Denied" с причиной и подсказкой.
-	  3. Поклёвка через CastFlightTime + BiteDelay / BiteSpeed → "Bite"; не подсёк за BiteWindow
+	     Иначе → "Denied" с причиной и подсказкой. CastTime = время заброса + CastWindUp:
+	     поплавок срывается с кончика после замаха рыбака (его успевают показать все клиенты).
+	  3. Поклёвка через CastWindUp + CastFlightTime + BiteDelay / BiteSpeed → "Bite"; не подсёк за BiteWindow
 	     (+ LatencyGrace на сеть) → "Lost" late; подсёк раньше поклёвки → "Lost" early.
 	  4. Подсечка (FishingHook) во время поклёвки: рыба выбирается СРАЗУ (FishingRules.RollFish),
 	     стартует мини-игра "Minigame". Нажатия (FishingTap) сервер проверяет по той же стрелке
@@ -553,12 +554,19 @@ local function startSession(player: Player, state: PlayerState, base: Base, char
 
 	local target = castTarget(base, rod.CastDistance)
 	-- Сначала данные поплавка, потом состояние: клиенты реагируют на смену FishingState.
+	-- CastTime — миг, когда поплавок срывается с кончика: через CastWindUp (замах рыбака
+	-- успевают показать все клиенты, FisherAnimController).
 	player:SetAttribute("BobberTarget", target)
-	player:SetAttribute("CastTime", Workspace:GetServerTimeNow())
+	player:SetAttribute("CastTime", Workspace:GetServerTimeNow() + FishingConfig.CastWindUp)
 	player:SetAttribute("FishingState", "Waiting")
-	send(player, "Waiting", { Target = target, FlightTime = FishingConfig.CastFlightTime })
+	send(player, "Waiting", {
+		Target = target,
+		WindUp = FishingConfig.CastWindUp,
+		FlightTime = FishingConfig.CastFlightTime,
+	})
 
-	local delay = FishingConfig.CastFlightTime
+	local delay = FishingConfig.CastWindUp
+		+ FishingConfig.CastFlightTime
 		+ rng:NextNumber(FishingConfig.BiteDelay.Min, FishingConfig.BiteDelay.Max) / rod.BiteSpeed
 	schedule(state, session, delay, function()
 		startBite(player, state, session)

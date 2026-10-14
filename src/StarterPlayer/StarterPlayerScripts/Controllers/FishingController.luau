@@ -5282,6 +5282,18 @@ local function tryCloseCard()
 	tapCard()
 end
 
+-- Своё тело рыбака отвечает на нажатие сразу, не дожидаясь сервера (FisherAnimController.Cue:
+-- "castPress" — замах, "hookPress" — подсечка). Модуль берётся при первом вызове.
+local function fisherCue(name: string)
+	local module = script.Parent and script.Parent:FindFirstChild("FisherAnimController")
+	local ok, anim = pcall(function(): any
+		return if module and module:IsA("ModuleScript") then require(module) :: any else nil
+	end)
+	if ok and anim and type(anim.Cue) == "function" then
+		pcall(anim.Cue, name)
+	end
+end
+
 -- fromButton: нажатие пришло с самой кнопки (её сжимает UiFx.press); клавиша и тап удочкой
 -- по миру «нажимают» кнопку анимацией здесь.
 local function doAction(fromButton: boolean?)
@@ -5315,10 +5327,12 @@ local function doAction(fromButton: boolean?)
 		Net.Event("FishingCast"):FireServer()
 		startPending()
 		UiFx.sound("swoosh", 0.35)
+		fisherCue("castPress")
 	elseif phase == "Bite" then
 		if not hookSent then
 			hookSent = true
 			Net.Event("FishingHook"):FireServer()
+			fisherCue("hookPress")
 			actionPulseTrove:Clean() -- подсечка принята: кнопка гаснет до мини-игры
 			ui.tapCue.Visible = false
 			refreshButtons()
@@ -5360,11 +5374,12 @@ do
 
 	--[[
 		Ожидание поклёвки «живое»: 1–2 раза за ожидание рыба «пробует» наживку (только на этом
-		клиенте, через NIBBLE_FROM..NIBBLE_TO с после заброса — поклёвка не раньше BiteDelay.Min):
+		клиенте, через NIBBLE_FROM..NIBBLE_TO с после заброса — поплавок уже на воде (замах
+		CastWindUp + полёт), поклёвка не раньше BiteDelay.Min):
 		кнопка вздрагивает и качается, над ней всплывает «?», поплавок в мире притапливается
 		(FishingFxController.Nibble). Нажатия в это время по-прежнему ничего не отправляют.
 	]]
-	local NIBBLE_FROM, NIBBLE_TO = 0.8, 1.9
+	local NIBBLE_FROM, NIBBLE_TO = 0.8 + FishingConfig.CastWindUp, 1.9 + FishingConfig.CastWindUp
 	local nibbleRandom = Random.new()
 	local fishingFx: any = nil -- FishingFxController (берётся при первой «примерке»), false — нет
 

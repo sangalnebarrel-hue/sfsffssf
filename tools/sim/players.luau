@@ -123,6 +123,8 @@ function Players:add(opts)
 		removed = false,
 		clientStarted = false,
 		clientDelay = opts.clientDelay,
+		rig = opts.rig, -- nil | "R15" | "R6" (tools/sim/rigs.luau)
+		joints = opts.joints, -- nil | "Motor6D" | "AnimationConstraint"
 	}
 	st.ctx = sim:_newContext("client", real)
 	self.state[real] = st
@@ -351,6 +353,10 @@ function Players:_buildCharacter(real)
 	local cf = self:_spawnCFrame(real)
 	hrp.CFrame = cf
 	head.CFrame = cf * CFrame.new(0, 1.5, 0)
+	local st = self.state[real]
+	if st and st.rig then
+		self.sim.rigs:build(char, real, st.rig, st.joints)
+	end
 	return char
 end
 

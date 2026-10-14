@@ -22,7 +22,8 @@
 	  FishingStop  клиент → сервер: () — смотать леску
 	  FishingState сервер → клиент: (state: string, data: table?) — что происходит с рыбалкой
 	               этого игрока:
-	    "Waiting"  { Target: Vector3, FlightTime: number } — заброс принят, ждём поклёвку
+	    "Waiting"  { Target: Vector3, WindUp: number, FlightTime: number } — заброс принят, ждём
+	               поклёвку (замах WindUp с, потом полёт FlightTime с)
 	    "Bite"     { Window: number } — клюёт! есть Window секунд на подсечку
 	    "Minigame" { Rarity, U0, Speed, ZoneCenter, ZoneWidth, Hits, HitsNeeded, Timeout } — старт
 	               мини-игры (стрелка: FishingRules.Needle(U0, Speed, t))
@@ -34,7 +35,8 @@
 	               не принят
 	Состояние для всех игроков (атрибуты Player, их видят все клиенты — поплавки и лески):
 	  FishingState ("Idle" | "Waiting" | "Bite" | "Reeling"), BobberTarget (Vector3),
-	  CastTime (workspace:GetServerTimeNow() в момент заброса), RodId, FishCaught (число),
+	  CastTime (workspace:GetServerTimeNow() в миг, когда поплавок срывается с кончика удочки:
+	    заброс + FishingConfig.CastWindUp — до него клиенты показывают замах), RodId, FishCaught (число),
 	  FishFx (строка) — событие для эффектов в мире (FishingFxController), ставится ДО того, как
 	    FishingState станет "Idle" (поплавок ещё на воде):
 	    "<номер>|caught|<FishId>|<Mutation или ''>|<Rarity>" — поймал: рыба выпрыгивает у поплавка
