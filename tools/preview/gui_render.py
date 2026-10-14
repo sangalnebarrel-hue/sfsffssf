@@ -585,7 +585,7 @@ def write_report(reports, opts):
     n_layout = sum(len(st["findings"]) for r in js for st in r["layout"])
     n_text = sum(len(st["text"]) for r in js for st in r["layout"])
     for scenario, dev, fill, t in sorted(warn_fill, key=lambda w: -w[2]):
-        log(f"WARNING fill {fill:.1f}x > {C.FILL_WARN}x on {dev} 844x390: {scenario} at {t:.2f} s")
+        log(f"WARNING fill {fill:.1f}x > {C.FILL_WARN}x on {dev}: {scenario} at {t:.2f} s")
     log(f"checks: {n_layout} layout finding(s) under {C.MIN_GAP} px, {n_text} text(s) under {C.TEXT_FLOOR} px, "
         f"{len(warn_fill)} fill warning(s) -> {os.path.join(opts.out, 'checks.txt')}")
 

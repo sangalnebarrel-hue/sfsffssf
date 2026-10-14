@@ -9,7 +9,8 @@ fill_metric(objects, W, H) -> float  (RND-03)
     text label (its box: the glyph quads of TextScaled text fill it), and each Border UIStroke
     (as the rect of the box grown by the stroke). Rotated quads are clipped to the screen and
     to the object's clip rect as polygons. 1.0 = one full screen of alpha-blended pixels.
-    FILL_WARN (2.5) is the budget on 844x390 phones.
+    FILL_WARN (2.5) is the budget on 844x390 phones and on the small 667x375 phone (the oldest
+    GPUs; FishingController shrinks the catch rays with the card there).
 
 widgets(objects, W, H) / layout_findings(...)  (RND-02)
     Widgets are the visible children of a ScreenGui (HUD.Status, HUD.RightButtons, HUD.Toasts,
@@ -37,7 +38,7 @@ import math
 from . import text as T
 
 FILL_WARN = 2.5
-FILL_WARN_VIEWPORTS = {(844, 390)}
+FILL_WARN_VIEWPORTS = {(844, 390), (667, 375)}
 MIN_GAP = 16
 TEXT_FLOOR = 12
 FULLSCREEN_SHARE = 0.45

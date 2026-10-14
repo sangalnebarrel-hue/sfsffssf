@@ -542,8 +542,8 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	t.ok(waitCard(sim, p))
 	t.eq(card.InfoLabel.Text, "500 г · цена 9 💰")
 	-- Closes by itself: UIConfig.CatchCardTime per rarity, never sooner than a second after its
-	-- last beat (a Common card: about 2.7 s).
-	sim:Advance(UIConfig.CatchCardTime.Common + 0.8)
+	-- last beat (a new Common species: about 3.05 s — its beats are ≥ 0.25 s apart).
+	sim:Advance(UIConfig.CatchCardTime.Common + 1.1)
 	t.eq(card.Visible, false, "closes by itself")
 	sim:AssertNoErrors({ warnings = true })
 end
