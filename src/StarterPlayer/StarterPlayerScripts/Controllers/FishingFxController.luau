@@ -2,54 +2,94 @@
 --[[
 	FishingFxController — рыбалка в мире, для ВСЕХ игроков (и для себя), только на клиенте.
 	Стиль — tools/builder/gui/STYLE.md §3 «World FX» (цвета — UIConfig, тайминги и лимиты —
-	FishingConfig.LeapTime и FishingConfig.Fx).
+	FishingConfig.LeapTime, FishingConfig.Fx и FishingRules.HoldFishTime).
 
 	Поплавки и лески. Клиент следит за атрибутами каждого игрока (их ставит FishingService):
 	FishingState, BobberTarget, CastTime, RodId. Когда FishingState уходит из "Idle", клиент
 	клонирует поплавок его удочки (ReplicatedStorage.Assets.Bobbers.<RodId>) в папку
 	Workspace.FishingFx и натягивает леску (Beam) от кончика удочки (Handle.TipAttachment удочки
 	в руке персонажа) до поплавка (Root.LineAttachment).
+	  • Поплавок — копия в BOBBER_SCALE раз крупнее шаблона (с пирса до него 30–40 studs: на
+	    телефоне маленький не виден). Точка привязки (pivot) копии — по-прежнему FloatDepth над
+	    ватерлинией, как у шаблона. Свой поплавок — с белым контуром (Highlight «OwnGlow»).
 	  • Полёт: дугой от кончика удочки к BobberTarget (+ FloatDepth вверх — тогда ватерлиния
-	    поплавка как раз на воде) за FishingConfig.CastFlightTime. Время — от CastTime по
-	    workspace:GetServerTimeNow(), поэтому у всех клиентов поплавок летит одинаково.
-	    За поплавком — искрящийся след (Trail, белый → голубой) и свист; приводнился — брызги
-	    и 3 расходящихся круга на воде.
-	  • "Waiting" — мягко покачивается на воде, раз в Fx.RippleEvery секунд — круг на воде.
-	  • "Bite" — резко ныряет, большие брызги и пачка кругов; над поплавком прыгает и
-	    пульсирует «!» (жёлто-оранжевый значок, вокруг кружат звёздочки).
-	  • "Reeling" — мечется из стороны в сторону и медленно подтягивается к рыбаку, брызги
-	    и круги; леска натянута: пульсирует толщиной и цветом.
+	    поплавка как раз на воде) за FishingConfig.CastFlightTime, кувыркаясь (2 оборота). Время —
+	    от CastTime по workspace:GetServerTimeNow(), поэтому у всех клиентов поплавок летит
+	    одинаково. За поплавком — искрящийся след (Trail, жёлтый → белый) и свист; приводнился —
+	    брызги и 3 расходящихся круга на воде.
+	  • "Waiting" — покачивается на воде, леска провисает и ложится на воду; раз в
+	    Fx.RippleEvery секунд — круг (у рыбаков дальше Fx.AmbientRange — без кругов). Nibble() —
+	    своя «примерка» рыбы: поплавок чуть притапливается, маленький круг.
+	  • "Bite" — рывками ныряет под воду (BiteDip): на каждом рывке брызги, на каждом втором —
+	    круг; над поплавком прыгает и пульсирует «!» (жёлто-оранжевый значок). Свой «!» крупный,
+	    виден сквозь стены, вокруг кружат звёздочки, контур поплавка мигает жёлтым (2,5 Гц);
+	    чужой «!» меньше, без звёздочек, не сквозь стены и не дальше ALERT_OTHER_DISTANCE studs.
+	  • "Reeling" — мечется из стороны в сторону и медленно подтягивается к рыбаку, за ним
+	    пенный след по воде (Trail «Wake»), брызги и круги; леска натянута и пульсирует
+	    толщиной и цветом.
 	  • снова "Idle" — быстро сматывается к удочке и исчезает вместе с леской.
 	Каждый кадр обновляются только поплавки, которые сейчас в воде или сматываются.
 
+	Камера своего рыбака: пока своя рыбалка «на экране» (FishingState не "Idle", или поплавок
+	ещё сматывается, или рыба в прыжке или над головой) Humanoid.CameraOffset плавно уходит
+	в FX.CameraOffset (вправо и вверх): рыбак сдвигается левее центра экрана, а поплавок
+	(он падает правее, FishingConfig.CastSide) — правее его головы, не за ней. Потом камера
+	плавно возвращается. FieldOfView не трогаем (это UiFx.fovPunch), UiFx.cameraShake
+	добавляется поверх.
+
 	Улов и потеря — атрибут FishFx (формат — шапка RemoteNames; сервер ставит его ДО "Idle",
 	поэтому поплавок ещё на воде):
-	  • caught — у поплавка всплеск, столб воды и круги, рыба (копия Assets.Fish.<Id>.<мутация>) выпрыгивает
-	    из воды и, кувыркаясь, с искрящимся следом цвета редкости летит дугой за LeapTime точно
-	    туда, где сервер повесит её над головой рыбака (FishingService.holdFish); поплавок
-	    на крючке летит с ней. Долетела — копия исчезает в тот кадр, когда появилась серверная
-	    HeldFish (пришла раньше — прячется до конца прыжка; не пришла за Fx.HandoffWait — копия
-	    исчезает сама). Над головой — кольцо-вспышка; у редкой рыбы и выше — искры цвета
-	    редкости, пока она над головой; легендарная и мифическая — ещё столб света, конфетти
-	    и волна по земле вокруг рыбака.
-	  • lost — всплеск, столбик воды и круги, и маленькая рыбка, махнув хвостом, уходит под воду прочь
-	    от рыбака.
+	  • caught — у поплавка всплеск, столб воды (Beam) и круги (у мифической — ещё радужная
+	    волна), рыба (копия Assets.Fish.<Id>.<мутация>) выпрыгивает из воды и, кувыркаясь, с
+	    искрящимся следом цвета редкости летит за LeapTime дугой (выгнутой вбок от камеры,
+	    с зависанием на вершине, обороты кончаются к Fx.LeapSpinEnd — на вершине она боком)
+	    точно туда, где сервер повесит её над головой рыбака (FishingService.holdFish);
+	    поплавок на крючке летит с ней. В кадр, когда долетела СВОЯ рыба, срабатывает сигнал
+	    OwnFishLanded (карточка улова открывается по нему). Копия исчезает в тот кадр, когда
+	    появилась серверная HeldFish (пришла раньше — прячется до конца прыжка; не пришла за
+	    Fx.HandoffWait — копия исчезает сама). Над головой — вспышка (неоновый шар) и кольцо-
+	    ореол лицом к камере; у редкой рыбы и выше — табличка (редкость, название, мутация,
+	    цена) и искры цвета редкости, у рыбы с мутацией — искры цветов мутации (неоновая ещё
+	    светится), пока рыба над головой (FishingRules.HoldFishTime); легендарная и мифическая —
+	    ещё столб света (неоновая сердцевина + лучи Beam), конфетти и волна по земле вокруг
+	    рыбака.
+	  • lost — леска вспыхивает красным, поплавок подскакивает и шлёпается обратно (потом
+	    сматывается), всплеск, столбик воды и круги, и рыбка, махнув хвостом, уходит под воду
+	    прочь от рыбака.
 
 	Бюджет (STYLE.md §4): все детали эффектов только на клиенте (Anchored, без столкновений,
 	запросов и теней) и удаляются, когда эффект кончился; не больше Fx.MaxEmitters
 	ParticleEmitter'ов на одного рыбака (лишний уступает место: сначала искры над рыбой, потом
 	конфетти); дальше Fx.Range studs от своего персонажа — ничего, кроме столба света.
-	Покадрово (одно соединение RenderStepped на всё, отключается, когда ничего не идёт) —
-	поплавки, прыжки, ныряния и столбы света; круги, искры и конфетти — TweenService,
-	task.delay и ParticleEmitter, без соединений.
+	Круги — SurfaceGui на детали сразу конечного размера (растут рамки внутри, а не холст), не
+	больше Fx.MaxRings спокойных кругов на рыбака. Покадрово (одно соединение RenderStepped на
+	всё, отключается, когда ничего не идёт) — поплавки, прыжки, ныряния, столбы воды и света;
+	круги, искры, ореол, табличка и конфетти — TweenService, task.delay и ParticleEmitter,
+	без соединений.
 
-	Радужные рыбы: модели с тегом "RainbowFish" (CollectionService). Детали с атрибутами
-	RainbowU / RainbowV переливаются: Color3.fromHSV((U·0.85 + t·0.35) % 1, 0.72, 0.55 + 0.45·V),
-	около 20 раз в секунду — пока модель в DataModel и видна: в мире (в том числе рыба
-	в прыжке) или в своём интерфейсе (ViewportFrame карточки улова). Шаблоны в
-	ReplicatedStorage не трогаем.
+	Радужные рыбы: модели с тегом "RainbowFish" (CollectionService), кроме шаблонов в
+	ReplicatedStorage. Детали с атрибутами RainbowU / RainbowV переливаются:
+	Color3.fromHSV((U·0.85 + t·0.35) % 1, 0.72, 0.55 + 0.45·V), около 20 раз в секунду — пока
+	модель видна: в мире не дальше Fx.Range от персонажа или камеры (в том числе рыба в прыжке)
+	или в своём интерфейсе (ViewportFrame карточки улова). Соединение Heartbeat есть, только
+	пока такие модели есть.
 
 	Вышедший игрок убирается целиком (его поплавок, леска, все эффекты и подписки).
+
+	API (для FishingController и тестов):
+	  FishingFxController.OwnFishLanded   -- Signal (ReplicatedStorage.Shared.Util.Signal):
+	      (rarity: string, worldPosition: Vector3) — СВОЯ пойманная рыба долетела до места над
+	      головой (worldPosition — центр рамки рыбы). Ровно один раз на каждый свой улов: в кадр
+	      приземления; если прыжка нет (нет персонажа или модели) — сразу (task.defer, с точкой
+	      над головой); если прыжок оборвался (умер) — в этот момент. Подписываться заранее
+	      (на Start), а не по событию "Caught": без прыжка сигнал может прийти раньше него.
+	  FishingFxController.Nibble() -> boolean
+	      -- «поклёвка-примерка» только на этом клиенте: свой поплавок (если он на воде и ждёт
+	      -- поклёвку) притапливается на NIBBLE_DIP stud за NIBBLE_TIME / 2 с и всплывает,
+	      -- вокруг — маленький круг и капли. false — поплавка нет / не "Waiting" (ничего).
+	  FishingFxController.GetBobber(player) -> Model?          -- поплавок игрока (если есть)
+	  FishingFxController.GetEffects(player) -> { Instance }   -- детали эффектов рыбака
+	  FishingFxController.CountEmitters(player) -> number      -- его ParticleEmitter'ы сейчас
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -65,7 +105,10 @@ local FishingConfig = require(Config:WaitForChild("FishingConfig"))
 local MapConfig = require(Config:WaitForChild("MapConfig"))
 local RodConfig = require(Config:WaitForChild("RodConfig"))
 local UIConfig = require(Config:WaitForChild("UIConfig"))
-local Trove = require(Shared:WaitForChild("Util"):WaitForChild("Trove"))
+local FishingRules = require(Shared:WaitForChild("FishingRules"))
+local Util = Shared:WaitForChild("Util")
+local Signal = require(Util:WaitForChild("Signal"))
+local Trove = require(Util:WaitForChild("Trove"))
 
 local FOLDER_NAME = "FishingFx"
 local RAINBOW_TAG = "RainbowFish"
@@ -74,8 +117,24 @@ local RETRACT_TIME = 0.45 -- поплавок сматывается к удоч
 local DEFAULT_FLOAT_DEPTH = 0.6
 local FALLBACK_FISH = "Crucian" -- рыба ушла до подсечки (вид неизвестен) — уплывает карасик
 local PILLAR_CORE = 1.2 -- толщина белой сердцевины столба света, studs
-local PILLAR_GLOW = 3.6 -- … и цветного свечения вокруг неё
 local FEET = 3 -- от центра HumanoidRootPart до земли под ногами (если луч вниз ничего не нашёл), studs
+local BOBBER_SCALE = 1.7 -- копия поплавка крупнее шаблона во столько раз
+local OWN_SOUND_DISTANCE = 60 -- свои звуки (поплавок, прыжок) громкие до этого расстояния, studs
+local CAMERA_IN = 0.35 -- камера сдвигается, с
+local CAMERA_OUT = 0.5 -- … и возвращается, с
+local CAMERA_POLL = 0.25 -- как часто проверять, не пора ли вернуть камеру (рыба над головой ушла), с
+local NIBBLE_DIP = 0.15 -- «примерка»: поплавок притапливается на столько studs …
+local NIBBLE_TIME = 0.24 -- … и всплывает обратно за столько секунд
+local POP_HEIGHT = 2.5 -- рыба сорвалась: поплавок подскакивает на столько studs …
+local POP_TIME = 0.4 -- … и шлёпается обратно за столько секунд (потом сматывается)
+local LINE_FLASH = 0.12 -- рыба сорвалась: леска вспыхивает красным на столько секунд
+local SPOUT_RISE = 0.18 -- столб воды поднимается, с
+local SPOUT_FADE = 0.4 -- … и тает, с
+local HALO_FROM, HALO_TO, HALO_TIME = 1.5, 7, 0.45 -- ореол над рыбой: диаметр, studs; время, с
+local POP_SIZE, POP_GROW, POP_FADE = 4.5, 0.12, 0.3 -- вспышка-шар над рыбой: studs; с; с
+local NAMEPLATE_SIZE = Vector2.new(8, 2.5) -- табличка над рыбой, studs
+local ALERT_OTHER_DISTANCE = 90 -- чужой «!» виден не дальше, studs
+local OWN_PILLAR_WIDTH = 0.4 -- свой столб света уже чужого во столько раз (см. pillar)
 
 local Fx = FishingConfig.Fx
 local Palette = UIConfig.Palette
@@ -83,6 +142,7 @@ local WHITE = Color3.new(1, 1, 1)
 local WATER = Palette.Sky.Top -- голубой «водный» цвет брызг и кругов
 local SUN_TOP = Palette.Sun.Top
 local SUN_BOTTOM = Palette.Sun.Bottom
+local BERRY = Palette.Berry.Bottom
 local INK = UIConfig.Ink
 local FONT = Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.ExtraBold)
 
@@ -94,25 +154,57 @@ local SOUND_SPLASH = "rbxasset://sounds/impact_water.mp3"
 local SOUND_PING = "rbxasset://sounds/electronicpingshort.wav"
 
 local FX = {
-	BobAmplitude = 0.12, -- покачивание на воде, studs
-	BobSpeed = 2.4,
-	BiteDip = 0.55, -- насколько ныряет при поклёвке
-	BiteSpeed = 9,
-	BiteSplashEvery = 0.4, -- с
+	BobAmplitude = 0.22, -- покачивание на воде, studs
+	BobSpeed = 2,
+	BiteDip = 1.4, -- насколько ныряет при поклёвке, studs
+	BiteSpeed = 9, -- рывков ≈ BiteSpeed / π в секунду (ниже 3 Гц)
+	BiteJerk = 0.85, -- рывок «засчитан» (брызги), когда нырок проходит эту долю вниз
+	BiteGlowRate = 2.5, -- свой контур мигает жёлтым, Гц
+	CastSpins = 2, -- оборотов поплавка в полёте
 	ReelSwing = 0.9, -- метания при вытаскивании, studs
 	ReelSpeed = 7.5,
 	ReelPull = 0.05, -- доля пути к рыбаку за секунду
 	ReelPullMax = 0.5,
 	LineColor = Color3.fromRGB(245, 245, 235),
-	LineWidth = 0.05,
-	-- Круги чуть выше воды (над её мелкими волнами) и земли; толщина колец — от 0,4 stud: вода
-	-- видна с пирса под острым углом, тоньше на телефоне не разглядеть.
-	RingLift = 0.15,
-	RingPixels = 24, -- пикселей SurfaceGui на stud (толщина кругов — в пикселях)
-	AlertLift = 2.4, -- «!» над поплавком, studs
-	AlertStuds = 1, -- размер «!»: studs + пиксели (не теряется вдали и на телефоне)
+	LineTip = 0.06, -- толщина лески у кончика удочки, studs …
+	LineFloat = 0.18, -- … и у поплавка (он дальше от камеры)
+	LineGlow = 0.25, -- LightEmission лески
+	LineSegments = 10,
+	LineSag = 0.12, -- провис лески в ожидании: доля длины лески
+	-- Круги чуть выше воды (над её мелкими волнами), волна по земле — чуть выше самого высокого
+	-- из лучей вниз; толщина колец — от 0,4 stud: вода видна с пирса под острым углом.
+	RingLift = 0.3,
+	GroundLift = 0.25,
+	GroundProbe = 2.5, -- лучи вниз: под ногами и в 4 точках на таком расстоянии, studs
+	GroundBump = 0.75, -- … выше ног больше чем на столько — не земля (перила, ящик), studs
+	-- «!» над поплавком: studs + пиксели (не теряется вдали и на телефоне). Гуи сразу
+	-- максимального размера (AlertRoom), прыгает и пульсирует UIScale внутри (без пересчёта
+	-- TextScaled каждый кадр).
+	AlertLift = 3.4, -- свой «!» крупный: выше, чтобы не закрывал нырок поплавка
+	AlertOtherLift = 2.4,
+	AlertStuds = 1,
 	AlertPixels = 40,
+	AlertOtherStuds = 1.4,
+	AlertOtherPixels = 12,
+	AlertRoom = 1.45,
+	AlertText = 34,
+	AlertOtherText = 18,
+	AlertStarText = 14,
 	AlertStars = 5,
+	-- Сдвиг камеры своего рыбака (Humanoid.CameraOffset): вправо и вверх.
+	CameraOffset = Vector3.new(2.2, 1, 0),
+}
+
+-- Сколько капель в каждом всплеске (размер капель один на все — меняется только скорость).
+local SPLASH = {
+	landing = 24,
+	bite = 36,
+	jerk = 10,
+	reel = 8,
+	catch = 45,
+	lost = 28,
+	pop = 12,
+	nibble = 5,
 }
 
 type RingLook = {
@@ -129,40 +221,54 @@ local RING: { [string]: RingLook } = {
 	ripple = { from = 1.2, to = 6.5, time = 1.5, color = WHITE, inner = WATER, width = 0.38 },
 	landing = { from = 1.4, to = 8, time = 1.1, color = WHITE, inner = WATER, width = 0.5, foam = true },
 	bite = { from = 1.6, to = 10, time = 0.95, color = WHITE, inner = SUN_TOP, width = 0.6, foam = true },
+	jerk = { from = 1.2, to = 4, time = 0.8, color = WHITE, inner = SUN_TOP, width = 0.42 },
 	reel = { from = 1.2, to = 5.5, time = 0.8, color = WHITE, inner = WATER, width = 0.42 },
 	lost = { from = 1.4, to = 7.5, time = 1, color = WHITE, inner = WATER, width = 0.5, foam = true },
+	nibble = { from = 1, to = 3.5, time = 0.8, color = WHITE, inner = WATER, width = 0.32 },
 }
 
 type Alert = {
 	gui: BillboardGui,
+	lift: number, -- StudsOffset.Y без прыжков
+	scale: UIScale, -- Holder.FxScale: выскакивание и пульс
 	glow: Frame,
 	badge: Frame,
 	label: TextLabel,
-	stars: { TextLabel },
+	stars: { TextLabel }, -- только у своего «!»
 }
 
 type Bobber = {
 	player: Player,
+	own: boolean, -- поплавок этого клиента
 	trove: Trove.Trove,
 	model: Model,
 	root: BasePart,
+	lineAttachment: Attachment,
 	beam: Beam,
 	splash: ParticleEmitter,
 	trails: { Trail },
+	wake: Trail,
+	glow: Highlight?, -- контур своего поплавка
 	whoosh: Sound,
 	splashSound: Sound,
 	pingSound: Sound,
 	alert: Alert,
-	floatDepth: number,
+	floatDepth: number, -- от pivot копии вниз до ватерлинии
 	state: string, -- FishingState игрока ("Waiting" | "Bite" | "Reeling")
 	stateSince: number, -- os.clock() смены состояния
-	target: Vector3, -- точка привязки лески на воде (BobberTarget + FloatDepth)
+	target: Vector3, -- где pivot поплавка на воде (BobberTarget + FloatDepth)
 	castTime: number,
 	position: Vector3, -- где поплавок сейчас
 	landed: boolean,
 	fresh: boolean, -- создан, пока летел (заброс видели — приводнение с брызгами)
 	nextSplash: number,
 	nextRipple: number,
+	dip: number, -- нырок поклёвки в прошлом кадре, 0..1 (для рывков)
+	jerks: number, -- сколько рывков за эту поклёвку
+	nibbleAt: number?, -- os.clock() начала «примерки»
+	popStart: number?, -- os.clock(): рыба сорвалась, поплавок подскакивает
+	popSplashed: boolean,
+	flashUntil: number?, -- до какого os.clock() леска красная
 	retractFrom: Vector3?, -- сматывается отсюда (после "Idle")
 	retractStart: number,
 	hooked: Effect?, -- на крючке рыба в прыжке: поплавок летит вместе с ней
@@ -179,6 +285,7 @@ type Effect = {
 	instances: { Instance },
 	emitter: ParticleEmitter?, -- считается в Fx.MaxEmitters рыбака
 	priority: number, -- нужно место под новый ParticleEmitter — первым уходит меньший
+	tag: string?, -- "leap" — прыжок рыбы (камера своего рыбака ждёт его конца)
 	thread: thread?,
 	step: ((now: number) -> boolean)?, -- покадровый эффект: false — кончился
 	onEnd: (() -> ())?,
@@ -197,7 +304,10 @@ type FxEvent = { kind: string, id: string?, mutation: string?, rarity: string }
 
 type RainbowModel = { parts: { BasePart }, u: { number }, v: { number } }
 
-local FishingFxController = {}
+local FishingFxController = {
+	-- (rarity: string, worldPosition: Vector3) — своя рыба долетела (см. шапку).
+	OwnFishLanded = Signal.new(),
+}
 
 local folder: Folder? = nil
 local bobbersFolder: Instance? = nil
@@ -207,6 +317,7 @@ local active: { [Bobber]: true } = {}
 local frameEffects: { [Effect]: true } = {}
 local frameConnection: RBXScriptConnection? = nil
 local rainbow: { [Instance]: RainbowModel } = {}
+local rainbowConnection: RBXScriptConnection? = nil
 local playerGui: PlayerGui? = nil
 local rng = Random.new()
 
@@ -235,14 +346,17 @@ local function burst(emitter: ParticleEmitter, count: number)
 	end)
 end
 
-local function tween(instance: Instance, info: TweenInfo, goal: { [string]: any })
-	TweenService:Create(instance, info, goal):Play()
+local function tween(instance: Instance, info: TweenInfo, goal: { [string]: any }): Tween
+	local playing = TweenService:Create(instance, info, goal)
+	playing:Play()
+	return playing
 end
 
+-- { {время, значение, разброс?} } → NumberSequence.
 local function numbers(points: { { number } }): NumberSequence
 	local keys = {}
 	for _, point in points do
-		table.insert(keys, NumberSequenceKeypoint.new(point[1], point[2]))
+		table.insert(keys, NumberSequenceKeypoint.new(point[1], point[2], point[3] or 0))
 	end
 	return NumberSequence.new(keys)
 end
@@ -282,6 +396,20 @@ local function rarityColors(rarity: string): { Color3 }
 	return { WHITE, style.Top, style.Bottom }
 end
 
+-- Заглавные буквы, включая кириллицу (string.upper меняет только латиницу).
+local function upper(text: string): string
+	local out = {}
+	for _, code in utf8.codes(text) do
+		if (code >= 0x430 and code <= 0x44F) or (code >= 0x61 and code <= 0x7A) then
+			code -= 0x20
+		elseif code == 0x451 then
+			code = 0x401
+		end
+		table.insert(out, utf8.char(code))
+	end
+	return table.concat(out)
+end
+
 -- Деталь эффекта: закреплена, без столкновений, запросов и теней.
 local function quietPart(name: string, size: Vector3, cframe: CFrame): Part
 	local part = Instance.new("Part")
@@ -298,13 +426,40 @@ local function quietPart(name: string, size: Vector3, cframe: CFrame): Part
 	return part
 end
 
-local function makeSound(parent: Instance, name: string, id: string, volume: number): Sound
+-- Невидимая деталь-держатель для лучей (Beam) с двумя точками: Bottom и Top.
+local function beamHost(name: string, position: Vector3): (Part, Attachment, Attachment)
+	local host = quietPart(name, Vector3.new(0.2, 0.2, 0.2), CFrame.new(position))
+	host.Transparency = 1
+	local bottom = Instance.new("Attachment")
+	bottom.Name = "Bottom"
+	bottom.Parent = host
+	local top = Instance.new("Attachment")
+	top.Name = "Top"
+	top.Position = Vector3.new(0, 0.1, 0)
+	top.Parent = host
+	return host, bottom, top
+end
+
+local function makeBeam(name: string, host: Instance, a0: Attachment, a1: Attachment): Beam
+	local beam = Instance.new("Beam")
+	beam.Name = name
+	beam.Attachment0 = a0
+	beam.Attachment1 = a1
+	beam.FaceCamera = true
+	beam.Segments = 1
+	beam.LightInfluence = 0
+	beam.Parent = host
+	return beam
+end
+
+-- Звук; own — свой (поплавок и прыжок своей рыбы): громкий и в 60 studs от камеры за спиной.
+local function makeSound(parent: Instance, name: string, id: string, volume: number, own: boolean?): Sound
 	local sound = Instance.new("Sound")
 	sound.Name = name
 	sound.SoundId = id
 	sound.Volume = volume
-	sound.RollOffMinDistance = 10
-	sound.RollOffMaxDistance = 140
+	sound.RollOffMinDistance = if own then OWN_SOUND_DISTANCE else 10
+	sound.RollOffMaxDistance = if own then 200 else 140
 	sound.Parent = parent
 	return sound
 end
@@ -335,6 +490,17 @@ end
 
 local function flat(v: Vector3): Vector3
 	return Vector3.new(v.X, 0, v.Z)
+end
+
+-- Где голова своего персонажа (для OwnFishLanded без прыжка): над головой, иначе камера.
+local function ownHeadPoint(): Vector3
+	local character = Players.LocalPlayer.Character
+	local head = character and (character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart"))
+	if head and head:IsA("BasePart") then
+		return head.Position + Vector3.new(0, 2, 0)
+	end
+	local camera = Workspace.CurrentCamera
+	return if camera then camera.Focus.Position else Vector3.zero
 end
 
 --------------------------------------------------------------------------------
@@ -370,6 +536,7 @@ local function newEffect(tracker: Tracker, life: number?, owner: Bobber?): Effec
 		instances = {},
 		emitter = nil,
 		priority = 0,
+		tag = nil,
 		thread = nil,
 		step = nil,
 		onEnd = nil,
@@ -453,6 +620,75 @@ local function makeRoom(tracker: Tracker, extra: number)
 end
 
 --------------------------------------------------------------------------------
+-- Камера своего рыбака (Humanoid.CameraOffset, см. шапку)
+--------------------------------------------------------------------------------
+
+local cameraHumanoid: Humanoid? = nil -- чей CameraOffset сейчас сдвинут (nil — ничей)
+local cameraThread: thread? = nil -- следующая проверка, пока сдвинут
+
+-- Своя рыбалка ещё на экране: леска в воде, поплавок сматывается, рыба в прыжке или над головой.
+local function ownFishingShown(): boolean
+	local player = Players.LocalPlayer
+	local state = player:GetAttribute("FishingState")
+	if state == "Waiting" or state == "Bite" or state == "Reeling" then
+		return true
+	end
+	local tracker = trackers[player]
+	if tracker then
+		if tracker.bobber then
+			return true
+		end
+		for effect in tracker.effects do
+			if effect.tag == "leap" then
+				return true
+			end
+		end
+	end
+	local character = player.Character
+	return character ~= nil and character:FindFirstChild("HeldFish") ~= nil
+end
+
+local function tweenCameraOffset(humanoid: Humanoid, offset: Vector3, time: number)
+	local direction = if offset == Vector3.zero then Enum.EasingDirection.InOut else Enum.EasingDirection.Out
+	tween(humanoid, TweenInfo.new(time, Enum.EasingStyle.Quad, direction), { CameraOffset = offset })
+end
+
+local updateCamera: () -> ()
+
+local function pollCamera()
+	cameraThread = nil
+	updateCamera()
+end
+
+-- Сдвигает камеру, когда своя рыбалка началась, и возвращает, когда она совсем кончилась
+-- (рыба над головой исчезла — это заметит проверка раз в CAMERA_POLL секунд).
+updateCamera = function()
+	local wanted = ownFishingShown()
+	local humanoid: Humanoid? = nil
+	if wanted then
+		local character = Players.LocalPlayer.Character
+		humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
+	end
+	if humanoid ~= cameraHumanoid then
+		local old = cameraHumanoid
+		cameraHumanoid = humanoid
+		if old and old:IsDescendantOf(Workspace) then
+			tweenCameraOffset(old, Vector3.zero, CAMERA_OUT)
+		end
+		if humanoid then
+			tweenCameraOffset(humanoid, FX.CameraOffset, CAMERA_IN)
+		end
+	end
+	if wanted and cameraThread == nil then
+		cameraThread = task.delay(CAMERA_POLL, pollCamera)
+	end
+end
+
+local function isOwn(tracker: Tracker): boolean
+	return tracker.player == Players.LocalPlayer
+end
+
+--------------------------------------------------------------------------------
 -- Круги на воде (плоская невидимая деталь + SurfaceGui с кольцами из UIStroke)
 --------------------------------------------------------------------------------
 
@@ -482,12 +718,17 @@ local function ringStroke(frame: Frame, color: Color3, thickness: number): UIStr
 end
 
 -- Одно расходящееся кольцо (внешнее белое + внутреннее цветное), гаснет за look.time.
+-- Деталь и холст SurfaceGui сразу конечного размера (≤ 256 пикселей), растут только рамки
+-- внутри: холст не пересоздаётся каждый кадр.
 local function spawnRing(effect: Effect, position: Vector3, look: RingLook, foam: boolean)
 	local parent = folder
 	if not parent then
 		return
 	end
-	local part = quietPart("Ripple", Vector3.new(look.from, 0.05, look.from), CFrame.new(position))
+	local size = look.to
+	local pixels = math.clamp(256 / size, 8, 24)
+	local start = math.clamp(look.from / size, 0.05, 1)
+	local part = quietPart("Ripple", Vector3.new(size, 0.05, size), CFrame.new(position))
 	part.Transparency = 1
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = "Ring"
@@ -495,53 +736,79 @@ local function spawnRing(effect: Effect, position: Vector3, look: RingLook, foam
 	gui.LightInfluence = 0
 	gui.Brightness = 1.4
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = FX.RingPixels
+	gui.PixelsPerStud = pixels
 	gui.MaxDistance = Fx.Range
 	gui.Parent = part
-	local outer = ringStroke(roundFrame(gui, "Outer", 0.92, look.color, 1), look.color, look.width * FX.RingPixels)
-	local inner = ringStroke(roundFrame(gui, "Inner", 0.8, look.inner, 1), look.inner, look.width * 0.6 * FX.RingPixels)
-	local foamDisc = if foam then roundFrame(gui, "Foam", 0.7, WHITE, 0.45) else nil
+	local outer = roundFrame(gui, "Outer", 0.92 * start, look.color, 1)
+	local outerStroke = ringStroke(outer, look.color, look.width * pixels)
+	local inner = roundFrame(gui, "Inner", 0.8 * start, look.inner, 1)
+	local innerStroke = ringStroke(inner, look.inner, look.width * 0.6 * pixels)
+	local foamDisc = if foam then roundFrame(gui, "Foam", 0.7 * start, WHITE, 0.45) else nil
 	part.Parent = parent
 	table.insert(effect.instances, part)
 
 	local grow = TweenInfo.new(look.time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	local fade = TweenInfo.new(look.time, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
-	tween(part, grow, { Size = Vector3.new(look.to, 0.05, look.to) })
-	tween(outer, fade, { Transparency = 1, Thickness = outer.Thickness * 0.4 })
-	tween(inner, fade, { Transparency = 1, Thickness = inner.Thickness * 0.4 })
+	tween(outer, grow, { Size = UDim2.fromScale(0.92, 0.92) })
+	tween(inner, grow, { Size = UDim2.fromScale(0.8, 0.8) })
+	tween(outerStroke, fade, { Transparency = 1, Thickness = outerStroke.Thickness * 0.4 })
+	tween(innerStroke, fade, { Transparency = 1, Thickness = innerStroke.Thickness * 0.4 })
 	if foamDisc then
+		local foamTo = 0.5 * (start + 0.7 * (1 - start))
 		tween(
 			foamDisc,
 			TweenInfo.new(look.time * 0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{ BackgroundTransparency = 1, Size = UDim2.fromScale(0.5, 0.5) }
+			{ BackgroundTransparency = 1, Size = UDim2.fromScale(foamTo, foamTo) }
 		)
 	end
 end
 
--- Столб воды (белый цилиндр) там, где рыба выходит из воды или ныряет: вырастает на height
--- studs, расширяется и тает за time секунд. Деталь, без частиц — виден и издалека.
-local function spout(tracker: Tracker, water: Vector3, height: number, time: number)
+-- Сколько кругов рыбака сейчас на воде и на земле.
+local function liveRings(tracker: Tracker): number
+	local count = 0
+	for effect in tracker.effects do
+		for _, instance in effect.instances do
+			if instance.Name == "Ripple" then
+				count += 1
+			end
+		end
+	end
+	return count
+end
+
+-- Столб воды там, где рыба выходит из воды или ныряет: луч (Beam) лицом к камере растёт на
+-- height studs за SPOUT_RISE и тает за SPOUT_FADE. Без частиц — виден и издалека.
+local function spout(tracker: Tracker, water: Vector3, height: number)
 	local parent = folder
 	if not parent then
 		return
 	end
-	local upright = CFrame.Angles(0, 0, math.pi / 2) -- ось цилиндра (X) — вертикально
-	local part = quietPart("Spout", Vector3.new(0.4, 1.4, 1.4), CFrame.new(water) * upright)
-	part.Shape = Enum.PartType.Cylinder
-	part.Material = Enum.Material.SmoothPlastic
-	part.Color = WHITE
-	part.Transparency = 0.15
-	part.Parent = parent
-	local effect = newEffect(tracker, time)
-	table.insert(effect.instances, part)
-	local rise = TweenInfo.new(time * 0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	tween(part, rise, {
-		Size = Vector3.new(height, 2, 2),
-		CFrame = CFrame.new(water + Vector3.new(0, height / 2, 0)) * upright,
-	})
-	tween(part, TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-		Transparency = 1,
-	})
+	local host, bottom, top = beamHost("Spout", water)
+	local beam = makeBeam("Water", host, bottom, top)
+	beam.Width0 = 2.4
+	beam.Width1 = 0.9
+	beam.Texture = SPLASH_TEXTURE
+	beam.TextureMode = Enum.TextureMode.Stretch
+	beam.TextureLength = 1
+	beam.TextureSpeed = 1.5
+	beam.Color = ColorSequence.new(WHITE, WATER)
+	beam.LightEmission = 0.5
+	beam.Transparency = NumberSequence.new(0.1)
+	host.Parent = parent
+	local effect = newEffect(tracker, nil)
+	table.insert(effect.instances, host)
+	local start = os.clock()
+	runEveryFrame(effect, function(now: number): boolean
+		local age = now - start
+		if age >= SPOUT_RISE + SPOUT_FADE then
+			return false
+		end
+		local rise = math.min(age / SPOUT_RISE, 1)
+		top.Position = Vector3.new(0, math.max(height * (1 - (1 - rise) ^ 2), 0.1), 0)
+		local fade = math.clamp((age - SPOUT_RISE) / SPOUT_FADE, 0, 1)
+		beam.Transparency = numbers({ { 0, 0.1 + 0.9 * fade }, { 1, 0.35 + 0.65 * fade } })
+		return true
+	end)
 end
 
 -- Пачка из count колец с паузой gap (каждое следующее чуть меньше), начиная через delay
@@ -672,7 +939,7 @@ local function fallbackTarget(player: Player): Vector3
 	return Vector3.new(ahead.X, MapConfig.WaterTop, ahead.Z)
 end
 
--- Цель заброса (точка привязки лески: ватерлиния поплавка на воде) и время заброса.
+-- Цель заброса (pivot поплавка на воде: ватерлиния как раз на воде) и время заброса.
 local function readCast(bobber: Bobber)
 	local player = bobber.player
 	local target = player:GetAttribute("BobberTarget")
@@ -691,39 +958,45 @@ end
 -- Создание поплавка
 --------------------------------------------------------------------------------
 
+-- Брызги: один вид капель на все всплески (размер не меняется на лету — капли, уже летящие,
+-- не съёживаются), меняются только скорость и число.
 local function makeSplash(root: BasePart): ParticleEmitter
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Name = "Splash"
 	emitter.Enabled = false
 	emitter.Rate = 0
 	emitter.EmissionDirection = Enum.NormalId.Top
-	emitter.Lifetime = NumberRange.new(0.45, 0.8)
-	emitter.Speed = NumberRange.new(7, 13)
-	emitter.SpreadAngle = Vector2.new(38, 38)
-	emitter.Acceleration = Vector3.new(0, -42, 0)
-	emitter.Drag = 0.6
-	emitter.Size = numbers({ { 0, 0.55 }, { 1, 0.12 } })
-	emitter.Transparency = numbers({ { 0, 0.05 }, { 0.7, 0.3 }, { 1, 1 } })
+	emitter.Lifetime = NumberRange.new(0.5, 0.9)
+	emitter.Speed = NumberRange.new(9, 16)
+	emitter.SpreadAngle = Vector2.new(55, 55)
+	emitter.Acceleration = Vector3.new(0, -55, 0)
+	emitter.Drag = 0.4
+	emitter.Orientation = Enum.ParticleOrientation.VelocityParallel
+	emitter.Size = numbers({ { 0, 1, 0.45 }, { 0.25, 1.35, 0.45 }, { 1, 0.25 } })
+	emitter.Squash = numbers({ { 0, 1.4 }, { 1, 0.3 } })
+	emitter.Transparency = numbers({ { 0, 0 }, { 0.6, 0.15 }, { 1, 1 } })
 	emitter.Color = ColorSequence.new(WHITE, WATER)
-	emitter.Rotation = NumberRange.new(0, 360)
-	emitter.RotSpeed = NumberRange.new(-120, 120)
 	emitter.Texture = SPLASH_TEXTURE
-	emitter.LightEmission = 0.35
+	emitter.LightEmission = 0.6
 	emitter.Parent = root
 	return emitter
 end
 
--- Всплеск у поплавка: power — во сколько раз выше обычного бьют брызги (и крупнее капли:
--- поплавок далеко от камеры, мелкие брызги на телефоне не видны).
+-- Всплеск у поплавка: count капель; power — во сколько раз быстрее (выше) они летят.
 local function splash(bobber: Bobber, count: number, power: number)
-	local size = power ^ 0.9
-	bobber.splash.Speed = NumberRange.new(7 * power, 13 * power)
-	bobber.splash.Size = numbers({ { 0, 0.55 * size }, { 1, 0.12 * size } })
+	bobber.splash.Speed = NumberRange.new(9 * power, 16 * power)
 	burst(bobber.splash, count)
 end
 
 -- Два следа на одних точках: мягкая лента и искры поверх (Trail дешевле частиц).
-local function makeTrails(part: BasePart, top: Vector3, bottom: Vector3, colors: { Color3 }, prefix: string): { Trail }
+local function makeTrails(
+	part: BasePart,
+	top: Vector3,
+	bottom: Vector3,
+	colors: { Color3 },
+	prefix: string,
+	life: number?
+): { Trail }
 	local a0 = Instance.new("Attachment")
 	a0.Name = `{prefix}TrailTop`
 	a0.Position = top
@@ -743,12 +1016,12 @@ local function makeTrails(part: BasePart, top: Vector3, bottom: Vector3, colors:
 		trail.MinLength = 0.05
 		trail.Color = gradient(colors)
 		if index == 1 then
-			trail.Lifetime = 0.35
+			trail.Lifetime = life or 0.35
 			trail.LightEmission = 0.6
 			trail.Transparency = numbers({ { 0, 0.15 }, { 1, 1 } })
 			trail.WidthScale = numbers({ { 0, 1 }, { 1, 0.1 } })
 		else
-			trail.Lifetime = 0.6
+			trail.Lifetime = (life or 0.35) + 0.2
 			trail.LightEmission = 1
 			trail.Brightness = 2
 			trail.Texture = SPARKLE_TEXTURE
@@ -769,24 +1042,81 @@ local function setTrails(trails: { Trail }, enabled: boolean)
 	end
 end
 
--- «!» над поплавком во время поклёвки: жёлто-оранжевый значок с обводкой, свечение сзади,
--- вокруг кружат звёздочки (движение — animateAlert).
-local function makeAlert(root: BasePart): Alert
+-- Пенный след по воде за поплавком, пока тянем: плоская лента на ватерлинии (waterline —
+-- от точки привязки лески вниз до воды), поперёк движения.
+local function makeWake(root: BasePart, waterline: number): Trail
+	local a0 = Instance.new("Attachment")
+	a0.Name = "WakeA"
+	a0.Position = Vector3.new(-0.7, -waterline, 0)
+	a0.Parent = root
+	local a1 = Instance.new("Attachment")
+	a1.Name = "WakeB"
+	a1.Position = Vector3.new(0.7, -waterline, 0)
+	a1.Parent = root
+	local trail = Instance.new("Trail")
+	trail.Name = "Wake"
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.FaceCamera = false
+	trail.Lifetime = 0.6
+	trail.MinLength = 0.1
+	trail.Color = ColorSequence.new(WHITE)
+	trail.Transparency = numbers({ { 0, 0.2 }, { 1, 1 } })
+	trail.WidthScale = numbers({ { 0, 1 }, { 1, 2.2 } })
+	trail.LightEmission = 0.3
+	trail.LightInfluence = 0
+	trail.Enabled = false
+	trail.Parent = root
+	return trail
+end
+
+-- Белый контур своего поплавка (во время поклёвки ещё и мигает жёлтой заливкой).
+local function makeGlow(model: Model): Highlight
+	local glow = Instance.new("Highlight")
+	glow.Name = "OwnGlow"
+	glow.Adornee = model
+	glow.DepthMode = Enum.HighlightDepthMode.Occluded
+	glow.OutlineColor = WHITE
+	glow.OutlineTransparency = 0
+	glow.FillColor = SUN_TOP
+	glow.FillTransparency = 1
+	glow.Parent = model
+	return glow
+end
+
+-- «!» над поплавком во время поклёвки: жёлто-оранжевый значок с обводкой, свечение сзади;
+-- у своего — крупный, поверх всего, вокруг кружат звёздочки (движение — animateAlert).
+-- Гуи сразу наибольшего размера, всё внутри Holder — его UIScale «FxScale» и анимируется.
+local function makeAlert(root: BasePart, own: boolean): Alert
+	local studs = (if own then FX.AlertStuds else FX.AlertOtherStuds) * FX.AlertRoom
+	local pixels = math.round((if own then FX.AlertPixels else FX.AlertOtherPixels) * FX.AlertRoom)
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "BiteAlert"
 	gui.Adornee = root
-	gui.AlwaysOnTop = true
+	gui.AlwaysOnTop = own
 	gui.LightInfluence = 0
-	gui.MaxDistance = Fx.Range
+	gui.MaxDistance = if own then Fx.Range else ALERT_OTHER_DISTANCE
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	gui.ClipsDescendants = false
-	gui.Size = UDim2.new(FX.AlertStuds, FX.AlertPixels, FX.AlertStuds, FX.AlertPixels)
-	gui.StudsOffset = Vector3.new(0, FX.AlertLift, 0)
+	gui.Size = UDim2.new(studs, pixels, studs, pixels)
+	gui.StudsOffset = Vector3.new(0, if own then FX.AlertLift else FX.AlertOtherLift, 0)
 	gui.Enabled = false
 
-	local glow = roundFrame(gui, "Glow", 1.3, SUN_TOP, 0.5)
+	local holder = Instance.new("Frame")
+	holder.Name = "Holder"
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Position = UDim2.fromScale(0.5, 0.5)
+	holder.Size = UDim2.fromScale(1, 1)
+	holder.BackgroundTransparency = 1
+	local scale = Instance.new("UIScale")
+	scale.Name = "FxScale"
+	scale.Scale = 0
+	scale.Parent = holder
+	holder.Parent = gui
+
+	local glow = roundFrame(holder, "Glow", 1.3, SUN_TOP, 0.5)
 	glow.ZIndex = 1
-	local badge = roundFrame(gui, "Badge", 0.86, WHITE, 0)
+	local badge = roundFrame(holder, "Badge", 0.86, WHITE, 0)
 	badge.ZIndex = 2
 	local fill = Instance.new("UIGradient")
 	fill.Name = "Fill"
@@ -795,7 +1125,7 @@ local function makeAlert(root: BasePart): Alert
 	fill.Parent = badge
 	local outline = Instance.new("UIStroke")
 	outline.Color = INK
-	outline.Thickness = 3
+	outline.Thickness = if own then 3 else 2
 	outline.Parent = badge
 	local gloss = Instance.new("Frame")
 	gloss.Name = "Gloss"
@@ -818,7 +1148,8 @@ local function makeAlert(root: BasePart): Alert
 	label.Size = UDim2.fromScale(0.78, 0.78)
 	label.BackgroundTransparency = 1
 	label.Text = "!"
-	label.TextScaled = true
+	label.TextScaled = false
+	label.TextSize = if own then FX.AlertText else FX.AlertOtherText
 	label.FontFace = FONT
 	label.TextColor3 = WHITE
 	label.TextStrokeColor3 = INK
@@ -827,27 +1158,38 @@ local function makeAlert(root: BasePart): Alert
 	local textOutline = Instance.new("UIStroke")
 	textOutline.Name = "Outline"
 	textOutline.Color = INK
-	textOutline.Thickness = 2.5
+	textOutline.Thickness = if own then 2.5 else 1.5
 	textOutline.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
 	textOutline.Parent = label
-	label.Parent = gui
+	label.Parent = holder
 
 	local stars = {}
-	for index = 1, FX.AlertStars do
-		local star = Instance.new("TextLabel")
-		star.Name = `Star{index}`
-		star.AnchorPoint = Vector2.new(0.5, 0.5)
-		star.Size = UDim2.fromScale(0.3, 0.3)
-		star.BackgroundTransparency = 1
-		star.Text = if index % 2 == 1 then "⭐" else "✨"
-		star.TextScaled = true
-		star.TextStrokeTransparency = 1
-		star.ZIndex = 5
-		star.Parent = gui
-		table.insert(stars, star)
+	if own then
+		for index = 1, FX.AlertStars do
+			local star = Instance.new("TextLabel")
+			star.Name = `Star{index}`
+			star.AnchorPoint = Vector2.new(0.5, 0.5)
+			star.Size = UDim2.fromScale(0.3, 0.3)
+			star.BackgroundTransparency = 1
+			star.Text = if index % 2 == 1 then "⭐" else "✨"
+			star.TextScaled = false
+			star.TextSize = FX.AlertStarText
+			star.TextStrokeTransparency = 1
+			star.ZIndex = 5
+			star.Parent = holder
+			table.insert(stars, star)
+		end
 	end
 	gui.Parent = root
-	return { gui = gui, glow = glow, badge = badge, label = label, stars = stars }
+	return {
+		gui = gui,
+		lift = gui.StudsOffset.Y,
+		scale = scale,
+		glow = glow,
+		badge = badge,
+		label = label,
+		stars = stars,
+	}
 end
 
 -- Выскакивание с перелётом (Back Out): 0 → 1 за ALERT_POP секунд.
@@ -865,10 +1207,8 @@ local function animateAlert(alert: Alert, t: number, age: number)
 	local pop = backOut(math.clamp(age / ALERT_POP, 0, 1))
 	local bounce = math.abs(math.sin(t * 6.5))
 	local pulse = 0.5 + 0.5 * math.sin(t * 9)
-	-- Отступ UDim — целое число пикселей.
-	local pixels = math.round((FX.AlertPixels + 12 * pulse) * pop)
-	alert.gui.StudsOffset = Vector3.new(0, FX.AlertLift + 0.8 * bounce, 0)
-	alert.gui.Size = UDim2.new(FX.AlertStuds * pop, pixels, FX.AlertStuds * pop, pixels)
+	alert.gui.StudsOffset = Vector3.new(0, alert.lift + 0.8 * bounce, 0)
+	alert.scale.Scale = pop * (1 + 0.25 * pulse) / FX.AlertRoom
 	local glow = 1.15 + 0.4 * pulse
 	alert.glow.Size = UDim2.fromScale(glow, glow)
 	alert.glow.BackgroundTransparency = 0.3 + 0.5 * pulse
@@ -881,21 +1221,23 @@ local function animateAlert(alert: Alert, t: number, age: number)
 		local angle = t * 2.6 + (index - 1) * 2 * math.pi / count
 		star.Position = UDim2.fromScale(0.5 + 0.7 * math.cos(angle), 0.5 + 0.7 * math.sin(angle))
 		star.Rotation = math.deg(angle) * 0.5
-		local twinkle = 0.22 + 0.1 * math.sin(t * 7 + index * 1.7)
-		star.Size = UDim2.fromScale(twinkle, twinkle)
+		star.TextTransparency = 0.15 + 0.15 * math.sin(t * 7 + index * 1.7)
 	end
 end
 
+-- Леска: тоньше у кончика удочки, толще у поплавка (он дальше от камеры); светится чуть-чуть.
 local function makeLine(model: Model, lineAttachment: Attachment): Beam
 	local beam = Instance.new("Beam")
 	beam.Name = "Line"
 	beam.Attachment1 = lineAttachment
 	beam.FaceCamera = true
-	beam.Segments = 1
-	beam.Width0 = FX.LineWidth
-	beam.Width1 = FX.LineWidth
+	beam.Segments = FX.LineSegments
+	beam.Width0 = FX.LineTip
+	beam.Width1 = FX.LineFloat
 	beam.Color = ColorSequence.new(FX.LineColor)
 	beam.Transparency = NumberSequence.new(0.15)
+	beam.LightEmission = FX.LineGlow
+	beam.LightInfluence = 0
 	beam.Enabled = false -- пока не найден кончик удочки
 	beam.Parent = model
 	return beam
@@ -927,21 +1269,37 @@ local function createBobber(tracker: Tracker): Bobber?
 		trove:Clean()
 		return nil
 	end
+	-- Копия крупнее (ScaleTo — вокруг точки привязки лески); pivot опускается так, что
+	-- ватерлиния, как у шаблона, на FloatDepth ниже pivot.
+	local floatDepth = finite(model:GetAttribute("FloatDepth")) or DEFAULT_FLOAT_DEPTH
+	local waterline = floatDepth -- от точки привязки лески вниз до ватерлинии
+	local scaled = pcall(function()
+		model:ScaleTo(BOBBER_SCALE)
+	end)
+	if scaled then
+		waterline = floatDepth * BOBBER_SCALE
+		root.PivotOffset = CFrame.new(0, floatDepth - waterline, 0)
+	end
 	makeRoom(tracker, 1) -- у поплавка свой ParticleEmitter (брызги)
+	local own = isOwn(tracker)
 	local now = os.clock()
 	local bobber: Bobber = {
 		player = player,
+		own = own,
 		trove = trove,
 		model = model,
 		root = root,
+		lineAttachment = lineAttachment,
 		beam = makeLine(model, lineAttachment),
 		splash = makeSplash(root),
-		trails = makeTrails(root, Vector3.new(0, 0.3, 0), Vector3.new(0, -0.3, 0), { WHITE, WATER }, "Cast"),
-		whoosh = makeSound(root, "Whoosh", SOUND_WHOOSH, 0.35),
-		splashSound = makeSound(root, "SplashSound", SOUND_SPLASH, 0.5),
-		pingSound = makeSound(root, "Ping", SOUND_PING, 0.35),
-		alert = makeAlert(root),
-		floatDepth = finite(model:GetAttribute("FloatDepth")) or DEFAULT_FLOAT_DEPTH,
+		trails = makeTrails(root, Vector3.new(0, 0.5, 0), Vector3.new(0, -0.5, 0), { SUN_TOP, WHITE }, "Cast", 0.45),
+		wake = makeWake(root, waterline),
+		glow = if own then makeGlow(model) else nil,
+		whoosh = makeSound(root, "Whoosh", SOUND_WHOOSH, 0.35, own),
+		splashSound = makeSound(root, "SplashSound", SOUND_SPLASH, 0.5, own),
+		pingSound = makeSound(root, "Ping", SOUND_PING, 0.35, own),
+		alert = makeAlert(root, own),
+		floatDepth = floatDepth,
 		state = "Waiting",
 		stateSince = now,
 		target = Vector3.zero,
@@ -951,6 +1309,12 @@ local function createBobber(tracker: Tracker): Bobber?
 		fresh = false,
 		nextSplash = 0,
 		nextRipple = 0,
+		dip = 0,
+		jerks = 0,
+		nibbleAt = nil,
+		popStart = nil,
+		popSplashed = false,
+		flashUntil = nil,
 		retractFrom = nil,
 		retractStart = 0,
 		hooked = nil,
@@ -976,37 +1340,73 @@ end
 -- Движение поплавка (каждый кадр, только активные)
 --------------------------------------------------------------------------------
 
--- Полёт дугой; nil — уже долетел.
-local function flightPosition(bobber: Bobber, from: Vector3): Vector3?
+-- Полёт дугой, кувыркаясь (FX.CastSpins оборотов); nil — уже долетел.
+local function flightPose(bobber: Bobber, from: Vector3): (Vector3?, CFrame)
 	local alpha = (Workspace:GetServerTimeNow() - bobber.castTime) / FishingConfig.CastFlightTime
 	if alpha >= 1 then
-		return nil
+		return nil, CFrame.identity
 	end
 	alpha = math.max(alpha, 0)
 	local height = math.clamp((bobber.target - from).Magnitude * 0.3, 2, 10)
-	return from:Lerp(bobber.target, alpha) + Vector3.new(0, height * 4 * alpha * (1 - alpha), 0)
+	local position = from:Lerp(bobber.target, alpha) + Vector3.new(0, height * 4 * alpha * (1 - alpha), 0)
+	local path = flat(bobber.target - from)
+	local axis = if path.Magnitude > 0.01 then path.Unit:Cross(Vector3.yAxis) else Vector3.xAxis
+	return position, CFrame.fromAxisAngle(axis, -FX.CastSpins * 2 * math.pi * alpha)
 end
 
--- На воде: покачивание, поклёвка или вытаскивание. Возвращает позицию и наклон.
+-- Нырок поклёвки 0..1: резкие рывки вниз.
+local function biteDip(bobber: Bobber, now: number): number
+	return math.abs(math.sin((now + bobber.seed) * FX.BiteSpeed)) ^ 6
+end
+
+-- Рыба сорвалась: поплавок подскакивает на POP_HEIGHT и шлёпается обратно на воду.
+local function popPose(bobber: Bobber, now: number): (Vector3, CFrame)
+	local a = math.clamp((now - (bobber.popStart or now)) / POP_TIME, 0, 1)
+	return bobber.target + Vector3.new(0, POP_HEIGHT * 4 * a * (1 - a), 0),
+		CFrame.Angles(0, 0, math.sin(a * math.pi) * 0.6)
+end
+
+-- На воде: покачивание (и «примерка»), поклёвка или вытаскивание. Возвращает позицию и наклон.
 local function waterPose(bobber: Bobber, from: Vector3, now: number): (Vector3, CFrame)
 	local t = now + bobber.seed
 	local target = bobber.target
 	if bobber.state == "Bite" then
-		local dip = math.abs(math.sin(t * FX.BiteSpeed)) ^ 6 -- резкие рывки вниз
+		local dip = biteDip(bobber, now)
 		local jitter = math.sin(t * 23) * 0.12
 		return target - Vector3.new(jitter, FX.BiteDip * dip + 0.08, 0),
 			CFrame.Angles(math.sin(t * 17) * 0.35, 0, math.cos(t * 13) * 0.35)
 	elseif bobber.state == "Reeling" then
+		-- Поплавок развёрнут осью X к рыбаку (пенный след — поперёк метаний) и качается вбок.
 		local toFisher = Vector3.new(from.X, target.Y, from.Z) - target
 		local pull = math.min(FX.ReelPullMax, (now - bobber.stateSince) * FX.ReelPull)
-		local side = if toFisher.Magnitude > 0.01 then toFisher.Unit:Cross(Vector3.yAxis) else Vector3.xAxis
+		local direction = if toFisher.Magnitude > 0.01 then toFisher.Unit else Vector3.xAxis
+		local side = direction:Cross(Vector3.yAxis)
 		local swing = math.sin(t * FX.ReelSpeed) * FX.ReelSwing
 		local dip = math.abs(math.sin(t * 11)) * 0.25
+		local facing = CFrame.fromMatrix(Vector3.zero, direction, Vector3.yAxis)
 		return target + toFisher * pull + side * swing - Vector3.new(0, dip, 0),
-			CFrame.Angles(0, 0, math.sin(t * FX.ReelSpeed) * 0.5)
+			facing * CFrame.Angles(math.sin(t * FX.ReelSpeed) * 0.5, 0, 0)
 	end
 	local bob = math.sin(t * FX.BobSpeed) * FX.BobAmplitude
+	local nibbleAt = bobber.nibbleAt
+	if nibbleAt then
+		local k = (now - nibbleAt) / NIBBLE_TIME
+		if k < 1 then
+			bob -= NIBBLE_DIP * math.sin(math.pi * k)
+		else
+			bobber.nibbleAt = nil
+		end
+	end
 	return target + Vector3.new(0, bob, 0), CFrame.Angles(math.sin(t * 1.3) * 0.08, 0, math.cos(t * 1.1) * 0.08)
+end
+
+-- Спокойные круги рисуем у своего поплавка и у рыбаков не дальше Fx.AmbientRange.
+local function ambientNear(bobber: Bobber): boolean
+	if bobber.own then
+		return true
+	end
+	local viewer = viewerPosition()
+	return viewer == nil or (viewer - bobber.position).Magnitude <= Fx.AmbientRange
 end
 
 -- Поплавок на воде: приводнение, круги, брызги (только если это видно отсюда — near).
@@ -1015,14 +1415,15 @@ local function updateWater(bobber: Bobber, now: number, near: boolean)
 	if not tracker then
 		return
 	end
+	local lift = Vector3.new(0, FX.RingLift, 0)
 	if not bobber.landed then
 		bobber.landed = true
 		setTrails(bobber.trails, false)
 		bobber.nextRipple = now + Fx.RippleEvery
 		if bobber.fresh and near then
-			splash(bobber, 14, 1)
+			splash(bobber, SPLASH.landing, 1)
 			play(bobber.splashSound)
-			ringBurst(tracker, bobber, waterUnder(bobber) + Vector3.new(0, FX.RingLift, 0), RING.landing, 3, 0.14)
+			ringBurst(tracker, bobber, waterUnder(bobber) + lift, RING.landing, 3, 0.14)
 		end
 	end
 	local state = bobber.state
@@ -1032,23 +1433,28 @@ local function updateWater(bobber: Bobber, now: number, near: boolean)
 		else nil
 	if rippleEvery and now >= bobber.nextRipple then
 		bobber.nextRipple = now + rippleEvery
-		if near then
+		if near and ambientNear(bobber) and liveRings(tracker) < Fx.MaxRings then
 			local look = if state == "Reeling" then RING.reel else RING.ripple
-			ringBurst(tracker, bobber, waterUnder(bobber) + Vector3.new(0, FX.RingLift, 0), look, 1, 0)
+			ringBurst(tracker, bobber, waterUnder(bobber) + lift, look, 1, 0)
 		end
 	end
-	local splashEvery = if state == "Bite"
-		then FX.BiteSplashEvery
-		elseif state == "Reeling" then Fx.ReelSprayEvery
-		else nil
-	if splashEvery and now >= bobber.nextSplash then
-		bobber.nextSplash = now + splashEvery
-		if near then
-			if state == "Bite" then
-				splash(bobber, 8, 1)
-			else
-				splash(bobber, 6, 0.8)
+	if state == "Bite" then
+		-- Рывок: нырок прошёл BiteJerk вниз — брызги; каждый второй — ещё и круг.
+		local dip = biteDip(bobber, now)
+		if bobber.dip < FX.BiteJerk and dip >= FX.BiteJerk then
+			bobber.jerks += 1
+			if near then
+				splash(bobber, SPLASH.jerk, 1)
+				if bobber.jerks % 2 == 0 then
+					ringBurst(tracker, bobber, waterUnder(bobber, bobber.target) + lift, RING.jerk, 1, 0)
+				end
 			end
+		end
+		bobber.dip = dip
+	elseif state == "Reeling" and now >= bobber.nextSplash then
+		bobber.nextSplash = now + Fx.ReelSprayEvery
+		if near then
+			splash(bobber, SPLASH.reel, 0.8)
 		end
 	end
 end
@@ -1056,17 +1462,60 @@ end
 -- Леска во время борьбы с рыбой натянута: толщина и цвет (белый ↔ оранжевый) пульсируют.
 local function animateLine(bobber: Bobber, t: number)
 	local k = 0.5 + 0.5 * math.sin(t * 10)
-	local width = FX.LineWidth + 0.03 + 0.05 * k
-	bobber.beam.Width0 = width
-	bobber.beam.Width1 = width
+	bobber.beam.Width0 = FX.LineTip + 0.04 * k
+	bobber.beam.Width1 = FX.LineFloat + 0.08 * k
 	bobber.beam.Color = ColorSequence.new(FX.LineColor:Lerp(SUN_BOTTOM, 0.2 + 0.6 * k))
 end
 
+-- Обычная леска (красная вспышка сорвавшейся рыбы доживает свои LINE_FLASH секунд).
 local function resetLine(bobber: Bobber)
-	bobber.beam.Width0 = FX.LineWidth
-	bobber.beam.Width1 = FX.LineWidth
+	if bobber.flashUntil then
+		return
+	end
+	bobber.beam.Width0 = FX.LineTip
+	bobber.beam.Width1 = FX.LineFloat
 	bobber.beam.Color = ColorSequence.new(FX.LineColor)
-	bobber.beam.LightEmission = 0
+	bobber.beam.LightEmission = if bobber.state == "Reeling" and not bobber.retractFrom then 0.4 else FX.LineGlow
+end
+
+-- Рыба сорвалась: леска на миг толстая и красная.
+local function flashLine(bobber: Bobber)
+	bobber.flashUntil = os.clock() + LINE_FLASH
+	bobber.beam.Width0 = 0.2
+	bobber.beam.Width1 = 0.2
+	bobber.beam.Color = ColorSequence.new(BERRY)
+	bobber.beam.LightEmission = 0.6
+end
+
+-- Провис лески в ожидании (sag): вторая опорная точка кривой — у поплавка, ближе к рыбаку
+-- (ось LineAttachment смотрит от рыбака): леска ложится на воду. Иначе — натянута.
+local function setSag(bobber: Bobber, from: Vector3, sag: boolean)
+	local beam = bobber.beam
+	local away = flat(bobber.position - from)
+	if not sag or away.Magnitude < 0.5 then
+		if beam.CurveSize1 ~= 0 then
+			beam.CurveSize1 = 0
+		end
+		return
+	end
+	local frame = bobber.root.CFrame
+	local axis = frame:VectorToObjectSpace(away.Unit)
+	local up = frame:VectorToObjectSpace(Vector3.yAxis)
+	bobber.lineAttachment.CFrame = CFrame.fromMatrix(Vector3.zero, axis, up)
+	beam.CurveSize1 = FX.LineSag * (bobber.position - from).Magnitude
+end
+
+-- Свой поплавок во время поклёвки: жёлтая заливка мигает (FX.BiteGlowRate Гц).
+local function setGlowFill(bobber: Bobber, now: number?)
+	local glow = bobber.glow
+	if not glow then
+		return
+	end
+	if now then
+		glow.FillTransparency = 0.575 + 0.225 * math.cos(2 * math.pi * FX.BiteGlowRate * now)
+	elseif glow.FillTransparency ~= 1 then
+		glow.FillTransparency = 1
+	end
 end
 
 local function destroyBobber(tracker: Tracker)
@@ -1081,6 +1530,9 @@ local function destroyBobber(tracker: Tracker)
 			end
 		end
 		bobber.trove:Clean()
+		if isOwn(tracker) then
+			updateCamera()
+		end
 	end
 end
 
@@ -1090,8 +1542,14 @@ stepBobber = function(bobber: Bobber, now: number)
 	if bobber.hooked then
 		return -- на крючке рыба в прыжке: поплавок ведёт она (startLeap)
 	end
+	local flash = bobber.flashUntil
+	if flash and now >= flash then
+		bobber.flashUntil = nil
+		resetLine(bobber)
+	end
 	local from = anchorPosition(bobber, tip)
 	local tilt = CFrame.identity
+	local sag = false
 
 	local retractFrom = bobber.retractFrom
 	if retractFrom then
@@ -1103,26 +1561,45 @@ stepBobber = function(bobber: Bobber, now: number)
 			end
 			return
 		end
-		local eased = alpha * alpha
-		bobber.position = retractFrom:Lerp(from, eased) + Vector3.new(0, 2 * math.sin(alpha * math.pi), 0)
+		if alpha < 0 then
+			bobber.position, tilt = popPose(bobber, now) -- сначала подскакивает (рыба сорвалась)
+		else
+			if bobber.popStart and not bobber.popSplashed then
+				bobber.popSplashed = true -- шлёпнулся обратно
+				if isNear(bobber.position) then
+					splash(bobber, SPLASH.pop, 0.9)
+				end
+			end
+			local eased = alpha * alpha
+			bobber.position = retractFrom:Lerp(from, eased) + Vector3.new(0, 2 * math.sin(alpha * math.pi), 0)
+		end
 	else
-		local flying = flightPosition(bobber, from)
+		local flying, spin = flightPose(bobber, from)
 		local near = isNear(bobber.position)
+		local popStart = bobber.popStart
 		if flying then
 			bobber.position = flying
+			tilt = spin
+		elseif popStart and now - popStart < POP_TIME then
+			bobber.position, tilt = popPose(bobber, now)
 		else
 			bobber.position, tilt = waterPose(bobber, from, now)
 			updateWater(bobber, now, near)
+			sag = bobber.state == "Waiting"
 		end
 		-- Далёкие поплавки (дальше Fx.Range) — без анимации «!» и лески: их почти не видно.
 		if near and bobber.alert.gui.Enabled then
 			animateAlert(bobber.alert, now, now - bobber.stateSince)
 		end
-		if near and bobber.state == "Reeling" then
+		if near and bobber.state == "Reeling" and not bobber.flashUntil then
 			animateLine(bobber, now + bobber.seed)
+		end
+		if bobber.state == "Bite" then
+			setGlowFill(bobber, now)
 		end
 	end
 	bobber.model:PivotTo(CFrame.new(bobber.position) * tilt)
+	setSag(bobber, from, sag)
 end
 
 local function activate(bobber: Bobber)
@@ -1142,14 +1619,19 @@ local function setBobberState(bobber: Bobber, state: string)
 	bobber.stateSince = os.clock()
 	bobber.nextSplash = 0
 	bobber.nextRipple = bobber.stateSince + (if state == "Reeling" then 0.2 else Fx.RippleEvery)
+	bobber.dip = 0
+	bobber.jerks = 0
+	bobber.nibbleAt = nil
 	bobber.alert.gui.Enabled = state == "Bite"
-	resetLine(bobber)
-	if state == "Reeling" then
-		bobber.beam.LightEmission = 0.4
+	bobber.alert.scale.Scale = 0
+	bobber.wake.Enabled = state == "Reeling"
+	if state ~= "Bite" then
+		setGlowFill(bobber, nil)
 	end
+	resetLine(bobber)
 	local tracker = trackers[bobber.player]
 	if state == "Bite" and tracker and isNear(bobber.position) then
-		splash(bobber, 22, 1.3)
+		splash(bobber, SPLASH.bite, 1.3)
 		play(bobber.splashSound, 1.15)
 		play(bobber.pingSound)
 		ringBurst(
@@ -1164,10 +1646,21 @@ local function setBobberState(bobber: Bobber, state: string)
 end
 
 local function startRetract(tracker: Tracker, bobber: Bobber)
-	bobber.retractFrom = bobber.position
-	bobber.retractStart = os.clock()
+	local now = os.clock()
+	local popStart = bobber.popStart
+	if popStart and now - popStart < POP_TIME then
+		-- Рыба только что сорвалась: поплавок досмотрит свой подскок, потом сматывается.
+		bobber.retractFrom = bobber.target
+		bobber.retractStart = popStart + POP_TIME
+	else
+		bobber.retractFrom = bobber.position
+		bobber.retractStart = now
+	end
 	bobber.alert.gui.Enabled = false
+	bobber.wake.Enabled = false
+	setGlowFill(bobber, nil)
 	resetLine(bobber)
+	setSag(bobber, bobber.position, false)
 	fadeOwned(tracker, bobber)
 end
 
@@ -1193,6 +1686,9 @@ local function onStateChanged(player: Player, tracker: Tracker)
 	elseif bobber and not bobber.retractFrom and not bobber.hooked then
 		startRetract(tracker, bobber)
 	end
+	if isOwn(tracker) then
+		updateCamera()
+	end
 end
 
 -- Новый заброс без возврата в "Idle" (или атрибуты пришли позже состояния).
@@ -1204,7 +1700,7 @@ local function onCastChanged(tracker: Tracker)
 end
 
 --------------------------------------------------------------------------------
--- Улов: прыжок рыбы, искры над головой, столб света, конфетти
+-- Улов: прыжок рыбы, вспышка и ореол, табличка, искры, столб света, конфетти
 --------------------------------------------------------------------------------
 
 local function fishTemplate(id: string?, mutation: string?): Model?
@@ -1263,7 +1759,7 @@ local function setHidden(model: Model, hidden: boolean)
 	end
 end
 
-local function sparkleEmitter(name: string, colors: { Color3 }, rate: number): ParticleEmitter
+local function sparkleEmitter(name: string, colors: { Color3 }, rate: number, peak: number?): ParticleEmitter
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Name = name
 	emitter.Rate = rate
@@ -1271,7 +1767,7 @@ local function sparkleEmitter(name: string, colors: { Color3 }, rate: number): P
 	emitter.Speed = NumberRange.new(0.8, 2.4)
 	emitter.SpreadAngle = Vector2.new(180, 180)
 	emitter.Acceleration = Vector3.new(0, 1.5, 0)
-	emitter.Size = numbers({ { 0, 0 }, { 0.2, 0.55 }, { 1, 0 } })
+	emitter.Size = numbers({ { 0, 0 }, { 0.2, peak or 0.55 }, { 1, 0 } })
 	emitter.Transparency = numbers({ { 0, 0.05 }, { 0.75, 0.2 }, { 1, 1 } })
 	emitter.Color = gradient(colors)
 	emitter.Rotation = NumberRange.new(0, 360)
@@ -1282,86 +1778,277 @@ local function sparkleEmitter(name: string, colors: { Color3 }, rate: number): P
 	return emitter
 end
 
--- Искры цвета редкости вокруг рыбы над головой, пока она там (редкая и выше).
-local function aura(tracker: Tracker, held: Model, rarity: string)
-	local rate = Fx.AuraRate[rarity]
+-- Искры вокруг рыбы над головой, пока она там (FishingRules.HoldFishTime): у редкой и выше —
+-- цвета редкости, у рыбы с мутацией — цвета мутации (и не реже Fx.MutationAuraRate);
+-- неоновая ещё светится голубым.
+local function aura(tracker: Tracker, held: Model, rarity: string, mutation: string?)
 	local body = held.PrimaryPart
+	local mutationStyle = if mutation then UIConfig.Mutations[mutation] else nil
+	local rate = Fx.AuraRate[rarity]
+	if mutationStyle then
+		rate = math.max(rate or 0, Fx.MutationAuraRate)
+	end
 	if not rate or not body then
 		return
 	end
 	makeRoom(tracker, 1)
-	local effect = newEffect(tracker, FishingConfig.HoldFishTime + 0.3)
+	local effect = newEffect(tracker, FishingRules.HoldFishTime(rarity) + 0.3)
 	effect.priority = 1
-	local emitter = sparkleEmitter("RarityAura", rarityColors(rarity), rate)
+	local colors = rarityColors(rarity)
+	if mutationStyle then
+		colors = if mutation == "Rainbow" then UIConfig.Rainbow else { WHITE, mutationStyle.Top, mutationStyle.Bottom }
+	end
+	local emitter = sparkleEmitter("RarityAura", colors, rate, if mutation == "Gold" then 0.7 else 0.55)
 	emitter.Parent = body
 	burst(emitter, 14)
 	effect.emitter = emitter
 	table.insert(effect.instances, emitter)
 	local style = UIConfig.Rarity[rarity]
-	if style then
-		local light = Instance.new("PointLight")
-		light.Name = "RarityGlow"
+	local light: PointLight? = nil
+	if mutation == "Neon" and mutationStyle then
+		light = Instance.new("PointLight")
+		light.Color = mutationStyle.Top
+		light.Range = 12
+		light.Brightness = 3
+	elseif style and Fx.AuraRate[rarity] then
+		light = Instance.new("PointLight")
 		light.Color = style.Top
 		light.Range = 9
 		light.Brightness = 1.6
+	end
+	if light then
+		light.Name = "RarityGlow"
 		light.Shadows = false
 		light.Parent = body
 		table.insert(effect.instances, light)
 	end
 end
 
--- Столб света над рыбаком (легендарная и мифическая рыба): выстреливает вверх, расширяется
--- и гаснет за Fx.PillarTime. Его видно и издалека — он один на весь эффект и дешёвый.
+-- Вспышка: неоновый шар в центре рыбы раздувается и гаснет.
+local function popBall(tracker: Tracker, center: Vector3, color: Color3)
+	local parent = folder
+	if not parent then
+		return
+	end
+	local part = quietPart("Pop", Vector3.new(0.2, 0.2, 0.2), CFrame.new(center))
+	part.Shape = Enum.PartType.Ball
+	part.Material = Enum.Material.Neon
+	part.Color = color
+	part.Transparency = 0.15
+	part.Parent = parent
+	local effect = newEffect(tracker, POP_FADE + 0.05)
+	table.insert(effect.instances, part)
+	tween(part, TweenInfo.new(POP_GROW, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = Vector3.new(POP_SIZE, POP_SIZE, POP_SIZE),
+	})
+	tween(part, TweenInfo.new(POP_FADE, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 })
+end
+
+-- Ореол: кольцо лицом к камере (BillboardGui) вокруг рыбы над головой растёт и тает.
+local function halo(tracker: Tracker, body: BasePart, center: Vector3, inner: Color3)
+	local parent = folder
+	if not parent then
+		return
+	end
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "Halo"
+	gui.Adornee = body
+	gui.StudsOffsetWorldSpace = center - body.Position
+	gui.Size = UDim2.fromScale(HALO_FROM, HALO_FROM)
+	gui.LightInfluence = 0
+	gui.AlwaysOnTop = false
+	gui.MaxDistance = Fx.Range
+	gui.ClipsDescendants = false
+	local outerStroke = ringStroke(roundFrame(gui, "Outer", 0.96, WHITE, 1), WHITE, 6)
+	local innerStroke = ringStroke(roundFrame(gui, "Inner", 0.84, inner, 1), inner, 4)
+	gui.Parent = parent
+	local effect = newEffect(tracker, HALO_TIME + 0.05)
+	table.insert(effect.instances, gui)
+	tween(gui, TweenInfo.new(HALO_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = UDim2.fromScale(HALO_TO, HALO_TO),
+	})
+	local fade = TweenInfo.new(HALO_TIME, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
+	tween(outerStroke, fade, { Transparency = 1 })
+	tween(innerStroke, fade, { Transparency = 1 })
+end
+
+local function plateLabel(parent: Instance, name: string, text: string, box: { number }, outline: number): TextLabel
+	local label = Instance.new("TextLabel")
+	label.Name = name
+	label.Position = UDim2.fromScale(box[1], box[2])
+	label.Size = UDim2.fromScale(box[3], box[4])
+	label.BackgroundTransparency = 1
+	label.FontFace = FONT
+	label.Text = text
+	label.TextColor3 = WHITE
+	label.TextScaled = true
+	label.TextStrokeColor3 = INK
+	label.TextStrokeTransparency = 0
+	local stroke = Instance.new("UIStroke")
+	stroke.Name = "Outline"
+	stroke.Color = INK
+	stroke.Thickness = outline
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+	stroke.Parent = label
+	label.Parent = parent
+	return label
+end
+
+-- Табличка над рыбой редкости Rare+ (видят все, пока рыба над головой): редкость (легендарная —
+-- золотом, мифическая — переливающейся радугой), название, мутация и цена. Всё берётся из
+-- атрибутов модели (FishId, Rarity, Mutation, Value — их ставит FishingService), поэтому
+-- годится и для рыб на витринах базы (Этап 3).
+local function nameplate(tracker: Tracker, held: Model, rarity: string, event: FxEvent)
+	local style = UIConfig.Rarity[rarity]
+	local body = held.PrimaryPart
+	local parent = folder
+	if not style or rarity == "Common" or not body or not parent then
+		return
+	end
+	local box, size = held:GetBoundingBox()
+	local fishId = held:GetAttribute("FishId")
+	local def = FishingRules.GetFish(if typeof(fishId) == "string" then fishId else event.id or "")
+	local rarityDef = FishingRules.GetRarity(rarity)
+	local mutationAttr = held:GetAttribute("Mutation")
+	local mutation = if typeof(mutationAttr) == "string" then mutationAttr else event.mutation
+	local value = finite(held:GetAttribute("Value"))
+
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "Nameplate"
+	gui.Adornee = body
+	gui.Size = UDim2.fromScale(NAMEPLATE_SIZE.X, NAMEPLATE_SIZE.Y)
+	gui.StudsOffsetWorldSpace = (box.Position - body.Position)
+		+ Vector3.new(0, size.Y / 2 + NAMEPLATE_SIZE.Y / 2 + 0.4, 0)
+	gui.MaxDistance = Fx.Range
+	gui.LightInfluence = 0
+	gui.AlwaysOnTop = false
+	gui.ClipsDescendants = false
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	local plate = Instance.new("Frame")
+	plate.Name = "Plate"
+	plate.AnchorPoint = Vector2.new(0.5, 1)
+	plate.Position = UDim2.fromScale(0.5, 1)
+	plate.Size = UDim2.fromScale(1, 1)
+	plate.BackgroundTransparency = 1
+	local scale = Instance.new("UIScale")
+	scale.Name = "FxScale"
+	scale.Scale = 0
+	scale.Parent = plate
+	plate.Parent = gui
+
+	local title =
+		plateLabel(plate, "Rarity", upper(if rarityDef then rarityDef.Name else rarity), { 0, 0, 1, 0.42 }, 2.5)
+	local fill = Instance.new("UIGradient")
+	fill.Name = "Fill"
+	fill.Rotation = if style.Rainbow then 0 else 90
+	fill.Color = if style.Rainbow then gradient(UIConfig.Rainbow) else gradient({ style.Top, style.Bottom })
+	fill.Parent = title
+	plateLabel(plate, "FishName", if def then def.Name else "", { 0.05, 0.4, 0.9, 0.3 }, 2)
+	local mutationDef = if mutation then FishingRules.GetMutation(mutation) else nil
+	local mutationStyle = if mutation then UIConfig.Mutations[mutation] else nil
+	local priceBox = if mutationDef then { 0.5, 0.7, 0.48, 0.3 } else { 0.2, 0.7, 0.6, 0.3 }
+	if mutationDef and mutationStyle then
+		local tag = plateLabel(
+			plate,
+			"Mutation",
+			`{mutationStyle.Icon} {mutationDef.Name} ×{mutationDef.Multiplier}`,
+			{ 0.02, 0.7, 0.48, 0.3 },
+			1.5
+		)
+		tag.TextColor3 = mutationStyle.Top
+	end
+	if value then
+		local price = plateLabel(plate, "Price", `💰 {FishingRules.FormatCoins(value)}`, priceBox, 1.5)
+		price.TextColor3 = Palette.Gold.Top
+	end
+	gui.Parent = parent
+
+	local effect = newEffect(tracker, FishingRules.HoldFishTime(rarity) + 0.3)
+	table.insert(effect.instances, gui)
+	tween(scale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out, 0, false, 0.12), { Scale = 1 })
+	if style.Rainbow then
+		-- Радуга переливается: градиент ездит туда-обратно (твин, без соединений; гасится с табличкой).
+		fill.Offset = Vector2.new(-0.35, 0)
+		local shimmer = tween(
+			fill,
+			TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+			{ Offset = Vector2.new(0.35, 0) }
+		)
+		effect.onEnd = function()
+			shimmer:Cancel()
+		end
+	end
+end
+
+-- Столб света над рыбаком (легендарная и мифическая рыба): неоновая сердцевина выстреливает
+-- вверх на Fx.PillarHeight[редкость], вокруг — лучи (Beam) лицом к камере: свечение тает к небу
+-- (без «крышки»), искры бегут вверх; всё гаснет за Fx.PillarTime[редкость]. Мифическая — выше,
+-- шире и переливается. Его видно и издалека — он один на весь эффект и дешёвый (без частиц).
 -- base — низ столба (земля под рыбаком; у самого рыбака — над его рыбой, чтобы не закрыть её).
+-- Свой столб начинается в ~12 studs перед камерой: его лучи в OWN_PILLAR_WIDTH раз уже, иначе
+-- свечение затянуло бы пол-экрана; чужой виден через всю лагуну — в полную ширину.
 local function pillar(tracker: Tracker, base: Vector3, rarity: string)
 	local parent = folder
 	local style = UIConfig.Rarity[rarity]
 	if not parent or not style then
 		return
 	end
+	local life = Fx.PillarTime[rarity] or Fx.PillarTime.Legendary
+	local tall = Fx.PillarHeight[rarity] or Fx.PillarHeight.Legendary
+	local wide = (if style.Rainbow then 1.5 else 1) * (if isOwn(tracker) then OWN_PILLAR_WIDTH else 1)
 	local upright = CFrame.Angles(0, 0, math.pi / 2) -- ось цилиндра (X) — вертикально
 	local core = quietPart("PillarCore", Vector3.new(1, PILLAR_CORE, PILLAR_CORE), CFrame.new(base) * upright)
 	core.Shape = Enum.PartType.Cylinder
 	core.Material = Enum.Material.Neon
 	core.Color = WHITE
-	local glow = quietPart("PillarGlow", Vector3.new(1, PILLAR_GLOW, PILLAR_GLOW), CFrame.new(base) * upright)
-	glow.Shape = Enum.PartType.Cylinder
-	glow.Material = Enum.Material.Neon
-	glow.Color = style.Top:Lerp(style.Bottom, 0.45)
-	glow.Transparency = 0.5
+	local host, bottom, top = beamHost("PillarGlow", base)
+	local glow = makeBeam("Glow", host, bottom, top)
+	glow.Width0 = 8 * wide
+	glow.Width1 = 4 * wide
+	glow.LightEmission = 1
+	glow.Color = gradient({ style.Top, style.Top:Lerp(style.Bottom, 0.45), style.Bottom })
+	local sparkle = makeBeam("Sparkle", host, bottom, top)
+	sparkle.Width0 = 5 * wide
+	sparkle.Width1 = 5 * wide
+	sparkle.LightEmission = 1
+	sparkle.Texture = SPARKLE_TEXTURE
+	sparkle.TextureMode = Enum.TextureMode.Wrap
+	sparkle.TextureLength = 5
+	sparkle.TextureSpeed = 1.2
+	sparkle.Color = stripes(style.Rays)
 	local effect = newEffect(tracker, nil)
 	table.insert(effect.instances, core)
-	table.insert(effect.instances, glow)
+	table.insert(effect.instances, host)
 	local sound = makeSound(core, "Ping", SOUND_PING, 0.6)
 	core.Parent = parent
-	glow.Parent = parent
+	host.Parent = parent
 	play(sound, 0.75)
 	local start = os.clock()
 	runEveryFrame(effect, function(now: number): boolean
-		local a = (now - start) / Fx.PillarTime
+		local a = (now - start) / life
 		if a >= 1 then
 			return false
 		end
 		local grow = 1 - (1 - math.min(a / 0.14, 1)) ^ 3
-		local height = math.max(Fx.PillarHeight * grow, 0.5)
+		local height = math.max(tall * grow, 0.5)
 		local fade = math.clamp((a - 0.3) / 0.7, 0, 1)
-		local frame = CFrame.new(base + Vector3.new(0, height / 2, 0)) * upright
 		local coreWidth = PILLAR_CORE * (1 - 0.6 * fade)
-		local glowWidth = PILLAR_GLOW * (1 + 0.8 * fade)
-		core.CFrame = frame
+		core.CFrame = CFrame.new(base + Vector3.new(0, height / 2, 0)) * upright
 		core.Size = Vector3.new(height, coreWidth, coreWidth)
 		core.Transparency = 0.05 + 0.95 * fade ^ 1.5
-		glow.CFrame = frame
-		glow.Size = Vector3.new(height, glowWidth, glowWidth)
-		glow.Transparency = 0.5 + 0.5 * fade
+		top.Position = Vector3.new(0, height, 0)
+		glow.Transparency = numbers({ { 0, 0.45 + 0.55 * fade }, { 0.7, 0.65 + 0.35 * fade }, { 1, 1 } })
+		sparkle.Transparency = numbers({ { 0, 0.15 + 0.85 * fade }, { 0.8, 0.45 + 0.55 * fade }, { 1, 1 } })
 		if style.Rainbow then
-			glow.Color = Color3.fromHSV((now * 0.8) % 1, 0.7, 1)
+			local hue = (now * 0.8) % 1
+			glow.Color = ColorSequence.new(Color3.fromHSV(hue, 0.6, 1), Color3.fromHSV((hue + 0.35) % 1, 0.75, 1))
 		end
 		return true
 	end)
 end
 
--- Разноцветные конфетти над рыбаком (одним всплеском одного ParticleEmitter'а).
+-- Разноцветные конфетти над рыбаком (одним всплеском одного ParticleEmitter'а): летят вверх
+-- и в стороны и медленно планируют вниз — в кадре камеры за спиной.
 local function confetti(tracker: Tracker, position: Vector3, rarity: string)
 	local parent = folder
 	local style = UIConfig.Rarity[rarity]
@@ -1369,7 +2056,7 @@ local function confetti(tracker: Tracker, position: Vector3, rarity: string)
 		return
 	end
 	makeRoom(tracker, 1)
-	local effect = newEffect(tracker, 2.8)
+	local effect = newEffect(tracker, 3.2)
 	effect.priority = 2
 	local part = quietPart("Confetti", Vector3.new(1, 1, 1), CFrame.new(position))
 	part.Transparency = 1
@@ -1378,19 +2065,19 @@ local function confetti(tracker: Tracker, position: Vector3, rarity: string)
 	emitter.Enabled = false
 	emitter.Rate = 0
 	emitter.EmissionDirection = Enum.NormalId.Top
-	emitter.SpreadAngle = Vector2.new(60, 60)
-	emitter.Speed = NumberRange.new(16, 30)
-	emitter.Drag = 1.6
-	emitter.Acceleration = Vector3.new(0, -26, 0)
-	emitter.Lifetime = NumberRange.new(1.4, 2.6)
-	emitter.Size = numbers({ { 0, 0.6 }, { 0.8, 0.5 }, { 1, 0.2 } })
-	emitter.Transparency = numbers({ { 0, 0 }, { 0.75, 0 }, { 1, 1 } })
+	emitter.SpreadAngle = Vector2.new(70, 70)
+	emitter.Speed = NumberRange.new(14, 22)
+	emitter.Drag = 3
+	emitter.Acceleration = Vector3.new(0, -10, 0)
+	emitter.Lifetime = NumberRange.new(2.2, 3)
+	emitter.Size = numbers({ { 0, 0.7 }, { 1, 0.5 } })
+	emitter.Transparency = numbers({ { 0, 0 }, { 0.8, 0 }, { 1, 1 } })
 	emitter.Squash = numbers({ { 0, 0 }, { 0.25, 1.2 }, { 0.5, -1.2 }, { 0.75, 1.2 }, { 1, 0 } }) -- кружатся
 	emitter.Rotation = NumberRange.new(0, 360)
 	emitter.RotSpeed = NumberRange.new(-420, 420)
 	emitter.Color = stripes(style.Confetti)
-	emitter.LightEmission = 0.4
-	emitter.LightInfluence = 0.3
+	emitter.LightEmission = 0.6
+	emitter.LightInfluence = 0
 	emitter.Texture = SPARKLE_TEXTURE
 	emitter.Parent = part
 	part.Parent = parent
@@ -1399,7 +2086,9 @@ local function confetti(tracker: Tracker, position: Vector3, rarity: string)
 	burst(emitter, Fx.ConfettiCount)
 end
 
--- Земля (настил пирса) под ногами рыбака: луч вниз мимо персонажа и эффектов.
+-- Земля (настил пирса) под ногами рыбака: самая высокая точка из 5 лучей вниз (под ногами
+-- и вокруг) мимо персонажа и эффектов — волна по земле не уходит под неровные доски. Перила
+-- и ящики рядом (выше ног больше чем на GroundBump) не в счёт.
 local function groundUnder(character: Model, root: BasePart): Vector3
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
@@ -1408,45 +2097,47 @@ local function groundUnder(character: Model, root: BasePart): Vector3
 		table.insert(ignore, folder)
 	end
 	params.FilterDescendantsInstances = ignore
-	local hit = Workspace:Raycast(root.Position, Vector3.new(0, -(FEET + 4), 0), params)
-	return if hit then hit.Position else root.Position - Vector3.new(0, FEET, 0)
+	local down = Vector3.new(0, -(FEET + 4), 0)
+	local under = Workspace:Raycast(root.Position, down, params)
+	local feet = if under then under.Position else root.Position - Vector3.new(0, FEET, 0)
+	local top = feet.Y
+	local r = FX.GroundProbe
+	for _, offset in { Vector3.new(r, 0, 0), Vector3.new(-r, 0, 0), Vector3.new(0, 0, r), Vector3.new(0, 0, -r) } do
+		local hit = Workspace:Raycast(root.Position + offset, down, params)
+		if hit and hit.Position.Y > top and hit.Position.Y <= feet.Y + FX.GroundBump then
+			top = hit.Position.Y
+		end
+	end
+	return Vector3.new(feet.X, top, feet.Z)
 end
 
--- Рыба долетела: кольцо-вспышка вокруг неё, искры (редкая и выше), а у легендарной
--- и мифической — столб света (виден всем), конфетти и волна по земле (только вблизи).
-local function celebrate(tracker: Tracker, rarity: string, held: Model?, near: boolean)
+-- Рыба долетела: вспышка и ореол вокруг неё, табличка, искры (редкая и выше, мутация), а у
+-- легендарной и мифической — столб света (виден всем), конфетти и волна по земле (вблизи).
+local function celebrate(tracker: Tracker, event: FxEvent, held: Model?, near: boolean)
 	if trackers[tracker.player] ~= tracker then
 		return -- рыбак ушёл
 	end
+	local rarity = event.rarity
 	local style = UIConfig.Rarity[rarity] or UIConfig.Rarity.Common
 	local character = tracker.player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	local head = character and character:FindFirstChild("Head")
-	local colors = rarityColors(rarity)
-	if near and held then
+	local body = held and held.PrimaryPart
+	if near and held and body then
 		local box = held:GetBoundingBox()
-		local halo: RingLook = {
-			from = 1.5,
-			to = 7,
-			time = 0.55,
-			color = WHITE,
-			inner = colors[#colors],
-			width = 0.32,
-		}
-		ringBurst(tracker, nil, box.Position, halo, 2, 0.1)
-		local body = held.PrimaryPart
-		if body then
-			local chime = newEffect(tracker, 1.5)
-			local sound = makeSound(body, "LandPing", SOUND_PING, 0.45)
-			table.insert(chime.instances, sound)
-			play(sound, if style.Flash then 0.8 else 1.2)
-		end
-		aura(tracker, held, rarity)
+		popBall(tracker, box.Position, if rarity == "Common" then WHITE else style.Top)
+		halo(tracker, body, box.Position, style.Bottom)
+		local chime = newEffect(tracker, 1.5)
+		local sound = makeSound(body, "LandPing", SOUND_PING, 0.45, isOwn(tracker))
+		table.insert(chime.instances, sound)
+		play(sound, if style.Flash then 0.8 else 1.2)
+		aura(tracker, held, rarity, event.mutation)
+		nameplate(tracker, held, rarity, event)
 	end
 	if style.Flash and character and root and root:IsA("BasePart") then
 		local feet = groundUnder(character, root)
 		local base = feet
-		if held and tracker.player == Players.LocalPlayer then
+		if held and isOwn(tracker) then
 			-- Своему рыбаку столб не закрывает его самого и рыбу: начинается над рыбой.
 			local box, size = held:GetBoundingBox()
 			base = box.Position + Vector3.new(0, size.Y / 2 + 0.5, 0)
@@ -1468,23 +2159,51 @@ local function celebrate(tracker: Tracker, rarity: string, held: Model?, near: b
 					foam = index == 1,
 				}
 				local delay = if index == 1 then nil else 0.16
-				ringBurst(tracker, nil, feet + Vector3.new(0, FX.RingLift, 0), shockwave, 1, 0, delay)
+				ringBurst(tracker, nil, feet + Vector3.new(0, FX.GroundLift, 0), shockwave, 1, 0, delay)
 			end
 			if head and head:IsA("BasePart") then
-				confetti(tracker, head.Position + Vector3.new(0, 2.5, 0), rarity)
+				confetti(tracker, head.Position + Vector3.new(0, 3, 0), rarity)
 			end
 		end
 	end
 end
 
+-- Сдвиг прыжка к концу (u — доля времени): зависание на вершине дуги.
+local function hang(u: number): number
+	return u + 0.5 * math.sin(2 * math.pi * u) / (2 * math.pi)
+end
+
+-- Рыба «плюхается» над головой: в последние 0,1 с прыжка раздувается до 1,15 и сжимается.
+local function landingSquash(u: number): number
+	if u >= 1 or u < 0.82 then
+		return 1
+	elseif u < 0.9 then
+		local k = (u - 0.82) / 0.08
+		return 1 + 0.15 * k * k * (3 - 2 * k)
+	end
+	return 1.15 - 0.15 * (u - 0.9) / 0.1
+end
+
 -- Поймал: рыба выпрыгивает у поплавка и кувыркаясь летит над голову рыбака (см. шапку).
 local function startLeap(tracker: Tracker, event: FxEvent)
 	local player = tracker.player
+	local own = isOwn(tracker)
 	local rarity = event.rarity
+	local landedSignal = false
+	-- OwnFishLanded: ровно один раз на свой улов.
+	local function land(position: Vector3)
+		if own and not landedSignal then
+			landedSignal = true
+			FishingFxController.OwnFishLanded:Fire(rarity, position)
+		end
+	end
 	local character = player.Character
 	local headInstance = character and character:FindFirstChild("Head")
 	local water = waterOrigin(tracker)
 	if not character or not headInstance or not headInstance:IsA("BasePart") or not water then
+		if own then
+			task.defer(land, ownHeadPoint())
+		end
 		return
 	end
 	local head: BasePart = headInstance
@@ -1496,24 +2215,37 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 		waiting.thread = task.delay(FishingConfig.LeapTime, function()
 			waiting.thread = nil
 			endEffect(waiting)
-			celebrate(tracker, rarity, nil, false)
+			celebrate(tracker, event, nil, false)
 		end)
+		if own then
+			task.defer(land, ownHeadPoint())
+		end
 		return
 	end
 
-	-- Всплеск и круги там, где рыба выходит из воды (поплавок ещё здесь).
+	-- Всплеск, столб воды и круги там, где рыба выходит из воды (поплавок ещё здесь).
 	local bobber = tracker.bobber
 	local colors = rarityColors(rarity)
 	if bobber then
-		splash(bobber, 26, 1.6)
+		splash(bobber, SPLASH.catch, 1.6)
 		play(bobber.splashSound, 0.9)
 	end
+	local lift = Vector3.new(0, FX.RingLift, 0)
 	local catchRing = table.clone(RING.landing)
 	catchRing.to = 13
 	catchRing.width = 0.6
 	catchRing.inner = colors[#colors]
-	ringBurst(tracker, nil, water + Vector3.new(0, FX.RingLift, 0), catchRing, 3, 0.12)
-	spout(tracker, water, 6, 0.55)
+	ringBurst(tracker, nil, water + lift, catchRing, 3, 0.12)
+	spout(tracker, water, 7)
+	if rarity == "Mythic" then
+		-- Мифическая: ещё и радужная волна по воде.
+		local hues = UIConfig.Rainbow
+		for index, pair in { { hues[1], hues[3] }, { hues[4], hues[6] }, { hues[5], hues[7] } } do
+			local wave: RingLook =
+				{ from = 2, to = 20 - 3 * (index - 1), time = 0.9, color = pair[1], inner = pair[2], width = 0.6 }
+			ringBurst(tracker, nil, water + lift, wave, 1, 0, 0.1 + 0.12 * (index - 1))
+		end
+	end
 
 	makeRoom(tracker, 1)
 	local model = cloneFish(template, "Leap")
@@ -1521,6 +2253,7 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 	local modelInHead, center, size = heldPlacement(model, head)
 	local effect = newEffect(tracker, nil)
 	effect.priority = 3
+	effect.tag = "leap"
 	table.insert(effect.instances, model)
 	-- След вдоль оси вращения (поперёк рыбы) — лента не перекручивается, пока рыба кувыркается.
 	local centerInBody = body.CFrame:PointToObjectSpace(model:GetPivot() * center)
@@ -1529,25 +2262,42 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 	local emitter = sparkleEmitter("LeapSparkles", colors, 40)
 	emitter.Parent = body
 	effect.emitter = emitter
-	local whoosh = makeSound(body, "Whoosh", SOUND_WHOOSH, 0.4)
+	local whoosh = makeSound(body, "Whoosh", SOUND_WHOOSH, 0.4, own)
 
 	-- Дуга: центр рамки рыбы от воды (нос чуть над водой) до места над головой.
 	local mouth = center + Vector3.new(size.X / 2, 0, 0) -- голова рыбы (+X модели): тут крючок
 	local startCenter = water - Vector3.new(0, size.X * 0.3, 0)
 	local firstEnd = (head.CFrame * modelInHead) * center
 	local height = math.clamp((firstEnd - startCenter).Magnitude * Fx.LeapHeight, Fx.LeapMinHeight, Fx.LeapMaxHeight)
-	-- Кувырки вокруг оси Z модели; в начале нос смотрит вверх (+X → +Y), в конце — как над головой.
+	-- Дуга выгнута вправо от камеры смотрящего (насколько камера смотрит вдоль прыжка):
+	-- из-за спины рыбака прыжок читается кривой, а не точкой, летящей в объектив.
+	local bow = Vector3.zero
+	local camera = Workspace.CurrentCamera
+	local path = flat(firstEnd - startCenter)
+	if camera and path.Magnitude > 0.01 then
+		local along = path.Unit
+		local right = flat(camera.CFrame.RightVector)
+		bow = (right - along * right:Dot(along)) * Fx.LeapBow
+	end
+	-- Кувырки вокруг оси Z модели; в начале нос смотрит вверх (+X → +Y), к доле LeapSpinEnd
+	-- полёта рыба уже повёрнута как над головой.
 	local spin = Fx.LeapSpins * 2 * math.pi + math.pi / 2
 	local start = os.clock()
 	local oldHeld = character:FindFirstChild("HeldFish")
 	local hidden: Model? = nil
 	local landedAt: number? = nil
+	local scale = 1
+	local lastCenter = startCenter
 
-	local function pose(a: number): CFrame
+	local function pose(u: number): CFrame
+		local a = hang(u)
 		local endPivot = head.CFrame * modelInHead
-		local position = startCenter:Lerp(endPivot * center, a) + Vector3.new(0, height * 4 * a * (1 - a), 0)
-		local turn = spin * (1 - a) ^ 2
-		return CFrame.new(position) * endPivot.Rotation * CFrame.Angles(0, 0, turn) * CFrame.new(-center)
+		local position = startCenter:Lerp(endPivot * center, a)
+			+ Vector3.new(0, height * 4 * a * (1 - a), 0)
+			+ bow * math.sin(math.pi * a)
+		local turn = spin * (1 - math.min(u / Fx.LeapSpinEnd, 1)) ^ 2
+		lastCenter = position
+		return CFrame.new(position) * endPivot.Rotation * CFrame.Angles(0, 0, turn) * CFrame.new(-center * scale)
 	end
 
 	-- Поплавок на крючке летит с рыбой; не долетит — сматывается как обычно.
@@ -1555,7 +2305,10 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 		bobber.hooked = effect
 		bobber.retractFrom = nil
 		bobber.alert.gui.Enabled = false
+		bobber.wake.Enabled = false
+		setGlowFill(bobber, nil)
 		resetLine(bobber)
+		setSag(bobber, bobber.position, false)
 		fadeOwned(tracker, bobber)
 	end
 	effect.onEnd = function()
@@ -1565,6 +2318,10 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 		end
 		if bobber and bobber.hooked == effect and tracker.bobber == bobber then
 			destroyBobber(tracker)
+		end
+		land(lastCenter) -- прыжок оборвался (рыбак умер или ушёл): сигнал всё равно один раз
+		if own then
+			task.defer(updateCamera)
 		end
 	end
 
@@ -1576,45 +2333,65 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 		if not head:IsDescendantOf(Workspace) then
 			return false -- рыбак умер или ушёл: прыжок обрывается
 		end
-		local a = math.min((now - start) / FishingConfig.LeapTime, 1)
-		local cframe = pose(a)
+		local u = math.min((now - start) / FishingConfig.LeapTime, 1)
+		local squash = landingSquash(u)
+		if math.abs(squash - scale) > 1e-3 or (u >= 1 and scale ~= 1) then
+			scale = if u >= 1 then 1 else squash
+			pcall(function()
+				model:ScaleTo(scale)
+			end)
+		end
+		local cframe = pose(u)
 		model:PivotTo(cframe)
 		if bobber and bobber.hooked == effect then
-			bobber.position = cframe * mouth
+			bobber.position = cframe * (mouth * scale)
 			bobber.model:PivotTo(CFrame.new(bobber.position))
 		end
 		local held = character:FindFirstChild("HeldFish")
 		local fresh: Model? = if held and held ~= oldHeld and held:IsA("Model") then held else nil
-		if a < 1 then
+		if u < 1 then
 			if fresh and not hidden then
 				hidden = fresh -- серверная рыба пришла раньше — прячем до конца прыжка
 				setHidden(fresh, true)
 			end
 			return true
 		end
-		landedAt = landedAt or now
+		if not landedAt then
+			landedAt = now
+			land(cframe * center) -- своя рыба долетела: в этот кадр — OwnFishLanded
+		end
 		if fresh or now - (landedAt :: number) >= Fx.HandoffWait then
 			endEffect(effect) -- копия исчезает, серверная рыба (если спрятана) показывается
-			celebrate(tracker, rarity, fresh, true)
+			celebrate(tracker, event, fresh, true)
 			return false
 		end
 		return true
 	end)
 end
 
--- Рыба ушла: всплеск, круги и маленькая рыбка, махнув хвостом, ныряет прочь от рыбака.
+-- Рыба ушла: леска вспыхивает, поплавок подскакивает, всплеск, круги и рыбка, махнув
+-- хвостом, ныряет прочь от рыбака.
 local function startDive(tracker: Tracker, event: FxEvent)
+	local bobber = tracker.bobber
+	if bobber and not bobber.hooked and not bobber.retractFrom then
+		flashLine(bobber)
+		if bobber.landed then
+			bobber.popStart = os.clock()
+			bobber.alert.gui.Enabled = false
+			bobber.wake.Enabled = false
+			setGlowFill(bobber, nil)
+		end
+	end
 	local water = waterOrigin(tracker)
 	if not water or not isNear(water) then
 		return
 	end
-	local bobber = tracker.bobber
 	if bobber then
-		splash(bobber, 18, 1.1)
+		splash(bobber, SPLASH.lost, 1.1)
 		play(bobber.splashSound, 1.2)
 	end
 	ringBurst(tracker, nil, water + Vector3.new(0, FX.RingLift, 0), RING.lost, 2, 0.15)
-	spout(tracker, water, 3, 0.45)
+	spout(tracker, water, 3.5)
 
 	local template = fishTemplate(event.id or FALLBACK_FISH, event.mutation) or fishTemplate(FALLBACK_FISH, nil)
 	local parent = folder
@@ -1622,9 +2399,11 @@ local function startDive(tracker: Tracker, event: FxEvent)
 		return
 	end
 	local model = cloneFish(template, "Dive")
-	pcall(function()
-		model:ScaleTo(Fx.DiveScale)
-	end)
+	if Fx.DiveScale ~= 1 then
+		pcall(function()
+			model:ScaleTo(Fx.DiveScale)
+		end)
+	end
 	local pivot = model:GetPivot()
 	local box = model:GetBoundingBox()
 	local center = pivot:PointToObjectSpace(box.Position)
@@ -1633,8 +2412,8 @@ local function startDive(tracker: Tracker, event: FxEvent)
 	local away = if root and root:IsA("BasePart") then flat(water - root.Position) else Vector3.xAxis
 	away = if away.Magnitude > 0.01 then away.Unit else Vector3.xAxis
 
-	-- Прыжок-дуга: из-под воды на 1,3 stud над ней и вниз, на 4,5 stud под воду.
-	local run, rise, sink = 4, 9.7, 13.9
+	-- Прыжок-дуга: из-под воды на 2,5 stud над ней и вниз, на 4,6 stud под воду.
+	local run, rise, sink = 4, 14.9, 19.1
 	local effect = newEffect(tracker, nil)
 	table.insert(effect.instances, model)
 	local start = os.clock()
@@ -1754,29 +2533,27 @@ end
 -- Радужные рыбы
 --------------------------------------------------------------------------------
 
-local function addRainbow(instance: Instance)
-	if rainbow[instance] then
-		return
-	end
-	local entry: RainbowModel = { parts = {}, u = {}, v = {} }
-	for _, item in instance:GetDescendants() do
-		local u, v = item:GetAttribute("RainbowU"), item:GetAttribute("RainbowV")
-		if item:IsA("BasePart") and typeof(u) == "number" and typeof(v) == "number" then
-			table.insert(entry.parts, item)
-			table.insert(entry.u, u)
-			table.insert(entry.v, v)
-		end
-	end
-	rainbow[instance] = entry
-end
-
-local function removeRainbow(instance: Instance)
-	rainbow[instance] = nil
-end
-
--- Видна ли модель: в мире или в своём интерфейсе (ViewportFrame карточки улова).
+-- Видна ли модель отсюда: в мире — не дальше Fx.Range от персонажа или камеры; в своём
+-- интерфейсе (ViewportFrame карточки улова) — всегда.
 local function isShown(instance: Instance): boolean
-	return instance:IsDescendantOf(Workspace) or (playerGui ~= nil and instance:IsDescendantOf(playerGui))
+	if instance:IsDescendantOf(Workspace) then
+		local at: Vector3? = nil
+		if instance:IsA("Model") then
+			at = instance:GetPivot().Position
+		elseif instance:IsA("BasePart") then
+			at = instance.Position
+		end
+		if not at then
+			return true
+		end
+		local viewer = viewerPosition()
+		if viewer and (viewer - at).Magnitude <= Fx.Range then
+			return true
+		end
+		local camera = Workspace.CurrentCamera
+		return camera ~= nil and (camera.CFrame.Position - at).Magnitude <= Fx.Range
+	end
+	return playerGui ~= nil and instance:IsDescendantOf(playerGui)
 end
 
 local function paintRainbows(t: number)
@@ -1790,25 +2567,81 @@ local function paintRainbows(t: number)
 	end
 end
 
+-- Heartbeat только пока есть что перекрашивать.
+local function updateRainbowLoop()
+	if next(rainbow) ~= nil then
+		if not rainbowConnection then
+			local sincePaint = 0
+			rainbowConnection = RunService.Heartbeat:Connect(function(dt: number)
+				sincePaint += dt
+				if sincePaint >= 1 / RAINBOW_RATE then
+					sincePaint = 0
+					paintRainbows(os.clock())
+				end
+			end)
+		end
+	elseif rainbowConnection then
+		rainbowConnection:Disconnect()
+		rainbowConnection = nil
+	end
+end
+
+local function addRainbow(instance: Instance)
+	if rainbow[instance] or instance:IsDescendantOf(ReplicatedStorage) then
+		return -- шаблоны в ReplicatedStorage не трогаем
+	end
+	local entry: RainbowModel = { parts = {}, u = {}, v = {} }
+	for _, item in instance:GetDescendants() do
+		local u, v = item:GetAttribute("RainbowU"), item:GetAttribute("RainbowV")
+		if item:IsA("BasePart") and typeof(u) == "number" and typeof(v) == "number" then
+			table.insert(entry.parts, item)
+			table.insert(entry.u, u)
+			table.insert(entry.v, v)
+		end
+	end
+	rainbow[instance] = entry
+	updateRainbowLoop()
+end
+
+local function removeRainbow(instance: Instance)
+	if rainbow[instance] then
+		rainbow[instance] = nil
+		updateRainbowLoop()
+	end
+end
+
 local function startRainbows()
 	CollectionService:GetInstanceAddedSignal(RAINBOW_TAG):Connect(addRainbow)
 	CollectionService:GetInstanceRemovedSignal(RAINBOW_TAG):Connect(removeRainbow)
 	for _, instance in CollectionService:GetTagged(RAINBOW_TAG) do
 		addRainbow(instance)
 	end
-	local sincePaint = 0
-	RunService.Heartbeat:Connect(function(dt: number)
-		sincePaint += dt
-		if sincePaint >= 1 / RAINBOW_RATE and next(rainbow) ~= nil then
-			sincePaint = 0
-			paintRainbows(os.clock())
-		end
-	end)
 end
 
 --------------------------------------------------------------------------------
 -- API и запуск
 --------------------------------------------------------------------------------
+
+-- «Примерка» рыбы на своём поплавке (только на этом клиенте, см. шапку). true — показана.
+function FishingFxController.Nibble(): boolean
+	local tracker = trackers[Players.LocalPlayer]
+	local bobber = tracker and tracker.bobber
+	if
+		not tracker
+		or not bobber
+		or not bobber.landed
+		or bobber.state ~= "Waiting"
+		or bobber.retractFrom
+		or bobber.hooked
+		or bobber.popStart
+	then
+		return false
+	end
+	bobber.nibbleAt = os.clock()
+	splash(bobber, SPLASH.nibble, 0.5)
+	ringBurst(tracker, bobber, waterUnder(bobber, bobber.target) + Vector3.new(0, FX.RingLift, 0), RING.nibble, 1, 0)
+	return true
+end
 
 -- Поплавок игрока (если леска в воде или сматывается) — для других контроллеров и тестов.
 function FishingFxController.GetBobber(player: Player): Model?
@@ -1817,8 +2650,9 @@ function FishingFxController.GetBobber(player: Player): Model?
 	return bobber and bobber.model
 end
 
--- Детали эффектов рыбака, которые сейчас в мире на этом клиенте (круги, прыжок, столб,
--- конфетти, искры над рыбой), без поплавка — для тестов и отладки.
+-- Детали эффектов рыбака, которые сейчас в мире на этом клиенте (круги, прыжок, столбы воды
+-- и света, вспышка, ореол, табличка, конфетти, искры над рыбой), без поплавка — для тестов
+-- и отладки.
 function FishingFxController.GetEffects(player: Player): { Instance }
 	local list = {}
 	local tracker = trackers[player]

@@ -593,11 +593,14 @@ local function cleanCatch(t: any, latency: number)
 	t.ok(fisher.biteAt ~= nil, "the player saw the bite (BiteAlert + «ПОДСЕЧЬ!»)")
 	t.eq(fisher.biteCaption, CAPTION_HOOK, "the button says «ПОДСЕЧЬ!» on the bite")
 	t.eq(fisher.reelCaption, CAPTION_REEL, "the button says «ТЯНИ!» in the minigame")
-	checkCatch(t, sim, p, hud, fisher, 1)
+	local fish = checkCatch(t, sim, p, hud, fisher, 1)
+	local landedAt = sim:Time() -- checkCatch waited for the held fish (the leap landed)
 
-	-- The card closes by itself; the player can fish again.
+	-- The card closes by itself; the held fish stays a little longer (HoldFishTime per rarity);
+	-- the player can fish again.
 	sim:Advance(FishingConfig.CatchCardTime + 0.1)
 	t.eq(hud.card.Visible, false, "the card closes after CatchCardTime")
+	sim:Advance(math.max(0, landedAt + FishingConfig.HoldFishTime[fish.Rarity] + 0.1 - sim:Time()))
 	t.eq(p.Character:FindFirstChild("HeldFish"), nil, "the held fish is gone after HoldFishTime")
 	t.eq(hud.counterLabel.Text, "Улов: 1", "the counter stays")
 

@@ -74,6 +74,13 @@ function FishingRules.GetRod(id: string?): RodConfig.Rod
 	return (id and rodById[id]) or rodById[RodConfig.StartRod]
 end
 
+-- Сколько секунд пойманная рыба этой редкости висит над головой рыбака (после прыжка);
+-- неизвестная редкость — как обычная.
+function FishingRules.HoldFishTime(rarity: string): number
+	local times = FishingConfig.HoldFishTime
+	return times[rarity] or times.Common
+end
+
 -- Правила мини-игры для редкости.
 function FishingRules.GetMinigameRule(rarity: string): FishingConfig.MinigameRule
 	return FishingConfig.Minigame[rarity] or FishingConfig.Minigame.Common
@@ -108,6 +115,22 @@ function FishingRules.FormatKg(kg: number): string
 		return (string.gsub(string.format("%.1f кг", kg), "%.", ","))
 	end
 	return `{math.round(kg)} кг`
+end
+
+-- Монеты с пробелами между тысячами: 2083 → «2 083» (неразрывный пробел — число
+-- не разорвётся на две строки).
+function FishingRules.FormatCoins(value: number): string
+	local digits = string.format("%d", math.floor(math.abs(value) + 0.5))
+	local head = #digits % 3
+	if head == 0 then
+		head = 3
+	end
+	local groups = { string.sub(digits, 1, head) }
+	for index = head + 1, #digits, 3 do
+		table.insert(groups, string.sub(digits, index, index + 2))
+	end
+	local text = table.concat(groups, "\u{00A0}")
+	return if value <= -0.5 then "−" .. text else text
 end
 
 --------------------------------------------------------------------------------
