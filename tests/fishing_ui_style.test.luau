@@ -601,8 +601,8 @@ end
 
 -- The card opens when the fish has landed over the head (FishingFxController.OwnFishLanded;
 -- without a leap — here "Caught" comes without the server's FishFx — LeapTime + 0.3 s) plus a
--- per-rarity hold (at most 0.9 s: the giant title of a Mythic stands alone first).
-local CARD_OPENS = FishingConfig.LeapTime + 0.3 + 1.0
+-- per-rarity hold (at most 1 s: the giant title of a Mythic stands alone first).
+local CARD_OPENS = FishingConfig.LeapTime + 0.3 + 1.2
 -- After a tap skips the reveal the card ignores taps this long (FishingController CLIMAX.SkipDwell).
 local SKIP_DWELL = 0.6
 
@@ -1176,9 +1176,9 @@ tests["catch: the card opens on the landing signal (OwnFishLanded) plus the rari
 		fx.OwnFishLanded:Fire("Legendary", Vector3.new(0, 10, 0))
 	end, p)
 	sim:Advance(0.6)
-	t.eq(card.Visible, false, "Legendary: a 0.8 s hold after the landing (the giant title stands alone)")
+	t.eq(card.Visible, false, "Legendary: a 0.9 s hold after the landing (the giant title stands alone)")
 	t.eq(fishing(p).TitleSlam.Visible, true, "…the title is up meanwhile")
-	sim:Advance(0.3)
+	sim:Advance(0.4)
 	t.eq(card.Visible, true, "the card is up — well before the fallback (LeapTime + 0.3 s, then the hold)")
 	sim:Advance(6)
 
@@ -1188,7 +1188,7 @@ tests["catch: the card opens on the landing signal (OwnFishLanded) plus the rari
 	end, p)
 	sim:Advance(0.05)
 	catch(sim, p, CATCHES.Common, 2)
-	sim:Advance(0.2)
+	sim:Advance(0.45)
 	t.eq(card.Visible, true, 'a landing just before "Caught" opens the card at once (+ hold)')
 	sim:AssertNoErrors({ warnings = true })
 end
@@ -1255,7 +1255,7 @@ tests["idle with the rod: only timers (shine, wiggle) — no frame effects, no c
 end
 
 --------------------------------------------------------------------------------
--- UI v2, playing: key chip, «К ПИРСУ», predicted hits, rider, aura, tap pad, cue, nibbles
+-- UI v2, playing: key chip, «КУДА ИДТИ?», predicted hits, rider, aura, tap pad, cue, nibbles
 --------------------------------------------------------------------------------
 
 tests["v2 parts: tiers on the playing widgets, key chip, «!» glyph slot, bobber, rider, ▼ head, ⏱, tap pad"] = function(
@@ -1306,7 +1306,9 @@ tests["v2 parts: tiers on the playing widgets, key chip, «!» glyph slot, bobbe
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["far from the spot: «К ПИРСУ» 🧭 casts nothing — the hint pops and the beam flares"] = function(t)
+tests["far from the spot: «КУДА ИДТИ?» 🧭 casts nothing — the hint pops and the beam flares"] = function(
+	t
+)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	local rod = giveRod(sim, p)
@@ -1314,11 +1316,11 @@ tests["far from the spot: «К ПИРСУ» 🧭 casts nothing — the hint pops
 	sim:Advance(0.5)
 	local f = fishing(p)
 	local button = f.ActionArea.ActionButton
-	t.eq(button.Caption.Text, "К ПИРСУ")
+	t.eq(button.Caption.Text, "КУДА ИДТИ?")
 	t.eq(button.Icon.Text, "🧭")
 	t.ok(isCandy(button, Palette.Slate), "a calm Slate button")
 	t.eq(button.KeyChip.Visible, false, "no key: the key does not cast here")
-	t.eq(f.Hint.Label.Text, "Иди в сверкающий круг на краю пирса")
+	t.eq(f.Hint.Label.Text, "Иди в сверкающий круг на\u{00A0}краю\u{00A0}пирса")
 	local beam = sim:GetRoot(p):FindFirstChild("FishingGuide")
 	local width = beam.Width1
 	sim:Advance(0.4)

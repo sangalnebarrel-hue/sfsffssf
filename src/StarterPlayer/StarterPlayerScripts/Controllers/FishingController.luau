@@ -16,7 +16,7 @@
 	    знак «!», пульсирует и светится кольцами в такт поклёвке) → «ЛОВИ!» (Leaf 🎯). «ЖДЁМ…» на
 	    Slate ⏳ (песочные часы переворачиваются; нажатия не работают) — пока сервер отвечает на
 	    заброс, после подсечки и CastCooldown секунд после конца рыбалки. С удочкой, но далеко
-	    от точки рыбалки — «К ПИРСУ» (Slate 🧭): нажатие не забрасывает и не ругает, а показывает
+	    от точки рыбалки — «КУДА ИДТИ?» (Slate 🧭): нажатие не забрасывает и не ругает, а показывает
 	    дорогу (спокойная подсказка 💡, компас делает оборот, луч к точке вспыхивает; идёт игрок
 	    сам). Удочка в рюкзаке, а игрок у точки рыбалки своей
 	    базы — «ВЗЯТЬ» (Gold 🎣, зовёт белыми кольцами) берёт удочку в руку. Пока идёт улов,
@@ -24,7 +24,7 @@
 	    (Leaf 👍, белые кольца: нажатие закрывает карточку, как и «Тапни, чтобы закрыть»). Смена
 	    состояния — кнопка выскакивает; нажатие — сжимается (UiFx.press), от касания — рябь.
 	    То же действие — тап/клик удочкой по миру (Tool.Activated; на тач-экране — не в
-	    мини-игре, не на экране улова и не с «К ПИРСУ»: туда попадают и движения камеры и
+	    мини-игре, не на экране улова и не с «КУДА ИДТИ?»: туда попадают и движения камеры и
 	    джойстика) и клавиша F / R2 на геймпаде
 	    (ContextActionService, только пока удочка в руке; не E — E нужна ProximityPrompt).
 	    Без тач-экрана клавиша нарисована на плече кнопки — «клавиша» KeyChip («F» / «R2»).
@@ -51,8 +51,9 @@
 	    крупнее и светится), зона мягко «дышит» светом. Редкая — лёгкая обводка панели;
 	    эпическая и выше — обводка в цвет редкости, лучи за панелью и цветные края экрана;
 	    легендарная и мифическая — ещё «удар» заголовка со вспышкой, огромное слово редкости над
-	    панелью (один раз) и стук сердца. На телефоне панель встаёт рядом со своим поплавком,
-	    если иначе закрыла бы его (видно борьбу рыбы). Новичку (первые мини-игры за игру) 👆
+	    панелью (один раз; первое же слово попадания, промаха или победы его сбивает — два слова
+	    в одной полосе не складываются) и стук сердца. На телефоне панель встаёт рядом со своим
+	    поплавком, если иначе закрыла бы его (видно борьбу рыбы). Новичку (первые мини-игры за игру) 👆
 	    показывает на кнопку, пока стрелка в зоне. Попадание видно сразу, не дожидаясь сервера
 	    (он судит по тому же t; нет ответа за MaxLag + 0.2 с — предсказание забывается): стрелка
 	    на миг замирает и вспыхивает золотом, панель вздрагивает, искры, звук
@@ -70,17 +71,21 @@
 	  • Улов (UI v2, порядок — в разделе «Улов» ниже): сначала мир, потом карточка. На
 	    "Caught" копия мини-игры (FxMinigameWin) «побеждает» — ⭐, золотая зона, стрелка там,
 	    где было победное нажатие — и сразу уходит вниз (не закрывает прыжок рыбы); «ПОЙМАНА!»
-	    — самое громкое слово мини-игры, влетает ударом левее персонажа, в цветах редкости;
-	    кнопка «замирает» (тусклое «ЖДЁМ…»), подсказки нет, плашки статуса гаснут (рыба
-	    летит над ними); у эпической и выше по краям экрана нарастает виньетка, камера перед
-	    приземлением чуть «отъезжает», у легендарной и мифической всё чаще бьётся «сердце».
-	    Рыба выпрыгивает и садится над головой (FishingFxController.OwnFishLanded): удар в
-	    точке рыбы (кольца и искры; на весь экран — ничего, у легендарной и мифической — края
-	    экрана вспыхивают), тряска и «толчок» камеры, конфетти из точки над головой; у
-	    эпической и выше — лучи бьют из рыбы (середина пустая) и под ней огромное слово
-	    редкости (TitleSlam, у легендарной и мифической — буквами волной); карточка — когда
-	    слово сложилось и постояло. Карточка (CatchCard) рождается в точке рыбы и встаёт на
-	    место (слово летит в её баннер и баннер вырастает из него, лучи — за ней): на телефоне
+	    — самое громкое слово мини-игры, влетает ударом левее персонажа, в цветах редкости, и
+	    тает до приземления (перед ударом — миг тишины); кнопка «замирает» (тусклое «ЖДЁМ…»),
+	    подсказки нет, плашки статуса гаснут (рыба летит над ними); у эпической и выше по краям
+	    экрана нарастает узкая рамка цвета редкости (мифическая — светлая радуга по кругу) и в
+	    миг приземления обрывается, камера перед приземлением чуть «отъезжает», у легендарной и
+	    мифической всё чаще бьётся «сердце». Рыба выпрыгивает и садится над головой
+	    (FishingFxController.OwnFishLanded): удар в точке рыбы (кольца и искры; на весь экран —
+	    ничего, у легендарной и мифической — края экрана коротко вспыхивают узкой полосой),
+	    тряска и «толчок» камеры, конфетти из точки над головой; у эпической и выше — лучи бьют
+	    из рыбы (середина пустая) и под ней огромное слово редкости (TitleSlam: белое → цвет
+	    редкости, толстая обводка; у легендарной и мифической — буквами, каждая, встав,
+	    качается волной; следом за буквами по слову пробегает блик), когда кольца удара ушли —
+	    экран чуть темнеет; карточка — когда слово сложилось и постояло. Карточка (CatchCard)
+	    рождается в точке рыбы и встаёт на место (слово летит в её баннер, баннер вырастает из
+	    него, и его надпись проявляется, пока слово тает; лучи — за ней): на телефоне
 	    — широкая «трофейная» (рыба слева, имя и цены справа; посередине экрана — на маленьком
 	    телефоне над кнопкой действия), на планшете и компьютере — квадратная; легендарная и
 	    мифическая — крупнее. Вокруг — затемнение (у обычной нет; на телефоне — полосы сверху и
@@ -97,8 +102,9 @@
 	    действия — «ЗАБРАТЬ!», и всё успокаивается (мифическая «дышит»). Тап (или действие)
 	    раньше последней доли показывает всё сразу, ещё через 0.6 с — может закрыть; сама
 	    карточка закрывается через UIConfig.CatchCardTime[редкость]. Уходя, сжимается к
-	    счётчику, из неё вылетает 🐟 со ★ цветов редкости, а трофей над головой «вспыхивает» ещё
-	    раз (FishingFxController.ReplayOwnTrophy) — рыба висит дольше карточки. Счётчик улова
+	    счётчику, из неё вылетает 🐟 со ★ цветов редкости, а когда в счётчике встал «+1», трофей
+	    над головой «вспыхивает» ещё раз (FishingFxController.ReplayOwnTrophy; своя табличка с
+	    ценой выскакивает только теперь) — рыба висит дольше карточки. Счётчик улова
 	    (HUD.Status.CatchCounter) ведёт HudController: от "Caught" до прилёта 🐟 у HUD стоит
 	    атрибут CounterHold (прошлое число), пока 🐟 летит — CounterIncoming (её редкость:
 	    первый улов — счётчик появляется с «Улов: 0», прилёт — в цвете редкости).
@@ -622,10 +628,11 @@ do
 			then button * math.max(ribbon.Size.X.Scale - 1, 0) / 2
 			else 0
 		local right = width - area.X - overhang - COLUMN_GAP
-		-- Слева — джойстик; значок подсказки в кружке выступает за её левый край.
+		-- Слева — джойстик; значок подсказки в кружке выступает за её левый край (а выскакивая —
+		-- с перелётом, ещё на несколько px: запас 4 px на тач-экране).
 		local socket = ui.hintSocket
 		local hintHeight = boxSize(ui.hint, width, height).Y
-		local socketOut = socket.Size.X.Scale * hintHeight * socket.AnchorPoint.X
+		local socketOut = socket.Size.X.Scale * hintHeight * socket.AnchorPoint.X + (if touch then 4 else 0)
 		local left = (if touch then (if small then STICK_SMALL else STICK_BIG) else 0) + COLUMN_GAP + socketOut
 		spanLeft, spanRight = left - socketOut, right
 		-- Подсказка и мини-игра сужаются до просвета (планшет 4:3, маленький телефон); их
@@ -983,7 +990,7 @@ do
 	-- Удочка в руке, но до точки рыбалки далеко: кнопка не забрасывает, а показывает дорогу.
 	local FAR_LOOK: Look = {
 		Name = "Far",
-		Caption = "К ПИРСУ",
+		Caption = "КУДА ИДТИ?",
 		Icon = "🧭",
 		Token = "Slate",
 		Key = false,
@@ -1029,7 +1036,7 @@ do
 	local lookTrove = Trove.new() -- «фон» текущего вида кнопки (блик, песочные часы, сияние)
 
 	-- Удочка в руке, леска не в воде, а до точки рыбалки своей базы далеко (тот же допуск, что у
-	-- сервера): кнопка «К ПИРСУ» не забрасывает. Без базы — «ЗАБРОСИТЬ» (сервер объяснит отказ).
+	-- сервера): кнопка «КУДА ИДТИ?» не забрасывает. Без базы — «ЗАБРОСИТЬ» (сервер объяснит отказ).
 	function isFar(): boolean
 		if not rod or phase ~= "Idle" then
 			return false
@@ -1228,7 +1235,7 @@ do
 	-- Подсказка по месту: с удочкой, без рыбалки — «жми» у точки или «иди к кругу» + луч;
 	-- без удочки в руке у точки рыбалки — «возьми удочку» (и кнопка «ВЗЯТЬ»); новичку,
 	-- который ещё ни разу не брал удочку, — куда идти. Ушёл от точки / вернулся — кнопка
-	-- меняется между «ЗАБРОСИТЬ» и «К ПИРСУ».
+	-- меняется между «ЗАБРОСИТЬ» и «КУДА ИДТИ?».
 	local shownFar = false
 	function refreshContextHint()
 		local text: string? = nil
@@ -1261,7 +1268,7 @@ do
 		setContextHint(text)
 	end
 
-	-- «К ПИРСУ» нажата: вместо заброса — показать дорогу, не ругая (спокойная подсказка 💡
+	-- «КУДА ИДТИ?» нажата: вместо заброса — показать дорогу, не ругая (спокойная подсказка 💡
 	-- выскакивает заново, компас на кнопке делает оборот «ищу север», луч к точке рыбалки на
 	-- миг становится толще и ярче). Сам персонаж никуда не идёт. Частые нажатия (тап за тапом)
 	-- не перезапускают это чаще раза в POINT_GAP секунд.
@@ -1412,19 +1419,22 @@ do
 		               сервера (не дольше 1.5 с).
 		  "Caught"     панель мини-игры «побеждает» (FxMinigameWin: ⭐, золотая зона, стрелка на месте
 		               тапа, искры) и уходит вниз; левее персонажа «впечатывается» «ПОЙМАНА!» цвета
-		               редкости с кольцом; кнопка «замирает» (CATCH_LOOK), подсказки нет, бейдж и
-		               счётчик гаснут (счётчик держит прошлое число — атрибут HUD CounterHold); у
-		               эпической и выше по краям растёт виньетка, у легендарной и мифической —
-		               ускоряющееся «сердце» и камера чуть «отходит» перед приземлением.
+		               редкости с кольцом (тает за CLIMAX.WinTime — до приземления); кнопка
+		               «замирает» (CATCH_LOOK), подсказки нет, бейдж и счётчик гаснут (счётчик держит
+		               прошлое число — атрибут HUD CounterHold); у эпической и выше по краям нарастает
+		               узкая рамка (CLIMAX.Tension), у легендарной и мифической — ускоряющееся
+		               «сердце» и камера чуть «отходит» перед приземлением.
 		  приземление  рыба долетела до места над головой (FishingFxController.OwnFishLanded; нет
-		               сигнала — через LeapTime + 0.3 с): кольца-волна и искры из точки рыбы, у
-		               эпической и выше края экрана на миг вспыхивают цветом редкости (без заливки
-		               всего экрана), тряска, «толчок» камеры, конфетти; у эпической и выше через
-		               CLIMAX.TitleDelay — лучи из точки рыбы (середина пустая, рыбу видно) и огромное
-		               слово редкости.
-		  + Hold       карточка рождается в точке рыбы и встаёт на место; затемнение, лучи переезжают
-		               за карточку.
-		  c+0 слово редкости влетает в баннер, c+0.26 баннер вырастает из него (без слова — c+0.28
+		               сигнала — через LeapTime + 0.3 с): рамка обрывается, кольца-волна и искры из
+		               точки рыбы, у легендарной и мифической края экрана на миг вспыхивают узкой
+		               полосой (CLIMAX.Flash, без заливки всего экрана), тряска, «толчок» камеры,
+		               конфетти; у эпической и выше через CLIMAX.TitleDelay — лучи из точки рыбы
+		               (середина пустая, рыбу видно) и огромное слово редкости (буквы волной, блик),
+		               через CLIMAX.TitleDim.At — лёгкое затемнение всего экрана.
+		  + Hold       карточка рождается в точке рыбы и встаёт на место; затемнение (после слова —
+		               темнее, «дырка» под карточкой открывается, когда она её закрыла), лучи
+		               переезжают за карточку.
+		  c+0 слово редкости влетает в баннер, c+0.22 баннер вырастает из него (без слова — c+0.28
 		  баннер «раскатывается»), +0.3 имя, +0.27 «НОВИНКА!», +0.27 вес и цена, +0.12 цена
 		  набегает (REVEAL.Count) и «приземляется»; у мутации +0.3 штамп, «×N», пересчёт, +0.67
 		  полная цена; +0.3 последняя доля — «Тапни, чтобы закрыть», кнопка «ЗАБРАТЬ!», лучи и
@@ -1433,8 +1443,9 @@ do
 		раньше CLIMAX.SkipDwell — закрыть.
 		Закрытие: карточка сжимается к счётчику (первый улов — он появляется с «Улов: 0»),
 		через CARD.Fly из неё вылетает 🐟 со ★ цветов редкости, счётчик +1 в цвете редкости
-		(CounterHold и CounterIncoming сняты), кнопка «оживает» видом «ЗАБРОСИТЬ», рыба над
-		головой ещё раз «вспыхивает» (FishingFxController.ReplayOwnTrophy) и висит ещё ≈3 с.
+		(CounterHold и CounterIncoming сняты), кнопка «оживает» видом «ЗАБРОСИТЬ», ещё через
+		CLIMAX.Trophy рыба над головой ещё раз «вспыхивает» (FishingFxController.ReplayOwnTrophy:
+		выскакивает своя табличка) и висит ещё ≈3 с.
 	]]
 
 	local REVEAL: { [string]: Reveal } = {
@@ -1457,7 +1468,7 @@ do
 			Float = 0,
 			Sparkles = 1.5,
 			Count = 0.5,
-			Hold = 0.1,
+			Hold = 0.35,
 			Scale = 0.85,
 			Tension = false,
 			Heartbeat = false,
@@ -1488,7 +1499,7 @@ do
 			Float = 0.11,
 			Sparkles = 1.5,
 			Count = 0.6,
-			Hold = 0.15,
+			Hold = 0.4,
 			Scale = 1,
 			Tension = false,
 			Heartbeat = false,
@@ -1519,7 +1530,7 @@ do
 			Float = 0.11,
 			Sparkles = 2,
 			Count = 0.7,
-			Hold = 0.5,
+			Hold = 0.6,
 			Scale = 1,
 			Tension = true,
 			Heartbeat = false,
@@ -1550,7 +1561,7 @@ do
 			Float = 0.15,
 			Sparkles = 2,
 			Count = 0.85,
-			Hold = 0.8,
+			Hold = 0.9,
 			Scale = 1.05,
 			Tension = true,
 			Heartbeat = true,
@@ -1581,7 +1592,7 @@ do
 			Float = 0.15,
 			Sparkles = 2,
 			Count = 1,
-			Hold = 0.9,
+			Hold = 1,
 			Scale = 1.1,
 			Tension = true,
 			Heartbeat = true,
@@ -1601,21 +1612,46 @@ do
 	local STATUS_FADE = 0.2 -- плашка базы и счётчик гаснут / возвращаются, с
 	local BUTTON_FADE = 0.3 -- насколько прозрачнее «замёрзшая» кнопка действия
 	local WIN_TEXT = "ПОЙМАНА!" -- рыба поймана (про рыбу, а не про игрока)
-	-- Кульминация (одной таблицей — бережём регистры, см. «Устройство файла»): «ПОЙМАНА!» высотой
-	-- WinHeight экрана — самое громкое слово мини-игры; после пропуска долей карточка SkipDwell
-	-- секунд не закрывается тапом; огромное слово редкости — через TitleDelay после приземления,
-	-- буквы — через TitleStagger, центр — на TitleY высоты экрана (ниже рыбы над головой: её
-	-- видно), лучи за ним бьют из рыбы, середина (RaysHole радиуса) пустая; у легендарной и
-	-- мифической «сердце» бьётся всё чаще к приземлению (Heartbeat — доли LeapTime), края экрана
-	-- вспыхивают на 3-м ударе (не чаще 3 раз в секунду и не впритык к приземлению).
+	--[[
+		Кульминация (одной таблицей — бережём регистры, см. «Устройство файла»).
+		  WinHeight, WinTime  «ПОЙМАНА!» высотой WinHeight экрана — самое громкое слово мини-игры;
+		               живёт WinTime и тает до приземления (перед ударом — миг тишины).
+		  SkipDwell    после пропуска долей карточка столько секунд не закрывается тапом.
+		  Tension      рамка по краям экрана (эпическая и выше): узкая (Size высоты экрана),
+		               нарастает From → To к приземлению (Quad In) и обрывается на нём; мифическая —
+		               радуга, светлее на Light, бежит по кругу.
+		  Flash        на приземлении края экрана на миг вспыхивают (легендарная и мифическая): Alpha,
+		               Size, Hold и Fade — короче и уже рамки напряжения.
+		  Heartbeat    у легендарной и мифической «сердце» бьётся всё чаще (доли LeapTime).
+		  TitleDelay, TitleStagger, TitleY, TitleHeight   огромное слово редкости — через TitleDelay
+		               после приземления, буквы через TitleStagger, центр на TitleY высоты экрана
+		               (ниже рыбы над головой: её видно; не ниже кнопки действия), высота —
+		               TitleHeight экрана, но не больше TitleMax px (и не шире просвета между
+		               кнопками); лучи за ним бьют из рыбы, середина (RaysHole радиуса) пустая.
+		  TitleDim     сцена слова: через At после приземления (кольца удара уже ушли — заливка
+		               кадра) экран чуть темнеет целиком (на Add светлее затемнения карточки):
+		               лучи и буквы ярче.
+		  Shine        сложившееся слово один раз пробегает белый блик, с.
+		  GrowAt       баннер карточки вырастает из летящего слова на этой доле полёта (CARD.Morph).
+		  Trophy       трофей над головой «вспыхивает» через столько после «+1» в счётчике.
+	]]
 	local CLIMAX = {
 		WinHeight = 0.17,
+		WinTime = 0.8,
 		SkipDwell = 0.6,
+		Tension = { Size = 0.13, From = 0.85, To = 0.5, Light = 0.3 },
+		Flash = { Alpha = 0.55, Size = 0.12, Hold = 0.04, Fade = 0.3 },
+		Heartbeat = { 0.28, 0.46, 0.62, 0.75, 0.85, 0.93 },
 		TitleDelay = 0.05,
 		TitleStagger = 0.03,
 		TitleY = 0.56,
+		TitleHeight = 0.24,
+		TitleMax = 110,
+		TitleDim = { At = 0.55, Add = 0.2 },
 		RaysHole = 0.3,
-		Heartbeat = { 0.28, 0.46, 0.62, 0.75, 0.85, 0.93 },
+		Shine = 0.4,
+		GrowAt = 0.7,
+		Trophy = 0.15,
 	}
 
 	-- Огромное слово редкости (эпическая и выше).
@@ -2022,15 +2058,24 @@ do
 	-- Затемнение — четыре полосы ВОКРУГ карточки (заходят под её скруглённые края на r px и далеко
 	-- за края экрана): середину закрывает сама карточка, второй раз её не затемняем (заливка). У
 	-- широкой карточки (телефон) — только верх и низ, как кадр в кино: по бокам от неё узкие
-	-- полоски мира, а лучи видны над и под ней.
-	local function placeDim(center: Vector2, size: Vector2, wide: boolean)
+	-- полоски мира, а лучи видны над и под ней. Без карточки (center = nil, сцена огромного слова)
+	-- — верхняя полоса на весь экран, остальные пустые.
+	local function placeDim(center: Vector2?, size: Vector2?, wide: boolean?)
+		local topBand, bottomBand, leftBand, rightBand = table.unpack(ui.dimBands)
+		if not center or not size then
+			topBand.Position = UDim2.fromScale(-1, -1)
+			topBand.Size = UDim2.fromScale(3, 3)
+			for _, band in { bottomBand, leftBand, rightBand } do
+				band.Size = UDim2.new()
+			end
+			return
+		end
 		local r = math.min(size.Y * 0.1, 22)
 		local left, right = center.X - size.X / 2 + r, center.X + size.X / 2 - r
 		local top, bottom = center.Y - size.Y / 2 + r, center.Y + size.Y / 2 - r
 		local function whole(v: number): number
 			return math.round(v)
 		end
-		local topBand, bottomBand, leftBand, rightBand = table.unpack(ui.dimBands)
 		topBand.Position = UDim2.new(-1, 0, -1, 0)
 		topBand.Size = UDim2.new(3, 0, 1, whole(top))
 		bottomBand.Position = UDim2.new(-1, 0, 0, whole(bottom))
@@ -2412,14 +2457,17 @@ do
 	-- Огромное слово редкости (эпическая и выше)
 	--------------------------------------------------------------------------------
 
-	local titleTweens: { Tween } = {} -- волна букв
+	-- Волна букв: её твины и флаг «стихла» (после начала полёта в баннер ни одна буква уже не
+	-- начинает качаться: таймеры букв его проверяют).
+	local titleWave: { tweens: { Tween }, stopped: boolean } = { tweens = {}, stopped = true }
 
 	-- Волна букв стихает: буквы встают на свои места (перед полётом слова в баннер).
 	local function stopTitleWave()
-		for _, swing in titleTweens do
+		titleWave.stopped = true
+		for _, swing in titleWave.tweens do
 			swing:Cancel()
 		end
-		table.clear(titleTweens)
+		table.clear(titleWave.tweens)
 		for _, letter in ui.titleLetters:GetChildren() do
 			if letter:IsA("GuiObject") then
 				letter.Position = UDim2.fromScale(letter.Position.X.Scale, 0.5)
@@ -2427,7 +2475,7 @@ do
 		end
 	end
 
-	-- Спрятать огромное слово: буквы и их волна — прочь.
+	-- Спрятать огромное слово: буквы, их волна и блик — прочь.
 	local function clearTitle()
 		ui.titleSlam.Visible = false
 		stopTitleWave()
@@ -2436,6 +2484,11 @@ do
 		end
 		-- Влетая в баннер, слово тает: надпись снова видна (твин нулевой длины отменяет таяние).
 		local label = ui.titleLabel
+		for _, item in label:GetChildren() do
+			if item.Name == "FxShine" then
+				item:Destroy()
+			end
+		end
 		UiFx.tween(label, 0, { TextTransparency = 0 })
 		label.TextTransparency = 0
 		local outline = label:FindFirstChild("Outline")
@@ -2445,8 +2498,66 @@ do
 		end
 	end
 
-	-- Слово (одной надписью или по буквам) — посередине экрана, чуть ниже рыбы над головой (на
-	-- лучах редкости), размер в пикселях HUD.Fishing.
+	-- Белый блик один раз пробегает слово слева направо (следом за буквами, которые влетают по
+	-- одной): поверх каждой надписи — её белая копия FxShine, видна только косая полоса
+	-- градиента, она едет с одной скоростью по всему слову. labels — надписи слова (буквы или
+	-- одна), их X — в долях слова; time — за сколько полоса проходит слово.
+	local function shineTitle(labels: { TextLabel }, time: number)
+		local band = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.36, 1),
+			NumberSequenceKeypoint.new(0.5, 0.1),
+			NumberSequenceKeypoint.new(0.64, 1),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		local speed = 1.2 / math.max(time, 0.05) -- доли слова в секунду (полоса — от −0.1 до 1.1)
+		for _, label in labels do
+			local x, w = label.Position.X.Scale, math.max(label.Size.X.Scale, 0.01)
+			local shine = Instance.new("TextLabel")
+			shine.Name = "FxShine"
+			shine.BackgroundTransparency = 1
+			shine.Size = UDim2.fromScale(1, 1)
+			shine.FontFace = label.FontFace
+			shine.Text = label.Text
+			shine.TextScaled = true
+			shine.TextColor3 = WHITE
+			shine.TextStrokeTransparency = 1
+			shine.ZIndex = label.ZIndex + 1
+			local cap = label:FindFirstChildOfClass("UITextSizeConstraint")
+			if cap then
+				cap:Clone().Parent = shine
+			end
+			local gradient = Instance.new("UIGradient")
+			gradient.Rotation = 15
+			gradient.Transparency = band
+			gradient.Offset = Vector2.new(-1, 0)
+			gradient.Parent = shine
+			shine.Parent = label
+			-- Полоса (середина градиента) над надписью: Offset −1 → 1 — от её левого края −0.5w до
+			-- правого +1.5w.
+			local from = math.max((x - 0.5 * w + 0.1) / speed, 0)
+			local span = 2 * w / speed
+			UiFx.tween(
+				gradient,
+				span,
+				{ Offset = Vector2.new(1, 0) },
+				Enum.EasingStyle.Linear,
+				Enum.EasingDirection.InOut,
+				from
+			)
+			task.delay(from + span + 0.05, function()
+				shine:Destroy()
+			end)
+		end
+	end
+
+	--[[
+		Слово (одной надписью или по буквам) — посередине экрана, чуть ниже рыбы над головой (на
+		лучах редкости), высотой CLIMAX.TitleHeight экрана (не шире просвета между кнопками), в
+		пикселях HUD.Fishing. Заливка — белое → цвет редкости → его тень (мифическая — радуга),
+		толстая обводка; буквы влетают по одной и, встав, качаются (волна бежит по слову), следом
+		за ними слово один раз пробегает белый блик.
+	]]
 	local function slamTitle(rarityId: string, reveal: Reveal, style: UIConfig.RarityStyle)
 		local text = TITLE_TEXT[rarityId]
 		if not text then
@@ -2455,26 +2566,42 @@ do
 		local title = ui.titleSlam
 		local rootSize = ui.fishing.AbsoluteSize
 		local letters, total = splitLetters(text)
-		local height = math.max(rootSize.Y * 0.17, 28)
-		-- Не шире просвета между кнопками по бокам (и в начале «удара», когда оно крупнее).
+		-- (Не выше TitleMax px: TextScaled в Roblox не крупнее 100 px — выше буквы стояли бы врозь.)
+		local height = math.clamp(rootSize.Y * CLIMAX.TitleHeight, 28, CLIMAX.TitleMax)
+		-- Не ниже кнопки действия (с зазором) и не шире просвета между кнопками по бокам (и в
+		-- начале «удара», когда оно крупнее).
 		local middle = rootSize.Y * CLIMAX.TitleY
+		local button = ui.actionButton
+		local at = button.AbsolutePosition - ui.fishing.AbsolutePosition
+		if button.Visible and at.X < (rootSize.X + math.min(total * height, rootSize.X)) / 2 then
+			middle = math.max(math.min(middle, at.Y - CARD_SIDE_GAP - height / 2), height / 2)
+		end
 		local left, right = sideLimits(rootSize, middle - height / 2, middle + height / 2)
-		local room = 2 * math.max(math.min(rootSize.X / 2 - left, right - rootSize.X / 2), 40)
+		-- (Ещё 10 px с каждой стороны: обводка букв и их «выскок» Back Out выходят за рамку.)
+		local room = 2 * math.max(math.min(rootSize.X / 2 - left, right - rootSize.X / 2) - 10, 40)
 		local width = math.min(total * height, room)
 		height = math.min(height, width / total)
 		title.AnchorPoint = Vector2.new(0.5, 0.5)
-		title.Position = UDim2.fromScale(0.5, CLIMAX.TitleY)
+		title.Position = UDim2.fromScale(0.5, middle / math.max(rootSize.Y, 1))
 		title.Size = UDim2.fromScale(width / math.max(rootSize.X, 1), height / math.max(rootSize.Y, 1))
 		clearTitle()
+		titleWave.stopped = false
 		local single = not reveal.Letters
+		-- Как у слова редкости над мини-игрой: белое → цвет редкости → его тень.
+		local fill = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, WHITE),
+			ColorSequenceKeypoint.new(0.45, style.Top),
+			ColorSequenceKeypoint.new(1, style.Bottom),
+		})
 		ui.titleLabel.Visible = single
 		ui.titleLabel.Text = text
-		ui.titleSlamFill.Color = ColorSequence.new(WHITE, UiFx.lighten(style.Top, 0.1))
+		ui.titleSlamFill.Color = fill
+		local labels: { TextLabel } = { ui.titleLabel }
 
 		if not single then
-			-- По букве на надпись: волна вверх-вниз (твины), легендарная — золото, мифическая — радуга.
+			-- По букве на надпись: легендарная — золото, мифическая — радуга.
+			table.clear(labels)
 			local x = 0
-			local labels: { TextLabel } = {}
 			for index, ch in letters do
 				local w = letterWidth(ch)
 				local letter = Instance.new("TextLabel")
@@ -2492,35 +2619,39 @@ do
 				local outline = Instance.new("UIStroke")
 				outline.Name = "Outline"
 				outline.Color = UIConfig.Ink
-				outline.Thickness = 3
+				outline.Thickness = 4
 				outline.LineJoinMode = Enum.LineJoinMode.Round
 				outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
-				outline:SetAttribute("BaseThickness", 5)
+				outline:SetAttribute("BaseThickness", 6)
 				outline.Parent = letter
-				local fill = Instance.new("UIGradient")
-				fill.Name = "TextFill"
-				fill.Rotation = 90
+				local gradient = Instance.new("UIGradient")
+				gradient.Name = "TextFill"
+				gradient.Rotation = 90
 				if style.Rainbow then
 					letter.TextColor3 = UIConfig.Rainbow[(index - 1) % #UIConfig.Rainbow + 1]
-					fill.Color = ColorSequence.new(WHITE, Color3.fromRGB(215, 215, 215))
+					gradient.Color = ColorSequence.new(WHITE, Color3.fromRGB(215, 215, 215))
 				else
-					fill.Color = ColorSequence.new(Color3.fromRGB(255, 251, 214), style.Bottom)
+					gradient.Color = fill
 				end
-				fill.Parent = letter
+				gradient.Parent = letter
 				letter.Parent = ui.titleLetters
 				table.insert(labels, letter)
 				x += w
-				UiFx.popIn(letter, { from = 0.2, time = 0.24, delay = CLIMAX.TitleStagger * index })
-				-- Волна (когда слово сложилось): каждая буква качается вверх-вниз со своим сдвигом
-				-- фазы — на 4 % высоты слова (не «дрожит»); перед полётом в баннер — стихает.
-				later(catchTrove, 0.3 + CLIMAX.TitleStagger * (#letters + index), function()
+				local landed = CLIMAX.TitleStagger * index
+				UiFx.popIn(letter, { from = 0.2, time = 0.24, delay = landed })
+				-- Встала — качается вверх-вниз на 6 % высоты слова (Sine; у каждой буквы свой сдвиг
+				-- фазы — по слову бежит волна); перед полётом в баннер стихает и уже не начинается.
+				later(catchTrove, landed + 0.24, function()
+					if titleWave.stopped or letter.Parent == nil then
+						return
+					end
 					local swing = TweenService:Create(
 						letter,
 						TweenInfo.new(0.32, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-						{ Position = UDim2.fromScale(letter.Position.X.Scale, 0.46) }
+						{ Position = UDim2.fromScale(letter.Position.X.Scale, 0.44) }
 					)
 					swing:Play()
-					table.insert(titleTweens, swing)
+					table.insert(titleWave.tweens, swing)
 				end)
 			end
 			if style.Rainbow then
@@ -2544,14 +2675,21 @@ do
 		-- (Буквы и так выскакивают по одной — у них «удар» меньше.)
 		slam.Scale = math.max(1, math.min(if single then 2.5 else 1.7, room / width))
 		UiFx.tween(slam, 0.3, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		-- Блик — следом за буквами (как встали первые три; одной надписью — когда «удар» сел).
+		later(catchTrove, if single then 0.3 else CLIMAX.TitleStagger * 3 + 0.24, function()
+			if not titleWave.stopped then
+				shineTitle(labels, CLIMAX.Shine)
+			end
+		end)
 		UiFx.sound("swoosh", 0.5, 0.8)
 		UiFx.sound("pop", 0.55, 0.9)
 		catchTrove:Add(clearTitle)
 	end
 
-	-- Слово влетает в баннер карточки (на его надпись «в покое»); в самом конце полёта (за 0.06 с)
-	-- баннер вырастает из него (onGrow), а слово тает за 0.12 с — оно «стало» баннером. Волна букв
-	-- стихает сразу.
+	-- Слово влетает в баннер карточки (на его надпись «в покое»); на доле CLIMAX.GrowAt полёта
+	-- (слово почти на месте) баннер вырастает из него (onGrow; надпись баннера проявляется
+	-- следом), а слово тает за 0.08 с — оно «стало» баннером, двух слов сразу не видно. Волна
+	-- букв стихает сразу.
 	local function morphTitle(time: number, onGrow: () -> ())
 		local title = ui.titleSlam
 		if not title.Visible then
@@ -2571,21 +2709,21 @@ do
 			Position = UDim2.fromScale(center.X / math.max(rootSize.X, 1), center.Y / math.max(rootSize.Y, 1)),
 			Size = UDim2.fromScale(w / math.max(rootSize.X, 1), h / math.max(rootSize.Y, 1)),
 		}, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out)
-		local growAt = math.max(time - 0.06, 0)
+		local growAt = time * CLIMAX.GrowAt
 		later(catchTrove, growAt, function()
 			if not ui.card.Visible then
 				return
 			end
 			for _, item in title:GetDescendants() do
 				if item:IsA("TextLabel") then
-					UiFx.tween(item, 0.12, { TextTransparency = 1 })
+					UiFx.tween(item, 0.08, { TextTransparency = 1 })
 				elseif item:IsA("UIStroke") then
-					UiFx.tween(item, 0.12, { Transparency = 1 })
+					UiFx.tween(item, 0.08, { Transparency = 1 })
 				end
 			end
 			onGrow()
 		end)
-		later(catchTrove, growAt + 0.14, clearTitle)
+		later(catchTrove, growAt + 0.1, clearTitle)
 	end
 
 	--------------------------------------------------------------------------------
@@ -2622,7 +2760,7 @@ do
 				size = offset(width, textHeight),
 				colors = colors[rarityId] or { Palette.Leaf.Top, Palette.Leaf.Bottom },
 				rise = 0.04,
-				time = 1.1,
+				time = CLIMAX.WinTime,
 				rotate = -6,
 				z = 30,
 			})
@@ -2642,7 +2780,7 @@ do
 				fill.Offset = Vector2.new(-0.25, 0)
 				UiFx.tween(
 					fill,
-					1.1,
+					CLIMAX.WinTime,
 					{ Offset = Vector2.new(0.25, 0) },
 					Enum.EasingStyle.Sine,
 					Enum.EasingDirection.InOut
@@ -2844,11 +2982,25 @@ do
 		return ghost
 	end
 
-	-- 🐟 прилетела: счётчик +1 (CounterHold снят), через 0.15 с кнопка снова «ЗАБРОСИТЬ».
+	-- 🐟 прилетела: счётчик +1 (CounterHold снят), через 0.15 с кнопка снова «ЗАБРОСИТЬ», ещё
+	-- через CLIMAX.Trophy свой трофей над головой «вспыхивает» ещё раз — карточка его больше не
+	-- закрывает, а «+1» уже встал (два удара не в один миг): FishingFxController.ReplayOwnTrophy
+	-- (шар, ореол, табличка выскакивает впервые — до того её прятала карточка, искры).
 	local function finishCatch(serial: number, animate: boolean)
 		releaseCounter(serial)
 		if serial ~= catchSerial or not catchScreen then
 			return
+		end
+		if animate then
+			later(celebrationTrove, CLIMAX.Trophy, function()
+				local module = script.Parent and script.Parent:FindFirstChild("FishingFxController")
+				local ok, fx = pcall(function(): any
+					return if module and module:IsA("ModuleScript") then require(module) :: any else nil
+				end)
+				if ok and fx and type(fx.ReplayOwnTrophy) == "function" then
+					pcall(fx.ReplayOwnTrophy)
+				end
+			end)
 		end
 		catchScreen = false
 		unfadeGroup(ui.status, STATUS_FADE) -- обычно уже вернулись с карточкой (подстраховка)
@@ -2929,22 +3081,13 @@ do
 		end)
 		-- Счётчик — цель полёта: плашки статуса возвращаются сразу, а первый улов за игру — счётчик
 		-- появляется с «Улов: 0» (HudController по CounterIncoming), пока карточка к нему сжимается.
-		-- Сжалась — 🐟 летит; в тот же миг свой трофей над головой «вспыхивает» ещё раз — карточка
-		-- его больше не закрывает: FishingFxController.ReplayOwnTrophy (шар, ореол, табличка
-		-- подпрыгивает, у легендарной и мифической — короткий столб света).
+		-- Сжалась — 🐟 летит (трофей над головой «вспыхнет», когда она долетит: finishCatch).
 		unfadeGroup(ui.status, STATUS_FADE)
 		if heldSerial == serial then
 			ui.hud:SetAttribute("CounterIncoming", reveal.Id)
 		end
 		later(celebrationTrove, CARD.Fly, function()
 			flyHome(ghost, reveal, serial)
-			local module = script.Parent and script.Parent:FindFirstChild("FishingFxController")
-			local ok, fx = pcall(function(): any
-				return if module and module:IsA("ModuleScript") then require(module) :: any else nil
-			end)
-			if ok and fx and type(fx.ReplayOwnTrophy) == "function" then
-				pcall(fx.ReplayOwnTrophy)
-			end
 		end)
 		UiFx.sound("swoosh", 0.3)
 	end
@@ -3238,7 +3381,15 @@ do
 
 		-- Затемнение (у обычной — нет) и лучи растут вместе с карточкой.
 		local dim = ui.dim
-		if reveal.Dim < 1 then
+		if reveal.Dim < 1 and dim.Visible and ui.titleSlam.Visible then
+			-- Сцена слова уже чуть затемнила весь экран: темнее, а «дырка» под карточкой открывается,
+			-- когда карточка почти выросла (Quint Out: 98 % за 0.2 с) и закрыла её собой.
+			placeDim(nil)
+			dimTo(reveal.Dim, DIM_TIME)
+			later(cardTrove, 0.2, function()
+				placeDim(box.center, box.size, box.wide)
+			end)
+		elseif reveal.Dim < 1 then
 			dim.Visible = true
 			for _, band in ui.dimBands do
 				band.BackgroundTransparency = 1
@@ -3326,10 +3477,25 @@ do
 			end
 			bannerShown = true
 			local banner = ui.banner
+			local label = ui.rarityLabel
+			local outline = label:FindFirstChild("Outline")
 			UiFx.scaleOf(banner).Scale = 1
 			if instant then
 				settle(banner, { Size = rest.banner })
+				settle(label, { TextTransparency = 0 })
+				if outline then
+					settle(outline, { Transparency = 0 })
+				end
 				return
+			end
+			if titleUp then
+				-- Надпись баннера проявляется, пока слово тает (за 0.08 с): двух слов сразу не видно.
+				label.TextTransparency = 1
+				UiFx.tween(label, 0.1, { TextTransparency = 0 }, nil, nil, 0.04)
+				if outline and outline:IsA("UIStroke") then
+					outline.Transparency = 1
+					UiFx.tween(outline, 0.1, { Transparency = 0 }, nil, nil, 0.04)
+				end
 			end
 			local width = rest.banner.X.Scale * (if titleUp then 0.55 else 0.2)
 			banner.Size = UDim2.new(width, rest.banner.X.Offset, rest.banner.Y.Scale, rest.banner.Y.Offset)
@@ -3712,16 +3878,16 @@ do
 			}))
 		end)
 		if reveal.Flash then
-			-- Края экрана на миг вспыхивают (мифическая — радугой); середина экрана чистая.
-			UiFx.edgeVignette(
-				ui.hud,
-				if style.Rainbow
-					then { UIConfig.Rainbow[1], UIConfig.Rainbow[3], UIConfig.Rainbow[5] }
-					else { reveal.Flash, style.Bottom },
-				0.4,
-				nil,
-				{ fadeIn = 0, hold = 0.15, fadeOut = 0.25, size = 0.2 }
-			)
+			-- Края экрана на миг вспыхивают узкой полосой (мифическая — радугой по кругу); середина
+			-- экрана чистая.
+			local flash = CLIMAX.Flash
+			UiFx.edgeVignette(ui.hud, { reveal.Flash, style.Bottom }, flash.Alpha, nil, {
+				fadeIn = 0,
+				hold = flash.Hold,
+				fadeOut = flash.Fade,
+				size = flash.Size,
+				cycle = if style.Rainbow then UIConfig.Rainbow else nil,
+			})
 		end
 		if reveal.Shake then
 			UiFx.cameraShake(0.35, 0.4)
@@ -3769,6 +3935,25 @@ do
 				startRays(fish, CLIMAX.RaysHole)
 				slamTitle(fish.Rarity, reveal, style)
 			end)
+			-- Экран чуть темнеет целиком (CLIMAX.TitleDim): лучи и буквы ярче; карточка (если она
+			-- уже не открылась) потом темнит до своего.
+			later(catchTrove, CLIMAX.TitleDim.At, function()
+				if reveal.Dim >= 1 or ui.card.Visible then
+					return
+				end
+				local dim = ui.dim
+				placeDim(nil)
+				dim.Visible = true
+				for _, band in ui.dimBands do
+					band.BackgroundTransparency = 1
+				end
+				dimTo(reveal.Dim + CLIMAX.TitleDim.Add, 0.2)
+				catchTrove:Add(function()
+					if not ui.card.Visible then
+						dim.Visible = false
+					end
+				end)
+			end)
 		end
 		later(catchTrove, reveal.Hold, function()
 			openCard(fish, point)
@@ -3796,25 +3981,37 @@ do
 		local style = UIConfig.Rarity[fish.Rarity] or UIConfig.Rarity.Common
 		local reveal = REVEAL[fish.Rarity] or REVEAL.Common
 		local leap = FishingConfig.LeapTime -- прыжок начался вместе с "Caught" (FishFx пришёл раньше)
-		local tension = if style.Rainbow
-			then { UIConfig.Rainbow[7], UIConfig.Rainbow[1] }
-			else { style.Bottom, style.Top }
 		if reveal.Tension then
+			-- Узкая рамка нарастает к приземлению и обрывается на нём (catchTrove чистится в кадр
+			-- удара): удар — разрядка, а не самый закрашенный кадр. Мифическая — светлая радуга по
+			-- кругу (не сиреневая пелена поверх радужной рыбы).
+			local tension = CLIMAX.Tension
+			local cycle: { Color3 }? = nil
+			if style.Rainbow then
+				local light = {}
+				for _, color in UIConfig.Rainbow do
+					table.insert(light, UiFx.lighten(color, tension.Light))
+				end
+				cycle = light
+			end
 			later(catchTrove, 0.3, function()
-				local stop = UiFx.edgeVignette(ui.hud, tension, 0.55, nil, { fadeIn = 0.5 })
+				local stop = UiFx.edgeVignette(ui.hud, { style.Bottom, style.Top }, tension.To, nil, {
+					from = tension.From,
+					fadeIn = math.max(leap - 0.3, 0.1),
+					build = true,
+					size = tension.Size,
+					cycle = cycle,
+				})
 				catchTrove:Add(function()
-					stop(0.2)
+					stop(0)
 				end)
 			end)
 		end
 		if reveal.Heartbeat then
-			-- «Сердце» бьётся всё чаще; на 3-м ударе края экрана вспыхивают ярче.
+			-- «Сердце» бьётся всё чаще (звук; рамка нарастает сама).
 			for index, at in CLIMAX.Heartbeat do
 				later(catchTrove, at * leap, function()
 					UiFx.sound("splash", 0.4 + 0.03 * index, 0.5 + 0.025 * index)
-					if index == 3 then
-						UiFx.edgeVignette(ui.hud, tension, 0.6, nil, { fadeIn = 0.06, hold = 0.05, fadeOut = 0.2 })
-					end
 				end)
 			end
 		end
@@ -4110,6 +4307,7 @@ do
 	local riderWiggle: Tween? = nil
 	local riderSize: UDim2? = nil -- размер наездника из шаблона
 	local auraEdge = false -- края экрана уже светятся цветом редкости (идеальное — без второй виньетки)
+	local rarityWordLabel: TextLabel? = nil -- слово редкости над панелью, пока оно на экране
 
 	function refreshPips(mg: Minigame)
 		for index, pip in ui.pips do
@@ -4267,9 +4465,33 @@ do
 		end)
 	end
 
+	-- Слово редкости над панелью уступает слову попадания, промаха или победы (и уходит с
+	-- мини-игрой): вспухает и тает за 0.12 с — два слова в одной полосе не складываются.
+	local function knockRarityWord()
+		local word = rarityWordLabel
+		rarityWordLabel = nil
+		if not word or word.Parent == nil then
+			return
+		end
+		local quad, out = Enum.EasingStyle.Quad, Enum.EasingDirection.Out
+		local scale = word:FindFirstChildOfClass("UIScale")
+		if scale then
+			UiFx.tween(scale, 0.12, { Scale = 1.3 }, quad, out)
+		end
+		UiFx.tween(word, 0.12, { TextTransparency = 1 }, quad, out)
+		local outline = word:FindFirstChild("Outline")
+		if outline and outline:IsA("UIStroke") then
+			UiFx.tween(outline, 0.12, { Transparency = 1 }, quad, out)
+		end
+		task.delay(0.13, function()
+			word:Destroy()
+		end)
+	end
+
 	-- Слово редкости над панелью (легендарная, мифическая): один раз в начале — огромное, в цветах
 	-- редкости (мифическая — радуга вдоль букв), поднимается и тает над панелью. Ни нажатий, ни
-	-- стрелки с зоной не закрывает: оно выше панели и ничего не ловит.
+	-- стрелки с зоной не закрывает: оно выше панели и ничего не ловит. Первое же слово попадания
+	-- (промаха, победы) его сбивает (knockRarityWord).
 	local function rarityWord(mg: Minigame)
 		local rarity = FishingRules.GetRarity(mg.Rarity)
 		local style = UIConfig.Rarity[mg.Rarity] or UIConfig.Rarity.Common
@@ -4293,6 +4515,9 @@ do
 			z = 13,
 		})
 		word.Active = false
+		knockRarityWord()
+		rarityWordLabel = word
+		phaseTrove:Add(knockRarityWord)
 		local gradient = word:FindFirstChild("TextFill")
 		if style.Rainbow and gradient and gradient:IsA("UIGradient") then
 			gradient.Rotation = 0
@@ -4503,6 +4728,7 @@ do
 	-- Слово попадания над зоной: выскакивает 0 → 1.3 → 1 и поднимается; «ИДЕАЛЬНО!» — «удар»
 	-- 2 → 1 и белый блик по золотым буквам; «МЕГА!» — радуга вдоль букв.
 	local function hitWord(word: HitWord, x: number, perfect: boolean)
+		knockRarityWord()
 		local label = UiFx.floatText(ui.minigame, word.text, {
 			position = UDim2.fromScale(math.clamp(x, 0.36, 0.64), -0.14),
 			size = UDim2.fromScale(0.7, if perfect then 0.62 else 0.55),
@@ -4725,6 +4951,7 @@ do
 		if not source.Visible then
 			return
 		end
+		knockRarityWord()
 		local ghost = ghostOf(source, "FxMinigameMiss")
 		local track = ghost:FindFirstChild("Track")
 		if track and track:IsA("GuiObject") then
@@ -4883,7 +5110,7 @@ local function doAction(fromButton: boolean?)
 			return -- кулдаун заброса: кнопка тусклая, сервер всё равно откажет
 		end
 		if isFar() then
-			pointToSpot() -- «К ПИРСУ»: сервер всё равно откажет — показываем дорогу
+			pointToSpot() -- «КУДА ИДТИ?»: сервер всё равно откажет — показываем дорогу
 			return
 		end
 		Net.Event("FishingCast"):FireServer()
@@ -5134,7 +5361,7 @@ local function equipRod(tool: Tool)
 	rodTrove:Connect(tool.Activated, function()
 		-- С тач-экрана Activated приходит и от движения камеры / джойстика. В мини-игре такое
 		-- «нажатие» мимо зоны стоило бы рыбы, на экране улова — пропустило бы показ или закрыло
-		-- карточку, пока игрок разглядывает рыбу над головой, с «К ПИРСУ» — дёргало бы подсказку
+		-- карточку, пока игрок разглядывает рыбу над головой, с «КУДА ИДТИ?» — дёргало бы подсказку
 		-- на каждом шаге к пирсу. Там считаются только кнопка (и карточка, и панель мини-игры).
 		-- (Клик мышью по миру на ноутбуке с тач-экраном работает.)
 		if

@@ -29,9 +29,10 @@
 	MaxToastsPhone на телефоне (HUD ниже PHONE_HEIGHT px: второе легло бы на голову персонажа).
 	Пока улов на экране (у HUD атрибут CounterHold — от "Caught" до прилёта 🐟 в счётчик — или
 	видна HUD.Fishing.CatchCard) — ни одного; пока мини-игра или «КЛЮЁТ!» (Minigame / BiteAlert)
-	или доигрывает её копия (FxMinigameWin / FxMinigameMiss) — одно, а на телефоне ни одного,
-	кроме «опасности»: виджеты рыбалки рисуются поверх колонки, а уведомление, которое не
-	прочесть, зря тратит свой срок.
+	— одно, а на телефоне ни одного, кроме «опасности»; пока доигрывает копия мини-игры
+	(FxMinigameWin / FxMinigameMiss: «ПОЙМАНА!», «МИМО!») или над панелью поднимается слово
+	попадания (Minigame.FxFloat) — ни одного, кроме «опасности», на любом экране: эти слова
+	поднимаются в колонку уведомлений, а уведомление, которое не прочесть, зря тратит свой срок.
 	Остальные ждут в очереди и выходят, когда место освободится; уведомление, которое такой
 	виджет согнал с экрана в первой половине срока, встаёт в начало очереди. Когда места нет,
 	уходит самое старое из самых неважных (Priority вида; «опасность» вытесняет обычные); если
@@ -41,16 +42,26 @@
 	UIConfig.ToastGap секунд.
 
 	Только твины и таймеры: ни одного покадрового соединения на уведомление.
+
+	Чужой легендарный / мифический улов (FishingFxController.OtherTrophy), чей столб света сейчас
+	не на экране (за спиной или за краем кадра): у края экрана с его стороны — маленький значок
+	(копия HUD.TrophyPointer, «TrophyChip»: 🌟 на золотой / 🌈 на радужной «конфете» в кольце цвета
+	базы рыбака, острый край «тычет» к краю экрана), пока столб горит (FishingConfig.Fx.
+	PillarTimeOther); столб попал в кадр — значка нет. На телефоне — не во время своей поклёвки,
+	мини-игры и улова (то же правило, что у уведомлений). Пока есть хоть один значок — один
+	покадровый эффект планировщика UiFx (где столб относительно камеры); нет значков — ничего.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared:WaitForChild("Net"))
 local Trove = require(Shared:WaitForChild("Util"):WaitForChild("Trove"))
 local UIConfig = require(Shared:WaitForChild("Config"):WaitForChild("UIConfig"))
+local FishingConfig = require(Shared:WaitForChild("Config"):WaitForChild("FishingConfig"))
 local UiFx = require(Shared:WaitForChild("UiFx"))
 
 type Swatch = UIConfig.Swatch
@@ -104,6 +115,11 @@ local BIG_RAINBOW_LIGHT = 0.45 -- радужные буквы на радужн�
 local CANDY_LIP = 0.08 -- «губа» конфеты, доля высоты (Theme.LIP)
 -- Радуга по краям экрана при мифической новости: тонко, один раз (UiFx.edgeVignette).
 local MYTHIC_EDGE: UiFx.VignetteOptions = { fadeIn = 0.25, hold = 0.5, fadeOut = 0.5, size = 0.1 }
+-- Значок чужого улова вне экрана (см. шапку): центр — на Y высоты HUD (справа — не ниже, чем Gap
+-- над кнопками «ДОМОЙ»; следующий у того же края — выше на Stack своих высот), от края — Gap
+-- px, «тычет» к краю на Bob px за Period с; смотрим на точку столба на Lift studs над землёй;
+-- значков не больше Max (лишний уходит — самый старый).
+local POINTER = { Y = 0.38, Stack = 1.35, Gap = 16, Bob = 6, Period = 0.8, Lift = 40, Max = 3 }
 
 local NotifyController = {}
 
@@ -114,11 +130,12 @@ local queue: { Pending } = {}
 local busyWidgets: { GuiObject } = {}
 local cardWidget: GuiObject? = nil
 local ghosts = 0 -- копий мини-игры (FxMinigameWin / FxMinigameMiss) на экране
+local words = 0 -- слов попадания над панелью мини-игры (Minigame.FxFloat) на экране
 local counter = 0
 local lastDismiss = -math.huge
 
 local function busy(): boolean
-	if ghosts > 0 then
+	if ghosts > 0 or words > 0 then
 		return true -- мини-игра закрылась, но её копия ещё доигрывает «ПОЙМАНА!» / «МИМО!»
 	end
 	for _, widget in busyWidgets do
@@ -146,7 +163,9 @@ local function capacity(priority: number?): number
 	end
 	local phone = isPhone()
 	if busy() then
-		return if phone and (priority or 1) < URGENT then 0 else 1
+		-- «МИМО!», «ПОЙМАНА!» и слова попаданий поднимаются в колонку: пока они на экране — ни одного.
+		local covered = phone or ghosts > 0 or words > 0
+		return if covered and (priority or 1) < URGENT then 0 else 1
 	end
 	if not UserInputService.TouchEnabled then
 		return UIConfig.MaxToasts
@@ -580,6 +599,171 @@ local function onBusyChanged()
 	drain()
 end
 
+--------------------------------------------------------------------------------
+-- Значок чужого улова вне экрана (см. шапку)
+--------------------------------------------------------------------------------
+
+type Pointer = { frame: Frame, base: Vector3, player: Player, ends: number, shown: boolean, right: boolean? }
+
+local pointers: { Pointer } = {}
+local pointerTemplate: Frame? = nil
+local pointerJob: (() -> ())? = nil
+
+-- Острый край — к краю экрана со стороны столба.
+local function aimPointer(pointer: Pointer, right: boolean)
+	pointer.right = right
+	local tip = pointer.frame:FindFirstChild("Tip")
+	if tip and tip:IsA("GuiObject") then
+		tip.Position = UDim2.fromScale(if right then 1.1 else -0.1, tip.Position.Y.Scale)
+	end
+end
+
+-- Каждый кадр, пока есть значки: где столб относительно камеры; false — значков больше нет.
+local function stepPointers(): boolean
+	local now = os.clock()
+	for index = #pointers, 1, -1 do
+		local pointer = pointers[index]
+		if now >= pointer.ends or pointer.player.Parent == nil or pointer.frame.Parent == nil then
+			pointer.frame:Destroy()
+			table.remove(pointers, index)
+		end
+	end
+	local hud = container and container.Parent
+	local camera = Workspace.CurrentCamera
+	if #pointers == 0 or not hud or not hud:IsA("GuiBase2d") or not camera then
+		for _, pointer in pointers do
+			pointer.frame:Destroy()
+		end
+		table.clear(pointers)
+		pointerJob = nil
+		return false
+	end
+	-- На телефоне — не во время своей поклёвки, мини-игры и улова (как уведомления).
+	local hidden = isPhone() and capacity(1) == 0
+	local area = hud.AbsoluteSize
+	local view = camera.ViewportSize
+	local side = math.clamp(area.Y * 0.118, 46, 72) -- размер значка (HUD.TrophyPointer)
+	local reach = side * 0.92 -- от центра до кончика острого края
+	-- Справа внизу — колонка кнопок («ДОМОЙ»): значок над ней, не ближе POINTER.Gap.
+	local column = hud:FindFirstChild("RightButtons")
+	local columnTop = math.huge
+	if column and column:IsA("GuiObject") and column.Visible then
+		-- Кнопки прижаты к низу колонки (UIListLayout, VerticalAlignment Bottom): верх их стопки
+		-- считаем от низа колонки.
+		local list = column:FindFirstChildOfClass("UIListLayout")
+		local gap = if list then list.Padding.Scale * column.AbsoluteSize.Y + list.Padding.Offset else 0
+		local stack, count = 0, 0
+		for _, button in column:GetChildren() do
+			if button:IsA("GuiObject") and button.Visible then
+				stack += button.AbsoluteSize.Y
+				count += 1
+			end
+		end
+		if count > 0 then
+			local bottom = column.AbsolutePosition.Y + column.AbsoluteSize.Y - hud.AbsolutePosition.Y
+			columnTop = bottom - stack - gap * (count - 1)
+		end
+	end
+	local wave = POINTER.Bob * (0.5 - 0.5 * math.cos(now * 2 * math.pi / POINTER.Period))
+	-- Сколько значков уже стоит у каждого края: следующий — выше (стопкой вверх).
+	local slots: { [string]: number } = { left = 0, right = 0 }
+	for _, pointer in pointers do
+		local world = pointer.base + Vector3.new(0, POINTER.Lift, 0)
+		local point = camera:WorldToViewportPoint(world)
+		local onScreen = point.Z > 0 and point.X >= 0 and point.X <= view.X
+		local frame = pointer.frame
+		if onScreen or hidden then
+			frame.Visible = false
+			pointer.shown = false
+		else
+			local right = camera.CFrame:PointToObjectSpace(world).X > 0
+			if right ~= pointer.right then
+				aimPointer(pointer, right)
+			end
+			local x = if right then area.X - POINTER.Gap - reach - wave else POINTER.Gap + reach + wave
+			local y = area.Y * POINTER.Y
+			if right then
+				y = math.min(y, columnTop - POINTER.Gap - side * 0.75)
+			end
+			local edge = if right then "right" else "left"
+			y -= slots[edge] * side * POINTER.Stack
+			slots[edge] += 1
+			frame.Position = UDim2.fromOffset(math.round(x), math.round(math.max(y, side * 0.7)))
+			if not pointer.shown then
+				pointer.shown = true
+				frame.Visible = true
+				UiFx.popIn(frame, { from = 0.3, time = 0.3 })
+			end
+		end
+	end
+	return true
+end
+
+-- У другого рыбака встал столб света легендарной / мифической рыбы (FishingFxController).
+local function onOtherTrophy(player: any, base: any, rarity: any)
+	local source = pointerTemplate
+	local hud = container and container.Parent
+	local style = if typeof(rarity) == "string" then UIConfig.Rarity[rarity] else nil
+	if not source or not hud or typeof(base) ~= "Vector3" or typeof(player) ~= "Instance" or not style then
+		return
+	end
+	while #pointers >= POINTER.Max do
+		local oldest = table.remove(pointers, 1) :: Pointer
+		oldest.frame:Destroy()
+	end
+	local life = FishingConfig.Fx.PillarTimeOther[rarity] or FishingConfig.Fx.PillarTimeOther.Legendary
+	local frame = source:Clone()
+	frame.Name = "TrophyChip"
+	frame.Visible = false
+	frame:SetAttribute("Rarity", rarity)
+	local body = frame:FindFirstChild("Body")
+	if body and body:IsA("GuiObject") then
+		local socket = body:FindFirstChild("IconSocket")
+		local icon = socket and socket:FindFirstChild("Icon")
+		if icon and icon:IsA("TextLabel") then
+			icon.Text = if style.Rainbow then "🌈" else "🌟"
+		end
+		if style.Rainbow then
+			local fill = UiFx.faceOf(body):FindFirstChild("Fill")
+			if fill and fill:IsA("UIGradient") then
+				fill.Color = UiFx.sequence(UIConfig.Rainbow)
+				fill.Rotation = 0
+			end
+		else
+			UiFx.setCandy(body, { Top = style.Top, Bottom = style.Bottom, Lip = style.Lip })
+		end
+		local lip = body:FindFirstChild("Lip")
+		if lip and lip:IsA("GuiObject") then
+			lip.BackgroundColor3 = style.Lip
+		end
+	end
+	local tip = frame:FindFirstChild("Tip")
+	if tip and tip:IsA("GuiObject") then
+		tip.BackgroundColor3 = if style.Rainbow then UIConfig.Rainbow[1] else style.Top
+	end
+	local ring = frame:FindFirstChild("BaseRing")
+	local stroke = ring and ring:FindFirstChild("Stroke")
+	local color = (player :: Player):GetAttribute("BaseColor")
+	if stroke and stroke:IsA("UIStroke") then
+		stroke.Color = if typeof(color) == "Color3" then color else UIConfig.White
+	end
+	frame.Parent = hud
+	table.insert(pointers, {
+		frame = frame,
+		base = base,
+		player = player :: Player,
+		ends = os.clock() + life,
+		shown = false,
+		right = nil,
+	})
+	if not pointerJob then
+		pointerJob = UiFx.schedule(function(): boolean
+			return stepPointers()
+		end)
+	end
+	stepPointers()
+end
+
 function NotifyController:Start(hud: ScreenGui)
 	local toasts = hud:WaitForChild("Toasts") :: Frame
 	local toastTemplate = toasts:WaitForChild("ToastTemplate") :: Frame
@@ -599,6 +783,19 @@ function NotifyController:Start(hud: ScreenGui)
 		end
 		fitColumn()
 		hud:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitColumn)
+	end
+
+	local pointer = hud:FindFirstChild("TrophyPointer")
+	if pointer and pointer:IsA("Frame") then
+		pointer.Visible = false
+		pointerTemplate = pointer
+		local module = script.Parent and script.Parent:FindFirstChild("FishingFxController")
+		local ok, fx = pcall(function(): any
+			return if module and module:IsA("ModuleScript") then require(module) :: any else nil
+		end)
+		if ok and fx and fx.OtherTrophy then
+			fx.OtherTrophy:Connect(onOtherTrophy)
+		end
 	end
 
 	local fishing = hud:FindFirstChild("Fishing")
@@ -630,6 +827,22 @@ function NotifyController:Start(hud: ScreenGui)
 				onBusyChanged()
 			end
 		end)
+		-- Слова попаданий над панелью мини-игры (UiFx.floatText «FxFloat»).
+		local minigame = fishing:FindFirstChild("Minigame")
+		if minigame then
+			minigame.ChildAdded:Connect(function(item: Instance)
+				if item.Name == "FxFloat" then
+					words += 1
+					onBusyChanged()
+				end
+			end)
+			minigame.ChildRemoved:Connect(function(item: Instance)
+				if item.Name == "FxFloat" then
+					words = math.max(words - 1, 0)
+					onBusyChanged()
+				end
+			end)
+		end
 		-- Улов на экране держит счётчик (атрибут HUD CounterHold, FishingController): всё это
 		-- время — ни одного уведомления.
 		hud:GetAttributeChangedSignal("CounterHold"):Connect(onBusyChanged)

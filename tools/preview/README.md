@@ -495,7 +495,7 @@ safe area).
 | `spawn_base` | the base arrives: the «ТВОЯ БАЗА» banner, then it flies into the badge (stills 0.6 / 2.25 / 2.9 s) | 0..3.2 s @ 8 fps, status + banner |
 | `no_base` | all bases taken: «Ждём базу…» | |
 | `start` | just spawned, rod in the backpack, newcomer hint | |
-| `rod_far` | rod in hand, far from the fishing spot: «К ПИРСУ» 🧭, hint, guide beam | |
+| `rod_far` | rod in hand, far from the fishing spot: «КУДА ИДТИ?» 🧭, hint, guide beam | |
 | `spot_take` | at the spot, rod in the backpack: «ВЗЯТЬ» | |
 | `take_rod` | tap «ВЗЯТЬ»: the rod in hand, the button pops into «ЗАБРОСИТЬ» | 0..0.8 s, action area |
 | `spot_ready` | at the spot with the rod: «ЗАБРОСИТЬ» | 0..4 s @ 6 fps (idle shine) |
@@ -515,11 +515,11 @@ safe area).
 | `toast_info`, `toast_success`, `toast_warning`, `toast_danger` | one toast of each kind | success 0..0.8 s |
 | `toast_stack` | three toasts (the cap), then the oldest leaves | 3..4.4 s |
 | `home_cooldown` | «ДОМОЙ» pressed, cooldown draining | 0..0.8 s |
-| `far_tap` | tap «К ПИРСУ» far from the spot: no cast, the hint pops again, the guide beam flares | 0..0.8 s, action area + hint |
+| `far_tap` | tap «КУДА ИДТИ?» far from the spot: no cast, the hint pops again, the guide beam flares | 0..0.8 s, action area + hint |
 | `minigame_cue` | a first-timer's minigame: the needle in the zone, 👆 taps «ЛОВИ!» | |
 | `hit_mega` | the third hit before the last one (a 4-hit payload): «МЕГА!» in rainbow | |
 | `toast_legendary`, `toast_mythic` | someone else's rare catch: the Gold 🌟 / rainbow 🌈 toast in two lines — who (small) over what (big, gold / running rainbow), Mythic's rainbow screen edges (Notify kinds "Legendary" / "Mythic") | 0..0.9 s, toasts |
-| `toast_minigame` | a broadcast arrives during the own minigame: on a phone it waits and comes out once the miss ghost has gone (stills 0.5 / 2.2 s) | |
+| `toast_minigame` | a broadcast arrives during the own minigame: on a phone it waits, on a PC / tablet it steps aside while «МИМО!» rises; it comes out once the miss ghost has gone (stills 0.5 / 2.2 s) | |
 | `toast_long` | a long toast wrapping to two lines | |
 | `selftest` (not in `--all`) | a synthetic ScreenGui, one cell per renderer feature — check the renderer here | |
 
@@ -540,7 +540,10 @@ rendered by `--timeline` or by name):
 World + HUD scenarios in `gui_scenarios.luau` (`server = true`, `world = true`, not in `--all`; by
 name): `bite_world` (a real bite: the bobber dives above the «КЛЮЁТ!» plate), `minigame_world` (a
 real Legendary minigame: on a phone the panel stands beside the reeling bobber), `nibble_world`
-(the own bobber's nibble: the dip, ring, drops and «?»).
+(the own bobber's nibble: the dip, ring, drops and «?»), `trophy_chip` (`world = true` only:
+someone else's Legendary pillar on the next pier, off-screen — the broadcast and the 🌟 chip at the
+screen edge on its side; `FishingFxController.OtherTrophy` is fired directly, with the player itself
+as the catcher).
 
 Scenarios find widgets by name only (`HUD.Fishing.ActionArea.ActionButton`, `HUD.Fishing.CatchCard`,
 `HUD.RightButtons.HomeButton`, ...), so they survive restyles; a missing or hidden widget is a

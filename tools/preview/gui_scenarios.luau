@@ -467,7 +467,7 @@ local scenarios = {
 	},
 	{
 		name = "rod_far",
-		desc = "Rod in hand, far from the fishing spot: «К ПИРСУ» 🧭 + hint + guide beam",
+		desc = "Rod in hand, far from the fishing spot: «КУДА ИДТИ?» 🧭 + hint + guide beam",
 		still = 0.8,
 		run = function(h: any)
 			h:giveRod()
@@ -852,7 +852,7 @@ local scenarios = {
 	--------------------------------------------------------------------------------
 	{
 		name = "far_tap",
-		desc = "Tap «К ПИРСУ» far from the spot: no cast — the hint pops again, the guide beam flares",
+		desc = "Tap «КУДА ИДТИ?» far from the spot: no cast — the hint pops again, the guide beam flares",
 		still = 0.3,
 		sheet = {
 			from = 0,
@@ -916,7 +916,7 @@ local scenarios = {
 	},
 	{
 		name = "toast_minigame",
-		desc = "A broadcast arrives during the own minigame: it waits (phones) and comes out after the miss",
+		desc = "A broadcast arrives during the own minigame: it waits (phones; on a PC it steps aside for «МИМО!») and comes out after the miss",
 		still = { 0.5, 2.2 },
 		run = function(h: any)
 			toMinigame(h, "Rare", { ZoneCenter = 0.3, U0 = 0.1 })
@@ -979,6 +979,35 @@ local scenarios = {
 					fx.Nibble()
 				end, h.player)
 			end
+		end,
+	},
+	{
+		name = "trophy_chip",
+		desc = "Someone else's Legendary catch on the next pier (off-screen): the broadcast and a 🌟 chip at the screen edge on the pillar's side",
+		world = true,
+		standard = false,
+		still = { 0.8, 2.0 },
+		sheet = { from = 0, to = 1.2, fps = 10, roi = {} },
+		run = function(h: any)
+			h:standAtSpot()
+			h:poseLikeBackdrop()
+			h:advance(0.3)
+			local spot, base, fx = h:spot(), h:base(), clientFx(h)
+			if spot and base and fx then
+				-- The neighbouring pier: ≈ 184 studs away, 70° off the view (out of a phone's frame).
+				-- (The catcher is the player itself here: the chip's ring takes its base colour.)
+				local look = base:GetPivot().LookVector
+				local right = look:Cross(Vector3.new(0, 1, 0)).Unit
+				local angle = math.rad(70)
+				local at = spot.Position + (look * math.cos(angle) + right * math.sin(angle)) * 184
+				h.sim:Run(function()
+					fx.OtherTrophy:Fire(h.player, at, "Legendary")
+				end, h.player)
+			end
+			h:notify(
+				"КапитанКрюк (Лазурная база): легендарная рыба «Акулёнок»!",
+				"Legendary"
+			)
 		end,
 	},
 	{

@@ -106,7 +106,7 @@ local function buildActionArea(root: any)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(320, 240) }, area)
 
 	-- The star of the screen: a big round candy (FishingController recolours it per state with
-	-- UiFx.setCandy: Sky «ЗАБРОСИТЬ», Slate «ЖДЁМ…» / «К ПИРСУ», Water «ЖДЁМ…» (line in the
+	-- UiFx.setCandy: Sky «ЗАБРОСИТЬ», Slate «ЖДЁМ…» / «КУДА ИДТИ?», Water «ЖДЁМ…» (line in the
 	-- water), Sun «ПОДСЕЧЬ!», Leaf «ЛОВИ!», Gold «ВЗЯТЬ»). The caption sits on a dark ribbon
 	-- across the bottom of the circle (readable on any colour), at the Button text tier: the
 	-- ribbon is wide enough for «ЗАБРОСИТЬ» at 16+ px on the smallest phone.
@@ -626,7 +626,7 @@ local function buildHint(root: any)
 		FontFace = Theme.FONT,
 		ZIndex = 4,
 	}, root)
-	U.new("UISizeConstraint", { MaxSize = Vector2.new(340, 64) }, hint)
+	U.new("UISizeConstraint", { MaxSize = Vector2.new(520, 64) }, hint)
 	Theme.candy(hint, "Night", { radius = 0.5, transparency = 0.06 })
 	Theme.socket(hint, "IconSocket", "💡", {
 		AnchorPoint = Vector2.new(0.3, 0.5),
@@ -974,7 +974,7 @@ end
 	ActionArea 9, CatchCard 10, TitleSlam 12.
 	  ActionArea              bottom-right container, sized by screen height
 	    ActionButton          big round candy: Icon (emoji or the «!» glyph: Outline, TextFill),
-	                          CaptionRibbon + Caption («ЗАБРОСИТЬ» / «ЖДЁМ…» / «К ПИРСУ» /
+	                          CaptionRibbon + Caption («ЗАБРОСИТЬ» / «ЖДЁМ…» / «КУДА ИДТИ?» /
 	                          «ПОДСЕЧЬ!» / «ЛОВИ!» / «ВЗЯТЬ»), Ring (white halo), KeyChip.Key
 	                          («F» / «R2»), TapCue (👆), Bobber (the waiting look's icon)
 	    StopButton            «СМОТАТЬ» Berry pill above it (Icon 🧵 inside, Caption)

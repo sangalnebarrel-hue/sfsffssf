@@ -292,7 +292,8 @@ def tokenize(s, family, weight):
     paras = []
     for para in s.split("\n"):
         toks = []
-        for piece in re.findall(r"\s+|\S+", para):
+        # A no-break space (U+00A0) glues words as in Roblox: it stays inside the word token.
+        for piece in re.findall(r"[^\S ]+|(?:\S| )+", para):
             parts = []
             total = 0.0
             for kind, txt in clusters(piece):
@@ -304,7 +305,7 @@ def tokenize(s, family, weight):
                     w = _ref_width(family, weight, txt) / REF
                 parts.append((kind, txt, w))
                 total += w
-            toks.append(Token(parts, total, piece.isspace()))
+            toks.append(Token(parts, total, piece.isspace() and " " not in piece))
         paras.append(toks)
     return paras
 

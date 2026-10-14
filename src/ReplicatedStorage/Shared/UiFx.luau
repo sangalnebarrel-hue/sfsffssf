@@ -1831,6 +1831,9 @@ end
 
 export type VignetteOptions = {
 	fadeIn: number?, -- появление, с (0.35, Sine Out; 0 — сразу)
+	from: number?, -- прозрачность в начале появления (1 — не видно)
+	build: boolean?, -- появление нарастает к концу (Quad In): напряжение «въезжает» в удар
+	cycle: { Color3 }?, -- переливаться этими цветами: у каждой стороны свой, бегут по кругу
 	pulseTo: number?, -- вторая прозрачность пульса (alpha + 0.2)
 	hold: number?, -- сама уйдёт через столько секунд (разовая подсветка)
 	fadeOut: number?, -- исчезновение по stop / hold, с (0.25)
@@ -1846,9 +1849,12 @@ export type FadeStop = (fade: number?) -> ()
 	от края (прозрачность alpha; 1 — не видно) к середине (прозрачно). color — Color3 или список
 	цветов от края внутрь. period — пульс между alpha и opts.pulseTo, полный цикл за period
 	секунд (не быстрее UIConfig.Fx.FlashMinInterval — правило «не чаще 3 раз в секунду»).
-	Только твины. Слой — ScreenGui (полосы заходят и под верхнюю панель, и в вырезы экрана).
-	Возвращает stop(fade?): плавно гасит и удаляет.
-	Примеры: напряжение Epic+ — edgeVignette(hud, цвет, 0.75, nil, { fadeIn = 0.5 });
+	opts.cycle — края переливаются (мифическая): цвет каждой стороны бежит по списку по кругу
+	(верх → право → низ → лево), один покадровый эффект планировщика, пока виньетка жива; иначе
+	только твины. Слой — ScreenGui (полосы заходят и под верхнюю панель, и в вырезы экрана).
+	Возвращает stop(fade?): плавно гасит и удаляет (fade 0 — сразу, «обрыв» перед ударом).
+	Примеры: напряжение Epic+ — edgeVignette(hud, цвет, 0.5, nil, { from = 0.85, fadeIn = 0.7,
+	build = true, size = 0.13 });
 	поклёвка — edgeVignette(hud, { Sun.Top, Sun.Bottom }, 0.55, 0.45);
 	разовая подсветка — edgeVignette(hud, Gold.Top, 0.8, nil, { fadeIn = 0, hold = 0 }).
 ]]
@@ -1893,7 +1899,9 @@ function UiFx.edgeVignette(
 			NumberSequenceKeypoint.new(math.min(0.999, solid + (1 - solid) * 0.4), 0.55),
 			NumberSequenceKeypoint.new(1, 1),
 		})
-		if typeof(color) == "Color3" then
+		if o.cycle then
+			frame.BackgroundColor3 = o.cycle[1] or WHITE -- цвет ведёт планировщик (ниже)
+		elseif typeof(color) == "Color3" then
 			frame.BackgroundColor3 = color
 		else
 			frame.BackgroundColor3 = WHITE
@@ -1931,9 +1939,43 @@ function UiFx.edgeVignette(
 			end
 		end
 	end
-	setAll(edge, fadeIn, SINE, OUT)
+	if o.from then
+		for _, frame in bands do
+			frame.BackgroundTransparency = math.clamp(o.from, 0, 1)
+		end
+	end
+	if o.build then
+		setAll(edge, fadeIn, QUAD, IN)
+	else
+		setAll(edge, fadeIn, SINE, OUT)
+	end
 
 	local alive = true
+	local stopCycle: Stop? = nil
+	local colors = o.cycle
+	if colors and #colors > 0 then
+		-- Стороны по кругу: верх, право, низ, лево — каждая на четверть списка дальше.
+		local list: { Color3 } = colors
+		local count = #list
+		local offsets: { [string]: number } = { Top = 0, Right = 0.25, Bottom = 0.5, Left = 0.75 }
+		local phase = 0
+		local function paint()
+			for _, frame in bands do
+				local x = ((phase + (offsets[frame.Name] or 0)) % 1) * count
+				local index = math.floor(x)
+				frame.BackgroundColor3 = list[index % count + 1]:Lerp(list[(index + 1) % count + 1], x - index)
+			end
+		end
+		paint()
+		stopCycle = UiFx.schedule(function(dt: number): boolean
+			if holder.Parent == nil then
+				return false
+			end
+			phase += dt * 0.8
+			paint()
+			return true
+		end)
+	end
 	local pulseThread: thread? = nil
 	if period then
 		local cycle = math.max(period, Fx.FlashMinInterval)
@@ -1971,6 +2013,9 @@ function UiFx.edgeVignette(
 		table.clear(tweens)
 		local time = fade or o.fadeOut or 0.25
 		if time <= 0 or holder.Parent == nil then
+			if stopCycle then
+				stopCycle()
+			end
 			holder:Destroy()
 			return
 		end

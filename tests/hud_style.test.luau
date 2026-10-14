@@ -7,8 +7,10 @@
 	    on screen, the Home button stays above the Jump button on touch screens;
 	  • the runtime juice: base swatch on the badge and the base banner flying into it, «+N» over
 	    the catch counter (held while the HUD has CounterHold), the draining Home cooldown («ЖДИ»),
-	    toasts by kind (colour, icon, width, slots, queue while fishing widgets are up, Legendary /
-	    Mythic broadcasts), the type scale (UiFx.fitText), no frame connection at idle.
+	    toasts by kind (colour, icon, width, slots, queue while fishing widgets are up — and while
+	    a hit word or a minigame ghost rises into the column, Legendary / Mythic broadcasts), the
+	    chip pointing at someone else's off-screen light pillar, the type scale (UiFx.fitText), no
+	    frame connection at idle.
 
 	The sim ignores UIListLayout alignment, so this file computes rectangles itself (rectOf).
 
@@ -21,6 +23,7 @@ local roblox = require("@lune/roblox")
 
 local Enum = roblox.Enum
 local Color3 = roblox.Color3
+local Vector3 = roblox.Vector3
 
 local INSET = 58 -- RbxSim's top bar inset for ScreenGuis without IgnoreGuiInset
 
@@ -777,6 +780,14 @@ tests["toasts: a PC keeps one toast over the minigame, none over the catch card;
 	notify(sim, p, "Второе", "info")
 	sim:Advance(0.6)
 	t.eq(#liveToasts(p), 1, "one over the minigame")
+	-- A hit word («ОТЛИЧНО!», a FxFloat over the panel) rises into the column: the toast steps aside
+	-- and comes back when the word is gone (like «МИМО!» on the miss ghost).
+	local word = sim:Create("TextLabel", { Name = "FxFloat" }, minigame)
+	sim:Advance(0.4)
+	t.eq(#liveToasts(p), 0, "no toast while a hit word rises over the minigame")
+	word:Destroy()
+	sim:Advance(0.6)
+	t.eq(#liveToasts(p), 1, "back once the word is gone")
 	sim:Run(function()
 		minigame.Visible = false
 		card.Visible = true
@@ -837,6 +848,87 @@ tests["toasts: Legendary is a gold candy, Mythic a spinning rainbow — 👑, bi
 	sim:Advance(6)
 	t.eq(#liveToasts(p), 0)
 	t.eq(sim:Require(sim:Find("ReplicatedStorage.Shared.UiFx"), p).activeJobs(), 0, "nothing left per frame")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["trophy chip: someone else's Legendary pillar off-screen — a small chip on that side while it burns"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	local other = addPlayer(sim, 2, "phone")
+	sim:Advance(5)
+	local hud = p.PlayerGui.HUD
+	local UiFx = sim:Require(sim:Find("ReplicatedStorage.Shared.UiFx"), p)
+	local fx = sim:Require(sim:Find("Controllers.FishingFxController", p:FindFirstChildOfClass("PlayerScripts")), p)
+	local FishingConfig = sim:Require(sim:Find("ReplicatedStorage.Shared.Config.FishingConfig"), p)
+	local template = hud:FindFirstChild("TrophyPointer")
+	t.ok(template and template.Visible == false, "HUD.TrophyPointer: a hidden template")
+	local camera = roblox.CFrame.lookAt(Vector3.new(0, 30, 0), Vector3.new(0, 25, -100))
+	sim:Run(function()
+		sim.workspace.CurrentCamera.CFrame = camera
+	end, p)
+	local vp = sim.players.state[sim:Unwrap(p)].viewport
+	local function chips(): { any }
+		local list = {}
+		for _, c in hud:GetChildren() do
+			if c.Name == "TrophyChip" then
+				table.insert(list, c)
+			end
+		end
+		return list
+	end
+	-- Behind the camera and to its right: the chip sits at the right edge.
+	local behind = camera.Position - camera.LookVector * 120 + camera.RightVector * 60 - Vector3.new(0, 40, 0)
+	sim:Run(function()
+		fx.OtherTrophy:Fire(other, behind, "Legendary")
+	end, p)
+	sim:Advance(0.5)
+	local chip = chips()[1]
+	t.ok(chip and chip.Visible, "a chip for the off-screen pillar")
+	t.eq(chip.Body.IconSocket.Icon.Text, "🌟", "Legendary: 🌟")
+	t.ok(chip.AbsolutePosition.X > vp.X / 2, `on the right edge (x {chip.AbsolutePosition.X})`)
+	t.ok(vp.X - (chip.AbsolutePosition.X + chip.AbsoluteSize.X * 1.42) >= 16 - 1, "≥ 16 px from the screen edge")
+	local chipRect, homeRect = rectOf(sim, p, chip), rectOf(sim, p, hud.RightButtons.HomeButton)
+	t.ok(
+		chipRect.y + chipRect.h * 1.1 + 16 <= homeRect.y + 1,
+		`above the right button column, ≥ 16 px (chip {chipRect.y}+{chipRect.h}, Home {homeRect.y})`
+	)
+	t.ok(chip.AbsoluteSize.Y >= 44, `big enough to see (≥ 44 px: {chip.AbsoluteSize.Y})`)
+	local baseColor = other:GetAttribute("BaseColor")
+	t.ok(
+		typeof(baseColor) ~= "Color3" or colorNear(chip.BaseRing.Stroke.Color, baseColor),
+		"ringed in the catcher's base colour"
+	)
+	t.ok(UiFx.activeJobs() > 0, "one frame job follows the pillar while the chip lives")
+	-- On a phone the own minigame hides it (like the toasts).
+	sim:Run(function()
+		hud.Fishing.Minigame.Visible = true
+	end, p)
+	sim:Advance(0.2)
+	t.eq(chip.Visible, false, "hidden during the own minigame on a phone")
+	sim:Run(function()
+		hud.Fishing.Minigame.Visible = false
+	end, p)
+	sim:Advance(0.2)
+	t.eq(chip.Visible, true, "back after it")
+	-- A pillar in front of the camera is on screen: no chip for it.
+	local ahead = camera.Position + camera.LookVector * 200 - Vector3.new(0, 30, 0)
+	sim:Run(function()
+		fx.OtherTrophy:Fire(other, ahead, "Mythic")
+	end, p)
+	sim:Advance(0.3)
+	t.eq(#chips(), 2)
+	for _, c in chips() do
+		if c:GetAttribute("Rarity") == "Mythic" then
+			t.eq(c.Visible, false, "the Mythic pillar is on screen: its chip stays hidden")
+			t.eq(c.Body.IconSocket.Icon.Text, "🌈")
+		end
+	end
+	-- Gone with the pillar; nothing runs per frame afterwards.
+	sim:Advance(FishingConfig.Fx.PillarTimeOther.Mythic + 0.3)
+	t.eq(#chips(), 0, "the chips go with the pillars")
+	t.eq(UiFx.activeJobs(), 0, "no frame job without chips")
 	sim:AssertNoErrors({ warnings = true })
 end
 

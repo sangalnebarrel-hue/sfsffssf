@@ -57,6 +57,7 @@ local Vector2 = roblox.Vector2
 
 -- FishingFxController's camera offset while the player's own fishing is on screen.
 local CAMERA_OFFSET = Vector3.new(2.2, 1, 0)
+local TROPHY_CAMERA = Vector3.new(2.2, 1.6, 0) -- own fish over the head after the card opened
 
 --------------------------------------------------------------------------------
 -- Sim helpers
@@ -271,7 +272,15 @@ end
 -- Audits the fisher's FX on a viewer's client every frame: names seen, the emitter budget, and
 -- that every FX part is anchored and quiet (no collisions, queries, touch, shadows).
 local function auditor(fx: any, fisher: any): any
-	local audit = { seen = {}, maxEmitters = 0, maxApi = 0, loud = {}, pillarHeight = 0, pillarBeams = false }
+	local audit = {
+		seen = {},
+		maxEmitters = 0,
+		maxApi = 0,
+		loud = {},
+		pillarHeight = 0,
+		pillarBottom = math.huge,
+		pillarBeams = false,
+	}
 	function audit.step()
 		local emitters = 0
 		local bobber = fx.GetBobber(fisher)
@@ -297,6 +306,7 @@ local function auditor(fx: any, fisher: any): any
 			end
 			if instance.Name == "PillarCore" then
 				audit.pillarHeight = math.max(audit.pillarHeight, instance.Size.X)
+				audit.pillarBottom = math.min(audit.pillarBottom, instance.Position.Y - instance.Size.X / 2)
 			elseif instance.Name == "PillarGlow" then
 				local glow, sparkle = instance:FindFirstChild("Glow"), instance:FindFirstChild("Sparkle")
 				if glow and sparkle and glow:IsA("Beam") and sparkle:IsA("Beam") and glow.FaceCamera then
@@ -426,18 +436,39 @@ tests["legendary: pillar, confetti, ground wave, aura; emitter budget; nothing l
 	local fisherConnections = sim:CountConnections(fisher)
 
 	local audit = auditor(fx, fisher)
+	local trophies = {}
+	local heard = sim:Run(function()
+		return fx.OtherTrophy:Connect(function(player, base, rarity)
+			table.insert(trophies, { player = player, base = base, rarity = rarity })
+		end)
+	end, watcher)
 	local mg, startTime = startMinigame(t, sim, fisher, audit.step)
 	t.ok(renderSteppedCount(sim, watcher) > rendering, "per-frame work while the bobber is out")
 	local name, caughtAt = playMinigame(sim, fisher, mg, startTime, false, audit.step)
 	t.eq(name, "Caught")
 	local pillarAt = nil
+	local plateTop = nil
 	sim:WaitFor(function()
 		audit.step()
 		if not pillarAt and findEffect(fx, fisher, "PillarCore") then
 			pillarAt = sim:Time()
+			local held = fisher.Character:FindFirstChild("HeldFish")
+			if held then
+				local box, size = held:GetBoundingBox()
+				plateTop = box.Position.Y + size.Y / 2 + 0.4 + 1.25 -- the plate's bottom + its studs part
+			end
 		end
 		return sim:Time() >= caughtAt + FishingConfig.LeapTime + Fx.PillarTimeOther.Legendary + 0.5
 	end, 12, FRAME)
+	heard:Disconnect()
+	t.eq(#trophies, 1, "OtherTrophy fires once on the watcher's client (the HUD points at off-screen pillars)")
+	t.eq(trophies[1] and trophies[1].player, fisher, "…for the fisher")
+	t.eq(trophies[1] and trophies[1].rarity, "Legendary", "…with the rarity")
+	t.ok(trophies[1] and flat(trophies[1].base - sim:GetRoot(fisher).Position).Magnitude < 1, "…at the fisher's feet")
+	t.ok(
+		plateTop and audit.pillarBottom > plateTop,
+		`nearby, the pillar starts above the fisher's nameplate ({audit.pillarBottom} > {plateTop})`
+	)
 
 	for _, effect in
 		{ "Leap", "Ripple", "Spout", "Pop", "Halo", "Nameplate", "PillarCore", "PillarGlow", "Confetti", "RarityAura" }
@@ -477,16 +508,19 @@ tests["far away (> Fx.Range): no splashes, rings or leap — only the pillar of 
 	local mg, startTime = startMinigame(t, sim, fisher, audit.step)
 	local name, caughtAt = playMinigame(sim, fisher, mg, startTime, false, audit.step)
 	t.eq(name, "Caught")
-	local pillarAt = nil
+	local pillarAt, distance = nil, 0
 	sim:WaitFor(function()
 		audit.step()
-		if not pillarAt and findEffect(fx, fisher, "PillarCore") then
+		local core = findEffect(fx, fisher, "PillarCore")
+		if not pillarAt and core then
 			pillarAt = sim:Time()
+			distance = (core.Position - Vector3.new(0, core.Size.X / 2, 0) - sim:GetRoot(far).Position).Magnitude
 		end
 		return sim:Time() >= caughtAt + FishingConfig.LeapTime + 1.5
 	end, 5, FRAME)
 	t.eq(keys(audit.seen), "PillarCore, PillarGlow", "only the pillar is drawn for a far viewer")
-	t.near(audit.pillarHeight, Fx.PillarHeight.Mythic, 1, "a Mythic pillar is taller (PillarHeight.Mythic)")
+	t.ok(audit.pillarHeight > Fx.PillarHeight.Mythic, "from far away the pillar is taller than PillarHeight.Mythic…")
+	t.near(audit.pillarHeight, 40 + 0.5 * distance, 3, `…a beam to the sky: 40 + distance / 2 studs ({distance})`)
 	t.ok(pillarAt and pillarAt >= caughtAt + FishingConfig.LeapTime - FRAME, "when the fish would have landed")
 	t.ok(fisher.Character:FindFirstChild("HeldFish"), "the held fish itself is server-side (everyone sees it)")
 	sim:AssertNoErrors({ warnings = true })
@@ -891,8 +925,15 @@ tests["own client: OwnFishLanded fires once, on the landing frame, at the held f
 		"…level with it"
 	)
 	t.ok(findEffect(ownFx, fisher, "PillarCore"), "the own pillar at the landing")
+	t.eq(fisher.PlayerGui.HUD:GetAttribute("CounterHold") ~= nil, true, "(the catch is on the fisher's screen)")
+	t.eq(
+		plate.Enabled,
+		false,
+		"…the own nameplate waits: no second rarity word under the title, no price by the card"
+	)
 
-	-- The card closes (FishingController): the trophy flashes again — pop, halo, a short pillar.
+	-- The card closes (FishingController): the trophy flashes again — pop, halo; the nameplate pops in
+	-- as the new thing. On a phone (a short screen) no replay pillar: it would rise behind the counter.
 	sim:Advance(FishingConfig.Fx.PillarTime.Legendary + 0.2, COARSE)
 	t.eq(findEffect(ownFx, fisher, "PillarCore"), nil, "the landing pillar is over")
 	local replayed = sim:Run(function()
@@ -900,10 +941,12 @@ tests["own client: OwnFishLanded fires once, on the landing frame, at the held f
 	end, fisher)
 	t.eq(replayed, true, "ReplayOwnTrophy: the fish is still over the head")
 	t.ok(findEffect(ownFx, fisher, "Halo") and findEffect(ownFx, fisher, "Pop"), "…a halo and a pop again")
-	t.ok(findEffect(ownFx, fisher, "PillarCore"), "…and a short pillar")
-	t.ok(plate.Plate.FxScale.Scale > 1.05, "…the nameplate bumps")
+	t.eq(findEffect(ownFx, fisher, "PillarCore"), nil, "…no replay pillar on a phone")
+	t.eq(plate.Enabled, true, "…the nameplate shows up now")
+	t.ok(plate.Plate.FxScale.Scale < 0.2, "…popping in from nothing")
+	sim:Advance(0.45, FRAME)
+	t.ok(plate.Plate.FxScale.Scale > 0.9, `…and it is in ({plate.Plate.FxScale.Scale})`)
 	sim:Advance(1.5, COARSE)
-	t.eq(findEffect(ownFx, fisher, "PillarCore"), nil, "the replay pillar is short")
 	local watcherFx = clientFx(sim, watcher)
 	t.eq(
 		sim:Run(function()
@@ -917,7 +960,12 @@ tests["own client: OwnFishLanded fires once, on the landing frame, at the held f
 		COARSE
 	)
 	t.ok(fisher.Character:FindFirstChild("HeldFish"), "still holding the fish")
-	t.near(cameraOffset(sim, fisher), CAMERA_OFFSET, 0.01, "…and the camera stays aside")
+	t.near(
+		cameraOffset(sim, fisher),
+		TROPHY_CAMERA,
+		0.01,
+		"…and the camera stays aside, a little higher since the card opened (the trophy clears the counter)"
+	)
 	sim:Advance(1.5, COARSE)
 	t.eq(fisher.Character:FindFirstChild("HeldFish"), nil, "the held fish is gone")
 	t.near(cameraOffset(sim, fisher), Vector3.zero, 1e-3, "the camera is back")

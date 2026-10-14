@@ -35,8 +35,10 @@
 	Камера своего рыбака: пока своя рыбалка «на экране» (FishingState не "Idle", или поплавок
 	ещё сматывается, или рыба в прыжке или над головой) Humanoid.CameraOffset плавно уходит
 	в FX.CameraOffset (вправо и вверх): рыбак сдвигается левее центра экрана, а поплавок
-	(он падает правее, FishingConfig.CastSide) — правее его головы, не за ней. Потом камера
-	плавно возвращается. FieldOfView не трогаем (это UiFx.fovPunch), UiFx.cameraShake
+	(он падает правее, FishingConfig.CastSide) — правее его головы, не за ней. Когда над
+	головой своя рыба и открылась карточка улова (HUD.Fishing.CatchCard, она прячет сдвиг), —
+	ещё чуть выше (FX.TrophyCamera): после карточки рыба и табличка не задевают счётчик улова.
+	Потом камера плавно возвращается. FieldOfView не трогаем (это UiFx.fovPunch), UiFx.cameraShake
 	добавляется поверх.
 
 	Улов и потеря — атрибут FishFx (формат — шапка RemoteNames; сервер ставит его ДО "Idle",
@@ -55,12 +57,18 @@
 	    миром, издали не меньше пикселей) и искры цвета редкости, у рыбы с мутацией — искры
 	    цветов мутации (неоновая ещё светится), пока рыба над головой (FishingRules.HoldFishTime —
 	    на ≈3 с дольше карточки улова: после неё свой трофей ещё виден). Чужая табличка — над
-	    рыбой, своя — сбоку, справа от рыбы (над ней — заголовок и карточка улова своего экрана).
+	    рыбой, выскакивает сразу; своя — сбоку, справа от рыбы (над ней — заголовок и карточка
+	    улова своего экрана) и ждёт, пока улов на экране (у HUD атрибут CounterHold): под
+	    заголовком она повторяла бы его слово, из-за карточки торчала бы готовая цена, пока та
+	    считает; выскакивает на «повторе» трофея (ReplayOwnTrophy), а не было его — через
+	    PLATE_AFTER_CARD после того, как счётчик отпустили.
 	    Легендарная и мифическая — ещё столб света (неоновая сердцевина + лучи Beam), конфетти и
 	    волна по земле вокруг рыбака (свой столб тоже есть: он виден за лучами заголовка). Чужой
-	    столб живёт дольше (Fx.PillarTimeOther) и издалека шире (не уже ~25 px с соседнего
-	    пирса) — его видно через всю лагуну; объявление о такой рыбе (FishingService) приходит
-	    в тот же миг.
+	    столб живёт дольше (Fx.PillarTimeOther), издалека шире (не уже ~25 px с соседнего пирса)
+	    и выше (PILLAR_SKY: луч уходит за верх экрана с любого пирса) — его видно через всю
+	    лагуну; вблизи он начинается над табличкой рыбака (не режет рыбу и надпись). Объявление
+	    о такой рыбе (FishingService) приходит в тот же миг, а сигнал OtherTrophy говорит HUD,
+	    где столб (NotifyController показывает значок у края экрана, если столба не видно).
 	  • lost — леска вспыхивает красным, поплавок подскакивает и шлёпается обратно (потом
 	    сматывается), всплеск, столбик воды и круги, и рыбка, махнув хвостом, уходит под воду
 	    прочь от рыбака.
@@ -100,9 +108,13 @@
 	  FishingFxController.CountEmitters(player) -> number      -- его ParticleEmitter'ы сейчас
 	  FishingFxController.ReplayOwnTrophy() -> boolean
 	      -- своя рыба над головой ещё раз «вспыхивает» (FishingController — когда карточка улова
-	      -- закрылась и 🐟 полетела в счётчик): шар, ореол, искры, табличка «подпрыгивает», звон,
-	      -- у легендарной и мифической — короткий столб света (TROPHY_PILLAR_TIME). false — своей
-	      -- HeldFish нет (ничего).
+	      -- закрылась и в счётчике встал «+1»): шар, ореол, искры, своя табличка выскакивает
+	      -- (уже видна — «подпрыгивает»), звон, у легендарной и мифической — короткий столб света
+	      -- (TROPHY_PILLAR_TIME); на невысоком экране (телефон) — без столба, ореол меньше и
+	      -- искр больше: столб вставал бы за счётчиком улова. false — своей HeldFish нет (ничего).
+	  FishingFxController.OtherTrophy   -- Signal: (player: Player, basePosition: Vector3,
+	      rarity: string) — у ДРУГОГО рыбака встал столб света легендарной / мифической рыбы
+	      (basePosition — земля под ним; горит Fx.PillarTimeOther[rarity] с). Своему не приходит.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -151,9 +163,16 @@ local POP_SIZE, POP_GROW, POP_FADE = 4.5, 0.12, 0.3 -- вспышка-шар н�
 -- соседнего пирса (≈240 studs) всё ещё читается (≈120 × 38 px).
 local NAMEPLATE_STUDS, NAMEPLATE_PIXELS = Vector2.new(4, 1.25), Vector2.new(110, 34)
 local TROPHY_PILLAR_TIME = 1.2 -- свой трофей «вспыхивает» после карточки: короткий столб света, с
+-- … на невысоком экране (телефон: ниже стольких px) — без столба и с меньшим ореолом (HALO_TO ×
+-- TROPHY_SHORT_HALO): столб над рыбой вставал бы за счётчиком улова, ореол — его окружал.
+local TROPHY_SHORT_SCREEN, TROPHY_SHORT_HALO = 500, 0.7
+local PLATE_AFTER_CARD = 0.5 -- своя табличка: «повтора» трофея не было — выскакивает через столько после карточки, с
 local ALERT_OTHER_DISTANCE = 90 -- чужой «!» виден не дальше, studs
 local OWN_PILLAR_WIDTH = 0.4 -- свой столб света уже чужого во столько раз (см. pillar)
 local PILLAR_FAR = 80 -- чужой столб дальше стольких studs шире: × расстояние / PILLAR_FAR (≈ 28 px на телефоне)
+-- … и выше: не ниже PILLAR_SKY.base + расстояние × PILLAR_SKY.slope studs — с любого пирса луч
+-- уходит за верх экрана телефона (камера смотрит на 18° вниз: верх кадра ≈ 0.31 × расстояния).
+local PILLAR_SKY = { base = 40, slope = 0.5 }
 local PILLAR_FADE_OTHER = 0.55 -- чужой столб начинает гаснуть с этой доли своей жизни (свой — с 0.3)
 
 local Fx = FishingConfig.Fx
@@ -211,8 +230,11 @@ local FX = {
 	AlertOtherText = 18,
 	AlertStarText = 14,
 	AlertStars = 5,
-	-- Сдвиг камеры своего рыбака (Humanoid.CameraOffset): вправо и вверх.
+	-- Сдвиг камеры своего рыбака (Humanoid.CameraOffset): вправо и вверх; пока своя рыба над
+	-- головой, а карточка улова уже открылась (она прячет сдвиг), — ещё чуть выше (TrophyCamera):
+	-- рыба и табличка опускаются на ≈13 px и не задевают счётчик улова после карточки.
 	CameraOffset = Vector3.new(2.2, 1, 0),
+	TrophyCamera = Vector3.new(2.2, 1.6, 0),
 }
 
 -- Сколько капель в каждом всплеске (размер капель один на все — меняется только скорость).
@@ -327,6 +349,9 @@ type RainbowModel = { parts: { BasePart }, u: { number }, v: { number } }
 local FishingFxController = {
 	-- (rarity: string, worldPosition: Vector3) — своя рыба долетела (см. шапку).
 	OwnFishLanded = Signal.new(),
+	-- (player: Player, basePosition: Vector3, rarity: string) — у другого рыбака встал столб
+	-- света легендарной / мифической рыбы (см. шапку).
+	OtherTrophy = Signal.new(),
 }
 
 local folder: Folder? = nil
@@ -339,6 +364,7 @@ local frameConnection: RBXScriptConnection? = nil
 local rainbow: { [Instance]: RainbowModel } = {}
 local rainbowConnection: RBXScriptConnection? = nil
 local playerGui: PlayerGui? = nil
+local hudGui: ScreenGui? = nil -- свой HUD (атрибут CounterHold — улов на экране)
 local rng = Random.new()
 
 --------------------------------------------------------------------------------
@@ -645,6 +671,8 @@ end
 
 local cameraHumanoid: Humanoid? = nil -- чей CameraOffset сейчас сдвинут (nil — ничей)
 local cameraThread: thread? = nil -- следующая проверка, пока сдвинут
+-- Куда сдвинут; trophy — своя рыба над головой и карточка улова уже открывалась (FX.TrophyCamera).
+local cameraState: { offset: Vector3?, trophy: boolean } = { offset = nil, trophy = false }
 
 -- Своя рыбалка ещё на экране: леска в воде, поплавок сматывается, рыба в прыжке или над головой.
 local function ownFishingShown(): boolean
@@ -684,11 +712,20 @@ end
 -- (рыба над головой исчезла — это заметит проверка раз в CAMERA_POLL секунд).
 updateCamera = function()
 	local wanted = ownFishingShown()
+	local character = Players.LocalPlayer.Character
 	local humanoid: Humanoid? = nil
 	if wanted then
-		local character = Players.LocalPlayer.Character
 		humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
 	end
+	-- Своя рыба над головой: как только открылась карточка улова (она закрывает сдвиг) — выше.
+	if not (character and character:FindFirstChild("HeldFish")) then
+		cameraState.trophy = false
+	elseif not cameraState.trophy then
+		local fishing = hudGui and hudGui:FindFirstChild("Fishing")
+		local card = fishing and fishing:FindFirstChild("CatchCard")
+		cameraState.trophy = card ~= nil and card:IsA("GuiObject") and card.Visible
+	end
+	local offset = if cameraState.trophy then FX.TrophyCamera else FX.CameraOffset
 	if humanoid ~= cameraHumanoid then
 		local old = cameraHumanoid
 		cameraHumanoid = humanoid
@@ -696,8 +733,12 @@ updateCamera = function()
 			tweenCameraOffset(old, Vector3.zero, CAMERA_OUT)
 		end
 		if humanoid then
-			tweenCameraOffset(humanoid, FX.CameraOffset, CAMERA_IN)
+			tweenCameraOffset(humanoid, offset, CAMERA_IN)
 		end
+		cameraState.offset = if humanoid then offset else nil
+	elseif humanoid and cameraState.offset ~= offset then
+		cameraState.offset = offset
+		tweenCameraOffset(humanoid, offset, CAMERA_IN)
 	end
 	if wanted and cameraThread == nil then
 		cameraThread = task.delay(CAMERA_POLL, pollCamera)
@@ -1865,8 +1906,9 @@ local function popBall(tracker: Tracker, center: Vector3, color: Color3)
 	tween(part, TweenInfo.new(POP_FADE, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 })
 end
 
--- Ореол: кольцо лицом к камере (BillboardGui) вокруг рыбы над головой растёт и тает.
-local function halo(tracker: Tracker, body: BasePart, center: Vector3, inner: Color3)
+-- Ореол: кольцо лицом к камере (BillboardGui) вокруг рыбы над головой растёт (до to studs,
+-- по умолчанию HALO_TO) и тает.
+local function halo(tracker: Tracker, body: BasePart, center: Vector3, inner: Color3, to: number?)
 	local parent = folder
 	if not parent then
 		return
@@ -1886,7 +1928,7 @@ local function halo(tracker: Tracker, body: BasePart, center: Vector3, inner: Co
 	local effect = newEffect(tracker, HALO_TIME + 0.05)
 	table.insert(effect.instances, gui)
 	tween(gui, TweenInfo.new(HALO_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Size = UDim2.fromScale(HALO_TO, HALO_TO),
+		Size = UDim2.fromScale(to or HALO_TO, to or HALO_TO),
 	})
 	local fade = TweenInfo.new(HALO_TIME, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
 	tween(outerStroke, fade, { Transparency = 1 })
@@ -1913,6 +1955,26 @@ local function plateLabel(parent: Instance, name: string, text: string, box: { n
 	stroke.Parent = label
 	label.Parent = parent
 	return label
+end
+
+-- Спрятанная своя табличка выскакивает (0 → 1, Back Out) через delay секунд; уже видна — ничего.
+-- true — выскочила сейчас.
+local function revealPlate(gui: BillboardGui, delay: number): boolean
+	if gui.Enabled or gui.Parent == nil then
+		return false
+	end
+	gui.Enabled = true
+	local plate = gui:FindFirstChild("Plate")
+	local scale = plate and plate:FindFirstChild("FxScale")
+	if scale and scale:IsA("UIScale") then
+		scale.Scale = 0
+		tween(
+			scale,
+			TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out, 0, false, delay),
+			{ Scale = 1 }
+		)
+	end
+	return true
 end
 
 -- Табличка над рыбой редкости Rare+ (видят все, пока рыба над головой): редкость (легендарная —
@@ -1997,7 +2059,34 @@ local function nameplate(tracker: Tracker, held: Model, rarity: string, event: F
 
 	local effect = newEffect(tracker, FishingRules.HoldFishTime(rarity) + 0.3)
 	table.insert(effect.instances, gui)
-	tween(scale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out, 0, false, 0.12), { Scale = 1 })
+	local stops: { () -> () } = {}
+	effect.onEnd = function()
+		for _, stop in stops do
+			stop()
+		end
+	end
+	local hud = hudGui
+	if isOwn(tracker) and hud and hud:GetAttribute("CounterHold") ~= nil then
+		-- Своя табличка ждёт, пока улов на экране (HUD держит CounterHold): под заголовком она
+		-- повторяла бы его слово, из-за карточки торчала бы готовая цена, пока та ещё считает.
+		-- Выскакивает на «повторе» трофея (ReplayOwnTrophy) как новое; не было его (карточку
+		-- закрыли иначе) — через PLATE_AFTER_CARD после того, как счётчик отпустили.
+		gui.Enabled = false
+		local waiting = hud:GetAttributeChangedSignal("CounterHold"):Connect(function()
+			if hud:GetAttribute("CounterHold") == nil then
+				task.delay(PLATE_AFTER_CARD, function()
+					if not effect.done then
+						revealPlate(gui, 0)
+					end
+				end)
+			end
+		end)
+		table.insert(stops, function()
+			waiting:Disconnect()
+		end)
+	else
+		tween(scale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out, 0, false, 0.12), { Scale = 1 })
+	end
 	if style.Rainbow then
 		-- Радуга переливается: градиент ездит туда-обратно (твин, без соединений; гасится с табличкой).
 		fill.Offset = Vector2.new(-0.35, 0)
@@ -2006,9 +2095,9 @@ local function nameplate(tracker: Tracker, held: Model, rarity: string, event: F
 			TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
 			{ Offset = Vector2.new(0.35, 0) }
 		)
-		effect.onEnd = function()
+		table.insert(stops, function()
 			shimmer:Cancel()
-		end
+		end)
 	end
 end
 
@@ -2034,10 +2123,15 @@ local function pillar(tracker: Tracker, base: Vector3, rarity: string, lifeOverr
 			else Fx.PillarTimeOther[rarity] or Fx.PillarTimeOther.Legendary
 	local tall = Fx.PillarHeight[rarity] or Fx.PillarHeight.Legendary
 	local wide = (if style.Rainbow then 1.5 else 1) * (if own then OWN_PILLAR_WIDTH else 1)
-	-- Чужой столб издалека шире: не уже ~25 px с соседнего пирса (≈240 studs) и через лагуну.
+	-- Чужой столб издалека шире (не уже ~25 px с соседнего пирса, ≈240 studs, и через лагуну) и
+	-- выше: луч в небо, а не «факел» над крышами.
 	local viewer = if own then nil else viewerPosition()
-	local far = if viewer then math.max(1, (base - viewer).Magnitude / PILLAR_FAR) else 1
+	local distance = if viewer then (base - viewer).Magnitude else 0
+	local far = math.max(1, distance / PILLAR_FAR)
 	wide *= far
+	if viewer then
+		tall = math.max(tall, PILLAR_SKY.base + distance * PILLAR_SKY.slope)
+	end
 	local fadeFrom = if own then 0.3 else PILLAR_FADE_OTHER
 	local upright = CFrame.Angles(0, 0, math.pi / 2) -- ось цилиндра (X) — вертикально
 	local coreWidth0 = PILLAR_CORE * far
@@ -2185,8 +2279,25 @@ local function celebrate(tracker: Tracker, event: FxEvent, held: Model?, near: b
 			-- Своему рыбаку столб не закрывает его самого и рыбу: начинается над рыбой.
 			local box, size = held:GetBoundingBox()
 			base = box.Position + Vector3.new(0, size.Y / 2 + 0.5, 0)
+		elseif held and near then
+			-- Чужой вблизи: над его табличкой (она над рыбой; studs + пиксели — на этом расстоянии
+			-- столько studs) — неоновая сердцевина не режет рыбу и надпись. Издалека таблички нет —
+			-- столб от земли.
+			local box, size = held:GetBoundingBox()
+			local camera = Workspace.CurrentCamera
+			local plate = NAMEPLATE_STUDS.Y
+			if camera and camera.ViewportSize.Y > 1 then
+				local away = math.max((box.Position - camera.CFrame.Position).Magnitude, 1)
+				local perStud = camera.ViewportSize.Y / (2 * away * math.tan(math.rad(camera.FieldOfView) / 2))
+				plate += NAMEPLATE_PIXELS.Y / math.max(perStud, 1e-3)
+			end
+			base = box.Position + Vector3.new(0, size.Y / 2 + 0.4 + plate + 0.5, 0)
 		end
 		pillar(tracker, base, rarity)
+		if not isOwn(tracker) then
+			-- Чужой улов: HUD покажет, в какой стороне столб, если его не видно (NotifyController).
+			FishingFxController.OtherTrophy:Fire(tracker.player, feet, rarity)
+		end
 		if near then
 			-- Волна по земле: два кольца цвета редкости (мифическая — радужные пары).
 			local colorPairs = if style.Rainbow
@@ -2783,19 +2894,24 @@ function FishingFxController.ReplayOwnTrophy(): boolean
 	local rarity = if typeof(rarityAttr) == "string" and UIConfig.Rarity[rarityAttr] then rarityAttr else "Common"
 	local style = UIConfig.Rarity[rarity]
 	local box, size = held:GetBoundingBox()
+	local camera = Workspace.CurrentCamera
+	local short = camera ~= nil and camera.ViewportSize.Y > 1 and camera.ViewportSize.Y < TROPHY_SHORT_SCREEN
 	popBall(tracker, box.Position, if rarity == "Common" then WHITE else style.Top)
-	halo(tracker, body, box.Position, style.Bottom)
+	halo(tracker, body, box.Position, style.Bottom, if short then HALO_TO * TROPHY_SHORT_HALO else nil)
 	for effect in tracker.effects do
 		local emitter = effect.emitter
 		if emitter and emitter.Name == "RarityAura" and emitter.Parent then
-			burst(emitter, 14)
+			burst(emitter, if short then 30 else 14)
 		end
 		for _, instance in effect.instances do
-			local plate = if instance.Name == "Nameplate" then instance:FindFirstChild("Plate") else nil
-			local scale = plate and plate:FindFirstChild("FxScale")
-			if scale and scale:IsA("UIScale") then
-				scale.Scale = 1.25
-				tween(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+			if instance.Name == "Nameplate" and instance:IsA("BillboardGui") and not revealPlate(instance, 0.15) then
+				-- Уже видна (карточку закрыли без «повтора», не тот экран) — подпрыгивает.
+				local plate = instance:FindFirstChild("Plate")
+				local scale = plate and plate:FindFirstChild("FxScale")
+				if scale and scale:IsA("UIScale") then
+					scale.Scale = 1.25
+					tween(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+				end
 			end
 		end
 	end
@@ -2803,13 +2919,24 @@ function FishingFxController.ReplayOwnTrophy(): boolean
 	local sound = makeSound(body, "TrophyPing", SOUND_PING, 0.4, true)
 	table.insert(chime.instances, sound)
 	play(sound, if style.Flash then 0.9 else 1.3)
-	if style.Flash then
+	if style.Flash and not short then
 		pillar(tracker, box.Position + Vector3.new(0, size.Y / 2 + 0.5, 0), rarity, TROPHY_PILLAR_TIME)
 	end
 	return true
 end
 
-function FishingFxController:Start(_hud: ScreenGui)
+function FishingFxController:Start(hud: ScreenGui)
+	hudGui = hud
+	-- Карточка улова открылась — камера сразу «подтягивается» (FX.TrophyCamera), не ждёт проверки.
+	local fishing = hud:FindFirstChild("Fishing")
+	local card = fishing and fishing:FindFirstChild("CatchCard")
+	if card and card:IsA("GuiObject") then
+		card:GetPropertyChangedSignal("Visible"):Connect(function()
+			if card.Visible then
+				updateCamera()
+			end
+		end)
+	end
 	local fxFolder = Instance.new("Folder")
 	fxFolder.Name = FOLDER_NAME
 	fxFolder.Parent = Workspace

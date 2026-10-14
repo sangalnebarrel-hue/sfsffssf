@@ -111,17 +111,23 @@ timers. Stagger groups by 0.03–0.06 s.
   the HUD has `CounterHold`); Home button (Mint candy, dark caption ribbon like the action button,
   🏠 wiggle on press; cooldown: draining veil, digits on the face, «ЖДИ» over the veil, the house
   fades; one shine when ready); toasts (candy pills by kind with an icon in a socket, slide-down +
-  bounce, shine; a column right under the status stack — 3 on a PC (clear of the chat window), 2
-  on a tablet, 1 on a phone (above the avatar's head); none while the catch is on screen, 1 over
-  the bite / minigame (on phones none but danger), the rest queue — a toast pushed off in the
+  bounce, shine; a column right under the status stack — 3 on a PC (clear of the chat window), 1
+  on a tablet or a phone (above the avatar's head); none while the catch is on screen, 1 over
+  the bite / minigame (on phones none but danger), none but danger while a hit word or a minigame
+  ghost («МИМО!», «ПОЙМАНА!») rises into the column, the rest queue — a toast pushed off in the
   first half of its life comes back; Legendary (gold, 🌟) and Mythic (rainbow, 🌈) broadcasts
   in two lines — who (Small) over what (up to Title, the rarity word in capitals, light-gold /
   running-rainbow letters), Mythic adds one thin rainbow edge pulse; leaving: rise + fade, ≥ 0.7 s apart).
+  Someone else's Legendary / Mythic pillar off-screen (behind the camera or past the frame's
+  edge): a small chip at that screen edge (HUD.TrophyPointer → «TrophyChip», ≈ 46 px, y 0.38 of
+  the HUD, ≥ 16 px from the edge) — 🌟 on a gold / 🌈 on a rainbow candy ringed in the catcher's
+  base colour, its tip nudging 6 px towards the edge — for the pillar's life; gone while the
+  pillar is on screen; on phones hidden during the own bite / minigame / catch (the toast rule).
   Only the primary CTA idles (shine + breathing); the chrome stays calm.
 - **Fishing UI** (tools/builder/gui/Fishing.luau, FishingController): the action button is the star —
   a big round candy button (ActionArea, 0.66 of the HUD height, max 320 x 240) whose gradient, icon and
   caption ribbon change by state (ЗАБРОСИТЬ 🎣 → ЖДЁМ… with a bobbing float and 1–2 nibbles «?» →
-  ПОДСЕЧЬ! «!» → ЛОВИ! 🎯; Slate ⏳ while waiting on the server, К ПИРСУ 🧭 far from the spot — it
+  ПОДСЕЧЬ! «!» → ЛОВИ! 🎯; Slate ⏳ while waiting on the server, КУДА ИДТИ? 🧭 far from the spot — it
   shows the way, never scolds: a calm 💡 hint, the compass turns, the guide beam flares; ВЗЯТЬ
   in gold at the spot; a dim frozen ЖДЁМ… during the catch until the card is fully shown, then
   ЗАБРАТЬ! 👍 in Leaf with white rings — it closes the card), glow rings while it matters, shine on idle, press squash, ripple on tap; a key
@@ -133,7 +139,8 @@ timers. Stagger groups by 0.03–0.06 s.
   bobber. Minigame: candy track, glossy green zone with a rider by rarity (🐟 🐠 🐡 🦈 🐉; Legendary+
   bigger and glowing) and a glow pulse, needle ▼ with two fading ghost copies (under the zone), a
   light Rare rim, Epic+ outline/aura in the rarity colours, Legendary/Mythic slam the giant rarity
-  word over the panel once; on phones the panel stands beside the own bobber when it would cover
+  word over the panel once (the first hit / miss / win word knocks it away: it swells and fades in
+  0.12 s — never two words stacked); on phones the panel stands beside the own bobber when it would cover
   it; the hit is shown at once (the needle freezes gold, sparks, rising pitch) with
   «ОТЛИЧНО!» → «СУПЕР!» → «МЕГА!» or «ИДЕАЛЬНО!» (within 25 % of the zone centre), pip turns into a
   ⭐; on touch the panel itself is a tap pad and a 👆 cue helps the first games; on miss / timeout a
@@ -144,14 +151,22 @@ timers. Stagger groups by 0.03–0.06 s.
   small bump, a higher pop) until the server answers (≤ 1.5 s); on "Caught" the minigame plays its
   win (FxMinigameWin: ⭐, gold zone, the needle where it was tapped, sparks) and sinks away early, and
   «ПОЙМАНА!» slams in (2.4 → 1, tilted, ≈ 0.17 of the HUD height, in the rarity colours — Mythic a
-  sweeping rainbow — with a glow ring) left of the character, never over the leap; the status badge
-  and the counter fade out, the button freezes, Epic+ get an edge vignette, Legendary/Mythic an
-  accelerating heartbeat and a slight FOV wind-up while the fish leaps. On the landing
-  (`FishingFxController.OwnFishLanded`) **no full-screen flash**: a shockwave (`UiFx.shockwave`) and
-  sparks from the fish's point, for Epic+ a short edge glow in the rarity colours (≤ 0.4 s), shake and
-  FOV punch, confetti; for Epic+ the rarity rays start around the fish (empty middle) with the giant
-  rarity title (TitleSlam; Legendary/Mythic letter by letter) — a title stage of 0.5 / 0.8 / 0.9 s
-  (Epic / Legendary / Mythic) — then the card is born at the fish and settles (position Quint Out,
+  sweeping rainbow — with a glow ring) left of the character, never over the leap, and is gone
+  ≈ 0.2 s before the landing (a quiet beat before the shockwave); the status badge and the counter
+  fade out, the button freezes; Epic+ get a narrow edge frame (0.13 of the height) that builds
+  0.85 → 0.5 alpha into the landing (Quad In) and cuts off on it — Mythic's is a light rainbow
+  cycling around the frame —, Legendary/Mythic an accelerating heartbeat (sound only) and a slight
+  FOV wind-up while the fish leaps. On the landing (`FishingFxController.OwnFishLanded`) **no
+  full-screen flash**: a shockwave (`UiFx.shockwave`) and sparks from the fish's point, for
+  Legendary/Mythic a short narrow edge flash (0.12 of the height, ≈ 0.34 s; Mythic cycling
+  rainbow), shake and FOV punch, confetti; for Epic+ the rarity rays start around the fish (empty
+  middle) with the giant rarity title (TitleSlam, 0.24 of the HUD height within the side limits;
+  white → rarity → shade fill, a thick outline; Legendary/Mythic letter by letter, each letter
+  starts its wave as it lands; a white shine sweeps the word right behind the letters) and, once
+  the shockwave is gone (+0.55 s), a light full-screen dim (the card's dim + 0.2) so rays and
+  letters pop — a title stage of 0.6 / 0.9 / 1.0 s (Epic / Legendary / Mythic; Common 0.35 and
+  Rare 0.4 let the landing pop and halo play before the card) — then the card is born at the fish
+  and settles (position Quint Out,
   no overshoot; the rays follow it): a landscape trophy card on phones (fish left, name and chips
   right; centred — on the smallest phone above the action button, a side limit only counts when its
   obstacle is level with the card), the 380 x 384 square elsewhere; Legendary 1.05x and Mythic 1.1x
@@ -161,7 +176,8 @@ timers. Stagger groups by 0.03–0.06 s.
   to the banner's outline and the mutation keeps the card's), Legendary/Mythic a face tinted
   towards the rarity (Mythic: a slow pastel rainbow). Its beats, one at a time, ≥ 0.25 s apart,
   each with its own motion: rarity (the title flies into the banner and the banner grows out of
-  it; without a title the banner unrolls from the middle, Quint Out) → name (slides in from the
+  it at 70 % of the flight while the title fades out in 0.08 s and the banner's label fades in —
+  never two readable words; without a title the banner unrolls from the middle, Quint Out) → name (slides in from the
   right, Quint Out, fading in) → «НОВИНКА!» (a stamp — only stamps use Back Out) → chips (rise,
   Quad Out, the price 0.08 s later) → price count-up and landing (the chip squashes 1.25 × 0.85
   and springs back, Elastic Out; «+N 💰» stamps in over it and floats up — Rare+ or a mutation;
@@ -173,8 +189,9 @@ timers. Stagger groups by 0.03–0.06 s.
   three volleys (landing, +1 s, the price) under the touch cap. A tap skips to the end, a tap at
   least 0.6 s later closes; the card shrinks towards the counter (the first catch: the counter
   pops in with «Улов: 0»), a 🐟 with ★ in the rarity colours flies out of it into the counter
-  (which holds its number meanwhile and greets the fish in the rarity colour) and the trophy over
-  the head flashes once more (`FishingFxController.ReplayOwnTrophy`) and stays ≈ 3 s.
+  (which holds its number meanwhile and greets the fish in the rarity colour); right after the
+  «+1» the trophy over the head flashes once more (`FishingFxController.ReplayOwnTrophy`; the own
+  nameplate pops in only now — it stayed hidden while the catch was on screen) and stays ≈ 3 s.
   Rarity tiers (dim, rays, confetti volleys, burst, hold, auto-close): `REVEAL` in FishingController.
 - **World FX** (FishingFxController, + FishingService for the broadcast): cast with a sparkly trail on
   the bobber and a whoosh, a splash + expanding ripple rings on landing, slow ripples and nibbles
@@ -183,14 +200,21 @@ timers. Stagger groups by 0.03–0.06 s.
   stars and a blinking outline on your own bobber; a wake while reeling. On a catch a spout, then the
   fish **leaps out of the water** and flies in an arc (spinning, rarity-coloured sparkle trail) to
   above the fisher's head — `OwnFishLanded` fires the frame it lands — then a halo, a nameplate
-  (rarity, name, mutation, price; sized in studs + pixels; above the fish for others, beside it —
-  to the right — for your own, where the title and the card are) and the rarity aura around the
-  held fish for `FishingRules.HoldFishTime(rarity)` s (≈ 3 s longer than the catch card, so your own
-  trophy is still there when the card closes; then `ReplayOwnTrophy` pops it once more: ball, halo,
-  sparks, nameplate bump, a chime, a short pillar for Legendary/Mythic); Legendary/Mythic: a light
-  pillar (narrower on your own screen; for everyone else wider with distance — ≥ 25 px from the
-  neighbouring pier — and longer, `Fx.PillarTimeOther`; their broadcast toast lands with it) and a
-  confetti burst, seen by everyone. A lost fish: the line flashes, the bobber pops up, a splash and
+  (rarity, name, mutation, price; sized in studs + pixels; above the fish for others, popping in
+  at the landing; beside it — to the right — for your own, hidden while the catch is on screen:
+  under the title it would repeat the word, by the card show the final price early) and the
+  rarity aura around the held fish for `FishingRules.HoldFishTime(rarity)` s (≈ 3 s longer than the
+  catch card, so your own trophy is still there when the card closes; then, after the counter's
+  «+1», `ReplayOwnTrophy` pops it once more: ball, halo, sparks, the own nameplate pops in (no
+  replay — 0.5 s after the counter is released), a chime, a short pillar for Legendary/Mythic — on
+  short screens (< 500 px) no pillar and a 0.7× halo, so nothing rings the counter; once the
+  card has opened the own camera offset rises 0.6 stud — hidden by the card — so the trophy and
+  its plate clear the counter afterwards);
+  Legendary/Mythic: a light pillar (narrower on your own screen; for everyone else wider with
+  distance — ≥ 25 px from the neighbouring pier —, taller with distance — 40 + d / 2 studs, a beam
+  to the sky from any pier —, starting above the catcher's nameplate when near, and longer,
+  `Fx.PillarTimeOther`; their broadcast toast lands with it, `FishingFxController.OtherTrophy`
+  points the HUD chip at it) and a confetti burst, seen by everyone. A lost fish: the line flashes, the bobber pops up, a splash and
   a tail flick away.
 
 ## 4. Budgets (phones first)
@@ -319,7 +343,7 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `flashBig(layer, color?)` | timers | the big-moment preset: from 0.12, hold 0.05 s, fade 0.45 s (unused: not for catch landings, see `shockwave`) |
 | `shockwave(layer, origin, {color?, colors?, size?, time?, thickness?, glow?, z?})` | timers | the landing hit at `origin` (shares of the layer): "FxShock" ring (`color` or a `colors` gradient) from 0.3 to `size` (1.3) layer heights over `time` (0.45 s), a thin white "FxShockInner" ring 0.06 s later, a soft "FxShockGlow" disc (`glow` = start transparency, 0.55); `thickness` 14 px at 720 (thinner on phones), ZIndex 60; everything destroyed after `time` |
 | `fovPunch(deg, tIn?, tOut?, easeIn?)` → stop | frame | the ONLY writer of `Camera.FieldOfView`: base + deg (negative = zoom in) over `tIn` (0.08 s, Quad Out; `easeIn` = Sine In wind-up), back over `tOut` (0.35 s, Sine); punches add up, the sum is clamped to ±8°; the base is restored at the end (an outside change of the FOV becomes the new base). Never set FieldOfView yourself while punches may run |
-| `edgeVignette(layer, color \| {colors}, alpha, period?, opts?)` → stop(fade?) | timers | 4 edge bands ("FxVignette", ZIndex 90): transparency `alpha` at the edge → clear inside; `colors` run edge → inward. `period` = full pulse cycle between alpha and `opts.pulseTo` (alpha + 0.2), clamped to ≥ 0.34 s. opts: `fadeIn` (0.35 s), `pulseTo`, `hold` (auto-stop after N s), `fadeOut` (0.25 s), `size` (band, 0.24 of the screen height), `z`. E.g. Epic+ tension `edgeVignette(hud, c, 0.75, nil, {fadeIn = 0.5})`, bite `edgeVignette(hud, {Sun.Top, Sun.Bottom}, 0.55, 0.45)`, perfect hit `edgeVignette(hud, Gold.Top, 0.8, nil, {fadeIn = 0, hold = 0})` |
+| `edgeVignette(layer, color \| {colors}, alpha, period?, opts?)` → stop(fade?) | timers | 4 edge bands ("FxVignette", ZIndex 90): transparency `alpha` at the edge → clear inside; `colors` run edge → inward. `period` = full pulse cycle between alpha and `opts.pulseTo` (alpha + 0.2), clamped to ≥ 0.34 s. opts: `fadeIn` (0.35 s), `from` (start transparency, 1), `build` (the fade-in eases in — Quad In — so it builds up to its end), `cycle` ({colors}: each side its own colour, running round the frame; one frame job while it lives), `pulseTo`, `hold` (auto-stop after N s), `fadeOut` (0.25 s), `size` (band, 0.24 of the screen height), `z`; `stop(0)` cuts it at once. E.g. Epic+ tension `edgeVignette(hud, {Bottom, Top}, 0.5, nil, {from = 0.85, fadeIn = LeapTime − 0.3, build = true, size = 0.13})` cut with `stop(0)` on the landing, bite `edgeVignette(hud, {Sun.Top, Sun.Bottom}, 0.55, 0.45)`, perfect hit `edgeVignette(hud, Gold.Top, 0.8, nil, {fadeIn = 0, hold = 0})` |
 | `flyTo(layer, from, to, {text?, color?, time?, size?, arc?, onArrive?})` → stop | frame | an emoji (or a glyph like «★» in `color`, Ink-stroked) flies on an arc between two widgets (card → counter) |
 | `trail(gui, {count?, lag?, transparency?})` → stop | frame | ghost copies following a moving widget (minigame needle) |
 | `cameraShake(amplitude?, time?)` → stop | render step | gentle translation-only shake (Legendary/Mythic) |
@@ -352,9 +376,15 @@ RenderStepped connection for all running frame effects, disconnected when none r
   server sends them as the Notify kind, one string «Who: what» that the client splits at the
   first ": " into two lines); `look = { swatch?, icon? }` overrides the colour/icon.
   No toast while the catch is on screen (the HUD has `CounterHold`, or `HUD.Fishing.CatchCard` is
-  Visible); while `Minigame` or `BiteAlert` is Visible, or its ghost (`FxMinigameWin` /
-  `FxMinigameMiss`) plays, one toast shows — on phones none but danger (the rest queue); keep
-  those names and drive them through `Visible`.
+  Visible); while `Minigame` or `BiteAlert` is Visible one toast shows — on phones none but
+  danger (the rest queue); while a ghost (`FxMinigameWin` / `FxMinigameMiss`) plays or a hit word
+  (`Minigame.FxFloat`) rises, none but danger on every screen; keep those names and drive them
+  through `Visible`.
+- **Off-screen trophy chip**: `FishingFxController.OtherTrophy` (Signal: `player, basePosition,
+  rarity`) fires on every client but the catcher's when a Legendary / Mythic pillar goes up;
+  NotifyController clones `HUD.TrophyPointer` (children `Body` — a candy with `Icon` —, `Tip`,
+  `BaseRing.Stroke`) as «TrophyChip» for `FishingConfig.Fx.PillarTimeOther[rarity]` s. Stage 3
+  can reuse the signal (e.g. a theft alarm pointer) and the template.
 - **Base banner** (`HUD.BaseBanner`): HudController only; never shown by other modules.
 - **Catch card time**: `UIConfig.CatchCardTime[rarity]` (seconds of auto-close).
 

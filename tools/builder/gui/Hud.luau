@@ -8,7 +8,9 @@
 	Names are a contract (controllers and tests find them): Status.BaseBadge.{Swatch, Label},
 	Status.CatchCounter.{Icon, Label}, RightButtons.HomeButton.{Icon, Caption, Cooldown,
 	CooldownText}, Toasts.ToastTemplate.{Label, IconSocket.Icon}, BaseBanner.{Caption, NameLabel,
-	FlagSocket.Flag}. Everything else (Lip, Gloss, Shine, sockets, ribbons, …) is decoration.
+	FlagSocket.Flag}, TrophyPointer.{Body.IconSocket.Icon, Tip, BaseRing.Stroke} (NotifyController: the chip
+	pointing at someone else's off-screen light pillar). Everything else (Lip, Gloss, Shine,
+	sockets, ribbons, …) is decoration.
 
 	Text uses the type scale (Theme.TYPE, UiFx.fitText): badge Title, counter and toasts Body,
 	Home caption Button; every tiered label gets a box at least as tall as its tier.
@@ -269,6 +271,64 @@ local function buildToasts(hud: any)
 			Size = UDim2.fromScale(0.8, FACE * 0.72),
 			TextWrapped = true, -- long texts: NotifyController makes the toast taller (two lines)
 		},
+	})
+
+	-- Someone else's Legendary / Mythic catch whose light pillar is off-screen: NotifyController
+	-- clones this per catch to the screen edge on the pillar's side (FishingFxController.OtherTrophy)
+	-- — a round candy in the rarity colours (Gold / rainbow) with the 🌟 / 🌈 in a white socket, in
+	-- a ring of the catcher's base colour, its Tip (an arrowhead in the rarity colour, out from
+	-- under the candy) pointing at the edge (built on the right; mirrored for the left). Small (≈ 46
+	-- px on a phone) and never takes input.
+	local pointer = U.new("Frame", {
+		Name = "TrophyPointer",
+		Visible = false,
+		Active = false,
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.38),
+		Size = UDim2.fromScale(0.118, 0.118),
+		SizeConstraint = Enum.SizeConstraint.RelativeYY,
+		ZIndex = 15,
+	}, hud)
+	U.new("UISizeConstraint", { MinSize = Vector2.new(46, 46), MaxSize = Vector2.new(72, 72) }, pointer)
+	local tip = U.new("Frame", {
+		Name = "Tip",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(1.1, 0.46),
+		Size = UDim2.fromScale(0.44, 0.44),
+		Rotation = 45,
+		BackgroundColor3 = P.Gold.Top,
+		BorderSizePixel = 0,
+		ZIndex = 2,
+	}, pointer)
+	corner(tip, 0.18)
+	Theme.stroke(tip, 3)
+	local ring = U.new("Frame", {
+		Name = "BaseRing",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.48),
+		Size = UDim2.fromScale(1.2, 1.2),
+		BackgroundTransparency = 1,
+		ZIndex = 1,
+	}, pointer)
+	corner(ring, 0.5)
+	U.new("UIStroke", {
+		Name = "Stroke",
+		Color = WHITE,
+		Thickness = 4,
+		Attributes = { BaseThickness = 6 },
+	}, ring)
+	local body = U.new("Frame", {
+		Name = "Body",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 3,
+	}, pointer)
+	Theme.candy(body, "Gold", { radius = 0.5 })
+	Theme.socket(body, "IconSocket", "🌟", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, FACE * 0.5),
+		Size = UDim2.fromScale(0.7, 0.7),
 	})
 end
 

@@ -700,6 +700,45 @@ tests["edgeVignette: four edge bands fade in, pulse on tweens, stop fades and re
 	sim:AssertNoErrors({ warnings = true })
 end
 
+tests["edgeVignette: a frame that builds (from → alpha, Quad In), cycling colours, stop(0) cuts it"] = function(t)
+	local sim, p = boot(t)
+	local UiFx = fxOf(sim, p)
+	local hud = p.PlayerGui.HUD
+	local stop
+	local colors = { Color3.fromRGB(255, 0, 0), Color3.fromRGB(0, 255, 0), Color3.fromRGB(0, 0, 255) }
+	client(sim, p, function()
+		stop = UiFx.edgeVignette(hud, colors[1], 0.5, nil, {
+			from = 0.85,
+			fadeIn = 0.6,
+			build = true,
+			size = 0.13,
+			cycle = colors,
+		})
+	end)
+	local layer = hud.FxVignette
+	t.near(layer.Top.BackgroundTransparency, 0.85, 0.02, "starts at `from`")
+	sim:Advance(0.3)
+	local half = layer.Top.BackgroundTransparency
+	t.ok(half > 0.85 - (0.85 - 0.5) * 0.5, `builds slowly first (Quad In: {half} at half time)`)
+	sim:Advance(0.35)
+	t.near(layer.Top.BackgroundTransparency, 0.5, 0.02, "…and ends at alpha")
+	t.ok(UiFx.activeJobs() > 0, "the cycling colours are a frame job while it lives")
+	local function same(a: Color3, b: Color3): boolean
+		return math.abs(a.R - b.R) + math.abs(a.G - b.G) + math.abs(a.B - b.B) < 0.05
+	end
+	t.ok(not same(layer.Top.BackgroundColor3, layer.Bottom.BackgroundColor3), "each side its own colour")
+	local before = layer.Top.BackgroundColor3
+	sim:Advance(0.3)
+	t.ok(not same(before, layer.Top.BackgroundColor3), "…and the colours run round the frame")
+	client(sim, p, function()
+		stop(0)
+	end)
+	t.eq(hud:FindFirstChild("FxVignette"), nil, "stop(0) cuts it at once (no fade into the landing)")
+	sim:Advance(0.1)
+	t.eq(UiFx.activeJobs(), 0, "the colour job is gone too")
+	sim:AssertNoErrors({ warnings = true })
+end
+
 tests["fitText, text outline floor, fadeOut of a ViewportFrame, glowRing stop, hidden Shine"] = function(t)
 	local sim, p = boot(t, "phone")
 	local UiFx = fxOf(sim, p)

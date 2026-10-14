@@ -92,7 +92,7 @@ local function standAtSpot(sim: any, player: any)
 	sim:Advance(0.3)
 end
 
--- The rod in hand at the own fishing spot (far from it the button is «К ПИРСУ» and casts
+-- The rod in hand at the own fishing spot (far from it the button is «КУДА ИДТИ?» and casts
 -- nothing — UI v2); `far` = equip it where the player stands.
 local function equipRod(sim: any, player: any, far: boolean?): any
 	local rod = giveRod(sim, player)
@@ -197,7 +197,7 @@ tests["action button: hidden without the rod, shown while it is equipped, key hi
 	sim:Advance(0.1)
 	t.eq(button.Visible, true, "rod in hand")
 	-- UI v2 (FUI-16): far from the fishing spot the button shows the way instead of casting.
-	t.eq(caption(sim, p), "К ПИРСУ", "far from the spot")
+	t.eq(caption(sim, p), "КУДА ИДТИ?", "far from the spot")
 	t.eq(keyChip(sim, p), "", "no key chip: the key does not cast here")
 	t.ok(isCandy(button, UIConfig.Palette.Slate), "a calm Slate candy far from the spot")
 	standAtSpot(sim, p)
@@ -562,7 +562,7 @@ tests["hints: far → guide beam to the own FishingSpot, near → «Жми», De
 	sim:Advance(0.3)
 	t.eq(hint.Visible, true)
 	t.eq(hint.Text, FishingConfig.Texts.Denied.far, "the same words as the server's refusal")
-	t.eq(hint.Text, "Иди в сверкающий круг на краю пирса")
+	t.eq(hint.Text, "Иди в сверкающий круг на\u{00A0}краю\u{00A0}пирса")
 	local root = sim:GetRoot(p)
 	local beam = root:FindFirstChild("FishingGuide")
 	t.ok(beam and beam:IsA("Beam"), "guide beam from the character")
@@ -689,10 +689,10 @@ tests["phone: a world tap (Tool.Activated, also fired by camera drags) never tap
 	sim:Advance(1.5)
 	t.eq(card.Visible, false)
 
-	-- «К ПИРСУ» (far from the spot): walking there with drags does not re-fire the far warning.
+	-- «КУДА ИДТИ?» (far from the spot): walking there with drags does not re-fire the far warning.
 	sim:Teleport(p, ownBase(sim, p).SpawnPad.Position + Vector3.new(0, 5, 0))
 	sim:Advance(1)
-	t.eq(caption(sim, p), "К ПИРСУ")
+	t.eq(caption(sim, p), "КУДА ИДТИ?")
 	local icon = gui(sim, p, "Hint.IconSocket.Icon")
 	local before = icon.Text
 	local button = gui(sim, p, "ActionArea.ActionButton")
