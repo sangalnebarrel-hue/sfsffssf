@@ -18,8 +18,10 @@
 	     FishingRules.Needle, что рисует клиент: попал — "Zone" (зона переехала) или "Caught",
 	     промах — "Lost" miss, не успел за MinigameTimeout — "Lost" timeout.
 	  5. Поймал: атрибут FishCaught + 1, рыба в улове сессии (GetCatch), сигнал FishCaught,
-	     рыба над головой рыбака на HoldFishTime секунд (её видят все), о легендарной
-	     и мифической рыбе узнают остальные игроки.
+	     о легендарной и мифической рыбе узнают остальные игроки. Рыба выпрыгивает из воды
+	     у поплавка и летит к рыбаку (это рисуют клиенты, см. атрибут FishFx ниже), а через
+	     LeapTime, когда она долетела, рыба появляется над головой рыбака на HoldFishTime
+	     секунд (её видят все).
 	  6. Сам заканчивает рыбалку: персонаж умер или исчез ("died"), убрал удочку ("unequipped",
 	     сразу по Tool.Unequipped),
 	     отошёл дальше KeepRadius ("moved"), база освободилась ("base"), игрок смотал леску
@@ -35,7 +37,12 @@
 	Проверка активных рыбалок — раз в WATCH_INTERVAL секунд (Heartbeat), только по тем,
 	кто сейчас рыбачит.
 
-	Атрибуты Player (видят все клиенты): FishingState, BobberTarget, CastTime, RodId, FishCaught.
+	Атрибуты Player (видят все клиенты): FishingState, BobberTarget, CastTime, RodId, FishCaught,
+	FishFx — событие для эффектов в мире у всех клиентов (FishingFxController), ставится ДО того,
+	как FishingState станет "Idle" (клиенты ещё видят поплавок на воде):
+	  "<номер>|caught|<FishId>|<Mutation или ''>|<Rarity>" — поймал (рыба прыгает к рыбаку);
+	  "<номер>|lost|<FishId или ''>|<Mutation или ''>|<Rarity или ''>" — рыба ушла
+	  (до подсечки рыбы ещё нет — поля пустые). Номер растёт с каждым событием игрока.
 
 	API для других сервисов:
 	  FishingService.FishCaught                 -- Signal (player, fish: FishData)
@@ -78,8 +85,6 @@ local CAST_SIDE_OFFSET = 3
 -- Нажатие «из будущего» (elapsed больше, чем прошло на сервере) честный клиент прислать
 -- не может: такое нажатие игнорируется (допуск — пара кадров на округление).
 local FUTURE_SLACK = 0.05
--- Пойманная рыба висит над головой: зазор между макушкой и рыбой, studs.
-local HELD_FISH_GAP = 0.5
 -- О каких редкостях объявлять всему серверу.
 local ANNOUNCED_RARITIES = { Legendary = true, Mythic = true }
 
@@ -133,7 +138,8 @@ type PlayerState = {
 	Catch: { FishData },
 	Caught: number, -- сколько рыб поймано за игру (атрибут FishCaught)
 	HeldFish: Model?,
-	HeldThread: thread?,
+	HeldThread: thread?, -- уберёт рыбу над головой (или, пока рыба в прыжке, повесит её)
+	FxSerial: number, -- номер последнего события FishFx
 }
 
 local FishingService = {
@@ -317,7 +323,7 @@ local function holdFish(state: PlayerState, character: Model, fish: FishData)
 	local pivot = model:GetPivot()
 	local boxCFrame, boxSize = model:GetBoundingBox()
 	local center = pivot:PointToObjectSpace(boxCFrame.Position)
-	local lift = head.Size.Y / 2 + HELD_FISH_GAP + boxSize.Y / 2
+	local lift = head.Size.Y / 2 + FishingConfig.HeldFishGap + boxSize.Y / 2
 	local modelInHead = CFrame.new(0, lift, 0) * CFrame.new(-center)
 	model:PivotTo(head.CFrame * modelInHead)
 
@@ -347,6 +353,26 @@ local function holdFish(state: PlayerState, character: Model, fish: FishData)
 			clearHeldFish(state)
 		end
 	end)
+end
+
+-- Рыба в прыжке (FishingConfig.LeapTime): прежняя рыба над головой исчезает сразу, новая
+-- появляется, когда долетела. Ожидание — тот же HeldThread: его отменяют выход игрока
+-- и следующий улов (clearHeldFish); умер за это время — рыбы не будет (holdFish проверяет).
+local function holdFishAfterLeap(state: PlayerState, character: Model, fish: FishData)
+	clearHeldFish(state)
+	state.HeldThread = task.delay(FishingConfig.LeapTime, function()
+		state.HeldThread = nil
+		holdFish(state, character, fish)
+	end)
+end
+
+-- Событие для эффектов в мире у всех клиентов (атрибут FishFx, формат — в шапке).
+local function broadcastFx(player: Player, state: PlayerState, kind: string, fish: FishData?)
+	state.FxSerial += 1
+	local id = if fish then fish.Id else ""
+	local mutation = if fish then fish.Mutation or "" else ""
+	local rarity = if fish then fish.Rarity else ""
+	player:SetAttribute("FishFx", `{state.FxSerial}|{kind}|{id}|{mutation}|{rarity}`)
 end
 
 -- Объявление остальным игрокам о легендарной / мифической рыбе (сам рыбак видит карточку
@@ -404,6 +430,11 @@ local function endSession(player: Player, state: PlayerState, event: string, dat
 end
 
 local function lose(player: Player, state: PlayerState, reason: string)
+	local session = state.Session
+	if not session then
+		return
+	end
+	broadcastFx(player, state, "lost", session.Fish) -- до "Idle": поплавок ещё на воде
 	endSession(player, state, "Lost", { Reason = reason, Text = LOST_TEXT[reason] or "" })
 end
 
@@ -417,8 +448,9 @@ local function catch(player: Player, state: PlayerState, session: Session)
 	state.Caught += 1
 	table.insert(state.Catch, fish)
 	player:SetAttribute("FishCaught", state.Caught)
+	broadcastFx(player, state, "caught", fish) -- до "Idle": рыба прыгает от поплавка на воде
 	endSession(player, state, "Caught", { Fish = fish, Total = state.Caught })
-	holdFish(state, session.Character, fish)
+	holdFishAfterLeap(state, session.Character, fish)
 	announce(player, fish)
 	FishingService.FishCaught:Fire(player, fish)
 end
@@ -741,6 +773,7 @@ local function onPlayerAdded(player: Player)
 		Caught = 0,
 		HeldFish = nil,
 		HeldThread = nil,
+		FxSerial = 0,
 	}
 	states[player] = state
 	state.Trove:Add(state.CharacterTrove)
