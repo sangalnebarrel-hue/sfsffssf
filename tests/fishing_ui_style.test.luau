@@ -1085,7 +1085,7 @@ end
 -- (UI v2: a tap during the reveal skips it; wave D: the card itself is the projectile — it flies
 -- into the counter shrinking to a speck, a 🐟 with ★ leaves beside it 0.05 s later and they land
 -- together; the rays shrink with it — timings this test checked before. The first catch: the
--- counter appears with «Улов: 0» as the card leaves, so the 🐟 has a target.)
+-- counter appears with «🐟 0» as the card leaves, so the 🐟 has a target.)
 tests["closing: skip, then close — the card itself flies into the counter, 🐟 ★ with it, +1 ≈ 0.35 s; nothing leaks"] = function(
 	t
 )
@@ -1135,7 +1135,7 @@ tests["closing: skip, then close — the card itself flies into the counter, �
 	t.ok(ghost, "its ghost shrinks away…")
 	t.eq(hud:GetAttribute("CounterIncoming"), "Rare", "…towards the counter, which knows what flies in")
 	t.eq(counter.Visible, true, "the first catch: the counter appears…")
-	t.eq(counter.Label.Text, "Улов: 0", "…with the number before the fish")
+	t.eq(counter.Label.Text, "0", "…with the number before the fish")
 	t.eq(button.Ring.Transparency, 1, "the frozen button has no halo during the flight")
 	-- (Wave D, R3-6: the card itself is the projectile — it flies almost into the counter,
 	-- shrinking to a speck; the 🐟 and ★ leave at once from near its start and land with it.)
@@ -1158,7 +1158,7 @@ tests["closing: skip, then close — the card itself flies into the counter, �
 	t.eq(f.CatchDim.Visible, false, "the dim faded away")
 	t.eq(hud:GetAttribute("CounterHold"), nil, "the 🐟 arrived with the card (tap → +1 ≈ 0.35 s)")
 	t.eq(hud:GetAttribute("CounterIncoming"), nil, "…and the incoming mark is cleared")
-	t.eq(counter.Label.Text, "Улов: 1")
+	t.eq(counter.Label.Text, "1")
 	t.ok(counter.FxScale.Scale > 1, "the counter bumps when the fish arrives")
 	t.ok(counter:FindFirstChild("FxRing"), "…with a ring in the rarity colour")
 	sim:Advance(0.3)
@@ -1175,7 +1175,7 @@ tests["closing: skip, then close — the card itself flies into the counter, �
 	sim:Advance(UIConfig.CatchCardTime.Legendary + 0.05)
 	t.eq(card.Visible, false, "closed by itself")
 	sim:Advance(3)
-	t.eq(counter.Label.Text, "Улов: 2")
+	t.eq(counter.Label.Text, "2")
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
 	t.eq(frameConnections(sim, p), idleFrames)
 	t.eq(sim:CountConnections(p), idleConnections)

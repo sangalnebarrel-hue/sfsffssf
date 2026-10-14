@@ -1,28 +1,30 @@
 --!strict
 --[[
-	HudController — основной интерфейс (Этап 1) и его «сок» (образец стиля Candy Splash,
+	HudController — основной интерфейс (Этап 1) и его «сок» (образец стиля «Кирпичики», UI v3,
 	tools/builder/gui/STYLE.md; анимации — ReplicatedStorage.Shared.UiFx).
 
-	  • Плашка «Твоя база» (HUD.Status.BaseBadge, вверху по центру): глянцевая «конфета» в цветах
-	    своей базы (UIConfig.BaseSwatches по Id из BaseConfig) с флажком. Данные — атрибуты игрока
+	  • Плашка «Твоя база» (HUD.Status.BaseBadge, вверху по центру): кирпичик с пупырками в цветах
+	    своей базы (UIConfig.BaseSwatches по Id из BaseConfig, UiFx.setCandy красит и пупырки) с
+	    белой плиткой-флажком, надпись заглавными: «ЛАЗУРНАЯ БАЗА». Данные — атрибуты игрока
 	    BaseIndex, BaseColorName, BaseColor (их ставит сервер); BaseIndex = 0 — все базы заняты,
-	    игрок ждёт (серая плашка «Ждём базу…»).
+	    игрок ждёт (светло-серый кирпичик «ЖДЁМ БАЗУ…»).
 	  • Первая база — момент: по центру экрана баннер HUD.BaseBanner в цветах базы («ТВОЯ БАЗА» /
 	    «ЛАЗУРНАЯ!»), флажок машет, лучи, конфетти и «фанфара»; через 2 с баннер сжимается и
 	    влетает в плашку, плашка подпрыгивает и бликует. Если база досталась после ожидания в
 	    очереди — уведомление «Тебе досталась Лазурная база!» в цветах базы с 🚩.
-	  • Счётчик улова (HUD.Status.CatchCounter): текст «Улов: N» и видимость ведёт ЭТОТ контроллер
+	  • Счётчик улова (HUD.Status.CatchCounter, жёлтый кирпичик «🐟 12»): число N (Label.Text —
+	    только цифры, как у монет) и видимость ведёт ЭТОТ контроллер
 	    по атрибуту игрока FishCaught. Договор с карточкой улова: пока у HUD (ScreenGui) есть
 	    числовой атрибут CounterHold, счётчик показывает это число и молчит; когда CounterHold
 	    убирают (nil), показывается FishCaught и играет «прилёт»: подпрыгивание 1.3, рыбка
 	    качается, «+N» всплывает справа, тик повыше тоном. Без CounterHold «прилёт» играет сразу
 	    при росте FishCaught (через кадр — успеть поставить CounterHold в тот же кадр). Пока 🐟
 	    летит из карточки, у HUD есть строковый атрибут CounterIncoming — её редкость: счётчик,
-	    которого ещё нет (первый улов), выскакивает с «Улов: 0» — рыбе есть куда лететь; прилёт —
+	    которого ещё нет (первый улов), выскакивает с «0» — рыбе есть куда лететь; прилёт —
 	    в цвете редкости (подпрыгивание выше, кольцо от плашки, «+N» крупнее, уровнем Button).
 	    Снимают его вместе с CounterHold (редкость запомнена до прилёта).
-	  • Кнопка «Домой» (HUD.RightButtons.HomeButton, мятная): просит сервер телепортировать на
-	    базу. Сервер сам проверяет кулдаун; здесь кулдаун только для вида: тёмная вуаль «стекает»
+	  • Кнопка «Домой» (HUD.RightButtons.HomeButton, лазурный кирпичик 2x2 с 🏠 и «ДОМОЙ»): просит
+	    сервер телепортировать на базу. Сервер сам проверяет кулдаун; здесь кулдаун только для вида: тёмная вуаль «стекает»
 	    вниз, крупные цифры по центру, домик бледнеет, подпись «ЖДИ» над вуалью; по готовности —
 	    подпись «ДОМОЙ», кольцо и один блик. Нажатие во время кулдауна — кнопка качается «нет».
 	  • Обводки и шкала текста подгоняются под экран (UiFx.fitStrokes, UiFx.fitText).
@@ -46,6 +48,7 @@ local UIConfig = require(Shared:WaitForChild("Config"):WaitForChild("UIConfig"))
 local Net = require(Shared:WaitForChild("Net"))
 local Trove = require(Shared:WaitForChild("Util"):WaitForChild("Trove"))
 local UiFx = require(Shared:WaitForChild("UiFx"))
+local TextUtil = require(Shared:WaitForChild("TextUtil"))
 local NotifyController = require(script.Parent:WaitForChild("NotifyController"))
 
 type Swatch = UIConfig.Swatch
@@ -63,29 +66,12 @@ local BANNER_HOLD = 2 -- сколько секунд баннер базы ст�
 local BANNER_FLY = 0.4 -- полёт баннера в плашку
 local CAPTION_REST = "ДОМОЙ"
 local CAPTION_WAIT = "ЖДИ"
-local Z_TOP = 6 -- Theme.Z.Top: над вуалью кулдауна
 
 local HudController = {}
 
 local function numberAttribute(name: string): number
 	local value = player:GetAttribute(name)
 	return if typeof(value) == "number" then value else 0
-end
-
--- ВЕРХНИЙ РЕГИСТР для кириллицы (string.upper её не знает): «Лазурная» → «ЛАЗУРНАЯ».
-local function upperRu(text: string): string
-	local out = {}
-	for _, code in utf8.codes(text) do
-		if code >= 0x430 and code <= 0x44F then
-			code -= 0x20
-		elseif code == 0x451 then
-			code = 0x401 -- ё → Ё
-		elseif code >= 97 and code <= 122 then
-			code -= 32
-		end
-		table.insert(out, utf8.char(code))
-	end
-	return table.concat(out)
 end
 
 -- «Конфета» своей базы: чистые цвета из UIConfig.BaseSwatches (по Id), иначе из самого цвета.
@@ -142,7 +128,7 @@ function HudController:Start(hud: ScreenGui)
 	-- "none" — ещё не знаем (только вошли), "waiting" — в очереди, "assigned" — база есть.
 	local baseState = "none"
 	local bannerTrove = Trove.new()
-	local bannerRest = if banner then banner.Position else UDim2.fromScale(0.5, 0.42)
+	local bannerRest = if banner then banner.Position else UDim2.fromScale(0.5, 0.45)
 
 	-- Плашка «приняла» базу: подпрыгивает, флажок качается, блик (только твины — без временных
 	-- объектов: момент уже отыграл баннер).
@@ -212,7 +198,7 @@ function HudController:Start(hud: ScreenGui)
 		end
 		local nameLabel = live:FindFirstChild("NameLabel")
 		if nameLabel and nameLabel:IsA("TextLabel") then
-			nameLabel.Text = `{upperRu(colorName)}!`
+			nameLabel.Text = `{TextUtil.upper(colorName)}!`
 		end
 		UiFx.popIn(live, { from = 0.3, time = 0.45, rotate = -6 })
 		bannerTrove:Add(UiFx.rays(live, {
@@ -247,7 +233,7 @@ function HudController:Start(hud: ScreenGui)
 		local center = live.AbsolutePosition + live.AbsoluteSize / 2 - hud.AbsolutePosition
 		local origin = if area.X > 1 and area.Y > 1
 			then Vector2.new(center.X / area.X, center.Y / area.Y)
-			else Vector2.new(0.5, 0.42)
+			else Vector2.new(0.5, 0.45)
 		-- Конфетти на твинах (confettiPop): вход в игру не держит покадровый планировщик.
 		bannerTrove:Add(UiFx.confettiPop(hud, {
 			count = 20,
@@ -271,7 +257,7 @@ function HudController:Start(hud: ScreenGui)
 
 		if typeof(index) == "number" and index > 0 and typeof(colorName) == "string" then
 			local swatch = baseSwatch()
-			badgeLabel.Text = `{colorName} база`
+			badgeLabel.Text = `{TextUtil.upper(colorName)} БАЗА`
 			UiFx.setCandy(badge, swatch)
 			if flag then
 				flag.Text = FLAG_HAS_BASE
@@ -290,7 +276,7 @@ function HudController:Start(hud: ScreenGui)
 			end
 			homeButton.Visible = true
 		else
-			badgeLabel.Text = if index == 0 then "Ждём базу…" else "Ищем базу…"
+			badgeLabel.Text = if index == 0 then "ЖДЁМ БАЗУ…" else "ИЩЕМ БАЗУ…"
 			UiFx.setCandy(badge, "Slate")
 			if flag then
 				flag.Text = if index == 0 then FLAG_WAITING else FLAG_SEARCHING
@@ -321,11 +307,12 @@ function HudController:Start(hud: ScreenGui)
 		return if typeof(value) == "number" then value else nil
 	end
 
-	-- Пока рыба летит, счётчик виден и с нулём («Улов: 0» — первой рыбе есть куда лететь).
+	-- Пока рыба летит, счётчик виден и с нулём («🐟 0» — первой рыбе есть куда лететь). На
+	-- кирпичике только число (как монеты): значок 🐟 говорит, что это улов.
 	local function render(total: number)
 		if total > 0 or incoming ~= nil then
 			counter.Visible = true
-			counterLabel.Text = `Улов: {math.floor(math.max(total, 0))}`
+			counterLabel.Text = tostring(math.floor(math.max(total, 0)))
 		else
 			counter.Visible = false
 		end
@@ -378,7 +365,7 @@ function HudController:Start(hud: ScreenGui)
 		local hold = heldValue()
 		if hold then
 			if incoming and not counter.Visible then
-				-- Первая рыба за игру летит в пустое место: счётчик появляется («Улов: 0»).
+				-- Первая рыба за игру летит в пустое место: счётчик появляется («🐟 0»).
 				render(hold)
 				UiFx.popIn(counter, { from = 0, time = 0.25 })
 			end
@@ -425,6 +412,7 @@ function HudController:Start(hud: ScreenGui)
 		cooldownText.Visible = false
 	end
 	local captionZ = if homeCaption then homeCaption.ZIndex else 0
+	local captionTop = cooldownOverlay.ZIndex + 1 -- «ЖДИ» над вуалью кулдауна
 
 	local function showSeconds(left: number)
 		if not cooldownText then
@@ -445,7 +433,7 @@ function HudController:Start(hud: ScreenGui)
 		local caption = homeCaption
 		if caption then
 			caption.Text = if waiting then CAPTION_WAIT else CAPTION_REST
-			caption.ZIndex = if waiting then Z_TOP else captionZ
+			caption.ZIndex = if waiting then captionTop else captionZ
 		end
 	end
 

@@ -158,7 +158,7 @@ local HIT_ROI = { "HUD.Fishing.Minigame", "HUD.Fishing.ActionArea" }
 local function buildSelfTest(h: any)
 	local UDim2, UDim, Color3, Vector2 = roblox.UDim2, roblox.UDim, roblox.Color3, roblox.Vector2
 	local Enum = roblox.Enum
-	local font = roblox.Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.ExtraBold)
+	local font = roblox.Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Heavy)
 	local sim = h.sim
 	local playerGui = h.player:FindFirstChildOfClass("PlayerGui")
 	local hud = playerGui:FindFirstChild("HUD")
@@ -799,7 +799,7 @@ local scenarios = {
 	},
 	{
 		name = "catch_close",
-		desc = "Closing the catch card (tap): the card itself flies into the counter, 🐟 ★ with it, the first «Улов» appears, +1",
+		desc = "Closing the catch card (tap): the card itself flies into the counter, 🐟 ★ with it, the first «🐟 0» appears, +1",
 		still = { 0.2, 0.36 },
 		sheet = { from = 0, to = 1.0, fps = 15, roi = {}, margin = 0 },
 		run = function(h: any)

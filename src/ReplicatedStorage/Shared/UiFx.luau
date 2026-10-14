@@ -16,6 +16,11 @@
 	  • Эффекты не перехватывают ввод (Active = false) и не меняют имена элементов.
 	  • «Конфета» (Theme.candy в сборщике): прозрачный корень → Lip (губа, обводка) + лицевая
 	    сторона (атрибут CandyFace, обычно "Face") с градиентом "Fill", бликом Gloss и Shine.
+	  • «Кирпичик» (Theme.brick / Theme.tile, UI v3, атрибут CandyStyle = "brick" | "tile") — то же
+	    устройство: Lip — боковина, на лицевой стороне светлая «крышка» в градиенте Fill и блик
+	    Spec вместо Gloss, сверху — пупырки (рамка Studs с Stud1..n, атрибут CandyStud = "front").
+	    setCandy перекрашивает и их; setStuds добавляет / убирает пупырки на лету, paintStuds
+	    красит их по одной (радуга). Размеры кирпичика — UIConfig.Brick (те же, что у сборщика).
 
 	Только для клиента (LocalScript-контроллеры); на сервере не используется.
 ]]
@@ -36,7 +41,9 @@ local Fx = UIConfig.Fx
 local Palette = UIConfig.Palette
 local WHITE = Color3.new(1, 1, 1)
 local INK: Color3 = UIConfig.Ink
-local FONT = Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.ExtraBold)
+local BRICK = UIConfig.Brick
+-- Шрифт интерфейса (как Theme.FONT): Nunito Heavy — самый жирный, с кириллицей.
+local FONT = Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Heavy)
 local BACK = Enum.EasingStyle.Back
 local QUAD = Enum.EasingStyle.Quad
 local SINE = Enum.EasingStyle.Sine
@@ -252,33 +259,199 @@ local function copyCorner(from: GuiObject, to: GuiObject)
 	end
 end
 
+-- Лицевая сторона кирпичика: светлая «крышка» сверху, потом Top → Bottom (как Theme.capSequence).
+local function capSequence(swatch: Swatch): ColorSequence
+	local cap = UiFx.lighten(swatch.Top, BRICK.CapLight)
+	return ColorSequence.new({
+		ColorSequenceKeypoint.new(0, cap),
+		ColorSequenceKeypoint.new(BRICK.CapStop * 0.5, cap),
+		ColorSequenceKeypoint.new(BRICK.CapStop, swatch.Top),
+		ColorSequenceKeypoint.new(1, swatch.Bottom),
+	})
+end
+
+-- Пупырка спереди: свет слева → цвет пластика → тень справа (как Theme.studSequence).
+local function studSequence(body: Color3): ColorSequence
+	return ColorSequence.new({
+		ColorSequenceKeypoint.new(0, UiFx.lighten(body, BRICK.StudLight)),
+		ColorSequenceKeypoint.new(0.45, body),
+		ColorSequenceKeypoint.new(1, UiFx.darken(body, BRICK.StudShade)),
+	})
+end
+
+-- Перекрасить одну пупырку (CandyStud = "front" | "top" | "raised") в цвета swatch.
+local function paintStud(stud: Instance, swatch: Swatch)
+	local kind = stud:GetAttribute("CandyStud")
+	if not stud:IsA("GuiObject") or typeof(kind) ~= "string" then
+		return
+	end
+	if kind == "front" then
+		local fill = stud:FindFirstChild("Fill")
+		if fill and fill:IsA("UIGradient") then
+			fill.Color = studSequence(swatch.Top:Lerp(swatch.Bottom, 0.3))
+		end
+		return
+	end
+	local cap = stud:FindFirstChild("Cap")
+	local fill = if cap then cap:FindFirstChild("Fill") else nil
+	if kind == "top" then
+		stud.BackgroundColor3 = UiFx.darken(swatch.Top, 0.35)
+		if fill and fill:IsA("UIGradient") then
+			fill.Color =
+				ColorSequence.new(UiFx.lighten(swatch.Top, BRICK.TopLight), UiFx.darken(swatch.Top, BRICK.TopShade))
+		end
+	elseif kind == "raised" then
+		stud.BackgroundColor3 = swatch.Lip:Lerp(swatch.Bottom, 0.4)
+		if fill and fill:IsA("UIGradient") then
+			fill.Color = ColorSequence.new(UiFx.lighten(swatch.Top, 0.2), swatch.Bottom)
+		end
+	end
+end
+
+local function swatchOf(look: string | Color3 | Swatch): Swatch?
+	if typeof(look) == "Color3" then
+		return UIConfig.swatchFor(look)
+	elseif type(look) == "string" then
+		return Palette[look]
+	end
+	return look :: Swatch
+end
+
 --[[
-	Перекрасить «конфету»:
-	  токен палитры ("Leaf") или { Top, Bottom, Lip } — градиент верх → низ и губа;
+	Перекрасить «конфету» или «кирпичик»:
+	  токен палитры ("Leaf") или { Top, Bottom, Lip } — градиент верх → низ и губа (боковина);
 	  Color3 — произвольный цвет: чистая «конфета» из него (UIConfig.swatchFor), без серого налёта.
 	  Цвет базы лучше брать из UIConfig.BaseSwatches (так делает HudController).
+	У кирпичика (атрибут CandyStyle) градиент — со светлой «крышкой», и перекрашиваются все его
+	пупырки: спереди (Studs.StudN), сверху и выпуклые (атрибут CandyStud на детях корня и лица).
 ]]
 function UiFx.setCandy(root: GuiObject, look: string | Color3 | Swatch)
 	local face = UiFx.faceOf(root)
 	local fill = face:FindFirstChild("Fill")
 	local lip = root:FindFirstChild("Lip")
-	local swatch: Swatch?
-	if typeof(look) == "Color3" then
-		swatch = UIConfig.swatchFor(look)
-	elseif type(look) == "string" then
-		swatch = Palette[look]
-	else
-		swatch = look
-	end
+	local swatch = swatchOf(look)
 	if not swatch then
 		return
 	end
+	local brick = root:GetAttribute("CandyStyle") ~= nil
 	face.BackgroundColor3 = WHITE
 	if fill and fill:IsA("UIGradient") then
-		fill.Color = ColorSequence.new(swatch.Top, swatch.Bottom)
+		fill.Color = if brick then capSequence(swatch) else ColorSequence.new(swatch.Top, swatch.Bottom)
 	end
 	if lip and lip:IsA("GuiObject") then
 		lip.BackgroundColor3 = swatch.Lip
+	end
+	if not brick then
+		return
+	end
+	local holder = root:FindFirstChild("Studs")
+	if holder then
+		for _, stud in holder:GetChildren() do
+			paintStud(stud, swatch)
+		end
+	end
+	for _, parent in { root, face } do
+		for _, child in parent:GetChildren() do
+			if child:GetAttribute("CandyStud") ~= nil then
+				paintStud(child, swatch)
+			end
+		end
+	end
+end
+
+--[[
+	Пупырки спереди у кирпичика на лету (громкие уведомления становятся «кирпичом» с пупырками):
+	count штук (0 — убрать) вдоль верхнего края, в цвете look (иначе — по градиенту лица). opts:
+	  area  = { x0, x1 } — часть ширины (по умолчанию как у сборщика или {0, 1});
+	  scale = размер (доля высоты, как studScale в Theme.brick; по умолчанию 1).
+	Устройство — как у Theme.brick (UIConfig.Brick): рамка Studs позади Lip, Stud1..n.
+]]
+export type StudOptions = {
+	area: { number }?,
+	scale: number?,
+}
+function UiFx.setStuds(root: GuiObject, count: number, look: (string | Color3 | Swatch)?, opts: StudOptions?)
+	local o: StudOptions = opts or {}
+	local lip = root:FindFirstChild("Lip")
+	local lipZ = if lip and lip:IsA("GuiObject") then lip.ZIndex else 2
+	local holder = root:FindFirstChild("Studs")
+	if not holder then
+		local frame = Instance.new("Frame")
+		frame.Name = "Studs"
+		frame.BackgroundTransparency = 1
+		frame.Active = false
+		frame.Size = UDim2.fromScale(1, 1)
+		frame.ZIndex = math.max(lipZ - 1, 0)
+		frame.Parent = root
+		holder = frame
+	end
+	assert(holder)
+	for _, child in holder:GetChildren() do
+		child:Destroy()
+	end
+	local n = math.clamp(math.floor(count), 0, BRICK.MaxStuds)
+	if n == 0 then
+		return
+	end
+	local savedArea = holder:GetAttribute("StudArea")
+	local area = o.area or (if typeof(savedArea) == "Vector2" then { savedArea.X, savedArea.Y } else { 0, 1 })
+	local savedScale = holder:GetAttribute("StudScale")
+	local scale = o.scale or (if typeof(savedScale) == "number" then savedScale else 1)
+	holder:SetAttribute("StudArea", Vector2.new(area[1], area[2]))
+	holder:SetAttribute("StudScale", scale)
+	local swatch: Swatch? = if look then swatchOf(look) else nil
+	if not swatch then
+		local fill = UiFx.faceOf(root):FindFirstChild("Fill")
+		if fill and fill:IsA("UIGradient") then
+			local keys = fill.Color.Keypoints
+			swatch = { Top = keys[math.min(3, #keys)].Value, Bottom = keys[#keys].Value, Lip = INK }
+		else
+			swatch = Palette.Slate
+		end
+	end
+	local base = BRICK.StudStroke
+	for i = 1, n do
+		local stud = Instance.new("Frame")
+		stud.Name = `Stud{i}`
+		stud.BackgroundColor3 = WHITE
+		stud.BorderSizePixel = 0
+		stud.AnchorPoint = Vector2.new(0.5, BRICK.StudShow)
+		stud.Position = UDim2.fromScale(area[1] + (area[2] - area[1]) * (i - 0.5) / n, 0)
+		stud.Size = UDim2.fromScale(BRICK.StudW * scale, BRICK.StudH * scale)
+		stud.SizeConstraint = Enum.SizeConstraint.RelativeYY
+		stud.ZIndex = 1
+		stud:SetAttribute("CandyStud", "front")
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.3, 0)
+		corner.Parent = stud
+		local outline = Instance.new("UIStroke")
+		outline.Color = INK
+		outline.Thickness = base
+		outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		outline.LineJoinMode = Enum.LineJoinMode.Round
+		outline:SetAttribute("BaseThickness", base)
+		outline.Parent = stud
+		local fill = Instance.new("UIGradient")
+		fill.Name = "Fill"
+		fill.Rotation = 0
+		fill.Parent = stud
+		paintStud(stud, swatch :: Swatch)
+		stud.Parent = holder
+	end
+end
+
+-- Покрасить пупырки спереди по одной: i-я — colors[(i - 1) % #colors + 1] (радуга мифической).
+function UiFx.paintStuds(root: GuiObject, colors: { Color3 })
+	local holder = root:FindFirstChild("Studs")
+	if not holder or #colors == 0 then
+		return
+	end
+	for _, stud in holder:GetChildren() do
+		local index = tonumber(string.match(stud.Name, "^Stud(%d+)$"))
+		if index then
+			local color = colors[(index - 1) % #colors + 1]
+			paintStud(stud, { Top = color, Bottom = UiFx.darken(color, 0.15), Lip = INK })
+		end
 	end
 end
 

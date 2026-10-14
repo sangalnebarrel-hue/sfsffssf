@@ -866,11 +866,19 @@ home indicator.
   overflow (that is what MinTextSize 9 on «ДОМОЙ» avoids). Alignment X/Y, LineHeight,
   TextWrapped, TextTruncate AtEnd, MaxVisibleGraphemes (typewriter: the full layout, first N
   graphemes drawn), RichText tags stripped, UIPadding on the label.
-* Font: Nunito (variable, `FontFace.Weight` 200-1000) from `tools/preview/fonts/Nunito.ttf`
-  (SIL OFL 1.1, `fonts/OFL.txt`) for every family (others warn once); characters Nunito lacks
-  (→, ★) use DejaVu Sans Bold. Colour emoji from Noto Color Emoji (`GUI_PREVIEW_EMOJI_FONT`
-  overrides the path), drawn at the text's em size (1.17 em tall, 1.25 em advance), mixed with
-  text in the same line.
+* Font: Nunito (variable, `FontFace.Weight` 200-1000 — the UI's Heavy is 900) from
+  `tools/preview/fonts/Nunito.ttf` (SIL OFL 1.1, `fonts/OFL.txt`) for every family (others warn
+  once); characters Nunito lacks (→, ★) use DejaVu Sans Bold. Colour emoji are **Twemoji Mozilla**,
+  the font Roblox itself ships (`content/fonts/TwemojiMozilla.ttf`; our copy:
+  `tools/preview/fonts/TwemojiMozilla.ttf`, twemoji-colr 0.7.0, graphics CC-BY 4.0 — see
+  `fonts/TWEMOJI-LICENSE.txt`): flat shapes, exactly what the game draws. Pillow cannot draw its
+  COLRv0 layers, so `gui/twemoji.py` reads the font itself (cmap, COLR/CPAL, glyf/loca; no
+  fontTools): every layer's quadratic outline is flattened and filled with the non-zero rule at 4x
+  supersampling and composited in palette colours (~5 ms per emoji, cached). Emoji are drawn at the
+  text's em (1 em advance, ascent 0.93 em, on the baseline), mixed with text in the same line; ZWJ
+  and flag sequences fall back to their first code point. Without the font, Noto Color Emoji
+  (`GUI_PREVIEW_EMOJI_FONT` overrides the path) stands in with a warning — rounder and glossier
+  than the game.
 * Text outlines: a UIStroke on a text object (`Contextual`) outlines glyphs and emoji with its
   thickness, under the fill; the legacy TextStroke is a thin outline of max(1, 0.045 x TextSize)
   px; both fade with TextTransparency.

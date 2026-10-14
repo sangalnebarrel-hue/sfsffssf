@@ -505,7 +505,7 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	sim:Advance(0.9)
 	t.eq(hud:GetAttribute("CounterHold"), nil, "the 🐟 flew in: the hold is released")
 	t.eq(counter.Visible, true, "counter shown")
-	t.eq(counter.Label.Text, "Улов: 1")
+	t.eq(counter.Label.Text, "1")
 	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "the button is back")
 	t.eq(keyChip(sim, p), "F", "…with its F key chip")
 
@@ -520,7 +520,7 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	t.eq(card.MutationLabel.Visible, false, "no mutation stamp without a mutation")
 	t.eq(card.InfoLabel.Text, "14 кг · цена 2400 💰")
 	t.eq(card.Viewport:FindFirstChildOfClass("Model").Name, "Normal")
-	t.eq(counter.Label.Text, "Улов: 1", "the counter still holds the previous number")
+	t.eq(counter.Label.Text, "1", "the counter still holds the previous number")
 	pressF(sim, p)
 	t.eq(card.Visible, true, "a trailing tap right after the card opens does nothing")
 	sim:Advance(0.5)
@@ -545,7 +545,7 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	t.eq(card.Visible, false, "…F after a pause closes the card")
 	t.eq(#sent(sim, p, "FishingCast"), 0, "...and does not cast")
 	sim:Advance(0.9)
-	t.eq(counter.Label.Text, "Улов: 2", "+1 when the 🐟 arrives")
+	t.eq(counter.Label.Text, "2", "+1 when the 🐟 arrives")
 
 	p:SetAttribute("FishCaught", 3)
 	serverSays(sim, p, "Caught", { Fish = { Id = "Crucian", Rarity = "Common", Kg = 0.5, Value = 9 }, Total = 3 })

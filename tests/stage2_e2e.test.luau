@@ -9,7 +9,7 @@
 	  • in the minigame, every frame look at HUD.Fishing.Minigame.Track.Needle and .Zone and tap
 	    when THEY see the needle inside the green zone (the bot reads only the client's HUD,
 	    never the server's minigame data).
-	Then the outcome is checked on both sides: the catch card, «Улов: N», the server's
+	Then the outcome is checked on both sides: the catch card, the counter «🐟 N», the server's
 	FishingService:GetCatch, the fish held above the head, the hint after a miss, the bobbers
 	other players see, and that no script errored.
 
@@ -549,7 +549,7 @@ local function checkCatch(t: any, sim: any, player: any, hud: any, fisher: any, 
 	local screen = hud.counter.Parent.Parent
 	t.eq(screen:GetAttribute("CounterHold"), total - 1, "the counter holds the previous number")
 	if total > 1 then
-		t.eq(hud.counterLabel.Text, `Улов: {total - 1}`, "the catch counter (before the 🐟 arrives)")
+		t.eq(hud.counterLabel.Text, tostring(total - 1), "the catch counter (before the 🐟 arrives)")
 	else
 		t.eq(hud.counter.Visible, false, "no counter until the first 🐟 arrives")
 	end
@@ -617,7 +617,7 @@ local function cleanCatch(t: any, latency: number)
 	t.eq(hud.card.Visible, false, "the card closes after CatchCardTime")
 	sim:Advance(math.max(0, landedAt + FishingConfig.HoldFishTime[fish.Rarity] + 0.1 - sim:Time()))
 	t.eq(p.Character:FindFirstChild("HeldFish"), nil, "the held fish is gone after HoldFishTime")
-	t.eq(hud.counterLabel.Text, "Улов: 1", "the counter stays")
+	t.eq(hud.counterLabel.Text, "1", "the counter stays")
 
 	-- A second catch on the same rod, counted on.
 	local again = Fisher.new(sim, p, hud)
@@ -900,8 +900,8 @@ tests["(5) two players fish at once: each sees the other's bobber and line, both
 	t.ok(fishUntilDone(sim, { fisherA, fisherB }, 25), `both tries end\n{fisherA:describe()}\n{fisherB:describe()}`)
 	t.ok(checked.A and checked.B, "both catches checked")
 	sim:Advance(CARD_GONE) -- the cards close and the 🐟 fly into the counters
-	t.eq(hudA.counterLabel.Text, "Улов: 1", "A's own counter")
-	t.eq(hudB.counterLabel.Text, "Улов: 1", "B's own counter")
+	t.eq(hudA.counterLabel.Text, "1", "A's own counter")
+	t.eq(hudB.counterLabel.Text, "1", "B's own counter")
 
 	-- The bobbers reel in and disappear on both screens.
 	sim:Advance(RETRACT_TIME + 0.3)

@@ -6,8 +6,10 @@
 	UI v2 foundation: rays (halo/breathe by device, signed speed, maxPx, the callable handle with
 	settle), pooled sounds with pitch and the rarity arpeggio, flash from/hold and flashBig,
 	fovPunch (one owner of Camera.FieldOfView, −8° cap; the eased-in wind-up), edgeVignette, fitText
-	and the 2 px text outline floor, fadeOut of a ViewportFrame, glowRing stop, the hidden Shine
+	and the 2.5 px text outline floor, fadeOut of a ViewportFrame, glowRing stop, the hidden Shine
 	overlay. UI v2.1: rays with an empty middle (hole, growFrom) and the shockwave rings of a landing.
+	UI v3 «Кирпичики»: setCandy on bricks (the light cap, front / top / raised studs), setStuds and
+	paintStuds (studs added at runtime, rainbow studs).
 
 	Run: lune run tools/run_tests.luau uifx
 ]]
@@ -412,11 +414,23 @@ tests["setCandy recolours a candy by token, by swatch and by a runtime colour"] 
 	local pill = candy(sim, p)
 	local fill = pill.Face.Fill
 	local UIConfig = sim:Require(sim:Find("ReplicatedStorage.Shared.Config.UIConfig"), p)
+	-- (The toast template is a brick tile: its face has a light cap above Top — UIConfig.Brick.)
+	local brick = UIConfig.Brick
+	local function at(keys: { any }, time: number): any
+		for _, key in keys do
+			if math.abs(key.Time - time) < 1e-3 then
+				return key.Value
+			end
+		end
+		return nil
+	end
 	client(sim, p, function()
 		UiFx.setCandy(pill, "Berry")
 	end)
 	local keys = fill.Color.Keypoints
-	t.eq(keys[1].Value, UIConfig.Palette.Berry.Top)
+	t.eq(pill:GetAttribute("CandyStyle"), "tile")
+	t.eq(at(keys, brick.CapStop), UIConfig.Palette.Berry.Top, "Top under the cap")
+	t.eq(keys[1].Value, UIConfig.Palette.Berry.Top:Lerp(Color3.new(1, 1, 1), brick.CapLight), "a lighter cap")
 	t.eq(keys[#keys].Value, UIConfig.Palette.Berry.Bottom)
 	t.eq(pill.Lip.BackgroundColor3, UIConfig.Palette.Berry.Lip)
 	t.eq(pill.Face.BackgroundColor3, Color3.new(1, 1, 1))
@@ -428,11 +442,102 @@ tests["setCandy recolours a candy by token, by swatch and by a runtime colour"] 
 	local swatch = UIConfig.swatchFor(base)
 	keys = fill.Color.Keypoints
 	t.eq(pill.Face.BackgroundColor3, Color3.new(1, 1, 1), "white face under the gradient")
-	t.ok(keys[1].Value == swatch.Top and keys[#keys].Value == swatch.Bottom, "swatch gradient from the colour")
-	local top = keys[1].Value
+	t.ok(
+		at(keys, brick.CapStop) == swatch.Top and keys[#keys].Value == swatch.Bottom,
+		"swatch gradient from the colour"
+	)
+	local top = at(keys, brick.CapStop)
 	t.ok(top.R > base.R and top.G > base.G and top.B > base.B, "lighter top")
+	-- A legacy candy (no CandyStyle: the fishing widgets until v4) keeps its two-stop gradient.
+	pill:SetAttribute("CandyStyle", nil)
+	client(sim, p, function()
+		UiFx.setCandy(pill, "Leaf")
+	end)
+	keys = fill.Color.Keypoints
+	t.eq(#keys, 2, "a candy: Top → Bottom")
+	t.eq(keys[1].Value, UIConfig.Palette.Leaf.Top)
 	local lip = pill.Lip.BackgroundColor3
 	t.ok(lip.R < base.R and lip.G < base.G and lip.B < base.B, "darker lip")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["bricks: setCandy recolours the studs; setStuds / paintStuds add studs at runtime"] = function(t)
+	local sim, p = boot(t)
+	local UiFx = fxOf(sim, p)
+	local UIConfig = sim:Require(sim:Find("ReplicatedStorage.Shared.Config.UIConfig"), p)
+	local Palette = UIConfig.Palette
+	local function mid(stud: any): any
+		return stud.Fill.Color.Keypoints[2].Value
+	end
+	-- A studded brick of the HUD (the counter: 3 front studs) follows setCandy, studs included.
+	local brick = p.PlayerGui.HUD.Status.CatchCounter:Clone()
+	brick.Name = "BrickStage"
+	brick.Visible = true
+	brick.Parent = p.PlayerGui.HUD
+	client(sim, p, function()
+		UiFx.setCandy(brick, "Berry")
+	end)
+	local berry = Palette.Berry
+	t.eq(#brick.Studs:GetChildren(), 3)
+	for _, stud in brick.Studs:GetChildren() do
+		t.ok(mid(stud) == berry.Top:Lerp(berry.Bottom, 0.3), `{stud.Name} recoloured`)
+		local light = stud.Fill.Color.Keypoints[1].Value
+		t.ok(light.R >= mid(stud).R and light.G >= mid(stud).G, `{stud.Name}: lit from the left`)
+	end
+	-- Top-down studs (plates) and a raised centre stud (round plate) follow too (CandyStud attribute).
+	local plate = sim:Create("Frame", { Name = "PlateStage", Size = UDim2.fromScale(0.2, 0.2) }, p.PlayerGui.HUD)
+	plate:SetAttribute("CandyStyle", "brick")
+	plate:SetAttribute("CandyFace", "Face")
+	local face = sim:Create("Frame", { Name = "Face", Size = UDim2.fromScale(1, 0.84) }, plate)
+	sim:Create("UIGradient", { Name = "Fill" }, face)
+	sim:Create("Frame", { Name = "Lip", Size = UDim2.fromScale(1, 1) }, plate)
+	local function stud(kind: string, parent: any): any
+		local frame = sim:Create("Frame", { Name = kind .. "Stud" }, parent)
+		frame:SetAttribute("CandyStud", kind)
+		local cap = sim:Create("Frame", { Name = "Cap" }, frame)
+		sim:Create("UIGradient", { Name = "Fill" }, cap)
+		return frame
+	end
+	local top = stud("top", plate)
+	local raised = stud("raised", face)
+	client(sim, p, function()
+		UiFx.setCandy(plate, "Leaf")
+	end)
+	local leaf = Palette.Leaf
+	t.ok(top.BackgroundColor3 == UiFx.darken(leaf.Top, 0.35), "a top stud's shadow disc")
+	t.ok(top.Cap.Fill.Color.Keypoints[1].Value == UiFx.lighten(leaf.Top, UIConfig.Brick.TopLight), "… its lit cap")
+	t.ok(raised.BackgroundColor3 == leaf.Lip:Lerp(leaf.Bottom, 0.4), "a raised stud's side")
+	t.ok(raised.Cap.Fill.Color.Keypoints[2].Value == leaf.Bottom, "… its cap")
+	-- setStuds turns a smooth tile into a studded brick at runtime (big broadcasts), behind its Lip.
+	local tile = candy(sim, p)
+	t.eq(tile:FindFirstChild("Studs"), nil, "a tile has no studs")
+	client(sim, p, function()
+		UiFx.setStuds(tile, 5, "Gold", { scale = 0.5, area = { 0.2, 0.9 } })
+	end)
+	local holder = tile.Studs
+	t.eq(#holder:GetChildren(), 5, "five studs")
+	t.ok(holder.ZIndex < tile.Lip.ZIndex, "behind the side band")
+	local gold = Palette.Gold
+	for i = 1, 5 do
+		local s = holder[`Stud{i}`]
+		t.eq(s:GetAttribute("CandyStud"), "front")
+		t.ok(mid(s) == gold.Top:Lerp(gold.Bottom, 0.3), `Stud{i} in Gold`)
+		t.near(s.Position.X.Scale, 0.2 + 0.7 * (i - 0.5) / 5, 1e-6, `Stud{i} spread over the area`)
+		t.ok(s:FindFirstChildOfClass("UIStroke"):GetAttribute("BaseThickness") > 0, `Stud{i} outlined`)
+	end
+	client(sim, p, function()
+		UiFx.paintStuds(tile, { Color3.new(1, 0, 0), Color3.new(0, 1, 0) })
+	end)
+	t.ok(mid(holder.Stud1) ~= mid(holder.Stud2), "paintStuds: one colour per stud")
+	t.ok(mid(holder.Stud1) == mid(holder.Stud3), "… cycling through the list")
+	client(sim, p, function()
+		UiFx.setStuds(tile, 99)
+	end)
+	t.eq(#holder:GetChildren(), UIConfig.Brick.MaxStuds, "capped at MaxStuds")
+	client(sim, p, function()
+		UiFx.setStuds(tile, 0)
+	end)
+	t.eq(#holder:GetChildren(), 0, "0 removes them")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -762,7 +867,7 @@ tests["fitText, text outline floor, fadeOut of a ViewportFrame, glowRing stop, h
 		14,
 		"textSize tells the same size"
 	)
-	t.ok(outline.Thickness >= 2, "text outlines never thinner than 2 px (phone would give 1.5)")
+	t.ok(outline.Thickness >= 2.5, "text outlines never thinner than 2.5 px (phone would give 1.5)")
 	-- fadeOut also fades a 3D ViewportFrame (the fish on the card).
 	local vp = sim:Create("ViewportFrame", { Name = "Vp", Size = UDim2.fromScale(0.5, 0.5) }, s)
 	client(sim, p, function()

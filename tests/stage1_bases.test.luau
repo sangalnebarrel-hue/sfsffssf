@@ -526,10 +526,18 @@ tests["client HUD: badge shows the base, Home button visible and fires the remot
 	local hud = p.PlayerGui:FindFirstChild("HUD")
 	t.ok(hud, "HUD copied into PlayerGui")
 	local label = hud.Status.BaseBadge.Label
-	t.eq(label.Text, `{p:GetAttribute("BaseColorName")} база`)
-	-- The badge wears the base's clean swatch (UIConfig.BaseSwatches), not a tinted base colour.
+	local TextUtil = sim:Require(sim:Find("ReplicatedStorage.Shared.TextUtil"), p)
+	t.eq(label.Text, `{TextUtil.upper(p:GetAttribute("BaseColorName"))} БАЗА`, "the base name in CAPS")
+	-- The badge wears the base's clean swatch (UIConfig.BaseSwatches), not a tinted base colour
+	-- (a brick: its Top sits under the light cap, at UIConfig.Brick.CapStop).
 	local swatch = UIConfig.BaseSwatches[baseOf(sim, p):GetAttribute("ColorId")]
-	t.eq(hud.Status.BaseBadge.Swatch.Fill.Color.Keypoints[1].Value, swatch.Top)
+	local top = nil
+	for _, key in hud.Status.BaseBadge.Swatch.Fill.Color.Keypoints do
+		if math.abs(key.Time - UIConfig.Brick.CapStop) < 1e-3 then
+			top = key.Value
+		end
+	end
+	t.eq(top, swatch.Top)
 	t.eq(hud.Status.BaseBadge.Lip.BackgroundColor3, swatch.Lip)
 	local home = hud.RightButtons.HomeButton
 	t.eq(home.Visible, true)
