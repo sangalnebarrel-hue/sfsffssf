@@ -773,7 +773,7 @@ local function buildCatch(root: any)
 	end
 
 	-- The fish on a soft rarity glow: a disc in a transparent root that FishingController
-	-- breathes and tints with the rarity colour.
+	-- breathes and tints with the rarity colour (and spins small rarity rays in, behind the fish).
 	local glow = U.new("Frame", {
 		Name = "FishGlow",
 		BackgroundTransparency = 1,
@@ -809,8 +809,9 @@ local function buildCatch(root: any)
 	}, card)
 
 	-- «НОВИНКА!»: stamped on the top-left corner of the fish (first catch of a species this
-	-- session). Neutral for any fish name («НОВАЯ! Акулёнок» did not agree).
-	Theme.pill(card, "NewStamp", "Berry", {
+	-- session). Neutral for any fish name («НОВАЯ! Акулёнок» did not agree). Never smaller than
+	-- 96 x 28 px: its text stays ≥ 14 px even on the smallest phone's Common card.
+	local newStamp = Theme.pill(card, "NewStamp", "Berry", {
 		Visible = false,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.21, 0.25),
@@ -820,6 +821,7 @@ local function buildCatch(root: any)
 		Text = "НОВИНКА!",
 		MaxTextSize = 24,
 	})
+	U.new("UISizeConstraint", { MinSize = Vector2.new(96, 28) }, newStamp)
 
 	-- Mutation stamp on the top-right corner of the fish (FUI-07): a candy in the mutation's
 	-- colours with its icon; MutationLabel.Text is the value («Золотая мутация ×2»),
@@ -876,15 +878,15 @@ local function buildCatch(root: any)
 	})
 
 	-- Weight and price chips; InfoLabel.Text is the summary «1,2 кг · цена 35 💰» (the value),
-	-- Price.Label counts up from 0. Weight is a Cream chip with Ink text (never the rarity's
-	-- colour again), the price a Gold one (it is what a thief steals) with the «×N» of a
-	-- mutation slammed on its corner.
+	-- Price.Label counts up from 0 (FishingController raises it to the Title tier on a full-size
+	-- card). Weight is a Cream chip with Ink text (never the rarity's colour again), the price a
+	-- Gold one (it is what a thief steals) with the «×N» of a mutation slammed on its corner.
 	local info = U.new("TextLabel", {
 		Name = "InfoLabel",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.5, 0.74),
-		Size = UDim2.fromScale(0.86, 0.1),
+		Size = UDim2.fromScale(0.86, 0.115),
 		Text = "",
 		TextTransparency = 1,
 		TextStrokeTransparency = 1,

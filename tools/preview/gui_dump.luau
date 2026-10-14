@@ -1316,6 +1316,8 @@ local DEFAULT_BEATS = {
 	{ name = "card", appear = "HUD.Fishing.CatchCard" },
 	{ name = "banner", appear = "HUD.Fishing.CatchCard.Banner.RarityLabel" },
 	{ name = "name", appear = "HUD.Fishing.CatchCard.NameLabel" },
+	{ name = "new", appear = "HUD.Fishing.CatchCard.NewStamp" },
+	{ name = "chips", appear = "HUD.Fishing.CatchCard.InfoLabel.Weight" },
 	{ name = "price", settle = "HUD.Fishing.CatchCard.InfoLabel.Price.Label" },
 	{
 		name = "mutation",

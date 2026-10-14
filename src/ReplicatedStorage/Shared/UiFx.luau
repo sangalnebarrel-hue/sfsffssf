@@ -1991,6 +1991,7 @@ end
 
 export type FlyOptions = {
 	text: string?, -- значок ("🐟")
+	color: Color3?, -- цвет значка-знака (не эмодзи: «★» и т. п.; с тёмной обводкой)
 	time: number?, -- 0.6 с
 	size: number?, -- размер в высотах слоя (0.09)
 	arc: number?, -- высота дуги (доля высоты слоя, 0.22)
@@ -2013,6 +2014,11 @@ function UiFx.flyTo(layer: GuiBase2d, from: GuiObject, to: GuiObject, opts: FlyO
 	icon.Text = o.text or "🐟"
 	icon.TextScaled = true
 	icon.FontFace = FONT
+	if o.color then
+		icon.TextColor3 = o.color
+		icon.TextStrokeColor3 = INK
+		icon.TextStrokeTransparency = 0.4
+	end
 	icon.AnchorPoint = Vector2.new(0.5, 0.5)
 	icon.SizeConstraint = Enum.SizeConstraint.RelativeYY
 	local size = o.size or 0.09

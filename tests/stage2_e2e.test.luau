@@ -811,10 +811,11 @@ tests["(4) a deliberate miss: hint, back to Idle, a new cast works after the coo
 	t.eq(p.Character:FindFirstChild("HeldFish"), nil, "nothing above the head")
 
 	-- An impatient tap during the cooldown: the dim «ЖДЁМ…» button ignores it (nothing is sent),
-	-- then it comes back as «ЗАБРОСИТЬ» by itself (nothing gets stuck).
+	-- then it comes back as «ЗАБРОСИТЬ» by itself (nothing gets stuck). The bot saw the miss on
+	-- the red copy at once; the reason hint comes MISS_HOLD = 0.75 s later, just before the 0.8 s
+	-- CastCooldown ends.
 	local lostAt = missing.endedAt
 	local casts = #sim:ServerEventsFor(p, "FishingCast")
-	sim:Advance(0.1)
 	t.eq(hud.caption.Text, CAPTION_WAIT, "«ЖДЁМ…» during CastCooldown")
 	sim:Click(p, hud.action)
 	sim:Advance(0.2)

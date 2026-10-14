@@ -16,7 +16,11 @@
 	    числовой атрибут CounterHold, счётчик показывает это число и молчит; когда CounterHold
 	    убирают (nil), показывается FishCaught и играет «прилёт»: подпрыгивание 1.3, рыбка
 	    качается, «+N» всплывает справа, тик повыше тоном. Без CounterHold «прилёт» играет сразу
-	    при росте FishCaught (через кадр — успеть поставить CounterHold в тот же кадр).
+	    при росте FishCaught (через кадр — успеть поставить CounterHold в тот же кадр). Пока 🐟
+	    летит из карточки, у HUD есть строковый атрибут CounterIncoming — её редкость: счётчик,
+	    которого ещё нет (первый улов), выскакивает с «Улов: 0» — рыбе есть куда лететь; прилёт —
+	    в цвете редкости (подпрыгивание выше, кольцо от плашки, «+N» крупнее, уровнем Button).
+	    Снимают его вместе с CounterHold (редкость запомнена до прилёта).
 	  • Кнопка «Домой» (HUD.RightButtons.HomeButton, мятная): просит сервер телепортировать на
 	    базу. Сервер сам проверяет кулдаун; здесь кулдаун только для вида: тёмная вуаль «стекает»
 	    вниз, крупные цифры по центру, домик бледнеет, подпись «ЖДИ» над вуалью; по готовности —
@@ -310,41 +314,74 @@ function HudController:Start(hud: ScreenGui)
 
 	-- Счётчик улова -------------------------------------------------------------------
 	local shown = numberAttribute("FishCaught") -- число, которое сейчас на счётчике
+	local incoming: string? = nil -- редкость рыбы, которая летит в счётчик (атрибут CounterIncoming)
 
 	local function heldValue(): number?
 		local value = hud:GetAttribute("CounterHold")
 		return if typeof(value) == "number" then value else nil
 	end
 
+	-- Пока рыба летит, счётчик виден и с нулём («Улов: 0» — первой рыбе есть куда лететь).
 	local function render(total: number)
-		if total > 0 then
+		if total > 0 or incoming ~= nil then
 			counter.Visible = true
-			counterLabel.Text = `Улов: {math.floor(total)}`
+			counterLabel.Text = `Улов: {math.floor(math.max(total, 0))}`
 		else
 			counter.Visible = false
 		end
 	end
 
-	-- Рыба «прилетела» в счётчик: подпрыгнуть, качнуть рыбку, «+N», тик повыше.
-	local function arrival(gained: number)
-		UiFx.bump(counter, 1.3, 0.35)
+	-- Рыба «прилетела» в счётчик: подпрыгнуть, качнуть рыбку, «+N», тик повыше; рыба с карточки
+	-- (CounterIncoming) — в цветах своей редкости: кольцо от плашки и «+N» крупнее (уровень Button).
+	local function arrival(gained: number, rarity: string?)
+		local style = if rarity then UIConfig.Rarity[rarity] else nil
+		UiFx.bump(counter, if style then 1.45 else 1.3, if style then 0.45 else 0.35)
 		UiFx.wiggle(counterIcon, 14, 3, 0.5)
 		UiFx.shine(counter, 0.55)
 		UiFx.sound("tick", 0.45, 1.3)
+		local colors = { WHITE, Palette.Gold.Top } -- (обычная рыба — золото: серое «+1» не радует)
+		if style then
+			if style.Rainbow then
+				colors = { UIConfig.Rainbow[1], UIConfig.Rainbow[3], UIConfig.Rainbow[5] }
+			elseif rarity ~= "Common" then
+				colors = { UiFx.lighten(style.Top, 0.35), style.Bottom }
+			end
+			UiFx.glowRing(counter, {
+				color = if style.Rainbow then WHITE else style.Top,
+				scale = 1.35,
+				thickness = 4,
+				time = 0.5,
+			})
+		end
 		-- «+N» справа от плашки, чуть вверх (не налезая на плашку базы над ней).
-		UiFx.floatText(counter, `+{gained}`, {
-			position = UDim2.fromScale(1.2, 0.5),
-			size = UDim2.fromScale(0.34, 1.15),
-			colors = { WHITE, Palette.Gold.Top },
-			rise = 0.35,
+		local px = UiFx.textSize("Button") -- «+N» уровнем Button (Offset у UDim — целые пиксели)
+		local size = if style
+			then UDim2.fromOffset(math.round(px * 2.6), math.round(px * 1.3))
+			else UDim2.fromScale(0.34, 1.15)
+		local float = UiFx.floatText(counter, `+{gained}`, {
+			position = if style then UDim2.new(1, math.round(px * 1.4), 0.5, 0) else UDim2.fromScale(1.2, 0.5),
+			size = size,
+			colors = colors,
+			rise = if style then 0.45 else 0.35,
 			rotate = 8,
-			time = 0.9,
+			time = if style then 1.1 else 0.9,
 		})
+		if style and style.Rainbow then
+			local fill = float:FindFirstChild("TextFill")
+			if fill and fill:IsA("UIGradient") then
+				fill.Rotation = 0
+			end
+		end
 	end
 
 	local function refreshCounter(juice: boolean)
 		local hold = heldValue()
 		if hold then
+			if incoming and not counter.Visible then
+				-- Первая рыба за игру летит в пустое место: счётчик появляется («Улов: 0»).
+				render(hold)
+				UiFx.popIn(counter, { from = 0, time = 0.25 })
+			end
 			shown = hold
 			render(hold)
 			return
@@ -352,9 +389,11 @@ function HudController:Start(hud: ScreenGui)
 		local total = numberAttribute("FishCaught")
 		local gained = total - shown
 		shown = total
+		local rarity = incoming
+		incoming = nil
 		render(total)
 		if juice and gained > 0 and counter.Visible then
-			arrival(gained)
+			arrival(gained, rarity)
 		end
 	end
 
@@ -364,6 +403,17 @@ function HudController:Start(hud: ScreenGui)
 	end)
 	hud:GetAttributeChangedSignal("CounterHold"):Connect(function()
 		refreshCounter(true)
+	end)
+	-- Рыба с карточки полетела в счётчик (её редкость): прилёт будет в её цветах. Снимают атрибут
+	-- вместе с CounterHold; без CounterHold «гость» забывается.
+	hud:GetAttributeChangedSignal("CounterIncoming"):Connect(function()
+		local value = hud:GetAttribute("CounterIncoming")
+		if typeof(value) == "string" then
+			incoming = value
+			refreshCounter(false)
+		elseif not heldValue() then
+			incoming = nil
+		end
 	end)
 	refreshCounter(false)
 

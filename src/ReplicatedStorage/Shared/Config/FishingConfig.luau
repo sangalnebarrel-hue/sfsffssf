@@ -77,7 +77,7 @@ local FishingConfig = {
 	-- этой редкости остаётся открытой сама (UIConfig.CatchCardTime и ожидание перед ней): карточка
 	-- закрывается — трофей над головой «вспыхивает» ещё раз (FishingFxController.ReplayOwnTrophy),
 	-- и рыбак успевает его разглядеть, а соседи — увидеть, что у него в руках.
-	HoldFishTime = { Common = 6.5, Rare = 7, Epic = 8, Legendary = 9, Mythic = 10 } :: { [string]: number },
+	HoldFishTime = { Common = 7, Rare = 7.5, Epic = 8, Legendary = 9, Mythic = 10 } :: { [string]: number },
 	HeldFishGap = 0.5, -- зазор между макушкой и рыбой над головой, studs
 
 	-- Тексты для игрока по коду причины — одни и те же у сервера и клиента: сервер присылает

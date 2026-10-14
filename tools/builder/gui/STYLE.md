@@ -123,7 +123,8 @@ timers. Stagger groups by 0.03–0.06 s.
   caption ribbon change by state (ЗАБРОСИТЬ 🎣 → ЖДЁМ… with a bobbing float and 1–2 nibbles «?» →
   ПОДСЕЧЬ! «!» → ЛОВИ! 🎯; Slate ⏳ while waiting on the server, К ПИРСУ 🧭 far from the spot — it
   shows the way, never scolds: a calm 💡 hint, the compass turns, the guide beam flares; ВЗЯТЬ
-  in gold at the spot), glow rings while it matters, shine on idle, press squash, ripple on tap; a key
+  in gold at the spot; a dim frozen ЖДЁМ… during the catch until the card is fully shown, then
+  ЗАБРАТЬ! 👍 in Leaf with white rings — it closes the card), glow rings while it matters, shine on idle, press squash, ripple on tap; a key
   chip («F» / «R2») on its shoulder without touch. «СМОТАТЬ» (≥ 44 px, ≥ 22 px above the circle)
   only while waiting: it pops out once a fish bites. Bite alert: «КЛЮЁТ!» slams in with a sun flash and a
   FOV punch, sun edge glow, one BITE_BEAT for the plate, the button and the swinging «!» glyphs, a
@@ -150,14 +151,30 @@ timers. Stagger groups by 0.03–0.06 s.
   sparks from the fish's point, for Epic+ a short edge glow in the rarity colours (≤ 0.4 s), shake and
   FOV punch, confetti; for Epic+ the rarity rays start around the fish (empty middle) with the giant
   rarity title (TitleSlam; Legendary/Mythic letter by letter) — a title stage of 0.5 / 0.8 / 0.9 s
-  (Epic / Legendary / Mythic) — then the card is born at the fish and settles (the rays follow it): a
-  landscape trophy card on phones (fish left, name and chips right), the 380 x 384 square elsewhere,
-  a dim around it (letterbox bars on phones; none for Common). Its beats: rarity (the title flies
-  into the banner at once) → name → «НОВИНКА!» → chips → price count-up and landing → mutation
-  (corner stamp, «×N», recount, the outline in its colours) → the close hint; then everything calms
-  down. A tap skips to the end, a tap at least 0.6 s later closes; the card shrinks towards the
-  counter, a 🐟 with ✨ flies in (the counter holds its number meanwhile) and the trophy over the
-  head flashes once more (`FishingFxController.ReplayOwnTrophy`) and stays ≈ 3 s.
+  (Epic / Legendary / Mythic) — then the card is born at the fish and settles (position Quint Out,
+  no overshoot; the rays follow it): a landscape trophy card on phones (fish left, name and chips
+  right; centred — on the smallest phone above the action button, a side limit only counts when its
+  obstacle is level with the card), the 380 x 384 square elsewhere; Legendary 1.05x and Mythic 1.1x
+  the size (on phones the free space is the Mythic's), a dim around it (letterbox bars on phones;
+  none for Common). The rarity shows on the card itself: small rays behind the fish; Epic+ a live
+  rim (Epic Grape pulse, Legendary gold sweep, Mythic spinning rainbow — with a mutation it moves
+  to the banner's outline and the mutation keeps the card's), Legendary/Mythic a face tinted
+  towards the rarity (Mythic: a slow pastel rainbow). Its beats, one at a time, ≥ 0.25 s apart,
+  each with its own motion: rarity (the title flies into the banner and the banner grows out of
+  it; without a title the banner unrolls from the middle, Quint Out) → name (slides in from the
+  right, Quint Out, fading in) → «НОВИНКА!» (a stamp — only stamps use Back Out) → chips (rise,
+  Quad Out, the price 0.08 s later) → price count-up and landing (the chip squashes 1.25 × 0.85
+  and springs back, Elastic Out; «+N 💰» stamps in over it and floats up — Rare+ or a mutation;
+  Legendary/Mythic 💰 rain beside the card, behind it, and a confetti volley; Mythic a rim flare,
+  rainbow sparks and a little shake) → mutation (the base price only ticks and breathes 0.3 s;
+  corner stamp, «×N», recount — the party goes to the full price —, the outline in its colours) →
+  the close hint and the action button's «ЗАБРАТЬ!» (Leaf 👍, white rings); then everything calms
+  down and a Mythic card breathes (grows upward, its bottom stays). Mythic's confetti comes in
+  three volleys (landing, +1 s, the price) under the touch cap. A tap skips to the end, a tap at
+  least 0.6 s later closes; the card shrinks towards the counter (the first catch: the counter
+  pops in with «Улов: 0»), a 🐟 with ★ in the rarity colours flies out of it into the counter
+  (which holds its number meanwhile and greets the fish in the rarity colour) and the trophy over
+  the head flashes once more (`FishingFxController.ReplayOwnTrophy`) and stays ≈ 3 s.
   Rarity tiers (dim, rays, confetti volleys, burst, hold, auto-close): `REVEAL` in FishingController.
 - **World FX** (FishingFxController, + FishingService for the broadcast): cast with a sparkly trail on
   the bobber and a whoosh, a splash + expanding ripple rings on landing, slow ripples and nibbles
@@ -303,7 +320,7 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `shockwave(layer, origin, {color?, colors?, size?, time?, thickness?, glow?, z?})` | timers | the landing hit at `origin` (shares of the layer): "FxShock" ring (`color` or a `colors` gradient) from 0.3 to `size` (1.3) layer heights over `time` (0.45 s), a thin white "FxShockInner" ring 0.06 s later, a soft "FxShockGlow" disc (`glow` = start transparency, 0.55); `thickness` 14 px at 720 (thinner on phones), ZIndex 60; everything destroyed after `time` |
 | `fovPunch(deg, tIn?, tOut?, easeIn?)` → stop | frame | the ONLY writer of `Camera.FieldOfView`: base + deg (negative = zoom in) over `tIn` (0.08 s, Quad Out; `easeIn` = Sine In wind-up), back over `tOut` (0.35 s, Sine); punches add up, the sum is clamped to ±8°; the base is restored at the end (an outside change of the FOV becomes the new base). Never set FieldOfView yourself while punches may run |
 | `edgeVignette(layer, color \| {colors}, alpha, period?, opts?)` → stop(fade?) | timers | 4 edge bands ("FxVignette", ZIndex 90): transparency `alpha` at the edge → clear inside; `colors` run edge → inward. `period` = full pulse cycle between alpha and `opts.pulseTo` (alpha + 0.2), clamped to ≥ 0.34 s. opts: `fadeIn` (0.35 s), `pulseTo`, `hold` (auto-stop after N s), `fadeOut` (0.25 s), `size` (band, 0.24 of the screen height), `z`. E.g. Epic+ tension `edgeVignette(hud, c, 0.75, nil, {fadeIn = 0.5})`, bite `edgeVignette(hud, {Sun.Top, Sun.Bottom}, 0.55, 0.45)`, perfect hit `edgeVignette(hud, Gold.Top, 0.8, nil, {fadeIn = 0, hold = 0})` |
-| `flyTo(layer, from, to, {text?, time?, size?, arc?, onArrive?})` → stop | frame | an emoji flies on an arc between two widgets (card → counter) |
+| `flyTo(layer, from, to, {text?, color?, time?, size?, arc?, onArrive?})` → stop | frame | an emoji (or a glyph like «★» in `color`, Ink-stroked) flies on an arc between two widgets (card → counter) |
 | `trail(gui, {count?, lag?, transparency?})` → stop | frame | ghost copies following a moving widget (minigame needle) |
 | `cameraShake(amplitude?, time?)` → stop | render step | gentle translation-only shake (Legendary/Mythic) |
 | `fadeOut(gui, time?)` | timers | every background/text/stroke/ViewportFrame under `gui` to transparent |
@@ -325,6 +342,11 @@ RenderStepped connection for all running frame effects, disconnected when none r
   `FishCaught` one frame later, so the same frame is enough. Clear it (`nil`) when the flying 🐟
   arrives: the counter shows `FishCaught` and plays the arrival (bump 1.3, 🐟 wiggle, «+N»,
   tick at pitch 1.3). `flyTo(hud, from, counter, {onArrive = …})` stays the way to fly the fish.
+  While the 🐟 is on its way, set the string attribute `CounterIncoming` = its rarity id: a
+  counter that is not shown yet (held at 0 — the first catch) pops in with «Улов: 0», so the fish
+  has a target, and the arrival plays in the rarity colours (bump 1.45, a glow ring, «+N» at the
+  Button tier in the rarity gradient). Clear it together with `CounterHold` (HudController keeps
+  the rarity until the arrival).
 - **Toasts**: `NotifyController.Show(text, kind?, look?)` from any client module; kinds as in
   `UIConfig.ToastKinds` (`"Legendary"` / `"Mythic"` for server-wide rare-catch broadcasts; the
   server sends them as the Notify kind, one string «Who: what» that the client splits at the
@@ -360,8 +382,8 @@ RenderStepped connection for all running frame effects, disconnected when none r
   maxPx = …})` in a transparent holder behind the card and `rays:settle()` after the last beat,
   `popIn(card, {rotate = -6})`, `confetti(hud, {count = …, origin = the held fish on screen})`,
   a count-up with `FishingRules.FormatCoins`, `stamp(mutationBadge)`, Legendary/Mythic:
-  `flash(hud)` + `cameraShake()` + `fovPunch()` at the landing; on close `flyTo(hud, card, counter,
-  {onArrive = clear CounterHold})`. Mind the phone fill: the card's big candy draws its lip as a
+  `shockwave(hud, origin)` + `cameraShake()` + `fovPunch()` at the landing (never a full-screen
+  flash); on close `flyTo(hud, card, counter, {onArrive = clear CounterHold and CounterIncoming})`. Mind the phone fill: the card's big candy draws its lip as a
   band (no full-size lip quad), the dim is bands around the card. Action button:
   `Theme.candyButton(…, "Sky", {Radius = 0.5, Square = true})`, `setCandy` per state,
   `glowRing(button, {loop = true})` while it matters, `shineLoop` when idle, `ripple` on tap.
