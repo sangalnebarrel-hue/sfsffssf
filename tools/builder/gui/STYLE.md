@@ -86,15 +86,16 @@ Trove or return a cleanup function.
 | shake | Position jitter ±1.5 % decaying | 0.25 s |
 | shine | white diagonal gradient band (Transparency sequence 1→0.4→1) sweeping Offset −1→1 across a button/card | 0.6 s, every 3–4 s on idle main buttons |
 | glow ring | a copy of the round shape behind it, scale 1→1.5, transparency 0.3→1 | 0.6 s, repeat while important; stop fades live rings in 0.1 s |
-| rays | sunburst of 8–16 thin rotated bars in alternating rarity colours, growing from the centre (Quad Out, no overshoot), slowly rotating (≈20°/s; two rings turn opposite ways), behind titles and the catch card; on touch: no halo quads, no breathing, size capped (`maxPx`); `settle()` after the reveal (+0.25 transparency, half the spin) | while shown |
+| rays | sunburst of 8–16 thin rotated bars in alternating rarity colours, growing from the centre (Quad Out, no overshoot), slowly rotating (≈20°/s; two rings turn opposite ways), behind titles and the catch card; on touch: no halo quads, no breathing, size capped (`maxPx`); `settle()` after the reveal (+0.25 transparency, half the spin); with a `hole` the middle stays empty (rays around the landed fish, not over it) | while shown |
 | confetti | 30–60 small Frames (squares/strips, random vivid colours, rotation), launched up/out then falling with gravity and spin, fading in the last 30 % | 1.6–2.2 s |
 | sparkles | ✨ / ⭐ labels popping in/out at random spots around an element | while shown |
 | float text | «ОТЛИЧНО!», «+1 🐟», «МИМО!» rise 8 % and fade, slight rotation | 0.8 s |
 | count-up | number ticks from 0 to the value (Quad Out) | 0.6–1.0 s |
 | rainbow | UIGradient colour keypoints shifted every frame (hue cycle), or Rotation spin | continuous while shown |
-| flash | full-screen white/rarity-coloured Frame 0.6→1 transparency; `flashBig` 0.12, hold 0.05 s, fade 0.45 s for landings | 0.25 s; ≤ 3 per second |
+| flash | full-screen white/rarity-coloured Frame 0.6→1 transparency (`flashBig` 0.12 exists but is not used: never a near-solid screen on a catch landing — a phone player loses the fish) | 0.25 s; ≤ 3 per second |
+| shockwave | the landing hit at a point: a thick rarity ring + a thin white one expand from it, a soft disc fades faster; the middle stays clear, nothing covers the screen | 0.45 s |
 | edge vignette | 4 edge bands in a colour (or a gradient), fading towards the centre; static, pulsing (≥ 0.34 s period) or one-shot | tension, bite, perfect hit |
-| FOV punch | the camera zooms in a few degrees and back (all punches summed, capped at −8°) | 0.08 s in, 0.35 s out |
+| FOV punch | the camera zooms in a few degrees and back (all punches summed, capped at −8°); with `easeIn` a slow wind-up (Sine In) — e.g. a small zoom-out before a Legendary/Mythic landing | 0.08 s in, 0.35 s out |
 | sounds | pooled built-in sounds with a pitch; rarity arpeggio (Common 1 note … Legendary 4, Mythic 7) | events |
 
 Easing defaults: Back Out for appearing, Quad In for leaving, Sine for loops. Nothing linear except
@@ -127,26 +128,38 @@ timers. Stagger groups by 0.03–0.06 s.
   ⭐; on touch the panel itself is a tap pad and a 👆 cue helps the first games; on miss / timeout a
   copy (FxMinigameMiss) blushes, shakes and says «МИМО!» / «ВРЕМЯ!». Hint: a pill in the kind colour
   (💡 / ⚠️ / 🚨 in a white socket), up to two lines, springs up from below. The catch (UI v2) shows the world
-  first: the minigame plays its win («ПОЙМАНА!», FxMinigameWin) and leaves, the button freezes, Epic+
-  get an edge vignette (Legendary/Mythic a heartbeat) while the fish leaps; on the landing
-  (`FishingFxController.OwnFishLanded`) a flash, shake and FOV punch, confetti from the held fish and,
-  for Epic+, the giant rarity title (TitleSlam; Legendary/Mythic letter by letter) — then the card is
-  born at the fish and settles: a landscape trophy card on phones (fish left, name and chips right),
-  the 380 x 384 square elsewhere, a dim around it (letterbox bars on phones; none for Common) and the
-  rarity rays. Its beats: rarity (the title flies into the banner) → name → «НОВИНКА!» → chips →
-  price count-up and landing → mutation (corner stamp, «×N», recount, the outline in its colours) →
-  the close hint; then everything calms down. A tap skips to the end, the next one closes; the card
-  shrinks towards the counter and a 🐟 with ✨ flies in (the counter holds its number meanwhile).
-  Rarity tiers (dim, rays, confetti volleys, hold, auto-close): `REVEAL` in FishingController.
+  first: the winning tap freezes the needle gold where it was tapped (gold zone flash, a glow ring, a
+  small bump, a higher pop) until the server answers (≤ 1.5 s); on "Caught" the minigame plays its
+  win (FxMinigameWin: ⭐, gold zone, the needle where it was tapped, sparks) and sinks away early, and
+  «ПОЙМАНА!» slams in (2.4 → 1, tilted, ≈ 0.17 of the HUD height, in the rarity colours — Mythic a
+  sweeping rainbow — with a glow ring) left of the character, never over the leap; the status badge
+  and the counter fade out, the button freezes, Epic+ get an edge vignette, Legendary/Mythic an
+  accelerating heartbeat and a slight FOV wind-up while the fish leaps. On the landing
+  (`FishingFxController.OwnFishLanded`) **no full-screen flash**: a shockwave (`UiFx.shockwave`) and
+  sparks from the fish's point, for Epic+ a short edge glow in the rarity colours (≤ 0.4 s), shake and
+  FOV punch, confetti; for Epic+ the rarity rays start around the fish (empty middle) with the giant
+  rarity title (TitleSlam; Legendary/Mythic letter by letter) — a title stage of 0.5 / 0.8 / 0.9 s
+  (Epic / Legendary / Mythic) — then the card is born at the fish and settles (the rays follow it): a
+  landscape trophy card on phones (fish left, name and chips right), the 380 x 384 square elsewhere,
+  a dim around it (letterbox bars on phones; none for Common). Its beats: rarity (the title flies
+  into the banner at once) → name → «НОВИНКА!» → chips → price count-up and landing → mutation
+  (corner stamp, «×N», recount, the outline in its colours) → the close hint; then everything calms
+  down. A tap skips to the end, a tap at least 0.6 s later closes; the card shrinks towards the
+  counter, a 🐟 with ✨ flies in (the counter holds its number meanwhile) and the trophy over the
+  head flashes once more (`FishingFxController.ReplayOwnTrophy`) and stays ≈ 3 s.
+  Rarity tiers (dim, rays, confetti volleys, burst, hold, auto-close): `REVEAL` in FishingController.
 - **World FX** (FishingFxController, + FishingService for the broadcast): cast with a sparkly trail on
   the bobber and a whoosh, a splash + expanding ripple rings on landing, slow ripples and nibbles
   (the bobber dips) while waiting, the bite: a plunge, a big splash, rings, a bouncing «!» badge with
   stars and a blinking outline on your own bobber; a wake while reeling. On a catch a spout, then the
   fish **leaps out of the water** and flies in an arc (spinning, rarity-coloured sparkle trail) to
   above the fisher's head — `OwnFishLanded` fires the frame it lands — then a halo, a nameplate
-  (rarity, name, mutation, price) and the rarity aura around the held fish for
-  `FishingRules.HoldFishTime(rarity)` s; Legendary/Mythic: a light pillar (narrower on your own
-  screen) and a confetti burst, seen by everyone. A lost fish: the line flashes, the bobber pops up,
+  (rarity, name, mutation, price; sized in studs + pixels; above the fish for others, beside it —
+  to the right — for your own, where the title and the card are) and the rarity aura around the
+  held fish for `FishingRules.HoldFishTime(rarity)` s (≈ 3 s longer than the catch card, so your own
+  trophy is still there when the card closes; then `ReplayOwnTrophy` pops it once more: ball, halo,
+  sparks, nameplate bump, a chime, a short pillar for Legendary/Mythic); Legendary/Mythic: a light
+  pillar (narrower on your own screen) and a confetti burst, seen by everyone. A lost fish: the line flashes, the bobber pops up,
   a splash and a tail flick away.
 
 ## 4. Budgets (phones first)
@@ -191,8 +204,8 @@ Effect = "sparkles"|"pulse"|"rainbow" }`; `Rainbow` (7 hues), `Confetti` (vivid 
 Life?, Priority? }` (danger icon 🚨; unknown kinds render as info); `KindColors` (flat colour per
 kind = palette Bottom); `NoBaseColor`; `BaseSwatches.<Id>` and `swatchFor(color) -> swatch` (base
 colours, §1); `Type = { Title = 22, Button = 18, Body = 16, Small = 14 }`, `TypeHeight = 390`,
-`TypeMaxScale = 1.6` (§1); `CatchCardTime.<rarity>` = 2.2 / 2.8 / 3.4 / 4.5 / 5.5 s (client-only
-auto-close of the catch card); `ToastDuration`, `MaxToasts = 3`, `MaxToastsTouch = 2`,
+`TypeMaxScale = 1.6` (§1); `CatchCardTime.<rarity>` = 2.2 / 2.8 / 3.4 / 4.2 / 5.1 s (client-only
+auto-close of the catch card; Legendary/Mythic trimmed by their longer title stage); `ToastDuration`, `MaxToasts = 3`, `MaxToastsTouch = 2`,
 `ToastGap = 0.7`; `Fishing = { PipDone (64,200,96 — the e2e bot looks for it), TrackBottom,
 PipShade, NeedleShade, Muted, Guide, ZoneGlow, TimeBar = {cool, Sun, Berry} }` (fishing colours
 outside the palette); `Fx = { ConfettiMaxTouch = 40, ConfettiMax = 60, ShineInterval,
@@ -261,7 +274,7 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `shineLoop(gui, {interval?, time?, delay?, when?})` → stop | timers | idle shine every 3.5 s while visible (and `when()`) |
 | `glowRing(gui, {color?, time?, scale?, thickness?, filled?, loop?, interval?, z?})` → stop | timers | expanding ring (or a filled copy behind a candy) 1 → 1.5, fading; stop also fades this call's live rings in 0.1 s |
 | `ripple(gui, color?)` | timers | small one-shot ring for taps |
-| `rays(gui, {colors?, count?, speed?, size?, maxPx?, width?, transparency?, glow?, halo?, breathe?, grow?, z?})` → `Rays` | timers | sunburst behind `gui` (ZIndex 0): core rays (+ halo quads and breathing 1↔1.06 by default on PC, off on touch), glow discs; grows 0→1 in `grow` (0.4 s, Quad Out); `speed` °/s with a sign (negative = counter-rotate); `maxPx` caps the diameter. The handle: `rays()` or `rays.stop()` removes, `rays:Destroy()` for Trove, `rays:settle({alphaAdd = 0.25, spinMul = 0.5, time = 0.6})` calms it after the reveal (also stops breathing), `rays.holder` = the FxRays frame |
+| `rays(gui, {colors?, count?, speed?, size?, maxPx?, width?, transparency?, glow?, halo?, breathe?, grow?, z?})` → `Rays` | timers | sunburst behind `gui` (ZIndex 0): core rays (+ halo quads and breathing 1↔1.06 by default on PC, off on touch), glow discs; grows 0→1 in `grow` (0.4 s, Quad Out); `speed` °/s with a sign (negative = counter-rotate); `maxPx` caps the diameter; `hole` (0…0.9, share of the radius) leaves the middle empty (no glow discs then) and `growFrom` (0) starts the growth at that size. The handle: `rays()` or `rays.stop()` removes, `rays:Destroy()` for Trove, `rays:settle({alphaAdd = 0.25, spinMul = 0.5, time = 0.6})` calms it after the reveal (also stops breathing), `rays.holder` = the FxRays frame |
 | `confetti(container, {count?, colors?, origin?, spread?, power?, duration?, z?})` → stop | frame | squares/strips, gravity, flutter, fade in the last 30 %; ≤ 40 alive on touch devices, ≤ 60 otherwise (all bursts together; `confettiCap()`, `liveConfetti()`) |
 | `confettiPop(container, {same options})` → stop | timers | the same pieces on tweens only (arc up Quad Out, down Quad In, spin, fade): no frame job — for moments when the rest is idle (joining, the base banner) and cheap bursts; shares the confetti cap |
 | `burst(container, {count?, colors?, origin?, power?, time?, z?, size?})` → stop | frame | round sparks flying out of `origin` (hit in the zone, reward); `size` multiplies the spark size |
@@ -271,8 +284,9 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `rainbow(gradient, {speed?, colors?, spin?})` → stop | frame | hue cycle (30 Hz); stop restores the colours |
 | `timerBar(fill, duration, colors?)` → stop | frame | width 1 → 0, green → yellow → red |
 | `flash(layer, color?, time?, from?, hold?)` | timers | full-screen `from` (0.6) → 1 over `time` (0.25 s) after `hold` (0); at most 3 per second (extra calls are dropped) |
-| `flashBig(layer, color?)` | timers | the big-moment preset: from 0.12, hold 0.05 s, fade 0.45 s (landing of a Legendary/Mythic) |
-| `fovPunch(deg, tIn?, tOut?)` → stop | frame | the ONLY writer of `Camera.FieldOfView`: base + deg (negative = zoom in) over `tIn` (0.08 s, Quad Out), back over `tOut` (0.35 s, Sine); punches add up, the sum is clamped to ±8°; the base is restored at the end (an outside change of the FOV becomes the new base). Never set FieldOfView yourself while punches may run |
+| `flashBig(layer, color?)` | timers | the big-moment preset: from 0.12, hold 0.05 s, fade 0.45 s (unused: not for catch landings, see `shockwave`) |
+| `shockwave(layer, origin, {color?, colors?, size?, time?, thickness?, glow?, z?})` | timers | the landing hit at `origin` (shares of the layer): "FxShock" ring (`color` or a `colors` gradient) from 0.3 to `size` (1.3) layer heights over `time` (0.45 s), a thin white "FxShockInner" ring 0.06 s later, a soft "FxShockGlow" disc (`glow` = start transparency, 0.55); `thickness` 14 px at 720 (thinner on phones), ZIndex 60; everything destroyed after `time` |
+| `fovPunch(deg, tIn?, tOut?, easeIn?)` → stop | frame | the ONLY writer of `Camera.FieldOfView`: base + deg (negative = zoom in) over `tIn` (0.08 s, Quad Out; `easeIn` = Sine In wind-up), back over `tOut` (0.35 s, Sine); punches add up, the sum is clamped to ±8°; the base is restored at the end (an outside change of the FOV becomes the new base). Never set FieldOfView yourself while punches may run |
 | `edgeVignette(layer, color \| {colors}, alpha, period?, opts?)` → stop(fade?) | timers | 4 edge bands ("FxVignette", ZIndex 90): transparency `alpha` at the edge → clear inside; `colors` run edge → inward. `period` = full pulse cycle between alpha and `opts.pulseTo` (alpha + 0.2), clamped to ≥ 0.34 s. opts: `fadeIn` (0.35 s), `pulseTo`, `hold` (auto-stop after N s), `fadeOut` (0.25 s), `size` (band, 0.24 of the screen height), `z`. E.g. Epic+ tension `edgeVignette(hud, c, 0.75, nil, {fadeIn = 0.5})`, bite `edgeVignette(hud, {Sun.Top, Sun.Bottom}, 0.55, 0.45)`, perfect hit `edgeVignette(hud, Gold.Top, 0.8, nil, {fadeIn = 0, hold = 0})` |
 | `flyTo(layer, from, to, {text?, time?, size?, arc?, onArrive?})` → stop | frame | an emoji flies on an arc between two widgets (card → counter) |
 | `trail(gui, {count?, lag?, transparency?})` → stop | frame | ghost copies following a moving widget (minigame needle) |

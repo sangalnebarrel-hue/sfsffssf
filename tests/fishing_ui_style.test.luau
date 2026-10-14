@@ -545,14 +545,61 @@ tests["miss: the minigame closes at once, its ghost flashes red with «МИМО!
 	sim:AssertNoErrors({ warnings = true })
 end
 
+-- The real server order (FishingService.endSession): the FishingState attribute goes "Idle"
+-- first, then the event follows. The attribute's safety net must not end the session before the
+-- event plays its ghost («МИМО!» / «ВРЕМЯ!») or freezes the button for the catch.
+tests["server order: attribute Idle, then Lost / Caught — the ghosts still play, the frozen button does not pop"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	ready(sim, p)
+	local f = fishing(p)
+	local button = f.ActionArea.ActionButton
+
+	for _, case in { { "miss", "МИМО!" }, { "timeout", "ВРЕМЯ!" } } do
+		p:SetAttribute("FishingState", "Reeling")
+		serverSays(sim, p, "Minigame", minigame("Rare", { ZoneCenter = 0.8, U0 = 0.05 }))
+		sim:Advance(0.3)
+		p:SetAttribute("FishingState", "Idle")
+		serverSays(sim, p, "Lost", { Reason = case[1], Text = "Рыба ушла" })
+		local ghost = f:FindFirstChild("FxMinigameMiss")
+		t.ok(ghost, `{case[1]}: the miss ghost plays in the real server order`)
+		t.ok(ghost and ghost:FindFirstChild("FxFloat") and ghost.FxFloat.Text == case[2], `{case[1]}: «{case[2]}»`)
+		t.eq(f.Hint.Visible, false, `{case[1]}: the hint waits for the ghost`)
+		sim:Advance(0.6)
+		t.eq(f.Hint.Visible, true, `{case[1]}: then the reason`)
+		sim:Advance(1.5)
+	end
+
+	p:SetAttribute("FishingState", "Reeling")
+	serverSays(sim, p, "Minigame", minigame("Rare"))
+	sim:Advance(0.3)
+	p:SetAttribute("FishingState", "Idle")
+	catch(sim, p, CATCHES.Rare, 1)
+	t.ok(f:FindFirstChild("FxMinigameWin"), "the win ghost plays")
+	t.eq(button.Caption.Text, "ЖДЁМ…", "the button is frozen")
+	local lowest = button.FxScale.Scale
+	for _ = 1, 20 do
+		sim:Advance(1 / 60)
+		lowest = math.min(lowest, button.FxScale.Scale)
+	end
+	t.ok(lowest > 0.95, `the frozen button does not pop (scale down to {lowest})`)
+	sim:Advance(0.8)
+	t.eq(button.Caption.Text, "ЖДЁМ…", "still frozen after the safety net's delay")
+	sim:AssertNoErrors({ warnings = true })
+end
+
 --------------------------------------------------------------------------------
 -- Catch (UI v2, FUI-01…12: the world first, then the card; tiers; beats; skip; exit)
 --------------------------------------------------------------------------------
 
 -- The card opens when the fish has landed over the head (FishingFxController.OwnFishLanded;
 -- without a leap — here "Caught" comes without the server's FishFx — LeapTime + 0.3 s) plus a
--- per-rarity hold (at most 0.55 s).
-local CARD_OPENS = FishingConfig.LeapTime + 0.3 + 0.6
+-- per-rarity hold (at most 0.9 s: the giant title of a Mythic stands alone first).
+local CARD_OPENS = FishingConfig.LeapTime + 0.3 + 1.0
+-- After a tap skips the reveal the card ignores taps this long (FishingController CLIMAX.SkipDwell).
+local SKIP_DWELL = 0.6
 
 local function waitFor(sim: any, fn: () -> boolean, timeout: number): boolean
 	return sim:WaitFor(fn, timeout, 1 / 60) == true
@@ -635,9 +682,10 @@ tests["catch: Legendary and Mythic are louder — tension, flash at the landing,
 	catch(sim, p, CATCHES.Common, 1)
 	t.ok(openCard(sim, p))
 	local commonRays = count(f.CatchRays.FxRays, "Ray1") > 0 and #f.CatchRays.FxRays:GetChildren() or 0
+	t.eq(hud:FindFirstChild("FxFlash"), nil, "Common: no screen tint at the landing")
 	sim:Advance(1)
 	sim:Click(p, card)
-	sim:Advance(0.1)
+	sim:Advance(SKIP_DWELL + 0.1)
 	sim:Click(p, card)
 	sim:Advance(3)
 
@@ -646,23 +694,38 @@ tests["catch: Legendary and Mythic are louder — tension, flash at the landing,
 	t.ok(hud:FindFirstChild("FxVignette"), "Legendary: the screen edges glow while the fish leaps")
 	t.ok(
 		waitFor(sim, function()
-			return f.TitleSlam.Visible
+			return hud:FindFirstChild("FxShock") ~= nil
 		end, CARD_OPENS),
-		"Legendary: the giant title"
+		"Legendary: the landing is a burst at the fish (rings, FxShock)"
 	)
-	t.ok(hud:FindFirstChild("FxFlash"), "…right after the landing flash")
+	t.eq(hud:FindFirstChild("FxFlash"), nil, "…no full-screen flash: the landing stays visible")
+	t.ok(hud:FindFirstChild("FxVignette"), "…the screen edges glow gold instead")
+	t.ok(
+		waitFor(sim, function()
+			return f.TitleSlam.Visible
+		end, 0.2),
+		"Legendary: the giant title right after the landing…"
+	)
+	t.ok(f.CatchRays.Visible and f.CatchRays:FindFirstChild("FxRays"), "…on rays that burst from the fish")
+	t.eq(card.Visible, false, "…the card is not up yet")
 	t.eq(f.TitleSlam.Letters:FindFirstChild("L12").Text, "!", "«ЛЕГЕНДАРНАЯ!» letter by letter")
 	t.eq(f.TitleSlam.Label.Visible, false)
+	sim:Advance(0.65)
+	t.eq(card.Visible, false, "the title stands alone until it is complete")
+	t.near(f.TitleSlam.Letters.L12.FxScale.Scale, 1, 0.02, "…every letter is in")
 	t.ok(openCard(sim, p))
 	t.eq(f.CatchDim.Visible, true, "Legendary: the screen dims around the card")
 	t.eq(count(f.CatchRays, "FxRays"), 2, "Legendary: an extra ring of rays")
 	t.ok(isCandy(card.Banner, UIConfig.Rarity.Legendary), "Legendary banner")
-	sim:Advance(0.7)
-	t.eq(f.TitleSlam.Visible, false, "the title flew into the banner")
+	sim:Advance(0.1)
+	local titleY = f.TitleSlam.Position.Y.Scale
+	t.ok(f.TitleSlam.Visible and titleY < 0.55, `the title flies up into the banner with the card (y {titleY})`)
+	sim:Advance(0.3)
+	t.eq(f.TitleSlam.Visible, false, "the title became the banner (c+0.3)")
 	t.eq(#f.TitleSlam.Letters:GetChildren(), 0, "…its letters are gone")
 	t.near(card.Banner.FxScale.Scale, 1, 0.15, "the banner took over")
 	sim:Click(p, card)
-	sim:Advance(0.1)
+	sim:Advance(SKIP_DWELL + 0.1)
 	sim:Click(p, card)
 	sim:Advance(3)
 
@@ -673,7 +736,8 @@ tests["catch: Legendary and Mythic are louder — tension, flash at the landing,
 		end, CARD_OPENS),
 		"Mythic: the giant title"
 	)
-	t.ok(hud:FindFirstChild("FxFlash"), "Mythic: a screen flash")
+	t.eq(hud:FindFirstChild("FxFlash"), nil, "Mythic: no screen tint…")
+	t.ok(hud:FindFirstChild("FxShock") and hud:FindFirstChild("FxVignette"), "…a burst at the fish and rainbow edges")
 	t.ok(openCard(sim, p))
 	t.eq(count(f.CatchRays, "FxRays"), 2, "Mythic: an extra ring of rays")
 	local mythicRays = 0
@@ -691,7 +755,7 @@ tests["catch: Legendary and Mythic are louder — tension, flash at the landing,
 	t.ok(count(card.Banner, "FxSparkle") > 0, "sparkles on the Mythic banner")
 	sim:Advance(1)
 	sim:Click(p, card)
-	sim:Advance(0.1)
+	sim:Advance(SKIP_DWELL + 0.1)
 	sim:Click(p, card)
 	sim:Advance(3)
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
@@ -772,6 +836,38 @@ tests["mutation: stamped after the base price — «×N», recount, outline; Gol
 	sim:AssertNoErrors({ warnings = true })
 end
 
+-- A skip in the middle of the mutation beat: its tails (the «×N» stamp, the recount, the bump) do
+-- not play on the settled card — the price never drops back to the base price.
+tests["mutation: a skip mid-stamp settles it — no recount from the base price afterwards"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	ready(sim, p)
+	local card = fishing(p).CatchCard
+	local price = card.InfoLabel.Price.Label
+	local fish = table.clone(CATCHES.Rare)
+	fish.Mutation = "Gold"
+	fish.Value = CATCHES.Rare.Value * 2
+	catch(sim, p, fish, 1)
+	t.ok(openCard(sim, p))
+	-- Rare: the base price lands at c+0.95+0.6, the stamp 0.15 s later, the recount 0.2 s after it.
+	sim:Advance(1.75)
+	t.eq(card.InfoLabel.Price.Multiplier.Visible, true, "the mutation beat has begun (its tails not yet)")
+	sim:Click(p, card)
+	sim:Advance(1 / 60)
+	t.eq(price.Text, tostring(fish.Value), "the skip shows the full price")
+	local dropped = false
+	for _ = 1, 45 do
+		sim:Advance(1 / 60)
+		if price.Text ~= tostring(fish.Value) then
+			dropped = true
+		end
+	end
+	t.eq(dropped, false, "the price stays (no recount from the base price after the skip)")
+	t.near(card.InfoLabel.Price.Multiplier.FxScale.Scale, 1, 1e-3, "«×N» in place")
+	t.eq(card.Visible, true)
+	sim:AssertNoErrors({ warnings = true })
+end
+
 -- (UI v2: a tap during the reveal skips it; the card shrinks towards the counter and a 🐟 with
 -- ✨ flies in 0.05 s later; the rays shrink with it — timings this test checked before.)
 tests["closing: skip, then close — the card hides, its ghost shrinks to the counter, 🐟 flies, +1; nothing leaks"] = function(
@@ -805,7 +901,11 @@ tests["closing: skip, then close — the card hides, its ghost shrinks to the co
 	t.eq(card.Visible, true, "a tap during the reveal skips it")
 	t.near(card.Banner.FxScale.Scale, 1, 0.2, "…every beat at once")
 	t.eq(card.InfoLabel.Price.Label.Text, "58")
-	sim:Advance(0.3)
+	sim:Advance(0.2)
+	sim:Click(p, card)
+	sim:Advance(0.02)
+	t.eq(card.Visible, true, "a second tap right after the skip does not close it (SKIP_DWELL)")
+	sim:Advance(SKIP_DWELL)
 	sim:Click(p, card)
 	sim:Advance(0.02)
 	t.eq(card.Visible, false, "hidden at once")
@@ -896,10 +996,11 @@ tests["catch: the card opens on the landing signal (OwnFishLanded) plus the rari
 	sim:Run(function()
 		fx.OwnFishLanded:Fire("Legendary", Vector3.new(0, 10, 0))
 	end, p)
+	sim:Advance(0.6)
+	t.eq(card.Visible, false, "Legendary: a 0.8 s hold after the landing (the giant title stands alone)")
+	t.eq(fishing(p).TitleSlam.Visible, true, "…the title is up meanwhile")
 	sim:Advance(0.3)
-	t.eq(card.Visible, false, "Legendary: a 0.4 s hold after the landing")
-	sim:Advance(0.2)
-	t.eq(card.Visible, true, "the card is up — well before LeapTime + 0.3 s")
+	t.eq(card.Visible, true, "the card is up — well before the fallback (LeapTime + 0.3 s, then the hold)")
 	sim:Advance(6)
 
 	-- No leap at all (no character / no model): the signal comes before "Caught" — still used.
@@ -1097,6 +1198,70 @@ tests["predicted hit: the punch plays on the tap; the final hit is the catch's; 
 	t.eq(count(ghost, "FxFloat"), 1, "the ghost carries no copy of the predicted word")
 	sim:Advance(1.5)
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- The winning tap (UI v2.1): no hit word — the needle freezes gold where the player tapped and the
+-- zone glows gold until the server answers; the win ghost keeps the needle there.
+tests["winning tap: the needle freezes gold until Caught (or a timeout); the win ghost keeps it, «ПОЙМАНА!» is big"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	ready(sim, p)
+	local f = fishing(p)
+	local mini = f.Minigame
+	local needle, flash = mini.Track.Needle, mini.Track.Zone.Flash
+	local function taps(): number
+		return #sim:ServerEventsFor(p, "FishingTap")
+	end
+
+	-- No answer: the hold ends by itself and the game goes on.
+	serverSays(sim, p, "Minigame", minigame("Common", { U0 = 0.6, Speed = 0.05, ZoneCenter = 0.62 }))
+	sim:Advance(0.4)
+	pressF(sim, p)
+	t.eq(taps(), 1)
+	t.eq(count(mini, "FxFloat"), 0, "no hit word: the win is the catch's")
+	t.ok(colorNear(needle.BackgroundColor3, Palette.Gold.Top), "the needle turns gold")
+	t.ok(
+		flash.BackgroundTransparency < 0.5 and colorNear(flash.BackgroundColor3, Palette.Gold.Top),
+		"the zone glows gold"
+	)
+	t.ok(count(mini.Track.Zone, "FxRing") > 0, "a ring from the zone")
+	local held = needle.Position.X.Scale
+	sim:Advance(0.25)
+	t.near(needle.Position.X.Scale, held, 1e-6, "the needle stays where the player tapped")
+	pressF(sim, p)
+	t.eq(taps(), 1, "no more taps go out while the answer is on its way")
+	sim:Advance(1.4)
+	t.ok(math.abs(needle.Position.X.Scale - held) > 1e-3, "no answer within the hold: the needle runs again")
+	t.ok(colorNear(needle.BackgroundColor3, UIConfig.White), "…white")
+	t.eq(flash.BackgroundTransparency, 1, "…and the zone is calm")
+	pressF(sim, p)
+	t.eq(taps(), 2, "taps go out again")
+
+	-- The answer comes: the win ghost shows the needle where the player tapped.
+	serverSays(sim, p, "Minigame", minigame("Common", { U0 = 0.6, Speed = 0.05, ZoneCenter = 0.62 }))
+	sim:Advance(0.4)
+	pressF(sim, p)
+	held = needle.Position.X.Scale
+	sim:Advance(0.2)
+	catch(sim, p, CATCHES.Common, 1)
+	local ghost = f:FindFirstChild("FxMinigameWin")
+	t.ok(ghost, "the win ghost")
+	t.near(ghost.Track.Needle.Position.X.Scale, held, 1e-6, "…shows the needle where the player tapped")
+	t.eq(ghost:FindFirstChild("TapPad"), nil, "…takes no taps")
+	t.eq(ghost.Active, false)
+	t.eq(count(ghost, "FxGhost"), 0, "…without the frozen needle trail")
+	local word = p.PlayerGui.HUD:FindFirstChild("FxFloat")
+	t.ok(word and word.Text == "ПОЙМАНА!", "«ПОЙМАНА!»")
+	t.ok(word and word.Size.Y.Offset >= 56, `the loudest word of the minigame ({word and word.Size.Y.Offset} px)`)
+	local slam = word and word:FindFirstChildOfClass("UIScale")
+	t.ok(slam and slam.Scale > 1.2, `…slammed in from big ({slam and slam.Scale})`)
+	sim:Advance(0.45)
+	t.eq(f:FindFirstChild("FxMinigameWin"), nil, "the ghost leaves early (the leap starts there)")
+	t.eq(f.Minigame.Visible, false)
+	t.ok(colorNear(needle.BackgroundColor3, UIConfig.White), "the live needle is reset for the next game")
 	sim:AssertNoErrors({ warnings = true })
 end
 

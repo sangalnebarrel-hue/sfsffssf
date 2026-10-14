@@ -506,7 +506,8 @@ safe area).
 | `hit`, `hit_perfect`, `hit_super` | a hit: zone jumps, pip fills (off-centre / perfect / the second Mythic hit) | 0..0.9 s |
 | `miss`, `minigame_timeout` | a miss: «МИМО!» / «ВРЕМЯ!» on the ghost (🐟 swims off), the hint as it leaves (miss stills 0.25 / 0.9 s) | miss 0..1.2 s |
 | `lost_late`, `denied_far` | hints of a lost fish / a refused cast | |
-| `catch_win` | the winning tap (Legendary, time 0 = "Caught"): win morph «ПОЙМАНА!», tension, landing flash, giant title, the card | 0..2.6 s (whole screen) |
+| `catch_win` | the winning tap (Legendary, time 0 = "Caught"): win morph (needle where tapped) sinking away, «ПОЙМАНА!» left of the character, tension, the landing shockwave and edge glow (no full-screen flash), rays around the fish, giant title, the card | 0..2.6 s (whole screen) |
+| `catch_hold` | the winning tap before the server answers: the needle freezes gold where tapped, the zone glows, the panel bumps | 0..0.6 s, minigame |
 | `catch_common`, `_rare`, `_epic`, `_legendary`, `_mythic` | catch card per rarity (time 0 = the card is visible; stills after its last beat) | common 0..1.8 s, legendary / mythic 0..2.7 s (whole screen) |
 | `catch_gold`, `catch_neon`, `catch_rainbow` | catch card with a mutation (stamp, «×N», recount, outline) | rainbow 1.6..3.2 s |
 | `catch_skip` | a tap during the reveal (Epic) shows every beat at once | 0..0.5 s |
@@ -531,9 +532,9 @@ rendered by `--timeline` or by name):
 
 | scenario | what | timeline |
 |---|---|---|
-| `catch_timeline` | a real Legendary catch (Акулёнок) from the winning tap | 0..7 s @ 6 fps + burst |
+| `catch_timeline` | a real Legendary catch (Акулёнок) from the winning tap (title stage, card, close, trophy replay) | 0..8 s @ 6 fps + burst |
 | `catch_timeline_common` | a real Common catch (Карасик) | 0..5.5 s @ 6 fps + burst |
-| `catch_timeline_mythic` | a real Mythic Rainbow catch (Рыба-дракон) | 0..8.5 s @ 6 fps + burst |
+| `catch_timeline_mythic` | a real Mythic Rainbow catch (Рыба-дракон) | 0..9 s @ 6 fps + burst |
 
 Scenarios find widgets by name only (`HUD.Fishing.ActionArea.ActionButton`, `HUD.Fishing.CatchCard`,
 `HUD.RightButtons.HomeButton`, ...), so they survive restyles; a missing or hidden widget is a
@@ -587,7 +588,9 @@ object the HUD hides. The composite's header lists `n·name time`. Default beats
 | `win` | `FxMinigameWin` is shown (UI v2 FUI-01) |
 | `leap` / `held` / `held gone` / `pillar` | the world: the Leap model / HeldFish appear, HeldFish vanishes, `PillarCore` appears |
 | `landing` | `FishingFxController.OwnFishLanded` fired (UI v2 WFX-02) |
-| `flash` | an `FxFlash` is shown |
+| `flash` | an `FxFlash` is shown (the bite's sun flash; a catch landing has none) |
+| `shock` | an `FxShockGlow` is shown (the disc of `UiFx.shockwave`: the landing hit at the fish) |
+| `title` | `Fishing.TitleSlam` shown (the giant rarity word of Epic+) |
 | `card`, `banner`, `name` | `CatchCard`, `CatchCard.Banner.RarityLabel`, `CatchCard.NameLabel` shown |
 | `price` | `CatchCard.InfoLabel.Price.Label` stopped changing (the count-up landed) |
 | `mutation` | `CatchCard.MutationLabel` or `CatchCard.MutationStamp` shown |

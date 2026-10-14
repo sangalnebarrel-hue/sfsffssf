@@ -417,8 +417,10 @@ end
 
 -- UI v2 (FUI-01): the card opens when the caught fish has landed over the head
 -- (FishingFxController.OwnFishLanded; without a leap — the harness sends "Caught" without the
--- server's FishFx — LeapTime + 0.3 s) plus a per-rarity hold of at most 0.55 s.
-local CARD_OPENS = FishingConfig.LeapTime + 0.3 + 0.6
+-- server's FishFx — LeapTime + 0.3 s) plus a per-rarity hold of at most 0.9 s.
+local CARD_OPENS = FishingConfig.LeapTime + 0.3 + 1.0
+-- After a tap skips the reveal the card ignores taps this long (FishingController CLIMAX.SkipDwell).
+local SKIP_DWELL = 0.6
 
 local function waitCard(sim: any, player: any): boolean
 	local card = gui(sim, player, "CatchCard")
@@ -479,6 +481,11 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	sim:Advance(0.05)
 	t.eq(card.Visible, true, "a tap during the reveal skips to its end")
 	t.eq(card.InfoLabel.Price.Label.Text, "35", "…the whole price at once")
+	sim:Advance(0.15)
+	sim:Click(p, card)
+	sim:Advance(0.05)
+	t.eq(card.Visible, true, "a double tap does not close it: the whole card stays SKIP_DWELL")
+	sim:Advance(SKIP_DWELL)
 	sim:Click(p, card)
 	sim:Advance(0.05)
 	t.eq(card.Visible, false, "the next tap closes the card")
@@ -508,7 +515,10 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	pressF(sim, p)
 	t.eq(card.Visible, true, "the action skips the reveal…")
 	t.eq(card.InfoLabel.Price.Label.Text, "2\u{00A0}400", "…the price with a thousands space")
-	sim:Advance(0.1)
+	sim:Advance(0.2)
+	pressF(sim, p)
+	t.eq(card.Visible, true, "…a mashed F right after the skip leaves it up")
+	sim:Advance(SKIP_DWELL)
 	pressF(sim, p)
 	t.eq(card.Visible, false, "…and then closes the card")
 	t.eq(#sent(sim, p, "FishingCast"), 0, "...and does not cast")
@@ -642,6 +652,42 @@ tests["phone: a world tap (Tool.Activated, also fired by camera drags) never tap
 	sim:Advance(0.05)
 	local taps = sent(sim, p, "FishingTap")
 	t.eq(#taps, 1, "the button taps (once: on touch down, not again on release)")
+
+	-- The catch screen: a camera drag must not skip the reveal or close the card (the player
+	-- turns the camera to look at the fish over the head).
+	local card = gui(sim, p, "CatchCard")
+	local price = card.InfoLabel.Price.Label
+	p:SetAttribute("FishCaught", 1)
+	serverSays(sim, p, "Caught", { Fish = { Id = "Crucian", Rarity = "Common", Kg = 0.5, Value = 9 }, Total = 1 })
+	t.ok(waitCard(sim, p))
+	sim:Advance(0.45)
+	sim:ActivateTool(p)
+	sim:Advance(0.05)
+	t.eq(card.Visible, true, "a world drag on the catch screen does not close the card")
+	t.eq(price.Text, "0", "…nor skip its reveal")
+	sim:Click(p, card)
+	sim:Advance(0.05)
+	t.eq(price.Text, "9", "the card itself still skips")
+	sim:Advance(SKIP_DWELL + 0.1)
+	sim:ActivateTool(p)
+	sim:Advance(0.05)
+	t.eq(card.Visible, true, "…and a drag still does not close it")
+	sim:Click(p, card)
+	sim:Advance(1.5)
+	t.eq(card.Visible, false)
+
+	-- «К ПИРСУ» (far from the spot): walking there with drags does not re-fire the far warning.
+	sim:Teleport(p, ownBase(sim, p).SpawnPad.Position + Vector3.new(0, 5, 0))
+	sim:Advance(1)
+	t.eq(caption(sim, p), "К ПИРСУ")
+	local icon = gui(sim, p, "Hint.IconSocket.Icon")
+	local before = icon.Text
+	local button = gui(sim, p, "ActionArea.ActionButton")
+	sim:ActivateTool(p)
+	sim:Advance(0.05)
+	t.eq(icon.Text, before, "the far hint is not re-fired by a drag")
+	t.ok(button.FxScale.Scale > 0.99, "…and the button does not «press» itself")
+	t.eq(#sent(sim, p, "FishingCast"), 0, "nothing is cast")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -655,7 +701,9 @@ tests["attribute safety net: FishingState back to Idle without an event resets t
 	t.eq(caption(sim, p), "ПОДСЕЧЬ!")
 	p:SetAttribute("FishingState", "Idle")
 	sim:Advance(0.1)
-	t.eq(caption(sim, p), "ЖДЁМ…", "line in: dim during CastCooldown")
+	t.eq(caption(sim, p), "ПОДСЕЧЬ!", "the event usually follows the attribute: the net waits for it")
+	sim:Advance(0.5)
+	t.eq(caption(sim, p), "ЖДЁМ…", "no event came: line in, dim during CastCooldown")
 	sim:Advance(FishingConfig.CastCooldown)
 	t.eq(caption(sim, p), "ЗАБРОСИТЬ")
 	t.eq(gui(sim, p, "BiteAlert").Visible, false)

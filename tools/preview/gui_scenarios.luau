@@ -642,6 +642,18 @@ local scenarios = {
 		end,
 	},
 	{
+		name = "catch_hold",
+		desc = "The winning tap before the server answers: the needle freezes gold where tapped, the zone glows",
+		still = { 0.1, 0.5 },
+		sheet = { from = 0, to = 0.6, fps = 15, roi = HIT_ROI, margin = 0.05 },
+		run = function(h: any)
+			-- Legendary, one hit already in: the next tap wins (the needle starts in the zone).
+			toMinigame(h, "Legendary", { ZoneCenter = 0.5, U0 = 0.46, Hits = 1 })
+			h:advance(0.03)
+			h:click("HUD.Fishing.ActionArea.ActionButton", true)
+		end,
+	},
+	{
 		name = "catch_common",
 		desc = "Catch card: Common (Карасик) — calm: no dim, no confetti, a smaller card",
 		still = 1.9,

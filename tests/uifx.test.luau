@@ -5,8 +5,9 @@
 	none when idle, and confetti respects the per-device cap (40 on touch, 60 otherwise).
 	UI v2 foundation: rays (halo/breathe by device, signed speed, maxPx, the callable handle with
 	settle), pooled sounds with pitch and the rarity arpeggio, flash from/hold and flashBig,
-	fovPunch (one owner of Camera.FieldOfView, −8° cap), edgeVignette, fitText and the 2 px text
-	outline floor, fadeOut of a ViewportFrame, glowRing stop, the hidden Shine overlay.
+	fovPunch (one owner of Camera.FieldOfView, −8° cap; the eased-in wind-up), edgeVignette, fitText
+	and the 2 px text outline floor, fadeOut of a ViewportFrame, glowRing stop, the hidden Shine
+	overlay. UI v2.1: rays with an empty middle (hole, growFrom) and the shockwave rings of a landing.
 
 	Run: lune run tools/run_tests.luau uifx
 ]]
@@ -491,6 +492,52 @@ tests["rays: halo quads and breathing stay on by default on a desktop"] = functi
 	sim:AssertNoErrors({ warnings = true })
 end
 
+tests["rays with a hole: the middle stays empty from the first frame (growFrom), no glow discs"] = function(t)
+	local sim, p = boot(t, "desktop")
+	local UiFx = fxOf(sim, p)
+	local s = stage(sim, p)
+	local rays
+	client(sim, p, function()
+		rays = UiFx.rays(s, { count = 8, hole = 0.3, growFrom = 0.75, halo = false })
+	end)
+	local holder = s.FxRays
+	t.eq(holder:FindFirstChild("GlowInner"), nil, "no glow disc over the middle")
+	t.near(holder.FxScale.Scale, 0.75, 0.05, "grows from growFrom, not from nothing")
+	local ray = holder.Ray1
+	t.near(ray.Size.Y.Scale, 0.35, 1e-6, "a ray spans the outer 70 % of the radius")
+	t.near(ray.Position.Y.Scale, 0.5 - 0.325, 1e-6, "…starting at the hole's edge")
+	client(sim, p, function()
+		rays()
+	end)
+	t.eq(s:FindFirstChild("FxRays"), nil)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["shockwave: rings burst out of a point and are gone; the middle stays clear"] = function(t)
+	local sim, p = boot(t, "phone")
+	local UiFx = fxOf(sim, p)
+	local hud = p.PlayerGui.HUD
+	client(sim, p, function()
+		UiFx.shockwave(hud, Vector2.new(0.4, 0.35), { color = Color3.new(1, 0.9, 0.4), size = 1.3, glow = 0.8 })
+	end)
+	local ring = hud:FindFirstChild("FxShock")
+	t.ok(ring, "a ring at the point")
+	t.near(ring.Position.X.Scale, 0.4, 1e-6)
+	t.ok(ring.Size.Y.Scale >= 0.2, "it starts wider than what landed (no stroke over it)")
+	t.eq(ring.BackgroundTransparency, 1, "a ring, not a disc")
+	t.ok(hud.FxShockGlow.BackgroundTransparency >= 0.8 - 1e-6, "a faint glow only")
+	t.eq(hud:FindFirstChild("FxFlash"), nil, "not a full-screen flash")
+	sim:Advance(0.1)
+	t.ok(hud:FindFirstChild("FxShockInner"), "a white ring follows")
+	t.ok(ring.Size.Y.Scale > 0.4, "the ring spreads")
+	sim:Advance(0.6)
+	t.eq(hud:FindFirstChild("FxShock"), nil, "gone")
+	t.eq(hud:FindFirstChild("FxShockInner"), nil)
+	t.eq(hud:FindFirstChild("FxShockGlow"), nil)
+	t.eq(UiFx.activeJobs(), 0, "tweens only")
+	sim:AssertNoErrors({ warnings = true })
+end
+
 tests["sound: a small pool per sound, pitch per call; arpeggio rises with rarity"] = function(t)
 	local sim, p = boot(t)
 	local UiFx = fxOf(sim, p)
@@ -602,6 +649,17 @@ tests["fovPunch: one owner of the FOV — sums punches, caps at −8°, restores
 	end)
 	sim:Advance(0.05)
 	t.near(fov(), 60, 1e-6, "stopped")
+	-- A wind-up (easeIn): slow at first, then the peak; a snap on top of it still caps at −8°.
+	client(sim, p, function()
+		UiFx.fovPunch(2, 0.25, 0.12, true)
+	end)
+	sim:Advance(0.08)
+	local early = fov() - 60
+	t.ok(early > 0 and early < 0.6, `the wind-up starts slowly (+{early}° after 0.08 s)`)
+	sim:Advance(0.17)
+	t.near(fov(), 62, 0.1, "…and reaches its peak")
+	sim:Advance(0.3)
+	t.near(fov(), 60, 1e-6, "back to the base")
 	client(sim, p, function()
 		camera.FieldOfView = 70
 	end)

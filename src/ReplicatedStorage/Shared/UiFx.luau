@@ -812,7 +812,10 @@ export type RaysOptions = {
 	-- на тач-устройствах нет — вдвое меньше заливки; без ореола лучи в 1.4 раза толще и чуть ярче)
 	breathe: boolean?, -- «дыхание» 1 ↔ 1.06 (по умолчанию как halo)
 	grow: number?, -- время появления 0 → 1, Quad Out без перелёта (0.4 с)
+	growFrom: number?, -- … начиная с этого размера (0; с hole — например 0.75: середина сразу пустая)
 	z: number?, -- ZIndex (0: позади конфеты; для прочих элементов ставьте лучи в отдельный слой позади)
+	hole: number?, -- пустая середина, доля радиуса (0; 0.3 — лучи бьют ВОКРУГ того, что в центре,
+	-- например рыбы над головой в мире; свечения в центре тогда нет)
 }
 
 export type SettleOptions = {
@@ -834,7 +837,8 @@ export type Rays = typeof(setmetatable({} :: RaysApi, {} :: { __call: (RaysApi) 
 --[[
 	«Солнышко» за элементом: лучи от центра (чередуются цвета, к концу тают; на компьютере у
 	каждого ещё широкий мягкий ореол) и круглое свечение; вырастает (Quad Out), медленно вращается
-	(speed со знаком: два кольца в разные стороны не дают муара) и «дышит». Только твины (без
+	(speed со знаком: два кольца в разные стороны не дают муара) и «дышит». С hole середина пустая:
+	лучи бьют вокруг того, что в центре (рыба над головой в мире видна). Только твины (без
 	соединений). Возвращает ручку Rays: rays() / rays.stop() — убрать, rays:settle() — сделать
 	тише и медленнее (и перестать «дышать»), когда главное уже показано.
 ]]
@@ -850,6 +854,7 @@ function UiFx.rays(gui: GuiObject, opts: RaysOptions?): Rays
 	local width = (o.width or 0.075) * (if withHalo then 1 else 1.4)
 	local speed = o.speed or 20
 	local grow = o.grow or 0.4
+	local hole = math.clamp(o.hole or 0, 0, 0.9)
 	local holder = Instance.new("Frame")
 	holder.Name = "FxRays"
 	holder.BackgroundTransparency = 1
@@ -892,20 +897,22 @@ function UiFx.rays(gui: GuiObject, opts: RaysOptions?): Rays
 		frame.Parent = holder
 		table.insert(fading, { frame = frame, peak = transparency, direct = true })
 	end
-	if o.glow ~= false then
+	if o.glow ~= false and hole <= 0 then
 		disc("GlowOuter", 0.62, 0.78, colors[1])
 		disc("GlowInner", 0.38, 0.55, colors[1])
 	end
 
-	-- Луч — прямоугольник от центра наружу: центр на половине радиуса, повёрнут по направлению.
+	-- Луч — прямоугольник от центра (или от края пустой середины) наружу, повёрнут по направлению.
+	local length = 0.5 * (1 - hole) -- доля диаметра
+	local middle = 0.25 * (1 + hole) -- его центр от центра лучей
 	local function ray(index: number, name: string, thickness: number, peak: number)
 		local angle = (index - 1) * 360 / count
 		local radians = math.rad(angle)
 		local frame = Instance.new("Frame")
 		frame.Name = name
 		frame.AnchorPoint = Vector2.new(0.5, 0.5)
-		frame.Position = UDim2.fromScale(0.5 + 0.25 * math.sin(radians), 0.5 - 0.25 * math.cos(radians))
-		frame.Size = UDim2.fromScale(thickness, 0.5)
+		frame.Position = UDim2.fromScale(0.5 + middle * math.sin(radians), 0.5 - middle * math.cos(radians))
+		frame.Size = UDim2.fromScale(thickness, length)
 		frame.Rotation = angle
 		frame.BackgroundColor3 = colors[(index - 1) % #colors + 1]
 		frame.BorderSizePixel = 0
@@ -927,7 +934,7 @@ function UiFx.rays(gui: GuiObject, opts: RaysOptions?): Rays
 	holder.Parent = gui
 	-- Появление: растёт из центра без перелёта (лучи бывают во весь экран — перелёт там лишний).
 	local scale = UiFx.scaleOf(holder)
-	scale.Scale = 0
+	scale.Scale = math.clamp(o.growFrom or 0, 0, 1)
 	tween(scale, grow, { Scale = 1 }, QUAD, OUT)
 
 	local spin: Tween? = nil
@@ -1595,7 +1602,8 @@ end
 --[[
 	Вспышка на весь экран: цвет с прозрачностью from (0.6 — лёгкий отсвет) держится hold секунд и
 	тает за time (0.25 с). Не чаще 3 раз в секунду (UIConfig.Fx.FlashMinInterval): лишние вызовы
-	молча пропускаются. Для кульминаций — UiFx.flashBig.
+	молча пропускаются. Для кульминаций — UiFx.flashBig (но не для приземления улова: почти
+	сплошной экран на телефоне слепит и прячет саму рыбу — там UiFx.shockwave и края экрана).
 ]]
 local lastFlash = -math.huge
 function UiFx.flash(layer: GuiBase2d, color: Color3?, time: number?, from: number?, hold: number?)
@@ -1623,17 +1631,99 @@ function UiFx.flash(layer: GuiBase2d, color: Color3?, time: number?, from: numbe
 	end)
 end
 
--- Большая вспышка (приземление легендарной/мифической рыбы): почти сплошной цвет (0.12), держится
--- 0.05 с и тает за 0.45 с. То же ограничение частоты, что у flash.
+-- Большая вспышка: почти сплошной цвет (0.12), держится 0.05 с и тает за 0.45 с. То же
+-- ограничение частоты, что у flash. Сейчас не используется (приземление улова — UiFx.shockwave).
 function UiFx.flashBig(layer: GuiBase2d, color: Color3?)
 	UiFx.flash(layer, color, 0.45, 0.12, 0.05)
+end
+
+export type ShockwaveOptions = {
+	color: Color3?, -- цвет толстого кольца (белый)
+	colors: { Color3 }?, -- … или градиент по кольцу (радуга мифической)
+	size: number?, -- до какого диаметра расходится кольцо, в высотах слоя (1.3)
+	time: number?, -- 0.45 с
+	thickness: number?, -- толщина кольца на экране 720 px (14; на телефоне тоньше)
+	glow: number?, -- мягкий диск в центре: прозрачность в начале (0.55; 1 — без диска)
+	z: number?, -- ZIndex (60: над виджетами, под вспышкой и краями экрана)
+}
+
+--[[
+	Удар в точке (приземление рыбы): из origin (доли слоя) расходится толстое кольцо цвета (или
+	градиента), за ним — тонкое белое; в центре на миг мягкий диск, он тает быстрее колец. Середина
+	не закрыта (то, что приземлилось, видно) и на весь экран ничего не светит — это не вспышка.
+	Только твины; всё удаляется само (FxShock*).
+]]
+function UiFx.shockwave(layer: GuiBase2d, origin: Vector2, opts: ShockwaveOptions?)
+	local o: ShockwaveOptions = opts or {}
+	local time = o.time or 0.45
+	local size = o.size or 1.3
+	local z = o.z or 60
+	local k = math.clamp(screenUnit(layer) / Fx.StrokeHeight, 0.65, 1.5)
+	local made: { Instance } = {}
+	local function circle(name: string, from: number): Frame
+		local frame = Instance.new("Frame")
+		frame.Name = name
+		frame.AnchorPoint = Vector2.new(0.5, 0.5)
+		frame.Position = UDim2.fromScale(origin.X, origin.Y)
+		frame.SizeConstraint = Enum.SizeConstraint.RelativeYY
+		frame.Size = UDim2.fromScale(from, from)
+		frame.BackgroundTransparency = 1
+		frame.BorderSizePixel = 0
+		frame.ZIndex = z
+		frame.Active = false
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.5, 0)
+		corner.Parent = frame
+		frame.Parent = layer
+		table.insert(made, frame)
+		return frame
+	end
+	-- Кольцо начинается чуть шире того, что приземлилось (0.3 высоты слоя: снаружи ореола рыбы), и расходится.
+	local function ring(name: string, color: Color3, px: number, to: number, ringTime: number)
+		local frame = circle(name, math.min(0.3, to))
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = color
+		stroke.Thickness = px
+		stroke.Transparency = 0.05
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Parent = frame
+		if name == "FxShock" and o.colors and #o.colors > 1 then
+			stroke.Color = WHITE
+			local gradient = Instance.new("UIGradient")
+			gradient.Color = UiFx.sequence(o.colors)
+			gradient.Rotation = 30
+			gradient.Parent = stroke
+		end
+		tween(frame, ringTime, { Size = UDim2.fromScale(to, to) }, QUAD, OUT)
+		tween(stroke, ringTime, { Transparency = 1, Thickness = px * 0.35 }, QUAD, IN)
+	end
+	local thick = (o.thickness or 14) * k
+	ring("FxShock", o.color or WHITE, thick, size, time)
+	task.delay(0.06, function()
+		if layer.Parent then
+			ring("FxShockInner", WHITE, math.max(thick * 0.4, 2), size * 0.72, time * 0.9)
+		end
+	end)
+	local glow = o.glow or 0.55
+	if glow < 1 then
+		local disc = circle("FxShockGlow", 0.08)
+		disc.BackgroundColor3 = o.color or WHITE
+		disc.BackgroundTransparency = glow
+		tween(disc, time * 0.55, { Size = UDim2.fromScale(size * 0.4, size * 0.4) }, QUAD, OUT)
+		tween(disc, time * 0.55, { BackgroundTransparency = 1 }, QUAD, IN)
+	end
+	task.delay(time + 0.1, function()
+		for _, item in made do
+			item:Destroy()
+		end
+	end)
 end
 
 --------------------------------------------------------------------------------
 -- «Толчок» поля зрения камеры (один владелец Camera.FieldOfView)
 --------------------------------------------------------------------------------
 
-type Punch = { deg: number, tIn: number, tOut: number, t: number, cancelled: boolean }
+type Punch = { deg: number, tIn: number, tOut: number, t: number, cancelled: boolean, easeIn: boolean }
 local punches: { Punch } = {}
 local fovJob: Stop? = nil
 local fovCamera: Camera? = nil
@@ -1646,6 +1736,9 @@ local function punchOffset(p: Punch): number?
 	end
 	if p.t < p.tIn then
 		local k = p.t / p.tIn
+		if p.easeIn then
+			return p.deg * (1 - math.cos(k * math.pi / 2)) -- Sine In: «замах» набирает ход
+		end
 		return p.deg * (1 - (1 - k) * (1 - k)) -- Quad Out
 	end
 	local k = (p.t - p.tIn) / p.tOut
@@ -1661,9 +1754,10 @@ end
 	Camera.FieldOfView: запоминает базовое значение, складывает одновременные толчки, ограничивает
 	сумму ±UIConfig.Fx.FovPunchMax (8°) и в конце возвращает базу. Если FOV поменял кто-то другой,
 	его значение становится новой базой. Покадрово (общий планировщик). Возвращает stop (этот толчок
-	перестаёт действовать со следующего кадра).
+	перестаёт действовать со следующего кадра). easeIn — «замах» (Sine In вместо Quad Out): камера
+	плавно набирает ход к пику, например +2° перед ударом −6° (кульминация улова).
 ]]
-function UiFx.fovPunch(deg: number, tIn: number?, tOut: number?): Stop
+function UiFx.fovPunch(deg: number, tIn: number?, tOut: number?, easeIn: boolean?): Stop
 	local camera = Workspace.CurrentCamera
 	if not camera or deg == 0 then
 		return noop
@@ -1674,6 +1768,7 @@ function UiFx.fovPunch(deg: number, tIn: number?, tOut: number?): Stop
 		tOut = math.max(tOut or 0.35, 0.001),
 		t = 0,
 		cancelled = false,
+		easeIn = easeIn == true,
 	}
 	table.insert(punches, punch)
 	if not fovJob then

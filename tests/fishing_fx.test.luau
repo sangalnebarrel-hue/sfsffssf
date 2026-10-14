@@ -53,6 +53,7 @@ local Fx = FishingConfig.Fx
 
 local Vector3 = roblox.Vector3
 local UDim2 = roblox.UDim2
+local Vector2 = roblox.Vector2
 
 -- FishingFxController's camera offset while the player's own fishing is on screen.
 local CAMERA_OFFSET = Vector3.new(2.2, 1, 0)
@@ -874,7 +875,47 @@ tests["own client: OwnFishLanded fires once, on the landing frame, at the held f
 	local held = fisher.Character.HeldFish
 	t.near(landed[1].position, held:GetBoundingBox().Position, 0.05, "at the centre of the held fish")
 	t.near(cameraOffset(sim, fisher), CAMERA_OFFSET, 0.01, "the camera stays aside while the trophy is up")
-	sim:Advance(FishingConfig.HoldFishTime.Legendary - 0.5, COARSE)
+
+	-- The own nameplate sits beside the fish (the status badge and the counter are above it).
+	local ownFx = clientFx(sim, fisher)
+	local plate = sim:WaitFor(function()
+		return findEffect(ownFx, fisher, "Nameplate")
+	end, 0.5, FRAME)
+	t.ok(plate, "the own client shows a nameplate too")
+	t.eq(plate.SizeOffset, Vector2.new(0.5, 0), "…its left edge on the anchor point")
+	t.ok(plate.StudsOffset.X > 0.4, "…to the right of the fish (camera space)")
+	t.near(
+		plate.StudsOffsetWorldSpace.Y,
+		held:GetBoundingBox().Position.Y - held.PrimaryPart.Position.Y,
+		1e-3,
+		"…level with it"
+	)
+	t.ok(findEffect(ownFx, fisher, "PillarCore"), "the own pillar at the landing")
+
+	-- The card closes (FishingController): the trophy flashes again — pop, halo, a short pillar.
+	sim:Advance(FishingConfig.Fx.PillarTime.Legendary + 0.2, COARSE)
+	t.eq(findEffect(ownFx, fisher, "PillarCore"), nil, "the landing pillar is over")
+	local replayed = sim:Run(function()
+		return ownFx.ReplayOwnTrophy()
+	end, fisher)
+	t.eq(replayed, true, "ReplayOwnTrophy: the fish is still over the head")
+	t.ok(findEffect(ownFx, fisher, "Halo") and findEffect(ownFx, fisher, "Pop"), "…a halo and a pop again")
+	t.ok(findEffect(ownFx, fisher, "PillarCore"), "…and a short pillar")
+	t.ok(plate.Plate.FxScale.Scale > 1.05, "…the nameplate bumps")
+	sim:Advance(1.5, COARSE)
+	t.eq(findEffect(ownFx, fisher, "PillarCore"), nil, "the replay pillar is short")
+	local watcherFx = clientFx(sim, watcher)
+	t.eq(
+		sim:Run(function()
+			return watcherFx.ReplayOwnTrophy()
+		end, watcher),
+		false,
+		"the watcher has no trophy of its own: nothing"
+	)
+	sim:Advance(
+		math.max(0, FishingConfig.HoldFishTime.Legendary - 0.5 - FishingConfig.Fx.PillarTime.Legendary - 1.7),
+		COARSE
+	)
 	t.ok(fisher.Character:FindFirstChild("HeldFish"), "still holding the fish")
 	t.near(cameraOffset(sim, fisher), CAMERA_OFFSET, 0.01, "…and the camera stays aside")
 	sim:Advance(1.5, COARSE)
@@ -1016,13 +1057,14 @@ tests["nameplate and mutation aura: Rare+ fish get a nameplate; a mutation recol
 	t.eq(held:GetAttribute("Value"), fish.Value, "the server stamps the price on the held fish…")
 	t.eq(held:GetAttribute("FishId"), "Puffer", "…and what it is")
 	t.eq(plate.Adornee, held.PrimaryPart, "it follows the held fish")
-	t.eq(plate.Size, UDim2.fromScale(8, 2.5), "8 × 2.5 studs")
+	t.eq(plate.Size, UDim2.new(4, 110, 1.25, 34), "studs + pixels: still readable from the next pier")
 	t.eq(plate.AlwaysOnTop, false, "not through walls")
 	t.eq(plate.MaxDistance, Fx.Range)
 	t.eq(plate.LightInfluence, 0)
 	local box, boxSize = held:GetBoundingBox()
-	local bottom = held.PrimaryPart.Position.Y + plate.StudsOffsetWorldSpace.Y - 1.25
-	t.ok(bottom >= box.Position.Y + boxSize.Y / 2 - 0.05, "above the fish")
+	local bottom = held.PrimaryPart.Position.Y + plate.StudsOffsetWorldSpace.Y
+	t.eq(plate.SizeOffset, Vector2.new(0, 0.5), "its bottom edge on the anchor point…")
+	t.ok(bottom >= box.Position.Y + boxSize.Y / 2 - 0.05, "…above the fish")
 	t.eq(plate.Plate.Rarity.Text, "РЕДКАЯ")
 	t.ok(plate.Plate.Rarity.Fill:IsA("UIGradient"), "the rarity word in rarity colours")
 	t.eq(plate.Plate.FishName.Text, "Фугу-пуфик")

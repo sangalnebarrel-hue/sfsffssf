@@ -49,10 +49,13 @@
 	    появилась серверная HeldFish (пришла раньше — прячется до конца прыжка; не пришла за
 	    Fx.HandoffWait — копия исчезает сама). Над головой — вспышка (неоновый шар) и кольцо-
 	    ореол лицом к камере; у редкой рыбы и выше — табличка (редкость, название, мутация,
-	    цена) и искры цвета редкости, у рыбы с мутацией — искры цветов мутации (неоновая ещё
-	    светится), пока рыба над головой (FishingRules.HoldFishTime); легендарная и мифическая —
-	    ещё столб света (неоновая сердцевина + лучи Beam), конфетти и волна по земле вокруг
-	    рыбака.
+	    цена; размер — studs + пиксели NAMEPLATE_STUDS / NAMEPLATE_PIXELS: вблизи растёт с
+	    миром, издали не меньше пикселей) и искры цвета редкости, у рыбы с мутацией — искры
+	    цветов мутации (неоновая ещё светится), пока рыба над головой (FishingRules.HoldFishTime —
+	    на ≈3 с дольше карточки улова: после неё свой трофей ещё виден). Чужая табличка — над
+	    рыбой, своя — сбоку, справа от рыбы (над ней — заголовок и карточка улова своего экрана).
+	    Легендарная и мифическая — ещё столб света (неоновая сердцевина + лучи Beam), конфетти и
+	    волна по земле вокруг рыбака (свой столб тоже есть: он виден за лучами заголовка).
 	  • lost — леска вспыхивает красным, поплавок подскакивает и шлёпается обратно (потом
 	    сматывается), всплеск, столбик воды и круги, и рыбка, махнув хвостом, уходит под воду
 	    прочь от рыбака.
@@ -90,6 +93,11 @@
 	  FishingFxController.GetBobber(player) -> Model?          -- поплавок игрока (если есть)
 	  FishingFxController.GetEffects(player) -> { Instance }   -- детали эффектов рыбака
 	  FishingFxController.CountEmitters(player) -> number      -- его ParticleEmitter'ы сейчас
+	  FishingFxController.ReplayOwnTrophy() -> boolean
+	      -- своя рыба над головой ещё раз «вспыхивает» (FishingController — когда карточка улова
+	      -- закрылась и 🐟 полетела в счётчик): шар, ореол, искры, табличка «подпрыгивает», звон,
+	      -- у легендарной и мифической — короткий столб света (TROPHY_PILLAR_TIME). false — своей
+	      -- HeldFish нет (ничего).
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -132,7 +140,10 @@ local SPOUT_RISE = 0.18 -- столб воды поднимается, с
 local SPOUT_FADE = 0.4 -- … и тает, с
 local HALO_FROM, HALO_TO, HALO_TIME = 1.5, 7, 0.45 -- ореол над рыбой: диаметр, studs; время, с
 local POP_SIZE, POP_GROW, POP_FADE = 4.5, 0.12, 0.3 -- вспышка-шар над рыбой: studs; с; с
-local NAMEPLATE_SIZE = Vector2.new(8, 2.5) -- табличка над рыбой, studs
+-- Табличка над рыбой: studs + пиксели (как «!» поклёвки) — вблизи около 8 × 2.5 studs, а с
+-- соседнего пирса (≈240 studs) всё ещё читается (≈120 × 38 px).
+local NAMEPLATE_STUDS, NAMEPLATE_PIXELS = Vector2.new(4, 1.25), Vector2.new(110, 34)
+local TROPHY_PILLAR_TIME = 1.2 -- свой трофей «вспыхивает» после карточки: короткий столб света, с
 local ALERT_OTHER_DISTANCE = 90 -- чужой «!» виден не дальше, studs
 local OWN_PILLAR_WIDTH = 0.4 -- свой столб света уже чужого во столько раз (см. pillar)
 
@@ -1897,7 +1908,9 @@ end
 -- Табличка над рыбой редкости Rare+ (видят все, пока рыба над головой): редкость (легендарная —
 -- золотом, мифическая — переливающейся радугой), название, мутация и цена. Всё берётся из
 -- атрибутов модели (FishId, Rarity, Mutation, Value — их ставит FishingService), поэтому
--- годится и для рыб на витринах базы (Этап 3).
+-- годится и для рыб на витринах базы (Этап 3). Размер — studs + пиксели (издалека читается).
+-- У самого рыбака табличка не над рыбой, а справа от неё: сверху экрана — плашки статуса и
+-- счётчик улова, они закрыли бы её.
 local function nameplate(tracker: Tracker, held: Model, rarity: string, event: FxEvent)
 	local style = UIConfig.Rarity[rarity]
 	local body = held.PrimaryPart
@@ -1916,9 +1929,18 @@ local function nameplate(tracker: Tracker, held: Model, rarity: string, event: F
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Nameplate"
 	gui.Adornee = body
-	gui.Size = UDim2.fromScale(NAMEPLATE_SIZE.X, NAMEPLATE_SIZE.Y)
-	gui.StudsOffsetWorldSpace = (box.Position - body.Position)
-		+ Vector3.new(0, size.Y / 2 + NAMEPLATE_SIZE.Y / 2 + 0.4, 0)
+	gui.Size = UDim2.new(NAMEPLATE_STUDS.X, NAMEPLATE_PIXELS.X, NAMEPLATE_STUDS.Y, NAMEPLATE_PIXELS.Y)
+	local center = box.Position - body.Position
+	if isOwn(tracker) then
+		-- Левый край таблички — в 0.4 stud правее рыбы (смещение в осях камеры), по центру рыбы.
+		gui.StudsOffsetWorldSpace = center
+		gui.StudsOffset = Vector3.new(math.max(size.X, size.Z) / 2 + 0.4, 0, 0)
+		gui.SizeOffset = Vector2.new(0.5, 0)
+	else
+		-- Низ таблички — в 0.4 stud над рыбой.
+		gui.StudsOffsetWorldSpace = center + Vector3.new(0, size.Y / 2 + 0.4, 0)
+		gui.SizeOffset = Vector2.new(0, 0.5)
+	end
 	gui.MaxDistance = Fx.Range
 	gui.LightInfluence = 0
 	gui.AlwaysOnTop = false
@@ -1984,16 +2006,17 @@ end
 -- вверх на Fx.PillarHeight[редкость], вокруг — лучи (Beam) лицом к камере: свечение тает к небу
 -- (без «крышки»), искры бегут вверх; всё гаснет за Fx.PillarTime[редкость]. Мифическая — выше,
 -- шире и переливается. Его видно и издалека — он один на весь эффект и дешёвый (без частиц).
--- base — низ столба (земля под рыбаком; у самого рыбака — над его рыбой, чтобы не закрыть её).
+-- base — низ столба (земля под рыбаком; у самого рыбака — над его рыбой, чтобы не закрыть её);
+-- lifeOverride — своё время жизни (короткий столб трофея после карточки, ReplayOwnTrophy).
 -- Свой столб начинается в ~12 studs перед камерой: его лучи в OWN_PILLAR_WIDTH раз уже, иначе
 -- свечение затянуло бы пол-экрана; чужой виден через всю лагуну — в полную ширину.
-local function pillar(tracker: Tracker, base: Vector3, rarity: string)
+local function pillar(tracker: Tracker, base: Vector3, rarity: string, lifeOverride: number?)
 	local parent = folder
 	local style = UIConfig.Rarity[rarity]
 	if not parent or not style then
 		return
 	end
-	local life = Fx.PillarTime[rarity] or Fx.PillarTime.Legendary
+	local life = lifeOverride or Fx.PillarTime[rarity] or Fx.PillarTime.Legendary
 	local tall = Fx.PillarHeight[rarity] or Fx.PillarHeight.Legendary
 	local wide = (if style.Rainbow then 1.5 else 1) * (if isOwn(tracker) then OWN_PILLAR_WIDTH else 1)
 	local upright = CFrame.Angles(0, 0, math.pi / 2) -- ось цилиндра (X) — вертикально
@@ -2670,6 +2693,49 @@ end
 function FishingFxController.CountEmitters(player: Player): number
 	local tracker = trackers[player]
 	return if tracker then emitterCount(tracker) else 0
+end
+
+-- Карточка улова закрылась (FishingController — когда 🐟 летит в счётчик): свой трофей над
+-- головой «вспыхивает» ещё раз — шар и ореол, табличка подпрыгивает, искры брызгают, звон; у
+-- легендарной и мифической — короткий столб света над рыбой (TROPHY_PILLAR_TIME). Только на
+-- этом клиенте. false — рыбы над головой уже нет (ничего).
+function FishingFxController.ReplayOwnTrophy(): boolean
+	local own = Players.LocalPlayer
+	local tracker = trackers[own]
+	local character = own.Character
+	local held = character and character:FindFirstChild("HeldFish")
+	local body = if held and held:IsA("Model") then held.PrimaryPart else nil
+	if not tracker or not held or not held:IsA("Model") or not body then
+		return false
+	end
+	local rarityAttr = held:GetAttribute("Rarity")
+	local rarity = if typeof(rarityAttr) == "string" and UIConfig.Rarity[rarityAttr] then rarityAttr else "Common"
+	local style = UIConfig.Rarity[rarity]
+	local box, size = held:GetBoundingBox()
+	popBall(tracker, box.Position, if rarity == "Common" then WHITE else style.Top)
+	halo(tracker, body, box.Position, style.Bottom)
+	for effect in tracker.effects do
+		local emitter = effect.emitter
+		if emitter and emitter.Name == "RarityAura" and emitter.Parent then
+			burst(emitter, 14)
+		end
+		for _, instance in effect.instances do
+			local plate = if instance.Name == "Nameplate" then instance:FindFirstChild("Plate") else nil
+			local scale = plate and plate:FindFirstChild("FxScale")
+			if scale and scale:IsA("UIScale") then
+				scale.Scale = 1.25
+				tween(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+			end
+		end
+	end
+	local chime = newEffect(tracker, 1.5)
+	local sound = makeSound(body, "TrophyPing", SOUND_PING, 0.4, true)
+	table.insert(chime.instances, sound)
+	play(sound, if style.Flash then 0.9 else 1.3)
+	if style.Flash then
+		pillar(tracker, box.Position + Vector3.new(0, size.Y / 2 + 0.5, 0), rarity, TROPHY_PILLAR_TIME)
+	end
+	return true
 end
 
 function FishingFxController:Start(_hud: ScreenGui)

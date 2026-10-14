@@ -70,10 +70,10 @@ local MISS_GAP = 0.15 -- «clearly outside»: the needle at least this far beyon
 local MISS_AFTER = 0.4 -- the deliberate miss comes this long after the minigame shows up
 -- The button went back to «ЗАБРОСИТЬ» but neither the card nor a hint showed for this long →
 -- the try ended without an outcome on screen. (RbxSim replicates attributes instantly but
--- delays remotes by remoteLatency, so the FishingState attribute can end the session on the
--- client a moment before the "Caught" / "Lost" event arrives. UI v2: the catch card opens only
--- when the fish has leapt over the head — LeapTime — plus a per-rarity hold of up to 0.55 s.)
-local OUTCOME_WAIT = FishingConfig.LeapTime + 1.2
+-- delays remotes by remoteLatency, so the FishingState attribute changes on the client a moment
+-- before the "Caught" / "Lost" event arrives. UI v2: the catch card opens only when the fish has
+-- leapt over the head — LeapTime — plus a per-rarity hold of up to 0.9 s.)
+local OUTCOME_WAIT = FishingConfig.LeapTime + 1.5
 -- The longest a catch card can stay up by itself, plus the 🐟 flying into the counter.
 local CARD_GONE = UIConfig.CatchCardTime.Mythic + 1.6
 -- Standing hints (not about an event) that FishingController shows by the fishing spot.
@@ -927,11 +927,16 @@ tests["(6) desktop: F casts, hooks and taps; F closes the catch card; the button
 	t.eq(#sim:ServerEventsFor(p, "FishingTap"), #fisher.taps, "one tap request per F press in the minigame")
 
 	-- F with the card open skips its reveal, the next F closes the card (no cast; nothing in the
-	-- first CARD_INPUT_LOCK 0.35 s); once the 🐟 is in the counter the next F casts.
+	-- first CARD_INPUT_LOCK 0.35 s, nor in the 0.6 s after the skip — a mashed F does not hide the
+	-- card); once the 🐟 is in the counter the next F casts.
 	sim:Advance(0.5)
 	sim:PressKey(p, Enum.KeyCode.F)
 	sim:Advance(0.1)
 	t.eq(hud.card.Visible, true, "F skipped the reveal")
+	sim:PressKey(p, Enum.KeyCode.F)
+	sim:Advance(0.1)
+	t.eq(hud.card.Visible, true, "a second F right after the skip leaves the card up")
+	sim:Advance(0.5)
 	sim:PressKey(p, Enum.KeyCode.F)
 	sim:Advance(0.1)
 	t.eq(hud.card.Visible, false, "F closed the card")

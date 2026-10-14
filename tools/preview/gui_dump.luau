@@ -1311,6 +1311,8 @@ local DEFAULT_BEATS = {
 	{ name = "landing", event = "OwnFishLanded", kind = "signal" },
 	{ name = "held", event = "HeldFish" },
 	{ name = "flash", appearNamed = "FxFlash" },
+	{ name = "shock", appearNamed = "FxShockGlow" }, -- the ring itself is only a UIStroke
+	{ name = "title", appear = "HUD.Fishing.TitleSlam" },
 	{ name = "card", appear = "HUD.Fishing.CatchCard" },
 	{ name = "banner", appear = "HUD.Fishing.CatchCard.Banner.RarityLabel" },
 	{ name = "name", appear = "HUD.Fishing.CatchCard.NameLabel" },
@@ -1506,9 +1508,9 @@ end
 local BUILTIN = {
 	timelineScenario(
 		"catch_timeline",
-		"Real Legendary catch (Акулёнок) from the winning tap: leap, landing, card beats, close — world FX under the HUD",
+		"Real Legendary catch (Акулёнок) from the winning tap: leap, landing, title, card beats, close, trophy replay — world FX under the HUD",
 		{ Id = "SharkPup" },
-		7
+		8
 	),
 	timelineScenario(
 		"catch_timeline_common",
@@ -1520,7 +1522,7 @@ local BUILTIN = {
 		"catch_timeline_mythic",
 		"Real Mythic Rainbow catch (Рыба-дракон) from the winning tap, world FX under the HUD",
 		{ Id = "DragonFish", Mutation = "Rainbow" },
-		8.5
+		9
 	),
 }
 
