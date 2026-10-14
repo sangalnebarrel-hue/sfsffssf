@@ -10,8 +10,9 @@
 	Workspace.FishingFx и натягивает леску (Beam) от кончика удочки (Handle.TipAttachment удочки
 	в руке персонажа) до поплавка (Root.LineAttachment).
 	  • Поплавок — копия в BOBBER_SCALE раз крупнее шаблона (с пирса до него 30–40 studs: на
-	    телефоне маленький не виден). Точка привязки (pivot) копии — по-прежнему FloatDepth над
-	    ватерлинией, как у шаблона. Свой поплавок — с белым контуром (Highlight «OwnGlow»).
+	    телефоне маленький не виден; свой — в OWN_BOBBER_SCALE раз, на него смотрят всю рыбалку).
+	    Точка привязки (pivot) копии — по-прежнему FloatDepth над ватерлинией, как у шаблона.
+	    Свой поплавок — с белым контуром (Highlight «OwnGlow»).
 	  • Полёт: дугой от кончика удочки к BobberTarget (+ FloatDepth вверх — тогда ватерлиния
 	    поплавка как раз на воде) за FishingConfig.CastFlightTime, кувыркаясь (2 оборота). Время —
 	    от CastTime по workspace:GetServerTimeNow(), поэтому у всех клиентов поплавок летит
@@ -19,7 +20,8 @@
 	    брызги и 3 расходящихся круга на воде.
 	  • "Waiting" — покачивается на воде, леска провисает и ложится на воду; раз в
 	    Fx.RippleEvery секунд — круг (у рыбаков дальше Fx.AmbientRange — без кругов). Nibble() —
-	    своя «примерка» рыбы: поплавок чуть притапливается, маленький круг.
+	    своя «примерка» рыбы: поплавок заметно притапливается, круг, капли и над ним на миг «?»
+	    (как «?» над кнопкой).
 	  • "Bite" — рывками ныряет под воду (BiteDip): на каждом рывке брызги, на каждом втором —
 	    круг; над поплавком прыгает и пульсирует «!» (жёлто-оранжевый значок). Свой «!» крупный,
 	    виден сквозь стены, вокруг кружат звёздочки, контур поплавка мигает жёлтым (2,5 Гц);
@@ -55,7 +57,10 @@
 	    на ≈3 с дольше карточки улова: после неё свой трофей ещё виден). Чужая табличка — над
 	    рыбой, своя — сбоку, справа от рыбы (над ней — заголовок и карточка улова своего экрана).
 	    Легендарная и мифическая — ещё столб света (неоновая сердцевина + лучи Beam), конфетти и
-	    волна по земле вокруг рыбака (свой столб тоже есть: он виден за лучами заголовка).
+	    волна по земле вокруг рыбака (свой столб тоже есть: он виден за лучами заголовка). Чужой
+	    столб живёт дольше (Fx.PillarTimeOther) и издалека шире (не уже ~25 px с соседнего
+	    пирса) — его видно через всю лагуну; объявление о такой рыбе (FishingService) приходит
+	    в тот же миг.
 	  • lost — леска вспыхивает красным, поплавок подскакивает и шлёпается обратно (потом
 	    сматывается), всплеск, столбик воды и круги, и рыбка, махнув хвостом, уходит под воду
 	    прочь от рыбака.
@@ -89,7 +94,7 @@
 	  FishingFxController.Nibble() -> boolean
 	      -- «поклёвка-примерка» только на этом клиенте: свой поплавок (если он на воде и ждёт
 	      -- поклёвку) притапливается на NIBBLE_DIP stud за NIBBLE_TIME / 2 с и всплывает,
-	      -- вокруг — маленький круг и капли. false — поплавка нет / не "Waiting" (ничего).
+	      -- вокруг — круг, капли и «?» (NibbleMark). false — поплавка нет / не "Waiting" (ничего).
 	  FishingFxController.GetBobber(player) -> Model?          -- поплавок игрока (если есть)
 	  FishingFxController.GetEffects(player) -> { Instance }   -- детали эффектов рыбака
 	  FishingFxController.CountEmitters(player) -> number      -- его ParticleEmitter'ы сейчас
@@ -127,12 +132,14 @@ local FALLBACK_FISH = "Crucian" -- рыба ушла до подсечки (ви
 local PILLAR_CORE = 1.2 -- толщина белой сердцевины столба света, studs
 local FEET = 3 -- от центра HumanoidRootPart до земли под ногами (если луч вниз ничего не нашёл), studs
 local BOBBER_SCALE = 1.7 -- копия поплавка крупнее шаблона во столько раз
+local OWN_BOBBER_SCALE = 2.2 -- … а свой — во столько (≈13×16 px на телефоне)
 local OWN_SOUND_DISTANCE = 60 -- свои звуки (поплавок, прыжок) громкие до этого расстояния, studs
 local CAMERA_IN = 0.35 -- камера сдвигается, с
 local CAMERA_OUT = 0.5 -- … и возвращается, с
 local CAMERA_POLL = 0.25 -- как часто проверять, не пора ли вернуть камеру (рыба над головой ушла), с
-local NIBBLE_DIP = 0.15 -- «примерка»: поплавок притапливается на столько studs …
-local NIBBLE_TIME = 0.24 -- … и всплывает обратно за столько секунд
+local NIBBLE_DIP = 0.5 -- «примерка»: поплавок притапливается на столько studs …
+local NIBBLE_TIME = 0.3 -- … и всплывает обратно за столько секунд
+local NIBBLE_MARK = 0.45 -- «?» над поплавком на «примерке», с
 local POP_HEIGHT = 2.5 -- рыба сорвалась: поплавок подскакивает на столько studs …
 local POP_TIME = 0.4 -- … и шлёпается обратно за столько секунд (потом сматывается)
 local LINE_FLASH = 0.12 -- рыба сорвалась: леска вспыхивает красным на столько секунд
@@ -146,6 +153,8 @@ local NAMEPLATE_STUDS, NAMEPLATE_PIXELS = Vector2.new(4, 1.25), Vector2.new(110,
 local TROPHY_PILLAR_TIME = 1.2 -- свой трофей «вспыхивает» после карточки: короткий столб света, с
 local ALERT_OTHER_DISTANCE = 90 -- чужой «!» виден не дальше, studs
 local OWN_PILLAR_WIDTH = 0.4 -- свой столб света уже чужого во столько раз (см. pillar)
+local PILLAR_FAR = 80 -- чужой столб дальше стольких studs шире: × расстояние / PILLAR_FAR (≈ 28 px на телефоне)
+local PILLAR_FADE_OTHER = 0.55 -- чужой столб начинает гаснуть с этой доли своей жизни (свой — с 0.3)
 
 local Fx = FishingConfig.Fx
 local Palette = UIConfig.Palette
@@ -215,7 +224,7 @@ local SPLASH = {
 	catch = 45,
 	lost = 28,
 	pop = 12,
-	nibble = 5,
+	nibble = 10,
 }
 
 type RingLook = {
@@ -235,7 +244,7 @@ local RING: { [string]: RingLook } = {
 	jerk = { from = 1.2, to = 4, time = 0.8, color = WHITE, inner = SUN_TOP, width = 0.42 },
 	reel = { from = 1.2, to = 5.5, time = 0.8, color = WHITE, inner = WATER, width = 0.42 },
 	lost = { from = 1.4, to = 7.5, time = 1, color = WHITE, inner = WATER, width = 0.5, foam = true },
-	nibble = { from = 1, to = 3.5, time = 0.8, color = WHITE, inner = WATER, width = 0.32 },
+	nibble = { from = 1, to = 5, time = 0.8, color = WHITE, inner = WATER, width = 0.4 },
 }
 
 type Alert = {
@@ -1284,15 +1293,16 @@ local function createBobber(tracker: Tracker): Bobber?
 	-- ватерлиния, как у шаблона, на FloatDepth ниже pivot.
 	local floatDepth = finite(model:GetAttribute("FloatDepth")) or DEFAULT_FLOAT_DEPTH
 	local waterline = floatDepth -- от точки привязки лески вниз до ватерлинии
+	local own = isOwn(tracker)
+	local scale = if own then OWN_BOBBER_SCALE else BOBBER_SCALE
 	local scaled = pcall(function()
-		model:ScaleTo(BOBBER_SCALE)
+		model:ScaleTo(scale)
 	end)
 	if scaled then
-		waterline = floatDepth * BOBBER_SCALE
+		waterline = floatDepth * scale
 		root.PivotOffset = CFrame.new(0, floatDepth - waterline, 0)
 	end
 	makeRoom(tracker, 1) -- у поплавка свой ParticleEmitter (брызги)
-	local own = isOwn(tracker)
 	local now = os.clock()
 	local bobber: Bobber = {
 		player = player,
@@ -2009,18 +2019,29 @@ end
 -- base — низ столба (земля под рыбаком; у самого рыбака — над его рыбой, чтобы не закрыть её);
 -- lifeOverride — своё время жизни (короткий столб трофея после карточки, ReplayOwnTrophy).
 -- Свой столб начинается в ~12 studs перед камерой: его лучи в OWN_PILLAR_WIDTH раз уже, иначе
--- свечение затянуло бы пол-экрана; чужой виден через всю лагуну — в полную ширину.
+-- свечение затянуло бы пол-экрана; чужой виден через всю лагуну — в полную ширину, а дальше
+-- PILLAR_FAR studs ещё шире (на экране не тоньше ~28 px), и живёт он Fx.PillarTimeOther.
 local function pillar(tracker: Tracker, base: Vector3, rarity: string, lifeOverride: number?)
 	local parent = folder
 	local style = UIConfig.Rarity[rarity]
 	if not parent or not style then
 		return
 	end
-	local life = lifeOverride or Fx.PillarTime[rarity] or Fx.PillarTime.Legendary
+	local own = isOwn(tracker)
+	local life = lifeOverride
+		or if own
+			then Fx.PillarTime[rarity] or Fx.PillarTime.Legendary
+			else Fx.PillarTimeOther[rarity] or Fx.PillarTimeOther.Legendary
 	local tall = Fx.PillarHeight[rarity] or Fx.PillarHeight.Legendary
-	local wide = (if style.Rainbow then 1.5 else 1) * (if isOwn(tracker) then OWN_PILLAR_WIDTH else 1)
+	local wide = (if style.Rainbow then 1.5 else 1) * (if own then OWN_PILLAR_WIDTH else 1)
+	-- Чужой столб издалека шире: не уже ~25 px с соседнего пирса (≈240 studs) и через лагуну.
+	local viewer = if own then nil else viewerPosition()
+	local far = if viewer then math.max(1, (base - viewer).Magnitude / PILLAR_FAR) else 1
+	wide *= far
+	local fadeFrom = if own then 0.3 else PILLAR_FADE_OTHER
 	local upright = CFrame.Angles(0, 0, math.pi / 2) -- ось цилиндра (X) — вертикально
-	local core = quietPart("PillarCore", Vector3.new(1, PILLAR_CORE, PILLAR_CORE), CFrame.new(base) * upright)
+	local coreWidth0 = PILLAR_CORE * far
+	local core = quietPart("PillarCore", Vector3.new(1, coreWidth0, coreWidth0), CFrame.new(base) * upright)
 	core.Shape = Enum.PartType.Cylinder
 	core.Material = Enum.Material.Neon
 	core.Color = WHITE
@@ -2054,8 +2075,8 @@ local function pillar(tracker: Tracker, base: Vector3, rarity: string, lifeOverr
 		end
 		local grow = 1 - (1 - math.min(a / 0.14, 1)) ^ 3
 		local height = math.max(tall * grow, 0.5)
-		local fade = math.clamp((a - 0.3) / 0.7, 0, 1)
-		local coreWidth = PILLAR_CORE * (1 - 0.6 * fade)
+		local fade = math.clamp((a - fadeFrom) / (1 - fadeFrom), 0, 1)
+		local coreWidth = coreWidth0 * (1 - 0.6 * fade)
 		core.CFrame = CFrame.new(base + Vector3.new(0, height / 2, 0)) * upright
 		core.Size = Vector3.new(height, coreWidth, coreWidth)
 		core.Transparency = 0.05 + 0.95 * fade ^ 1.5
@@ -2645,6 +2666,55 @@ end
 -- API и запуск
 --------------------------------------------------------------------------------
 
+-- «?» над своим поплавком на «примерке» (эхо «?» над кнопкой): выскакивает, поднимается и
+-- тает за NIBBLE_MARK секунд. Billboard размером как чужой «!» (studs + пиксели), сквозь стены.
+local function nibbleMark(tracker: Tracker, bobber: Bobber)
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "NibbleMark"
+	gui.Adornee = bobber.root
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	gui.MaxDistance = Fx.Range
+	gui.ClipsDescendants = false
+	local px = FX.AlertOtherPixels + 14
+	gui.Size = UDim2.new(FX.AlertOtherStuds, px, FX.AlertOtherStuds, px)
+	gui.StudsOffset = Vector3.new(0, FX.AlertOtherLift, 0)
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.AnchorPoint = Vector2.new(0.5, 0.5)
+	label.Position = UDim2.fromScale(0.5, 0.5)
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = "?"
+	label.TextScaled = true
+	label.FontFace = FONT
+	label.TextColor3 = WHITE
+	label.TextStrokeColor3 = INK
+	label.TextStrokeTransparency = 0
+	label.Rotation = -12
+	local outline = Instance.new("UIStroke")
+	outline.Name = "Outline"
+	outline.Color = INK
+	outline.Thickness = 2
+	outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+	outline.Parent = label
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.3
+	scale.Parent = label
+	label.Parent = gui
+	gui.Parent = bobber.root
+	local effect = newEffect(tracker, NIBBLE_MARK + 0.05, bobber)
+	table.insert(effect.instances, gui)
+	tween(scale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+	tween(gui, TweenInfo.new(NIBBLE_MARK, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		StudsOffset = Vector3.new(0, FX.AlertOtherLift + 1.2, 0),
+	})
+	local fade =
+		TweenInfo.new(NIBBLE_MARK * 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, NIBBLE_MARK * 0.5)
+	tween(label, fade, { TextTransparency = 1, TextStrokeTransparency = 1 })
+	tween(outline, fade, { Transparency = 1 })
+end
+
 -- «Примерка» рыбы на своём поплавке (только на этом клиенте, см. шапку). true — показана.
 function FishingFxController.Nibble(): boolean
 	local tracker = trackers[Players.LocalPlayer]
@@ -2661,8 +2731,9 @@ function FishingFxController.Nibble(): boolean
 		return false
 	end
 	bobber.nibbleAt = os.clock()
-	splash(bobber, SPLASH.nibble, 0.5)
+	splash(bobber, SPLASH.nibble, 0.7)
 	ringBurst(tracker, bobber, waterUnder(bobber, bobber.target) + Vector3.new(0, FX.RingLift, 0), RING.nibble, 1, 0)
+	nibbleMark(tracker, bobber)
 	return true
 end
 

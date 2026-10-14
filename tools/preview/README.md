@@ -518,7 +518,8 @@ safe area).
 | `far_tap` | tap «К ПИРСУ» far from the spot: no cast, the hint pops again, the guide beam flares | 0..0.8 s, action area + hint |
 | `minigame_cue` | a first-timer's minigame: the needle in the zone, 👆 taps «ЛОВИ!» | |
 | `hit_mega` | the third hit before the last one (a 4-hit payload): «МЕГА!» in rainbow | |
-| `toast_legendary`, `toast_mythic` | someone else's rare catch: the big Gold / rainbow toast with 👑 (Notify kinds "Legendary" / "Mythic") | 0..0.9 s, toasts |
+| `toast_legendary`, `toast_mythic` | someone else's rare catch: the Gold 🌟 / rainbow 🌈 toast in two lines — who (small) over what (big, gold / running rainbow), Mythic's rainbow screen edges (Notify kinds "Legendary" / "Mythic") | 0..0.9 s, toasts |
+| `toast_minigame` | a broadcast arrives during the own minigame: on a phone it waits and comes out once the miss ghost has gone (stills 0.5 / 2.2 s) | |
 | `toast_long` | a long toast wrapping to two lines | |
 | `selftest` (not in `--all`) | a synthetic ScreenGui, one cell per renderer feature — check the renderer here | |
 
@@ -535,6 +536,11 @@ rendered by `--timeline` or by name):
 | `catch_timeline` | a real Legendary catch (Акулёнок) from the winning tap (title stage, card, close, trophy replay) | 0..8 s @ 6 fps + burst |
 | `catch_timeline_common` | a real Common catch (Карасик) | 0..5.5 s @ 6 fps + burst |
 | `catch_timeline_mythic` | a real Mythic Rainbow catch (Рыба-дракон) | 0..9 s @ 6 fps + burst |
+
+World + HUD scenarios in `gui_scenarios.luau` (`server = true`, `world = true`, not in `--all`; by
+name): `bite_world` (a real bite: the bobber dives above the «КЛЮЁТ!» plate), `minigame_world` (a
+real Legendary minigame: on a phone the panel stands beside the reeling bobber), `nibble_world`
+(the own bobber's nibble: the dip, ring, drops and «?»).
 
 Scenarios find widgets by name only (`HUD.Fishing.ActionArea.ActionButton`, `HUD.Fishing.CatchCard`,
 `HUD.RightButtons.HomeButton`, ...), so they survive restyles; a missing or hidden widget is a
@@ -634,6 +640,10 @@ backdrop, under the HUD:
   Transparency over life (sparkle textures as 4-point stars, smoke as soft discs, others as
   confetti squares); deterministic;
 * PointLight → a faint glow.
+
+The capture also puts the client's `Workspace.CurrentCamera` there on every step, so the
+controllers' own screen maths (`Camera:WorldToScreenPoint`: where the catch card is born, whether a
+widget hides the own bobber) agree with what is drawn.
 
 Camera: the backdrop's — the Roblox default third-person camera 12.5 studs from the focus,
 18 deg down, vertical FOV 70, focus 4.6 studs above the top of the own FishingSpot, looking

@@ -19,8 +19,9 @@
 	     FishingRules.Needle, что рисует клиент: попал — "Zone" (зона переехала) или "Caught",
 	     промах — "Lost" miss, не успел за MinigameTimeout — "Lost" timeout.
 	  5. Поймал: атрибут FishCaught + 1, рыба в улове сессии (GetCatch), сигнал FishCaught,
-	     о легендарной и мифической рыбе узнают остальные игроки (Notify с kind = редкость:
-	     «Рыбак: мифическая рыба «Рыба-дракон» ×2!», ×N — множитель мутации). Рыба выпрыгивает из воды
+	     о легендарной и мифической рыбе узнают остальные игроки (Notify с kind = редкость, через
+	     LeapTime — вместе со столбом света: «Рыбак (Лазурная база): мифическая радужная рыба
+	     «Рыба-дракон» ×5!» — база рыбака, мутация и её множитель). Рыба выпрыгивает из воды
 	     у поплавка и летит к рыбаку (это рисуют клиенты, см. атрибут FishFx ниже), а через
 	     LeapTime, когда она долетела, рыба (модель HeldFish в персонаже, атрибуты FishId, Rarity,
 	     Mutation, Kg, Value — для таблички над ней) появляется над головой рыбака на
@@ -371,30 +372,43 @@ local function broadcastFx(player: Player, state: PlayerState, kind: string, fis
 	player:SetAttribute("FishFx", `{state.FxSerial}|{kind}|{id}|{mutation}|{rarity}`)
 end
 
--- Текст объявления: «Рыбак: мифическая рыба «Рыба-дракон» ×2!» (×N — множитель мутации).
+-- Текст объявления «Кто: что» (клиент делит его по первому ": " на две строки):
+-- «Рыбак (Лазурная база): мифическая радужная рыба «Рыба-дракон» ×5!» — база рыбака (где
+-- искать столб света), редкость, мутация и её множитель. Прилагательные согласуются с «рыба»,
+-- а не с названием («легендарная золотая рыба «Акулёнок»»). Без базы — просто имя.
 local function announcement(player: Player, fish: FishData): string
 	local rarity = FishingRules.GetRarity(fish.Rarity)
 	local adjective = if rarity then rarity.NameLower else fish.Rarity
 	local mutation = fish.Mutation and FishingRules.GetMutation(fish.Mutation)
+	local kind = if mutation then ` {mutation.NameLower}` else ""
 	local multiplier = if mutation then ` ×{mutation.Multiplier}` else ""
-	-- «рыба» — прилагательное согласуется с ней, а не с названием («легендарная рыба «Акулёнок»»).
-	return `{player.DisplayName}: {adjective} рыба «{FishingRules.DisplayName(fish)}»{multiplier}!`
+	local base = player:GetAttribute("BaseColorName")
+	local who = if typeof(base) == "string" and base ~= ""
+		then `{player.DisplayName} ({base} база)`
+		else player.DisplayName
+	return `{who}: {adjective}{kind} рыба «{FishingRules.DisplayName(fish)}»{multiplier}!`
 end
 
 -- Объявление остальным игрокам о легендарной / мифической рыбе (сам рыбак видит карточку
 -- улова — тост закрыл бы её). Вид уведомления — Id редкости ("Legendary" / "Mythic"):
--- NotifyController рисует такие тосты в цветах редкости.
+-- NotifyController рисует такие тосты в цветах редкости. Уходит через LeapTime — когда рыба
+-- долетает до рыбака и у всех встаёт столб света (тост и столб — вместе); ушедшему рыбаку — нет.
 local function announce(player: Player, fish: FishData)
 	if not ANNOUNCED_RARITIES[fish.Rarity] then
 		return
 	end
 	local text = announcement(player, fish)
 	local kind = (fish.Rarity :: any) :: Notify.Kind
-	for _, other in Players:GetPlayers() do
-		if other ~= player then
-			Notify.Send(other, text, kind)
+	task.delay(FishingConfig.LeapTime, function()
+		if player.Parent == nil then
+			return
 		end
-	end
+		for _, other in Players:GetPlayers() do
+			if other ~= player then
+				Notify.Send(other, text, kind)
+			end
+		end
+	end)
 end
 
 --------------------------------------------------------------------------------

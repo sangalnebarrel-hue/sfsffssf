@@ -26,6 +26,7 @@ local roblox = require("@lune/roblox")
 
 local Enum = roblox.Enum
 local Vector3 = roblox.Vector3
+local CFrame = roblox.CFrame
 
 local INSET = 58 -- RbxSim's top bar inset for ScreenGuis without IgnoreGuiInset
 local HOTBAR_TOP = 65 -- the Roblox hotbar: 60 px slots, 5..65 px above the bottom
@@ -528,15 +529,19 @@ tests["miss: the minigame closes at once, its ghost flashes red with «МИМО!
 	t.ok(isCandy(ghost.Track.Zone, Palette.Berry), "the ghost's zone turns red")
 	t.eq(ghost:FindFirstChild("TapPad"), nil, "the ghost never takes taps")
 	t.eq(UiFx.activeJobs(), 0, "the ghost runs on timers only")
-	-- UI v2 (FUI-15): the hint shares the column with the minigame — it comes as the ghost leaves.
+	-- UI v2 (FUI-15): the hint shares the column with the minigame — it comes once the ghost has
+	-- left (M10: no two red panels on top of each other).
 	t.eq(f.Hint.Visible, false, "no hint over the ghost")
 	sim:Advance(0.6)
-	t.eq(f.Hint.Visible, true)
+	t.eq(f.Hint.Visible, false, "still no hint while the ghost leaves")
+	sim:Advance(0.2)
+	t.eq(f:FindFirstChild("FxMinigameMiss"), nil, "the ghost has left …")
+	t.eq(f.Hint.Visible, true, "… and the hint springs up")
 	t.eq(f.Hint.Label.Text, "Мимо! Рыба сорвалась", "the hint shows the reason")
 	t.eq(f.Hint.IconSocket.Icon.Text, "⚠️", "a warning hint")
 	t.ok(isCandy(f.Hint, Palette.Sun), "a warning is a Sun pill")
 
-	sim:Advance(0.6)
+	sim:Advance(0.4)
 	t.eq(f:FindFirstChild("FxMinigameMiss"), nil, "the ghost is gone")
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
 	t.eq(frameConnections(sim, p), idleFrames, "no frame connection left")
@@ -1035,10 +1040,13 @@ tests["hint: a Night pill with an icon by kind, slides up with a bounce"] = func
 	t.eq(hint.Label.Text, "Подойди к краю своего пирса")
 	t.eq(hint.IconSocket.Icon.Text, "⚠️", "warning: ⚠️")
 	t.ok(isCandy(hint, Palette.Sun), "warning: a Sun pill")
-	t.ok(hint.Position.Y.Scale > rest.Y.Scale, "slides up from below")
+	-- UI v2 (M6): it slides up by a few px only (the hotbar is right under it) and pops.
+	t.near(hint.Position.Y.Scale, rest.Y.Scale, 1e-6, "slides by pixels, not by a share of the screen")
+	t.ok(hint.Position.Y.Offset > rest.Y.Offset, "slides up from below")
+	t.ok(hint.Position.Y.Offset - rest.Y.Offset <= 8, "… by a few px: ≥ 16 px from the hotbar all the way")
 	t.ok(hint.FxScale.Scale < 1, "pops")
 	sim:Advance(0.6)
-	t.near(hint.Position.Y.Scale, rest.Y.Scale, 1e-3, "at rest")
+	t.near(hint.Position.Y.Offset, rest.Y.Offset, 1e-3, "at rest")
 	t.near(hint.FxScale.Scale, 1, 1e-3)
 
 	serverSays(sim, p, "Idle", { Reason = "stop" })
@@ -1136,14 +1144,17 @@ tests["far from the spot: «К ПИРСУ» 🧭 casts nothing — the hint pops
 	t.eq(button.Icon.Text, "🧭")
 	t.ok(isCandy(button, Palette.Slate), "a calm Slate button")
 	t.eq(button.KeyChip.Visible, false, "no key: the key does not cast here")
-	t.eq(f.Hint.Label.Text, "Встань в сверкающий круг")
+	t.eq(f.Hint.Label.Text, "Иди в сверкающий круг на краю пирса")
 	local beam = sim:GetRoot(p):FindFirstChild("FishingGuide")
 	local width = beam.Width1
 	sim:Advance(0.4)
 	pressF(sim, p)
 	t.eq(#sim:ServerEventsFor(p, "FishingCast"), 0, "no cast far from the spot")
 	t.ok(beam.Width1 > width, "the guide beam flares")
-	t.ok(isCandy(f.Hint, Palette.Sun), "the hint pops again as a warning")
+	-- UI v2 (M4): the button shows the way, it does not scold: a calm info hint 💡 pops again.
+	t.ok(isCandy(f.Hint, Palette.Night), "the hint pops again, calm (info, not a warning)")
+	t.eq(f.Hint.IconSocket.Icon.Text, "💡")
+	t.ok(f.Hint.FxScale.Scale < 1, "… with a pop")
 	standAtSpot(sim, p)
 	t.eq(button.Caption.Text, "ЗАБРОСИТЬ", "at the spot: «ЗАБРОСИТЬ»")
 	t.eq(button.KeyChip.Visible, true, "the F key chip on a PC")
@@ -1265,7 +1276,7 @@ tests["winning tap: the needle freezes gold until Caught (or a timeout); the win
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["minigame rarity: 🐟 rides the zone and hops with it; Epic+ rim, rays and edges stop with the minigame"] = function(
+tests["minigame rarity: the rider by rarity rides the zone and hops; Rare light rim, Epic+ rim, rays, edges; Legendary+ word"] = function(
 	t
 )
 	local sim = boot(t)
@@ -1276,17 +1287,34 @@ tests["minigame rarity: 🐟 rides the zone and hops with it; Epic+ rim, rays an
 	local rider = mini.Track.Rider
 	local idleFrames = frameConnections(sim, p)
 
+	local riderSize = rider.Size
+	serverSays(sim, p, "Minigame", minigame("Common", { ZoneCenter = 0.4 }))
+	sim:Advance(0.4)
+	t.eq(rider.Text, "🐟", "Common: 🐟")
+	t.eq(mini.AuraStroke.Enabled, false, "Common: no rim")
 	serverSays(sim, p, "Minigame", minigame("Rare", { ZoneCenter = 0.4 }))
 	sim:Advance(0.4)
 	t.eq(rider.Visible, true)
+	t.eq(rider.Text, "🐠", "Rare: 🐠")
 	t.near(rider.Position.X.Scale, 0.4, 1e-6, "the rider sits on the zone")
-	t.eq(mini.AuraStroke.Enabled, false, "Rare: no rarity rim")
+	t.eq(mini.AuraStroke.Enabled, true, "Rare: a light rim (UI v2, W7)")
 	t.eq(mini:FindFirstChild("FxRays"), nil, "Rare: no rays")
+	t.eq(hud:FindFirstChild("FxVignette"), nil, "Rare: no screen edges")
+	t.eq(fishing(p):FindFirstChild("FxFloat"), nil, "Rare: no rarity word over the panel")
 	serverSays(sim, p, "Zone", { ZoneCenter = 0.8, Hits = 1 })
 	sim:Advance(0.3)
 	t.near(rider.Position.X.Scale, 0.8, 1e-3, "the rider hopped to the new zone")
 
 	serverSays(sim, p, "Minigame", minigame("Legendary", { ZoneCenter = 0.3 }))
+	local word = fishing(p):FindFirstChild("FxFloat")
+	t.ok(word and word.Text == "ЛЕГЕНДАРНАЯ!", "Legendary: the rarity word floats over the panel once")
+	t.eq(word.Active, false, "… and takes no taps")
+	t.ok(
+		word.AbsolutePosition.Y + word.AbsoluteSize.Y * 0.5 < mini.AbsolutePosition.Y,
+		"… above the panel (never over the needle and the zone)"
+	)
+	t.eq(rider.Text, "🦈", "Legendary: 🦈")
+	t.ok(rider.Size.Y.Scale > riderSize.Y.Scale * 1.2, "… bigger")
 	sim:Advance(0.6)
 	t.eq(mini.AuraStroke.Enabled, true, "Legendary: a gold rim")
 	t.ok(mini:FindFirstChild("FxRays"), "rays behind the panel")
@@ -1295,6 +1323,7 @@ tests["minigame rarity: 🐟 rides the zone and hops with it; Epic+ rim, rays an
 	serverSays(sim, p, "Lost", { Reason = "timeout", Text = "" })
 	t.eq(mini.AuraStroke.Enabled, false, "the rim goes with the minigame")
 	t.eq(rider.Visible, false)
+	t.eq(rider.Size, riderSize, "the rider back to its size")
 	sim:Advance(1.5)
 	t.eq(hud:FindFirstChild("FxVignette"), nil, "the edges faded away")
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
@@ -1484,6 +1513,15 @@ tests["layout: the fishing UI fits on phone, tablet and desktop without overlaps
 		ready(sim, p)
 		p:SetAttribute("FishCaught", 3) -- the catch counter shows
 		serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
+	end
+	sim:Advance(0.5)
+	-- «СМОТАТЬ» shows while waiting (UI v2, M1: it hides once a fish is on the hook).
+	local stops = {}
+	for _, device in devices do
+		local p = players[device]
+		local stop = p.PlayerGui.HUD.Fishing.ActionArea.StopButton
+		t.ok(stop.Visible, `{device}: «СМОТАТЬ» while waiting`)
+		stops[device] = rectOf(sim, p, stop)
 		serverSays(sim, p, "Minigame", minigame("Mythic"))
 	end
 	sim:Advance(1)
@@ -1497,12 +1535,13 @@ tests["layout: the fishing UI fits on phone, tablet and desktop without overlaps
 		local function r(gui: any): Rect
 			return rectOf(sim, p, gui)
 		end
-		t.ok(f.ActionArea.ActionButton.Visible and f.ActionArea.StopButton.Visible, `{device}: buttons shown`)
+		t.ok(f.ActionArea.ActionButton.Visible, `{device}: the action button shown`)
+		t.eq(f.ActionArea.StopButton.Visible, false, `{device}: no «СМОТАТЬ» with a fish on the hook`)
 		t.ok(f.Minigame.Visible, `{device}: minigame shown`)
 
 		local button = r(f.ActionArea.ActionButton)
 		local ribbon = r(f.ActionArea.ActionButton.CaptionRibbon)
-		local stop = r(f.ActionArea.StopButton)
+		local stop = stops[device]
 		local mini = r(f.Minigame)
 		local alert = r(f.BiteAlert)
 		local hint = r(f.Hint)
@@ -1579,7 +1618,13 @@ tests["layout: the fishing UI fits on phone, tablet and desktop without overlaps
 		end
 		-- Big enough to hit.
 		t.ok(button.w >= 56 and button.h >= 56, `{device}: the action button is big ({fmt(button)})`)
-		t.ok(stop.h >= 24, `{device}: «СМОТАТЬ» tall enough ({fmt(stop)})`)
+		t.ok(stop.h >= 44, `{device}: «СМОТАТЬ» is a full tap target ({fmt(stop)})`)
+		if touch then
+			t.ok(
+				button.y - (stop.y + stop.h) >= 22,
+				`{device}: «СМОТАТЬ» {fmt(stop)} ≥ 22 px above the action circle`
+			)
+		end
 		t.ok(mini.h >= 90, `{device}: the minigame is readable ({fmt(mini)})`)
 	end
 	sim:AssertNoErrors({ warnings = true })
@@ -1628,6 +1673,104 @@ tests["catch card layout: a landscape trophy card on phones, square on tablet / 
 		end
 		t.ok(hud.Status.BaseBadge.Label.TextTransparency > 0.95, `{device}: the status stack faded under the card`)
 	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["bite: «СМОТАТЬ» leaves; touch: a tap on «КЛЮЁТ!» hooks; 👆 shows the first two bites"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	ready(sim, p)
+	local f = fishing(p)
+	local cue = f.ActionArea.ActionButton.TapCue
+	local function bite()
+		serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
+		sim:Advance(0.3)
+		t.eq(f.ActionArea.StopButton.Visible, true, "«СМОТАТЬ» while waiting")
+		serverSays(sim, p, "Bite", { Window = 1.8 })
+		sim:Advance(0.3)
+	end
+	for round = 1, 3 do
+		bite()
+		t.eq(f.ActionArea.StopButton.Visible, false, `bite {round}: no «СМОТАТЬ»`)
+		t.eq(f.BiteAlert.TapPad.Visible, true, `bite {round}: the plate is a tap pad on touch`)
+		t.eq(cue.Visible, round <= 2, `bite {round}: 👆 only for the first two bites`)
+		sim:Click(p, f.BiteAlert.TapPad)
+		sim:Advance(0.05)
+		t.eq(#sim:ServerEventsFor(p, "FishingHook"), round, `bite {round}: a tap on the plate hooks`)
+		t.eq(cue.Visible, false, "the cue goes with the hook")
+		serverSays(sim, p, "Lost", { Reason = "late", Text = "" })
+		t.eq(f.BiteAlert.TapPad.Visible, false, "the pad goes with the bite")
+		sim:Advance(FishingConfig.CastCooldown + 0.2)
+	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["predicted hit: forgotten without an answer; taps keep a margin over TapInterval"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	ready(sim, p)
+	local mini = fishing(p).Minigame
+	-- A slow needle right in the zone, 3 hits needed: every tap is a hit.
+	serverSays(sim, p, "Minigame", minigame("Common", { U0 = 0.6, Speed = 0.01, ZoneCenter = 0.62, HitsNeeded = 3 }))
+	sim:Advance(0.4)
+	pressF(sim, p)
+	t.eq(#sim:ServerEventsFor(p, "FishingTap"), 1)
+	t.ok(mini:FindFirstChild("FxFloat"), "the hit plays at once")
+	-- The server drops this tap silently (no "Zone"): the prediction must not stick.
+	sim:Advance(FishingConfig.TapInterval)
+	pressF(sim, p)
+	t.eq(#sim:ServerEventsFor(p, "FishingTap"), 1, "not sent exactly TapInterval later (jitter margin)")
+	sim:Advance(0.05)
+	pressF(sim, p)
+	t.eq(#sim:ServerEventsFor(p, "FishingTap"), 2, "sent a little later")
+	sim:Advance(FishingConfig.MaxLag + 0.3)
+	t.eq(mini:FindFirstChild("FxFloat"), nil, "the words have floated away")
+	pressF(sim, p)
+	t.eq(#sim:ServerEventsFor(p, "FishingTap"), 3)
+	t.ok(mini:FindFirstChild("FxFloat"), "with no answer the prediction expires: the next hit plays again")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["minigame on a phone: beside the own bobber when it would cover it (world FX stay visible)"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	ready(sim, p)
+	local f = fishing(p)
+	-- What FishingService sets on a cast (it is switched off here): the bobber flies out.
+	local base = sim.workspace.Bases:FindFirstChild(`Base_{p:GetAttribute("BaseIndex")}`)
+	local spot = base.FishingSpot.Position
+	p:SetAttribute("BobberTarget", Vector3.new(spot.X, spot.Y - 4, spot.Z) + base:GetPivot().LookVector * 30)
+	p:SetAttribute("CastTime", sim.workspace:GetServerTimeNow())
+	p:SetAttribute("FishingState", "Waiting")
+	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
+	sim:Advance(FishingConfig.CastFlightTime + 0.3)
+	local scripts = p:FindFirstChildOfClass("PlayerScripts")
+	local fx = sim:Require(sim:Find("Controllers.FishingFxController", scripts), p)
+	local bobber = fx.GetBobber(p)
+	t.ok(bobber, "the own bobber is on the water")
+	-- Look at the bobber from the pier, so it is in the middle of the minigame's spot.
+	local camera = sim.workspace.CurrentCamera
+	local at = bobber:GetPivot().Position
+	sim:Run(function()
+		camera.CFrame = CFrame.lookAt(at + Vector3.new(0, 8, 28), at + Vector3.new(0, 3, 0))
+	end, p)
+	p:SetAttribute("FishingState", "Reeling")
+	serverSays(sim, p, "Minigame", minigame("Common", { ZoneCenter = 0.5 }))
+	sim:Advance(0.4)
+	local mini = f.Minigame
+	local point = sim:Run(function()
+		return camera:WorldToScreenPoint(bobber:GetPivot().Position)
+	end, p)
+	local left, right = mini.AbsolutePosition.X, mini.AbsolutePosition.X + mini.AbsoluteSize.X
+	t.ok(point.X < left or point.X > right, `the panel ({left}..{right}) is beside the bobber (x {point.X})`)
+	t.ok(mini.AbsoluteSize.X >= 280, "still readable")
+	local column = f.Hint.Position.X.Offset
+	p:SetAttribute("FishingState", "Idle")
+	serverSays(sim, p, "Lost", { Reason = "timeout", Text = "" })
+	sim:Advance(1)
+	t.eq(mini.Position.X.Offset, column, "back to the centre column after the minigame")
 	sim:AssertNoErrors({ warnings = true })
 end
 

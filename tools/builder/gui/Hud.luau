@@ -239,11 +239,14 @@ local function buildToasts(hud: any)
 	-- Width follows the screen WIDTH (RelativeXY), so the column never reaches the corners.
 	-- No UIListLayout: NotifyController stacks the toasts itself (slots of 0.28 + 0.08 of the
 	-- column height; big rarity toasts are taller), sizes each to its text and lets them slide.
+	-- The column starts right under the status stack (0.23 of the HUD): on a phone one toast
+	-- ends above the avatar's head. Without a touch screen NotifyController narrows it to
+	-- 512 px, clear of the Roblox chat window in the top-left corner.
 	local toasts = U.new("Frame", {
 		Name = "Toasts",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.27),
+		Position = UDim2.fromScale(0.5, 0.23),
 		Size = UDim2.fromScale(0.56, 0.34),
 	}, hud)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(640, 190) }, toasts)

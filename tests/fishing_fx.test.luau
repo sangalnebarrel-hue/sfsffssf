@@ -16,7 +16,7 @@
 	    FishingRules.HoldFishTime; Legendary/Mythic: a pillar (neon core + beams), confetti and a
 	    ground wave;
 	  • a lost fish: the line flashes red, the bobber pops up, a fish dives away under the water;
-	  • the bobber: 1.7× bigger, waterline still FloatDepth below the pivot; own one outlined and
+	  • the bobber: 1.7× bigger (the own one 2.2×), waterline still FloatDepth below the pivot; own one outlined and
 	    with the big «!» (others: smaller, not on top, no stars); Nibble(); the bite plunge;
 	    cast trail, landing rings, waiting ripples, a sagging line while waiting, the wake and the
 	    pulsing line while reeling;
@@ -436,8 +436,8 @@ tests["legendary: pillar, confetti, ground wave, aura; emitter budget; nothing l
 		if not pillarAt and findEffect(fx, fisher, "PillarCore") then
 			pillarAt = sim:Time()
 		end
-		return sim:Time() >= caughtAt + FishingConfig.LeapTime + Fx.PillarTime.Legendary + 0.5
-	end, 10, FRAME)
+		return sim:Time() >= caughtAt + FishingConfig.LeapTime + Fx.PillarTimeOther.Legendary + 0.5
+	end, 12, FRAME)
 
 	for _, effect in
 		{ "Leap", "Ripple", "Spout", "Pop", "Halo", "Nameplate", "PillarCore", "PillarGlow", "Confetti", "RarityAura" }
@@ -483,7 +483,7 @@ tests["far away (> Fx.Range): no splashes, rings or leap — only the pillar of 
 		if not pillarAt and findEffect(fx, fisher, "PillarCore") then
 			pillarAt = sim:Time()
 		end
-		return sim:Time() >= caughtAt + FishingConfig.LeapTime + 0.5
+		return sim:Time() >= caughtAt + FishingConfig.LeapTime + 1.5
 	end, 5, FRAME)
 	t.eq(keys(audit.seen), "PillarCore, PillarGlow", "only the pillar is drawn for a far viewer")
 	t.near(audit.pillarHeight, Fx.PillarHeight.Mythic, 1, "a Mythic pillar is taller (PillarHeight.Mythic)")
@@ -800,7 +800,7 @@ tests["leaving: a fisher leaving mid-leap takes all FX along on other clients; l
 	for _, instance in alive do
 		t.eq(instance.Parent, nil, `{instance.Name} removed on the watcher's client`)
 	end
-	sim:Advance(FishingConfig.LeapTime + Fx.PillarTime.Legendary)
+	sim:Advance(FishingConfig.LeapTime + Fx.PillarTimeOther.Legendary)
 	local empty, left = fxFoldersEmpty(sim)
 	t.ok(empty, `nothing left in Workspace.FishingFx, no pillar either ({left})`)
 	t.eq(renderSteppedCount(sim, watcher), rendering, "no per-frame work left")
@@ -947,7 +947,7 @@ tests["own client: no leap (no fish model on the client) — OwnFishLanded fires
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["bobber: 1.7× bigger, waterline kept; the own one outlined with the big «!»; Nibble() only on the own bobber"] = function(
+tests["bobber: 1.7× bigger (own 2.2×), waterline kept; the own one outlined with the big «!»; Nibble() only on the own bobber"] = function(
 	t
 )
 	local sim = boot(t)
@@ -974,17 +974,25 @@ tests["bobber: 1.7× bigger, waterline kept; the own one outlined with the big �
 	local template = sim:Find(`ReplicatedStorage.Assets.Bobbers.{fisher:GetAttribute("RodId")}`)
 	local _, templateSize = template:GetBoundingBox()
 	local _, size = mine:GetBoundingBox()
-	t.near(size.Y / templateSize.Y, 1.7, 0.02, "the client's copy is 1.7× the template (readable at 30–40 studs)")
+	local _, otherSize = theirs:GetBoundingBox()
+	t.near(
+		otherSize.Y / templateSize.Y,
+		1.7,
+		0.02,
+		"the client's copy is 1.7× the template (readable at 30–40 studs)"
+	)
+	t.near(size.Y / templateSize.Y, 2.2, 0.02, "the own one 2.2× (the player watches it the whole time)")
 	local depth = mine:GetAttribute("FloatDepth")
 	t.eq(depth, template:GetAttribute("FloatDepth"), "FloatDepth (pivot → waterline) as on the template")
 	t.near(
 		mine.Root.Position.Y - mine:GetPivot().Position.Y,
-		0.7 * depth,
+		1.2 * depth,
 		0.01,
 		"the pivot sits below the tie point: the bigger float's waterline is still FloatDepth below it"
 	)
 	local water = fisher:GetAttribute("BobberTarget").Y
-	t.ok(math.abs(mine:GetPivot().Position.Y - (water + depth)) <= 0.25, "floating with its waterline on the water")
+	-- (the watcher's copy: the own one may be mid-nibble now — FishingController nibbles by itself)
+	t.ok(math.abs(theirs:GetPivot().Position.Y - (water + depth)) <= 0.25, "floating with its waterline on the water")
 	local glow = mine:FindFirstChild("OwnGlow")
 	t.ok(glow and glow:IsA("Highlight"), "own bobber: a white outline (Highlight)")
 	t.eq(glow.FillTransparency, 1, "…not filled while waiting")
@@ -1002,7 +1010,7 @@ tests["bobber: 1.7× bigger, waterline kept; the own one outlined with the big �
 	local function smallRings(fx: any): number
 		local count = 0
 		for _, instance in fx.GetEffects(fisher) do
-			if instance.Name == "Ripple" and instance.Size.X < 4 then
+			if instance.Name == "Ripple" and instance.Size.X < 6 then
 				count += 1
 			end
 		end
@@ -1013,13 +1021,16 @@ tests["bobber: 1.7× bigger, waterline kept; the own one outlined with the big �
 	t.eq(nibble(fisher, own), true, "own bobber waiting on the water: a nibble")
 	t.eq(smallRings(own), before + 1, "a small ring")
 	t.eq(smallRings(other), 0, "client-only: the watcher sees nothing")
+	local mark = mine.Root:FindFirstChild("NibbleMark")
+	t.ok(mark and mark:IsA("BillboardGui") and mark.Label.Text == "?", "a «?» pops over the own bobber")
+	t.eq(theirs.Root:FindFirstChild("NibbleMark"), nil, "… only on this client")
 	-- Both clients bob the same bobber the same way: the difference is the nibble.
 	local deepest = 0
 	sim:WaitFor(function()
 		deepest = math.min(deepest, mine:GetPivot().Position.Y - theirs:GetPivot().Position.Y)
 		return false
 	end, 0.35, FRAME)
-	t.near(deepest, -0.15, 0.02, "the own bobber dips 0.15 studs…")
+	t.near(deepest, -0.5, 0.03, "the own bobber dips 0.5 studs (readable from the pier)…")
 	t.near(mine:GetPivot().Position.Y, theirs:GetPivot().Position.Y, 1e-3, "…and floats back up")
 
 	-- The bite: own outline blinks yellow (2.5 Hz, under the 3 Hz rule); no nibbles now.
@@ -1142,6 +1153,41 @@ tests["rainbow painter: Heartbeat only while a rainbow fish is out; far fish are
 	far:Destroy()
 	sim:Advance(0.1)
 	t.eq(heartbeats(), idle, "no rainbow fish out: no Heartbeat (the templates do not count)")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["pillar for the others: wider with distance (≥ 25 px from the neighbouring pier), longer than the own one"] = function(
+	t
+)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1)
+	local neighbour = addPlayer(sim, 2)
+	forceFish(sim, "SharkPup") -- Legendary
+	ready(sim, fisher)
+	-- The neighbour stands on their own pier (the next base round the lagoon).
+	sim:Teleport(neighbour, spotOf(sim, neighbour).Position + Vector3.new(0, 3, 0))
+	local own, other = clientFx(sim, fisher), clientFx(sim, neighbour)
+	local mg, startTime = startMinigame(t, sim, fisher)
+	local name, caughtAt = playMinigame(sim, fisher, mg, startTime, false)
+	t.eq(name, "Caught")
+	sim:WaitFor(function()
+		return findEffect(other, fisher, "PillarGlow") ~= nil and findEffect(own, fisher, "PillarGlow") ~= nil
+	end, FishingConfig.LeapTime + 1, FRAME)
+	local theirs, mine = findEffect(other, fisher, "PillarGlow"), findEffect(own, fisher, "PillarGlow")
+	t.ok(theirs and mine, "both clients raise the pillar")
+	local distance = (theirs.Position - sim:GetRoot(neighbour).Position).Magnitude
+	t.ok(distance > 150, `the neighbour is far ({math.floor(distance)} studs)`)
+	-- Phone (390 px tall, vertical FOV 70): px per stud at that distance.
+	local px = theirs.Glow.Width0 * (390 / 2) / math.tan(math.rad(35)) / distance
+	t.ok(px >= 25, `the glow is {math.floor(px)} px wide from the neighbouring pier (≥ 25)`)
+	t.ok(mine.Glow.Width0 < theirs.Glow.Width0, "the fisher's own pillar stays narrow")
+	-- Lifetimes: the own pillar goes after PillarTime, the neighbour's lives PillarTimeOther.
+	local landed = caughtAt + FishingConfig.LeapTime
+	sim:Advance(math.max(landed + Fx.PillarTime.Legendary + 0.2 - sim:Time(), 0))
+	t.eq(findEffect(own, fisher, "PillarGlow"), nil, "the own pillar is gone (the card covers it anyway)")
+	t.ok(findEffect(other, fisher, "PillarGlow"), "the neighbour still sees it")
+	sim:Advance(Fx.PillarTimeOther.Legendary - Fx.PillarTime.Legendary)
+	t.eq(findEffect(other, fisher, "PillarGlow"), nil, "… until PillarTimeOther")
 	sim:AssertNoErrors({ warnings = true })
 end
 

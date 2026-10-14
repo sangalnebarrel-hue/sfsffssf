@@ -681,20 +681,26 @@ tests["minigame: a Mythic fish needs 3 hits, the zone jumps away from the needle
 		end
 		return false
 	end
+	-- UI v2 (WFX-7): the broadcast lands with the pillar — when the fish has leapt (LeapTime).
+	t.ok(not heard(other), "not yet: the fish is still in the air")
+	sim:Advance(FishingConfig.LeapTime + 0.1)
 	t.ok(heard(other), "the other player was told about the Mythic catch")
 	t.ok(not heard(p), "not the fisher: their catch card shows it (a toast would cover the card)")
-	-- «Игрок1: мифическая рыба «Рыба-дракон»!» in the Mythic toast style (kind = the rarity id).
+	-- «Игрок1 (Лазурная база): мифическая рыба «Рыба-дракон»!» in the Mythic toast style (kind =
+	-- the rarity id); the client splits it at the first ": " (who / what).
+	local base = p:GetAttribute("BaseColorName")
+	t.ok(typeof(base) == "string" and base ~= "", "the fisher has a base")
 	local args = sim:LastClientEvent(other, "Notify")
 	t.eq(
 		args[1],
-		"Игрок1: мифическая рыба «Рыба-дракон»!",
-		"lower-case rarity (NameLower), the fish in «ёлочки»"
+		`Игрок1 ({base} база): мифическая рыба «Рыба-дракон»!`,
+		"who (and where: the base), lower-case rarity (NameLower), the fish in «ёлочки»"
 	)
 	t.eq(args[2], "Mythic", "kind = the rarity id (NotifyController draws it in the rarity's colours)")
 	sim:AssertNoErrors()
 end
 
-tests["announce: a mutated Legendary catch says the multiplier"] = function(t)
+tests["announce: a mutated Legendary catch names the mutation and its multiplier"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	local other = addPlayer(sim, 2)
@@ -702,12 +708,35 @@ tests["announce: a mutated Legendary catch says the multiplier"] = function(t)
 	ready(sim, p)
 	local mg, startTime = startMinigame(t, sim, p)
 	t.eq((winMinigame(sim, p, mg, startTime)), "Caught")
+	sim:Advance(FishingConfig.LeapTime + 0.1)
 	local args = sim:LastClientEvent(other, "Notify")
-	t.eq(args[1], "Игрок1: легендарная рыба «Акулёнок» ×2!")
+	-- Both adjectives agree with «рыба» (not with the fish's own name).
+	t.eq(
+		args[1],
+		`Игрок1 ({p:GetAttribute("BaseColorName")} база): легендарная золотая рыба «Акулёнок» ×2!`
+	)
 	t.eq(args[2], "Legendary")
 	for _, rarity in FishConfig.Rarities do
 		t.ok(typeof(rarity.NameLower) == "string" and #rarity.NameLower > 0, `{rarity.Id}: NameLower`)
 	end
+	for _, mutation in FishConfig.Mutations do
+		t.ok(typeof(mutation.NameLower) == "string" and #mutation.NameLower > 0, `{mutation.Id}: NameLower`)
+	end
+	sim:AssertNoErrors()
+end
+
+tests["announce: a fisher who leaves before the fish lands is not announced"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	local other = addPlayer(sim, 2)
+	forceFish(sim, "SharkPup")
+	ready(sim, p)
+	local before = #notifyTexts(sim, other)
+	local mg, startTime = startMinigame(t, sim, p)
+	t.eq((winMinigame(sim, p, mg, startTime)), "Caught")
+	sim:RemovePlayer(p)
+	sim:Advance(FishingConfig.LeapTime + 0.3)
+	t.eq(#notifyTexts(sim, other), before, "no broadcast about someone who has gone")
 	sim:AssertNoErrors()
 end
 
@@ -720,6 +749,7 @@ tests["minigame: a common catch is not announced"] = function(t)
 	local before = #notifyTexts(sim, other)
 	local mg, startTime = startMinigame(t, sim, p)
 	t.eq((winMinigame(sim, p, mg, startTime)), "Caught")
+	sim:Advance(FishingConfig.LeapTime + 0.1)
 	t.eq(#notifyTexts(sim, other), before, "no broadcast")
 	sim:AssertNoErrors()
 end
