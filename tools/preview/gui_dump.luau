@@ -4,20 +4,33 @@
 
 	Usage (Lune 0.11, from the repo root):
 	  lune run tools/preview/gui_dump.luau --device phone --scenario bite,catch_mythic --out DIR
-	  lune run tools/preview/gui_dump.luau --device desktop --scenario all --sheets --out DIR
+	  lune run tools/preview/gui_dump.luau --device desktop --scenario all --sheets --bursts --out DIR
+	  lune run tools/preview/gui_dump.luau --device phone --scenario catch_timeline --out DIR
 	  lune run tools/preview/gui_dump.luau --list
 
 	Options:
-	  --device NAME      phone (844x390) | tablet (1024x768) | desktop (1280x720) | console
-	  --scenario LIST    comma-separated names from gui_scenarios.luau, or "all" (the standard set)
+	  --device NAME      phone (844x390) | phone_notch (844x390, safe-area insets 47/47/21) |
+	                     phone_small (667x375) | tablet (1024x768) | desktop (1280x720) | console
+	  --scenario LIST    comma-separated names from gui_scenarios.luau and the built-in ones
+	                     (BUILTIN below: the catch timelines), or "all" (the standard set)
 	  --out DIR          writes DIR/<device>/<scenario>.json
 	  --place FILE       default Place1.rbxl
 	  --at T[,T...]      still times (seconds after the scenario's time 0) instead of its own
 	  --sheets           also dump the scenario's animation-sheet frames (if it has a sheet)
+	  --bursts           also dump the 30 fps burst of the first 0.8 s (BURSTS / the `burst` field)
 	  --times A:B:FPS    sheet window override (implies --sheets for every scenario)
-	  --no-stills        only sheet frames
+	  --no-stills        only sheet / burst / timeline frames
 	  --check            compare this script's layout with the sim's AbsolutePosition/AbsoluteSize
 	  --verbose          echo script output (SIM_VERBOSE)
+
+	Scenario fields understood here (besides gui_scenarios.luau's name, desc, run, still, sheet,
+	fresh, settle, standard): burst = true | false | { from, to, fps, roi, margin } (default
+	0..0.8 s @ 30 fps), timeline = { from, to, fps } (full-screen frames for gui_render.py's
+	_timeline composite; always dumped), server = true (a second sim with the REAL
+	FishingService: use h:playCatch), world = true (record the world FX with
+	gui/world_capture.luau), beats / extraBeats (see DEFAULT_BEATS). Harness additions:
+	h:shown(path), h:stateEvents(), h:forceFish(fish), h:playCatch(fish, opts),
+	h:poseLikeBackdrop(), h.world (documented where they are defined).
 
 	Layout. RbxSim's AbsolutePosition/AbsoluteSize ignore UIScale, rotation and list-layout
 	alignment, so this script lays the GUI out itself, following Roblox rules: UDim2 Size and
@@ -30,14 +43,19 @@
 	  • Rotation turns the object and its subtree about the object's (scaled) centre;
 	  • ClipsDescendants (and CanvasGroup) clip descendants to the object's screen rectangle,
 	    ignored when the object or an ancestor is rotated (Roblox rule).
-	Screen coordinates are real screen pixels: a ScreenGui that keeps the top-bar inset
-	(IgnoreGuiInset false and ScreenInsets CoreUISafeInsets) starts at y = 58.
+	Screen coordinates are real screen pixels: a ScreenGui that keeps the insets (IgnoreGuiInset
+	false and ScreenInsets CoreUISafeInsets) starts at y = 58 and, on phone_notch, at x = 47 and
+	ends 47 px from the right and 21 px from the bottom (see DEVICES / installSafeArea).
 	Draw order: ScreenGuis by DisplayOrder; ZIndexBehavior Sibling: parent first, then
 	children by ZIndex, ties in child order; Global: every object by ZIndex, ties in tree order.
 
-	JSON (one file per device and scenario):
-	  { version, scenario, desc, device, viewport = {W, H}, touch, inset, sheet = {...}|null,
-	    frames = { { t, still, sheet, tools = { {name, equipped} }, objects = { <object>... } } },
+	JSON (one file per device and scenario, version 2):
+	  { version, scenario, desc, device, viewport = {W, H}, touch, inset, safe = {left, right,
+	    bottom}, sheet / burst / timeline = { from, to, fps, roi, margin } | null,
+	    camera = { eye, focus, fov } | null (world scenarios: spot frame, see world_capture),
+	    beats = { { name, t } } | null, events = { { name, kind, t } } | null,
+	    frames = { { t, still, sheet, burst, timeline, tools = { {name, equipped} },
+	                 objects = { <object>... }, world = { cam, items, marks }? } },
 	    errors = {...}, warnings = {...} }
 	  object (only effectively visible GuiObjects, in draw order; px = screen pixels):
 	    path, class, name, z, x, y, w, h (the box before rotation; centre = x + w/2, y + h/2),
@@ -51,6 +69,7 @@
 	          pad = {l, t, r, b} (px), trunc, graphemes}?,
 	    image {src, c, tr, scale}?, viewport {models = {{name, fish, mutation, title, rarity}}, c, tr}?,
 	    auto (AutomaticSize if not None — not applied, flagged)
+	  world items: see tools/preview/gui/world.py.
 ]]
 
 local fs = require("@lune/fs")
@@ -59,14 +78,38 @@ local roblox = require("@lune/roblox")
 local serde = require("@lune/serde")
 
 local Sim = require("../sim")
+local SimMembers = require("../sim/members")
 local SimPlayers = require("../sim/players")
 local scenarios = require("./gui_scenarios")
+local WorldCapture = require("./gui/world_capture")
 
 local Enum = roblox.Enum
 local Vector3 = roblox.Vector3
 
 local INSET = 58
 local FRAME = 1 / 60
+
+--[[
+	Devices: an RbxSim input profile (tools/sim/players.luau: touch / keyboard / ...) plus the
+	screen. `insets` = the device safe area in px (notch, home indicator) — modelled after
+	Roblox's ScreenInsets.CoreUISafeInsets: a ScreenGui that keeps the insets (the HUD) is laid
+	out in x = left .. W - right, y = 58 .. H - bottom (phone_notch: 750x311 of 844x390), and
+	DeviceSafeInsets in x = left .. W - right, y = 0 .. H - bottom. RbxSim itself knows no
+	insets, so installSafeArea() makes the sim's AbsoluteSize/AbsolutePosition of such
+	ScreenGuis and their descendants follow them too (the controllers see the same layout).
+	The CoreGui chrome (gui/backdrop.py) is drawn inside the safe area as well.
+]]
+type Device = { sim: string, viewport: { number }?, insets: { left: number, right: number, bottom: number }? }
+
+local DEVICES: { [string]: Device } = {
+	phone = { sim = "phone" }, -- 844x390, iPhone 12-15 class in landscape, no insets
+	tablet = { sim = "tablet" }, -- 1024x768
+	desktop = { sim = "desktop" }, -- 1280x720
+	console = { sim = "console" }, -- 1920x1080
+	phone_small = { sim = "phone", viewport = { 667, 375 } }, -- iPhone SE / 8 in landscape
+	phone_notch = { sim = "phone", insets = { left = 47, right = 47, bottom = 21 } }, -- notch + home bar
+}
+local DEVICE_ORDER = { "phone", "phone_notch", "phone_small", "tablet", "desktop", "console" }
 local DEFAULT_STILL = 0.6
 local SETTLE = 4.2 -- seconds after the base assignment before a scenario runs (see `settle`)
 
@@ -82,6 +125,7 @@ local function parseArgs(argv: { string })
 		place = "Place1.rbxl",
 		at = nil :: { number }?,
 		sheets = false,
+		bursts = false,
 		times = nil :: { number }?,
 		stills = true,
 		check = false,
@@ -117,6 +161,8 @@ local function parseArgs(argv: { string })
 			opts.at = list
 		elseif a == "--sheets" then
 			opts.sheets = true
+		elseif a == "--bursts" then
+			opts.bursts = true
 		elseif a == "--times" then
 			local parts = string.split(value(), ":")
 			assert(#parts == 3, "--times A:B:FPS")
@@ -644,18 +690,88 @@ end
 -- Dumping a PlayerGui
 --------------------------------------------------------------------------------
 
+-- The device safe area of the current device (see DEVICES), px.
+local SAFE = { left = 0, right = 0, bottom = 0 }
+
+-- Screen rect of a ScreenGui's content. IgnoreGuiInset = true is taken as DeviceSafeInsets
+-- (Roblox: it overrides ScreenInsets and keeps only the device insets).
 local function layerRect(gui: any, vw: number, vh: number): Rect
+	local l, r, b = SAFE.left, SAFE.right, SAFE.bottom
 	if gui:IsA("ScreenGui") then
 		local ignore = get(gui, "IgnoreGuiInset", false)
 		local insets = get(gui, "ScreenInsets", Enum.ScreenInsets.CoreUISafeInsets)
-		if ignore or insets == Enum.ScreenInsets.None or insets == Enum.ScreenInsets.DeviceSafeInsets then
+		if insets == Enum.ScreenInsets.None and not ignore then
 			return { x = 0, y = 0, w = vw, h = vh }
 		end
+		if ignore or insets == Enum.ScreenInsets.DeviceSafeInsets then
+			return { x = l, y = 0, w = vw - l - r, h = vh - b }
+		end
 		if insets == Enum.ScreenInsets.TopbarSafeInsets then
-			return { x = 0, y = 0, w = vw, h = INSET }
+			return { x = l, y = 0, w = vw - l - r, h = INSET }
 		end
 	end
-	return { x = 0, y = INSET, w = vw, h = vh - INSET }
+	return { x = l, y = INSET, w = vw - l - r, h = vh - INSET - b }
+end
+
+--[[
+	RbxSim lays a ScreenGui out over the whole viewport below the top bar. On a device with
+	insets (phone_notch) the HUD's CoreUISafeInsets area is smaller and shifted; this hook
+	re-registers AbsoluteSize / AbsolutePosition of ScreenGuis (LayerCollector) and GuiObjects
+	so that, for a player with insets, an inset-keeping layer and everything in it are measured
+	inside the safe area: the sim's own layout runs against a viewport shrunk by the insets and
+	the result is shifted right by the left inset. Camera.ViewportSize stays the full screen.
+	Installed once, before the sim is created (RbxSim resolves members per class lazily).
+]]
+local playerInsets: { [any]: { left: number, right: number, bottom: number } } = {}
+
+local function keepsInsets(real: any): boolean
+	local cur = real
+	while cur ~= nil and not cur:IsA("LayerCollector") do
+		cur = cur.Parent
+	end
+	if cur == nil or not cur:IsA("ScreenGui") or get(cur, "IgnoreGuiInset", false) then
+		return false
+	end
+	return get(cur, "ScreenInsets", Enum.ScreenInsets.CoreUISafeInsets) == Enum.ScreenInsets.CoreUISafeInsets
+end
+
+local safeAreaInstalled = false
+local function installSafeArea()
+	if safeAreaInstalled then
+		return
+	end
+	safeAreaInstalled = true
+	local original = SimMembers.new(nil)
+	local function measured(sim: any, real: any, defs: any, key: string): any
+		local player = sim.players:ownerOf(real)
+		local ins = player and playerInsets[player]
+		local st = player and sim.players.state[player]
+		if not ins or not st or not keepsInsets(real) then
+			return defs[key].get(sim, real, key)
+		end
+		local full = st.viewport
+		st.viewport = roblox.Vector2.new(full.X - ins.left - ins.right, full.Y - ins.bottom)
+		local ok, value = pcall(defs[key].get, sim, real, key)
+		st.viewport = full
+		if not ok then
+			error(value, 0)
+		end
+		if key == "AbsolutePosition" then
+			return value + roblox.Vector2.new(ins.left, 0)
+		end
+		return value
+	end
+	for _, className in { "GuiObject", "LayerCollector" } do
+		local defs = original:resolve(className)
+		SimMembers.define(className, {
+			AbsoluteSize = SimMembers.prop(function(sim, real)
+				return measured(sim, real, defs, "AbsoluteSize")
+			end),
+			AbsolutePosition = SimMembers.prop(function(sim, real)
+				return measured(sim, real, defs, "AbsolutePosition")
+			end),
+		})
+	end
 end
 
 local function intersect(a: { number }?, b: { number }): { number }
@@ -674,6 +790,114 @@ end
 
 type Entry = { obj: any, z: number, order: number }
 
+--[[
+	Lays out and describes the GuiObjects under `gui` (a ScreenGui, BillboardGui or SurfaceGui)
+	whose content box is `box` (screen px — or canvas px for a SurfaceGui), in draw order.
+	Paths are relative to `pathRoot`. `layoutInfo` (optional) collects { rect, T } per object
+	for --check. Used for the PlayerGui and, by gui/world_capture.luau, for billboards and
+	surface GUIs in the world.
+]]
+local function dumpTree(gui: any, box: Rect, pathRoot: any, layoutInfo: { [any]: any }?): { any }
+	local global = get(gui, "ZIndexBehavior", Enum.ZIndexBehavior.Sibling) == Enum.ZIndexBehavior.Global
+	local entries: { Entry } = {}
+	local counter = 0
+
+	local function visit(parent: any, inBox: Rect, T: Xf, clip: { number }?, alpha: number)
+		local rects = layoutChildren(parent, inBox)
+		local kids = {}
+		for i, c in parent:GetChildren() do
+			if rects[c] then
+				table.insert(kids, { c = c, i = i, z = get(c, "ZIndex", 1) })
+			end
+		end
+		if not global then
+			table.sort(kids, function(a, b)
+				if a.z ~= b.z then
+					return a.z < b.z
+				end
+				return a.i < b.i
+			end)
+		end
+		for _, kid in kids do
+			local c = kid.c
+			local r = rects[c]
+			local Tc = T
+			local anchor = get(c, "AnchorPoint", roblox.Vector2.zero)
+			local ax, ay = r.x + anchor.X * r.w, r.y + anchor.Y * r.h
+			local uiScale = childOfClass(c, "UIScale")
+			local s = if uiScale then get(uiScale, "Scale", 1) else 1
+			local local_: Xf = IDENTITY
+			if s ~= 1 then
+				local_ = scaleAbout(s, ax, ay)
+			end
+			local rot = get(c, "Rotation", 0)
+			if rot ~= 0 then
+				local ccx, ccy = r.x + r.w / 2, r.y + r.h / 2
+				local vcx, vcy = ax + s * (ccx - ax), ay + s * (ccy - ay)
+				local_ = compose(rotateAbout(rot, vcx, vcy), local_)
+			end
+			if local_ ~= IDENTITY then
+				Tc = compose(T, local_)
+			end
+			local a = alpha
+			if c:IsA("CanvasGroup") then
+				a *= 1 - get(c, "GroupTransparency", 0)
+			end
+			counter += 1
+			local path = pathOf(c, pathRoot)
+			table.insert(entries, {
+				obj = describe(c, r, Tc, clip, a, path),
+				z = kid.z,
+				order = counter,
+			})
+			if layoutInfo then
+				layoutInfo[c] = { rect = r, T = Tc }
+			end
+			local childClip = clip
+			local clips = get(c, "ClipsDescendants", false) or c:IsA("CanvasGroup") or c:IsA("ScrollingFrame")
+			if clips and not isRotated(Tc) then
+				childClip = intersect(clip, screenBox(Tc, r))
+			end
+			local inner = contentBox(c, r)
+			if c:IsA("ScrollingFrame") then
+				local cs = get(c, "CanvasSize", roblox.UDim2.new())
+				local cp = get(c, "CanvasPosition", roblox.Vector2.zero)
+				inner = {
+					x = inner.x - cp.X,
+					y = inner.y - cp.Y,
+					w = cs.X.Scale * inner.w + cs.X.Offset,
+					h = cs.Y.Scale * inner.h + cs.Y.Offset,
+				}
+			end
+			visit(c, inner, Tc, childClip, a)
+		end
+	end
+
+	-- A UIScale directly under the layer scales everything about its top-left corner.
+	local rootScale = childOfClass(gui, "UIScale")
+	local T0 = IDENTITY
+	local inner = contentBox(gui, box)
+	if rootScale and get(rootScale, "Scale", 1) ~= 1 then
+		local s = get(rootScale, "Scale", 1)
+		T0 = scaleAbout(s, box.x, box.y)
+		inner = { x = inner.x, y = inner.y, w = inner.w / s, h = inner.h / s }
+	end
+	visit(gui, inner, T0, nil, 1)
+	if global then
+		table.sort(entries, function(a, b)
+			if a.z ~= b.z then
+				return a.z < b.z
+			end
+			return a.order < b.order
+		end)
+	end
+	local out = table.create(#entries)
+	for i, e in entries do
+		out[i] = e.obj
+	end
+	return out
+end
+
 local function dumpPlayerGui(playerGui: any, vw: number, vh: number): ({ any }, { [any]: any })
 	local layers = {}
 	for i, c in playerGui:GetChildren() do
@@ -687,105 +911,11 @@ local function dumpPlayerGui(playerGui: any, vw: number, vh: number): ({ any }, 
 		end
 		return a.index < b.index
 	end)
-
 	local out = {}
 	local layoutInfo: { [any]: any } = {}
 	for _, layer in layers do
-		local gui = layer.gui
-		local global = get(gui, "ZIndexBehavior", Enum.ZIndexBehavior.Sibling) == Enum.ZIndexBehavior.Global
-		local entries: { Entry } = {}
-		local counter = 0
-
-		local function visit(parent: any, box: Rect, T: Xf, clip: { number }?, alpha: number)
-			local rects = layoutChildren(parent, box)
-			local kids = {}
-			for i, c in parent:GetChildren() do
-				if rects[c] then
-					table.insert(kids, { c = c, i = i, z = get(c, "ZIndex", 1) })
-				end
-			end
-			if not global then
-				table.sort(kids, function(a, b)
-					if a.z ~= b.z then
-						return a.z < b.z
-					end
-					return a.i < b.i
-				end)
-			end
-			for _, kid in kids do
-				local c = kid.c
-				local r = rects[c]
-				local Tc = T
-				local anchor = get(c, "AnchorPoint", roblox.Vector2.zero)
-				local ax, ay = r.x + anchor.X * r.w, r.y + anchor.Y * r.h
-				local uiScale = childOfClass(c, "UIScale")
-				local s = if uiScale then get(uiScale, "Scale", 1) else 1
-				local local_: Xf = IDENTITY
-				if s ~= 1 then
-					local_ = scaleAbout(s, ax, ay)
-				end
-				local rot = get(c, "Rotation", 0)
-				if rot ~= 0 then
-					local ccx, ccy = r.x + r.w / 2, r.y + r.h / 2
-					local vcx, vcy = ax + s * (ccx - ax), ay + s * (ccy - ay)
-					local_ = compose(rotateAbout(rot, vcx, vcy), local_)
-				end
-				if local_ ~= IDENTITY then
-					Tc = compose(T, local_)
-				end
-				local a = alpha
-				if c:IsA("CanvasGroup") then
-					a *= 1 - get(c, "GroupTransparency", 0)
-				end
-				counter += 1
-				local path = pathOf(c, playerGui)
-				table.insert(entries, {
-					obj = describe(c, r, Tc, clip, a, path),
-					z = kid.z,
-					order = counter,
-				})
-				layoutInfo[c] = { rect = r, T = Tc }
-				local childClip = clip
-				local clips = get(c, "ClipsDescendants", false) or c:IsA("CanvasGroup") or c:IsA("ScrollingFrame")
-				if clips and not isRotated(Tc) then
-					childClip = intersect(clip, screenBox(Tc, r))
-				end
-				local inner = contentBox(c, r)
-				if c:IsA("ScrollingFrame") then
-					local cs = get(c, "CanvasSize", roblox.UDim2.new())
-					local cp = get(c, "CanvasPosition", roblox.Vector2.zero)
-					inner = {
-						x = inner.x - cp.X,
-						y = inner.y - cp.Y,
-						w = cs.X.Scale * inner.w + cs.X.Offset,
-						h = cs.Y.Scale * inner.h + cs.Y.Offset,
-					}
-				end
-				visit(c, inner, Tc, childClip, a)
-			end
-		end
-
-		local root = layerRect(gui, vw, vh)
-		-- A UIScale directly under a ScreenGui scales everything about its top-left corner.
-		local rootScale = childOfClass(gui, "UIScale")
-		local T0 = IDENTITY
-		local box = contentBox(gui, root)
-		if rootScale and get(rootScale, "Scale", 1) ~= 1 then
-			local s = get(rootScale, "Scale", 1)
-			T0 = scaleAbout(s, root.x, root.y)
-			box = { x = box.x, y = box.y, w = box.w / s, h = box.h / s }
-		end
-		visit(gui, box, T0, nil, 1)
-		if global then
-			table.sort(entries, function(a, b)
-				if a.z ~= b.z then
-					return a.z < b.z
-				end
-				return a.order < b.order
-			end)
-		end
-		for _, e in entries do
-			table.insert(out, e.obj)
+		for _, obj in dumpTree(layer.gui, layerRect(layer.gui, vw, vh), playerGui, layoutInfo) do
+			table.insert(out, obj)
 		end
 	end
 	return out, layoutInfo
@@ -798,19 +928,27 @@ end
 local Harness = {}
 Harness.__index = Harness
 
+-- Every sim step of the harness goes through here (the world capture watches what appears).
+function Harness:simStep(dt: number)
+	self.sim:Step(dt)
+	if self.world then
+		self.world:observe()
+	end
+end
+
 function Harness:step(dt: number?)
-	self.sim:Step(dt or FRAME)
+	self:simStep(dt or FRAME)
 end
 
 function Harness:advance(seconds: number, step: number?)
 	local dt = step or FRAME
 	local n = math.floor(seconds / dt + 1e-6)
 	for _ = 1, n do
-		self.sim:Step(dt)
+		self:simStep(dt)
 	end
 	local rest = seconds - n * dt
 	if rest > 1e-6 then
-		self.sim:Step(rest)
+		self:simStep(rest)
 	end
 end
 
@@ -847,7 +985,7 @@ function Harness:waitFor(fn: () -> any, timeout: number?): any
 			self:warn(`waitFor timed out after {timeout or 5} s`)
 			return nil
 		end
-		self.sim:Step(FRAME)
+		self:simStep(FRAME)
 	end
 end
 
@@ -877,22 +1015,22 @@ function Harness:click(path: string, _down: boolean?)
 		self:warn(`click: {path} not clickable ({why}); forcing`)
 	end
 	self.sim:Click(self.player, button, { force = true })
-	self.sim:Step(FRAME)
+	self:simStep(FRAME)
 end
 
 function Harness:press()
 	self.sim:PressKey(self.player, Enum.KeyCode.F)
-	self.sim:Step(FRAME)
+	self:simStep(FRAME)
 end
 
 function Harness:serverSays(state: string, data: any?)
 	self.sim:Find("ReplicatedStorage.Remotes.FishingState"):FireClient(self.player, state, data)
-	self.sim:Step(FRAME)
+	self:simStep(FRAME)
 end
 
 function Harness:notify(text: string, kind: string?)
 	self.sim:Find("ReplicatedStorage.Remotes.Notify"):FireClient(self.player, text, kind or "info")
-	self.sim:Step(FRAME)
+	self:simStep(FRAME)
 end
 
 function Harness:backpackRod(): any
@@ -992,49 +1130,403 @@ function Harness:caught(fish: { [string]: any }, total: number?)
 end
 
 --------------------------------------------------------------------------------
--- Scenario runner
+-- Real-server play (scenarios with `server = true`: FishingService is live)
 --------------------------------------------------------------------------------
 
-local function scenarioByName(name: string): any
-	for _, s in scenarios do
-		if s.name == name then
-			return s
+-- The FishingState events this client got, oldest first: { { time, state, data } }.
+function Harness:stateEvents(): { any }
+	local out = {}
+	for _, e in self.sim:ClientEventsFor(self.player, "FishingState") do
+		table.insert(out, { time = e.time, state = e.args[1], data = e.args[2] })
+	end
+	return out
+end
+
+-- Every roll of FishingService gives this fish ({ Id, Mutation?, Kg? }; Kg defaults to the
+-- middle of the species' range); returns the full FishData.
+function Harness:forceFish(fish: { [string]: any }): { [string]: any }
+	assert(self.server, "h:forceFish needs a scenario with server = true")
+	local rules = self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.FishingRules"))
+	local def = rules.GetFish(fish.Id)
+	assert(def, `unknown fish {fish.Id}`)
+	local kg = fish.Kg or math.round((def.MinKg + def.MaxKg) / 2 * 100) / 100
+	local value, income = rules.Price(fish.Id, kg, fish.Mutation)
+	local data = {
+		Id = fish.Id,
+		Rarity = def.Rarity,
+		Mutation = fish.Mutation,
+		Kg = kg,
+		Value = value,
+		Income = income,
+	}
+	local service = self.sim:Require(self.sim:Find("ServerScriptService.Services.FishingService"))
+	service.RollFishForTest = function()
+		return table.clone(data)
+	end
+	return data
+end
+
+-- The character and the rod where the backdrop's stand-in is (world-FX scenarios), so the
+-- line, the cast, the leap and the held fish line up with the drawn avatar.
+function Harness:poseLikeBackdrop()
+	if self.world then
+		self.world:pose()
+	end
+end
+
+--[[
+	A whole catch with the real server, played like a person: onto the own FishingSpot (posed
+	like the backdrop's stand-in), rod in hand, tap «ЗАБРОСИТЬ», wait for the bite, tap
+	«ПОДСЕЧЬ!» after `opts.reaction` s (0.3), then win the minigame: before each hit wait for
+	the needle to cross the zone at `opts.aim` (-1..1 of the half-width, 0 = the centre) and
+	tap the action button. Returns right after the WINNING tap (make it the scenario's time 0)
+	with the FishData; a miss or a timeout is a warning.
+]]
+function Harness:playCatch(fish: { [string]: any }, opts: { [string]: any }?): { [string]: any }
+	local o = opts or {}
+	local data = self:forceFish(fish)
+	self:standAtSpot()
+	self:equipRod()
+	self:poseLikeBackdrop()
+	self:advance(0.4)
+	local action = "HUD.Fishing.ActionArea.ActionButton"
+	local function after(count: number, state: string): any
+		for i, e in self:stateEvents() do
+			if i > count and e.state == state then
+				return e
+			end
+		end
+		return nil
+	end
+	local count = #self:stateEvents()
+	self:click(action)
+	local bite = self:waitFor(function()
+		return after(count, "Bite")
+	end, 15)
+	if not bite then
+		self:warn("playCatch: no bite")
+		return data
+	end
+	self:advance(o.reaction or 0.3)
+	count = #self:stateEvents()
+	self:click(action)
+	local mg = self:waitFor(function()
+		return after(count, "Minigame")
+	end, 2)
+	if not mg then
+		self:warn("playCatch: the hook did not start the minigame")
+		return data
+	end
+	local rules = self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.FishingRules"))
+	local cfg = mg.data
+	local center = cfg.ZoneCenter
+	local hits = cfg.Hits or 0
+	local earliest = mg.time + 0.4
+	while hits < cfg.HitsNeeded do
+		local from = math.max(self.sim:Time(), earliest) - mg.time
+		local goal = center + (o.aim or 0) * cfg.ZoneWidth / 2
+		local target = nil
+		for k = 0, 240 * 8 do
+			local t = from + k / 240
+			if math.abs(rules.Needle(cfg.U0, cfg.Speed, t) - goal) < 0.012 then
+				target = t
+				break
+			end
+		end
+		if not target then
+			self:warn("playCatch: the needle never reaches the zone")
+			return data
+		end
+		self:advance(math.max(0, mg.time + target - self.sim:Time() - FRAME / 2))
+		hits += 1
+		count = #self:stateEvents()
+		self:click(action)
+		if hits >= cfg.HitsNeeded then
+			return data
+		end
+		local reply = self:waitFor(function()
+			local events = self:stateEvents()
+			return if #events > count then events[#events] else nil
+		end, 1)
+		if not reply or reply.state ~= "Zone" then
+			self:warn(`playCatch: tap {hits} was not a hit ({reply and reply.state or "no answer"})`)
+			return data
+		end
+		center = reply.data.ZoneCenter
+		earliest = self.sim:Time() + 0.3
+	end
+	return data
+end
+
+-- The GuiObject at `path` is on screen: Visible up the chain, its ScreenGui enabled, not
+-- scaled to nothing (UIScale), not faded out (its own background or text, and CanvasGroups).
+function Harness:shown(path: string): boolean
+	local inst = self:gui(path)
+	if not inst or not self:visible(path) then
+		return false
+	end
+	local cur = inst
+	while cur and cur:IsA("GuiObject") do
+		local scale = cur:FindFirstChildOfClass("UIScale")
+		if scale and scale.Scale < 0.05 then
+			return false
+		end
+		if cur:IsA("CanvasGroup") and cur.GroupTransparency > 0.95 then
+			return false
+		end
+		cur = cur.Parent
+	end
+	local bg = inst.BackgroundTransparency < 0.95
+	local text = (inst:IsA("TextLabel") or inst:IsA("TextButton")) and inst.Text ~= "" and inst.TextTransparency < 0.95
+	local image = (inst:IsA("ImageLabel") or inst:IsA("ImageButton")) and inst.ImageTransparency < 0.95
+	if bg or text or image or inst:IsA("ViewportFrame") then
+		return true
+	end
+	-- a container (no look of its own) is shown when it holds GuiObjects
+	return inst:FindFirstChildWhichIsA("GuiObject") ~= nil
+end
+
+--------------------------------------------------------------------------------
+-- Beats: when each moment of a scenario happened (the ruler of timelines and bursts)
+--------------------------------------------------------------------------------
+
+--[[
+	A beat spec (scenario field `beats` replaces DEFAULT_BEATS, `extraBeats` adds to them):
+	  { name, appear = path | { paths } }   first time one of the GuiObjects is shown (h:shown)
+	  { name, appearNamed = "FxFlash" }      first time a GuiObject with this name is shown
+	  { name, disappear = path }             first time it is hidden after having been shown
+	  { name, change = path }                first time its Text differs from the start
+	  { name, settle = path }                when its Text last changed (a count-up landing)
+	  { name, state = "Caught" }             the client got this FishingState event
+	  { name, event = "HeldFish", kind? }    world FX (world = true): a FishingFx child or the
+	                                         HeldFish "appear"s (default) / "disappear"s, or a
+	                                         FishingFxController signal (kind "signal")
+	  { name, fn = function(h) -> bool }     anything else
+	The first beat that has fired is kept (one time per beat).
+]]
+local DEFAULT_BEATS = {
+	{ name = "caught", state = "Caught" },
+	{ name = "win", appearNamed = "FxMinigameWin" },
+	{ name = "leap", event = "Leap" },
+	{ name = "landing", event = "OwnFishLanded", kind = "signal" },
+	{ name = "held", event = "HeldFish" },
+	{ name = "flash", appearNamed = "FxFlash" },
+	{ name = "card", appear = "HUD.Fishing.CatchCard" },
+	{ name = "banner", appear = "HUD.Fishing.CatchCard.Banner.RarityLabel" },
+	{ name = "name", appear = "HUD.Fishing.CatchCard.NameLabel" },
+	{ name = "price", settle = "HUD.Fishing.CatchCard.InfoLabel.Price.Label" },
+	{
+		name = "mutation",
+		appear = { "HUD.Fishing.CatchCard.MutationLabel", "HUD.Fishing.CatchCard.MutationStamp" },
+	},
+	{ name = "pillar", event = "PillarCore" },
+	{ name = "close", disappear = "HUD.Fishing.CatchCard" },
+	{ name = "fly", appearNamed = "FxFly" },
+	{ name = "+1", change = "HUD.Status.CatchCounter.Label" },
+	{ name = "held gone", event = "HeldFish", kind = "disappear" },
+	-- the rest of the loop (bursts of bites, hits and misses)
+	{ name = "bite", state = "Bite" },
+	{ name = "zone", state = "Zone" },
+	{ name = "word", appearNamed = "FxFloat" },
+	{ name = "lost", state = "Lost" },
+	{ name = "miss ghost", appearNamed = "FxMinigameMiss" },
+}
+
+local Beats = {}
+Beats.__index = Beats
+
+function Beats.new(h: any, specs: { any }, capture: any?): any
+	local self = setmetatable({ h = h, specs = specs, capture = capture, fired = {}, state = {}, t0 = 0 }, Beats)
+	for _, spec in specs do
+		local st = {}
+		self.state[spec.name] = st
+		local path = spec.change or spec.settle
+		if path then
+			local inst = h:gui(path)
+			st.text = inst and inst.Text or nil
+			st.lastChange = nil
 		end
 	end
-	return nil
+	return self
 end
 
-local function stillTimes(s: any, opts: any): { number }
-	if opts.at then
-		return opts.at
-	end
-	if type(s.still) == "table" then
-		return s.still
-	end
-	return { s.still or DEFAULT_STILL }
+local function asList(v: any): { any }
+	return if type(v) == "table" then v else { v }
 end
 
-local function sheetTimes(s: any, opts: any): ({ number }, any?)
-	local spec = s.sheet
-	if opts.times then
-		spec = {
-			from = opts.times[1],
-			to = opts.times[2],
-			fps = opts.times[3],
-			roi = spec and spec.roi or {},
-			margin = spec and spec.margin,
-		}
+-- Names of the shown GuiObjects wanted by pending appearNamed beats (one pass per step).
+function Beats:shownNames(): { [string]: boolean }
+	local wanted = {}
+	for _, spec in self.specs do
+		if spec.appearNamed and self.fired[spec.name] == nil then
+			wanted[spec.appearNamed] = true
+		end
 	end
-	if not spec or not opts.sheets then
-		return {}, nil
+	local out = {}
+	local h = self.h
+	local playerGui = h.player:FindFirstChildOfClass("PlayerGui")
+	if not playerGui or next(wanted) == nil then
+		return out
 	end
-	local times = {}
-	local n = math.floor((spec.to - spec.from) * spec.fps + 1e-6)
-	for i = 0, n do
-		table.insert(times, spec.from + i / spec.fps)
+	local rawGui = h.sim:Unwrap(playerGui)
+	for _, d in rawGui:GetDescendants() do
+		if wanted[d.Name] and not out[d.Name] and d:IsA("GuiObject") then
+			if h:shown(pathOf(d, rawGui)) then
+				out[d.Name] = true
+			end
+		end
 	end
-	return times, spec
+	return out
 end
+
+function Beats:step(t: number)
+	local h = self.h
+	local named: { [string]: boolean }? = nil
+	for _, spec in self.specs do
+		local name = spec.name
+		local st = self.state[name]
+		if spec.settle then
+			local inst = h:gui(spec.settle)
+			local text = inst and inst.Text or nil
+			if text ~= st.text then
+				st.text = text
+				st.lastChange = t
+			end
+		end
+		if self.fired[name] ~= nil then
+			continue
+		end
+		local hit = false
+		if spec.appear then
+			for _, path in asList(spec.appear) do
+				if h:shown(path) then
+					hit = true
+				end
+			end
+		elseif spec.appearNamed then
+			named = named or self:shownNames()
+			hit = named[spec.appearNamed] == true
+		elseif spec.disappear then
+			local now = h:shown(spec.disappear)
+			if now then
+				st.seen = true
+			elseif st.seen then
+				hit = true
+			end
+		elseif spec.change then
+			local inst = h:gui(spec.change)
+			hit = inst ~= nil and inst.Text ~= st.text
+		elseif spec.state then
+			for _, e in h:stateEvents() do
+				if e.state == spec.state and e.time >= self.t0 - 0.25 then
+					self.fired[name] = math.max(0, e.time - self.t0)
+					break
+				end
+			end
+		elseif spec.event then
+			local kind = spec.kind or "appear"
+			for _, e in (if self.capture then self.capture:eventList() else {}) do
+				if e.name == spec.event and e.kind == kind and e.t >= -0.25 then
+					self.fired[name] = math.max(0, e.t)
+					break
+				end
+			end
+		elseif spec.fn then
+			local ok, v = pcall(spec.fn, h)
+			hit = ok and v == true
+		end
+		if hit then
+			self.fired[name] = t
+		end
+	end
+end
+
+-- Time 0 of the scenario (right after `run`): FishingState events from 0.25 s before it count.
+function Beats:start()
+	self.t0 = self.h.sim:Time()
+end
+
+-- { { name, t } } sorted by time (settle beats: when the text last changed).
+function Beats:result(): { any }
+	local out = {}
+	for _, spec in self.specs do
+		local t = self.fired[spec.name]
+		if spec.settle then
+			t = self.state[spec.name].lastChange
+		end
+		if t ~= nil then
+			table.insert(out, { name = spec.name, t = math.round(t * 1000) / 1000 })
+		end
+	end
+	table.sort(out, function(a, b)
+		return a.t < b.t
+	end)
+	return out
+end
+
+--------------------------------------------------------------------------------
+-- Built-in scenarios: catch timelines (real server + world FX) and the burst list
+--------------------------------------------------------------------------------
+
+-- Scenarios that get a 30 fps burst sheet of their first 0.8 s with --bursts (slams, stamps,
+-- pops, the catch); a scenario's own `burst` field (a spec, true or false) wins.
+local BURSTS = {
+	bite = true,
+	take_rod = true,
+	hit = true,
+	hit_perfect = true,
+	hit_super = true,
+	miss = true,
+	catch_common = true,
+	catch_legendary = true,
+	catch_mythic = true,
+	catch_gold = true,
+	catch_rainbow = true,
+	catch_close = true,
+}
+local BURST_DEFAULT = { from = 0, to = 0.8, fps = 30 }
+
+local function timelineScenario(name: string, desc: string, fish: { [string]: any }, length: number): any
+	return {
+		name = name,
+		desc = desc,
+		server = true,
+		world = true,
+		standard = false,
+		still = { 0.9, 2.0 },
+		timeline = { from = 0, to = length, fps = 6 },
+		burst = { from = 0, to = 0.8, fps = 30, roi = {} },
+		run = function(h: any)
+			h:playCatch(fish)
+		end,
+	}
+end
+
+-- Not in gui_scenarios.luau: they need the real FishingService and the world capture.
+local BUILTIN = {
+	timelineScenario(
+		"catch_timeline",
+		"Real Legendary catch (Акулёнок) from the winning tap: leap, landing, card beats, close — world FX under the HUD",
+		{ Id = "SharkPup" },
+		7
+	),
+	timelineScenario(
+		"catch_timeline_common",
+		"Real Common catch (Карасик) from the winning tap, world FX under the HUD",
+		{ Id = "Crucian" },
+		5.5
+	),
+	timelineScenario(
+		"catch_timeline_mythic",
+		"Real Mythic Rainbow catch (Рыба-дракон) from the winning tap, world FX under the HUD",
+		{ Id = "DragonFish", Mutation = "Rainbow" },
+		8.5
+	),
+}
+
+--------------------------------------------------------------------------------
+-- Scenario runner
+--------------------------------------------------------------------------------
 
 -- --check: this script's layout against RbxSim's AbsolutePosition/AbsoluteSize. They differ by
 -- design under UIScale, Rotation and list/grid layouts with alignment (RbxSim ignores those).
@@ -1115,26 +1607,113 @@ local function writeJson(path: string, data: any)
 	fs.writeFile(path, serde.encode("json", data, false))
 end
 
+local function allScenarios(): { any }
+	local list = table.clone(scenarios)
+	for _, s in BUILTIN do
+		table.insert(list, s)
+	end
+	return list
+end
+
+local function scenarioByName(name: string): any
+	for _, s in allScenarios() do
+		if s.name == name then
+			return s
+		end
+	end
+	return nil
+end
+
+local function stillTimes(s: any, opts: any): { number }
+	if opts.at then
+		return opts.at
+	end
+	if type(s.still) == "table" then
+		return s.still
+	end
+	return { s.still or DEFAULT_STILL }
+end
+
+local function windowTimes(spec: any): { number }
+	local times = {}
+	local n = math.floor((spec.to - spec.from) * spec.fps + 1e-6)
+	for i = 0, n do
+		table.insert(times, spec.from + i / spec.fps)
+	end
+	return times
+end
+
+local function sheetSpec(s: any, opts: any): any?
+	local spec = s.sheet
+	if opts.times then
+		spec = {
+			from = opts.times[1],
+			to = opts.times[2],
+			fps = opts.times[3],
+			roi = spec and spec.roi or {},
+			margin = spec and spec.margin,
+		}
+	end
+	if not spec or not opts.sheets then
+		return nil
+	end
+	return spec
+end
+
+-- The burst window: a scenario's own `burst`, else BURSTS (with --bursts); timelines always.
+local function burstSpec(s: any, opts: any): any?
+	local own = s.burst
+	if own == false then
+		return nil
+	end
+	if not (opts.bursts or s.timeline) then
+		return nil
+	end
+	if own == nil and not BURSTS[s.name] then
+		return nil
+	end
+	local spec = if type(own) == "table" then own else {}
+	local roi = spec.roi or (s.sheet and s.sheet.roi) or {}
+	return {
+		from = spec.from or BURST_DEFAULT.from,
+		to = spec.to or BURST_DEFAULT.to,
+		fps = spec.fps or BURST_DEFAULT.fps,
+		roi = roi,
+		margin = spec.margin or (s.sheet and s.sheet.margin) or 0.04,
+	}
+end
+
 local function main()
 	local opts = parseArgs(process.args)
 	if opts.list then
-		for _, s in scenarios do
+		for _, s in allScenarios() do
 			local sheet = if s.sheet then `  sheet {s.sheet.from}..{s.sheet.to} s @ {s.sheet.fps} fps` else ""
+			if s.timeline then
+				sheet ..= `  timeline {s.timeline.from}..{s.timeline.to} s @ {s.timeline.fps} fps`
+			end
 			local flag = if s.standard == false then " (not standard)" else ""
-			print(`{s.name}{string.rep(" ", math.max(1, 20 - #s.name))}{s.desc}{sheet}{flag}`)
+			print(`{s.name}{string.rep(" ", math.max(1, 22 - #s.name))}{s.desc}{sheet}{flag}`)
 		end
 		return
 	end
 	assert(opts.out, "--out DIR is required")
-	local profile = SimPlayers.DEVICES[opts.device]
-	assert(profile, `unknown device {opts.device}`)
-	local vw, vh = profile.viewport[1], profile.viewport[2]
+	local device = DEVICES[opts.device]
+	assert(device, `unknown device {opts.device} ({table.concat(DEVICE_ORDER, ", ")})`)
+	local profile = SimPlayers.DEVICES[device.sim]
+	local viewport = device.viewport or profile.viewport
+	local vw, vh = viewport[1], viewport[2]
+	local insets = device.insets
+	if insets then
+		SAFE = table.clone(insets)
+	end
+	installSafeArea()
+	WorldCapture.installHooks()
 
 	local names = opts.scenarios or { "all" }
 	local selected = {}
 	for _, name in names do
 		if name == "all" then
-			for _, s in scenarios do
+			for _, s in allScenarios() do
 				if s.standard ~= false then
 					table.insert(selected, s)
 				end
@@ -1152,31 +1731,45 @@ local function main()
 	end
 
 	local started = os.clock()
-	local sim = Sim.new({ place = opts.place, verbose = opts.verbose })
-	local fishingService = sim:Find("ServerScriptService.Services.FishingService")
-	if fishingService then
-		fishingService.Source = "return {}"
-	end
-	local fishRoot = sim:Find("ReplicatedStorage.Assets.Fish")
-	if fishRoot then
-		for _, folder in fishRoot:GetChildren() do
-			for _, model in folder:GetChildren() do
-				local title = model:GetAttribute("Title")
-				if typeof(title) == "string" then
-					fishByTitle[title] = folder.Name
+	-- Two sims, made on first use: the stub one (FishingService off, the harness plays the
+	-- server) and the real one (server = true scenarios).
+	local sims: { [boolean]: any } = {}
+	local previous: { [any]: any } = {}
+	local function simFor(real: boolean): any
+		local sim = sims[real]
+		if sim then
+			return sim
+		end
+		sim = Sim.new({ place = opts.place, verbose = opts.verbose })
+		local fishingService = sim:Find("ServerScriptService.Services.FishingService")
+		if fishingService and not real then
+			fishingService.Source = "return {}"
+		end
+		if next(fishByTitle) == nil then
+			local fishRoot = sim:Find("ReplicatedStorage.Assets.Fish")
+			if fishRoot then
+				for _, folder in fishRoot:GetChildren() do
+					for _, model in folder:GetChildren() do
+						local title = model:GetAttribute("Title")
+						if typeof(title) == "string" then
+							fishByTitle[title] = folder.Name
+						end
+					end
 				end
 			end
 		end
+		sim:StartServer()
+		sim:Advance(0.5)
+		sims[real] = sim
+		return sim
 	end
-	sim:StartServer()
-	sim:Advance(0.5)
 
 	local userId = 0
-	local previous = nil
 	for _, s in selected do
 		local t0 = os.clock()
-		if previous then
-			sim:RemovePlayer(previous)
+		local sim = simFor(s.server == true)
+		if previous[sim] then
+			sim:RemovePlayer(previous[sim])
 			sim:Advance(0.1)
 		end
 		sim:ClearErrors()
@@ -1185,15 +1778,20 @@ local function main()
 			UserId = 1000 + userId,
 			Name = `Fisher{userId}`,
 			DisplayName = "Рыбак",
-			device = opts.device,
+			device = device.sim,
+			viewport = roblox.Vector2.new(vw, vh),
 		})
-		previous = player
+		previous[sim] = player
+		if insets then
+			playerInsets[sim:Unwrap(player)] = insets
+		end
 		local h = setmetatable({
 			sim = sim,
 			player = player,
 			device = opts.device,
 			touch = profile.TouchEnabled,
 			scenario = s.name,
+			server = s.server == true,
 			warnings = {},
 		}, Harness)
 		if not s.fresh then
@@ -1213,19 +1811,36 @@ local function main()
 			end, 5)
 		end
 
-		local okRun, runErr = pcall(s.run, h)
-		if not okRun then
-			h:warn(`run failed: {runErr}`)
+		local capture = nil
+		if s.world then
+			local spot, base = h:spot(), h:base()
+			if spot and base then
+				capture = WorldCapture.new({
+					sim = sim,
+					player = player,
+					W = vw,
+					H = vh,
+					spot = spot,
+					look = base:GetPivot().LookVector,
+					dumpTree = dumpTree,
+					fishByTitle = fishByTitle,
+				})
+				h.world = capture
+			else
+				h:warn("world = true, but the player has no base / FishingSpot: no world capture")
+			end
 		end
 
 		local stills = if opts.stills then stillTimes(s, opts) else {}
-		local sheet, spec = sheetTimes(s, opts)
-		local marks: { [number]: { still: boolean, sheet: boolean } } = {}
+		local sheet = sheetSpec(s, opts)
+		local burst = burstSpec(s, opts)
+		local timeline = s.timeline
+		local marks: { [number]: { [string]: boolean } } = {}
 		local times = {}
 		local function mark(t: number, key: string)
 			local q = math.round(t * 1000) / 1000
 			if not marks[q] then
-				marks[q] = { still = false, sheet = false }
+				marks[q] = {}
 				table.insert(times, q)
 			end
 			marks[q][key] = true
@@ -1233,30 +1848,87 @@ local function main()
 		for _, t in stills do
 			mark(t, "still")
 		end
-		for _, t in sheet do
-			mark(t, "sheet")
+		for key, spec in { sheet = sheet, burst = burst, timeline = timeline } do
+			if spec then
+				for _, t in windowTimes(spec) do
+					mark(t, key)
+				end
+			end
 		end
 		table.sort(times)
+
+		local beatSpecs = s.beats
+		if beatSpecs == nil and (burst or timeline or s.extraBeats) then
+			beatSpecs = DEFAULT_BEATS
+		end
+		if beatSpecs and s.extraBeats then
+			beatSpecs = table.clone(beatSpecs)
+			for _, b in s.extraBeats do
+				table.insert(beatSpecs, b)
+			end
+		end
+		local beats = if beatSpecs then Beats.new(h, beatSpecs, capture) else nil
+
+		local okRun, runErr = pcall(s.run, h)
+		if not okRun then
+			h:warn(`run failed: {runErr}`)
+		end
+		-- time 0 of the scenario
+		if beats then
+			beats:start()
+		end
+		if capture then
+			pcall(capture.begin, capture)
+		end
 
 		local playerGui = sim:Unwrap(player:FindFirstChildOfClass("PlayerGui"))
 		local frames = {}
 		local now = 0
-		for _, t in times do
-			if t > now then
-				h:advance(t - now)
-				now = t
+		local function stepTo(target: number)
+			while now < target - 1e-6 do
+				local dt = math.min(FRAME, target - now)
+				sim:Step(dt)
+				now += dt
+				if capture then
+					local ok, err = pcall(capture.step, capture, dt)
+					if not ok then
+						h:warn(`world capture failed: {err}`)
+						capture = nil
+					end
+				end
+				if beats then
+					beats:step(now)
+				end
 			end
+		end
+		for _, t in times do
+			stepTo(t)
 			local objects, info = dumpPlayerGui(playerGui, vw, vh)
 			if opts.check then
 				checkLayout(sim, info)
 			end
-			table.insert(frames, {
+			local frame: { [string]: any } = {
 				t = t,
-				still = marks[t].still,
-				sheet = marks[t].sheet,
+				still = marks[t].still == true,
+				sheet = marks[t].sheet == true,
+				burst = marks[t].burst == true,
+				timeline = marks[t].timeline == true,
 				tools = toolsOf(player),
 				objects = objects,
-			})
+			}
+			if capture then
+				local ok, world = pcall(capture.frame, capture)
+				if ok then
+					frame.world = world
+				else
+					h:warn(`world frame failed: {world}`)
+				end
+			end
+			table.insert(frames, frame)
+		end
+		if beats and #times > 0 then
+			-- a little past the last frame, so a beat right at the end still lands
+			stepTo(now + 0.1)
 		end
 
 		local errors = {}
@@ -1270,30 +1942,40 @@ local function main()
 		for _, w in sim.Warnings do
 			table.insert(warnings, `[{w.context}] {w.message}`)
 		end
+		local function window(spec: any?): any?
+			if not spec then
+				return nil
+			end
+			return {
+				from = spec.from,
+				to = spec.to,
+				fps = spec.fps,
+				roi = spec.roi or {},
+				margin = spec.margin or 0.04,
+			}
+		end
 		writeJson(`{outDir}/{s.name}.json`, {
-			version = 1,
+			version = 2,
 			scenario = s.name,
 			desc = s.desc,
 			device = opts.device,
 			viewport = { vw, vh },
 			touch = profile.TouchEnabled,
 			inset = INSET,
-			sheet = if spec
-				then {
-					from = spec.from,
-					to = spec.to,
-					fps = spec.fps,
-					roi = spec.roi or {},
-					margin = spec.margin or 0.04,
-				}
-				else nil,
+			safe = { SAFE.left, SAFE.right, SAFE.bottom },
+			sheet = window(sheet),
+			burst = window(burst),
+			timeline = window(timeline),
+			camera = if capture then capture:camera() else nil,
+			beats = if beats then beats:result() else nil,
+			events = if capture then capture:eventList() else nil,
 			frames = frames,
 			errors = errors,
 			warnings = warnings,
 		})
 		print(
 			string.format(
-				"[gui_dump] %-20s %-8s %2d frame(s)  %.1fs%s",
+				"[gui_dump] %-22s %-11s %3d frame(s)  %.1fs%s",
 				s.name,
 				opts.device,
 				#frames,
