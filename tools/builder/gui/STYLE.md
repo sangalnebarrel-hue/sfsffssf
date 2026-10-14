@@ -114,12 +114,19 @@ timers. Stagger groups by 0.03–0.06 s.
   gold and Mythic rainbow broadcasts with 👑, bigger and longer; leaving: rise + fade, ≥ 0.7 s apart).
   Only the primary CTA idles (shine + breathing); the chrome stays calm.
 - **Fishing UI** (tools/builder/gui/Fishing.luau, FishingController): the action button is the star —
-  a big round candy button whose gradient/icon/caption change by state, glow rings while it matters,
-  shine on idle, press squash, ripple on tap. Bite alert: slams in, «КЛЮЁТ!» shakes, ❗ wiggle, rays
-  behind, a gradient countdown bar (green→yellow→red). Minigame: candy track, glossy green zone with
-  a glow pulse, needle with 2–3 fading ghost copies (motion trail), on hit — burst of sparks from the
-  zone, «ОТЛИЧНО!/СУПЕР!/ИДЕАЛЬНО!» float text (perfect = within 25 % of the zone centre), pip turns
-  into a ⭐ with a pop; on miss — red flash, shake, «МИМО!». The catch (UI v2) shows the world
+  a big round candy button (ActionArea, 0.66 of the HUD height, max 320 x 240) whose gradient, icon and
+  caption ribbon change by state (ЗАБРОСИТЬ 🎣 → ЖДЁМ… with a bobbing float and 1–2 nibbles «?» →
+  ПОДСЕЧЬ! «!» → ЛОВИ! 🎯; Slate ⏳ while waiting on the server, К ПИРСУ 🧭 far from the spot, ВЗЯТЬ
+  in gold at the spot), glow rings while it matters, shine on idle, press squash, ripple on tap; a key
+  chip («F» / «R2») on its shoulder without touch. Bite alert: «КЛЮЁТ!» slams in with a sun flash and a
+  FOV punch, sun edge glow, one BITE_BEAT for the plate, the button and the swinging «!» glyphs, a
+  gradient countdown bar (green→yellow→red). Minigame: candy track, glossy green zone with a 🐟 rider
+  and a glow pulse, needle ▼ with two fading ghost copies (under the zone), Epic+ outline/aura in the
+  rarity colours; the hit is shown at once (the needle freezes gold, sparks, rising pitch) with
+  «ОТЛИЧНО!» → «СУПЕР!» → «МЕГА!» or «ИДЕАЛЬНО!» (within 25 % of the zone centre), pip turns into a
+  ⭐; on touch the panel itself is a tap pad and a 👆 cue helps the first games; on miss / timeout a
+  copy (FxMinigameMiss) blushes, shakes and says «МИМО!» / «ВРЕМЯ!». Hint: a pill in the kind colour
+  (💡 / ⚠️ / 🚨 in a white socket), up to two lines, springs up from below. The catch (UI v2) shows the world
   first: the minigame plays its win («ПОЙМАНА!», FxMinigameWin) and leaves, the button freezes, Epic+
   get an edge vignette (Legendary/Mythic a heartbeat) while the fish leaps; on the landing
   (`FishingFxController.OwnFishLanded`) a flash, shake and FOV punch, confetti from the held fish and,
@@ -132,12 +139,15 @@ timers. Stagger groups by 0.03–0.06 s.
   shrinks towards the counter and a 🐟 with ✨ flies in (the counter holds its number meanwhile).
   Rarity tiers (dim, rays, confetti volleys, hold, auto-close): `REVEAL` in FishingController.
 - **World FX** (FishingFxController, + FishingService for the broadcast): cast with a sparkly trail on
-  the bobber and a whoosh, a splash + expanding ripple rings on landing, slow ripples while waiting,
-  a big splash, ripple burst and a bouncing «!» on the bite, spray while reeling; on a catch the fish
-  **leaps out of the water** at the bobber and flies in an arc (spinning, with a rarity-coloured
-  sparkle trail) to above the fisher's head (the server attaches the held fish when it lands), then a
-  rarity aura (sparkles) around the held fish; Legendary/Mythic: a light pillar and a confetti burst
-  at the fisher, seen by everyone. A lost fish: a splash and a tail flick away.
+  the bobber and a whoosh, a splash + expanding ripple rings on landing, slow ripples and nibbles
+  (the bobber dips) while waiting, the bite: a plunge, a big splash, rings, a bouncing «!» badge with
+  stars and a blinking outline on your own bobber; a wake while reeling. On a catch a spout, then the
+  fish **leaps out of the water** and flies in an arc (spinning, rarity-coloured sparkle trail) to
+  above the fisher's head — `OwnFishLanded` fires the frame it lands — then a halo, a nameplate
+  (rarity, name, mutation, price) and the rarity aura around the held fish for
+  `FishingRules.HoldFishTime(rarity)` s; Legendary/Mythic: a light pillar (narrower on your own
+  screen) and a confetti burst, seen by everyone. A lost fish: the line flashes, the bobber pops up,
+  a splash and a tail flick away.
 
 ## 4. Budgets (phones first)
 

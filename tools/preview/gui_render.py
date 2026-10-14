@@ -808,6 +808,12 @@ def main(argv=None):
                 log(f"overview -> {p}")
     write_report(reports, opts)
     log(f"done in {time.time() - t0:.1f}s -> {opts.out}")
+    # A script error means the previews show a broken game: say so loudly and fail.
+    broken = [f"{r['scenario']}/{r['device']}" for r in reports if r["errors"]]
+    if broken:
+        log(f"SCRIPT ERRORS in {len(broken)} dump(s): {', '.join(broken[:8])}"
+            + (" …" if len(broken) > 8 else "") + " — these previews are not the real game")
+        sys.exit(2)
 
 
 if __name__ == "__main__":

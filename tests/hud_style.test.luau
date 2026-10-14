@@ -306,12 +306,7 @@ tests["layout: the chrome fits on phone, tablet and desktop without overlaps"] =
 	for _, device in devices do
 		local p = players[device]
 		p:SetAttribute("FishCaught", 7) -- shows the catch counter
-		notify(
-			sim,
-			p,
-			"Улов дня! Вася — «Дракон-рыба» (Мифическая, Радужная)",
-			"info"
-		)
+		notify(sim, p, "Вася: мифическая «Рыба-дракон» ×5!", "Mythic")
 		notify(sim, p, "Сейчас нельзя вернуться домой", "warning")
 		notify(sim, p, "Ура!", "success")
 	end

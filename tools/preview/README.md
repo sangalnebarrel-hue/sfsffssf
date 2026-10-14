@@ -456,6 +456,8 @@ Examples of the current HUD are in `docs/ui/`.
    the backdrop, the world FX (world dumps), every GuiObject in draw order (`gui/paint.py`,
    text in `gui/text.py`), then the CoreGui chrome (`gui/backdrop.py`), and downsamples. It
    runs the checks (`gui/checks.py`) on every frame and writes `checks.txt`.
+   If any dump had a script error it still writes everything, then prints `SCRIPT ERRORS in …`
+   and exits with code 2: those previews do not show the real game.
    The dumps run in parallel Lune processes (`--jobs`, default = CPU count, max 8, split
    across devices) and every frame of every dump is rendered in one process pool.
 
