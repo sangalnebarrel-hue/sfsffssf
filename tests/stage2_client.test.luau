@@ -33,28 +33,19 @@ local function loadConfig(name: string): any
 end
 
 local BaseConfig = loadConfig("BaseConfig")
-local FishConfig = loadConfig("FishConfig")
 local FishingConfig = loadConfig("FishingConfig")
+local UIConfig = loadConfig("UIConfig")
 
 local RETRACT_TIME = 0.45 -- FishingFxController: the bobber reels back to the rod tip
 local HINT_TIME = 3.5 -- FishingController: event hints hide after this
 
-local function rarityColor(id: string): any
-	for _, rarity in FishConfig.Rarities do
-		if rarity.Id == id then
-			return rarity.Color
-		end
-	end
-	error(`no rarity {id}`)
-end
-
-local function mutationColor(id: string): any
-	for _, mutation in FishConfig.Mutations do
-		if mutation.Id == id then
-			return mutation.Color
-		end
-	end
-	error(`no mutation {id}`)
+-- The look of a candy (Theme.candy / UiFx.setCandy): the face's "Fill" gradient, top and bottom,
+-- and the lip colour. The fishing widgets are candies since the Candy Splash restyle
+-- (tools/builder/gui/STYLE.md), so their colour is the gradient, not BackgroundColor3.
+local function candyLook(root: any): (any, any, any)
+	local face = root:FindFirstChild(root:GetAttribute("CandyFace") or "Face")
+	local keys = face.Fill.Color.Keypoints
+	return keys[1].Value, keys[#keys].Value, root.Lip.BackgroundColor3
 end
 
 --------------------------------------------------------------------------------
@@ -145,6 +136,12 @@ local function colorNear(a: any, b: any, eps: number?): boolean
 	return math.abs(a.R - b.R) < e and math.abs(a.G - b.G) < e and math.abs(a.B - b.B) < e
 end
 
+-- The candy shows a style (a UIConfig palette token, rarity or mutation): gradient and lip.
+local function isCandy(root: any, style: any): boolean
+	local top, bottom, lip = candyLook(root)
+	return colorNear(top, style.Top) and colorNear(bottom, style.Bottom) and colorNear(lip, style.Lip)
+end
+
 -- Client connections of `viewer` that mention `name` (a player's name) in their signal.
 local function connectionsAbout(sim: any, viewer: any, name: string): number
 	local ctxName = sim:ContextName(viewer)
@@ -188,7 +185,7 @@ tests["action button: hidden without the rod, shown while it is equipped, key hi
 	sim:Advance(0.1)
 	t.eq(button.Visible, true, "rod in hand")
 	t.eq(caption(sim, p), "ЗАБРОСИТЬ [F]")
-	t.ok(colorNear(button.BackgroundColor3, roblox.Color3.fromRGB(40, 132, 226)), "blue while Idle")
+	t.ok(isCandy(button, UIConfig.Palette.Sky), "a Sky (blue) candy while Idle")
 	t.eq(gui(sim, p, "ActionArea.StopButton").Visible, false, "no line out")
 	sim:UnequipTools(p)
 	sim:Advance(0.1)
@@ -241,7 +238,7 @@ tests["states: captions, colours, Stop button; Hook is sent once from button, to
 	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = FishingConfig.CastFlightTime })
 	t.eq(caption(sim, p), "ЖДЁМ…")
 	t.eq(stop.Visible, true, "line is out")
-	t.ok(button.BackgroundTransparency > 0.2, "dimmed while waiting")
+	t.ok(isCandy(button, UIConfig.Palette.Slate), "a dim Slate candy while waiting")
 	pressF(sim, p)
 	sim:ActivateTool(p)
 	sim:Advance(0.1)
@@ -250,7 +247,7 @@ tests["states: captions, colours, Stop button; Hook is sent once from button, to
 
 	serverSays(sim, p, "Bite", { Window = 1.8 })
 	t.eq(caption(sim, p), "ПОДСЕЧЬ! [F]")
-	t.ok(colorNear(button.BackgroundColor3, roblox.Color3.fromRGB(240, 140, 30)), "orange on bite")
+	t.ok(isCandy(button, UIConfig.Palette.Sun), "a Sun (orange) candy on bite")
 	t.eq(alert.Visible, true, "bite alert")
 	local timer = alert.Timer
 	local full = timer.Size.X.Scale
@@ -267,7 +264,7 @@ tests["states: captions, colours, Stop button; Hook is sent once from button, to
 
 	serverSays(sim, p, "Minigame", MINIGAME)
 	t.eq(caption(sim, p), "ТЯНИ! [F]")
-	t.ok(colorNear(button.BackgroundColor3, roblox.Color3.fromRGB(64, 200, 96)), "green while reeling")
+	t.ok(isCandy(button, UIConfig.Palette.Leaf), "a Leaf (green) candy while reeling")
 	t.eq(alert.Visible, false, "bite alert gone")
 	t.eq(gui(sim, p, "Minigame").Visible, true)
 
@@ -318,7 +315,10 @@ tests["minigame: title, pips, zone, needle and time bar follow the payload; taps
 	serverSays(sim, p, "Minigame", MINIGAME)
 	t.eq(mini.Visible, true)
 	t.eq(mini.Title.Text, "ЛЕГЕНДАРНАЯ РЫБА!")
-	t.ok(colorNear(mini.Title.TextColor3, rarityColor("Legendary")), "title in the rarity colour")
+	t.ok(
+		colorNear(mini.Title.TextFill.Color.Keypoints[1].Value, UIConfig.Rarity.Legendary.Top),
+		"title in the rarity gradient"
+	)
 	t.eq(mini.Pips.Pip1.Visible, true)
 	t.eq(mini.Pips.Pip2.Visible, true)
 	t.eq(mini.Pips.Pip3.Visible, false, "only HitsNeeded pips")
@@ -408,12 +408,12 @@ tests["catch card: rarity, name, mutation, info, turning model; counter; closes 
 	t.eq(card.Visible, true)
 	t.ok(card.FxScale.Scale < 1, "card pops in")
 	t.eq(gui(sim, p, "Minigame").Visible, false, "minigame closed by the catch")
-	t.ok(colorNear(card.Banner.BackgroundColor3, rarityColor("Common")), "banner in the rarity colour")
+	t.ok(isCandy(card.Banner, UIConfig.Rarity.Common), "banner in the rarity gradient")
 	t.eq(card.Banner.RarityLabel.Text, "ОБЫЧНАЯ")
 	t.eq(card.NameLabel.Text, "Окунь Полосатик")
 	t.eq(card.MutationLabel.Visible, true)
 	t.eq(card.MutationLabel.Text, "Золотая мутация ×2")
-	t.ok(colorNear(card.MutationLabel.BackgroundColor3, mutationColor("Gold")), "mutation colour")
+	t.ok(isCandy(card.MutationLabel, UIConfig.Mutations.Gold), "mutation badge in the Gold style")
 	t.eq(card.InfoLabel.Text, "1,2 кг · цена 35 💰")
 	t.eq(counter.Visible, true, "counter shown")
 	t.eq(counter.Label.Text, "Улов: 1")

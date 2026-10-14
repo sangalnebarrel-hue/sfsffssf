@@ -97,6 +97,7 @@ end
 
 local CARD_ROI = { "HUD.Fishing.CatchCard" }
 local FISHING_ROI = { "HUD.Fishing.Minigame", "HUD.Fishing.BiteAlert", "HUD.Fishing.ActionArea" }
+local HIT_ROI = { "HUD.Fishing.Minigame", "HUD.Fishing.ActionArea" }
 
 --[[
 	selftest: a synthetic ScreenGui with one cell per renderer feature (strokes, corners, gradient
@@ -435,6 +436,18 @@ local scenarios = {
 		end,
 	},
 	{
+		name = "take_rod",
+		desc = "Tap «ВЗЯТЬ»: the rod comes into the hand, the button pops into «ЗАБРОСИТЬ»",
+		still = 0.6,
+		sheet = { from = 0, to = 0.8, fps = 15, roi = { "HUD.Fishing.ActionArea" }, margin = 0.06 },
+		run = function(h: any)
+			h:giveRod()
+			h:standAtSpot()
+			h:advance(0.6)
+			h:click("HUD.Fishing.ActionArea.ActionButton")
+		end,
+	},
+	{
 		name = "spot_ready",
 		desc = "At the fishing spot with the rod: ready to cast (idle shine)",
 		still = 0.8,
@@ -519,21 +532,41 @@ local scenarios = {
 	},
 	{
 		name = "hit",
-		desc = "A hit in the minigame: zone jumps, pip fills, juice",
+		desc = "A hit in the minigame (off-centre): «ОТЛИЧНО!», sparks, zone jumps, star stamped",
 		still = 0.15,
-		sheet = {
-			from = 0,
-			to = 0.9,
-			fps = 15,
-			roi = { "HUD.Fishing.Minigame", "HUD.Fishing.ActionArea" },
-			margin = 0.05,
-		},
+		sheet = { from = 0, to = 0.9, fps = 15, roi = HIT_ROI, margin = 0.14 },
 		run = function(h: any)
-			toMinigame(h, "Epic", { ZoneCenter = 0.5, U0 = 0.3 })
+			-- Epic, needle ≈ 0.52 at the tap, zone 0.5..0.7: inside, but not near the centre.
+			toMinigame(h, "Epic", { ZoneCenter = 0.6, U0 = 0.3 })
 			h:advance(0.2)
 			h:click("HUD.Fishing.ActionArea.ActionButton", true)
 			h:advance(0.05)
 			h:serverSays("Zone", { ZoneCenter = 0.15, Hits = 1 })
+		end,
+	},
+	{
+		name = "hit_perfect",
+		desc = "A perfect hit (needle at the zone centre): «ИДЕАЛЬНО!», gold ring, more sparks",
+		still = 0.15,
+		sheet = { from = 0, to = 0.9, fps = 15, roi = HIT_ROI, margin = 0.14 },
+		run = function(h: any)
+			toMinigame(h, "Epic", { ZoneCenter = 0.52, U0 = 0.3 })
+			h:advance(0.2)
+			h:click("HUD.Fishing.ActionArea.ActionButton", true)
+			h:advance(0.05)
+			h:serverSays("Zone", { ZoneCenter = 0.15, Hits = 1 })
+		end,
+	},
+	{
+		name = "hit_super",
+		desc = "The second hit of a Mythic fish: «СУПЕР!», the second star",
+		still = 0.15,
+		run = function(h: any)
+			toMinigame(h, "Mythic", { ZoneCenter = 0.75, U0 = 0.3, Hits = 1 })
+			h:advance(0.2)
+			h:click("HUD.Fishing.ActionArea.ActionButton", true)
+			h:advance(0.05)
+			h:serverSays("Zone", { ZoneCenter = 0.2, Hits = 2 })
 		end,
 	},
 	{
@@ -553,6 +586,16 @@ local scenarios = {
 			h:click("HUD.Fishing.ActionArea.ActionButton", true)
 			h:advance(0.05)
 			h:serverSays("Lost", { Reason = "miss", Text = "Мимо! Рыба сорвалась" })
+		end,
+	},
+	{
+		name = "minigame_timeout",
+		desc = "Time is up in the minigame: «ВРЕМЯ!» on the fading ghost",
+		still = 0.25,
+		run = function(h: any)
+			toMinigame(h, "Common", { ZoneCenter = 0.4, U0 = 0.6, Timeout = 1.2 })
+			h:advance(1.2)
+			h:serverSays("Lost", { Reason = "timeout", Text = "Время вышло — рыба ушла" })
 		end,
 	},
 	{
@@ -606,8 +649,9 @@ local scenarios = {
 	},
 	{
 		name = "catch_legendary",
-		desc = "Catch card: Legendary (Акулёнок)",
+		desc = "Catch card: Legendary (Акулёнок) — flash, camera shake, two rings of rays",
 		still = 1.0,
+		sheet = { from = 0, to = 2.4, fps = 10, roi = {}, margin = 0 },
 		run = function(h: any)
 			catchScenario(h, CATCHES.Legendary)
 		end,
