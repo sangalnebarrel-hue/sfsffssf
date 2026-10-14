@@ -9,7 +9,8 @@
 	     этот экземпляр: рыбачить можно только им, и только когда он в руке (лежит в персонаже).
 	  2. Заброс (FishingCast): игрок у точки рыбалки СВОЕЙ базы (SpotRadius по горизонтали,
 	     SpotMaxHeight по вертикали), удочка в руке, нет кулдауна → состояние "Waiting",
-	     поплавок летит в воду прямо от пирса на CastDistance удочки (± 3 studs вбок).
+	     поплавок летит в воду от пирса на CastDistance удочки и на FishingConfig.CastSide studs
+	     правее (с пирса в лагуну): камера за спиной рыбака видит поплавок правее его головы.
 	     Иначе → "Denied" с причиной и подсказкой.
 	  3. Поклёвка через CastFlightTime + BiteDelay / BiteSpeed → "Bite"; не подсёк за BiteWindow
 	     (+ LatencyGrace на сеть) → "Lost" late; подсёк раньше поклёвки → "Lost" early.
@@ -18,10 +19,12 @@
 	     FishingRules.Needle, что рисует клиент: попал — "Zone" (зона переехала) или "Caught",
 	     промах — "Lost" miss, не успел за MinigameTimeout — "Lost" timeout.
 	  5. Поймал: атрибут FishCaught + 1, рыба в улове сессии (GetCatch), сигнал FishCaught,
-	     о легендарной и мифической рыбе узнают остальные игроки. Рыба выпрыгивает из воды
+	     о легендарной и мифической рыбе узнают остальные игроки (Notify с kind = редкость:
+	     «Рыбак: мифическая «Рыба-Дракон» ×2!», ×N — множитель мутации). Рыба выпрыгивает из воды
 	     у поплавка и летит к рыбаку (это рисуют клиенты, см. атрибут FishFx ниже), а через
-	     LeapTime, когда она долетела, рыба появляется над головой рыбака на HoldFishTime
-	     секунд (её видят все).
+	     LeapTime, когда она долетела, рыба (модель HeldFish в персонаже, атрибуты FishId, Rarity,
+	     Mutation, Kg, Value — для таблички над ней) появляется над головой рыбака на
+	     FishingRules.HoldFishTime(редкость) секунд (её видят все).
 	  6. Сам заканчивает рыбалку: персонаж умер или исчез ("died"), убрал удочку ("unequipped",
 	     сразу по Tool.Unequipped),
 	     отошёл дальше KeepRadius ("moved"), база освободилась ("base"), игрок смотал леску
@@ -80,8 +83,6 @@ local WATCH_INTERVAL = 0.2
 -- Обычная игра его не достигает; лишние запросы молча отбрасываются.
 local REQUEST_BURST = 20
 local REQUEST_RATE = 10
--- Поплавок падает в воду со случайным сдвигом вбок до CAST_SIDE_OFFSET studs.
-local CAST_SIDE_OFFSET = 3
 -- Нажатие «из будущего» (elapsed больше, чем прошло на сервере) честный клиент прислать
 -- не может: такое нажатие игнорируется (допуск — пара кадров на округление).
 local FUTURE_SLACK = 0.05
@@ -344,10 +345,16 @@ local function holdFish(state: PlayerState, character: Model, fish: FishData)
 			part.Anchored = false
 		end
 	end
+	-- Что за рыба — для табличек над ней у клиентов (FishingFxController).
+	model:SetAttribute("FishId", fish.Id)
+	model:SetAttribute("Rarity", fish.Rarity)
+	model:SetAttribute("Mutation", fish.Mutation)
+	model:SetAttribute("Kg", fish.Kg)
+	model:SetAttribute("Value", fish.Value)
 	model.Parent = character
 
 	state.HeldFish = model
-	state.HeldThread = task.delay(FishingConfig.HoldFishTime, function()
+	state.HeldThread = task.delay(FishingRules.HoldFishTime(fish.Rarity), function()
 		state.HeldThread = nil
 		if state.HeldFish == model then
 			clearHeldFish(state)
@@ -375,22 +382,27 @@ local function broadcastFx(player: Player, state: PlayerState, kind: string, fis
 	player:SetAttribute("FishFx", `{state.FxSerial}|{kind}|{id}|{mutation}|{rarity}`)
 end
 
+-- Текст объявления: «Рыбак: мифическая «Рыба-Дракон» ×2!» (×N — множитель мутации).
+local function announcement(player: Player, fish: FishData): string
+	local rarity = FishingRules.GetRarity(fish.Rarity)
+	local adjective = if rarity then rarity.NameLower else fish.Rarity
+	local mutation = fish.Mutation and FishingRules.GetMutation(fish.Mutation)
+	local multiplier = if mutation then ` ×{mutation.Multiplier}` else ""
+	return `{player.DisplayName}: {adjective} «{FishingRules.DisplayName(fish)}»{multiplier}!`
+end
+
 -- Объявление остальным игрокам о легендарной / мифической рыбе (сам рыбак видит карточку
--- улова — тост закрыл бы её).
+-- улова — тост закрыл бы её). Вид уведомления — Id редкости ("Legendary" / "Mythic"):
+-- NotifyController рисует такие тосты в цветах редкости.
 local function announce(player: Player, fish: FishData)
 	if not ANNOUNCED_RARITIES[fish.Rarity] then
 		return
 	end
-	local rarity = FishingRules.GetRarity(fish.Rarity)
-	local details = if rarity then rarity.Name else fish.Rarity
-	local mutation = FishingRules.MutationLabel(fish)
-	if mutation then
-		details ..= `, {mutation}`
-	end
-	local text = `Улов дня! {player.DisplayName} — «{FishingRules.DisplayName(fish)}» ({details})`
+	local text = announcement(player, fish)
+	local kind = (fish.Rarity :: any) :: Notify.Kind
 	for _, other in Players:GetPlayers() do
 		if other ~= player then
-			Notify.Send(other, text, "success")
+			Notify.Send(other, text, kind)
 		end
 	end
 end
@@ -455,12 +467,13 @@ local function catch(player: Player, state: PlayerState, session: Session)
 	FishingService.FishCaught:Fire(player, fish)
 end
 
--- Точка в воде прямо от пирса (−Z базы смотрит в лагуну) на дальности заброса удочки.
+-- Точка в воде перед пирсом (−Z базы смотрит в лагуну) на дальности заброса удочки и чуть
+-- правее (FishingConfig.CastSide: из-за спины рыбака поплавок виден правее его головы).
 local function castTarget(base: Base, castDistance: number): Vector3
 	local pivot = base.Model:GetPivot()
 	local forward = Vector3.new(pivot.LookVector.X, 0, pivot.LookVector.Z).Unit
 	local right = Vector3.new(pivot.RightVector.X, 0, pivot.RightVector.Z).Unit
-	local side = rng:NextNumber(-CAST_SIDE_OFFSET, CAST_SIDE_OFFSET)
+	local side = rng:NextNumber(FishingConfig.CastSide.Min, FishingConfig.CastSide.Max)
 	local point = base.FishingSpot.Position + forward * castDistance + right * side
 	return Vector3.new(point.X, MapConfig.WaterTop, point.Z)
 end

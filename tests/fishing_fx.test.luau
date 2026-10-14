@@ -9,9 +9,17 @@
 	  • the caught fish (a client-side copy of Assets.Fish.<Id>.<Mutation>) leaps from the bobber's
 	    water point in an arc and lands exactly where the server's HeldFish appears (LeapTime after
 	    the catch), then disappears; the bobber flies with it and is gone after the leap;
-	  • rarity aura on the held fish (Rare and up); Legendary/Mythic: pillar, confetti, ground wave;
-	  • a lost fish: a small fish dives away from the fisher under the water;
-	  • cast trail, landing splash rings, waiting ripples, the bouncing «!» and the pulsing line;
+	  • the fisher's own client: OwnFishLanded fires once, on the landing frame, at the held fish;
+	    Humanoid.CameraOffset slides right/up while fishing and back once the held fish is gone;
+	  • at the landing: a neon pop, a camera-facing halo; Rare and up: a nameplate (rarity, name,
+	    mutation, price) and a rarity aura (a mutation recolours the aura, Neon glows) that last
+	    FishingRules.HoldFishTime; Legendary/Mythic: a pillar (neon core + beams), confetti and a
+	    ground wave;
+	  • a lost fish: the line flashes red, the bobber pops up, a fish dives away under the water;
+	  • the bobber: 1.7× bigger, waterline still FloatDepth below the pivot; own one outlined and
+	    with the big «!» (others: smaller, not on top, no stars); Nibble(); the bite plunge;
+	    cast trail, landing rings, waiting ripples, a sagging line while waiting, the wake and the
+	    pulsing line while reeling;
 	  • budgets: ≤ Fx.MaxEmitters ParticleEmitters per fisher, every FX part anchored without
 	    collisions/queries/touch/shadows, nothing left in Workspace.FishingFx afterwards, no
 	    RenderStepped and no extra connections when idle; viewers farther than Fx.Range see only
@@ -40,9 +48,14 @@ local function loadConfig(name: string): any
 end
 
 local FishingConfig = loadConfig("FishingConfig")
+local UIConfig = loadConfig("UIConfig")
 local Fx = FishingConfig.Fx
 
 local Vector3 = roblox.Vector3
+local UDim2 = roblox.UDim2
+
+-- FishingFxController's camera offset while the player's own fishing is on screen.
+local CAMERA_OFFSET = Vector3.new(2.2, 1, 0)
 
 --------------------------------------------------------------------------------
 -- Sim helpers
@@ -257,7 +270,7 @@ end
 -- Audits the fisher's FX on a viewer's client every frame: names seen, the emitter budget, and
 -- that every FX part is anchored and quiet (no collisions, queries, touch, shadows).
 local function auditor(fx: any, fisher: any): any
-	local audit = { seen = {}, maxEmitters = 0, maxApi = 0, loud = {}, pillarHeight = 0 }
+	local audit = { seen = {}, maxEmitters = 0, maxApi = 0, loud = {}, pillarHeight = 0, pillarBeams = false }
 	function audit.step()
 		local emitters = 0
 		local bobber = fx.GetBobber(fisher)
@@ -283,6 +296,11 @@ local function auditor(fx: any, fisher: any): any
 			end
 			if instance.Name == "PillarCore" then
 				audit.pillarHeight = math.max(audit.pillarHeight, instance.Size.X)
+			elseif instance.Name == "PillarGlow" then
+				local glow, sparkle = instance:FindFirstChild("Glow"), instance:FindFirstChild("Sparkle")
+				if glow and sparkle and glow:IsA("Beam") and sparkle:IsA("Beam") and glow.FaceCamera then
+					audit.pillarBeams = true
+				end
 			end
 		end
 		audit.maxEmitters = math.max(audit.maxEmitters, emitters)
@@ -385,8 +403,8 @@ tests["catch: FishFx before Idle; the fish leaps from the bobber to exactly wher
 	local aura = findEffect(fx, fisher, "RarityAura")
 	t.ok(aura and aura:IsA("ParticleEmitter"), "a rarity aura on the held fish")
 	t.ok(aura.Parent == held.PrimaryPart, "attached to the held fish")
-	sim:Advance(FishingConfig.HoldFishTime + 0.5)
-	t.eq(fisher.Character:FindFirstChild("HeldFish"), nil, "the held fish is gone after HoldFishTime")
+	sim:Advance(FishingConfig.HoldFishTime.Rare + 0.5)
+	t.eq(fisher.Character:FindFirstChild("HeldFish"), nil, "the held fish is gone after HoldFishTime.Rare")
 	t.eq(#fx.GetEffects(fisher), 0, "no FX left")
 	local empty, left = fxFoldersEmpty(sim)
 	t.ok(empty, `nothing left in Workspace.FishingFx ({left})`)
@@ -417,14 +435,17 @@ tests["legendary: pillar, confetti, ground wave, aura; emitter budget; nothing l
 		if not pillarAt and findEffect(fx, fisher, "PillarCore") then
 			pillarAt = sim:Time()
 		end
-		return sim:Time() >= caughtAt + FishingConfig.LeapTime + Fx.PillarTime + 0.5
+		return sim:Time() >= caughtAt + FishingConfig.LeapTime + Fx.PillarTime.Legendary + 0.5
 	end, 10, FRAME)
 
-	for _, effect in { "Leap", "Ripple", "PillarCore", "PillarGlow", "Confetti", "RarityAura" } do
+	for _, effect in
+		{ "Leap", "Ripple", "Spout", "Pop", "Halo", "Nameplate", "PillarCore", "PillarGlow", "Confetti", "RarityAura" }
+	do
 		t.ok(audit.seen[effect], `{effect} was shown (seen: {keys(audit.seen)})`)
 	end
 	t.ok(pillarAt and pillarAt >= caughtAt + FishingConfig.LeapTime - FRAME, "the pillar rises when the fish lands")
-	t.near(audit.pillarHeight, Fx.PillarHeight, 1, "the pillar shoots up to PillarHeight")
+	t.near(audit.pillarHeight, Fx.PillarHeight.Legendary, 1, "the pillar shoots up to PillarHeight.Legendary")
+	t.ok(audit.pillarBeams, "the pillar glows with camera-facing beams (Glow + Sparkle in PillarGlow)")
 	t.ok(
 		audit.maxEmitters <= Fx.MaxEmitters,
 		`at most {Fx.MaxEmitters} ParticleEmitters at a time ({audit.maxEmitters})`
@@ -433,7 +454,7 @@ tests["legendary: pillar, confetti, ground wave, aura; emitter budget; nothing l
 	t.eq(audit.maxEmitters, Fx.MaxEmitters, "and the budget is used (leap sparkles + splash; aura + confetti)")
 	t.eq(keys(audit.loud), "", "every FX part is anchored, without collisions, queries, touch or shadows")
 
-	sim:Advance(FishingConfig.HoldFishTime + 1, COARSE)
+	sim:Advance(FishingConfig.HoldFishTime.Legendary + 1, COARSE)
 	t.eq(#fx.GetEffects(fisher), 0, "every effect ended")
 	local empty, left = fxFoldersEmpty(sim)
 	t.ok(empty, `nothing left in Workspace.FishingFx ({left})`)
@@ -464,6 +485,7 @@ tests["far away (> Fx.Range): no splashes, rings or leap — only the pillar of 
 		return sim:Time() >= caughtAt + FishingConfig.LeapTime + 0.5
 	end, 5, FRAME)
 	t.eq(keys(audit.seen), "PillarCore, PillarGlow", "only the pillar is drawn for a far viewer")
+	t.near(audit.pillarHeight, Fx.PillarHeight.Mythic, 1, "a Mythic pillar is taller (PillarHeight.Mythic)")
 	t.ok(pillarAt and pillarAt >= caughtAt + FishingConfig.LeapTime - FRAME, "when the fish would have landed")
 	t.ok(fisher.Character:FindFirstChild("HeldFish"), "the held fish itself is server-side (everyone sees it)")
 	sim:AssertNoErrors({ warnings = true })
@@ -488,14 +510,27 @@ tests["lost (miss): FishFx before Idle; a small fish dives away from the fisher 
 	local value = fisher:GetAttribute("FishFx")
 	t.ok(string.match(value, "^%d+|lost|Swordfish|Neon|Epic$") ~= nil, `FishFx = «{value}»`)
 
+	-- The bobber (still on the water at FishFx) pops up and drops back before it reels in; the
+	-- line flashes red.
+	local bobber = fx.GetBobber(fisher)
+	t.ok(bobber, "the bobber is still there")
+	local bobberTop, flashed = -math.huge, false
 	local dive, path = nil, {}
 	sim:WaitFor(function()
 		dive = dive or findEffect(fx, fisher, "Dive")
 		if dive and dive.Parent then
 			table.insert(path, (dive:GetBoundingBox()).Position)
 		end
+		if bobber.Parent then
+			bobberTop = math.max(bobberTop, bobber:GetPivot().Position.Y)
+			local color = bobber.Line.Color.Keypoints[1].Value
+			flashed = flashed or (color.R > 0.8 and color.G < 0.3 and bobber.Line.Width0 >= 0.2 - 1e-6)
+		end
 		return dive ~= nil and dive.Parent == nil
 	end, Fx.DiveTime + 0.5, FRAME)
+	local rest = fisher:GetAttribute("BobberTarget").Y + bobber:GetAttribute("FloatDepth")
+	t.ok(flashed, "the line flashes red (Berry) when the fish gets away")
+	t.ok(bobberTop >= rest + 2, `the bobber pops up ({bobberTop - rest} studs)`)
 	t.ok(dive, "a diving fish on the watcher's client")
 	t.eq(
 		dive:GetAttribute("Kind"),
@@ -579,18 +614,24 @@ tests["cast, waiting, bite, reeling: trail, landing rings, ripples, bouncing «!
 	local ring = next(rings)
 	t.ok(ring.Ring:IsA("SurfaceGui") and ring.Ring.Outer.UIStroke ~= nil, "a ring: SurfaceGui with a stroke circle")
 	local lift = ring.Position.Y - fisher:GetAttribute("BobberTarget").Y
-	t.ok(lift > 0 and lift < 0.3, `on the water ({lift} above it)`)
+	t.ok(lift > 0.2 and lift < 0.4, `on the water, above its small waves ({lift} above it)`)
+	t.eq(ring.Size.X, ring.Size.Z, "a flat square part…")
+	t.ok(ring.Size.X >= 7, `…made at its final size at once (only the frames inside grow): {ring.Size.X}`)
 
-	-- Waiting: a slow ripple every RippleEvery seconds.
+	-- Waiting: a slow ripple every RippleEvery seconds; the line sags (its far end lies on the water).
 	table.clear(rings)
 	local bite = nil
+	local sag = 0
 	sim:WaitFor(function()
 		countRings()
+		sag = math.max(sag, bobber.Line.CurveSize1)
 		if fisher:GetAttribute("FishingState") == "Bite" then
 			bite = sim:Time()
 		end
 		return bite ~= nil
 	end, 10, FRAME)
+	t.ok(sag > 0.5, `the line sags while waiting (CurveSize1 {sag})`)
+	t.eq(bobber.Line.Segments, 10, "a curved line has segments")
 	t.ok(bite, "a bite")
 	local waitingRings = 0
 	for _, at in rings do
@@ -608,15 +649,25 @@ tests["cast, waiting, bite, reeling: trail, landing rings, ripples, bouncing «!
 	table.clear(rings)
 	local alert = bobber.Root.BiteAlert
 	local offsets, sizes = {}, {}
+	local guiSize = alert.Size
+	local low = math.huge
 	sim:WaitFor(function()
 		countRings()
 		offsets[alert.StudsOffset.Y] = true
-		sizes[alert.Size.X.Offset] = true
+		sizes[alert.Holder.FxScale.Scale] = true
+		low = math.min(low, bobber:GetPivot().Position.Y)
 		return sim:Time() >= bite + 0.5
 	end, 1, FRAME)
 	t.eq(alert.Enabled, true, "«!» over the bobber")
-	t.ok(alert.Badge.Fill:IsA("UIGradient"), "a candy badge in Sun colours")
-	t.eq(alert.Label.Text, "!")
+	t.ok(alert.Holder.Badge.Fill:IsA("UIGradient"), "a candy badge in Sun colours")
+	t.eq(alert.Holder.Label.Text, "!")
+	t.eq(alert.Holder.Label.TextScaled, false, "fixed TextSize (no TextScaled refit every frame)")
+	t.eq(alert.Size, guiSize, "the gui keeps its size; the UIScale inside animates")
+	t.eq(alert.AlwaysOnTop, false, "another player's «!» does not show through walls")
+	t.eq(alert.MaxDistance, 90, "…and only up to 90 studs")
+	t.eq(alert.Holder:FindFirstChild("Star1"), nil, "…and has no orbiting stars")
+	local rest = fisher:GetAttribute("BobberTarget").Y + bobber:GetAttribute("FloatDepth")
+	t.ok(low < rest - 1.2, `the bite plunges the bobber under the water (down to {low - rest})`)
 	local count = 0
 	for _ in offsets do
 		count += 1
@@ -626,7 +677,7 @@ tests["cast, waiting, bite, reeling: trail, landing rings, ripples, bouncing «!
 	for _ in sizes do
 		count += 1
 	end
-	t.ok(count > 3, "it pulses (size changes)")
+	t.ok(count > 3, "it pulses (its UIScale changes)")
 	local biteRings = 0
 	for _ in rings do
 		biteRings += 1
@@ -653,7 +704,12 @@ tests["cast, waiting, bite, reeling: trail, landing rings, ripples, bouncing «!
 	end
 	t.ok(count > 5, "the line's width pulses while reeling")
 	t.ok(tinted, "the line glows orange under tension")
+	t.eq(bobber.Line.CurveSize1, 0, "taut under tension (no sag)")
+	t.eq(bobber.Root.Wake.Enabled, true, "a foam wake behind the thrashing bobber")
 	t.eq(alert.Enabled, false, "no «!» while reeling")
+	sim:FireServer(fisher, "FishingStop")
+	sim:Advance(0.1)
+	t.eq(bobber.Root.Wake.Enabled, false, "no wake while it reels in")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -736,13 +792,303 @@ tests["leaving: a fisher leaving mid-leap takes all FX along on other clients; l
 	for _, instance in alive do
 		t.eq(instance.Parent, nil, `{instance.Name} removed on the watcher's client`)
 	end
-	sim:Advance(FishingConfig.LeapTime + Fx.PillarTime)
+	sim:Advance(FishingConfig.LeapTime + Fx.PillarTime.Legendary)
 	local empty, left = fxFoldersEmpty(sim)
 	t.ok(empty, `nothing left in Workspace.FishingFx, no pillar either ({left})`)
 	t.eq(renderSteppedCount(sim, watcher), rendering, "no per-frame work left")
 	sim:RemovePlayer(late)
 	sim:Advance(0.2)
 	t.eq(sim:CountConnections(watcher), baseline, `watcher back to its baseline\n{sim:FormatConnections(watcher)}`)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- The fisher's own client: the landing signal, the camera, the own bobber, Nibble()
+--------------------------------------------------------------------------------
+
+-- Humanoid.CameraOffset as the player's own client sees it (a client-local value).
+local function cameraOffset(sim: any, player: any): any
+	return sim:Run(function()
+		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		return if humanoid then humanoid.CameraOffset else nil
+	end, player)
+end
+
+local function colorNear(a: any, b: any): boolean
+	return math.abs(a.R - b.R) + math.abs(a.G - b.G) + math.abs(a.B - b.B) < 0.01
+end
+
+-- Records OwnFishLanded on a client: { { time, rarity, position } }.
+local function landings(sim: any, fx: any): { any }
+	local list = {}
+	fx.OwnFishLanded:Connect(function(rarity: string, position: any)
+		table.insert(list, { time = sim:Time(), rarity = rarity, position = position })
+	end)
+	return list
+end
+
+tests["own client: OwnFishLanded fires once, on the landing frame, at the held fish; the camera slides aside and back"] = function(
+	t
+)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1)
+	local watcher = addPlayer(sim, 2)
+	forceFish(sim, "SharkPup") -- Legendary: held for HoldFishTime.Legendary
+	ready(sim, fisher)
+	standBeside(sim, watcher, fisher)
+	local landed = landings(sim, clientFx(sim, fisher))
+	local heard = landings(sim, clientFx(sim, watcher))
+	t.near(cameraOffset(sim, fisher), Vector3.zero, 1e-6, "no camera offset before fishing")
+
+	local mg, startTime = startMinigame(t, sim, fisher)
+	t.near(
+		cameraOffset(sim, fisher),
+		CAMERA_OFFSET,
+		0.01,
+		"fishing: the camera slides right and up (the bobber shows right of the head, not behind it)"
+	)
+	t.near(cameraOffset(sim, watcher), Vector3.zero, 1e-6, "the watcher's camera stays put")
+	local name, caughtAt = playMinigame(sim, fisher, mg, startTime)
+	t.eq(name, "Caught")
+	t.eq(#landed, 0, "no signal while the fish is in the air")
+	local heldAt = nil
+	sim:WaitFor(function()
+		if not heldAt and fisher.Character:FindFirstChild("HeldFish") then
+			heldAt = sim:Time()
+		end
+		return heldAt ~= nil and #landed > 0
+	end, FishingConfig.LeapTime + 1, FRAME)
+	t.eq(#landed, 1, "OwnFishLanded fired on the fisher's own client")
+	t.eq(landed[1].rarity, "Legendary", "with the rarity")
+	t.ok(
+		math.abs(landed[1].time - (caughtAt + FishingConfig.LeapTime)) <= 2 * FRAME,
+		`on the landing frame (LeapTime after the catch: +{landed[1].time - caughtAt} s)`
+	)
+	local held = fisher.Character.HeldFish
+	t.near(landed[1].position, held:GetBoundingBox().Position, 0.05, "at the centre of the held fish")
+	t.near(cameraOffset(sim, fisher), CAMERA_OFFSET, 0.01, "the camera stays aside while the trophy is up")
+	sim:Advance(FishingConfig.HoldFishTime.Legendary - 0.5, COARSE)
+	t.ok(fisher.Character:FindFirstChild("HeldFish"), "still holding the fish")
+	t.near(cameraOffset(sim, fisher), CAMERA_OFFSET, 0.01, "…and the camera stays aside")
+	sim:Advance(1.5, COARSE)
+	t.eq(fisher.Character:FindFirstChild("HeldFish"), nil, "the held fish is gone")
+	t.near(cameraOffset(sim, fisher), Vector3.zero, 1e-3, "the camera is back")
+	t.eq(#landed, 1, "exactly one signal per catch")
+	t.eq(#heard, 0, "the watcher's client never fires it (not their fish)")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["own client: no leap (no fish model on the client) — OwnFishLanded fires right away, once"] = function(t)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1)
+	forceFish(sim, "Puffer")
+	ready(sim, fisher)
+	local landed = landings(sim, clientFx(sim, fisher))
+	local mg, startTime = startMinigame(t, sim, fisher)
+	-- The client cannot find the caught fish's model: nothing to leap, nothing to wait for.
+	sim:Find("ReplicatedStorage.Assets.Fish.Puffer").Name = "PufferHidden"
+	local name, caughtAt = playMinigame(sim, fisher, mg, startTime)
+	t.eq(name, "Caught")
+	sim:Advance(0.1)
+	t.eq(#landed, 1, "fired once")
+	t.ok(landed[1].time - caughtAt <= 2 * FRAME, `right away (+{landed[1].time - caughtAt} s)`)
+	t.eq(landed[1].rarity, "Rare")
+	t.ok((landed[1].position - fisher.Character.Head.Position).Magnitude < 3, "over the fisher's head")
+	sim:Advance(FishingConfig.LeapTime + 0.5)
+	t.eq(#landed, 1, "no second signal")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["bobber: 1.7× bigger, waterline kept; the own one outlined with the big «!»; Nibble() only on the own bobber"] = function(
+	t
+)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1)
+	local watcher = addPlayer(sim, 2)
+	forceFish(sim, "Crucian")
+	ready(sim, fisher)
+	standBeside(sim, watcher, fisher)
+	local own = clientFx(sim, fisher)
+	local other = clientFx(sim, watcher)
+	local function nibble(player: any, fx: any): boolean
+		return sim:Run(function()
+			return fx.Nibble()
+		end, player)
+	end
+	t.eq(nibble(fisher, own), false, "no bobber: Nibble() does nothing")
+	sim:FireServer(fisher, "FishingCast")
+	sim:Advance(0.2)
+	t.eq(nibble(fisher, own), false, "still flying: nothing")
+	sim:Advance(FishingConfig.CastFlightTime + 0.3)
+	t.eq(fisher:GetAttribute("FishingState"), "Waiting")
+
+	local mine, theirs = own.GetBobber(fisher), other.GetBobber(fisher)
+	local template = sim:Find(`ReplicatedStorage.Assets.Bobbers.{fisher:GetAttribute("RodId")}`)
+	local _, templateSize = template:GetBoundingBox()
+	local _, size = mine:GetBoundingBox()
+	t.near(size.Y / templateSize.Y, 1.7, 0.02, "the client's copy is 1.7× the template (readable at 30–40 studs)")
+	local depth = mine:GetAttribute("FloatDepth")
+	t.eq(depth, template:GetAttribute("FloatDepth"), "FloatDepth (pivot → waterline) as on the template")
+	t.near(
+		mine.Root.Position.Y - mine:GetPivot().Position.Y,
+		0.7 * depth,
+		0.01,
+		"the pivot sits below the tie point: the bigger float's waterline is still FloatDepth below it"
+	)
+	local water = fisher:GetAttribute("BobberTarget").Y
+	t.ok(math.abs(mine:GetPivot().Position.Y - (water + depth)) <= 0.25, "floating with its waterline on the water")
+	local glow = mine:FindFirstChild("OwnGlow")
+	t.ok(glow and glow:IsA("Highlight"), "own bobber: a white outline (Highlight)")
+	t.eq(glow.FillTransparency, 1, "…not filled while waiting")
+	t.eq(theirs:FindFirstChild("OwnGlow"), nil, "someone else's bobber: no outline")
+	t.eq(mine.Root.BiteAlert.AlwaysOnTop, true, "own «!» shows through everything")
+	t.ok(mine.Root.BiteAlert.Holder:FindFirstChild("Star5"), "…with orbiting stars")
+	t.eq(mine.Root.BiteAlert.Holder.Star1.TextScaled, false, "…sized once (TextSize)")
+	t.eq(theirs.Root.BiteAlert.AlwaysOnTop, false, "another player's «!» does not")
+
+	-- Nibble: only on the local player's own bobber, only while waiting, only on this client.
+	local function smallRings(fx: any): number
+		local count = 0
+		for _, instance in fx.GetEffects(fisher) do
+			if instance.Name == "Ripple" and instance.Size.X < 4 then
+				count += 1
+			end
+		end
+		return count
+	end
+	local before = smallRings(own)
+	t.eq(nibble(watcher, other), false, "the watcher has no bobber of their own to nibble")
+	t.eq(nibble(fisher, own), true, "own bobber waiting on the water: a nibble")
+	t.eq(smallRings(own), before + 1, "a small ring")
+	t.eq(smallRings(other), 0, "client-only: the watcher sees nothing")
+	-- Both clients bob the same bobber the same way: the difference is the nibble.
+	local deepest = 0
+	sim:WaitFor(function()
+		deepest = math.min(deepest, mine:GetPivot().Position.Y - theirs:GetPivot().Position.Y)
+		return false
+	end, 0.35, FRAME)
+	t.near(deepest, -0.15, 0.02, "the own bobber dips 0.15 studs…")
+	t.near(mine:GetPivot().Position.Y, theirs:GetPivot().Position.Y, 1e-3, "…and floats back up")
+
+	-- The bite: own outline blinks yellow (2.5 Hz, under the 3 Hz rule); no nibbles now.
+	sim:WaitFor(function()
+		return fisher:GetAttribute("FishingState") == "Bite"
+	end, 10, FRAME)
+	local lo, hi = 1, 0
+	sim:WaitFor(function()
+		lo, hi = math.min(lo, glow.FillTransparency), math.max(hi, glow.FillTransparency)
+		return false
+	end, 0.5, FRAME)
+	t.ok(lo <= 0.4 and hi >= 0.75, `the outline fills and fades yellow on the bite ({lo}..{hi})`)
+	t.eq(glow.FillColor, UIConfig.Palette.Sun.Top)
+	t.eq(nibble(fisher, own), false, "no nibble during the bite")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["nameplate and mutation aura: Rare+ fish get a nameplate; a mutation recolours the aura, Neon glows"] = function(
+	t
+)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1)
+	local watcher = addPlayer(sim, 2)
+	local fish = forceFish(sim, "Puffer", "Gold") -- Rare with a Gold mutation
+	ready(sim, fisher)
+	standBeside(sim, watcher, fisher)
+	local fx = clientFx(sim, watcher)
+	local mg, startTime = startMinigame(t, sim, fisher)
+	t.eq((playMinigame(sim, fisher, mg, startTime)), "Caught")
+	local plate = sim:WaitFor(function()
+		return findEffect(fx, fisher, "Nameplate")
+	end, FishingConfig.LeapTime + 0.5, FRAME)
+	t.ok(plate and plate:IsA("BillboardGui"), "a nameplate over the held fish (on another player's client)")
+	local held = fisher.Character.HeldFish
+	t.eq(held:GetAttribute("Value"), fish.Value, "the server stamps the price on the held fish…")
+	t.eq(held:GetAttribute("FishId"), "Puffer", "…and what it is")
+	t.eq(plate.Adornee, held.PrimaryPart, "it follows the held fish")
+	t.eq(plate.Size, UDim2.fromScale(8, 2.5), "8 × 2.5 studs")
+	t.eq(plate.AlwaysOnTop, false, "not through walls")
+	t.eq(plate.MaxDistance, Fx.Range)
+	t.eq(plate.LightInfluence, 0)
+	local box, boxSize = held:GetBoundingBox()
+	local bottom = held.PrimaryPart.Position.Y + plate.StudsOffsetWorldSpace.Y - 1.25
+	t.ok(bottom >= box.Position.Y + boxSize.Y / 2 - 0.05, "above the fish")
+	t.eq(plate.Plate.Rarity.Text, "РЕДКАЯ")
+	t.ok(plate.Plate.Rarity.Fill:IsA("UIGradient"), "the rarity word in rarity colours")
+	t.eq(plate.Plate.FishName.Text, "Фугу Пуфик")
+	t.eq(plate.Plate.Mutation.Text, "👑 Золотая ×2")
+	t.eq(plate.Plate.Price.Text, `💰 {rules(sim).FormatCoins(fish.Value)}`)
+	sim:Advance(0.6)
+	t.near(plate.Plate.FxScale.Scale, 1, 1e-3, "popped in")
+	local aura = findEffect(fx, fisher, "RarityAura")
+	t.ok(aura and aura.Parent == held.PrimaryPart, "an aura on the held fish")
+	local gold = UIConfig.Mutations.Gold
+	t.ok(colorNear(aura.Color.Keypoints[2].Value, gold.Top), "in the mutation's colours (Gold)")
+	t.ok(aura.Rate >= Fx.MutationAuraRate, "at least MutationAuraRate sparkles a second")
+	t.near(aura.Size.Keypoints[2].Value, 0.7, 1e-3, "Gold sparkles peak bigger")
+	sim:Advance(FishingConfig.HoldFishTime.Rare, COARSE)
+	t.eq(plate.Parent, nil, "the nameplate goes with the held fish (HoldFishTime.Rare)")
+
+	-- A Common fish with a Neon mutation: no nameplate, but an aura and a cyan glow.
+	forceFish(sim, "Perch", "Neon")
+	sim:Advance(FishingConfig.CastCooldown)
+	mg, startTime = startMinigame(t, sim, fisher)
+	t.eq((playMinigame(sim, fisher, mg, startTime)), "Caught")
+	local neon = sim:WaitFor(function()
+		return findEffect(fx, fisher, "RarityAura")
+	end, FishingConfig.LeapTime + 0.5, FRAME)
+	t.ok(neon, "a mutated Common fish sparkles too")
+	local light = findEffect(fx, fisher, "RarityGlow")
+	t.ok(light and light:IsA("PointLight"), "Neon glows")
+	t.eq(light.Brightness, 3)
+	t.ok(colorNear(light.Color, UIConfig.Mutations.Neon.Top), "cyan")
+	t.eq(findEffect(fx, fisher, "Nameplate"), nil, "Common: no nameplate")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["rainbow painter: Heartbeat only while a rainbow fish is out; far fish are not repainted"] = function(t)
+	local sim = boot(t)
+	local viewer = addPlayer(sim, 1)
+	sim:Advance(0.5)
+	local ctx = sim:ContextName(viewer)
+	local function heartbeats(): number
+		return sim:CountConnections(function(conn: any)
+			return conn.ctx.name == ctx and string.find(conn.signal:describe(), "Heartbeat", 1, true) ~= nil
+		end)
+	end
+	local idle = heartbeats()
+	local template = sim:Find("ReplicatedStorage.Assets.Fish.Perch.Rainbow")
+	local root = viewer.Character.HumanoidRootPart.Position
+	local near = template:Clone()
+	near:PivotTo(roblox.CFrame.new(root + Vector3.new(6, 2, 0)))
+	near.Parent = sim.workspace
+	sim:Advance(0.1)
+	t.eq(heartbeats(), idle + 1, "a rainbow fish in the world: the painter runs")
+	local far = template:Clone()
+	far:PivotTo(roblox.CFrame.new(root + Vector3.new(0, Fx.Range + 400, 0)))
+	far.Parent = sim.workspace
+	local function part(model: any): any
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") and d:GetAttribute("RainbowU") ~= nil then
+				return d
+			end
+		end
+		return nil
+	end
+	local function color(target: any): any
+		return sim:Run(function()
+			return target.Color
+		end, viewer)
+	end
+	local nearPart, farPart = part(near), part(far)
+	local n0, f0 = color(nearPart), color(farPart)
+	sim:Advance(0.5)
+	local n1, f1 = color(nearPart), color(farPart)
+	t.ok(math.abs(n0.R - n1.R) + math.abs(n0.G - n1.G) + math.abs(n0.B - n1.B) > 0.03, "a near one shimmers")
+	t.ok(colorNear(f0, f1), "one beyond Fx.Range is left alone")
+	near:Destroy()
+	far:Destroy()
+	sim:Advance(0.1)
+	t.eq(heartbeats(), idle, "no rainbow fish out: no Heartbeat (the templates do not count)")
 	sim:AssertNoErrors({ warnings = true })
 end
 

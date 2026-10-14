@@ -453,7 +453,7 @@ tests["cast denied: busy while fishing, cooldown right after a session ends"] = 
 	sim:AssertNoErrors()
 end
 
-tests["cast accepted: attributes, target in the water straight out from the pier"] = function(t)
+tests["cast accepted: attributes, target in the water out from the pier, a little to the right"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	ready(sim, p)
@@ -480,8 +480,13 @@ tests["cast accepted: attributes, target in the water straight out from the pier
 		)
 		local localTarget = pivot:PointToObjectSpace(target)
 		local side = localTarget.X - spotLocal.X
-		t.ok(math.abs(side) <= 3 + 1e-3, `inside the pier corridor ({side})`)
-		t.near(localTarget.Z, spotLocal.Z - START_ROD.CastDistance, 1e-3, "straight out (-Z of the base)")
+		-- To the fisher's right (+X of the base when looking out to -Z): the camera behind the
+		-- fisher sees the bobber right of the head, not behind it (FishingConfig.CastSide).
+		t.ok(
+			side >= FishingConfig.CastSide.Min - 1e-3 and side <= FishingConfig.CastSide.Max + 1e-3,
+			`to the right by CastSide ({side})`
+		)
+		t.near(localTarget.Z, spotLocal.Z - START_ROD.CastDistance, 1e-3, "out from the pier (-Z of the base)")
 		table.insert(sides, side)
 
 		t.eq(p:GetAttribute("FishingState"), "Waiting")
@@ -678,6 +683,31 @@ tests["minigame: a Mythic fish needs 3 hits, the zone jumps away from the needle
 	end
 	t.ok(heard(other), "the other player was told about the Mythic catch")
 	t.ok(not heard(p), "not the fisher: their catch card shows it (a toast would cover the card)")
+	-- «Игрок1: мифическая «Рыба-Дракон»!» in the Mythic toast style (kind = the rarity id).
+	local args = sim:LastClientEvent(other, "Notify")
+	t.eq(
+		args[1],
+		"Игрок1: мифическая «Рыба-Дракон»!",
+		"lower-case rarity (NameLower), the fish in «ёлочки»"
+	)
+	t.eq(args[2], "Mythic", "kind = the rarity id (NotifyController draws it in the rarity's colours)")
+	sim:AssertNoErrors()
+end
+
+tests["announce: a mutated Legendary catch says the multiplier"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	local other = addPlayer(sim, 2)
+	forceFish(sim, "SharkPup", "Gold")
+	ready(sim, p)
+	local mg, startTime = startMinigame(t, sim, p)
+	t.eq((winMinigame(sim, p, mg, startTime)), "Caught")
+	local args = sim:LastClientEvent(other, "Notify")
+	t.eq(args[1], "Игрок1: легендарная «Акулёнок» ×2!")
+	t.eq(args[2], "Legendary")
+	for _, rarity in FishConfig.Rarities do
+		t.ok(typeof(rarity.NameLower) == "string" and #rarity.NameLower > 0, `{rarity.Id}: NameLower`)
+	end
 	sim:AssertNoErrors()
 end
 
@@ -849,7 +879,7 @@ end
 tests["caught: after LeapTime the fish is held above the head, welded, removed after HoldFishTime"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
-	forceFish(sim, "Perch", "Gold", 1)
+	local fish = forceFish(sim, "Perch", "Gold", 1)
 	ready(sim, p)
 	local mg, startTime = startMinigame(t, sim, p)
 	local name = winMinigame(sim, p, mg, startTime)
@@ -867,6 +897,11 @@ tests["caught: after LeapTime the fish is held above the head, welded, removed a
 	t.ok(held:IsDescendantOf(sim.workspace), "server-side in the Workspace: every client sees it")
 	t.eq(held:GetAttribute("Mutation"), "Gold", "the Gold variant of the model")
 	t.eq(held:GetAttribute("Kind"), sim:Find("ReplicatedStorage.Assets.Fish.Perch.Gold"):GetAttribute("Kind"))
+	-- The FishData for nameplates above it (FishingFxController).
+	t.eq(held:GetAttribute("FishId"), "Perch")
+	t.eq(held:GetAttribute("Rarity"), "Common")
+	t.eq(held:GetAttribute("Kg"), fish.Kg)
+	t.eq(held:GetAttribute("Value"), fish.Value)
 	local head = character.Head
 	local body = held.PrimaryPart
 	t.ok(body, "has a PrimaryPart")
@@ -899,10 +934,41 @@ tests["caught: after LeapTime the fish is held above the head, welded, removed a
 	t.ok(bottom <= head.Position.Y + head.Size.Y / 2 + 2, "close above the head")
 	t.near(horizontal(boxCFrame.Position - head.Position).Magnitude, 0, 0.05, "centred over the head")
 
-	sim:Advance(FishingConfig.HoldFishTime - (sim:Time() - landedAt) - 0.1)
-	t.ok(character:FindFirstChild("HeldFish"), "still held just before HoldFishTime")
+	local hold = rules(sim).HoldFishTime("Common")
+	t.eq(hold, FishingConfig.HoldFishTime.Common, "FishingRules.HoldFishTime reads FishingConfig")
+	sim:Advance(hold - (sim:Time() - landedAt) - 0.1)
+	t.ok(character:FindFirstChild("HeldFish"), "still held just before HoldFishTime.Common")
 	sim:Advance(0.2)
-	t.eq(character:FindFirstChild("HeldFish"), nil, "removed after HoldFishTime")
+	t.eq(character:FindFirstChild("HeldFish"), nil, "removed after HoldFishTime.Common")
+	sim:AssertNoErrors()
+end
+
+tests["caught: rarer fish are held longer (HoldFishTime per rarity)"] = function(t)
+	local sim = boot(t)
+	local fr = rules(sim)
+	local last = 0
+	for _, rarity in FishConfig.Rarities do
+		local hold = fr.HoldFishTime(rarity.Id)
+		t.eq(hold, FishingConfig.HoldFishTime[rarity.Id], `{rarity.Id}: {hold} s`)
+		t.ok(hold >= last, "never shorter for a rarer fish")
+		last = hold
+	end
+	t.eq(fr.HoldFishTime("Nope"), FishingConfig.HoldFishTime.Common, "unknown rarity: as Common")
+	t.eq(fr.FormatCoins(7), "7")
+	t.eq(fr.FormatCoins(2083), "2\u{00A0}083", "thousands split by a no-break space")
+	t.eq(fr.FormatCoins(1234567.4), "1\u{00A0}234\u{00A0}567")
+
+	local p = addPlayer(sim, 1)
+	forceFish(sim, "DragonFish")
+	ready(sim, p)
+	local mg, startTime = startMinigame(t, sim, p)
+	t.eq((winMinigame(sim, p, mg, startTime)), "Caught")
+	local landedAt = sim:Time() + FishingConfig.LeapTime
+	local character = p.Character
+	sim:Advance(landedAt + FishingConfig.HoldFishTime.Mythic - 0.1 - sim:Time(), COARSE)
+	t.ok(character:FindFirstChild("HeldFish"), "a Mythic fish is still held just before HoldFishTime.Mythic")
+	sim:Advance(0.2)
+	t.eq(character:FindFirstChild("HeldFish"), nil, "…and removed after it")
 	sim:AssertNoErrors()
 end
 

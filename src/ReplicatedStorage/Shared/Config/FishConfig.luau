@@ -16,7 +16,10 @@
 
 export type Rarity = {
 	Id: string,
-	Name: string, -- как показывать игроку
+	Name: string, -- как показывать игроку: «Мифическая»
+	-- То же строчными: «мифическая» (string.lower в Luau не понимает кириллицу) — для фраз
+	-- вроде «Рыбак: мифическая «Рыба-Дракон»!» (объявление FishingService).
+	NameLower: string,
 	Weight: number, -- относительный шанс редкости
 	LuckPower: number, -- вес умножается на Luck ^ LuckPower (удочки лучше — редкие чаще)
 	Color: Color3, -- цвет плашки редкости в интерфейсе
@@ -45,11 +48,26 @@ local FishConfig = {
 	-- Шансы видов (вес редкости × доля вида): Карасик 35 %, Окунь 25 %, Фугу 25 %,
 	-- Меч-рыба 10 %, Акулёнок 4 %, Рыба-Дракон 1 % — с базовой удочкой.
 	Rarities = {
-		{ Id = "Common", Name = "Обычная", Weight = 60, LuckPower = 0, Color = Color3.fromRGB(150, 160, 172) },
-		{ Id = "Rare", Name = "Редкая", Weight = 25, LuckPower = 1, Color = Color3.fromRGB(64, 140, 230) },
+		{
+			Id = "Common",
+			Name = "Обычная",
+			NameLower = "обычная",
+			Weight = 60,
+			LuckPower = 0,
+			Color = Color3.fromRGB(150, 160, 172),
+		},
+		{
+			Id = "Rare",
+			Name = "Редкая",
+			NameLower = "редкая",
+			Weight = 25,
+			LuckPower = 1,
+			Color = Color3.fromRGB(64, 140, 230),
+		},
 		{
 			Id = "Epic",
 			Name = "Эпическая",
+			NameLower = "эпическая",
 			Weight = 10,
 			LuckPower = 1.5,
 			Color = Color3.fromRGB(160, 84, 226),
@@ -57,6 +75,7 @@ local FishConfig = {
 		{
 			Id = "Legendary",
 			Name = "Легендарная",
+			NameLower = "легендарная",
 			Weight = 4,
 			LuckPower = 2,
 			Color = Color3.fromRGB(246, 178, 34),
@@ -64,6 +83,7 @@ local FishConfig = {
 		{
 			Id = "Mythic",
 			Name = "Мифическая",
+			NameLower = "мифическая",
 			Weight = 1,
 			LuckPower = 2.5,
 			Color = Color3.fromRGB(255, 72, 170),

@@ -388,22 +388,32 @@ $TC /tmp/tt/place.rbxl
 
 ## GUI previews
 
-See the HUD exactly as a player would — on a phone, a tablet or a PC — without Roblox Studio:
-still images of every HUD state and contact sheets of the animations, drawn over a real frame
-of the game (the pier view) with the Roblox CoreGui chrome on top. Made for design critique:
-everything is a PNG.
+See the HUD exactly as a player would — on a phone (also a notched one and a small one), a
+tablet or a PC — without Roblox Studio: still images of every HUD state, contact sheets of the
+animations, 30 fps bursts of the punchy first 0.8 s, and catch timelines where the world FX
+(the leap, the held fish, the pillar, confetti) play UNDER the HUD with a beat ruler under
+every frame. Drawn over a real frame of the game (the pier view) with the Roblox CoreGui
+chrome on top, plus automatic checks: layout safety (gaps to Jump, the thumbstick, the
+hotbar and between widgets), GPU fill per frame and the 12 px text floor. Made for design
+critique: everything is a PNG (and a text report).
 
 ```sh
-# the standard set: 33 states x phone + desktop, 14 animation sheets each, 2 overviews (~1.5 min)
+# the standard set: 37 states x phone + desktop (stills, 17 animation sheets each, 12 bursts on
+# the phone, 2 overviews) + the checks on phone_notch, phone_small and tablet (~6.5 min on 4 cores)
 python3 tools/preview/gui_render.py --all --out /tmp/ui
-# a few scenarios (dumped first), with their animation sheets, on three devices
-python3 tools/preview/gui_render.py --scenario bite,catch_mythic --devices phone,tablet,desktop --sheets --out /tmp/ui
+# the catch timelines (real server, world FX under the HUD, beat rulers), phone, ~1.5 min
+python3 tools/preview/gui_render.py --timeline --out /tmp/ui
+python3 tools/preview/gui_render.py --timeline --devices phone,phone_notch --gif --out /tmp/ui
+# a few scenarios (dumped first), with their animation sheets and bursts, on three devices
+python3 tools/preview/gui_render.py --scenario bite,catch_mythic --devices phone,phone_notch,desktop \
+    --sheets --bursts --out /tmp/ui
 # other moments: stills at 0.1 and 0.4 s, or a custom sheet window (from:to:fps)
 python3 tools/preview/gui_render.py --scenario hit --at 0.1,0.4 --out /tmp/ui
 python3 tools/preview/gui_render.py --scenario catch_rare --times 0:3:5 --out /tmp/ui
 # re-render existing dumps (e.g. after changing the renderer) — no Lune needed
 python3 tools/preview/gui_render.py /tmp/ui/json/phone/*.json --out /tmp/ui
 python3 tools/preview/gui_render.py --list          # scenario names and descriptions
+python3 tools/preview/gui_render.py --selftest      # the renderer's geometry and checks
 ```
 
 Needs Python 3 with Pillow (with raqm) and numpy, and Lune 0.11 (`LUNE_BIN`, default
@@ -416,9 +426,14 @@ Output in `--out`:
 
 | file | what |
 |---|---|
-| `<device>/<scenario>.png` | the still: the whole screen + a caption bar (device, scenario, time). Several still times: `<scenario>@<t>.png` |
-| `<device>/<scenario>_sheet.png` | animation contact sheet: every frame of the scenario's sheet window cropped to its region of interest, each labelled with its time |
+| `<device>/<scenario>.png` | the still: the whole screen + a caption bar (device, scenario, time, fill). Several still times: `<scenario>@<t>.png` |
+| `<device>/<scenario>_sheet.png` | animation contact sheet: every frame of the scenario's sheet window cropped to its region of interest, each labelled with its time and fill |
+| `<device>/<scenario>_burst.png` | the first 0.8 s at 30 fps (slams, stamps, pops, the catch), with the beat ruler when the scenario has beats |
+| `<device>/<scenario>_timeline.png` | catch timelines: every frame full screen with the world FX, x-ray boxes and a beat ruler (see below) |
+| `<device>/<scenario>_layout.png` | a still with its layout-safety findings drawn: the gap in px between the closest points (red < 8 px, amber < 16 px, pink = a glow ring inside Jump/thumbstick) |
+| `<device>/<scenario>_burst.gif`, `_timeline.gif` | with `--gif`: the same frames as an animation (real speed) |
 | `overview_<device>.png` | every still of the device in one image (with `--all`, or more than 3 dumps) |
+| `checks.txt`, `checks.json` | the checks of every dump: fill per frame (peak, median), layout findings and small text per still, the beats (see [Checks](#checks-fill-layout-safety-text-floor)) |
 | `json/<device>/<scenario>.json` | the dumps (see below) |
 
 Examples of the current HUD are in `docs/ui/`.
@@ -428,20 +443,48 @@ Examples of the current HUD are in `docs/ui/`.
 1. `tools/preview/gui_dump.luau` (Lune) loads `Place1.rbxl` into RbxSim, replaces the source of
    `ServerScriptService.Services.FishingService` with `return {}` (like
    `tests/stage2_client.test.luau`), starts the server and, for each scenario, adds a fresh
-   player on the device (phone 844x390, tablet 1024x768, desktop 1280x720; touch on phone and
-   tablet), waits for the base, the character and the HUD plus `settle` seconds (4.2 s: the
-   welcome toast is gone), runs the scenario — the REAL client controllers react to what the
-   harness (playing the server) sends — and dumps the player's PlayerGui at the requested
-   times (60 fps virtual time in between). Script errors and warnings of the run go into the
-   dump and are printed.
-2. `tools/preview/gui_render.py` draws each dump at the device resolution, 2x supersampled:
-   the backdrop, every GuiObject in draw order (`gui/paint.py`, text in `gui/text.py`), then
-   the CoreGui chrome (`gui/backdrop.py`), and downsamples.
-   `--all` runs the dumps in parallel Lune processes (`--jobs`, default = CPU count, max 8,
-   split across devices) and renders in a process pool.
+   player on the device (see [Devices](#devices)), waits for the base, the character and the
+   HUD plus `settle` seconds (4.2 s: the welcome toast is gone), runs the scenario — the REAL
+   client controllers react to what the harness (playing the server) sends — and dumps the
+   player's PlayerGui at the requested times (60 fps virtual time in between). Scenarios
+   with `server = true` (the catch timelines) run in a second sim whose FishingService is
+   live: the harness plays like a person (taps the real buttons) and the server does the
+   rest. Scenarios with `world = true` also record the client's world FX
+   (`gui/world_capture.luau`, see [World FX](#world-fx-in-the-previews)). Script errors and
+   warnings of the run go into the dump and are printed.
+2. `tools/preview/gui_render.py` draws each frame at the device resolution, 2x supersampled:
+   the backdrop, the world FX (world dumps), every GuiObject in draw order (`gui/paint.py`,
+   text in `gui/text.py`), then the CoreGui chrome (`gui/backdrop.py`), and downsamples. It
+   runs the checks (`gui/checks.py`) on every frame and writes `checks.txt`.
+   The dumps run in parallel Lune processes (`--jobs`, default = CPU count, max 8, split
+   across devices) and every frame of every dump is rendered in one process pool.
 
-Speed (4 cores): the standard set takes ~45 s to dump and ~35 s to render (66 stills,
-28 sheets); one scenario on one device ~2 s to dump, a still ~0.2-0.3 s.
+Speed (4 cores): `--all` takes ~6.5 min (~2.7 min of dumping 37 scenarios on 5 devices, ~4 min
+rendering 74 stills, 34 sheets, 12 bursts and ~135 layout overlays; `--no-checks-devices`
+saves ~2 min); `--timeline` ~1.5 min; one scenario on one device ~2 s to dump, a still
+~0.3 s, a full-screen catch frame ~1.5 s (the sunburst).
+
+### Devices
+
+| device | screen | input | safe area (HUD) |
+|---|---|---|---|
+| `phone` | 844x390 | touch | full width, y 58..390 |
+| `phone_notch` | 844x390 | touch | insets left 47, right 47, bottom 21: x 47..797, y 58..369 (750x311) |
+| `phone_small` | 667x375 | touch | full |
+| `tablet` | 1024x768 | touch | full |
+| `desktop` | 1280x720 | keyboard + mouse | full |
+| `console` | 1920x1080 | gamepad | full |
+
+The insets model Roblox's `ScreenInsets.CoreUISafeInsets` on a notched iPhone in landscape:
+a ScreenGui that keeps them (the HUD) is laid out inside the safe area below the 58 px top
+bar; `DeviceSafeInsets` (and `IgnoreGuiInset = true`, taken as the same) keeps only the
+device insets, `None` is the whole screen. RbxSim knows no insets, so `gui_dump.luau` hooks
+the sim's `AbsoluteSize`/`AbsolutePosition` of such layers (`installSafeArea`) — the
+controllers measure the same 750x311 HUD that is drawn. The chrome (top-bar buttons, hotbar,
+Jump, thumbstick) is drawn inside the device safe area too, with the rounded screen corners,
+the sensor housing and the home indicator. **To verify once on a real notched phone**: where
+Roblox really puts the touch controls and the top-bar buttons (the model assumes inside the
+safe area).
 
 ### Scenarios (`tools/preview/gui_scenarios.luau`)
 
@@ -452,13 +495,14 @@ Speed (4 cores): the standard set takes ~45 s to dump and ~35 s to render (66 st
 | `start` | just spawned, rod in the backpack, newcomer hint | |
 | `rod_far` | rod in hand, far from the fishing spot (hint) | |
 | `spot_take` | at the spot, rod in the backpack: «ВЗЯТЬ» | |
+| `take_rod` | tap «ВЗЯТЬ»: the rod in hand, the button pops into «ЗАБРОСИТЬ» | 0..0.8 s, action area |
 | `spot_ready` | at the spot with the rod: «ЗАБРОСИТЬ» | 0..4 s @ 6 fps (idle shine) |
 | `cast` | tap «ЗАБРОСИТЬ» → waiting | 0..1 s, action area |
 | `waiting` | line in the water: «ЖДЁМ…» + «СМОТАТЬ» | |
 | `bite` | «КЛЮЁТ!» alert + «ПОДСЕЧЬ!» | 0..1.2 s |
 | `minigame_common` … `minigame_mythic` | the minigame for each rarity, needle mid-run (Epic 1/2, Mythic 2/3 hits done) | legendary: 0..1 s |
-| `hit` | a hit: zone jumps, pip fills | 0..0.9 s |
-| `miss` | a miss: «Мимо!» | 0..1.2 s |
+| `hit`, `hit_perfect`, `hit_super` | a hit: zone jumps, pip fills (off-centre / perfect / the second Mythic hit) | 0..0.9 s |
+| `miss`, `minigame_timeout` | a miss: «Мимо!» / the time is up | miss 0..1.2 s |
 | `lost_late`, `denied_far` | hints of a lost fish / a refused cast | |
 | `catch_common`, `_rare`, `_epic`, `_legendary`, `_mythic` | catch card per rarity (time 0 = the card is visible) | common 0..1.6 s, mythic 0..2.4 s (whole screen) |
 | `catch_gold`, `catch_neon`, `catch_rainbow` | catch card with a mutation | rainbow 0..1.6 s |
@@ -468,22 +512,174 @@ Speed (4 cores): the standard set takes ~45 s to dump and ~35 s to render (66 st
 | `home_cooldown` | «ДОМОЙ» pressed, cooldown draining | 0..0.8 s |
 | `selftest` (not in `--all`) | a synthetic ScreenGui, one cell per renderer feature — check the renderer here | |
 
+Bursts (`--bursts`; `--all` makes them on the phone): 0..0.8 s at 30 fps of `bite`, `take_rod`, `hit`,
+`hit_perfect`, `hit_super`, `miss`, `catch_common`, `catch_legendary`, `catch_mythic`,
+`catch_gold`, `catch_rainbow`, `catch_close` (the `BURSTS` table in `gui_dump.luau`; a
+scenario's own `burst` field wins), cropped to the scenario's sheet `roi`.
+
+Built into `gui_dump.luau` (they need the real server and the world capture; not in `--all`,
+rendered by `--timeline` or by name):
+
+| scenario | what | timeline |
+|---|---|---|
+| `catch_timeline` | a real Legendary catch (Акулёнок) from the winning tap | 0..7 s @ 6 fps + burst |
+| `catch_timeline_common` | a real Common catch (Карасик) | 0..5.5 s @ 6 fps + burst |
+| `catch_timeline_mythic` | a real Mythic Rainbow catch (Рыба-дракон) | 0..8.5 s @ 6 fps + burst |
+
 Scenarios find widgets by name only (`HUD.Fishing.ActionArea.ActionButton`, `HUD.Fishing.CatchCard`,
 `HUD.RightButtons.HomeButton`, ...), so they survive restyles; a missing or hidden widget is a
 warning, not a crash (clicks are forced). A scenario is
-`{ name, desc, run = function(h) ... end, still = t | {t...}, sheet = { from, to, fps, roi = {paths}, margin }, fresh?, settle?, standard? }`;
-time 0 is when `run` returns. The harness `h` is documented in the file's header:
-`h:advance`, `h:gui`, `h:visible`, `h:waitFor`, `h:waitVisible`, `h:click`, `h:press`,
-`h:serverSays(state, data)` (FishingState), `h:notify(text, kind)`, `h:giveRod`, `h:equipRod`,
-`h:standAtSpot`, `h:standFar`, `h:config`, `h:minigame(rarity, extra)`, `h:caught(fish, total)`.
+
+```lua
+{
+	name, desc, run = function(h) ... end,   -- time 0 = when run returns
+	still = t | { t, ... },                   -- still times (default 0.6)
+	sheet = { from, to, fps, roi = { paths }, margin },
+	burst = true | false | { from, to, fps, roi, margin },  -- default 0..0.8 s @ 30 fps
+	timeline = { from, to, fps },             -- full-screen frames for the _timeline composite
+	server = true,                            -- the real FishingService (a second sim)
+	world = true,                             -- record the world FX (gui/world_capture.luau)
+	beats = { spec, ... },                    -- replaces DEFAULT_BEATS; extraBeats adds to them
+	fresh = true, settle = s, standard = false,
+}
+```
+
 The sheet region is the union of the `roi` objects' screen boxes over all sheet frames plus
 `margin` x screen height (none listed or none visible = the whole screen).
+
+The harness `h` (documented in `gui_scenarios.luau`'s header and `gui_dump.luau`):
+`h:advance`, `h:gui`, `h:visible`, `h:shown(path)` (visible AND not scaled to nothing or
+faded out), `h:waitFor`, `h:waitVisible`, `h:click`, `h:press`, `h:serverSays(state, data)`
+(FishingState), `h:notify(text, kind)`, `h:giveRod`, `h:equipRod`, `h:standAtSpot`,
+`h:standFar`, `h:config`, `h:minigame(rarity, extra)`, `h:caught(fish, total)`, and for
+`server = true` scenarios:
+
+* `h:playCatch(fish, opts?) -> FishData` — a whole real catch: onto the spot (posed like the
+  backdrop's stand-in), rod in hand, tap «ЗАБРОСИТЬ», wait for the bite, tap «ПОДСЕЧЬ!» after
+  `opts.reaction` s (0.3), then win the minigame by tapping when the needle crosses the zone
+  at `opts.aim` (-1..1 of the half-width, 0 = the centre). Returns right after the WINNING tap
+  (make that time 0). `fish = { Id, Mutation?, Kg? }`.
+* `h:forceFish(fish) -> FishData` — every roll gives this fish (`FishingService.RollFishForTest`).
+* `h:stateEvents() -> { { time, state, data } }` — the FishingState events this client got.
+* `h:poseLikeBackdrop()`, `h.world` — the world capture of a `world = true` scenario.
+
+#### Beats
+
+A beat is a named moment found automatically while the frames are dumped (every 60 fps
+step, from time 0); bursts and timelines draw them as a ruler under each frame: the window as
+an axis, every beat as a numbered tick (lit once passed), the frame time as a white cursor,
+`»` the beats since the previous frame, and the frame's fill and how much of each world
+object the HUD hides. The composite's header lists `n·name time`. Default beats
+(`DEFAULT_BEATS` in `gui_dump.luau`), in the UI v2 vocabulary:
+
+| beat | when |
+|---|---|
+| `caught` | the client got FishingState "Caught" |
+| `win` | `FxMinigameWin` is shown (UI v2 FUI-01) |
+| `leap` / `held` / `held gone` / `pillar` | the world: the Leap model / HeldFish appear, HeldFish vanishes, `PillarCore` appears |
+| `landing` | `FishingFxController.OwnFishLanded` fired (UI v2 WFX-02) |
+| `flash` | an `FxFlash` is shown |
+| `card`, `banner`, `name` | `CatchCard`, `CatchCard.Banner.RarityLabel`, `CatchCard.NameLabel` shown |
+| `price` | `CatchCard.InfoLabel.Price.Label` stopped changing (the count-up landed) |
+| `mutation` | `CatchCard.MutationLabel` or `CatchCard.MutationStamp` shown |
+| `close` | `CatchCard` hidden again |
+| `fly` | an `FxFly` is shown (the 🐟 flying into the counter) |
+| `+1` | `Status.CatchCounter.Label` changed |
+| `bite`, `zone`, `lost` | the client got FishingState "Bite" / "Zone" (a hit) / "Lost" |
+| `word` | an `FxFloat` is shown (the hit word) |
+| `miss ghost` | `FxMinigameMiss` is shown |
+
+A spec is `{ name, appear = path | { paths } }`, `{ name, appearNamed = "FxFlash" }`,
+`{ name, disappear = path }`, `{ name, change = path }` (Text differs from time 0),
+`{ name, settle = path }` (Text last changed), `{ name, state = "Caught" }`,
+`{ name, event = "HeldFish", kind = "appear" | "disappear" | "signal" }` (world) or
+`{ name, fn = function(h) -> bool }`. When a widget is renamed, update `DEFAULT_BEATS` or pass
+`beats` / `extraBeats` in the scenario.
+
+### World FX in the previews
+
+`gui/world_capture.luau` records, at every 60 fps step of a `world = true` scenario,
+everything in the player's `Workspace.FishingFx` (FishingFxController) and, in every
+character, the HeldFish model and any emitter / trail / beam / billboard / light — and
+projects it with the backdrop's camera into screen px. `gui/world.py` draws it over the
+backdrop, under the HUD:
+
+* fish models (Title attribute, or named HeldFish / Leap / Dive) → the `docs/gear` sprite over
+  the model's projected box, along its nose direction; hidden while every part is invisible
+  (LocalTransparencyModifier — the leap handoff);
+* parts: Block (visible faces, lit), Ball, Cylinder (hull), Transparency x
+  LocalTransparencyModifier, Neon unlit with a glow; a part with Transparency 1 only carries
+  its SurfaceGui / emitters / trails;
+* SurfaceGui → its GUI at the canvas size, warped onto the projected face (back faces culled);
+* BillboardGui → laid out at "studs x px-per-stud + px" at its depth, StudsOffset(WorldSpace),
+  SizeOffset, MaxDistance;
+* Beam → a ribbon along the Bezier (CurveSize0/1 along the attachments' WorldAxis), Width0/1,
+  Color / Transparency along it; Trail → the ribbon of its attachments' last Lifetime seconds,
+  Color / Transparency / WidthScale by age;
+* ParticleEmitter → simulated (RbxSim has none; `Emit` is hooked): Rate while Enabled and
+  every `Emit(n)`, spawned in the parent part's box (or at the attachment), EmissionDirection +
+  SpreadAngle, Speed, Lifetime, Acceleration, Drag, LockedToPart; dots by Size, Color and
+  Transparency over life (sparkle textures as 4-point stars, smoke as soft discs, others as
+  confetti squares); deterministic;
+* PointLight → a faint glow.
+
+Camera: the backdrop's — the Roblox default third-person camera 12.5 studs from the focus,
+18 deg down, vertical FOV 70, focus 4.6 studs above the top of the own FishingSpot, looking
+along the base's LookVector — plus the local Humanoid's `CameraOffset` (in the character's
+frame). The dump writes the camera per frame in the spot frame (right, up, forward), and the
+backdrop is rendered of base 1's pier with that very camera (cached per camera, so a
+`CameraOffset` gets its own backdrop). The sim's character is lifted so its head matches the
+stand-in's, and the rod is moved so its `TipAttachment` sits at the stand-in's rod tip — the
+line, the cast, the leap and the held fish line up with the drawn avatar.
+
+Occlusion: the backdrop's renderer also writes its opaque depth; a world pixel is hidden
+where the scene (the stand-in avatar, the pier, the map; not the water) is nearer than the
+item's nearest point by a margin — so the bobber and the leap behind the player's head are
+hidden, as in the game, while rings on the deck are not cut.
+
+X-ray (timelines and timeline bursts): dashed boxes over the HUD for the fish models (the leap
+arc as dots), the pillar, the halo and the nameplate, each with how much of it the HUD hides
+(HUD opacity >= 0.6), also printed in the ruler: `HeldFish 100% under HUD` is the card hiding
+the trophy. `--no-world` draws the plain backdrop, `--no-hud` only the world.
+
+Not drawn: Highlights, Decals/Textures, mesh shapes (their box), camera shake / FOV punches
+(the GUI part of them is), terrain water ripples. The stand-in avatar does not move.
+
+### Checks: fill, layout safety, text floor
+
+`gui/checks.py`, on every dumped frame (layout and text on the stills); results in the stills'
+captions, the sheet labels, the rulers, `checks.txt` / `checks.json` and the summary printed
+at the end.
+
+* **Fill** (GPU cost, RND-03): the summed on-screen area of every visible quad divided by the
+  screen area — a quad counts whenever Roblox draws it, however transparent: the background,
+  image or ViewportFrame of a GuiObject, a text label's box, and every Border UIStroke as the
+  rect of the box grown by its thickness; rotated quads are clipped to the screen as polygons.
+  1.0x = one screen of alpha-blended pixels. On 844x390 (`phone`, `phone_notch`) a peak over
+  **2.5x** prints a warning. `checks.txt` gives each scenario's peak (with the three biggest
+  contributors) and median.
+* **Layout safety** (RND-02): widgets are the children of each ScreenGui and of `HUD.Fishing`
+  (`CONTAINERS`): `HUD.Status`, `HUD.RightButtons`, `HUD.Toasts`, `HUD.Fishing.ActionArea`,
+  `.Hint`, `.BiteAlert`, `.Minigame`, `.CatchCard`, ... A widget's shape is the union of the
+  rounded rects of what it draws — backgrounds, images, Border strokes (grown by their
+  thickness), and for a text label without a background the ink box of its text — so
+  overhanging icons and caption ribbons count and invisible containers do not. Skipped:
+  effects (any path part starting with `Fx`) and full-screen layers (>= 45 % of the screen:
+  dims, ray holders). Every pair of widgets, and every widget against the CoreGui chrome
+  (`gui/backdrop.chrome_shapes`: Jump and the thumbstick as circles, the hotbar, the top-bar
+  buttons, the desktop chat window and player list), closer than **16 px** is reported with the
+  gap (negative = overlap) between the closest points; a glow ring (`FxRing`) reaching into
+  Jump or the thumbstick is reported too. `--all` also dumps the standard set on
+  `phone_notch`, `phone_small` and `tablet` for the checks only (`--no-checks-devices` skips
+  them); their failing stills are drawn as `_layout.png`.
+* **Text floor**: visible text at rest (UIScale ~1) drawn under 12 px after TextScaled fitting.
 
 ### gui_dump.luau
 
 ```
-lune run tools/preview/gui_dump.luau --device phone|tablet|desktop|console --scenario a,b|all --out DIR
-    [--place Place1.rbxl] [--at T,T] [--sheets] [--times A:B:FPS] [--no-stills] [--check] [--verbose]
+lune run tools/preview/gui_dump.luau --device phone|phone_notch|phone_small|tablet|desktop|console \
+    --scenario a,b|all --out DIR [--place Place1.rbxl] [--at T,T] [--sheets] [--bursts] \
+    [--times A:B:FPS] [--no-stills] [--check] [--verbose]
 lune run tools/preview/gui_dump.luau --list
 ```
 
@@ -494,9 +690,9 @@ The dumper lays the GUI out itself (RbxSim ignores UIScale, rotation and list al
 UDim2 Size/Position, AnchorPoint, SizeConstraint, UISizeConstraint, UIAspectRatioConstraint
 (FitWithinMaxSize / ScaleWithParentSize + DominantAxis), UIPadding, UIListLayout (direction,
 both alignments, padding, LayoutOrder/Name sort), UIGridLayout (cell size/padding, alignment,
-FillDirectionMaxCells), ScrollingFrame canvas, ScreenGui insets (`IgnoreGuiInset` / `ScreenInsets`
-None and DeviceSafeInsets = full screen, CoreUISafeInsets = below the 58 px top bar).
-Then:
+FillDirectionMaxCells), ScrollingFrame canvas, ScreenGui insets (`ScreenInsets` None = the
+whole screen, DeviceSafeInsets / `IgnoreGuiInset` = the device safe area, CoreUISafeInsets =
+the safe area below the 58 px top bar). Then:
 
 * **UIScale** scales the object and its whole subtree visually about the object's AnchorPoint —
   offsets, corner radii, stroke thickness and text sizes included; nested scales multiply.
@@ -508,9 +704,13 @@ Then:
 * **Draw order**: ScreenGuis by DisplayOrder; `ZIndexBehavior.Sibling`: a parent before its
   children, siblings by ZIndex then child order; `Global`: everything by ZIndex then tree order.
 
-One JSON per device and scenario: `{ version, scenario, desc, device, viewport, touch, inset,
-sheet, frames = [{ t, still, sheet, tools = [{name, equipped}], objects = [...] }], errors,
-warnings }`. Objects are the effectively visible GuiObjects in draw order, in screen pixels:
+The same layout (`dumpTree`) lays out BillboardGuis and SurfaceGuis of the world capture.
+
+One JSON per device and scenario (version 2): `{ version, scenario, desc, device, viewport,
+touch, inset, safe = [left, right, bottom], sheet, burst, timeline, camera, beats = [{name, t}],
+events = [{name, kind, t}], frames = [{ t, still, sheet, burst, timeline, tools =
+[{name, equipped}], objects = [...], world? = { cam, items, marks } }], errors, warnings }`.
+Objects are the effectively visible GuiObjects in draw order, in screen pixels:
 `path, class, name, z, x, y, w, h` (the box before rotation; rotate about its centre),
 `rot, k` (accumulated rotation and UIScale), `clip, alpha, bg, bgT, radius / radii`
 (UICorner in px), `border` (legacy, only without UICorner and a Border UIStroke),
@@ -519,7 +719,8 @@ warnings }`. Objects are the effectively visible GuiObjects in draw order, in sc
 scale`), `text` (`s, rich, c, tr, sc, st, scaled, size, wrap, xa, ya, font, weight, style, lh,
 min, max, pad, trunc, graphemes`), `image`, `viewport` (`models` = name, fish id, mutation,
 title, rarity), `auto` (AutomaticSize — flagged, not applied). The full field list is in the
-script's header.
+script's header; the world items are listed in `gui/world.py`. Lune encodes an empty list as
+`{}` — read lists with that in mind.
 
 Lune notes: Lune 0.11's reflection database stores `UICorner` as four per-corner radii
 (`TopLeftRadius`...; `CornerRadius` cannot be read back from a saved place, while one set at
@@ -533,36 +734,44 @@ Roblox's 1 px dark border, as in the game.
 | option | default | meaning |
 |---|---|---|
 | `DUMP.json ...` | | render these dumps (no dumping) |
-| `--all` | | the standard set (every scenario but `selftest`), stills + sheets, overviews |
+| `--all` | | the standard set (every scenario but `selftest` and the timelines), stills + sheets + bursts, overviews, the checks on 5 devices |
 | `--scenario LIST` | | dump and render these scenarios |
-| `--devices LIST` | `phone,desktop` | `phone`, `tablet`, `desktop`, `console` |
-| `--sheets` | off (on with `--all`) | also the animation sheets |
+| `--timeline` | | the catch timelines (default device `phone`) |
+| `--devices LIST` | `phone,desktop` | `phone`, `phone_notch`, `phone_small`, `tablet`, `desktop`, `console` |
+| `--sheets` / `--bursts` | off (`--all`: sheets on, bursts on the first device) | also the animation sheets / the 30 fps bursts on every device |
 | `--at T,T` / `--times A:B:FPS` | | still times / sheet window for every scenario |
 | `--out DIR` | | output directory (required) |
 | `--bg MODE` | `pier` | `pier` (rendered game frame), `plain` (sky/sea gradient), or an image path (cover-fitted) |
 | `--no-chrome` | | no Roblox CoreGui overlay |
+| `--no-world` / `--no-hud` | | world dumps: no world FX / only the backdrop, world FX and chrome |
+| `--gif` | | also animated GIFs of the bursts and timelines |
+| `--no-checks-devices` | | `--all` without the check-only devices |
 | `--no-caption` | | no caption bar under the stills |
 | `--no-overview` | | no overview images |
 | `--ss N` | 2 | supersampling |
 | `--place FILE` | `Place1.rbxl` | the place to dump (and to render the backdrop from) |
 | `--jobs N` | CPU count (max 8) | parallel Lune dumps / render workers |
-| `--list`, `-v` | | list scenarios / print every dump log line |
+| `--list`, `--selftest`, `-v` | | list scenarios / check the geometry and checks / print every dump log line |
 
 **Backdrop** (`--bg pier`): `render.py`'s perspective renderer at the device resolution — the
-Roblox default third-person camera (12.5 studs behind the head, 18 deg down, vertical FOV 70)
-behind a blocky stand-in avatar (classic R6 colours, bamboo rod raised) on base 1's
-FishingSpot, looking over the lagoon. Parts/terrain come from `export_parts.luau` /
-`export_terrain.luau`; the image is cached in `tools/preview/gui/.cache/` (git-ignored; key =
-place path, size, mtime + resolution; `GUI_PREVIEW_CACHE` moves it), ~3 s per new resolution.
-If it cannot be rendered, `docs/preview_pier.png` is cropped instead.
+Roblox default third-person camera (12.5 studs behind the head, 18 deg down, vertical FOV 70;
+a world dump's per-frame camera when it has one) behind a blocky stand-in avatar (classic R6
+colours, bamboo rod raised) on base 1's FishingSpot, looking over the lagoon. Parts/terrain
+come from `export_parts.luau` / `export_terrain.luau`; the image and its depth buffer are
+cached in `tools/preview/gui/.cache/` (git-ignored; key = place path, size, mtime + resolution
++ camera; `GUI_PREVIEW_CACHE` moves it), ~3 s per new resolution or camera. If it cannot be
+rendered, `docs/preview_pier.png` is cropped instead (no occlusion then).
 
-**CoreGui chrome** (drawn over the HUD at 80 % opacity, so overlaps stay visible): the 58 px
-top bar (Roblox menu button, chat/more pill); on desktop the open chat window (top-left,
-360x180) and the player list (top-right); the hotbar — 60 px slots centred, 5..65 px above the
-bottom, one per tool from the dump (number, wrapped name, white frame on the equipped one);
-on touch devices the classic thumbstick and the Jump button: short side <= 500 px: 70 px at
-25..95 px from the right and 20..90 px from the bottom (thumbstick mirrored on the left);
-bigger screens: 120 px at (W-170..W-50, H-210..H-90) (thumbstick at x 60..180).
+**CoreGui chrome** (drawn over the HUD at 80 % opacity, so overlaps stay visible; the shapes
+come from `gui/backdrop.chrome_shapes`, shared with the layout check): the 58 px top bar
+(Roblox menu button, chat/more pill); on desktop the open chat window (top-left, 360x180) and
+the player list (top-right); the hotbar — 60 px slots centred, 5..65 px above the bottom, one
+per tool from the dump (number, wrapped name, white frame on the equipped one); on touch
+devices the classic thumbstick and the Jump button: short side <= 500 px: 70 px at 25..95 px
+from the right and 20..90 px from the bottom (thumbstick mirrored on the left); bigger
+screens: 120 px at (W-170..W-50, H-210..H-90) (thumbstick at x 60..180). On `phone_notch`
+everything moves inside the safe area, plus the rounded corners, the sensor housing and the
+home indicator.
 
 **Painting** (Roblox rules as implemented; the `selftest` scenario shows each one):
 
@@ -601,9 +810,9 @@ bigger screens: 120 px at (W-170..W-50, H-210..H-90) (thumbstick at x 60..180).
   with ImageColor3 stands in.
 
 **Known limits**: no AutomaticSize (flagged in the dump, printed by the renderer), UIFlexItem /
-flex layouts, UIPageLayout/UITableLayout, rich-text styling, TextBox placeholders, device
-safe-area insets (notches), rounded clipping of CanvasGroups, or particles/3D world effects
-(only the GUI). Roblox's exact font metrics and legacy TextStroke width are approximations;
-TextScaled sizes may differ from Roblox by a pixel or two. Treat the renders as faithful for
-layout, colour and composition, approximate for text rasterisation.
-
+flex layouts, UIPageLayout/UITableLayout, rich-text styling, TextBox placeholders, rounded
+clipping of CanvasGroups; world FX only in `world = true` scenarios (see above for what is
+drawn). Roblox's exact font metrics and legacy TextStroke width are approximations;
+TextScaled sizes may differ from Roblox by a pixel or two. The notch insets and where the
+touch controls sit on a notched phone are a model (see Devices). Treat the renders as faithful
+for layout, colour and composition, approximate for text rasterisation and the 3D effects.
