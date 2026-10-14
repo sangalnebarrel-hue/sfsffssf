@@ -15,6 +15,8 @@
 	  Kit.sign(part, face, text, ...)   big readable SurfaceGui text (Util.FONT, TextScaled)
 	  Kit.light(part, range, ...)       PointLight (Range <= 16, no shadows), counted in Kit.lights
 	  Kit.claim / Kit.isClaimed         areas taken by landmarks, gateways, … (Nature avoids them)
+	  Kit.obstacles(map)                index of the parts already built: blocked(cf, w, d, y0, y1),
+	                                    topAt(x, z, below) (the late kits keep off them)
 	  Kit.stairs(...)                   walkable 1-stud steps that follow the voxel ground
 	  Kit.ramp(...)                     sloped walkable block between two top points (boardwalks,
 	                                    or an invisible collider over visible steps)
@@ -272,6 +274,131 @@ function Builder:finish(primary: any?): any
 		p.PivotOffset = p.CFrame:Inverse() * self.cf
 	end
 	return self.model
+end
+
+--------------------------------------------------------------------------------------------
+-- Moving details (the ambient wave animates them; builders only mark them)
+--------------------------------------------------------------------------------------------
+
+--[[
+	Kit.sway(inst, pivot, amplitude, axis, period) marks a Model or a BasePart for the client's
+	ambient motion (DESIGN.md §3 "Ambient attributes"): it swings `amplitude` degrees about the
+	pivot's local `axis` ("X" | "Y" | "Z"), one swing every `period` seconds. `pivot` (world
+	CFrame, optional) is the hang point: a Model's PrimaryPart (the first part if unset) or the part
+	itself gets the PivotOffset that puts its pivot there. Parts parented under a swaying part swing
+	with it. Never inside a Spin / Bob model (those move as a whole). Returns inst.
+]]
+function Kit.sway(inst: any, pivot: any?, amplitude: number, axis: string, period: number): any
+	inst:SetAttribute("Sway", amplitude)
+	inst:SetAttribute("SwayAxis", axis)
+	inst:SetAttribute("SwayPeriod", period)
+	if pivot then
+		local primary = if inst:IsA("BasePart") then inst else inst.PrimaryPart
+		if not primary then
+			for _, d in inst:GetDescendants() do
+				if d:IsA("BasePart") then
+					primary = d
+					break
+				end
+			end
+			inst.PrimaryPart = primary
+		end
+		if primary then
+			primary.PivotOffset = primary.CFrame:Inverse() * pivot
+		end
+	end
+	return inst
+end
+
+--------------------------------------------------------------------------------------------
+-- Obstacles: the parts already built (late kits keep off them)
+--------------------------------------------------------------------------------------------
+
+--[[
+	Kit.obstacles(map) indexes every part already in the map (the ground, slots, walls, sky and the
+	far ocean aside) in a spatial hash and returns
+	  blocked(cf, w, d, y0, y1)  whether the footprint w x d (local x, z of cf), between the heights
+	                             y0 and y1, touches one of them (a point of the footprint inside a
+	                             part's box, or a part's centre inside the footprint)
+	  topAt(x, z, below)         the highest part top under (x, z) at or below `below` (nil: none)
+	Used by the kits built after Nature (Shore, Promenade.buildDetails).
+]]
+local OB_HASH = 16
+function Kit.obstacles(map: any): any
+	local grid: { [number]: { any } } = {}
+	local skip = { Ground = true, BaseSlots = true, Boundaries = true, Sky = true, Ocean = true }
+	for _, child in map:GetChildren() do
+		if skip[child.Name] then
+			continue
+		end
+		for _, d in child:GetDescendants() do
+			if d:IsA("BasePart") and d.Transparency < 0.98 then
+				local cf, s = d.CFrame, d.Size / 2
+				local ex = abs(cf.RightVector.X) * s.X + abs(cf.UpVector.X) * s.Y + abs(cf.LookVector.X) * s.Z
+				local ey = abs(cf.RightVector.Y) * s.X + abs(cf.UpVector.Y) * s.Y + abs(cf.LookVector.Y) * s.Z
+				local ez = abs(cf.RightVector.Z) * s.X + abs(cf.UpVector.Z) * s.Y + abs(cf.LookVector.Z) * s.Z
+				local p = cf.Position
+				local item = { cf = cf, h = s, y0 = p.Y - ey, y1 = p.Y + ey }
+				for gx = floor((p.X - ex) / OB_HASH), floor((p.X + ex) / OB_HASH) do
+					for gz = floor((p.Z - ez) / OB_HASH), floor((p.Z + ez) / OB_HASH) do
+						local key = gx * 4096 + gz
+						grid[key] = grid[key] or {}
+						table.insert(grid[key], item)
+					end
+				end
+			end
+		end
+	end
+	local STEP, MARGIN = 0.8, 0.15
+	local function blocked(cf: any, w: number, d: number, y0: number, y1: number): boolean
+		local c = cf.Position
+		local ext = math.sqrt(w * w + d * d) / 2 + 0.5
+		local seen = {}
+		local nx, nz = math.ceil(w / STEP), math.ceil(d / STEP)
+		for gx = floor((c.X - ext) / OB_HASH), floor((c.X + ext) / OB_HASH) do
+			for gz = floor((c.Z - ext) / OB_HASH), floor((c.Z + ext) / OB_HASH) do
+				for _, it in grid[gx * 4096 + gz] or {} do
+					if seen[it] or it.y1 < y0 or it.y0 > y1 then
+						continue
+					end
+					seen[it] = true
+					-- the part's centre inside the footprint
+					local q = cf:PointToObjectSpace(it.cf.Position)
+					local py = it.cf.Position.Y
+					if abs(q.X) < w / 2 and abs(q.Z) < d / 2 and py > y0 and py < y1 then
+						return true
+					end
+					-- a point of the footprint inside the part
+					local h = it.h
+					for ix = 0, nx do
+						for iz = 0, nz do
+							local wp = cf * Vector3.new(-w / 2 + w * ix / nx, 0, -d / 2 + d * iz / nz)
+							for _, y in { y0 + 0.05, (y0 + y1) / 2, y1 - 0.05 } do
+								local l = it.cf:PointToObjectSpace(Vector3.new(wp.X, y, wp.Z))
+								if abs(l.X) < h.X + MARGIN and abs(l.Y) < h.Y + MARGIN and abs(l.Z) < h.Z + MARGIN then
+									return true
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+		return false
+	end
+	local function topAt(x: number, z: number, below: number): number?
+		local best = nil
+		for _, it in grid[floor(x / OB_HASH) * 4096 + floor(z / OB_HASH)] or {} do
+			if it.y1 <= below + 1e-3 and (best == nil or it.y1 > best) then
+				local l = it.cf:PointToObjectSpace(Vector3.new(x, it.cf.Position.Y, z))
+				if abs(l.X) <= it.h.X and abs(l.Z) <= it.h.Z then
+					best = it.y1
+				end
+			end
+		end
+		return best
+	end
+	return { blocked = blocked, topAt = topAt }
 end
 
 --------------------------------------------------------------------------------------------

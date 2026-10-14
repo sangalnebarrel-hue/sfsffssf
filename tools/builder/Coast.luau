@@ -748,11 +748,13 @@ local function buildSky(map: any, cfg: any)
 		local a = k * 36 + 14 + rng(-7, 7)
 		local p = U.polar(a, if k % 2 == 0 then rng(1100, 1180) else rng(1220, 1300), 0)
 		local y = rng(250, 320)
-		Kit.prop("cloud", sky, CFrame.new(p.X, y, p.Z) * CFrame.Angles(0, rad(a + rng(-12, 12)), 0), {
+		local cloud = Kit.prop("cloud", sky, CFrame.new(p.X, y, p.Z) * CFrame.Angles(0, rad(a + rng(-12, 12)), 0), {
 			seed = 40 + k,
 			scale = rng(3.9, 4.9),
 			lite = true,
 		})
+		-- (the ambient wave drifts the clouds slowly round the island: DESIGN.md §3)
+		cloud:SetAttribute("Drift", 2)
 	end
 	return sky
 end

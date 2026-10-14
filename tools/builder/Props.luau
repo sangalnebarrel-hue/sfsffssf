@@ -220,6 +220,15 @@ end
 -- Common property sets (passed as `extra`; Material in extra overrides SmoothPlastic).
 local DECOR = { CanCollide = false, CastShadow = false, CanQuery = false } -- tiny, non-walkable details
 local FOLIAGE = DECOR -- leaves, petals, sails, flags
+
+-- Moving details (DESIGN.md §3 "Ambient attributes", the same contract as MapKit.sway): the client
+-- swings `inst` `amplitude` degrees about its pivot's local `axis`, one swing every `period` s.
+local function sway(inst: any, amplitude: number, axis: string, period: number): any
+	inst:SetAttribute("Sway", amplitude)
+	inst:SetAttribute("SwayAxis", axis)
+	inst:SetAttribute("SwayPeriod", period)
+	return inst
+end
 -- the biggest canopy / frond blocks of a tree: still not walkable, but they cast the shadow that
 -- grounds the tree (one or two parts per tree, cheap with ShadowMap lighting)
 local FOLIAGE_SHADOW = { CanCollide = false, CastShadow = true, CanQuery = false }
@@ -1288,12 +1297,13 @@ function Props.palmTree(parent: any, cf: any, opts: { [string]: any }?): any
 		end
 	end
 	if o.lite then
-		return b:finish(first)
+		return sway(b:finish(first), 1.2, "X", 5.5)
 	end
 	-- coconuts under the crown
 	b:vox("Coconut1", tx + 1.0, y - 1.2, 0.6, 1.2, 1.2, 1.2, C.Coconut, DECOR)
 	b:vox("Coconut2", tx - 0.5, y - 1.35, -1.0, 1.1, 1.1, 1.1, shade(C.Coconut, 0.88), DECOR)
-	return b:finish(first)
+	-- (the whole palm leans in the breeze about its foot: the model pivot)
+	return sway(b:finish(first), 1.2, "X", 5.5)
 end
 
 --[[
@@ -1724,7 +1734,7 @@ function Props.reeds(parent: any, cf: any, opts: { [string]: any }?): any
 		b:vox(`Cattail{i}`, t[1], t[2] - 0.6, t[3], 0.7, 1.5, 0.7, C.Coconut, DECOR)
 	end
 	b:span("Leaf", -1.3, -0.5, 0.1, -0.95, 2.6, 0.9, C.Leaf2, DECOR)
-	return b:finish(first)
+	return sway(b:finish(first), 4, "X", 3.6)
 end
 
 --[[
@@ -2656,7 +2666,8 @@ function Props.bunting(parent: any, fromPos: any, toPos: any, opts: { [string]: 
 			DECOR
 		)
 	end
-	return b:finish(first)
+	-- (the pivot looks along the rope: the flags swing about its local Z)
+	return sway(b:finish(first), 5, "Z", 2.8)
 end
 
 --[[
@@ -2671,9 +2682,14 @@ function Props.flagPole(parent: any, cf: any, opts: { [string]: any }?): any
 	b:span("Base", -1.0, -0.4, -1.0, 1.0, 0.8, 1.0, C.StoneLight)
 	local pole = b:column("Pole", 0.5, 0, 0, 0.7, h, C.White)
 	b:vox("Top", 0, h + 0.35, 0, 0.9, 0.9, 0.9, C.Gold, DECOR)
-	b:span("Flag", 0.25, h - 3.2, -0.1, 4.6, h - 0.4, 0.1, flagC, FOLIAGE)
+	-- the cloth flutters about the pole (Sway, its pivot on the pole's edge)
+	local cloth = b:group("Cloth")
+	local flag = b:span("Flag", 0.25, h - 3.2, -0.1, 4.6, h - 0.4, 0.1, flagC, FOLIAGE)
 	b:span("Stripe", 0.25, h - 2.15, -0.13, 4.62, h - 1.45, 0.13, o.stripe or C.White, FOLIAGE)
 	b:span("FlagTail", 4.6, h - 2.6, -0.1, 5.4, h - 1.0, 0.1, flagC, FOLIAGE)
+	b:ungroup()
+	b:finishGroup(cloth, flag, CFrame.new(0.25, h - 1.8, 0))
+	sway(cloth, 9, "Y", 2.4)
 	return b:finish(pole)
 end
 

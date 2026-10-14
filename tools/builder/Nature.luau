@@ -323,7 +323,11 @@ function Nature.farTree(parent: any, cf: any, kind: string, s: number, seed: num
 		local tx, tz = ox + r(-0.2, 0.2), oz + r(-0.2, 0.2)
 		box("CanopyTop", tx - tw, th + 6.3, tz - tw, tx + tw, th + 9.4, tz + tw, pal[3], FOLIAGE)
 	end
-	return b:finish(trunk)
+	local model = b:finish(trunk)
+	if kind == "palm" or kind == "beachPalm" then
+		Kit.sway(model, nil, 1.2, "X", 5.5) -- (palms lean in the breeze about their foot)
+	end
+	return model
 end
 
 --------------------------------------------------------------------------------------------
@@ -693,7 +697,13 @@ local function beachProp(parent: any, cf: any, kind: string, seed: number): any
 		first = b:box("Base", -2.2, -0.3, -2.2, 2.2, 1.4, 2.2, wet)
 		b:box("Tower", -1.2, 1.4, -1.2, 1.2, 3.4, 1.2, lerp(C.Sand, C.White, 0.3))
 		b:box("Turret", -0.6, 3.4, -0.6, 0.6, 4.4, 0.6, wet)
-		b:box("Flag", 0.6, 3.7, -0.1, 1.7, 4.4, 0.1, C.Flowers[1], FOLIAGE)
+		Kit.sway(
+			b:box("Flag", 0.6, 3.7, -0.1, 1.7, 4.4, 0.1, C.Flowers[1], FOLIAGE),
+			b.cf * CFrame.new(0.6 * (b.k or 1), 4.05 * (b.k or 1), 0),
+			14,
+			"Y",
+			1.6
+		)
 	elseif kind == "towel" then
 		local blue = r() >= 0.5
 		local col = if blue then C.Flowers[7] else C.Flowers[3]
@@ -878,7 +888,13 @@ local function rockyIslet(parent: any, cf: any, bed: number, seed: number): any
 	b:box("Tuft", -5.0, 2.1, 1.4, -2.9, 3.3, 3.8, C.Leaf1, FOLIAGE)
 	b:box("Perch", 1.8, 4.3, 0.6, 2.4, 10.5, 1.2, C.WoodDark)
 	b:box("Crossbar", 0.8, 9.9, 0.7, 3.4, 10.35, 1.1, C.Wood, Kit.NOSHADOW)
-	b:box("Pennant", 2.4, 8.4, 0.8, 4.2, 9.5, 1.0, C.Flowers[1], FOLIAGE)
+	Kit.sway(
+		b:box("Pennant", 2.4, 8.4, 0.8, 4.2, 9.5, 1.0, C.Flowers[1], FOLIAGE),
+		b.cf * CFrame.new(2.4 * (b.k or 1), 8.95 * (b.k or 1), 0.9 * (b.k or 1)),
+		10,
+		"Y",
+		2.2
+	)
 	b:box("Foam", -8, 0.1, -7.5, 8.5, 0.3, 6.5, FOAM, FOLIAGE)
 	return b:finish(first)
 end
@@ -904,7 +920,7 @@ local SHORE_SCALE = 1.3
 local function shoreBuilder(parent: any, name: string, cf: any, scale: number?): any
 	local b = Kit.builder(parent, name, cf)
 	local k = scale or SHORE_SCALE
-	local sb = { model = b.model }
+	local sb = { model = b.model, cf = cf, k = k }
 	function sb.box(_: any, n: string, x0, y0, z0, x1, y1, z1, color, extra): any
 		return b:box(n, x0 * k, y0 * k, z0 * k, x1 * k, y1 * k, z1 * k, color, extra)
 	end
@@ -955,7 +971,13 @@ local function stiltHut(parent: any, cf: any, seed: number): any
 	local roof = HUT_ROOFS[floor(r(1, #HUT_ROOFS + 0.99))]
 	steppedRoof(b, 5.2, -4.0, 4.8, 9.4, roof)
 	b:box("PennantPole", -0.2, 12.3, 0.2, 0.2, 15.2, 0.6, C.Cream, FOLIAGE)
-	b:box("Pennant", 0.2, 13.8, 0.3, 2.6, 15.0, 0.5, accent, FOLIAGE)
+	Kit.sway(
+		b:box("Pennant", 0.2, 13.8, 0.3, 2.6, 15.0, 0.5, accent, FOLIAGE),
+		b.cf * CFrame.new(0.2 * (b.k or 1), 14.4 * (b.k or 1), 0.4 * (b.k or 1)),
+		10,
+		"Y",
+		2.1
+	)
 	b:lean("Ladder", -3.4, -0.2, -10.2, 3.9, -7.3, 1.6, 0.35, C.Wood)
 	b:box("NetPole", 4.3, 4.0, -7.0, 4.8, 8.8, -6.5, C.WoodDark, FOLIAGE)
 	b:box("Net", 1.4, 5.2, -6.9, 4.3, 8.4, -6.65, NET, NET_MESH)
@@ -1028,7 +1050,13 @@ local function keeperCottage(parent: any, cf: any, seed: number): any
 	steppedRoof(b, 6.0, -5.1, 5.1, 7.0, if r() < 0.5 then C.RoofSlate else C.RoofRed)
 	b:box("Chimney", 2.4, 8.0, 1.4, 3.6, 11.6, 2.6, C.Brick)
 	b:pole("FlagPole", 0.5, 7.6, -3.4, -0.5, 13.5, C.Cream, Kit.NOSHADOW)
-	b:box("Flag", 7.85, 10.9, -3.5, 11.2, 13.1, -3.3, accent, FOLIAGE)
+	Kit.sway(
+		b:box("Flag", 7.85, 10.9, -3.5, 11.2, 13.1, -3.3, accent, FOLIAGE),
+		b.cf * CFrame.new(7.85 * (b.k or 1), 12 * (b.k or 1), -3.4 * (b.k or 1)),
+		9,
+		"Y",
+		2.4
+	)
 	return b:finish(first)
 end
 

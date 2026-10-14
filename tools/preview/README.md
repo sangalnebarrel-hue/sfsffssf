@@ -245,6 +245,28 @@ copy (219k faces) takes 3-5.5 s per view.
 Render a place and confirm in `top.png` that a part at +X is on the right and a part
 at +Z is below the centre; the iso gizmo shows the projected +X/+Y/+Z axes.
 
+## Micro-detail views and KPIs (views.py, flatness.py, density.py)
+
+Three small tools of the v3 micro-detail work (DESIGN.md §2/§3/§6):
+
+```sh
+OUT=/tmp/detail
+$LUNE run tools/preview/export_parts.luau   Place1.rbxl $OUT/parts.json
+$LUNE run tools/preview/export_terrain.luau Place1.rbxl $OUT/smoothgrid.bin
+# eye-level views of base 1 (the fishing spot's follow camera, the pier walk, the yard, the ring
+# beach either side of the pier, the promenade, the hub): "name eye,target,fov" lines
+ARGS=$(python3 tools/preview/views.py 1 spot_default pier_walk beach | awk '{print "--persp " $2}')
+python3 tools/preview/render.py $OUT/parts.json --terrain $OUT/smoothgrid.bin --out-dir $OUT $ARGS
+# share of featureless 40-px tiles (whole frame / lower half): the "flat" look
+python3 tools/preview/flatness.py $OUT/persp_*.png
+# per zone: parts, small parts per 1 000 studs², empty 8x8-stud cells; --heatmap draws them
+python3 tools/preview/density.py $OUT/parts.json --heatmap $OUT/heatmap.png
+```
+
+Per-base variants: `export_parts.luau` keeps a template instance with attributes `Variant = k`,
+`VariantOf = n` only on the bases with `(Index - 1) % n + 1 == k`, like BaseService does, so a
+render of base 2 shows base 2's pier scene (the GUI backdrop of gui_render.py is base 1's pier).
+
 ## Prop gallery (gallery.luau)
 
 `gallery.luau` builds a showcase place with every constructor of

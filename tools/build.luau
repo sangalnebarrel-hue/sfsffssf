@@ -14,7 +14,8 @@
 	  5. ReplicatedStorage.Remotes from RemoteNames, ReplicatedStorage.Assets (rods, bobbers, fish);
 	  6. StarterGui.HUD;
 	  7. all scripts from src/;
-	  8. write the place + sourcemap.json (for luau-lsp) and print stats.
+	  8. self-check (incl. the part budgets of MapConfig.PartBudget), write the place + sourcemap.json
+	     (for luau-lsp) and print stats.
 ]]
 
 local fs = require("@lune/fs")
@@ -397,14 +398,10 @@ expect(
 	`coplanar fix flipped {coplanarMap.inverted + coplanarTemplate.inverted} layer pairs`
 )
 
-if #problems > 0 then
-	error("Self-check of the built place failed:\n  - " .. table.concat(problems, "\n  - "))
-end
-
--- Only a place that passed the self-check replaces Place1.rbxl.
-fs.writeFile(output, placeBytes)
-fs.writeFile("sourcemap.json", serde.encode("json", Sourcemap.build(game, mapping), true))
-
+-- Part budgets (DESIGN.md §3, MapConfig.PartBudget): StreamingEnabled is off, so every phone holds
+-- every part from the join on. Static = the map + one copy of the base per slot (its own variant
+-- scenes only); the runtime peak adds what comes later (stage-3 tank fish, the client's ambient
+-- life, characters with rods, fishing FX). The build fails rather than ship a heavier place.
 local function countParts(root: any): number
 	local count = 0
 	for _, d in root:GetDescendants() do
@@ -414,18 +411,42 @@ local function countParts(root: any): number
 	end
 	return count
 end
-
+local budget = MapConfig.PartBudget
 local mapParts = countParts(mapResult.map)
-local runtimeParts = mapParts + templateResult.partCount * MapConfig.BaseCount
+local runtimeParts = mapParts + (templateResult.perBaseParts or templateResult.partCount) * MapConfig.BaseCount
+local reserve = 0
+for _, n in budget.RuntimeReserve do
+	reserve += n
+end
+expect(runtimeParts <= budget.Static, `static parts {runtimeParts} > budget {budget.Static} (MapConfig.PartBudget)`)
+expect(
+	runtimeParts + reserve <= budget.RuntimePeak,
+	`runtime peak {runtimeParts} + reserve {reserve} > budget {budget.RuntimePeak} (MapConfig.PartBudget)`
+)
+
+if #problems > 0 then
+	error("Self-check of the built place failed:\n  - " .. table.concat(problems, "\n  - "))
+end
+
+-- Only a place that passed the self-check replaces Place1.rbxl.
+fs.writeFile(output, placeBytes)
+fs.writeFile("sourcemap.json", serde.encode("json", Sourcemap.build(game, mapping), true))
+
 print(`Built {output} from {input} (self-check passed)`)
 print(`  water: SmoothGrid {#baked.smoothGrid} B, PhysicsGrid {#baked.physicsGrid} B`)
 print(`  ground parts: {mapResult.groundParts}`)
 print(`  map parts: {mapParts}`)
-print(`  base template parts: {templateResult.partCount} × {MapConfig.BaseCount} bases`)
+print(
+	`  base template parts: {templateResult.perBaseParts or templateResult.partCount} per base × {MapConfig.BaseCount} bases`
+		.. ` ({templateResult.partCount} with every variant)`
+)
 print(
 	`  assets: {assetsResult.rods} rods, {assetsResult.fish} fish × 4 variants ({assetsResult.partCount} parts, not in Workspace)`
 )
-print(`  ≈ parts at runtime: {runtimeParts}`)
+print(
+	`  parts: static {runtimeParts}/{budget.Static} (map + {MapConfig.BaseCount} bases), runtime peak`
+		.. ` ≈ {runtimeParts + reserve}/{budget.RuntimePeak} (+ reserve {reserve}: tank fish, ambient life, characters, FX)`
+)
 print(
 	`  studs: map {studdedMap}, template {studdedTemplate} × {MapConfig.BaseCount}`
 		.. ` (≈ {studdedMap + studdedTemplate * MapConfig.BaseCount} at runtime; {studsMap.ok + studsTemplate.ok} qualified); coplanar tops fixed:`

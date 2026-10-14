@@ -18,7 +18,8 @@
 	        worldCF = slot.CFrame * PrimaryPart.CFrame:Inverse() * part.CFrame
 	    (PrimaryPart.PivotOffset is honoured when set), and parts with attribute
 	    Accent == true get base color Index from BaseConfig.Colors, shaded like BaseService
-	    does by the optional number attribute AccentShade (> 0 lighter, < 0 darker)
+	    does by the optional number attribute AccentShade (> 0 lighter, < 0 darker); per-base
+	    variants (attributes Variant / VariantOf) are kept only on their own bases
 	                                                                     -> kind "base"
 	    (disable with --no-bases)
 
@@ -362,6 +363,20 @@ for _, inst in Workspace:GetDescendants() do
 	addPart(inst, inst.CFrame, inst.Color, if water then "water" else "part", inst:GetFullName())
 end
 
+-- Per-base variants (DESIGN.md §2): a template instance with number attributes Variant = k and
+-- VariantOf = n (or under one) is kept only on the bases whose index i gives (i - 1) % n + 1 == k.
+local function droppedOnBase(inst: any, root: any, index: number): boolean
+	local x = inst
+	while x and x ~= root do
+		local k, of = x:GetAttribute("Variant"), x:GetAttribute("VariantOf")
+		if type(k) == "number" and type(of) == "number" and (math.floor(index) - 1) % of + 1 ~= k then
+			return true
+		end
+		x = x.Parent
+	end
+	return false
+end
+
 -- 2) Simulated base spawning (what the server does at runtime).
 local slotsOut = {}
 local colorSource = "none"
@@ -404,6 +419,9 @@ if simulateBases and template and slotFolder then
 			local baseColor = colors[((math.floor(index) - 1) % #colors) + 1]
 			local slotToWorld = slot.CFrame * toLocal
 			for _, inst in templateParts do
+				if droppedOnBase(inst, template, index) then
+					continue -- another base's variant (BaseService destroys it here)
+				end
 				if inst.Transparency >= INVISIBLE_TRANSPARENCY then
 					stats.skippedInvisible += 1
 					continue

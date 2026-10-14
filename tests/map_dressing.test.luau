@@ -1,7 +1,9 @@
 --[[
 	Map dressing (tools/builder/Map.luau and its modules) invariants — pure Lune, no sim:
 	part / light budget (and Nature's guaranteed share), the expected models, a spinning windmill, a clear promenade walkway,
-	clear water in front of the piers and along the bridges, deterministic output.
+	clear water in front of the piers and along the bridges, deterministic output; the v3 micro-detail kits (Shore,
+	Promenade details, Hub details: budgets, decor flags, the cast clear zones, no overlapping surf / wet-sand strips) and
+	the ambient attributes (Sway / Bob / Spin / Pulse / Drift well-formed, never nested).
 
 	Run: lune run tools/run_tests.luau map_dressing
 ]]
@@ -68,6 +70,205 @@ tests["dressing stays within its part / PointLight budget and Nature gets its mi
 		end
 	end
 	t.ok(nature >= budget.natureMin, `Nature parts {nature} >= {budget.natureMin}`)
+end
+
+-- Base-local box of a part for base i: centre (lx, y, lz) and half-extents (from its 8 corners).
+local function baseBox(i: number, part: any): (number, number, number, number, number, number)
+	local cf, sz = part.CFrame, part.Size / 2
+	local x0, x1, y0, y1, z0, z1 = math.huge, -math.huge, math.huge, -math.huge, math.huge, -math.huge
+	for _, sx in { -1, 1 } do
+		for _, sy in { -1, 1 } do
+			for _, s in { -1, 1 } do
+				local w = cf * roblox.Vector3.new(sx * sz.X, sy * sz.Y, s * sz.Z)
+				local lx, lz = world:toBaseLocal(i, w.X, w.Z)
+				x0, x1 = math.min(x0, lx), math.max(x1, lx)
+				z0, z1 = math.min(z0, lz), math.max(z1, lz)
+				y0, y1 = math.min(y0, w.Y), math.max(y1, w.Y)
+			end
+		end
+	end
+	return (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (y1 - y0) / 2, (z1 - z0) / 2
+end
+
+-- Every BasePart of the late kits (built after Nature) and the hub's details.
+local function kitParts(): { any }
+	local list = {}
+	for _, root in { map.Shore, map.Promenade:FindFirstChild("Details"), map.Hub:FindFirstChild("Details") } do
+		for _, d in (if root then root:GetDescendants() else {}) do
+			if d:IsA("BasePart") then
+				table.insert(list, d)
+			end
+		end
+	end
+	return list
+end
+
+tests["micro-detail kits: within their budgets, decor only"] = function(t)
+	t.ok(map:FindFirstChild("Shore") ~= nil, "Map.Shore")
+	t.ok(map.Promenade:FindFirstChild("Details") ~= nil, "Map.Promenade.Details")
+	t.ok(map.Hub:FindFirstChild("Details") ~= nil, "Map.Hub.Details")
+	local late = 0
+	for _, root in { map.Shore, map.Promenade.Details } do
+		for _, d in root:GetDescendants() do
+			if d:IsA("BasePart") then
+				late += 1
+			end
+		end
+	end
+	t.ok(late <= result.budget.late, `late kits {late} <= {result.budget.late}`)
+	local hub = 0
+	for _, d in map.Hub:GetDescendants() do
+		if d:IsA("BasePart") then
+			hub += 1
+		end
+	end
+	t.ok(hub <= result.budget.hub, `hub {hub} <= {result.budget.hub}`)
+	local bad = {}
+	for _, p in kitParts() do
+		if p.CanCollide or p.CanQuery or p.CanTouch or p.CastShadow then
+			table.insert(bad, p:GetFullName())
+		end
+	end
+	t.eq(
+		#bad,
+		0,
+		`kit parts with collisions / raycasts / touches / shadows: {table.concat(bad, ", ", 1, math.min(#bad, 5))}`
+	)
+	local counts = { Foam = 0, WetSand = 0, Float = 0, Kelp = 0, SunkenChest = 0, Signpost = 0, Bollard = 0 }
+	for _, d in map:GetDescendants() do
+		if counts[d.Name] and d:IsDescendantOf(map.Shore) or d:IsDescendantOf(map.Promenade.Details) then
+			if counts[d.Name] then
+				counts[d.Name] += 1
+			end
+		end
+	end
+	t.ok(counts.Foam >= 150 and counts.WetSand >= 150, `surf {counts.Foam} and wet sand {counts.WetSand} strips`)
+	t.ok(counts.Float >= 32, `float lines ({counts.Float} floats)`)
+	t.ok(counts.Signpost >= 6 and counts.Bollard >= 30, `signposts {counts.Signpost}, bollards {counts.Bollard}`)
+end
+
+tests["shore kit: the piers' cast zones and corridors and the bridges stay clear"] = function(t)
+	local bad = {}
+	for _, p in kitParts() do
+		if not p:IsDescendantOf(map.Shore) then
+			continue
+		end
+		local edge = p.Name == "Foam" or p.Name == "WetSand"
+		for i = 1, cfg.BaseCount do
+			local lx, y, lz, ex, ey, ez = baseBox(i, p)
+			-- the cast clear zone (base-local x -6..16, z -72..-115): nothing above the water
+			if lx + ex > -6 and lx - ex < 16 and lz - ez < -72 and lz + ez > -115 and y + ey > cfg.WaterTop - 0.6 then
+				table.insert(bad, `{p:GetFullName()} in pier {i}'s cast zone`)
+			end
+			-- the pier corridor (its deck, its boat, the fishing water): only the surf / wet sand comes
+			-- nearer than 26 studs, never nearer than 12
+			local side = if edge then 12 else 26
+			if math.abs(lx) < side and lz > -92 and lz < 6 then
+				table.insert(bad, `{p:GetFullName()} in pier {i}'s corridor`)
+			end
+		end
+		local pos = p.CFrame.Position
+		for _, a in cfg.BridgeAngles do
+			local ux, uz = math.sin(math.rad(a)), math.cos(math.rad(a))
+			local along = pos.X * ux + pos.Z * uz
+			local across = math.abs(pos.X * uz - pos.Z * ux)
+			if along > cfg.HubPlazaRadius and along < cfg.LagoonRadius + 8 and across < cfg.BridgeWidth / 2 + 1 then
+				table.insert(bad, `{p:GetFullName()} on bridge {a}`)
+			end
+		end
+	end
+	t.eq(#bad, 0, `shore kit in the way: {table.concat(bad, ", ", 1, math.min(#bad, 6))}`)
+end
+
+tests["surf and wet-sand strips never overlap (no shimmering transparent / studded layers)"] = function(t)
+	for _, name in { "Foam", "WetSand" } do
+		local boxes = {}
+		for _, d in map.Shore:GetDescendants() do
+			if d:IsA("BasePart") and d.Name == name then
+				local p, h = d.CFrame.Position, d.Size / 2
+				table.insert(boxes, { p.X - h.X, p.Z - h.Z, p.X + h.X, p.Z + h.Z, d })
+			end
+		end
+		local overlaps = {}
+		for a = 1, #boxes do
+			for b = a + 1, #boxes do
+				local A, B = boxes[a], boxes[b]
+				local w = math.min(A[3], B[3]) - math.max(A[1], B[1])
+				local d = math.min(A[4], B[4]) - math.max(A[2], B[2])
+				if w > 0.01 and d > 0.01 then
+					table.insert(overlaps, `{A[5].CFrame.Position} / {B[5].CFrame.Position}`)
+				end
+			end
+		end
+		t.eq(#overlaps, 0, `{name} strips overlapping: {table.concat(overlaps, "; ", 1, math.min(#overlaps, 4))}`)
+	end
+end
+
+tests["moving details: Sway / Bob / Spin / Pulse / Drift marks are well-formed and never nested"] = function(t)
+	local MOVING = { "Sway", "Bob", "Spin", "Pulse", "Drift" }
+	local function movingKind(inst: any): string?
+		for _, a in MOVING do
+			if typeof(inst:GetAttribute(a)) == "number" then
+				return a
+			end
+		end
+		return nil
+	end
+	local counts = { Sway = 0, Bob = 0, Spin = 0, Pulse = 0, Drift = 0 }
+	local bad = {}
+	for _, d in map:GetDescendants() do
+		local kind = movingKind(d)
+		if not kind then
+			continue
+		end
+		counts[kind] += 1
+		local name = d:GetFullName()
+		-- (the Ferris wheel's gondolas keep upright inside the spinning wheel: KeepUpright)
+		local up = d.Parent
+		while up and up ~= map do
+			local outer = movingKind(up)
+			if outer and not (outer == "Spin" and kind == "Spin") then
+				table.insert(bad, `{name} ({kind}) inside {up:GetFullName()} ({outer})`)
+				break
+			end
+			up = up.Parent
+		end
+		if kind == "Sway" then
+			local axis, period, amp = d:GetAttribute("SwayAxis"), d:GetAttribute("SwayPeriod"), d:GetAttribute("Sway")
+			if
+				not (axis == "X" or axis == "Y" or axis == "Z")
+				or typeof(period) ~= "number"
+				or amp <= 0
+				or amp > 30
+			then
+				table.insert(bad, `{name}: Sway {amp} / {axis} / {period}`)
+			end
+			local primary = if d:IsA("BasePart") then d else d.PrimaryPart
+			if not primary then
+				table.insert(bad, `{name}: no pivot part`)
+			end
+			-- swinging parts never collide (the palms' trunks excepted: 1.2° about their foot)
+			if not string.find(d.Name, "Palm") and d.Name ~= "FarTree" then
+				for _, p in (if d:IsA("BasePart") then { d } else d:GetDescendants()) do
+					if p:IsA("BasePart") and p.CanCollide then
+						table.insert(bad, `{p:GetFullName()}: collides but swings`)
+					end
+				end
+			end
+		elseif kind == "Pulse" then
+			if typeof(d:GetAttribute("PulsePeriod")) ~= "number" then
+				table.insert(bad, `{name}: Pulse without PulsePeriod`)
+			end
+		elseif kind == "Drift" then
+			if not d:IsDescendantOf(map.Sky) then
+				table.insert(bad, `{name}: Drift outside Map.Sky`)
+			end
+		end
+	end
+	t.eq(#bad, 0, `malformed moving details: {table.concat(bad, "; ", 1, math.min(#bad, 5))}`)
+	t.ok(counts.Sway >= 100, `swinging details: {counts.Sway}`)
+	t.ok(counts.Bob >= 80, `bobbing models: {counts.Bob}`)
+	t.ok(counts.Pulse >= 1 and counts.Drift >= 10, `pulse {counts.Pulse}, drifting clouds {counts.Drift}`)
 end
 
 tests["all dressing groups are there"] = function(t)
@@ -139,7 +340,7 @@ end
 
 tests["water in front of the piers and along the bridges stays clear"] = function(t)
 	local bad = {}
-	for _, group in { map.Lagoon, map.Nature } do
+	for _, group in { map.Lagoon, map.Nature } do -- (Map.Shore: its own, finer test above)
 		for _, p in group:GetDescendants() do
 			if p:IsA("BasePart") then
 				local pos = p.CFrame.Position

@@ -167,6 +167,12 @@ return function(parent: any, world: any): { parts: number, rects: number }
 						elseif tint < -0.28 then GRASS_FOREST
 						elseif tint > 0.32 then GRASS_MEADOW
 						else GRASS_LIME
+				elseif kind == "sand" and capColor then
+					-- zero-part variety (v3 detail): every sand rectangle a touch lighter or darker
+					-- (±3.5 % value in soft noise patches), so the beaches are not one flat colour
+					local h, s, v = capColor:ToHSV()
+					local jitter = world:noise(cx / 40 + 11.3, cz / 40 - 7.1)
+					capColor = U.Color3.fromHSV(h, s, math.clamp(v * (1 + 0.035 * jitter), 0, 0.88))
 				end
 				local bodyColor = style.body
 				if underwater then

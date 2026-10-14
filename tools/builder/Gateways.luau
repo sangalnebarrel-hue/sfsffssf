@@ -601,7 +601,13 @@ local function playFort(parent: any, cf: any, color: any, roof: any, paint: any)
 	gable(b, "RoofA", -10.4, 1.4, -0.4, 11.4, 15, 4.5, roof)
 	b:box("RidgeA", -10.7, 19, 4.9, 1.7, 19.8, 6.1, C.WoodDark, Kit.NOSHADOW)
 	b:box("Mast", -4.75, 19.8, 5.25, -4.25, 25, 5.75, C.WoodDark, Kit.NOSHADOW)
-	b:box("Pennant", -4.25, 22.8, 5.38, -0.6, 24.8, 5.62, C.Yellow, Kit.DECOR)
+	Kit.sway(
+		b:box("Pennant", -4.25, 22.8, 5.38, -0.6, 24.8, 5.62, C.Yellow, Kit.DECOR),
+		b.cf * CFrame.new(-4.25, 23.8, 5.5),
+		10,
+		"Y",
+		2.2
+	)
 	-- the castle tower: x 3..10, z -10..-3
 	for i, p in { { 3.6, -9.4 }, { 9.4, -9.4 }, { 9.4, -3.6 }, { 3.6, -3.6 } } do
 		b:box(`PostB{i}`, p[1] - 0.6, -0.3, p[2] - 0.6, p[1] + 0.6, 11, p[2] + 0.6, paint)
@@ -924,7 +930,13 @@ local function lookoutTower(parent: any, cf: any, roof: any, color: any)
 	b:box("RailR", 3.7, 11.2, -3.7, 4.3, 11.9, 4.3, C.Wood, Kit.NOSHADOW)
 	gable(b, "Roof", -5, 5, -5, 5, 15, 3.2, roof)
 	b:box("Ridge", -5.3, 17.8, -0.5, 5.3, 18.6, 0.5, C.BarkDark, Kit.NOSHADOW)
-	b:box("Pennant", 4.6, 17.4, -0.12, 7.8, 18.8, 0.12, color, Kit.DECOR)
+	Kit.sway(
+		b:box("Pennant", 4.6, 17.4, -0.12, 7.8, 18.8, 0.12, color, Kit.DECOR),
+		b.cf * CFrame.new(4.6, 18.1, 0),
+		10,
+		"Y",
+		2.3
+	)
 	U.partCount += 1
 	U.new("TrussPart", {
 		Name = "Ladder",
@@ -951,13 +963,16 @@ local function bunting(b: any, name: string, a: { number }, c: { number }, h: nu
 	for i = 1, n do
 		local t = i / (n + 1)
 		local m = p:Lerp(q, t) - Vector3.new(0, 0.75 + 0.5 * math.sin(t * math.pi), 0)
-		b:block(
+		local flag = b:block(
 			`{name}Flag{i}`,
 			Vector3.new(0.12, 1.3, 1.15),
 			CFrame.lookAt(m, m + dir),
 			C.Festive[(i - 1) % #C.Festive + 1],
 			Kit.DECOR
 		)
+		-- (each pennant swings about the rope above it)
+		local hang = b.cf * (m + Vector3.new(0, 0.65, 0))
+		Kit.sway(flag, CFrame.lookAt(hang, hang + b.cf:VectorToWorldSpace(dir)), 7, "Z", 2.4 + 0.2 * (i % 3))
 	end
 end
 
@@ -1498,7 +1513,13 @@ local function harbourHouse(parent: any, cf: any, color: any, m: number)
 	b:box("TowerRoof2", xm - 2.3, 24.6, -2.3, xm + 2.3, 25.8, 2.3, SLATE, Kit.NOSHADOW)
 	b:box("Finial", xm - 0.45, 25.8, -0.45, xm + 0.45, 27, 0.45, FINIAL, Kit.NOSHADOW)
 	b:pole("FlagPole", 0.35, xm, 0, 27, 31.5, C.WoodDark, Kit.DECOR)
-	b:box("Flag", xm + 0.2, 29.2, -0.1, xm + 3.6, 31.3, 0.1, color, Kit.DECOR)
+	Kit.sway(
+		b:box("Flag", xm + 0.2, 29.2, -0.1, xm + 3.6, 31.3, 0.1, color, Kit.DECOR),
+		b.cf * CFrame.new(xm + 0.2, 30.25, 0),
+		9,
+		"Y",
+		2.4
+	)
 	return b:finish(b.base)
 end
 
@@ -1950,7 +1971,13 @@ local function rangerHut(parent: any, cf: any, color: any)
 	local sign = b:box("Sign", -2.6, 7.4, -6.5, 2.6, 9.6, -6.15, C.Cream)
 	Kit.sign(sign, Enum.NormalId.Front, "ЛЕСНИК", INK, nil, { pps = 30 })
 	b:pole("FlagPole", 0.4, 4.6, -5.4, 9.2, 19, C.WoodDark)
-	b:box("Flag", 4.8, 16, -5.55, 8, 18.4, -5.25, color, Kit.DECOR)
+	Kit.sway(
+		b:box("Flag", 4.8, 16, -5.55, 8, 18.4, -5.25, color, Kit.DECOR),
+		b.cf * CFrame.new(4.8, 17.2, -5.4),
+		9,
+		"Y",
+		2.5
+	)
 	b:box("Lamp", -3.2, 9.6, -2.9, -2.4, 10.8, -2.4, C.Glow, Kit.NEON_DECOR)
 	b:box("WaterBarrel", -7.4, -0.4, 2, -5.6, 2.4, 3.8, C.Wood, Kit.NOSHADOW)
 	-- a ladder (a climbable truss, Roblox sizes them in 2-stud steps) up the right side

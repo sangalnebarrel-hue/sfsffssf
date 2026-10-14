@@ -269,7 +269,133 @@ tests["base template: within the part budget, the base colour only on small part
 			end
 		end
 	end
-	t.ok(parts <= 940, `BaseTemplate has {parts} parts (budget 940)`)
+	-- (tools/builder/BaseTemplate.luau BUDGET, DESIGN.md §3: one base at runtime, its own variant only)
+	t.ok(parts <= 1060, `Base_1 has {parts} parts (budget 1060)`)
+	sim:AssertNoErrors()
+end
+
+-- Base-local position (Root frame: -Z to the lagoon, y = 0 GroundTop) and the box half-extents of
+-- a part in that frame.
+local function localBox(root: any, part: any): (any, any)
+	local cf = root:ToObjectSpace(part.CFrame)
+	local s = part.Size / 2
+	local ex = math.abs(cf.RightVector.X) * s.X + math.abs(cf.UpVector.X) * s.Y + math.abs(cf.LookVector.X) * s.Z
+	local ey = math.abs(cf.RightVector.Y) * s.X + math.abs(cf.UpVector.Y) * s.Y + math.abs(cf.LookVector.Y) * s.Z
+	local ez = math.abs(cf.RightVector.Z) * s.X + math.abs(cf.UpVector.Z) * s.Y + math.abs(cf.LookVector.Z) * s.Z
+	return cf.Position, roblox.Vector3.new(ex, ey, ez)
+end
+
+tests["base variants: every base keeps one pier scene, the 4 scenes repeat every 4 bases"] = function(t)
+	local sim = boot(t)
+	local seen = {}
+	for i = 1, 8 do
+		local model = bases(sim):FindFirstChild(`Base_{i}`)
+		local scenes = model.PierKit.Scenes:GetChildren()
+		t.eq(#scenes, 1, `Base_{i}: one scene left ({#scenes})`)
+		local scene = scenes[1]
+		t.eq(scene:GetAttribute("Variant"), (i - 1) % 4 + 1, `Base_{i}: its own variant`)
+		seen[scene.Name] = true
+		-- no instance of another base's variant anywhere in the base
+		for _, d in model:GetDescendants() do
+			local k, of = d:GetAttribute("Variant"), d:GetAttribute("VariantOf")
+			if typeof(k) == "number" and typeof(of) == "number" then
+				t.eq((i - 1) % of + 1, k, `Base_{i}: {d:GetFullName()} belongs here`)
+			end
+		end
+	end
+	local kinds = 0
+	for _ in seen do
+		kinds += 1
+	end
+	t.eq(kinds, 4, "four different pier scenes")
+	sim:AssertNoErrors()
+end
+
+tests["pier and yard kits: decor only, clear walkway lane, camera and cast zones kept"] = function(t)
+	local sim = boot(t)
+	for i = 1, 8 do
+		local model = bases(sim):FindFirstChild(`Base_{i}`)
+		local root = model.PrimaryPart.CFrame
+		local spot = root:PointToObjectSpace(model.FishingSpot.Position)
+		for _, kitName in { "PierKit", "YardKit" } do
+			for _, d in model[kitName]:GetDescendants() do
+				if not d:IsA("BasePart") then
+					continue
+				end
+				local name = d:GetFullName()
+				t.ok(
+					not d.CanCollide and not d.CanQuery and not d.CanTouch and not d.CastShadow,
+					`{name}: decor flags (no collisions, raycasts, touches, shadows)`
+				)
+				if kitName ~= "PierKit" then
+					continue
+				end
+				local p, e = localBox(root, d)
+				-- the walkway's middle lane (x ±4.5 over the deck, z -50..0) stays free
+				local onWalk = p.Z + e.Z > -50 and p.Z - e.Z < 0 and p.Y - e.Y < 3
+				local battens = d.Name == "Batten"
+				t.ok(battens or not onWalk or p.X - e.X >= 4.5 or p.X + e.X <= -4.5, `{name}: off the walkway lane`)
+				-- the follow camera: nothing above y 7 within 13 studs of the spot, nothing over
+				-- 1.5 tall right behind the player
+				local dx, dz = p.X - spot.X, p.Z - spot.Z
+				if math.sqrt(dx * dx + dz * dz) < 13 then
+					t.ok(p.Y + e.Y <= 7.01, `{name}: below y 7 near the fishing spot ({p.Y + e.Y})`)
+				end
+				if math.abs(p.X) - e.X < 7 and p.Z + e.Z > -67 and p.Z - e.Z < -55 then
+					t.ok(p.Y + e.Y <= 0.75 + 1.5, `{name}: low behind the player ({p.Y + e.Y})`)
+				end
+			end
+		end
+		-- the cast clear zone (x -6..16, z -72..-115): nothing of the base above the water there
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") and d.Transparency < 1 then
+				local p, e = localBox(root, d)
+				if p.X + e.X > -6 and p.X - e.X < 16 and p.Z - e.Z < -72 and p.Z + e.Z > -115 then
+					t.ok(p.Y + e.Y <= -4.6, `Base_{i}: {d:GetFullName()} above the water in the cast zone`)
+				end
+			end
+		end
+	end
+	sim:AssertNoErrors()
+end
+
+tests["moving details: Sway marks carry a valid axis, period and a hang point on the part"] = function(t)
+	local sim = boot(t)
+	local model = bases(sim):FindFirstChild("Base_1")
+	local count = 0
+	for _, d in model:GetDescendants() do
+		local amp = d:GetAttribute("Sway")
+		if amp == nil then
+			continue
+		end
+		count += 1
+		local name = d:GetFullName()
+		t.ok(typeof(amp) == "number" and amp > 0 and amp <= 30, `{name}: Sway {amp}°`)
+		local axis = d:GetAttribute("SwayAxis")
+		t.ok(axis == "X" or axis == "Y" or axis == "Z", `{name}: SwayAxis {axis}`)
+		local period = d:GetAttribute("SwayPeriod")
+		t.ok(typeof(period) == "number" and period > 0.5, `{name}: SwayPeriod {period}`)
+		local primary = if d:IsA("BasePart") then d else d.PrimaryPart
+		t.ok(primary ~= nil, `{name}: has a pivot part`)
+		if primary then
+			local pivot = (primary.CFrame * primary.PivotOffset).Position
+			-- the hang point lies on (or right beside) the swinging part
+			local o = primary.CFrame:PointToObjectSpace(pivot)
+			local h = primary.Size / 2 + roblox.Vector3.new(4, 4, 4)
+			t.ok(math.abs(o.X) <= h.X and math.abs(o.Y) <= h.Y and math.abs(o.Z) <= h.Z, `{name}: pivot near the part`)
+		end
+		local parts = if d:IsA("BasePart") then { d } else {}
+		for _, p in d:GetDescendants() do
+			if p:IsA("BasePart") then
+				table.insert(parts, p)
+			end
+		end
+		for _, p in parts do
+			t.ok(not p.CanCollide, `{p:GetFullName()}: a swinging part never collides`)
+		end
+	end
+	t.ok(count >= 10, `swinging details on a base: {count}`)
+	t.ok(model.Flag.Cloth:GetAttribute("Sway") ~= nil, "the flag's cloth flutters")
 	sim:AssertNoErrors()
 end
 

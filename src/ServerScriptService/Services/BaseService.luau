@@ -10,6 +10,8 @@
 	     числовой атрибут AccentShade (от -1 до 1) даёт оттенок: > 0 — светлее (к белому),
 	     < 0 — темнее (к чёрному). Все TextLabel с именами OwnerLabel / BaseLabel (табличка над
 	     флагом, вывеска на воротах и т.д.) показывают владельца и название базы.
+	     Сценки с атрибутами Variant / VariantOf (например, крабовые ловушки или якорь на пирсе)
+	     остаются только на «своих» базах — так 8 баз не одинаковые.
 	  2. Выдаёт игроку свободную базу при входе и освобождает её при выходе.
 	     Если свободных баз нет — игрок ждёт на хабе в очереди (первым пришёл — первым получил).
 	  3. Сам спаунит персонажей (Players.CharacterAutoLoads = false): персонаж появляется
@@ -176,6 +178,22 @@ local function shadeColor(color: Color3, shade: any): Color3
 	return Color3.fromHSV(h, math.min(1, s * (1 + 0.15 * amount)), v * (1 - 0.6 * amount))
 end
 
+-- Варианты баз: чтобы 8 баз не были одинаковыми копиями, в шаблоне есть сценки с числовыми
+-- атрибутами Variant = k и VariantOf = n. База с номером index оставляет только те, у которых
+-- (index - 1) % n + 1 == k, остальные удаляются сразу после клонирования (до покраски).
+local function dropOtherVariants(model: Model, index: number)
+	local dropped: { Instance } = {}
+	for _, descendant in model:GetDescendants() do
+		local k, of = descendant:GetAttribute("Variant"), descendant:GetAttribute("VariantOf")
+		if typeof(k) == "number" and typeof(of) == "number" and of >= 1 and (index - 1) % of + 1 ~= k then
+			table.insert(dropped, descendant)
+		end
+	end
+	for _, inst in dropped do
+		inst:Destroy()
+	end
+end
+
 local function createBase(template: Model, slot: BasePart, index: number, parent: Instance): Base
 	local colors = BaseConfig.Colors
 	local colorDef = colors[(index - 1) % #colors + 1]
@@ -185,6 +203,7 @@ local function createBase(template: Model, slot: BasePart, index: number, parent
 	local model = template:Clone()
 	model.Name = `Base_{index}`
 	model:PivotTo(slot.CFrame)
+	dropOtherVariants(model, index)
 
 	-- Красим акцентные детали в цвет базы (с оттенком) и собираем все надписи базы.
 	local ownerLabels: { TextLabel } = {}

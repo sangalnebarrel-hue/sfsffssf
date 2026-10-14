@@ -126,6 +126,7 @@
 local U = require("./Util")
 local Props = require("./Props")
 local Promenade = require("./Promenade") -- district colours of the bridges and gateways
+local Kit = require("./MapKit") -- Kit.sway: moving details for the ambient wave
 
 local Enum = U.Enum
 local CFrame = U.CFrame
@@ -1113,6 +1114,8 @@ local function pennants(parent: any, a: any, b: any, n: number, sag: number, w: 
 		local cf = CFrame.fromMatrix(p - V(0, h / 2 + 0.02, 0), along, up, along:Cross(up))
 		U.part(m, `Flag{i}`, V(w, h, 0.26), cf, col, nil, DECOR)
 	end
+	-- the pennants swing about the rope line (the pivot's local Z runs along it)
+	Kit.sway(m, CFrame.lookAt((a + b) / 2, b), 5, "Z", 2.6)
 end
 
 --[[
@@ -2551,6 +2554,7 @@ local function festoon(parent: any, a: any, b: any, n: number, sag: number)
 		local p = if t <= 0.5 then a + (low - a) * (t * 2) else low + (b - low) * ((t - 0.5) * 2)
 		U.part(m, `Bulb{i}`, V(0.6, 0.7, 0.6), CFrame.new(p - V(0, 0.45, 0)), C.Glow, nil, NEON_DECOR)
 	end
+	Kit.sway(m, CFrame.lookAt((a + b) / 2, b), 3, "Z", 3.2)
 end
 
 --[[
@@ -3905,7 +3909,7 @@ local function lifeguard(parent: any, world: any)
 	F:box("CabinRoof", -3.0, 9.6, -2.6, 3.0, 10.4, 3.0, C.Red)
 	F:box("Ladder", -0.8, -0.3, 2.9, 0.8, 6.2, 3.3, C.WoodLight, NOSHADOW)
 	F:box("FlagPole", 2.55, 10.4, 2.55, 2.85, 14.2, 2.85, C.White, NOSHADOW)
-	F:box("Flag", 2.85, 12.4, 2.62, 5.2, 14.0, 2.78, C.Red, DECOR)
+	Kit.sway(F:box("Flag", 2.85, 12.4, 2.62, 5.2, 14.0, 2.78, C.Red, DECOR), F:at(2.85, 13.2, 2.7), 10, "Y", 2.2)
 	Props.lifebuoy(F.model, F:at(0, 3.4, -2.35, 0), { seed = 150 })
 	F.model.PrimaryPart = floor
 end

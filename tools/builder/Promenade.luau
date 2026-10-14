@@ -114,6 +114,8 @@ Promenade.Themes = {
 -- red line (a running track).
 local WALK = lerp(lerp(C.Sand, C.Flagstone, 0.5), C.Limestone, 0.2)
 local WALK2 = lerp(WALK, C.FlagstoneDark, 0.55)
+local WALK3 = lerp(WALK, C.Limestone, 0.4) -- (v3 detail: a third tone, and every 12th flag an odd stone)
+local WALK_ODD = lerp(WALK2, C.Cobble, 0.65)
 local RUNNER = lerp(lerp(C.Brick, C.RoofTerracotta, 0.6), C.Sand, 0.06)
 local RUNNER2 = lerp(lerp(C.Brick, C.Sand, 0.45), C.RoofTerracotta, 0.15)
 local BAND = lerp(C.Limestone, C.Cream, 0.4)
@@ -784,7 +786,9 @@ local function pillarLamp(parent: any, cf: any, light: boolean, banner: any?)
 		-- a banner hanging from an iron arm off the post over the walk's edge (seen face-on
 		-- along the ring, its foot 5.6 over the walk)
 		b:box("Arm", -0.15, 4.45, 0.45, 0.15, 4.75, 2.6, C.Iron, Kit.DECOR)
-		b:box("Banner", -0.09, 2.0, 0.85, 0.09, 4.45, 2.35, banner, Kit.DECOR)
+		local flag = b:box("Banner", -0.09, 2.0, 0.85, 0.09, 4.45, 2.35, banner, Kit.DECOR)
+		-- it swings about the arm (local Z) from its top edge
+		Kit.sway(flag, cf * CFrame.new(0, 4.45, 1.6), 6, "Z", 2.4)
 	end
 	if light then
 		Kit.light(glow, 16, 1.3)
@@ -1336,7 +1340,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 			outer,
 			G - 1,
 			top,
-			if k % 2 == 0 then WALK else WALK2,
+			if k % 12 == 5 then WALK_ODD else ({ WALK, WALK2, WALK3 })[k % 3 + 1],
 			FLAT
 		)
 		local brick = if k % 2 == 0 then RUNNER else RUNNER2
@@ -1791,6 +1795,221 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	end
 
 	return lamps
+end
+
+--------------------------------------------------------------------------------------------
+-- Details (v3 micro-detail): built after Nature (Map.luau), keeping off every part already there
+--------------------------------------------------------------------------------------------
+
+-- The landmark between two plots (the beach steps' angle) and its name on the arrow signs.
+local LANDMARK_NAMES = {
+	[45] = "ВОДОПАД",
+	[135] = "МЕЛЬНИЦА",
+	[225] = "БОЛЬШОЕ ДЕРЕВО",
+	[315] = "ВЕРШИНА",
+}
+local SIGN_BOARD = lerp(C.Cream, C.WoodLight, 0.25)
+local BASKET = lerp(C.Straw, C.Wood, 0.35)
+
+--[[
+	An arrow board on a signpost (2 parts: the plank and its pointed tip, a square turned 45°)
+	pointing `dir` (+1 / -1) along the frame's x; the name on both faces, each with its arrow
+	towards the tip as seen from that side.
+]]
+local function arrowBoard(b: any, y: number, dir: number, text: string, color: any)
+	local L = 5.6
+	local x0, x1 = dir * 0.3, dir * (0.3 + L)
+	local board = b:box("Arrow", math.min(x0, x1), y - 0.55, -0.12, math.max(x0, x1), y + 0.55, 0.12, color, Kit.DECOR)
+	b:block(
+		"ArrowTip",
+		Vector3.new(0.78, 0.78, 0.2),
+		CFrame.new(x1, y, 0) * CFrame.Angles(0, 0, rad(45)),
+		color,
+		Kit.DECOR
+	)
+	-- seen from the front (local -Z) the frame's +x is on the viewer's left; from the back, right
+	local front = if dir > 0 then "← " .. text else text .. " →"
+	local back = if dir > 0 then text .. " →" else "← " .. text
+	Kit.sign(board, U.Enum.NormalId.Front, front, C.Navy, nil, { pps = 40, size = 0.82 })
+	Kit.sign(board, U.Enum.NormalId.Back, back, C.Navy, nil, { pps = 40, size = 0.82 })
+end
+
+--[[
+	Promenade.buildDetails — the walk's small things, placed where nothing stands yet (`obstacles`
+	from Kit.obstacles): iron mooring bollards on the sea wall's coping ledge beside every pier and
+	bridge landing, hanging flower baskets (Sway) on the lamps without a banner, a litter bin by
+	every plot gate's bench and an arrow signpost at every pier's mouth (the way to the bridge and
+	to the landmark between the plots). Nothing on the walk's middle 10 studs. Returns its parts.
+]]
+--[[
+	A wooden signpost (1 part + 2 per board) standing on cf: arrow boards, the first on top, each
+	{ dir = +1 | -1 (along cf's local x), text }; boards in cream and a blue-grey cream by turns.
+	Shared with the hub (HubDetails.luau).
+]]
+function Promenade.signpost(parent: any, cf: any, boards: { any }): any
+	local b = Kit.builder(parent, "Signpost", cf)
+	b:box("SignPole", -0.3, -0.2, -0.3, 0.3, 7.2, 0.3, C.WoodDark, Kit.DECOR)
+	for k, board in boards do
+		local color = if k % 2 == 1 then SIGN_BOARD else lerp(SIGN_BOARD, C.RoofBlue, 0.15)
+		arrowBoard(b, 6.2 - (k - 1) * 1.4, board.dir, board.text, color)
+	end
+	return b:finish()
+end
+
+function Promenade.buildDetails(map: any, cfg: any, world: any, obstacles: any): number
+	local promenade = map:FindFirstChild("Promenade") or U.model(map, "Promenade")
+	local details = U.model(promenade, "Details")
+	local before = U.partCount
+	local blocked, topAt = obstacles.blocked, obstacles.topAt
+	local G = cfg.GroundTop
+	local inner = cfg.PromenadeRadius
+	local outer = inner + cfg.PromenadeWidth
+	local top = G + DECK_TOP
+	local _ = world
+
+	-- Iron mooring bollards on the coping ledge either side of every pier and bridge landing
+	-- (where it is free: the ledge vignettes and the fishing spot keep their places).
+	local bollards = U.model(details, "Bollards")
+	local function bollard(a: number)
+		local p = U.polar(a, WALL_IN + 1.15, 0)
+		local ledge = topAt(p.X, p.Z, top + 0.7)
+		if not ledge or ledge < top + 0.3 then
+			return
+		end
+		local cf = CFrame.new(p.X, ledge, p.Z) * CFrame.Angles(0, rad(a), 0)
+		if blocked(cf, 1.4, 1.4, ledge + 0.05, ledge + 1.4) then
+			return
+		end
+		U.part(
+			bollards,
+			"Bollard",
+			Vector3.new(1.25, 1.0, 1.0),
+			cf * CFrame.new(0, 0.62, 0) * CFrame.Angles(0, 0, rad(90)),
+			C.Iron,
+			nil,
+			{ Shape = U.Enum.PartType.Cylinder, CanCollide = false, CanQuery = false, CastShadow = false }
+		)
+	end
+	for i = 1, cfg.BaseCount do
+		local base = cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount
+		for _, off in { 7.0, 8.7, 10.4 } do
+			bollard(base + off)
+			bollard(base - off)
+		end
+	end
+	for _, b in cfg.BridgeAngles do
+		for _, off in { 3.0, 4.7 } do
+			bollard(b + off)
+			bollard(b - off)
+		end
+	end
+
+	-- Hanging flower baskets on the lamps without a banner: an iron arm over the coping ledge and
+	-- a wicker basket of greens and blooms swinging on a chain (Sway about the arm's end).
+	local lamps = promenade:FindFirstChild("Lamps")
+	local nb = 0
+	for _, lamp in (if lamps then lamps:GetChildren() else {}) do
+		if not lamp:IsA("Model") or lamp:FindFirstChild("Banner") or not lamp.PrimaryPart then
+			continue
+		end
+		nb += 1
+		local pivot = lamp.PrimaryPart.CFrame * lamp.PrimaryPart.PivotOffset
+		local b = Kit.builder(details, "HangingBasket", pivot)
+		b:box("Arm", -0.15, 4.45, -2.7, 0.15, 4.75, -0.45, C.Iron, Kit.DECOR)
+		local basket = U.model(b.model, "Basket")
+		local hang = pivot * CFrame.new(0, 4.45, -2.25)
+		local first =
+			U.part(basket, "Basket", Vector3.new(1.7, 0.9, 1.7), hang * CFrame.new(0, -1.6, 0), BASKET, nil, Kit.DECOR)
+		U.part(
+			basket,
+			"BasketGreens",
+			Vector3.new(2.0, 0.7, 2.0),
+			hang * CFrame.new(0, -1.05, 0),
+			C.Leaf2,
+			nil,
+			Kit.DECOR
+		)
+		U.part(
+			basket,
+			"BasketBloom",
+			Vector3.new(1.0, 0.45, 1.0),
+			hang * CFrame.new(0.2, -0.55, -0.1),
+			C.Flowers[(nb % 4) + 1],
+			nil,
+			Kit.DECOR
+		)
+		U.part(
+			basket,
+			"BasketChain",
+			Vector3.new(0.12, 1.1, 0.12),
+			hang * CFrame.new(0, -0.55, 0.5),
+			C.Iron,
+			nil,
+			Kit.DECOR
+		)
+		basket.PrimaryPart = first
+		first.PivotOffset = first.CFrame:Inverse() * hang
+		basket:SetAttribute("Sway", 5)
+		basket:SetAttribute("SwayAxis", "X")
+		basket:SetAttribute("SwayPeriod", 2.8 + (nb % 3) * 0.3)
+		b:finish()
+	end
+
+	-- A litter bin beside every plot gate's bench.
+	for i = 1, cfg.BaseCount do
+		local base = cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount
+		local d = math.deg(5.2 / (outer - 3.2))
+		for _, off in { 9 + d, 9 - d } do
+			local p = U.polar(base + off, outer - 3.0, 0)
+			local cf = CFrame.new(p.X, top, p.Z) * CFrame.Angles(0, rad(base + off), 0)
+			if not blocked(cf, 1.8, 1.8, top + 0.05, top + 2.4) then
+				local b = Kit.builder(details, "Bin", cf)
+				b:pole("BinBody", 1.6, 0, 0, 0, 2.0, C.RoofGreen, Kit.DECOR)
+				b:box("BinLid", -0.9, 2.0, -0.9, 0.9, 2.3, 0.9, C.Iron, Kit.DECOR)
+				b:finish()
+				break
+			end
+		end
+	end
+
+	-- An arrow signpost at every pier's mouth (on the lagoon side of the walk, beside the opening):
+	-- the way to the bridge to the island and the way to the landmark between this plot and the
+	-- next one.
+	for i = 1, cfg.BaseCount do
+		local base = cfg.BaseAngleOffset + (i - 1) * 360 / cfg.BaseCount
+		local bridgeDir, mark = 0, nil
+		for _, ba in cfg.BridgeAngles do
+			if Kit.angleDistance(base, ba) < 23 then
+				bridgeDir = if ((ba - base + 540) % 360) - 180 > 0 then 1 else -1
+			end
+		end
+		for la, name in LANDMARK_NAMES do
+			if Kit.angleDistance(base, la) < 23 then
+				mark = name
+			end
+		end
+		for _, side in { 1, -1 } do
+			local a = base + side * 3.4
+			local p = U.polar(a, inner + 2.6, 0)
+			-- (polarCFrame: local +X points towards increasing angles, -Z to the lagoon)
+			local cf = CFrame.new(p.X, top, p.Z) * CFrame.Angles(0, rad(a), 0)
+			if blocked(cf, 1.2, 1.2, top + 0.05, top + 7.5) then
+				continue
+			end
+			Promenade.signpost(details, cf, {
+				{ dir = bridgeDir, text = "МОСТ" },
+				{ dir = -bridgeDir, text = mark or "ДЕРЕВНЯ" },
+			})
+			break
+		end
+	end
+
+	for _, part in details:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Locked = true
+		end
+	end
+	return U.partCount - before
 end
 
 return Promenade

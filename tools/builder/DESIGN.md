@@ -185,6 +185,30 @@ lays its own floor/paths/borders on top (slab tops at y ≈ 0.2; nothing coplana
 * `Accent = true` attribute → painted with the base colour; optional number attribute
   `AccentShade` in [−1, 1]: > 0 lerps towards white by that amount, < 0 towards black.
 
+### Per-base variants and the micro-kits (v3 detail)
+
+* **Variants:** a template instance (Model or BasePart) with number attributes `Variant = k` and
+  `VariantOf = n` is kept only on the bases whose index `i` gives `(i − 1) % n + 1 == k`;
+  BaseService destroys it on the others right after cloning (before painting), and
+  `tools/preview/export_parts.luau` mirrors the rule. Today: `PierKit.Scenes` — 4 little scenes
+  on the platform's free front-right deck (crab pots, a net heap with a float basket, flower boxes
+  on the front rails, an anchor with oars), so bases 1/5, 2/6, 3/7, 4/8 differ (and every base
+  has its own Accent colour on the tackle box, pennants, roof flag and bird-house roof). Names
+  the server relies on are never inside a variant.
+* **`PierKit`** (BaseTemplate.buildPierDressing, ~68 parts + one scene): lanterns on the two front
+  posts framing the cast (Neon, no PointLight), battens across the walkway, rope coils, hung buoys,
+  potted plants at the root, a pennant string across the walkway's end, a tackle box (Accent) and
+  a stool beside the spot, fish traps, a net with floats over the right rail, drying fish, a basket
+  of the catch, a crab pot on a line, algae collars on the platform piles, a windsock, a roof
+  pennant and a shell wind chime on the shelter. **`YardKit`** (25 parts): a wheelbarrow, a
+  watering can, an (empty) bird house, stepping stones, grass tufts. Roof tile courses on the
+  house, smokehouse and tackle shed (`RoofCourse`, darker Accent), plank strips in three tones.
+* **Rules for every kit part** (tests/stage1_bases.test.luau): decor (CanCollide, CanQuery,
+  CanTouch, CastShadow all false); nothing in the walkway's middle lane (|x| ≤ 4.5); nothing above
+  local y 7 within 13 studs of `FishingSpot`; nothing over 1.5 tall in the follow camera's sector
+  behind the player (|x| ≤ 7, z −67 … −55); nothing above y −4.6 (the water) in the cast clear
+  zone (x −6 … 16, z −72 … −115); layered decor ≥ 0.02 above the face below (studs).
+
 ## 3. Builder modules and who owns what
 
 | file | owner | returns |
@@ -195,13 +219,15 @@ lays its own floor/paths/borders on top (slab tops at y ≈ 0.2; nothing coplana
 | `tools/builder/BaseTemplate.luau` | template | `ServerStorage.BaseTemplate` |
 | `tools/builder/Hub.luau` | hub | `Workspace.Map.Hub` |
 | `tools/builder/Map.luau` | map | assembles Map: slots, ground, hub, bridges, promenade, landmarks, nature, lagoon/ocean decor, boundaries; prints the dressing budget |
-| `tools/builder/MapKit.luau` | map | shared helpers: seeded rng, Props call, local-frame block builder, signs, lights, claims, stairs over the voxel ground, cheap lamp / flower bed |
-| `tools/builder/Promenade.luau` | map | `Map.Bridges` (4 × Props.bridge) and `Map.Promenade` (paving, railing with gaps, lamps, bunting, benches, flower boxes, path billboards) |
+| `tools/builder/MapKit.luau` | map | shared helpers: seeded rng, Props call, local-frame block builder, signs, lights, claims, stairs over the voxel ground, cheap lamp / flower bed, `Kit.sway` (moving details), `Kit.obstacles` (what the late kits keep off) |
+| `tools/builder/Promenade.luau` | map | `Map.Bridges` (4 × Props.bridge) and `Map.Promenade` (paving, railing with gaps, lamps, bunting, benches, flower boxes, path billboards; `Promenade.buildDetails` after Nature: coping bollards, hanging baskets, bins, arrow signposts) |
 | `tools/builder/Gateways.luau` | map | `Map.Gateways` — 4 themed plazas (arch + sign, centrepiece, stall, notice board, photo frame, flower beds) |
 | `tools/builder/Landmarks.luau` | map | `Map.Landmarks` — waterfall (stream, cliff stairs, lookout), windmill (tulip terraces, stairs, fence), giant tree, peaks |
 | `tools/builder/Coast.luau` | map | `Map.Lagoon`, `Map.Ocean` (islets, shipwreck, rock arch, whale, far sailboats), `Map.Sky` (clouds) |
 | `tools/builder/Nature.luau` | map | `Map.Nature` — groves by noise + visibility within the part budget left over by the others |
 | `tools/builder/Studs.luau` | core | LEGO studs post-pass over Map and BaseTemplate (`apply`, `resolveCoplanar`, `coplanarPairs`) |
+| `tools/builder/Shore.luau` | map | `Map.Shore` (built after Nature, keeps off every part): surf `Foam` and `WetSand` strips along every sand/water voxel edge (ring + hub), beach stories (sandcastle, parasol, driftwood, pinwheel, bottle), finds, rocks and reeds, float lines either side of every base's fishing water, drifting cargo, lilies, kelp and sunken chests (`Underwater`) |
+| `tools/builder/HubDetails.luau` | map | `Map.Hub.Details` (after Nature): café tables, flower barrels, arrow signposts on the hub plaza |
 
 Builder conventions (unchanged): deterministic (no `math.random`, seeds only), anchored parts
 via `Util.part`, `CanTouch = false` by default, foliage/tiny details `CanCollide = false` and
@@ -209,15 +235,42 @@ via `Util.part`, `CanTouch = false` by default, foliage/tiny details `CanCollide
 models' pivots via `WorldPivotData`/PrimaryPart, part budgets respected, no PointLight shadows,
 PointLight Range ≤ 16.
 
-Part budgets (runtime total target ≈ 16 000, plus fish models later): ground ≤ 4 000 (column
-caps, bodies, cliff strata, six mountains), 8 bases × ≤ 940, hub ≤ 2 200, map dressing
-(everything in `Workspace.Map` except Ground and Hub) ≤ 6 900 parts and 40 PointLights, of which
-Nature gets at least 2 500: Map.luau builds Nature last with whatever is left and fails the
-build when a cap is exceeded or Nature falls short.
+Part budgets (v3; StreamingEnabled is off, so every phone holds every part from the join on;
+numbers in `MapConfig.PartBudget`, enforced by `tools/build.luau`):
 
-Spinning models: any Model under `Workspace.Map` with a number attribute `Spin` (degrees per
-second) is turned about its pivot's LookVector by the client (AmbientController); child Models
-with `KeepUpright = true` stay level.
+| what | cap | now |
+|---|---|---|
+| **static** (Workspace.Map + 8 × one base with its own variant) | **24 000** | ≈ 23 470 |
+| **runtime peak** = static + reserve (stage-3 tank fish 1 920, ambient life 140, characters 260, fishing FX 400) | **26 500** | ≈ 26 190 |
+| ground (column caps, bodies, cliff strata, mountains) | ≤ 6 000 (test) | 4 068 |
+| one base at runtime (`BaseTemplate.BUDGET`) / the template with every variant | 1 060 / 1 090 | 1 055 / 1 071 |
+| hub (Hub.luau's own build ≤ 2 900, + HubDetails) | 3 000 | ≈ 2 910 |
+| map dressing (everything in `Workspace.Map` except Ground and Hub) | 8 100 parts, 40 PointLights | ≈ 8 060 |
+| … of which Nature (built with what the others leave) | ≥ 2 050 | 2 208 |
+| … of which the late kits (Promenade details + Shore, after Nature) | 1 200 | ≈ 1 160 |
+
+The kits add no PointLights, no particle emitters and no shadow casters. A builder that needs more
+raises its cap here, in its module and in MapConfig deliberately (and checks the phone budget
+above); Map.luau fails the build when a cap is exceeded or Nature falls short.
+
+### Ambient attributes (the contract for the client's ambient motion)
+
+Builders only **mark** what moves; the client animates it (AmbientController, the [ambient] wave),
+locally: everything that moves is CanCollide/CanQuery false, except the palm trees (their trunks
+collide; they sway only 1.2° about the foot, which stays put). "Pivot" = a Model's
+pivot (its PrimaryPart's CFrame × PivotOffset) or a BasePart's CFrame × PivotOffset. Moving things
+are never nested inside another moving model (an inner one is ignored).
+
+| attribute (number unless noted) | on | motion |
+|---|---|---|
+| `Spin` (°/s) | Model under Workspace.Map | turns about its pivot's LookVector; child Models with `KeepUpright = true` stay level (windmills, Ferris wheel, golden fish, the beach pinwheels) |
+| `Bob` (studs), `BobPeriod` (s, default 3) | Model in Workspace.Map or Workspace.Bases | rises and falls and rolls a little about its pivot (boats, buoys, rafts, the float lines, drifting crates, lily clusters) |
+| `Sway` (° amplitude), `SwayAxis` (string "X" / "Y" / "Z": the pivot's local axis, default "X"), `SwayPeriod` (s, default 3) | Model or BasePart (parts parented under a swaying part ride on it), in Workspace.Map or Workspace.Bases | swings to and fro about the pivot (the hang point), phase hashed from the pivot position: flags and pennants (`Y` about the pole: `Flag.Cloth`, Props.flagPole's `Cloth`, gateway/landmark/nature flags), bunting and festoons (`Z` along the rope), lamp banners and hanging baskets, the pier's pennant string, net, drying fish, hung buoys, wind chime, windsock (`Y`), weathervanes (`Y`, 25°), palm trees (1.2° about the foot), reeds and kelp (about the bed) |
+| `Pulse` (transparency amplitude), `PulsePeriod` (s) | Model (every part in it) | transparency breathes around the parts' own value, phase travelling with position (`Map.Shore.Foam`) |
+| `Drift` (studs/s) | Model under Map.Sky | circles slowly round the island centre (the clouds) |
+
+Cull to ~250 studs from the camera; at most ~400 extra moved parts per tick on top of the ~655
+moved today (BulkMoveTo at 30 Hz).
 
 ## 4. Preview
 
@@ -277,6 +330,11 @@ waterfall pond and the peak's foot.
   summit, pines on the slopes).
 * **Nature** — voxel forests on the hills (pine/oak/cherry/autumn groves by noise), palms
   near the outer beaches, bushes, flowers, rocks, mushrooms. Never on reserved ground.
-* **Lagoon** — sailboats, rowboats, buoys, lily pads near shores.
+* **Lagoon** — sailboats, rowboats, buoys, lily pads near shores; surf and wet sand along every
+  sand edge, beach stories on the ring and hub beaches, a line of red and white floats either
+  side of every base's fishing water (base-local |x| 34), kelp and sunken chests on the slope.
+  The **cast clear zone** of every pier (base-local x −6 … 16, z −72 … −115) has nothing above the
+  water; nothing of the shore kit within 26 studs of a pier's axis out to z −92 (pier, boat,
+  cast).
 * **Ocean** — islets decorated (palms, a lighthouse, shipwreck, rock arch), a whale, voxel
   clouds in the sky.

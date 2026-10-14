@@ -138,8 +138,9 @@ end
 local function pennant(parent: any, cf: any, color: any, h: number)
 	local b = Kit.builder(parent, "Pennant", cf)
 	b:pole("Pole", 0.7, 0, 0, -0.5, h, C.WoodLight)
-	b:box("Cloth", 0.3, h - 3.4, -0.25, 4.6, h - 0.6, 0.25, color, Kit.DECOR)
+	local cloth = b:box("Cloth", 0.3, h - 3.4, -0.25, 4.6, h - 0.6, 0.25, color, Kit.DECOR)
 	b:box("Knob", -0.5, h, -0.5, 0.5, h + 1, 0.5, BRASS, Kit.DECOR)
+	Kit.sway(cloth, cf * CFrame.new(0.3, h - 2, 0), 9, "Y", 2.3) -- (flutters about the pole)
 	return b:finish()
 end
 
@@ -2100,9 +2101,12 @@ local function bigFlag(parent: any, cf: any, h: number, w: number, fh: number, c
 	local foot = b:box("Foot", -1.8, -0.6, -1.8, 1.8, 0.8, 1.8, C.StoneLight)
 	b:pole("Pole", 1.8, 0, 0, 0.8, h, C.WoodLight)
 	b:box("Top", -1.1, h, -1.1, 1.1, h + 1.8, 1.1, BRASS, Kit.DECOR)
-	b:box("Cloth", 0.9, h - fh - 0.4, -0.3, 0.9 + w, h - 0.4, 0.3, color, Kit.DECOR)
-	b:box("Stripe", 1.0, h - fh * 0.62 - 0.4, -0.42, 0.8 + w, h - fh * 0.38 - 0.4, 0.42, C.Cream, Kit.DECOR)
-	b:box("Tail", 0.9 + w, h - fh * 0.8 - 0.4, -0.3, 2.6 + w, h - fh * 0.2 - 0.4, 0.3, color, Kit.DECOR)
+	local cloth = b:box("Cloth", 0.9, h - fh - 0.4, -0.3, 0.9 + w, h - 0.4, 0.3, color, Kit.DECOR)
+	b:box("Stripe", 1.0, h - fh * 0.62 - 0.4, -0.42, 0.8 + w, h - fh * 0.38 - 0.4, 0.42, C.Cream, Kit.DECOR).Parent =
+		cloth
+	b:box("Tail", 0.9 + w, h - fh * 0.8 - 0.4, -0.3, 2.6 + w, h - fh * 0.2 - 0.4, 0.3, color, Kit.DECOR).Parent = cloth
+	-- the cloth (its stripe and tail ride on it) flutters about the pole
+	Kit.sway(cloth, cf * CFrame.new(0.9, h - fh / 2 - 0.4, 0), 6, "Y", 2.8)
 	return b:finish(foot)
 end
 

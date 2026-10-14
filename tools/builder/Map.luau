@@ -17,11 +17,19 @@
 	  Map.Nature       forests, tree belts, palms, flowers, rocks,     (Nature.luau)
 	                   set-pieces on the hills, coral reefs in the lagoon
 	  Map.Boundaries   invisible ring wall in the ocean
+	Then the late micro-detail kits (v3), which keep off every part already built (Kit.obstacles):
+	  Map.Promenade.Details  coping bollards, hanging baskets, bins, signposts (Promenade.luau)
+	  Map.Hub.Details        café tables, flower barrels, signposts        (HubDetails.luau)
+	  Map.Shore              surf and wet sand along the sand edges, beach (Shore.luau)
+	                         stories, float lines, drifting cargo, lilies,
+	                         kelp, sunken chests
 
 	Part budget of the dressing (everything except Ground and Hub): DRESSING_BUDGET parts and
-	LIGHT_BUDGET PointLights. Nature is built last (it keeps off what the others built) and gets
-	whatever the other modules left over, but never less than NATURE_MIN: the build fails when the
-	other modules leave less, and when the dressing as a whole goes over budget.
+	LIGHT_BUDGET PointLights. Nature is built after the others (it keeps off what they built) and
+	gets whatever they left over minus LATE_BUDGET (kept for the late kits), but never less than
+	NATURE_MIN: the build fails when the other modules leave less, when the late kits go over
+	LATE_BUDGET, the hub with its details over HUB_BUDGET, or the dressing as a whole over budget.
+	(The static / runtime caps of the whole place: MapConfig.PartBudget, checked by build.luau.)
 
 	Every part of the map ends up Locked (Studio clicks cannot move generated parts). Returns
 	expectedAttachments for the build's self-check: the hub shops' and the bridge kiosks' prompt
@@ -39,13 +47,19 @@ local Gateways = require("./Gateways")
 local Landmarks = require("./Landmarks")
 local Coast = require("./Coast")
 local Nature = require("./Nature")
+local Shore = require("./Shore")
+local HubDetails = require("./HubDetails")
 local Props = require("./Props")
 
 local Vector3 = U.Vector3
 
-local DRESSING_BUDGET = 6900 -- parts (base slots, bridges, promenade, gateways, landmarks, water, sky, nature, walls)
+local DRESSING_BUDGET = 8100 -- parts (base slots, bridges, promenade, gateways, landmarks, water, sky, nature, walls, shore)
 local LIGHT_BUDGET = 40 -- PointLights of the dressing
 local NATURE_MIN = 2050 -- parts Nature is guaranteed (the hills must look lush)
+-- parts kept for the late kits built after Nature (they keep off everything already there): the
+-- promenade's details (Promenade.buildDetails) and the shore (Shore.luau)
+local LATE_BUDGET = 1200
+local HUB_BUDGET = 3000 -- the hub (Hub.luau keeps its own build under 2900) with its details
 
 --------------------------------------------------------------------------------
 
@@ -125,16 +139,34 @@ return function(game: any, cfg: any, world: any)
 		end
 	end
 	-- (10 spare: Nature fills its budget up to the last few parts)
-	if DRESSING_BUDGET - used < NATURE_MIN + 10 then
+	local natureBudget = DRESSING_BUDGET - LATE_BUDGET - used
+	if natureBudget < NATURE_MIN + 10 then
 		local list = table.concat(usedBy, ", ")
-		error(`map dressing leaves Nature {DRESSING_BUDGET - used} parts (< {NATURE_MIN} + 10); used: {list}`)
+		error(`map dressing leaves Nature {natureBudget} parts (< {NATURE_MIN} + 10); used: {list}`)
 	end
 	-- Props drop small details (fallen leaves, litter) only where the ground really is.
 	Props.groundAt = function(x: number, z: number): number
 		return world:heightAt(x, z)
 	end
-	local natureCounts = Nature.build(map, cfg, world, DRESSING_BUDGET - used)
+	local natureCounts = Nature.build(map, cfg, world, natureBudget)
 	Props.groundAt = nil
+
+	-- The shore kit last: it keeps off every part the others built (DESIGN.md §6).
+	-- The late kits: the promenade's details, then the shore (each keeps off every part already
+	-- built, DESIGN.md §6).
+	local detailParts = Promenade.buildDetails(map, cfg, world, Kit.obstacles(map))
+	local hubDetails = HubDetails.build(map, cfg, Kit.obstacles(map))
+	local hubParts = stats(map.Hub)
+	if hubParts > HUB_BUDGET then
+		error(`Hub has {hubParts} parts with its details ({hubDetails}), budget {HUB_BUDGET}`)
+	end
+	local shoreCounts = Shore.build(map, cfg, world)
+	local shoreParts = stats(map.Shore)
+	if shoreParts + detailParts > LATE_BUDGET then
+		error(
+			`late kits have {shoreParts + detailParts} parts (budget {LATE_BUDGET}): shore {shoreParts}, promenade details {detailParts}`
+		)
+	end
 
 	-- Budget report (printed with the build stats).
 	local report, totalParts, totalLights = {}, 0, 0
@@ -150,6 +182,11 @@ return function(game: any, cfg: any, world: any)
 	print(`  map dressing: {totalParts} parts, {totalLights} lights ({table.concat(report, ", ")})`)
 	-- (the headroom the other dressing still has before Nature would fall under its minimum)
 	print(`  dressing headroom: {natureParts - NATURE_MIN - 10} parts (Nature {natureParts} / min {NATURE_MIN})`)
+	print(
+		`  late kits: {shoreParts + detailParts}/{LATE_BUDGET} parts (promenade details {detailParts}; shore {shoreParts}: foam`
+			.. ` + wet sand {shoreCounts.foam}, beach {shoreCounts.beach}, lagoon {shoreCounts.lagoon});`
+			.. ` hub details {hubDetails} (hub {hubParts}/{HUB_BUDGET})`
+	)
 	if totalParts > DRESSING_BUDGET or totalLights > LIGHT_BUDGET then
 		error(`map dressing over budget: {totalParts}/{DRESSING_BUDGET} parts, {totalLights}/{LIGHT_BUDGET} lights`)
 	end
@@ -176,7 +213,13 @@ return function(game: any, cfg: any, world: any)
 		map = map,
 		groundParts = ground.parts,
 		natureCounts = natureCounts,
-		budget = { dressing = DRESSING_BUDGET, lights = LIGHT_BUDGET, natureMin = NATURE_MIN },
+		budget = {
+			dressing = DRESSING_BUDGET,
+			lights = LIGHT_BUDGET,
+			natureMin = NATURE_MIN,
+			late = LATE_BUDGET,
+			hub = HUB_BUDGET,
+		},
 		lamps = lamps,
 		expectedAttachments = expected,
 	}

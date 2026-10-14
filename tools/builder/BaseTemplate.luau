@@ -67,7 +67,15 @@
 	               with a woodpile and a fish-drying rack (+X), the seating patio (-X); a tall hedge
 	               in three runs with two trellis arches at the back
 	  lz 0..-72    plank pier with rails and lanterns, a moored boat that bobs, the end platform
-	               with the FishingSpot, a shelter over a bench and the rod rack, crates, lifebuoy
+	               with the FishingSpot, a shelter over a bench and the rod rack, crates, lifebuoy;
+	               the pier micro-kit (PierKit: front-post lanterns framing the cast, tackle box,
+	               stool, battens, rope coils, traps, net, drying fish, pennants, windsock, wind
+	               chime, algae collars, potted plants) and one of four scenes per base
+	               (PierKit.Scenes, attributes Variant / VariantOf: BaseService keeps only the base's
+	               own); the yard micro-kit (YardKit) and roof tile courses (v3 detail)
+	Moving details are marked for the client (Sway / SwayAxis / SwayPeriod, DESIGN.md §3): the flag's
+	cloth, the weathervanes, the tower pennant and the pier kit's pennants, net, fish, buoys, chime
+	and windsock; the boat bobs (Bob).
 	Particles (no parts): chimney and smokehouse smoke, the fountain's spray, tank bubbles and the
 	chest's glint, the fishing spot's glints, the weathervanes' sparkle (Props.fx).
 
@@ -82,7 +90,8 @@
 	  (attribute SlotIndex), Flag.Pole.SignAttachment.OwnerSign.{OwnerLabel, BaseLabel},
 	  Flag.Cloth (tests), Gate.Board.SignFront/SignBack.{OwnerLabel, BaseLabel}.
 
-	Budget: <= 940 parts (8 bases at runtime; asserted below and in tests/stage1_bases.test.luau).
+	Budget: <= BUDGET parts per base at runtime (its own variant scenes only), <= TEMPLATE_BUDGET with
+	every variant (asserted below and in tests/stage1_bases.test.luau; DESIGN.md §3).
 	Deterministic: variation comes from seeds, never math.random.
 ]]
 
@@ -99,7 +108,10 @@ local UDim2 = U.UDim2
 local M = Enum.Material
 local rad = math.rad
 
-local BUDGET = 940
+-- Part budgets (DESIGN.md §3): one base at runtime (its own variants only), and the template with
+-- the scenes of every variant.
+local BUDGET = 1060
+local TEMPLATE_BUDGET = 1090
 
 ------------------------------------------------------------------------------------------
 -- Colours (all from Palette.luau, DESIGN.md §1) and plot numbers
@@ -358,6 +370,56 @@ local function at(x: number, y: number, z: number): any
 	return CFrame.new(x, y, z)
 end
 
+--[[
+	Moving details (DESIGN.md §3 "Ambient attributes"; the client animates them, the builder only
+	marks them): `Sway` = amplitude in degrees about the pivot's local axis `SwayAxis` ("X" | "Y" |
+	"Z"), one swing every `SwayPeriod` seconds. On a Model the pivot is its PrimaryPart's pivot; on
+	a BasePart it is CFrame * PivotOffset and the parts parented under it swing with it. `pivot` is
+	the hang point (template space).
+]]
+local function sway(inst: any, pivot: any, amplitude: number, axis: string, period: number): any
+	inst:SetAttribute("Sway", amplitude)
+	inst:SetAttribute("SwayAxis", axis)
+	inst:SetAttribute("SwayPeriod", period)
+	local primary = if inst:IsA("BasePart") then inst else inst.PrimaryPart
+	if not primary then
+		for _, d in inst:GetDescendants() do
+			if d:IsA("BasePart") then
+				primary = d
+				break
+			end
+		end
+		inst.PrimaryPart = primary
+	end
+	primary.PivotOffset = primary.CFrame:Inverse() * pivot
+	return inst
+end
+
+--[[
+	Per-base variants (DESIGN.md §2 "Per-base variants"): a model kept only on the bases whose index
+	i gives (i - 1) % of + 1 == k; BaseService destroys it on the others right after cloning, so the
+	8 bases are not identical copies (tools/preview/export_parts.luau mirrors the rule).
+]]
+local function variant(parent: any, name: string, k: number, of: number): any
+	local m = U.model(parent, name)
+	m:SetAttribute("Variant", k)
+	m:SetAttribute("VariantOf", of)
+	return m
+end
+
+-- True when `inst` (or a variant ancestor below `root`) is dropped on base `index`.
+local function droppedOn(inst: any, root: any, index: number): boolean
+	local x = inst
+	while x and x ~= root do
+		local k, of = x:GetAttribute("Variant"), x:GetAttribute("VariantOf")
+		if typeof(k) == "number" and typeof(of) == "number" and (index - 1) % of + 1 ~= k then
+			return true
+		end
+		x = x.Parent
+	end
+	return false
+end
+
 -- Frame at (x, y, z) whose local -Z (front) looks along yaw degrees (0 = -Z, 90 = -X, 180 = +Z,
 -- -90 = +X).
 local function facing(x: number, y: number, z: number, yaw: number): any
@@ -484,6 +546,20 @@ end
 	end (a jettied gable: the caller puts a beam under it); the roof's end shows as a thick band
 	above the triangle. 9 parts. Returns the ridge height.
 ]]
+-- Tile courses on a roof slope (v3 detail): `n` thin strips of a darker shade lying on the wedge's
+-- slope, parallel to the eave (a big roof seen from a lookout is no longer one flat slab). n parts.
+local function roofCourses(parent: any, wedge: any, n: number)
+	local s = wedge.Size
+	local normal = Vector3.new(0, s.Z, -s.Y).Unit -- the slope's outward normal (wedge space)
+	local L = math.sqrt(s.Y * s.Y + s.Z * s.Z)
+	for i = 1, n do
+		local t = i / (n + 1)
+		local p = Vector3.new(0, -s.Y / 2 + t * s.Y, -s.Z / 2 + t * s.Z) + normal * 0.09
+		local cf = wedge.CFrame * CFrame.fromMatrix(p, Vector3.new(1, 0, 0), normal)
+		make(parent, "RoofCourse", Vector3.new(s.X - 0.2, 0.16, math.min(0.7, L / (3 * n))), cf, ROOF - 0.12, DECOR)
+	end
+end
+
 local function gableRoof(
 	parent: any,
 	x0: number,
@@ -495,15 +571,21 @@ local function gableRoof(
 	e: number,
 	g: number,
 	alongX: boolean,
-	gable: any
+	gable: any,
+	courses: number?
 ): number
 	local top = y0 + h
+	local function slope(wedge: any)
+		if courses then
+			roofCourses(parent, wedge, courses)
+		end
+	end
 	if alongX then
 		local zc = (z0 + z1) / 2
 		local half = (z1 - z0) / 2
 		local hg = h * half / (half + e)
-		ramp(parent, "Roof", x0 - g, x1 + g, y0, top, z0 - e, zc, "-z", ROOF, { CastShadow = true })
-		ramp(parent, "Roof", x0 - g, x1 + g, y0, top, zc, z1 + e, "+z", ROOF, { CastShadow = true })
+		slope(ramp(parent, "Roof", x0 - g, x1 + g, y0, top, z0 - e, zc, "-z", ROOF, { CastShadow = true }))
+		slope(ramp(parent, "Roof", x0 - g, x1 + g, y0, top, zc, z1 + e, "+z", ROOF, { CastShadow = true }))
 		span(parent, "Fascia", x0 - g - 0.2, x1 + g + 0.2, y0 - 0.4, y0 + 0.7, z0 - e - 0.3, z0 - e + 0.9, ROOF_TRIM)
 		span(parent, "Fascia", x0 - g - 0.2, x1 + g + 0.2, y0 - 0.4, y0 + 0.7, z1 + e - 0.9, z1 + e + 0.3, ROOF_TRIM)
 		span(parent, "Ridge", x0 - g - 0.3, x1 + g + 0.3, top - 0.6, top + 0.6, zc - 0.9, zc + 0.9, ROOF_TRIM)
@@ -515,8 +597,8 @@ local function gableRoof(
 		local xc = (x0 + x1) / 2
 		local half = (x1 - x0) / 2
 		local hg = h * half / (half + e)
-		ramp(parent, "Roof", x0 - e, xc, y0, top, z0 - g, z1 + g, "-x", ROOF, { CastShadow = true })
-		ramp(parent, "Roof", xc, x1 + e, y0, top, z0 - g, z1 + g, "+x", ROOF, { CastShadow = true })
+		slope(ramp(parent, "Roof", x0 - e, xc, y0, top, z0 - g, z1 + g, "-x", ROOF, { CastShadow = true }))
+		slope(ramp(parent, "Roof", xc, x1 + e, y0, top, z0 - g, z1 + g, "+x", ROOF, { CastShadow = true }))
 		span(parent, "Fascia", x0 - e - 0.3, x0 - e + 0.9, y0 - 0.4, y0 + 0.7, z0 - g - 0.2, z1 + g + 0.2, ROOF_TRIM)
 		span(parent, "Fascia", x1 + e - 0.9, x1 + e + 0.3, y0 - 0.4, y0 + 0.7, z0 - g - 0.2, z1 + g + 0.2, ROOF_TRIM)
 		span(parent, "Ridge", xc - 0.9, xc + 0.9, top - 0.6, top + 0.6, z0 - g - 0.3, z1 + g + 0.3, ROOF_TRIM)
@@ -1754,7 +1836,7 @@ local function buildHouse(template: any): any
 	end
 	span(house, "WallPlate", x0 - 1.2, x1 + 1.2, WALL_TOP, EAVE, z0 - 0.3, z1 + 0.3, C.WoodDark, { CastShadow = true })
 	local mainRise = 11
-	gableRoof(house, x0, x1, z0, z1, EAVE, mainRise, 2.2, 1, true, WALL)
+	gableRoof(house, x0, x1, z0, z1, EAVE, mainRise, 2.2, 1, true, WALL, 3)
 	local slope = mainRise / (zc - (z0 - 2.2)) -- rise per stud of the main slopes
 
 	-- Chimney through the back slope, a lazy plume of smoke above it.
@@ -1973,7 +2055,7 @@ local function buildSmokehouse(template: any): any
 	span(shed, "Footing", x0 - 0.4, x1 + 0.4, F - 0.2, F + 1, z0 - 0.4, z1 + 0.4, C.Stone)
 	span(shed, "Walls", x0, x1, F + 1, wallTop, z0, z1, C.Wood, { CastShadow = true })
 	span(shed, "WallPlate", x0 - 0.3, x1 + 0.3, wallTop, eave, z0 - 1.2, z1 + 1.2, C.WoodDark)
-	gableRoof(shed, x0, x1, z0, z1, eave, 6, 1.6, 1, false, C.WoodLight)
+	gableRoof(shed, x0, x1, z0, z1, eave, 6, 1.6, 1, false, C.WoodLight, 2)
 
 	-- Double doors and the name board above them.
 	span(shed, "DoorFrame", xc - 4.6, xc + 4.6, F + 1, F + 8.2, z0 - 0.3, z0, C.WoodDark)
@@ -2166,7 +2248,7 @@ local function buildTackleShed(template: any)
 	local wallTop = 8.2
 	span(shed, "Footing", x0 - 0.4, x1 + 0.4, -0.2, 0.9, z0 - 0.4, z1 + 0.4, C.Stone)
 	span(shed, "Walls", x0, x1, 0.9, wallTop, z0, z1, C.Wood, { CastShadow = true })
-	gableRoof(shed, x0, x1, z0, z1, wallTop, 4.6, 1.3, 1.1, false, C.WoodLight)
+	gableRoof(shed, x0, x1, z0, z1, wallTop, 4.6, 1.3, 1.1, false, C.WoodLight, 2)
 	-- door (towards the walk from the spawn rose) under an awning, a lantern beside it
 	span(shed, "Door", x0 - 0.25, x0 + 0.05, 0.9, 6.9, 34.6, 37.4, C.WoodDark)
 	ramp(shed, "Awning", x0 - 2.6, x0, 6.9, 7.9, 33.8, 38.2, "-x", 0, { CanCollide = false })
@@ -2362,20 +2444,32 @@ local PLAT_HALF = 20 -- platform x = +-20
 
 -- Deck slab (top at `top`) with raised plank strips (4 studs wide, every 8; 0.1 short of the
 -- deck's ends): along Z for the walkway, across (along X) for the platform. z0 < z1.
+-- Plank strip tones (zero-part variety, v3 detail): weathered boards in three tones by turns, so the
+-- long runs of deck do not read as one flat colour.
+local PLANK_TONES = {
+	C.Plank:Lerp(C.Wood, 0.45),
+	C.Plank:Lerp(C.Wood, 0.62),
+	C.Plank:Lerp(C.WoodLight, 0.3),
+}
+local plankTone = 0
+
 local function deck(parent: any, halfWidth: number, z0: number, z1: number, across: boolean, top: number)
 	span(parent, "Deck", -halfWidth, halfWidth, DECK - 1.2, top, z0, z1, C.Plank)
 	local flat = { CastShadow = false }
-	local strip = C.Plank:Lerp(C.Wood, 0.45)
+	local function strip(): any
+		plankTone += 1
+		return PLANK_TONES[(plankTone - 1) % #PLANK_TONES + 1]
+	end
 	if across then
 		local z = z0 + 2
 		while z + 4 <= z1 - 1 do
-			span(parent, "Planks", -halfWidth + 0.1, halfWidth - 0.1, DECK - 0.2, PLANK, z, z + 4, strip, flat)
+			span(parent, "Planks", -halfWidth + 0.1, halfWidth - 0.1, DECK - 0.2, PLANK, z, z + 4, strip(), flat)
 			z += 8
 		end
 	else
 		local x = -halfWidth + 2
 		while x + 4 <= halfWidth - 2 + 0.01 do
-			span(parent, "Planks", x, x + 4, DECK - 0.2, PLANK, z0 + 0.1, z1 - 0.1, strip, flat)
+			span(parent, "Planks", x, x + 4, DECK - 0.2, PLANK, z0 + 0.1, z1 - 0.1, strip(), flat)
 			x += 8
 		end
 	end
@@ -2530,6 +2624,437 @@ local function buildPierProps(template: any, pierEnd: number)
 	span(props, "LifebuoyBand", bx - 0.35, bx + 0.35, DECK + 2.1, DECK + 2.7, bz - 1.55, bz + 1.55, C.White, DECOR)
 end
 
+--[[
+	Pier micro-kit (v3 detail): the fisherman's clutter that frames the cast and fills the 1 640
+	studs² of deck the owner looks at most. Two lanterns on the front posts frame the open middle;
+	beside the spot a tackle box in the base colour and a stool; battens across the walkway every 8
+	studs, rope coils, a stack of fish traps, a net with floats over the right rail and fish drying
+	under it, a basket of the catch, a crab pot on a line, a string of pennants in the base colour
+	across the walkway's end, a pennant on the shelter's roof, a windsock, a shell wind chime under
+	the roof, two buoys hung on the walkway posts, algae collars on the piles at the waterline and
+	potted plants at the pier's root. One of four little scenes per base (variants by base index).
+	Rules (tests/stage1_bases.test.luau): every part is decor (no collisions, raycasts, touches,
+	shadows); nothing in the walkway's middle lane (|x| <= 4.5); nothing above y 7 within 13 studs
+	of the fishing spot and nothing over 1.5 tall right behind the player (|x| <= 7, z -67..-55, the
+	follow camera); nothing above the water in the cast clear zone (x -6..16, z -72..-115).
+]]
+local KIT = { CanCollide = false, CanQuery = false, CastShadow = false }
+local KIT_NEON = { Material = M.Neon, CanCollide = false, CanQuery = false, CastShadow = false }
+
+local function buildPierDressing(template: any, pierEnd: number, waterY: number, lastPostZ: number)
+	local kit = U.model(template, "PierKit")
+	local frontZ = pierEnd + 1.6 -- the front posts' centres (-70.4)
+	local sz = pierEnd + 4.5 -- the fishing spot
+
+	-- Lanterns on the two front posts: they frame the cast (no PointLight: the shelter has one).
+	local lanterns = U.model(kit, "Lanterns")
+	for _, sx in { -1, 1 } do
+		local x, top = sx * 9, DECK + 4.2
+		span(lanterns, "Lantern", x - 0.7, x + 0.7, top, top + 1.4, frontZ - 0.7, frontZ + 0.7, C.Glow, KIT_NEON)
+		span(
+			lanterns,
+			"LanternCap",
+			x - 1.05,
+			x + 1.05,
+			top + 1.4,
+			top + 1.9,
+			frontZ - 1.05,
+			frontZ + 1.05,
+			C.Iron,
+			KIT
+		)
+	end
+
+	-- Dark battens across the walkway every 8 studs (a rhythm on the long plank run), 0.06 proud of
+	-- the plank strips.
+	local walk = U.model(kit, "Walkway")
+	for i = 0, 5 do
+		local z = -6 - i * 8
+		span(walk, "Batten", -7.9, 7.9, DECK - 0.15, PLANK + 0.06, z - 0.25, z + 0.25, C.WoodDark, KIT)
+	end
+	-- a rope coil by the kerb near the root, two buoys hung on the outer faces of the middle posts
+	cylY(walk, "RopeCoil", 2.2, 0.5, at(6.3, DECK - 0.1 + 0.25, -10), C.Rope, KIT)
+	cylY(walk, "RopeCoilHole", 0.9, 0.56, at(6.3, DECK - 0.1 + 0.28, -10), P.Twine, KIT)
+	for i, sx in { -1, 1 } do
+		local x = sx * (PIER_HALF + 1.85)
+		local buoy = U.model(walk, "HungBuoy")
+		make(
+			buoy,
+			"Buoy",
+			Vector3.new(1.3, 1.3, 1.3),
+			at(x, 2.4, -32.7),
+			C.Red,
+			merge(KIT, { Shape = Enum.PartType.Ball })
+		)
+		span(buoy, "BuoyBand", x - 0.7, x + 0.7, 2.25, 2.55, -33.4, -32.0, C.White, KIT)
+		sway(buoy, at(x, 3.3, -32.7), 5, "Z", 2.6 + 0.3 * i)
+	end
+	-- potted plants on both sides of the pier's root (pot, bush, a jewel bloom)
+	for i, sx in { -1, 1 } do
+		local x, z = sx * 6.6, -3.6
+		span(walk, "Pot", x - 0.8, x + 0.8, DECK - 0.1, DECK + 1.2, z - 0.8, z + 0.8, C.Terracotta, KIT)
+		span(walk, "PotBush", x - 1.0, x + 1.0, DECK + 1.2, DECK + 2.5, z - 1.0, z + 1.0, C.Leaf1, KIT)
+		local bx = x - 0.3 * sx
+		span(
+			walk,
+			"PotBloom",
+			bx - 0.4,
+			bx + 0.4,
+			DECK + 2.5,
+			DECK + 2.95,
+			z - 0.4,
+			z + 0.4,
+			FL[if i == 1 then 1 else 3],
+			KIT
+		)
+	end
+	-- a string of pennants across the walkway's end, between the lantern caps (above head height):
+	-- two sagging rope halves, pennants in the base colour, cream and yellow by turns
+	local pennants = U.model(walk, "Pennants")
+	local y0, ymid, pz = DECK + 7.9, DECK + 7.1, lastPostZ
+	for _, sx in { -1, 1 } do
+		local a = Vector3.new(sx * 8.2, y0, pz)
+		local b = Vector3.new(0, ymid, pz)
+		make(pennants, "Rope", Vector3.new(0.15, 0.15, (a - b).Magnitude), CFrame.lookAt((a + b) / 2, b), C.Rope, KIT)
+	end
+	for i, x in { -5.6, -2.8, 0, 2.8, 5.6 } do
+		local y = ymid + (y0 - ymid) * (math.abs(x) / 8.2) - 0.05
+		local paint = if i % 2 == 1 then 0 elseif i == 2 then C.Cream else C.Yellow
+		span(pennants, "Pennant", x - 0.55, x + 0.55, y - 1.0, y, pz - 0.08, pz + 0.08, paint, KIT)
+		span(pennants, "PennantTip", x - 0.25, x + 0.25, y - 1.45, y - 0.98, pz - 0.08, pz + 0.08, paint, KIT)
+	end
+	sway(pennants, at(0, y0, pz), 6, "X", 2.2)
+
+	-- The platform.
+	local plat = U.model(kit, "Platform")
+	-- beside the spot: a tackle box in the base colour (light lid, iron handle) and a stool
+	span(plat, "TackleBox", -6.4, -4.2, DECK, DECK + 1.1, sz - 2.7, sz - 1.3, 0, KIT)
+	span(plat, "TackleLid", -6.5, -4.1, DECK + 1.1, DECK + 1.4, sz - 2.8, sz - 1.2, 0.35, KIT)
+	span(plat, "TackleHandle", -5.7, -4.9, DECK + 1.4, DECK + 1.7, sz - 2.1, sz - 1.9, C.Iron, KIT)
+	cylY(plat, "StoolSeat", 1.8, 0.35, at(-8.1, PLANK + 1.75, sz + 1.3), C.WoodLight, KIT)
+	span(plat, "StoolLeg", -8.45, -7.75, PLANK, PLANK + 1.6, sz + 0.95, sz + 1.65, C.WoodDark, KIT)
+	-- a stack of wicker fish traps in the back-right corner
+	local trap, band = P.Straw:Lerp(P.Twine, 0.5), P.Twine:Lerp(C.Ink, 0.3)
+	span(plat, "Trap", 16.6, 19.4, DECK, DECK + 1.8, -55.4, -51.6, trap, KIT)
+	span(plat, "TrapBand", 16.5, 19.5, DECK + 0.7, DECK + 1.1, -55.5, -51.5, band, KIT)
+	span(plat, "Trap", 16.9, 19.1, DECK + 1.8, DECK + 3.3, -55.0, -52.0, P.Straw:Lerp(P.Twine, 0.35), KIT)
+	span(plat, "TrapBand", 16.8, 19.2, DECK + 2.3, DECK + 2.7, -55.1, -51.9, band, KIT)
+	-- a rope coil by the back kerb, a basket of the catch between the crates and the spot
+	cylY(plat, "RopeCoil", 2.4, 0.5, at(12.5, DECK + 0.25, -52.6), C.Rope, KIT)
+	cylY(plat, "RopeCoilHole", 1.0, 0.56, at(12.5, DECK + 0.28, -52.6), P.Twine, KIT)
+	cylY(plat, "Basket", 2.0, 1.2, at(9.2, DECK + 0.6, -62.4), P.Twine:Lerp(P.Straw, 0.4), KIT)
+	cylY(plat, "BasketRim", 2.2, 0.25, at(9.2, DECK + 1.15, -62.4), P.Twine:Lerp(C.Ink, 0.25), KIT)
+	make(
+		plat,
+		"BasketFish",
+		Vector3.new(0.45, 0.75, 1.5),
+		at(9.0, DECK + 1.55, -62.4) * CFrame.Angles(0, rad(25), rad(10)),
+		C.FishSilver,
+		KIT
+	)
+	make(
+		plat,
+		"BasketFish",
+		Vector3.new(0.45, 0.7, 1.35),
+		at(9.55, DECK + 1.5, -62.0) * CFrame.Angles(0, rad(-40), rad(-8)),
+		C.Orange:Lerp(C.StoneLight, 0.3),
+		KIT
+	)
+	-- a net hung over the right rail to dry, with three floats; three fish drying under the rail
+	local rx = PLAT_HALF + 0.6 -- the rail's centre line (x 20.6)
+	local net = U.model(plat, "Net")
+	span(net, "NetHang", rx + 0.55, rx + 0.85, DECK + 0.75, DECK + 4.1, -66, -59.5, C.NetRope, KIT)
+	for i, z in { -65, -62.75, -60.5 } do
+		span(
+			net,
+			"NetFloat",
+			rx + 0.8,
+			rx + 1.4,
+			DECK + 0.6,
+			DECK + 1.2,
+			z - 0.3,
+			z + 0.3,
+			if i == 2 then C.White else C.Orange,
+			KIT
+		)
+	end
+	sway(net, at(rx + 0.7, DECK + 4.0, -62.75), 3, "Z", 3.2)
+	local fish = U.model(plat, "DryingFish")
+	for i, z in { -57.5, -56, -54.5 } do
+		span(
+			fish,
+			"DryFish",
+			rx - 0.15,
+			rx + 0.15,
+			DECK + 1.65,
+			DECK + 3.15,
+			z - 0.4,
+			z + 0.4,
+			if i == 2 then C.FishSilverDark else C.FishSilver,
+			KIT
+		)
+	end
+	sway(fish, at(rx, DECK + 3.2, -56), 6, "Z", 2.4)
+	-- a crab pot on a line off the front-right corner (outside the cast clear zone, x > 16)
+	span(plat, "PotLine", 17.9, 18.1, waterY + 0.5, DECK + 0.6, pierEnd - 0.3, pierEnd - 0.1, C.Rope, KIT)
+	span(
+		plat,
+		"CrabPot",
+		17.0,
+		19.0,
+		waterY - 0.4,
+		waterY + 0.9,
+		pierEnd - 1.6,
+		pierEnd + 0.2 - 0.6,
+		P.Twine:Lerp(P.Straw, 0.3),
+		KIT
+	)
+	-- algae collars at the waterline on the platform's piles
+	for _, p in
+		{
+			{ -PLAT_HALF - 0.6, frontZ },
+			{ PLAT_HALF + 0.6, frontZ },
+			{ -9, frontZ },
+			{ 9, frontZ },
+			{ -PLAT_HALF - 0.6, -51.1 },
+			{ PLAT_HALF + 0.6, -51.1 },
+		}
+	do
+		span(
+			plat,
+			"Algae",
+			p[1] - 1.15,
+			p[1] + 1.15,
+			waterY - 0.5,
+			waterY + 0.35,
+			p[2] - 1.15,
+			p[2] + 1.15,
+			P.Seaweed:Lerp(C.WoodDark, 0.45),
+			KIT
+		)
+	end
+	-- a windsock on the back-right post (striped orange and white, blown inland)
+	local sock = U.model(plat, "Windsock")
+	local wx, wz, wtop = PLAT_HALF + 0.6, -51.1, DECK + 4.2
+	cylY(sock, "SockPole", 0.4, 6.8, at(wx, wtop + 3.4, wz), C.Iron, KIT)
+	local wy = wtop + 6.1
+	span(sock, "Sock", wx - 0.6, wx + 0.6, wy - 0.6, wy + 0.6, wz + 0.2, wz + 1.6, C.Orange, KIT)
+	span(sock, "Sock", wx - 0.5, wx + 0.5, wy - 0.55, wy + 0.45, wz + 1.6, wz + 2.8, C.White, KIT)
+	span(sock, "Sock", wx - 0.4, wx + 0.4, wy - 0.5, wy + 0.3, wz + 2.8, wz + 3.9, C.Orange, KIT)
+	sock.PrimaryPart = sock:FindFirstChild("SockPole")
+	sway(sock, at(wx, wy, wz), 12, "Y", 3.6)
+	-- the shelter: a pennant on its roof and a shell wind chime under its front edge
+	local roofTop = DECK + 10 + 1.2 + 1.4 + 1.4 + 1.4
+	local xc, zc = (-PLAT_HALF + 1 - 10) / 2, pierEnd + 11.5
+	span(plat, "RoofMast", xc - 0.15, xc + 0.15, roofTop, roofTop + 3.4, zc - 0.15, zc + 0.15, C.WoodDark, KIT)
+	local flag = span(plat, "RoofFlag", xc - 0.05, xc + 0.05, roofTop + 2.1, roofTop + 3.2, zc + 0.15, zc + 2.3, 0, KIT)
+	sway(flag, at(xc, roofTop + 2.6, zc + 0.15), 10, "Y", 2.0)
+	local chime = U.model(plat, "WindChime")
+	local cy, cz = DECK + 10, pierEnd + 4.6
+	span(chime, "ChimeBar", -15.4, -13.6, cy - 0.25, cy, cz - 0.1, cz + 0.1, C.WoodDark, KIT)
+	for i, x in { -15.1, -14.5, -13.9 } do
+		local drop = if i == 2 then 1.5 else 1.1
+		span(
+			chime,
+			"Shell",
+			x - 0.22,
+			x + 0.22,
+			cy - drop - 0.5,
+			cy - drop,
+			cz - 0.22,
+			cz + 0.22,
+			if i == 2 then P.Pink:Lerp(C.Cream, 0.5) else C.Cream,
+			KIT
+		)
+	end
+	sway(chime, at(-14.5, cy, cz), 7, "X", 1.8)
+
+	-- One of four little scenes per base on the free deck at the front right (x 8..15).
+	local scenes = U.model(kit, "Scenes")
+	-- 1: crab pots stacked by the rail, a striped buoy lying on its side
+	local v1 = variant(scenes, "CrabPots", 1, 4)
+	local pot = P.Twine:Lerp(P.Straw, 0.3)
+	span(v1, "CrabPot", 10.0, 12.4, DECK, DECK + 1.5, sz - 3.2, sz - 0.8, pot, KIT)
+	span(v1, "CrabPotRim", 9.9, 12.5, DECK + 1.2, DECK + 1.5, sz - 3.3, sz - 0.7, band, KIT)
+	span(v1, "CrabPot", 10.3, 12.1, DECK + 1.5, DECK + 2.7, sz - 2.9, sz - 1.1, pot, KIT)
+	make(
+		v1,
+		"LyingBuoy",
+		Vector3.new(1.8, 1.2, 1.2),
+		at(13.6, DECK + 0.6, sz + 0.2) * CFrame.Angles(0, rad(20), 0),
+		C.Red,
+		merge(KIT, { Shape = Enum.PartType.Cylinder })
+	)
+	make(
+		v1,
+		"LyingBuoyBand",
+		Vector3.new(0.5, 1.26, 1.26),
+		at(13.6, DECK + 0.6, sz + 0.2) * CFrame.Angles(0, rad(20), 0),
+		C.White,
+		merge(KIT, { Shape = Enum.PartType.Cylinder })
+	)
+	-- 2: a heap of green net with floats, a float basket
+	local v2 = variant(scenes, "NetHeap", 2, 4)
+	span(v2, "NetHeap", 9.6, 13.4, DECK, DECK + 0.8, sz - 3.0, sz + 0.2, C.NetRope, KIT)
+	span(v2, "NetHeap", 10.2, 12.6, DECK + 0.8, DECK + 1.4, sz - 2.4, sz - 0.4, C.NetRopeLight, KIT)
+	span(v2, "NetFloat", 11.0, 11.7, DECK + 1.4, DECK + 2.0, sz - 1.8, sz - 1.1, C.Orange, KIT)
+	cylY(v2, "FloatBasket", 1.9, 1.3, at(14.2, DECK + 0.65, sz - 1.4), P.Straw:Lerp(P.Twine, 0.3), KIT)
+	make(
+		v2,
+		"GlassFloat",
+		Vector3.new(0.9, 0.9, 0.9),
+		at(14.1, DECK + 1.45, sz - 1.3),
+		P.Cyan:Lerp(C.White, 0.3),
+		merge(KIT, { Shape = Enum.PartType.Ball })
+	)
+	-- 3: flower boxes on the two front rails (the owner's garden afloat)
+	local v3 = variant(scenes, "RailFlowers", 3, 4)
+	for i, sx in { -1, 1 } do
+		local x, y = sx * 14.8, DECK + 4.0
+		span(v3, "RailBox", x - 2.4, x + 2.4, y, y + 0.9, frontZ - 0.55, frontZ + 0.55, C.Wood, KIT)
+		span(v3, "RailGreens", x - 2.1, x + 2.1, y + 0.9, y + 1.4, frontZ - 0.4, frontZ + 0.4, C.Leaf2, KIT)
+		local pair = JEWELS[i + 2]
+		span(v3, "RailBloom", x - 1.3, x - 0.6, y + 1.3, y + 1.85, frontZ - 0.3, frontZ + 0.3, pair[1], KIT)
+		span(v3, "RailBloom", x + 0.5, x + 1.2, y + 1.3, y + 1.85, frontZ - 0.3, frontZ + 0.3, pair[2], KIT)
+	end
+	-- 4: an anchor and a coil of chain by the crates, two oars leaning on them
+	local v4 = variant(scenes, "Anchor", 4, 4)
+	span(v4, "AnchorShank", 11.6, 12.2, DECK, DECK + 0.4, sz - 3.4, sz + 0.4, C.Iron, KIT)
+	span(v4, "AnchorStock", 10.2, 13.6, DECK, DECK + 0.4, sz - 3.0, sz - 2.5, C.Iron:Lerp(C.Ink, 0.25), KIT)
+	span(v4, "AnchorFluke", 10.6, 13.2, DECK, DECK + 0.5, sz + 0.3, sz + 0.9, C.Iron, KIT)
+	cylY(v4, "Chain", 1.6, 0.45, at(9.6, DECK + 0.22, sz - 0.6), C.Iron:Lerp(C.StoneLight, 0.3), KIT)
+	for i, x in { 11.6, 12.9 } do
+		make(
+			v4,
+			"Oar",
+			Vector3.new(0.35, 6.2, 0.6),
+			at(x, DECK + 2.9, pierEnd + 10.6) * CFrame.Angles(rad(-18 + 4 * i), 0, rad(6 - 6 * i)),
+			C.WoodLight,
+			KIT
+		)
+	end
+end
+
+--[[
+	Yard micro-kit (v3 detail): small finds in the yard's empty corners — a wheelbarrow in the work
+	yard, a watering can by the rain barrel, a bird house (its roof in the base colour; no bird) on
+	a pole in the -X side strip, stepping stones across the lawn from the garden walk towards the
+	net yard and grass tufts at the feet of the fence posts and the new things. All decor (no
+	collisions, raycasts, touches or shadows). 25 parts.
+]]
+local function buildYardDressing(template: any)
+	local yard = U.model(template, "YardKit")
+	-- the wheelbarrow, resting in the work yard (gravel top TERRACE + 0.3), its handles inland
+	local top = TERRACE + 0.3
+	span(yard, "BarrowTray", 52.9, 55.1, top + 1.0, top + 1.9, 137.6, 140.6, C.Boat, KIT)
+	make(
+		yard,
+		"BarrowWheel",
+		Vector3.new(0.4, 1.3, 1.3),
+		at(54, top + 0.65, 137.3),
+		C.Ink:Lerp(C.Iron, 0.5),
+		merge(KIT, { Shape = Enum.PartType.Cylinder })
+	)
+	for _, x in { 53.15, 54.85 } do
+		span(yard, "BarrowHandle", x - 0.13, x + 0.13, top + 1.35, top + 1.6, 140.4, 143.0, C.WoodLight, KIT)
+	end
+	span(yard, "BarrowLeg", 53.1, 54.9, top, top + 1.0, 140.2, 140.5, C.WoodDark, KIT)
+	-- a watering can by the rain barrel at the garden's end
+	span(yard, "WateringCan", -29.6, -28.4, LAWN, LAWN + 1.1, 30.0, 31.2, P.RoofGreen, KIT)
+	make(
+		yard,
+		"CanSpout",
+		Vector3.new(1.4, 0.25, 0.25),
+		at(-30.1, LAWN + 1.0, 30.6) * CFrame.Angles(0, 0, rad(-35)),
+		P.RoofGreen,
+		KIT
+	)
+	span(yard, "CanHandle", -29.1, -28.9, LAWN + 1.1, LAWN + 1.6, 30.2, 31.0, C.Iron, KIT)
+	-- a bird house on a pole (an empty one: DESIGN.md §1 — no animals on display)
+	span(yard, "BirdPole", -62.2, -61.8, LAWN, LAWN + 6, 103.8, 104.2, C.WoodDark, KIT)
+	span(yard, "BirdHouse", -62.8, -61.2, LAWN + 6, LAWN + 7.6, 103.2, 104.8, C.WoodLight, KIT)
+	span(yard, "BirdRoof", -63.2, -60.8, LAWN + 7.6, LAWN + 8.1, 102.8, 105.2, ROOF + 0.1, KIT)
+	span(yard, "BirdHole", -61.25, -61.15, LAWN + 6.5, LAWN + 7.0, 103.75, 104.25, C.Ink, KIT)
+	-- stepping stones from the garden walk towards the net yard
+	for i, p in
+		{ { -33.5, 40.5, 8 }, { -36.5, 44.5, -12 }, { -38.8, 49.0, 15 }, { -42.5, 51.6, -6 }, { -46.6, 53.6, 10 } }
+	do
+		make(
+			yard,
+			"SteppingStone",
+			Vector3.new(1.9, 0.3, 1.5),
+			at(p[1], LAWN + 0.1, p[2]) * CFrame.Angles(0, rad(p[3]), 0),
+			if i % 2 == 0 then C.Flag else C.Limestone,
+			KIT
+		)
+	end
+	-- grass tufts at the feet of the front fence posts and of the new things
+	local tufts = {
+		{ -50.6, 20.6 },
+		{ -33.6, 20.6 },
+		{ 33.4, 20.6 },
+		{ 50.4, 20.6 },
+		{ -61.0, 104.9 },
+		{ -62.9, 103.0 },
+		{ -27.9, 30.0 },
+		{ -35.2, 42.6 },
+	}
+	for i, t in tufts do
+		span(
+			yard,
+			"GrassTuft",
+			t[1] - 0.55,
+			t[1] + 0.55,
+			LAWN - 0.05,
+			LAWN + 0.85,
+			t[2] - 0.45,
+			t[2] + 0.45,
+			if i % 2 == 0 then C.Leaf2 else C.Leaf3,
+			KIT
+		)
+	end
+end
+
+--[[
+	Moving details of the buildings (DESIGN.md §3 "Ambient attributes"), marked after the house is
+	scaled: the flag's cloth (its band and tip ride on it) flutters about the mast, the tower's
+	pennant about the vane rod, the two gold fish weathervanes (tail riding on the fish) turn to and
+	fro about their rods.
+]]
+local function tagAmbient(template: any)
+	local flag = template:FindFirstChild("Flag")
+	local cloth = flag and flag:FindFirstChild("Cloth")
+	local pole = flag and flag:FindFirstChild("Pole")
+	if cloth and pole then
+		for _, name in { "ClothBand", "ClothTip" } do
+			local part = flag:FindFirstChild(name)
+			if part then
+				part.Parent = cloth
+			end
+		end
+		local edge = cloth.CFrame * Vector3.new(-cloth.Size.X / 2, 0, 0)
+		sway(cloth, CFrame.new(edge), 7, "Y", 2.6)
+	end
+	for _, holder in { template:FindFirstChild("Gate"), template:FindFirstChild("House") } do
+		local rod = holder and holder:FindFirstChild("VaneRod")
+		if not rod then
+			continue
+		end
+		local r = rod.CFrame.Position
+		local fish, tail = holder:FindFirstChild("VaneFish"), holder:FindFirstChild("VaneTail")
+		if fish then
+			if tail then
+				tail.Parent = fish
+			end
+			sway(fish, CFrame.new(r.X, fish.CFrame.Position.Y, r.Z), 25, "Y", 7)
+		end
+		local pennant = holder:FindFirstChild("Pennant")
+		if pennant then
+			sway(pennant, CFrame.new(r.X, pennant.CFrame.Position.Y, r.Z), 12, "Y", 2.2)
+		end
+	end
+end
+
 -- Little rowing boat moored at the right side of the pier, halfway out, its bow line tied to the
 -- pier's last post. It bobs on the water: the client (AmbientController) lifts and rolls every
 -- Model with a number attribute Bob about its pivot (here the hull's centre on the waterline); the
@@ -2562,6 +3087,7 @@ return function(game: any, mapCfg: any)
 	local serverStorage = game:GetService("ServerStorage")
 	local template = U.new("Model", { Name = "BaseTemplate" }, serverStorage)
 	local partsBefore = U.partCount
+	plankTone = 0
 
 	local root = U.marker(template, "Root", Vector3.new(2, 0.2, 2), CFrame.new(0, 0, 0))
 	template.PrimaryPart = root
@@ -2603,6 +3129,9 @@ return function(game: any, mapCfg: any)
 	local lastPostZ = buildPier(template, pierEnd, pileBottom)
 	buildPavilion(template, pierEnd)
 	buildPierProps(template, pierEnd)
+	buildPierDressing(template, pierEnd, waterY, lastPostZ)
+	buildYardDressing(template)
+	tagAmbient(template)
 	buildBoat(template, waterY, lastPostZ)
 
 	local count = 0
@@ -2612,7 +3141,19 @@ return function(game: any, mapCfg: any)
 		end
 	end
 	assert(count == U.partCount - partsBefore, "BaseTemplate: parts created outside Util.part")
-	assert(count <= BUDGET, `BaseTemplate: {count} parts, budget {BUDGET}`)
+	-- parts of one base at runtime (the variants of the other bases dropped): the biggest of the 8
+	local perBase = 0
+	for index = 1, mapCfg.BaseCount or 8 do
+		local n = 0
+		for _, d in template:GetDescendants() do
+			if d:IsA("BasePart") and not droppedOn(d, template, index) then
+				n += 1
+			end
+		end
+		perBase = math.max(perBase, n)
+	end
+	assert(perBase <= BUDGET, `BaseTemplate: {perBase} parts per base, budget {BUDGET}`)
+	assert(count <= TEMPLATE_BUDGET, `BaseTemplate: {count} parts with every variant, budget {TEMPLATE_BUDGET}`)
 
 	table.insert(expected, { root = "template", path = { "Flag", "Pole", "SignAttachment" }, offset = signOffset })
 	table.insert(
@@ -2625,7 +3166,8 @@ return function(game: any, mapCfg: any)
 	)
 	return {
 		template = template,
-		partCount = count,
+		partCount = count, -- with every variant
+		perBaseParts = perBase, -- one base at runtime (the biggest of the 8)
 		budget = BUDGET,
 		-- Verified by the post-build self-check in tools/build.luau (path from the template root).
 		expectedAttachments = expected,
