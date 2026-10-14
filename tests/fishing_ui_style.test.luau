@@ -572,7 +572,7 @@ tests["server order: attribute Idle, then Lost / Caught — the ghosts still pla
 		t.ok(ghost, `{case[1]}: the miss ghost plays in the real server order`)
 		t.ok(ghost and ghost:FindFirstChild("FxFloat") and ghost.FxFloat.Text == case[2], `{case[1]}: «{case[2]}»`)
 		t.eq(f.Hint.Visible, false, `{case[1]}: the hint waits for the ghost`)
-		sim:Advance(0.6)
+		sim:Advance(0.8) -- MISS_HOLD (0.75 s): the ghost has left
 		t.eq(f.Hint.Visible, true, `{case[1]}: then the reason`)
 		sim:Advance(1.5)
 	end
