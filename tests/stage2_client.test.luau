@@ -487,7 +487,8 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	t.eq(hud:GetAttribute("CounterHold"), nil, "the 🐟 flew in: the hold is released")
 	t.eq(counter.Visible, true, "counter shown")
 	t.eq(counter.Label.Text, "Улов: 1")
-	t.eq(caption(sim, p), "ЗАБРОСИТЬ [F]", "the button is back")
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "the button is back")
+	t.eq(keyChip(sim, p), "F", "…with its F key chip")
 
 	p:SetAttribute("FishCaught", 2)
 	serverSays(sim, p, "Caught", {
