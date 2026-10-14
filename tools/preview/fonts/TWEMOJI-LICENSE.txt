@@ -1,0 +1,9 @@
+TwemojiMozilla.ttf — Twemoji Mozilla 0.7.0 (https://github.com/mozilla/twemoji-colr), the COLRv0
+build of Twitter's Twemoji that Roblox also ships as content/fonts/TwemojiMozilla.ttf.
+
+Used only by the GUI preview renderer (tools/preview/gui/twemoji.py) so the previews draw emoji
+the way the game does. It is not part of the game.
+
+Graphics: Copyright 2019 Twitter, Inc and other contributors.
+Licensed under CC-BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+Font build tooling: Copyright Mozilla Foundation, licensed under the Apache License 2.0.

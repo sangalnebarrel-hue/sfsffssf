@@ -9,8 +9,10 @@ Metrics model (an approximation of Roblox's text engine, see tools/preview/READM
     splitting a word; when nothing fits, the min size is used, words longer than the line are
     split and the text may overflow the box. TextScaled implies wrapping (as in Roblox).
   * Characters Nunito lacks (→, ★ ...) are drawn with a fallback font (DejaVu Sans Bold).
-  * Colour emoji (Noto Color Emoji, a 109 px bitmap strike) are drawn at the text's em size
-    (1.17 em tall box, 1.25 em advance) and are not tinted by TextColor3.
+  * Colour emoji are Twemoji Mozilla, the font Roblox ships (content/fonts/TwemojiMozilla.ttf):
+    flat shapes, rasterised by gui/twemoji.py at the text's em (1 em advance, on the baseline),
+    not tinted by TextColor3. Without that font Noto Color Emoji (a 109 px bitmap strike,
+    1.25 em advance) stands in, with a warning: it looks rounder and glossier than the game.
 """
 
 import os
@@ -19,6 +21,8 @@ import struct
 from functools import lru_cache
 
 from PIL import Image, ImageDraw, ImageFont
+
+from . import twemoji
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FONT_DIR = os.path.join(os.path.dirname(HERE), "fonts")
@@ -89,10 +93,17 @@ def _cmap_codepoints(path):
     return cps
 
 
+TWEMOJI_STRIKE = 128  # em of the Twemoji rasters (scaled to the text's em when drawn)
+
+
 @lru_cache(maxsize=None)
 def emoji_font_path():
+    """Path of the Noto stand-in (only used when Twemoji Mozilla is missing)."""
+    if twemoji.available():
+        return None
     for p in EMOJI_CANDIDATES:
         if p and os.path.isfile(p):
+            warn_once(f"{twemoji.FONT_PATH} missing: emoji drawn with {p} (not what Roblox draws)")
             return p
     warn_once("no colour emoji font found (set GUI_PREVIEW_EMOJI_FONT); emoji are drawn as boxes")
     return None
@@ -117,7 +128,7 @@ def fallback_font_path():
 def coverage():
     text = _cmap_codepoints(NUNITO)
     ep = emoji_font_path()
-    emoji = _cmap_codepoints(ep) if ep else set()
+    emoji = twemoji.codepoints() if twemoji.available() else (_cmap_codepoints(ep) if ep else set())
     fp = fallback_font_path()
     fallback = _cmap_codepoints(fp) if fp else set()
     return text, emoji, fallback
@@ -220,9 +231,22 @@ def _emoji_font():
     return ImageFont.truetype(p, EMOJI_STRIKE) if p else None
 
 
+def emoji_strike():
+    """The em (px) of the bitmaps emoji_bitmap returns."""
+    return TWEMOJI_STRIKE if twemoji.available() else EMOJI_STRIKE
+
+
 @lru_cache(maxsize=512)
 def emoji_bitmap(cluster):
-    """RGBA bitmap of one emoji at the 109 px strike: (image, ascent_px, advance_px)."""
+    """RGBA bitmap of one emoji at the strike (emoji_strike() px em): (image, ascent_px,
+    advance_px); the image starts twemoji.PAD px left of the pen position."""
+    if twemoji.available():
+        got = twemoji.bitmap(cluster, TWEMOJI_STRIKE)
+        if got is not None:
+            return got
+        im = Image.new("RGBA", (TWEMOJI_STRIKE, TWEMOJI_STRIKE), (0, 0, 0, 0))
+        ImageDraw.Draw(im).rectangle([12, 8, 116, 120], outline=(255, 255, 255, 220), width=8)
+        return im, TWEMOJI_STRIKE * 0.93, TWEMOJI_STRIKE
     f = _emoji_font()
     if f is None:
         im = Image.new("RGBA", (136, 128), (0, 0, 0, 0))
@@ -246,6 +270,8 @@ def _ref_width_fb(s):
 
 
 def _emoji_adv_per_em():
+    if twemoji.available():
+        return twemoji.adv_per_em()
     f = _emoji_font()
     return (f.getlength("\U0001f3a3") if f else 136) / EMOJI_STRIKE
 
@@ -512,10 +538,11 @@ def draw(lay, box_w, mask, emoji_layer, ox, oy, graphemes=-1):
                     return
                 if kind == "emoji":
                     im, asc_e, _ = emoji_bitmap(txt)
-                    f = lay.em / EMOJI_STRIKE
+                    f = lay.em / emoji_strike()
+                    pad = twemoji.PAD if twemoji.available() else 0
                     tw, th = max(1, int(round(im.width * f))), max(1, int(round(im.height * f)))
                     scaled = im.resize((tw, th), Image.LANCZOS)
-                    paste_rgba(emoji_layer, scaled, int(round(cx)), int(round(by - asc_e * f)))
+                    paste_rgba(emoji_layer, scaled, int(round(cx - pad * f)), int(round(by - asc_e * f)))
                     if left is not None:
                         left -= 1
                     cx += eadv * lay.em

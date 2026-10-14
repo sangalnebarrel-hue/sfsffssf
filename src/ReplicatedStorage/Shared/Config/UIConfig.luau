@@ -1,17 +1,22 @@
 --!strict
 --[[
-	UIConfig — общие настройки интерфейса: уведомления, палитра «Candy Splash», стили редкостей и
-	мутаций, виды уведомлений, конфетти и лимиты эффектов. Стиль — tools/builder/gui/STYLE.md.
+	UIConfig — общие настройки интерфейса «Кирпичики» (UI v3): уведомления, палитра (цвета
+	кирпичиков-конструктора), стили редкостей и мутаций, виды уведомлений, конфетти, лимиты
+	эффектов и размеры «кирпичика» (Brick). Стиль — tools/builder/gui/STYLE.md.
 
 	Модуль «чистый» (без require, только Color3): его читают и клиент (контроллеры, UiFx), и сборщик
 	интерфейса (tools/builder/gui/Theme.luau) — все цвета интерфейса заданы в одном месте.
 	Здесь же шкала размеров текста (Type), время карточки улова по редкости (CatchCardTime) и
-	«конфеты» цветов баз (BaseSwatches, swatchFor).
+	цвета баз (BaseSwatches, swatchFor).
 
 	Палитра: у каждого цвета (токена) есть
-	  Top    — верх градиента лицевой стороны (светлее),
-	  Bottom — низ градиента (насыщеннее),
-	  Lip    — «губа»: тёмный низ конфетной кнопки (тень под лицевой стороной).
+	  Top    — верх лицевой стороны (светлее; у кирпичика над ним ещё светлая «крышка»),
+	  Bottom — низ лицевой стороны (насыщеннее),
+	  Lip    — боковина: тёмная полоса под лицевой стороной (≈ 0.6 яркости цвета).
+	Имена токенов прежние (Sky, Leaf, …) — контроллеры красят ими через UiFx.setCandy; цвета —
+	яркие цвета конструктора: Sky — синий, Leaf — зелёный, Sun — оранжевый, Gold — жёлтый,
+	Berry — красный, Grape — фиолетовый, Mint — лазурный («Домой»), Night — тёмно-серый камень,
+	Cream — белая пластина, Slate — светло-серый (неактивное), Water — бирюза (ждём поклёвку).
 ]]
 
 export type Swatch = {
@@ -60,48 +65,50 @@ local function swatch(top: string, bottom: string, lip: string): Swatch
 	return { Top = hex(top), Bottom = hex(bottom), Lip = hex(lip) }
 end
 
--- Цвета радуги (Mythic, мутация «Радужная», радужные конфетти).
+-- Цвета радуги (Mythic, мутация «Радужная», радужные конфетти и пупырки).
 local RAINBOW = {
-	hex("#FF4D6D"),
-	hex("#FF9F1C"),
-	hex("#FFE14D"),
-	hex("#5BE36B"),
-	hex("#3DD6F5"),
-	hex("#4D7CFF"),
-	hex("#B45CFF"),
+	hex("#FF3B30"),
+	hex("#FF9500"),
+	hex("#FFD60A"),
+	hex("#34C759"),
+	hex("#32D2F5"),
+	hex("#2F7BFF"),
+	hex("#AF52DE"),
 }
 
+-- Яркие цвета конструктора (под экран: чуть сочнее настоящего пластика).
 local Palette: { [string]: Swatch } = {
-	Sky = swatch("#5FD8FF", "#1F7BF0", "#1553B0"), -- заброс, главное действие, инфо
-	Sun = swatch("#FFD23F", "#FF6A1F", "#C2410C"), -- поклёвка, внимание
-	Leaf = swatch("#8BF26A", "#1FB04F", "#137A37"), -- тянуть, успех, «Домой»
-	Berry = swatch("#FF7A8A", "#E0304A", "#A11A34"), -- стоп, опасность, промах
-	Grape = swatch("#D69BFF", "#7A35F0", "#5420B0"), -- особое, эпик
-	Gold = swatch("#FFF07A", "#FFA51F", "#C46E0A"), -- деньги, улов, легендарное
-	Night = swatch("#2E3A66", "#161C38", "#0A0E20"), -- панели, дорожки
-	Cream = swatch("#FFFDF5", "#F2EADB", "#C9B994"), -- карточки
-	Slate = swatch("#C3CDE0", "#7C89A6", "#4E5872"), -- неактивное («ЖДЁМ…», нет базы)
-	Mint = swatch("#8CF5E0", "#14B8A6", "#0E7C70"), -- «Домой» (не путать с зелёным «ТЯНИ!»)
-	Water = swatch("#5FD8FF", "#1FA5C8", "#137A96"), -- ожидание поклёвки (вода)
+	Sky = swatch("#4FA3FF", "#0A6CD8", "#053E85"), -- синий: заброс, главное действие, инфо
+	Sun = swatch("#FFB347", "#FF7A00", "#A34A00"), -- оранжевый: поклёвка, внимание
+	Leaf = swatch("#7EDB5A", "#2FA82F", "#1A621C"), -- зелёный: тянуть, успех
+	Berry = swatch("#FF4A3D", "#E3000B", "#8E0008"), -- красный: стоп, опасность, промах
+	Grape = swatch("#C08CF0", "#8E44C6", "#522577"), -- фиолетовый: особое, эпик
+	Gold = swatch("#FFE45C", "#FFC20E", "#B07A00"), -- жёлтый: деньги, улов, легендарное
+	Night = swatch("#5B6168", "#3E4349", "#24282C"), -- тёмно-серый камень: панели, дорожки, подсказки
+	Cream = swatch("#FFFFFF", "#E6E9EC", "#A9AFB5"), -- белая пластина: карточки, гнёзда значков
+	Slate = swatch("#C9CED3", "#A0A5A9", "#6C7176"), -- светло-серый: неактивное («ЖДЁМ…», нет базы)
+	Mint = swatch("#6FE0F5", "#1FA9D6", "#0E6585"), -- лазурный: «Домой» (не путать с зелёным «ТЯНИ!»)
+	Water = swatch("#67D9E3", "#1593A6", "#0A5763"), -- бирюза: ожидание поклёвки (вода)
 }
 
 --[[
-	«Конфеты» цветов баз (BaseConfig.Colors, ключ — Id): чистые цвета палитры вместо
-	затемнённого цвета базы, чтобы плашка «Твоя база» не выглядела грязной рядом с остальным.
-	Для цвета, которого здесь нет, — UIConfig.swatchFor(цвет).
+	Цвета баз (BaseConfig.Colors, ключ — Id): чистые цвета палитры вместо затемнённого цвета
+	базы, чтобы кирпичик «ЛАЗУРНАЯ БАЗА» не выглядел грязным рядом с остальным. Для цвета,
+	которого здесь нет, — UIConfig.swatchFor(цвет).
 ]]
 local BaseSwatches: { [string]: Swatch } = {
 	Red = Palette.Berry,
+	Blue = Palette.Sky,
+	Yellow = Palette.Gold,
 	Purple = Palette.Grape,
-	Cyan = Palette.Sky,
 	Orange = Palette.Sun,
-	Green = swatch("#6FF0B0", "#14A86A", "#0E7048"),
-	Pink = swatch("#FF9AD5", "#E0489A", "#9E2468"),
-	Blue = swatch("#7AA8FF", "#2F62E0", "#1D3F9E"),
-	Yellow = swatch("#FFE65C", "#F0B400", "#A87A00"),
+	Cyan = Palette.Mint,
+	Pink = swatch("#FF7EB6", "#E8448F", "#902A59"),
+	Green = swatch("#5FE3A0", "#12A05E", "#0A6338"), -- изумрудный (не Leaf: его держит «успех»)
 }
 
--- «Конфета» из произвольного цвета: светлый верх, сочный низ (не темнее 0.82 по яркости), тёмная губа.
+-- Кирпичик из произвольного цвета: светлый верх, сочный низ (не темнее 0.82 по яркости),
+-- боковина ≈ 0.62 яркости низа.
 local function swatchFor(color: Color3): Swatch
 	local h, s, v = color:ToHSV()
 	local bottom = Color3.fromHSV(h, math.min(1, s * 1.15), math.max(v, 0.82))
@@ -135,47 +142,49 @@ end
 
 local WHITE = hex("#FFFFFF")
 
+-- Редкости — тоже цвета конструктора: обычная — светло-серая, редкая — синяя, эпическая —
+-- фиолетовая, легендарная — жёлтая → оранжевая, мифическая — радуга (и пупырки радугой).
 local Rarity: { [string]: RarityStyle } = {
 	Common = rarity(
-		"#E3E9F0",
-		"#9AA8B8",
-		"#6B7789",
-		{ hex("#FFFFFF"), hex("#C9D3DF") },
-		{ WHITE, hex("#C9D3DF"), hex("#8BF26A"), hex("#5FD8FF") },
+		"#E2E6EA",
+		"#A0A5A9",
+		"#6C7176",
+		{ hex("#FFFFFF"), hex("#C9CED3") },
+		{ WHITE, hex("#C9CED3"), hex("#7EDB5A"), hex("#4FA3FF") },
 		24,
 		false
 	),
 	Rare = rarity(
-		"#6CD3FF",
-		"#2468F0",
-		"#1747A8",
-		{ hex("#C2F1FF"), hex("#4FA8FF") },
-		{ WHITE, hex("#6CD3FF"), hex("#2468F0"), hex("#8BF26A") },
+		"#4FA3FF",
+		"#0A6CD8",
+		"#053E85",
+		{ hex("#BFE0FF"), hex("#4FA3FF") },
+		{ WHITE, hex("#4FA3FF"), hex("#0A6CD8"), hex("#7EDB5A") },
 		32,
 		false
 	),
 	Epic = rarity(
-		"#E08CFF",
-		"#7B2FE8",
-		"#511BA6",
-		{ hex("#F3CCFF"), hex("#A15CFF") },
-		{ WHITE, hex("#E08CFF"), hex("#7B2FE8"), hex("#FF7AD9"), hex("#5FD8FF") },
+		"#C08CF0",
+		"#8E44C6",
+		"#522577",
+		{ hex("#EBD5FF"), hex("#A86BE0") },
+		{ WHITE, hex("#C08CF0"), hex("#8E44C6"), hex("#FF7EB6"), hex("#4FA3FF") },
 		44,
 		false
 	),
 	Legendary = rarity(
-		"#FFF27A",
-		"#FF8A1F",
-		"#B8560A",
-		{ hex("#FFF6A8"), hex("#FFB13D") },
-		{ WHITE, hex("#FFF27A"), hex("#FFD23F"), hex("#FF8A1F"), hex("#FF4D6D") },
+		"#FFE45C",
+		"#FF9A00",
+		"#A35A00",
+		{ hex("#FFF3A8"), hex("#FFB347") },
+		{ WHITE, hex("#FFE45C"), hex("#FFC20E"), hex("#FF7A00"), hex("#FF4A3D") },
 		56,
 		true
 	),
 	Mythic = {
-		Top = hex("#FF8AD8"),
-		Bottom = hex("#8A3CFF"),
-		Lip = hex("#5A1FA8"),
+		Top = hex("#FF7EB6"),
+		Bottom = hex("#8E44C6"),
+		Lip = hex("#522577"),
 		Rainbow = true,
 		Rays = RAINBOW,
 		Confetti = RAINBOW,
@@ -228,8 +237,8 @@ local UIConfig = {
 		Mythic = 5.1,
 	} :: { [string]: number },
 
-	-- Тёмная обводка всего интерфейса (текст, кнопки, плашки).
-	Ink = hex("#141A2E"),
+	-- Тёмная обводка всего интерфейса (текст, кирпичики, пупырки): нейтральный почти чёрный.
+	Ink = hex("#15171C"),
 	White = WHITE,
 
 	Palette = Palette,
@@ -237,16 +246,54 @@ local UIConfig = {
 	Mutations = Mutations,
 	Rainbow = RAINBOW,
 
-	-- Конфетти по умолчанию (яркая смесь).
+	-- Конфетти по умолчанию (яркая смесь цветов конструктора).
 	Confetti = {
-		hex("#FF4D6D"),
-		hex("#FFD23F"),
-		hex("#5BE36B"),
-		hex("#3DD6F5"),
-		hex("#B45CFF"),
-		hex("#FF8A1F"),
-		hex("#FF7AD9"),
+		hex("#E3000B"),
+		hex("#FFC20E"),
+		hex("#2FA82F"),
+		hex("#1FA9D6"),
+		hex("#8E44C6"),
+		hex("#FF7A00"),
+		hex("#FF7EB6"),
 		WHITE,
+	},
+
+	--[[
+		Устройство «кирпичика» (Theme.brick в сборщике и UiFx.setCandy / setStuds на клиенте читают
+		одни и те же числа). Доли — от высоты кирпичика, если не сказано иное:
+		  Lip, TileLip     — боковина (тёмная полоса снизу) у кирпичика / у гладкой плитки;
+		  Radius, TileRadius — скругление углов (доля короткой стороны);
+		  CapLight, CapStop — верхняя «крышка»: верх градиента лицевой стороны светлее Top на
+		                   CapLight и переходит в Top на CapStop её высоты;
+		  StudW, StudH     — коробка пупырки спереди (над кирпичиком видно StudShow её высоты,
+		                   остальное прячется за кирпичиком); StudLight / StudShade — блик слева и
+		                   тень справа (горизонтальный градиент);
+		  TopLight, TopShade — круглая пупырка сверху (на пластинах): свет → тень;
+		  SpecW, SpecH, SpecX, SpecY, SpecAlpha — белый блик-«чёрточка» на лицевой стороне (доли
+		                   лицевой стороны, прозрачность); StudStroke — обводка пупырки (px при 720);
+		                   MaxStuds — не больше пупырок на кирпичик.
+	]]
+	Brick = {
+		Lip = 0.16,
+		TileLip = 0.12,
+		Radius = 0.16,
+		TileRadius = 0.2,
+		CapLight = 0.3,
+		CapStop = 0.12,
+		StudW = 0.56,
+		StudH = 0.34,
+		StudShow = 0.74,
+		StudLight = 0.45,
+		StudShade = 0.25,
+		TopLight = 0.4,
+		TopShade = 0.12,
+		SpecW = 0.12,
+		SpecH = 0.09,
+		SpecX = 0.05,
+		SpecY = 0.17,
+		SpecAlpha = 0.5,
+		StudStroke = 3,
+		MaxStuds = 8,
 	},
 
 	-- Вид уведомления: цвет «конфеты» и значок. Неизвестный вид показывается как info.
@@ -281,10 +328,10 @@ local UIConfig = {
 	-- Цвета рыбалки, которых нет в палитре (сборщик gui/Fishing.luau и FishingController).
 	Fishing = {
 		PipDone = Color3.fromRGB(64, 200, 96), -- закрашенный кружок попадания (его ищет e2e-бот — не менять)
-		TrackBottom = Color3.fromRGB(40, 50, 92), -- низ градиента дорожки мини-игры
+		TrackBottom = hex("#3A3F45"), -- низ градиента дорожки мини-игры (тёмный камень)
 		PipShade = Color3.fromRGB(190, 196, 210), -- тень пустого кружка
 		NeedleShade = Color3.fromRGB(214, 224, 240), -- тень стрелки
-		Muted = Color3.fromRGB(92, 80, 62), -- приглушённый текст на кремовой карточке
+		Muted = hex("#5E646B"), -- приглушённый текст на белой карточке
 		Guide = Color3.fromRGB(255, 214, 80), -- луч-подсказка к месту рыбалки
 		ZoneGlow = hex("#B8FF9A"), -- свечение зелёной зоны
 		TimeBar = { hex("#BFEFFF"), hex("#FFD23F"), hex("#FF4D5E") }, -- время мини-игры: полно → мало
@@ -297,7 +344,7 @@ local UIConfig = {
 		ShineInterval = 3.5, -- блик на «спокойных» главных кнопках, раз в столько секунд
 		FlashMinInterval = 0.34, -- вспышки (и пульс виньетки) не чаще 3 раз в секунду
 		StrokeHeight = 720, -- обводки нарисованы для экрана такой высоты (UiFx.fitStrokes)
-		TextStrokeMin = 2, -- обводка текста не тоньше, px (белое на жёлтом читается только с ней)
+		TextStrokeMin = 2.5, -- обводка текста не тоньше, px (белое на жёлтом читается только с ней)
 		FovPunchMax = 8, -- все «толчки» камеры вместе не больше стольких градусов (UiFx.fovPunch)
 		SoundPool = 4, -- копий каждого звука (частые звуки не обрывают друг друга)
 	},

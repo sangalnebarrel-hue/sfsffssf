@@ -1,8 +1,10 @@
 --[[
-	HUD chrome in the "Candy Splash" style (tools/builder/gui/Hud.luau + HudController +
+	HUD chrome in the UI v3 «Кирпичики» style (tools/builder/gui/Hud.luau + HudController +
 	NotifyController) in RbxSim against the built Place1.rbxl:
 	  • every contract name is still there (controllers and tests find widgets by name);
-	  • the chrome is made of candies: Lip (outline), face with a "Fill" gradient, Gloss, Shine;
+	  • the chrome is made of bricks: front-view Studs behind the Lip (the side band, Ink outline
+	    4 px at 720), a face with a capped "Fill" gradient, a Spec glint (no Gloss), Shine; Nunito
+	    Heavy text with thick outlines, CAPS badge «ЛАЗУРНАЯ БАЗА», the counter a number «🐟 12»;
 	  • the layout still fits on a phone, a tablet and a desktop: nothing overlaps, everything is
 	    on screen, the Home button stays above the Jump button on touch screens;
 	  • the runtime juice: base swatch on the badge and the base banner flying into it, «+N» over
@@ -73,6 +75,16 @@ end
 local function colorNear(a: any, b: any, eps: number?): boolean
 	local e = eps or 0.01
 	return math.abs(a.R - b.R) <= e and math.abs(a.G - b.G) <= e and math.abs(a.B - b.B) <= e
+end
+
+-- A brick face's Top colour: the keypoint at UIConfig.Brick.CapStop (above it is the light cap).
+local function capTop(fill: any): any
+	for _, key in fill.Color.Keypoints do
+		if math.abs(key.Time - UIConfig.Brick.CapStop) < 1e-3 then
+			return key.Value
+		end
+	end
+	return fill.Color.Keypoints[1].Value
 end
 
 -- Layout ------------------------------------------------------------------------------------
@@ -170,36 +182,59 @@ local function fmt(r: Rect): string
 	return string.format("(%d,%d %dx%d)", r.x, r.y, r.w, r.h)
 end
 
--- Candy check ---------------------------------------------------------------------------------
+-- Brick check ---------------------------------------------------------------------------------
 
-local function checkCandy(t: any, root: any, token: string?, what: string)
+-- A brick (Theme.brick / Theme.tile): side band, capped face, glint, shine, studs (`studs` = count).
+local function checkBrick(t: any, root: any, token: string?, what: string, studs: number?)
 	local faceName = root:GetAttribute("CandyFace")
 	t.ok(type(faceName) == "string", `{what}: CandyFace attribute`)
+	local style = root:GetAttribute("CandyStyle")
+	t.ok(style == "brick" or style == "tile", `{what}: a brick or a tile ({style})`)
 	local lip = root:FindFirstChild("Lip")
 	local face = root:FindFirstChild(faceName)
 	t.ok(lip and lip:IsA("Frame"), `{what}: Lip`)
 	t.ok(face and face:IsA("Frame"), `{what}: face {faceName}`)
-	t.ok(lip.ZIndex < face.ZIndex, `{what}: the lip is behind the face`)
-	t.ok(face.Size.Y.Scale < 1 and face.Size.Y.Scale >= 0.9, `{what}: the lip shows under the face`)
+	t.ok(lip.ZIndex < face.ZIndex, `{what}: the side band is behind the face`)
+	local band = 1 - face.Size.Y.Scale
+	t.ok(band >= 0.1 and band <= 0.2, `{what}: a deep side band ({band})`)
 	local outline = lip:FindFirstChildOfClass("UIStroke")
 	t.ok(outline, `{what}: the outline is on the lip`)
-	t.eq(outline:GetAttribute("BaseThickness"), 3, `{what}: outline designed at 3 px`)
+	t.eq(outline:GetAttribute("BaseThickness"), 4, `{what}: outline designed at 4 px`)
 	t.ok(colorNear(outline.Color, UIConfig.Ink), `{what}: Ink outline`)
 	local fill = face:FindFirstChild("Fill")
 	t.ok(fill and fill:IsA("UIGradient"), `{what}: Fill gradient`)
 	t.eq(fill.Rotation, 90, `{what}: vertical gradient`)
+	local keys = fill.Color.Keypoints
+	t.ok(#keys >= 3, `{what}: a light cap on top of the face`)
 	if token then
-		local keys = fill.Color.Keypoints
-		t.ok(colorNear(keys[1].Value, UIConfig.Palette[token].Top), `{what}: {token} top`)
-		t.ok(colorNear(keys[#keys].Value, UIConfig.Palette[token].Bottom), `{what}: {token} bottom`)
-		t.ok(colorNear(lip.BackgroundColor3, UIConfig.Palette[token].Lip), `{what}: {token} lip`)
+		local look = UIConfig.Palette[token]
+		t.ok(colorNear(capTop(fill), look.Top), `{what}: {token} top`)
+		t.ok(colorNear(keys[#keys].Value, look.Bottom), `{what}: {token} bottom`)
+		t.ok(colorNear(lip.BackgroundColor3, look.Lip), `{what}: {token} side band`)
+		local cap = keys[1].Value
+		t.ok(cap.R >= look.Top.R and cap.G >= look.Top.G and cap.B >= look.Top.B, `{what}: the cap is lighter`)
 	end
-	local gloss = face:FindFirstChild("Gloss")
-	t.ok(gloss and gloss:FindFirstChildOfClass("UIGradient"), `{what}: Gloss with a fading gradient`)
+	t.eq(face:FindFirstChild("Gloss"), nil, `{what}: no glossy band (it washed out the text)`)
+	t.ok(face:FindFirstChild("Spec"), `{what}: a Spec glint`)
 	local shine = face:FindFirstChild("Shine")
 	t.ok(shine and shine:FindFirstChild("Band"), `{what}: Shine overlay with its Band`)
 	t.ok(shine:FindFirstChildOfClass("UICorner"), `{what}: the shine follows the rounded corners`)
 	t.ok(math.abs(shine.Band.Offset.X) >= 1, `{what}: the band waits out of sight`)
+	local holder = root:FindFirstChild("Studs")
+	if (studs or 0) == 0 then
+		t.ok(holder == nil or #holder:GetChildren() == 0, `{what}: a smooth tile, no studs`)
+		return
+	end
+	t.ok(holder, `{what}: Studs`)
+	t.ok(holder.ZIndex < lip.ZIndex, `{what}: the studs stand behind the side band`)
+	t.eq(#holder:GetChildren(), studs, `{what}: {studs} studs`)
+	for i = 1, studs do
+		local stud = holder:FindFirstChild(`Stud{i}`)
+		t.ok(stud, `{what}: Stud{i}`)
+		t.eq(stud:GetAttribute("CandyStud"), "front", `{what}: Stud{i} is a front stud`)
+		t.ok(stud:FindFirstChild("Fill") and stud:FindFirstChildOfClass("UIStroke"), `{what}: Stud{i} lit, outlined`)
+		t.ok(stud.AnchorPoint.Y > 0.5 and stud.Position.Y.Scale == 0, `{what}: Stud{i} on the top edge`)
+	end
 end
 
 local tests = {}
@@ -210,6 +245,7 @@ tests["names: every widget the controllers and tests use is still there"] = func
 	local paths = {
 		"Status.BaseBadge.Swatch",
 		"Status.BaseBadge.Label",
+		"Status.BaseBadge.FlagSocket.Flag",
 		"Status.CatchCounter.Icon",
 		"Status.CatchCounter.Label",
 		"RightButtons.HomeButton.Icon",
@@ -250,45 +286,61 @@ tests["names: every widget the controllers and tests use is still there"] = func
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["candies: badge, counter, Home and toasts have lip, gradient face, gloss and shine"] = function(t)
+tests["bricks: badge, counter, Home, banner and toasts are studded bricks / smooth tiles"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "desktop")
 	local hud = p.PlayerGui.HUD
-	checkCandy(t, hud.Status.BaseBadge, nil, "BaseBadge")
+	checkBrick(t, hud.Status.BaseBadge, nil, "BaseBadge", 4)
 	t.eq(hud.Status.BaseBadge:GetAttribute("CandyFace"), "Swatch", "the badge face is the Swatch")
-	checkCandy(t, hud.Status.CatchCounter, "Gold", "CatchCounter")
-	checkCandy(t, hud.RightButtons.HomeButton, "Mint", "HomeButton")
-	checkCandy(t, hud.BaseBanner, nil, "BaseBanner")
-	checkCandy(t, hud.Toasts.ToastTemplate, "Sky", "ToastTemplate")
+	checkBrick(t, hud.Status.BaseBadge.FlagSocket, "Cream", "the badge's flag tile", 1)
+	checkBrick(t, hud.Status.CatchCounter, "Gold", "CatchCounter", 3)
+	checkBrick(t, hud.RightButtons.HomeButton, "Mint", "HomeButton", 2)
+	checkBrick(t, hud.BaseBanner, nil, "BaseBanner", 6)
+	checkBrick(t, hud.Toasts.ToastTemplate, "Sky", "ToastTemplate", 0)
+	t.eq(hud.Toasts.ToastTemplate:GetAttribute("CandyStyle"), "tile", "a toast is a smooth tile")
+	checkBrick(t, hud.TrophyPointer.Body, "Gold", "TrophyPointer.Body", 0)
 
-	-- Text: white with an Ink outline; icons are emoji without outline.
+	-- Text: white Nunito Heavy with a thick Ink outline (at least its tier's); CAPS on the chrome.
 	for _, label in
 		{
 			hud.Status.BaseBadge.Label,
 			hud.Status.CatchCounter.Label,
 			hud.RightButtons.HomeButton.Caption,
 			hud.Toasts.ToastTemplate.Label,
+			hud.BaseBanner.NameLabel,
 		}
 	do
 		t.ok(colorNear(label.TextColor3, Color3.new(1, 1, 1)), `{label:GetFullName()}: white text`)
+		t.eq(label.FontFace.Weight, Enum.FontWeight.Heavy, `{label:GetFullName()}: Nunito Heavy`)
 		local outline = label:FindFirstChild("Outline")
 		t.ok(outline and outline:IsA("UIStroke"), `{label:GetFullName()}: outlined`)
 		t.eq(outline.ApplyStrokeMode, Enum.ApplyStrokeMode.Contextual)
+		t.ok(outline:GetAttribute("BaseThickness") >= 3.5, `{label:GetFullName()}: a thick outline`)
 		t.ok(label.ZIndex > label.Parent.Lip.ZIndex + 1, `{label:GetFullName()}: above the face`)
 	end
+	local TextUtil = sim:Require(sim:Find("ReplicatedStorage.Shared.TextUtil"), p)
+	local badgeText = hud.Status.BaseBadge.Label.Text
+	t.eq(badgeText, TextUtil.upper(badgeText), "the badge in CAPS")
 	t.eq(hud.Status.CatchCounter.Icon.Text, "🐟")
 	t.eq(hud.RightButtons.HomeButton.Icon.Text, "🏠")
-	t.ok(hud.Status.BaseBadge.FlagSocket.Flag, "flag socket on the badge")
+	-- Icons stand upright (only stamps and the banner flag tilt); free-standing ones are stickers.
+	t.eq(hud.Status.CatchCounter.Icon.Rotation, 0, "the counter fish is upright")
+	t.ok(hud.Status.CatchCounter.Icon:FindFirstChild("Sticker"), "… a sticker with a white rim")
+	t.ok(hud.RightButtons.HomeButton.Icon:FindFirstChild("Sticker"), "the house too")
+	t.ok(hud.Status.BaseBadge.FlagSocket.Flag, "flag tile on the badge")
 	t.ok(hud.Toasts.ToastTemplate.IconSocket.Icon, "icon socket on toasts")
+	t.ok(hud.Toasts.ToastTemplate.IconSocket:FindFirstChild("Rim"), "… a white 1x1 round tile with a rim")
 	t.ok(hud.RightButtons.HomeButton.Cooldown:FindFirstChild("Drain"), "draining cooldown veil")
 	t.ok(hud.RightButtons.HomeButton.Cooldown.ZIndex > hud.RightButtons.HomeButton.Caption.ZIndex)
-	-- The Home caption sits on a dark ribbon (like the action button); text tiers are set.
-	t.ok(hud.RightButtons.HomeButton:FindFirstChild("CaptionRibbon"), "Home caption ribbon")
+	-- «ДОМОЙ» is on the brick's face (no navy ribbon); text tiers are set.
+	t.eq(hud.RightButtons.HomeButton:FindFirstChild("CaptionRibbon"), nil, "no caption ribbon")
 	t.eq(hud.RightButtons.HomeButton.Caption:GetAttribute("TextTier"), "Button")
 	t.eq(hud.Status.BaseBadge.Label:GetAttribute("TextTier"), "Title")
-	t.eq(hud.Status.CatchCounter.Label:GetAttribute("TextTier"), "Body")
 	t.eq(hud.Toasts.ToastTemplate.Label:GetAttribute("TextTier"), "Body")
-	t.ok(hud.Status.CatchCounter:FindFirstChild("IconSocket"), "the counter fish sits in a white socket")
+	-- The counter is a currency display: its number is box-driven, at least the Title tier.
+	local number = hud.Status.CatchCounter.Label
+	t.eq(number:GetAttribute("TextTier"), nil, "the counter's number is display text")
+	t.ok(number:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize > UIConfig.Type.Title, "… big")
 	-- Shine overlays are hidden until a sweep (no full-size quad drawn every frame).
 	sim:Advance(6) -- the join celebration is over
 	for _, d in hud:GetDescendants() do
@@ -409,11 +461,19 @@ tests["badge: base swatch on the glossy face; the base banner pops up, then flie
 	local swatch = swatchOf(p)
 	t.ok(swatch, "a swatch for every base colour")
 	local keys = badge.Swatch.Fill.Color.Keypoints
-	t.ok(colorNear(keys[1].Value, swatch.Top), "the face takes the swatch top")
+	t.ok(colorNear(capTop(badge.Swatch.Fill), swatch.Top), "the face takes the swatch top")
 	t.ok(colorNear(keys[#keys].Value, swatch.Bottom), "… and bottom (no grey tint)")
-	t.ok(colorNear(badge.Lip.BackgroundColor3, swatch.Lip), "swatch lip")
+	t.ok(colorNear(badge.Lip.BackgroundColor3, swatch.Lip), "swatch side band")
 	t.eq(badge.Swatch.BackgroundColor3, Color3.new(1, 1, 1), "white face under the gradient")
+	local studBody = swatch.Top:Lerp(swatch.Bottom, 0.3)
+	for _, stud in badge.Studs:GetChildren() do
+		local mid = stud.Fill.Color.Keypoints[2].Value
+		t.ok(colorNear(mid, studBody), `{stud.Name} in the base colour too`)
+	end
 	t.eq(badge.FlagSocket.Flag.Text, "🚩")
+	local name = p:GetAttribute("BaseColorName")
+	local caps = sim:Require(sim:Find("ReplicatedStorage.Shared.TextUtil"), p).upper(name)
+	t.eq(badge.Label.Text, `{caps} БАЗА`, "the base name in CAPS")
 	-- The banner: centre of the screen, in the same swatch, the name in capitals.
 	local banner = hud.BaseBanner
 	t.eq(banner.Visible, true, "the base banner is up")
@@ -456,15 +516,15 @@ tests["strokes: thinner on a phone, thicker on a desktop (fitted to the screen h
 	end
 	t.ok(lipStroke(phone).Thickness < lipStroke(desktop).Thickness, "phone outline thinner")
 	t.ok(lipStroke(phone).Thickness >= 1.5, "but still a real outline")
-	t.eq(lipStroke(phone):GetAttribute("BaseThickness"), 3, "design value kept")
+	t.eq(lipStroke(phone):GetAttribute("BaseThickness"), 4, "design value kept")
 	-- Toasts cloned later are fitted too.
 	notify(sim, phone, "Привет!", "info")
 	sim:Advance(0.1)
 	local toast = phone.PlayerGui.HUD.Toasts:FindFirstChild("Toast")
 	t.eq(toast.Lip:FindFirstChildOfClass("UIStroke").Thickness, lipStroke(phone).Thickness)
-	-- Text outlines never go below 2 px (white on Gold/Leaf/Sun reads only thanks to them).
-	t.ok(phone.PlayerGui.HUD.Status.CatchCounter.Label.Outline.Thickness >= 2, "text outline floor 2 px")
-	t.ok(toast.Label.Outline.Thickness >= 2, "… also on toasts cloned later")
+	-- Text outlines never go below 2.5 px (white on Gold/Leaf/Sun reads only thanks to them).
+	t.ok(phone.PlayerGui.HUD.Status.CatchCounter.Label.Outline.Thickness >= 2.5, "text outline floor 2.5 px")
+	t.ok(toast.Label.Outline.Thickness >= 2.5, "… also on toasts cloned later")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -482,7 +542,6 @@ tests["type scale: tiered labels share one size per tier, scaled from phone to d
 		for _, case in
 			{
 				{ hud.Status.BaseBadge.Label, "Title" },
-				{ hud.Status.CatchCounter.Label, "Body" },
 				{ hud.RightButtons.HomeButton.Caption, "Button" },
 				{ hud.Toasts.ToastTemplate.Label, "Body" },
 				{ hud.BaseBanner.Caption, "Body" },
@@ -518,11 +577,11 @@ tests["catch counter: «+N» floats up when FishCaught grows, the fish wiggles"]
 	p:SetAttribute("FishCaught", 1)
 	sim:Advance(0.1)
 	t.eq(counter.Visible, true, "FishingController shows the counter")
-	t.eq(counter.Label.Text, "Улов: 1", "and writes the text")
+	t.eq(counter.Label.Text, "1", "and writes the number")
 	local float = counter:FindFirstChild("FxFloat")
 	t.ok(float, "+1 floats over the counter")
 	t.eq(float.Text, "+1")
-	t.ok(counter.Icon.Rotation ~= -12, "the fish wiggles")
+	t.ok(counter.Icon.Rotation ~= 0, "the fish wiggles")
 	p:SetAttribute("FishCaught", 3)
 	sim:Advance(0.1)
 	local texts = {}
@@ -534,7 +593,7 @@ tests["catch counter: «+N» floats up when FishCaught grows, the fish wiggles"]
 	t.ok(table.find(texts, "+2"), "+2 for two fish at once")
 	sim:Advance(1.5)
 	t.eq(counter:FindFirstChild("FxFloat"), nil, "floats removed")
-	t.near(counter.Icon.Rotation, -12, 1e-3, "the fish is back at rest")
+	t.near(counter.Icon.Rotation, 0, 1e-3, "the fish is back at rest")
 	p:SetAttribute("FishCaught", 3)
 	sim:Advance(0.1)
 	t.eq(counter:FindFirstChild("FxFloat"), nil, "no float without a new catch")
@@ -549,21 +608,21 @@ tests["catch counter: CounterHold keeps the old number; clearing it plays the ar
 	local counter = hud.Status.CatchCounter
 	p:SetAttribute("FishCaught", 2)
 	sim:Advance(1.5)
-	t.eq(counter.Label.Text, "Улов: 2")
+	t.eq(counter.Label.Text, "2")
 	-- The catch card opens: it holds the previous total until its 🐟 flies into the counter.
 	sim:Run(function()
 		hud:SetAttribute("CounterHold", 2)
 	end, p)
 	p:SetAttribute("FishCaught", 3)
 	sim:Advance(0.2)
-	t.eq(counter.Label.Text, "Улов: 2", "held at the old total")
+	t.eq(counter.Label.Text, "2", "held at the old total")
 	t.eq(counter:FindFirstChild("FxFloat"), nil, "no +1 while held")
 	-- (FishingController still bumps the counter on FishCaught in this wave; the next wave drops that.)
 	sim:Run(function()
 		hud:SetAttribute("CounterHold", nil)
 	end, p)
 	sim:Advance(0.05)
-	t.eq(counter.Label.Text, "Улов: 3", "the new total on arrival")
+	t.eq(counter.Label.Text, "3", "the new total on arrival")
 	t.ok(counter.FxScale.Scale > 1.05, "bump on arrival")
 	local float = counter:FindFirstChild("FxFloat")
 	t.ok(float and float.Text == "+1", "+1 floats on arrival")
@@ -585,7 +644,7 @@ tests["catch counter: CounterHold keeps the old number; clearing it plays the ar
 	end, q)
 	sim:Advance(0.05)
 	t.eq(qhud.Status.CatchCounter.Visible, true, "appears when the fish arrives")
-	t.eq(qhud.Status.CatchCounter.Label.Text, "Улов: 1")
+	t.eq(qhud.Status.CatchCounter.Label.Text, "1")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -657,8 +716,7 @@ tests["toasts: colour and icon by kind, width by text, slots, leave and reflow"]
 	local slotY = 0
 	for i, kind in { "success", "danger", "warning" } do
 		local style = UIConfig.ToastKinds[kind]
-		local keys = toasts[i].Face.Fill.Color.Keypoints
-		t.ok(colorNear(keys[1].Value, UIConfig.Palette[style.Token].Top), `{kind}: {style.Token} candy`)
+		t.ok(colorNear(capTop(toasts[i].Face.Fill), UIConfig.Palette[style.Token].Top), `{kind}: {style.Token} tile`)
 		t.ok(colorNear(toasts[i].Lip.BackgroundColor3, UIConfig.Palette[style.Token].Lip), `{kind}: lip`)
 		t.eq(toasts[i].IconSocket.Icon.Text, style.Icon, `{kind}: icon`)
 		t.near(toasts[i].Position.Y.Scale, slotY, 1e-3, `{kind}: in slot {i}`)
@@ -802,7 +860,7 @@ tests["toasts: a PC keeps one toast over the minigame, none over the catch card;
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["toasts: Legendary is a gold candy, Mythic a spinning rainbow — 👑, bigger, longer"] = function(t)
+tests["toasts: Legendary is a studded yellow brick, Mythic a spinning rainbow — bigger, longer"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "desktop")
 	sim:Advance(5)
@@ -816,7 +874,21 @@ tests["toasts: Legendary is a gold candy, Mythic a spinning rainbow — 👑, bi
 	t.eq(#live, 3)
 	local legendary, mythic, plain = live[1], live[2], live[3]
 	local gold = UIConfig.Palette.Gold
-	t.ok(colorNear(legendary.Face.Fill.Color.Keypoints[1].Value, gold.Top), "Legendary: Gold candy")
+	t.ok(colorNear(capTop(legendary.Face.Fill), gold.Top), "Legendary: a Gold brick")
+	-- Rarer = a bigger brick: the broadcasts get studs (Mythic's in rainbow colours), a plain toast none.
+	local studs = legendary:FindFirstChild("Studs")
+	t.ok(studs and #studs:GetChildren() >= 3, "Legendary: studs on top")
+	t.ok(studs.ZIndex < legendary.Lip.ZIndex, "… behind its side band")
+	local hues = {}
+	for _, stud in mythic.Studs:GetChildren() do
+		local c = stud.Fill.Color.Keypoints[2].Value
+		hues[string.format("%.2f %.2f %.2f", c.R, c.G, c.B)] = true
+	end
+	local distinct = 0
+	for _ in hues do
+		distinct += 1
+	end
+	t.ok(distinct >= 3, `Mythic: rainbow studs ({distinct} colours)`)
 	t.eq(legendary.IconSocket.Icon.Text, "🌟")
 	t.eq(mythic.IconSocket.Icon.Text, "🌈")
 	t.ok(#mythic.Face.Fill.Color.Keypoints >= 6, "Mythic: rainbow face")
@@ -829,6 +901,7 @@ tests["toasts: Legendary is a gold candy, Mythic a spinning rainbow — 👑, bi
 	t.ok(colorNear(legendary.Label.TextFill.Color.Keypoints[1].Value, Color3.new(1, 1, 1)), "light gold letters")
 	t.ok(#mythic.Label.TextFill.Color.Keypoints >= 6, "rainbow letters")
 	t.eq(plain:FindFirstChild("Byline"), nil, "a plain toast stays one label")
+	t.ok(plain:FindFirstChild("Studs") == nil, "… and a smooth tile")
 	t.ok(p.PlayerGui.HUD:FindFirstChild("FxVignette"), "Mythic: one thin rainbow pulse on the screen edges")
 	local hue0 = mythic.Label.TextFill.Color.Keypoints[1].Value
 	local r0 = mythic.Face.Fill.Rotation

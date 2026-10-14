@@ -1,17 +1,19 @@
 --!strict
 --[[
-	NotifyController — всплывающие уведомления (HUD.Toasts) в стиле Candy Splash
-	(tools/builder/gui/STYLE.md; анимации — ReplicatedStorage.Shared.UiFx).
+	NotifyController — всплывающие уведомления (HUD.Toasts) в стиле «Кирпичики» (UI v3:
+	гладкие плитки цвета вида, значок в белой круглой плитке; tools/builder/gui/STYLE.md;
+	анимации — ReplicatedStorage.Shared.UiFx).
 
 	Источники:
 	  • сервер: RemoteEvent "Notify" (text, kind);
 	  • другие контроллеры: NotifyController.Show(text, kind?, look?).
 	kind — вид из UIConfig.ToastKinds: "info" | "success" | "warning" | "danger" (Sky 💬 / Leaf 🎉 /
 	Sun ⚠️ / Berry 🚨), "base" (цвета своей базы, 🚩 — look.swatch передаёт HudController),
-	"Legendary" (золотая «конфета» с 🌟) и "Mythic" (переливается радугой, 🌈) — громкие новости о
-	редком улове: дольше (4.5 с), со звёздочками, в две строки. Сервер присылает их одной строкой
-	«Кто: что поймал» (FishingService) — здесь она делится по первому ": ": сверху мелко кто
-	(Byline), снизу крупно что (Label: первое слово — редкость — заглавными, буквы золотом /
+	"Legendary" (жёлтый кирпич с 🌟) и "Mythic" (переливается радугой, 🌈) — громкие новости о
+	редком улове: дольше (4.5 с), со звёздочками, в две строки, и это уже не плитка, а кирпич с
+	пупырками (UiFx.setStuds; у мифической пупырки радугой) — чем реже улов, тем больше кирпич.
+	Сервер присылает их одной строкой «Кто: что поймал» (FishingService) — здесь она делится по
+	первому ": ": сверху мелко кто (Byline), снизу крупно что (Label: первое слово — редкость — заглавными, буквы золотом /
 	радугой, у мифической радуга бежит); на тач-экране такое уведомление может быть шире колонки
 	(до BIG_WIDE_TOUCH), без тач-экрана строка «что» переносится. Мифическая ещё один раз
 	проводит тонкой радугой по краям экрана. Неизвестный вид — как "info".
@@ -63,6 +65,7 @@ local Trove = require(Shared:WaitForChild("Util"):WaitForChild("Trove"))
 local UIConfig = require(Shared:WaitForChild("Config"):WaitForChild("UIConfig"))
 local FishingConfig = require(Shared:WaitForChild("Config"):WaitForChild("FishingConfig"))
 local UiFx = require(Shared:WaitForChild("UiFx"))
+local TextUtil = require(Shared:WaitForChild("TextUtil"))
 
 type Swatch = UIConfig.Swatch
 type ToastKind = UIConfig.ToastKind
@@ -103,16 +106,19 @@ local URGENT = 3 -- приоритет «опасности»: на телефо
 -- колонка по центру не доходит до него на CHAT_GAP px (с запасом на значок громкого
 -- уведомления, он выступает влево), но не уже COLUMN_MIN px.
 local CHAT_RIGHT = 368
-local CHAT_GAP = 72
+local CHAT_GAP = 76
 local COLUMN_MIN = 320
 -- Громкие (две строки): строка «кто» — уровня Small, «что» — до Title (не мельче Body, иначе
 -- переносится); на тач-экране такое уведомление может быть шире колонки во столько раз.
 local BIG_WIDE_TOUCH = 1.4
-local BIG_CHAR = 0.56 -- средняя ширина буквы в долях размера текста (Nunito ExtraBold)
+local BIG_CHAR = 0.58 -- средняя ширина буквы в долях размера текста (Nunito Heavy)
 local BIG_PAD = 0.86 -- доля высоты «конфеты» под строки (остальное — поля и губа)
 local BIG_LINE = 1.25 -- высота строки в размерах её текста
 local BIG_RAINBOW_LIGHT = 0.45 -- радужные буквы на радужной «конфете» светлее (читаются с обводкой)
-local CANDY_LIP = 0.08 -- «губа» конфеты, доля высоты (Theme.LIP)
+local CANDY_LIP = UIConfig.Brick.TileLip -- боковина плитки уведомления, доля высоты (Theme.tile)
+-- Громкое уведомление — кирпич: пупырки по верху (размер — доля высоты, сколько — по ширине).
+local BIG_STUD_SCALE = 0.5
+local BIG_STUD_AREA = { 0.16, 0.97 }
 -- Радуга по краям экрана при мифической новости: тонко, один раз (UiFx.edgeVignette).
 local MYTHIC_EDGE: UiFx.VignetteOptions = { fadeIn = 0.25, hold = 0.5, fadeOut = 0.5, size = 0.1 }
 -- Значок чужого улова вне экрана (см. шапку): центр — на Y высоты HUD (справа — не ниже, чем Gap
@@ -302,20 +308,6 @@ local function measure(text: string, tier: string): (number, boolean)
 	return 1, true
 end
 
--- Заглавные буквы, включая кириллицу (string.upper меняет только латиницу).
-local function upper(text: string): string
-	local out = {}
-	for _, code in utf8.codes(text) do
-		if (code >= 0x430 and code <= 0x44F) or (code >= 0x61 and code <= 0x7A) then
-			code -= 0x20
-		elseif code == 0x451 then
-			code = 0x401 -- ё → Ё
-		end
-		table.insert(out, utf8.char(code))
-	end
-	return table.concat(out)
-end
-
 type BigLayout = {
 	natural: number, -- ширина, доля колонки
 	height: number, -- высота, доля колонки
@@ -338,7 +330,9 @@ local function bigLayout(text: string): BigLayout
 	local byline = if cut then string.sub(text, 1, cut - 1) else nil
 	local rest = if cut then string.sub(text, cut + 2) else text
 	local space = string.find(rest, " ", 1, true)
-	local headline = if space then upper(string.sub(rest, 1, space - 1)) .. string.sub(rest, space) else upper(rest)
+	local headline = if space
+		then TextUtil.upper(string.sub(rest, 1, space - 1)) .. string.sub(rest, space)
+		else TextUtil.upper(rest)
 	local column = container
 	local area = if column then column.AbsoluteSize else Vector2.zero
 	local small, body, title = bigSizes()
@@ -402,7 +396,21 @@ local function dressBig(frame: Frame, label: TextLabel, style: ToastKind, layout
 		outline:SetAttribute("BaseThickness", 3)
 		outline.Thickness = 3
 	end
-	-- Буквы: золото сверху вниз (светлое — чтобы читалось на золотой «конфете») или радуга
+	-- Кирпич, а не плитка: пупырки по верху (сколько — по ширине; у мифической — радугой).
+	local column = container
+	local area = if column then column.AbsoluteSize else Vector2.zero
+	local studs = 4
+	if area.X > 1 and area.Y > 1 then
+		local w = layout.natural * area.X * (BIG_STUD_AREA[2] - BIG_STUD_AREA[1])
+		local h = layout.height * area.Y
+		studs = math.clamp(math.round(w / (h * 0.75)), 3, UIConfig.Brick.MaxStuds)
+	end
+	frame:SetAttribute("CandyStyle", "brick")
+	UiFx.setStuds(frame, studs, style.Token, { scale = BIG_STUD_SCALE, area = BIG_STUD_AREA })
+	if style.Rainbow then
+		UiFx.paintStuds(frame, UIConfig.Rainbow)
+	end
+	-- Буквы: золото сверху вниз (светлое — чтобы читалось на жёлтом кирпиче) или радуга
 	-- вдоль строки, которая бежит.
 	local gradient = Instance.new("UIGradient")
 	gradient.Name = "TextFill"
