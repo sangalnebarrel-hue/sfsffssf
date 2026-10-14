@@ -846,16 +846,22 @@ tests["minigame: hook / cast during the minigame change nothing; Stop ends it"] 
 	sim:AssertNoErrors()
 end
 
-tests["caught: the fish is held above the head, welded, and removed after HoldFishTime"] = function(t)
+tests["caught: after LeapTime the fish is held above the head, welded, removed after HoldFishTime"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	forceFish(sim, "Perch", "Gold", 1)
 	ready(sim, p)
 	local mg, startTime = startMinigame(t, sim, p)
 	local name = winMinigame(sim, p, mg, startTime)
-	local caughtAt = sim:Time()
+	local landedAt = sim:Time() + FishingConfig.LeapTime
 	t.eq(name, "Caught")
 	local character = p.Character
+	-- The fish leaps from the water to the fisher first (clients draw it, FishingConfig.LeapTime);
+	-- the server hangs it above the head when it lands.
+	t.eq(character:FindFirstChild("HeldFish"), nil, "not above the head while the fish is in the air")
+	sim:Advance(FishingConfig.LeapTime - 0.05)
+	t.eq(character:FindFirstChild("HeldFish"), nil, "still in the air just before LeapTime")
+	sim:Advance(0.1)
 	local held = character:FindFirstChild("HeldFish")
 	t.ok(held and held:IsA("Model"), "HeldFish model in the character")
 	t.ok(held:IsDescendantOf(sim.workspace), "server-side in the Workspace: every client sees it")
@@ -893,7 +899,7 @@ tests["caught: the fish is held above the head, welded, and removed after HoldFi
 	t.ok(bottom <= head.Position.Y + head.Size.Y / 2 + 2, "close above the head")
 	t.near(horizontal(boxCFrame.Position - head.Position).Magnitude, 0, 0.05, "centred over the head")
 
-	sim:Advance(FishingConfig.HoldFishTime - (sim:Time() - caughtAt) - 0.1)
+	sim:Advance(FishingConfig.HoldFishTime - (sim:Time() - landedAt) - 0.1)
 	t.ok(character:FindFirstChild("HeldFish"), "still held just before HoldFishTime")
 	sim:Advance(0.2)
 	t.eq(character:FindFirstChild("HeldFish"), nil, "removed after HoldFishTime")
@@ -1144,6 +1150,7 @@ tests["no leaks: players leaving mid-fishing clean up connections, threads and t
 	startMinigame(t, sim, reeling)
 	local mg, startTime = startMinigame(t, sim, holder)
 	t.eq((winMinigame(sim, holder, mg, startTime)), "Caught")
+	sim:Advance(FishingConfig.LeapTime + 0.05) -- the fish lands above the head after its leap
 	local heldCharacter = holder.Character
 	t.ok(heldCharacter:FindFirstChild("HeldFish"), "holding a fish")
 	t.eq((cast(sim, dead)), "Waiting")

@@ -504,8 +504,20 @@ end
 -- Shared checks
 --------------------------------------------------------------------------------
 
--- After a catch: the card, the counter, the server's catch, the fish above the head.
-local function checkCatch(t: any, sim: any, player: any, hud: any, fisher: any, total: number): any
+-- The caught fish first leaps from the water to the fisher (clients draw it), and the server hangs
+-- it above the head when it lands (FishingConfig.LeapTime after the catch). Waits for it; the
+-- other bots (others) keep looking at their screens meanwhile.
+local function waitHeldFish(sim: any, character: any, others: { any }?): any
+	return sim:WaitFor(function()
+		for _, other in others or {} do
+			other:look()
+		end
+		return character:FindFirstChild("HeldFish")
+	end, FishingConfig.LeapTime + 0.3, FRAME)
+end
+
+-- After a catch: the card, the counter, the server's catch, the fish above the head (after its leap).
+local function checkCatch(t: any, sim: any, player: any, hud: any, fisher: any, total: number, others: { any }?): any
 	local story = fisher:describe()
 	t.eq(fisher.stage, "caught", `{player.Name} caught the fish\n{story}`)
 	if not fisher.eager then
@@ -530,7 +542,7 @@ local function checkCatch(t: any, sim: any, player: any, hud: any, fisher: any, 
 
 	-- the fish above the head (server-side model in the character: everyone sees it)
 	local character = player.Character
-	local held = character:FindFirstChild("HeldFish")
+	local held = waitHeldFish(sim, character, others)
 	t.ok(held and held:IsA("Model"), "the caught fish is held above the head")
 	if held then
 		local template = sim:Find(`ReplicatedStorage.Assets.Fish.{fish.Id}.{fish.Mutation or "Normal"}`)
@@ -856,11 +868,11 @@ tests["(5) two players fish at once: each sees the other's bobber and line, both
 	-- checked the moment it happens (the card and the held fish go away after a few seconds).
 	local checked = {}
 	fisherA.onEnd = function()
-		checkCatch(t, sim, a, hudA, fisherA, 1)
+		checkCatch(t, sim, a, hudA, fisherA, 1, { fisherB })
 		checked.A = true
 	end
 	fisherB.onEnd = function()
-		checkCatch(t, sim, b, hudB, fisherB, 1)
+		checkCatch(t, sim, b, hudB, fisherB, 1, { fisherA })
 		checked.B = true
 	end
 	t.ok(fishUntilDone(sim, { fisherA, fisherB }, 25), `both tries end\n{fisherA:describe()}\n{fisherB:describe()}`)

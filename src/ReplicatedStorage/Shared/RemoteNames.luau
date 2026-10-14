@@ -28,7 +28,15 @@
 	               не принят
 	Состояние для всех игроков (атрибуты Player, их видят все клиенты — поплавки и лески):
 	  FishingState ("Idle" | "Waiting" | "Bite" | "Reeling"), BobberTarget (Vector3),
-	  CastTime (workspace:GetServerTimeNow() в момент заброса), RodId, FishCaught (число).
+	  CastTime (workspace:GetServerTimeNow() в момент заброса), RodId, FishCaught (число),
+	  FishFx (строка) — событие для эффектов в мире (FishingFxController), ставится ДО того, как
+	    FishingState станет "Idle" (поплавок ещё на воде):
+	    "<номер>|caught|<FishId>|<Mutation или ''>|<Rarity>" — поймал: рыба выпрыгивает у поплавка
+	      и за FishingConfig.LeapTime летит к рыбаку; рыба над головой (модель HeldFish в персонаже,
+	      её ставит сервер) появляется, когда прыжок закончился;
+	    "<номер>|lost|<FishId или ''>|<Mutation или ''>|<Rarity или ''>" — рыба ушла (до подсечки
+	      рыбы ещё нет — поля пустые).
+	    Номер растёт с каждым событием игрока (одинаковые события подряд — разные строки).
 ]]
 
 local RemoteNames = {
