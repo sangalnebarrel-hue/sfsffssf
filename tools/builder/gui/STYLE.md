@@ -1,4 +1,4 @@
-# UI & FX style guide — "Candy Splash" (UI v1)
+# UI & FX style guide — "Candy Splash" (UI v1, foundation v2)
 
 The user's brief: «мега красивый интерфейс и мега красивые пёстрые анимации, чтобы все были в шоке».
 The world stays calm (art direction v4, tools/builder/DESIGN.md §1); the **interface and the effects
@@ -30,6 +30,14 @@ bottom (Rotation 90). Base colours (top → bottom):
 | `Gold` | money / legendary | #FFF07A | #FFA51F |
 | `Night` | panels, tracks | #2E3A66 | #161C38 (BackgroundTransparency 0.1) |
 | `Cream` | cards | #FFFDF5 | #F2EADB |
+| `Slate` | disabled / waiting, no base | #C3CDE0 | #7C89A6 |
+| `Mint` | Home (never confused with the Leaf «ЛОВИ!») | #8CF5E0 | #14B8A6 |
+| `Water` | waiting for a bite | #5FD8FF | #1FA5C8 |
+
+Base colours are clean swatches too (`UIConfig.BaseSwatches`, by the BaseConfig colour Id):
+Red = Berry, Purple = Grape, Cyan = Sky, Orange = Sun, Green #6FF0B0→#14A86A, Pink
+#FF9AD5→#E0489A, Blue #7AA8FF→#2F62E0, Yellow #FFE65C→#F0B400; any other colour goes through
+`UIConfig.swatchFor(color)` (lighter top, saturated bottom, dark lip) — never a grey-tinted face.
 
 Rarity themes (banners, rays, glows, confetti mixes): Common `#E3E9F0→#9AA8B8`, Rare `#6CD3FF→#2468F0`,
 Epic `#E08CFF→#7B2FE8`, Legendary `#FFF27A→#FF8A1F`, Mythic = an **animated rainbow** (UIGradient with
@@ -41,6 +49,23 @@ Heavy where the family has it). White text with a dark outline (TextStrokeTransp
 `Ink`, plus a UIStroke on the label for thickness 2–3 px on big titles). Big titles may have a
 UIGradient on the text (white → pale gold). Never below 12 px on a phone (UITextSizeConstraint).
 Short words, upper case for buttons and titles («ЗАБРОСИТЬ», «КЛЮЁТ!»).
+
+**Type scale.** Text that means the same thing has the same size on one screen. Four tiers
+(`UIConfig.Type`, Roblox TextSize = line height in px on a 390 px tall screen):
+
+| tier | px | used for |
+|---|---|---|
+| `Title` | 22 | base badge, minigame title, rarity banner, fish name |
+| `Button` | 18 | action caption, «СМОТАТЬ», «ДОМОЙ», Legendary/Mythic broadcasts |
+| `Body` | 16 | hints, Help, toasts, the catch counter |
+| `Small` | 14 | chips (weight, price), «Тапни, чтобы закрыть» |
+
+A label gets its tier with `Theme.label(…, { Tier = "Body" })` (attribute `TextTier`);
+`UiFx.fitText(hud)` (HudController) sets Max = tier × clamp(H / 390, 1, 1.6), Min = Max − 2 for
+every tiered label, also ones cloned later. Give the box at least that height; long copy is
+shortened (or the widget grows a line), never shrunk below its tier. Display text (the giant
+rarity title, the base banner name, cooldown digits) is box-driven, not tiered. Text outlines
+are at least 2 px on any screen (`UIConfig.Fx.TextStrokeMin`).
 
 **Icons.** Emoji in their own TextLabel (TextStrokeTransparency 1), slightly rotated (−8°) for life:
 🎣 🐟 🏠 💰 ⭐ ✨ ❗ 💪 🔥 🌈 👑.
@@ -60,14 +85,17 @@ Trove or return a cleanup function.
 | wiggle | Rotation ±6° (Sine, 3 swings) | 0.4 s |
 | shake | Position jitter ±1.5 % decaying | 0.25 s |
 | shine | white diagonal gradient band (Transparency sequence 1→0.4→1) sweeping Offset −1→1 across a button/card | 0.6 s, every 3–4 s on idle main buttons |
-| glow ring | a copy of the round shape behind it, scale 1→1.5, transparency 0.3→1 | 0.6 s, repeat while important |
-| rays | sunburst of 12–16 thin wedge-ish Frames (rotated bars) in alternating rarity colours, slowly rotating (≈20°/s), behind titles and the catch card | while shown |
+| glow ring | a copy of the round shape behind it, scale 1→1.5, transparency 0.3→1 | 0.6 s, repeat while important; stop fades live rings in 0.1 s |
+| rays | sunburst of 8–16 thin rotated bars in alternating rarity colours, growing from the centre (Quad Out, no overshoot), slowly rotating (≈20°/s; two rings turn opposite ways), behind titles and the catch card; on touch: no halo quads, no breathing, size capped (`maxPx`); `settle()` after the reveal (+0.25 transparency, half the spin) | while shown |
 | confetti | 30–60 small Frames (squares/strips, random vivid colours, rotation), launched up/out then falling with gravity and spin, fading in the last 30 % | 1.6–2.2 s |
 | sparkles | ✨ / ⭐ labels popping in/out at random spots around an element | while shown |
 | float text | «ОТЛИЧНО!», «+1 🐟», «МИМО!» rise 8 % and fade, slight rotation | 0.8 s |
 | count-up | number ticks from 0 to the value (Quad Out) | 0.6–1.0 s |
 | rainbow | UIGradient colour keypoints shifted every frame (hue cycle), or Rotation spin | continuous while shown |
-| flash | full-screen white/rarity-coloured Frame 0.6→1 transparency | 0.25 s |
+| flash | full-screen white/rarity-coloured Frame 0.6→1 transparency; `flashBig` 0.12, hold 0.05 s, fade 0.45 s for landings | 0.25 s; ≤ 3 per second |
+| edge vignette | 4 edge bands in a colour (or a gradient), fading towards the centre; static, pulsing (≥ 0.34 s period) or one-shot | tension, bite, perfect hit |
+| FOV punch | the camera zooms in a few degrees and back (all punches summed, capped at −8°) | 0.08 s in, 0.35 s out |
+| sounds | pooled built-in sounds with a pitch; rarity arpeggio (Common 1 note … Legendary 4, Mythic 7) | events |
 
 Easing defaults: Back Out for appearing, Quad In for leaving, Sine for loops. Nothing linear except
 timers. Stagger groups by 0.03–0.06 s.
@@ -75,10 +103,16 @@ timers. Stagger groups by 0.03–0.06 s.
 ## 3. Where it is used
 
 - **HUD chrome** (tools/builder/gui/Hud.luau, HudController, NotifyController): base badge (glossy pill
-  in the base colour, flag icon, shine every few seconds, bounce when the base is assigned), catch
-  counter (gold pill, 🐟, bump + «+1» on each catch), Home button (Leaf candy button with lip, gloss,
-  🏠 wiggle on press, cooldown as a draining overlay), toasts (candy pills by kind with an icon,
-  slide-down + bounce, shine, shrink out).
+  in the base swatch, flag in a socket, Title text; shines only when the base arrives); the base
+  banner (first assignment: «ТВОЯ БАЗА» / «ЛАЗУРНАЯ!» across the centre in the base swatch, waving
+  🚩, rays, confetti, a fanfare; after 2 s it shrinks into the badge, which bumps); catch counter
+  (gold pill, 🐟 in a white socket, bump + «+N» + a higher tick when the fish arrives — held while
+  the HUD has `CounterHold`); Home button (Mint candy, dark caption ribbon like the action button,
+  🏠 wiggle on press; cooldown: draining veil, digits on the face, «ЖДИ» over the veil, the house
+  fades; one shine when ready); toasts (candy pills by kind with an icon in a socket, slide-down +
+  bounce, shine; 3 on a PC, 2 on touch, 1 while a fishing widget is up, the rest queue; Legendary
+  gold and Mythic rainbow broadcasts with 👑, bigger and longer; leaving: rise + fade, ≥ 0.7 s apart).
+  Only the primary CTA idles (shine + breathing); the chrome stays calm.
 - **Fishing UI** (tools/builder/gui/Fishing.luau, FishingController): the action button is the star —
   a big round candy button whose gradient/icon/caption change by state, glow rings while it matters,
   shine on idle, press squash, ripple on tap. Bite alert: slams in, «КЛЮЁТ!» shakes, ❗ wiggle, rays
@@ -118,7 +152,7 @@ Sounds (client content; harmless if a file is missing): `rbxasset://sounds/swoos
 `rbxasset://sounds/electronicpingshort.wav`, `rbxasset://sounds/impact_water.mp3`,
 `rbxasset://sounds/action_swim.mp3`, `rbxasset://sounds/button.wav`, `rbxasset://sounds/clickfast.wav`.
 
-## 6. API (UI v1 foundation)
+## 6. API (UI v1 foundation + v2 additions)
 
 Where things live:
 
@@ -132,15 +166,23 @@ Where things live:
 
 ### 6.1 UIConfig (one source of colours)
 
-`Ink`, `White`; `Palette.<Sky|Sun|Leaf|Berry|Grape|Gold|Night|Cream|Slate>` = `{ Top, Bottom, Lip }`
-(Slate = disabled / waiting; Lip = the dark bottom band of a candy); `Rarity.<Common|Rare|Epic|
-Legendary|Mythic>` = `{ Top, Bottom, Lip, Rainbow, Rays = {…}, Confetti = {…}, ConfettiCount, Flash }`;
-`Mutations.<Gold|Neon|Rainbow>` = `{ Top, Bottom, Lip, Icon, Effect = "sparkles"|"pulse"|"rainbow" }`;
-`Rainbow` (7 hues), `Confetti` (vivid mix); `ToastKinds.<info|success|warning|danger>` =
-`{ Token, Icon }`; `KindColors` (flat colour per kind = palette Bottom); `NoBaseColor`;
-`Tint = { Bottom, Lip }` (runtime-colour candies); `Fx = { ConfettiMaxTouch = 40, ConfettiMax = 60,
-ShineInterval, FlashMinInterval, StrokeHeight = 720 }`. FishConfig's rarity/mutation `Color`s stay
-the flat colours the stage-2 tests check; use `UIConfig.Rarity` / `Mutations` for gradients and FX.
+`Ink`, `White`; `Palette.<Sky|Sun|Leaf|Berry|Grape|Gold|Night|Cream|Slate|Mint|Water>` =
+`{ Top, Bottom, Lip }` (Slate = disabled / waiting; Lip = the dark bottom band of a candy);
+`Rarity.<Common|Rare|Epic|Legendary|Mythic>` = `{ Top, Bottom, Lip, Rainbow, Rays = {…},
+Confetti = {…}, ConfettiCount, Flash }`; `Mutations.<Gold|Neon|Rainbow>` = `{ Top, Bottom, Lip, Icon,
+Effect = "sparkles"|"pulse"|"rainbow" }`; `Rainbow` (7 hues), `Confetti` (vivid mix);
+`ToastKinds.<info|success|warning|danger|base|Legendary|Mythic>` = `{ Token, Icon, Rainbow?, Big?,
+Life?, Priority? }` (danger icon 🚨; unknown kinds render as info); `KindColors` (flat colour per
+kind = palette Bottom); `NoBaseColor`; `BaseSwatches.<Id>` and `swatchFor(color) -> swatch` (base
+colours, §1); `Type = { Title = 22, Button = 18, Body = 16, Small = 14 }`, `TypeHeight = 390`,
+`TypeMaxScale = 1.6` (§1); `CatchCardTime.<rarity>` = 2.2 / 2.8 / 3.4 / 4.5 / 5.5 s (client-only
+auto-close of the catch card); `ToastDuration`, `MaxToasts = 3`, `MaxToastsTouch = 2`,
+`ToastGap = 0.7`; `Fishing = { PipDone (64,200,96 — the e2e bot looks for it), TrackBottom,
+PipShade, NeedleShade, Muted, Guide, ZoneGlow, TimeBar = {cool, Sun, Berry} }` (fishing colours
+outside the palette); `Fx = { ConfettiMaxTouch = 40, ConfettiMax = 60, ShineInterval,
+FlashMinInterval = 0.34, StrokeHeight = 720, TextStrokeMin = 2, FovPunchMax = 8, SoundPool = 4 }`.
+FishConfig's rarity/mutation `Color`s stay the flat colours the stage-2 tests check; use
+`UIConfig.Rarity` / `Mutations` for gradients and FX.
 
 ### 6.2 The candy (structure contract shared by Theme and UiFx)
 
@@ -149,38 +191,40 @@ the flat colours the stage-2 tests check; use `UIConfig.Rarity` / `Mutations` fo
   Lip        Frame, full size, ZIndex z, Palette.X.Lip, UICorner, UIStroke Ink 3 px (BaseThickness = 3)
   <Face>     Frame "Face" (BaseBadge: "Swatch"), top 92 % (LIP = 0.08), ZIndex z+1,
              white + UIGradient "Fill" Top → Bottom (Rotation 90), UICorner
-    Gloss    white band in the top 44 %, UIGradient "Fade" 0.42 → 1
-    Shine    full-size white overlay, UIGradient "Band" (Rotation 20, Offset (-1, 0) = hidden)
+    Gloss    white band in the top 44 %, UIGradient "Fade" 0.42 → 1 (Night: thin 0.94 × 0.3, faint)
+    Shine    full-size white overlay, Visible = false until UiFx.shine sweeps it; UIGradient
+             "Band" (Rotation 20, Offset (-1, 0) = hidden)
   …content   Icon / Caption / Label at ZIndex z+2 (Theme.Z.Content); overlays at Z.Overlay (5)
 ```
 
-Runtime-colour candies (the base badge): `Face.BackgroundColor3 = colour`, `Fill` = white → grey
-(`Tint.Bottom`), `Lip = colour × Tint.Lip`. Children render above their parent (ZIndexBehavior
+Runtime colours (a candy built with `color`, `UiFx.setCandy(root, Color3)`) become the swatch
+`UIConfig.swatchFor(colour)`; the base badge uses `BaseSwatches`. Children render above their parent (ZIndexBehavior
 Sibling), so anything that must appear *behind* a candy (glow, rays) is a child with ZIndex 0.
 Outlines are drawn for a 720 px tall screen: every UIStroke made by Theme/UiFx carries a
 `BaseThickness` attribute and `UiFx.fitStrokes(hud)` (HudController) scales them to the real screen
-height (×0.65 … ×1.5), including widgets cloned later. Note: Lune stores `UICorner.CornerRadius` as
+height (×0.65 … ×1.5; text outlines at least 2 px), including widgets cloned later. Text tiers are
+fitted the same way by `UiFx.fitText(hud)` (§1 "Type scale"). Note: Lune stores `UICorner.CornerRadius` as
 the four per-corner radii, so in RbxSim read `TopLeftRadius` (or `CandyRadius`), not `CornerRadius`.
 
 ### 6.3 Theme (builder, `tools/builder/gui/Theme.luau`)
 
 | function | what |
 |---|---|
-| `Theme.UI`, `Theme.P`, `Theme.INK`, `Theme.WHITE` | UIConfig, its palette, Ink, white |
+| `Theme.UI`, `Theme.P`, `Theme.TYPE`, `Theme.INK`, `Theme.WHITE` | UIConfig, its palette, the type scale, Ink, white |
 | `Theme.Z` | ZIndex layers inside a candy: `Behind 0, Lip 1, Face 2, Content 3, Overlay 5, Top 6` |
 | `Theme.LIP`, `Theme.STROKE`, `Theme.FONT`, `Theme.MIN_TEXT`, `Theme.HOTBAR` | 0.08, 3 px, Nunito ExtraBold, 12 px, 74 px |
 | `Theme.gradient(parent, top, bottom, rotation?, name?)` | UIGradient "Fill" (vertical by default) |
 | `Theme.multiGradient(parent, colors, rotation?, name?)`, `Theme.sequence(colors)`, `Theme.numbers({{t, v}…})` | multi-stop gradients, sequences |
-| `Theme.candy(root, token, opts?)` → face | makes `root` a candy; opts: `radius` (0.5), `lip`, `stroke` (3; 0 = none), `color` (runtime colour), `transparency`, `faceName`, `gloss` / `shine` (false to omit), `z` |
-| `Theme.candyButton(parent, name, token, props)` → TextButton | candy button with `Icon` / `Caption` children; props: any TextButton props + `Icon`, `Caption`, `Layout` ("stack": icon over caption, "row"), `Radius` (0.3), `Square`, `MaxTextSize`, `MinTextSize`, `CandyOpts` |
-| `Theme.pill(parent, name, token, props)` → Frame | candy pill with an overhanging emoji `Icon` (or a white `IconSocket` with `Socket = true`) and a centred `Label`; props: `Icon`, `IconScale` (1.35), `Text`, `MaxTextSize`, `Color`, `CandyOpts`, `LabelProps` |
+| `Theme.candy(root, token, opts?)` → face | makes `root` a candy; opts: `radius` (0.5), `lip`, `stroke` (3; 0 = none), `color` (runtime colour → `swatchFor`), `transparency`, `faceName`, `gloss` / `shine` (false to omit), `z` |
+| `Theme.candyButton(parent, name, token, props)` → TextButton | candy button with `Icon` / `Caption` children; props: any TextButton props + `Icon`, `Caption`, `Layout` ("stack": icon over caption, "row"), `Radius` (0.3), `Square`, `Tier`, `MaxTextSize`, `MinTextSize` (default 12), `CandyOpts` |
+| `Theme.pill(parent, name, token, props)` → Frame | candy pill with an overhanging emoji `Icon` (or a white `IconSocket` with `Socket = true`) and a centred `Label`; props: `Icon`, `IconScale` (1.35), `Text`, `Tier`, `MaxTextSize`, `Color`, `CandyOpts`, `LabelProps` |
 | `Theme.panel(parent, name, props)` → Frame | Night glass panel (or `Token = "Cream"` card), radius 0.16, thin gloss |
-| `Theme.socket(parent, name, emoji, props)` → Frame | white round socket with an emoji child (`IconName`, default "Icon") |
-| `Theme.label(parent, name, props)` → TextLabel | white Nunito text, Ink TextStroke; extra keys `MaxTextSize`, `MinTextSize`, `Outline = px` (UIStroke "Outline" on the text), `OutlineColor`, `TextGradient = {top, bottom}` (UIGradient "TextFill") |
+| `Theme.socket(parent, name, emoji, props?)` → Frame | white round socket with an emoji child (`IconName`, default "Icon"); emoji "" = empty socket |
+| `Theme.label(parent, name, props)` → TextLabel | white Nunito text, Ink TextStroke; extra keys `Tier` (type scale: attribute `TextTier` + constraint TYPE[tier] / −2), `MaxTextSize`, `MinTextSize`, `Outline = px` (UIStroke "Outline" on the text), `OutlineColor`, `TextGradient = {top, bottom}` (UIGradient "TextFill") |
 | `Theme.icon(parent, name, emoji, props?)` → TextLabel | emoji label, no outline, Rotation −8, ZIndex Content |
 | `Theme.gloss(face, radius, props?)`, `Theme.shine(face, radius)` | the two face layers on their own |
 | `Theme.rarityGradient(parent, rarityId, rotation?)` | rarity gradient; Mythic gets rainbow stops + attribute `Rainbow = true` (animate with `UiFx.rainbow`) |
-| `Theme.corner`, `Theme.stroke(parent, px, transparency?, color?)`, `Theme.C` | legacy helpers (gui/Fishing.luau); `stroke` is now Ink + BaseThickness |
+| `Theme.corner`, `Theme.stroke(parent, px, transparency?, color?)` | small helpers; `stroke` is Ink + BaseThickness (the legacy flat-colour table `Theme.C` is gone: colours come from UIConfig) |
 
 ### 6.4 UiFx (client, `require(ReplicatedStorage.Shared.UiFx)`)
 
@@ -199,30 +243,60 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `shake(gui, amount?, time?)` | timers | Position jitter ±1.5 %; **no effect inside a UIListLayout** (use wiggle there) |
 | `shine(gui, time?)` | timers | sweeps the candy's `Shine.Band`; non-candies get a temporary overlay with the same UICorner |
 | `shineLoop(gui, {interval?, time?, delay?, when?})` → stop | timers | idle shine every 3.5 s while visible (and `when()`) |
-| `glowRing(gui, {color?, time?, scale?, thickness?, filled?, loop?, interval?, z?})` → stop | timers | expanding ring (or a filled copy behind a candy) 1 → 1.5, fading |
+| `glowRing(gui, {color?, time?, scale?, thickness?, filled?, loop?, interval?, z?})` → stop | timers | expanding ring (or a filled copy behind a candy) 1 → 1.5, fading; stop also fades this call's live rings in 0.1 s |
 | `ripple(gui, color?)` | timers | small one-shot ring for taps |
-| `rays(gui, {colors?, count?, speed?, size?, width?, transparency?, glow?, z?})` → stop | timers | sunburst (core + halo rays, glow discs) behind `gui` (ZIndex 0), rotating 20°/s, breathing |
+| `rays(gui, {colors?, count?, speed?, size?, maxPx?, width?, transparency?, glow?, halo?, breathe?, grow?, z?})` → `Rays` | timers | sunburst behind `gui` (ZIndex 0): core rays (+ halo quads and breathing 1↔1.06 by default on PC, off on touch), glow discs; grows 0→1 in `grow` (0.4 s, Quad Out); `speed` °/s with a sign (negative = counter-rotate); `maxPx` caps the diameter. The handle: `rays()` or `rays.stop()` removes, `rays:Destroy()` for Trove, `rays:settle({alphaAdd = 0.25, spinMul = 0.5, time = 0.6})` calms it after the reveal (also stops breathing), `rays.holder` = the FxRays frame |
 | `confetti(container, {count?, colors?, origin?, spread?, power?, duration?, z?})` → stop | frame | squares/strips, gravity, flutter, fade in the last 30 %; ≤ 40 alive on touch devices, ≤ 60 otherwise (all bursts together; `confettiCap()`, `liveConfetti()`) |
+| `confettiPop(container, {same options})` → stop | timers | the same pieces on tweens only (arc up Quad Out, down Quad In, spin, fade): no frame job — for moments when the rest is idle (joining, the base banner) and cheap bursts; shares the confetti cap |
 | `burst(container, {count?, colors?, origin?, power?, time?, z?})` → stop | frame | round sparks flying out of `origin` (hit in the zone, reward) |
 | `sparkles(gui, {icons?, rate?, size?, area?, duration?, z?})` → stop | timers | ✨/⭐ popping around the edges |
 | `floatText(container, text, {position?, size?, color?, colors?, rise?, time?, rotate?, z?})` → label | timers | «ОТЛИЧНО!», «+1»: pop, rise 8 %, fade (0.8 s) |
 | `countUp(label, from, to, time?, format?)` → stop | frame | Quad Out; `format` is a function or `"%d"`; stop jumps to the final value |
 | `rainbow(gradient, {speed?, colors?, spin?})` → stop | frame | hue cycle (30 Hz); stop restores the colours |
 | `timerBar(fill, duration, colors?)` → stop | frame | width 1 → 0, green → yellow → red |
-| `flash(layer, color?, time?)` | timers | full-screen 0.6 → 1; at most 3 per second |
+| `flash(layer, color?, time?, from?, hold?)` | timers | full-screen `from` (0.6) → 1 over `time` (0.25 s) after `hold` (0); at most 3 per second (extra calls are dropped) |
+| `flashBig(layer, color?)` | timers | the big-moment preset: from 0.12, hold 0.05 s, fade 0.45 s (landing of a Legendary/Mythic) |
+| `fovPunch(deg, tIn?, tOut?)` → stop | frame | the ONLY writer of `Camera.FieldOfView`: base + deg (negative = zoom in) over `tIn` (0.08 s, Quad Out), back over `tOut` (0.35 s, Sine); punches add up, the sum is clamped to ±8°; the base is restored at the end (an outside change of the FOV becomes the new base). Never set FieldOfView yourself while punches may run |
+| `edgeVignette(layer, color \| {colors}, alpha, period?, opts?)` → stop(fade?) | timers | 4 edge bands ("FxVignette", ZIndex 90): transparency `alpha` at the edge → clear inside; `colors` run edge → inward. `period` = full pulse cycle between alpha and `opts.pulseTo` (alpha + 0.2), clamped to ≥ 0.34 s. opts: `fadeIn` (0.35 s), `pulseTo`, `hold` (auto-stop after N s), `fadeOut` (0.25 s), `size` (band, 0.24 of the screen height), `z`. E.g. Epic+ tension `edgeVignette(hud, c, 0.75, nil, {fadeIn = 0.5})`, bite `edgeVignette(hud, {Sun.Top, Sun.Bottom}, 0.55, 0.45)`, perfect hit `edgeVignette(hud, Gold.Top, 0.8, nil, {fadeIn = 0, hold = 0})` |
 | `flyTo(layer, from, to, {text?, time?, size?, arc?, onArrive?})` → stop | frame | an emoji flies on an arc between two widgets (card → counter) |
 | `trail(gui, {count?, lag?, transparency?})` → stop | frame | ghost copies following a moving widget (minigame needle) |
 | `cameraShake(amplitude?, time?)` → stop | render step | gentle translation-only shake (Legendary/Mythic) |
-| `fadeOut(gui, time?)` | timers | every background/text/stroke under `gui` to transparent |
-| `setCandy(root, token \| swatch \| Color3)` | — | recolour a candy (states, toast kinds, base colour) |
-| `fitStrokes(root)` → unbind | 2 conns | see 6.2 |
-| `sound(name, volume?)` | — | "click", "tick", "pop", "swoosh", "splash" (built-in rbxasset sounds) |
+| `fadeOut(gui, time?)` | timers | every background/text/stroke/ViewportFrame under `gui` to transparent |
+| `setCandy(root, token \| swatch \| Color3)` | — | recolour a candy (states, toast kinds, base swatch; a Color3 becomes `swatchFor`) |
+| `fitStrokes(root)` → unbind | 2 conns | see 6.2 (text outlines ≥ 2 px) |
+| `fitText(root)` → unbind | 2 conns | the type scale for every `TextTier` label, also ones added later (§1); HudController runs it on the HUD |
+| `textSize(tier)` → px | — | the tier's size on this screen (what fitText sets) — for width maths |
+| `sound(name, volume?, pitch?)` | — | "click", "tick", "pop"/"ping", "swoosh", "splash" (pitch 0.5 = heartbeat), "swim" or an rbxasset id; 4 pooled copies per sound (round robin), `pitch` = PlaybackSpeed |
+| `arpeggio(rarityId, volume?)` → stop | timers | rising major arpeggio of "ping" (1, 1.26, 1.5, 2 …), 0.07 s apart: Common 1 note, Rare 2, Epic 3, Legendary 4, Mythic 7 (+ an octave up); stop cancels the notes not yet played |
 | `scaleOf(gui)`, `faceOf(root)`, `tween(…)`, `stagger(items, gap?, fn)`, `sequence(colors)`, `sampleColors(colors, k)`, `lighten`, `darken`, `schedule(step, cleanup?)` → stop, `activeJobs()` | — | helpers; `scaleOf` returns the shared UIScale "FxScale" (FishingController uses the same one) |
 
-### 6.5 Rules for the next agents
+### 6.5 HUD contracts (v2)
+
+- **Catch counter** (`HUD.Status.CatchCounter`): HudController owns its `Label.Text` («Улов: N») and
+  `Visible` from the Player attribute `FishCaught`. While the HUD ScreenGui has a number attribute
+  `CounterHold`, the counter shows that number and plays nothing; set it (e.g. to `Total − 1`
+  from the Caught data) synchronously when the catch card opens — HudController reacts to
+  `FishCaught` one frame later, so the same frame is enough. Clear it (`nil`) when the flying 🐟
+  arrives: the counter shows `FishCaught` and plays the arrival (bump 1.3, 🐟 wiggle, «+N»,
+  tick at pitch 1.3). `flyTo(hud, from, counter, {onArrive = …})` stays the way to fly the fish.
+- **Toasts**: `NotifyController.Show(text, kind?, look?)` from any client module; kinds as in
+  `UIConfig.ToastKinds` (`"Legendary"` / `"Mythic"` for server-wide rare-catch broadcasts; the
+  server sends them as the Notify kind); `look = { swatch?, icon? }` overrides the colour/icon.
+  While `HUD.Fishing.Minigame`, `BiteAlert` or `CatchCard` is Visible only one toast shows (the
+  rest queue); keep those names and drive them through `Visible`.
+- **Base banner** (`HUD.BaseBanner`): HudController only; never shown by other modules.
+- **Catch card time**: `UIConfig.CatchCardTime[rarity]` (seconds of auto-close).
+
+### 6.6 Rules for the next agents
 
 - Build widgets with Theme (candy / candyButton / pill / panel / label / icon) and animate with
   UiFx — no hand-rolled colours or tweens; new colours go into UIConfig.
+- Give every label a text tier (`Tier = …`) and a box at least that tall; no `MinTextSize` below 12.
+- Effects that run right after joining (the base banner, the badge) are timer-only (`confettiPop`,
+  no sparkles left behind after ~2.5 s): client tests take their idle baselines soon after a
+  player joins.
+- The camera's FieldOfView belongs to `UiFx.fovPunch`; screen edges to `edgeVignette`; on touch
+  devices rays come without halo quads and capped (`maxPx`) — mind the fill rate on phones.
 - Bind `UiFx.press` once per button at Start (its connections live as long as the HUD).
 - **Idle and ambient effects must be timer-based** (shineLoop, pulse, glowRing loop, rays,
   sparkles): client tests compare connection counts at two moments (stage2_client "unequip and

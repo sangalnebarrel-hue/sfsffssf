@@ -1,8 +1,10 @@
 --!strict
 --[[
 	UiFx — «сочные» анимации интерфейса на клиенте: нажатия, выскакивания, блики, кольца, лучи,
-	конфетти, искры, всплывающий текст, счётчики, радуга, вспышки. Стиль и тайминги —
-	tools/builder/gui/STYLE.md §2, список функций и примеры — STYLE.md «API».
+	конфетти, искры, всплывающий текст, счётчики, радуга, вспышки, виньетка по краям экрана,
+	«толчок» поля зрения камеры, звуки (с высотой тона и арпеджио редкости), подгонка обводок и
+	шкалы текста под экран. Стиль и тайминги — tools/builder/gui/STYLE.md §2, список функций и
+	примеры — STYLE.md «API» (§6).
 
 	Правила:
 	  • Один общий планировщик (RenderStepped на клиенте, Heartbeat в остальных случаях) ведёт все
@@ -59,8 +61,10 @@ local SOUNDS: { [string]: string } = {
 	click = "rbxasset://sounds/button.wav",
 	tick = "rbxasset://sounds/clickfast.wav",
 	pop = "rbxasset://sounds/electronicpingshort.wav",
+	ping = "rbxasset://sounds/electronicpingshort.wav", -- то же, что pop (ноты арпеджио)
 	swoosh = "rbxasset://sounds/swoosh.wav",
-	splash = "rbxasset://sounds/impact_water.mp3",
+	splash = "rbxasset://sounds/impact_water.mp3", -- на pitch 0.5 — «сердцебиение»
+	swim = "rbxasset://sounds/action_swim.mp3",
 }
 
 local rng = Random.new()
@@ -251,24 +255,21 @@ end
 --[[
 	Перекрасить «конфету»:
 	  токен палитры ("Leaf") или { Top, Bottom, Lip } — градиент верх → низ и губа;
-	  Color3 — произвольный цвет (цвет базы): лицевая сторона этого цвета с затемнением книзу.
+	  Color3 — произвольный цвет: чистая «конфета» из него (UIConfig.swatchFor), без серого налёта.
+	  Цвет базы лучше брать из UIConfig.BaseSwatches (так делает HudController).
 ]]
 function UiFx.setCandy(root: GuiObject, look: string | Color3 | Swatch)
 	local face = UiFx.faceOf(root)
 	local fill = face:FindFirstChild("Fill")
 	local lip = root:FindFirstChild("Lip")
+	local swatch: Swatch?
 	if typeof(look) == "Color3" then
-		face.BackgroundColor3 = look
-		if fill and fill:IsA("UIGradient") then
-			local k = UIConfig.Tint.Bottom
-			fill.Color = ColorSequence.new(WHITE, Color3.new(k, k, k))
-		end
-		if lip and lip:IsA("GuiObject") then
-			lip.BackgroundColor3 = scaled(look, UIConfig.Tint.Lip)
-		end
-		return
+		swatch = UIConfig.swatchFor(look)
+	elseif type(look) == "string" then
+		swatch = Palette[look]
+	else
+		swatch = look
 	end
-	local swatch: Swatch? = if type(look) == "string" then Palette[look] else look
 	if not swatch then
 		return
 	end
@@ -281,22 +282,67 @@ function UiFx.setCandy(root: GuiObject, look: string | Color3 | Swatch)
 	end
 end
 
--- Короткий звук интерфейса: "click" | "tick" | "pop" | "swoosh" | "splash" (или rbxasset://…).
-local soundCache: { [string]: Sound } = {}
-function UiFx.sound(name: string, volume: number?)
+--[[
+	Короткий звук интерфейса: "click" | "tick" | "pop" | "ping" | "swoosh" | "splash" | "swim"
+	(или rbxasset://…). pitch — скорость воспроизведения (1 = как есть, 2 = на октаву выше).
+	На каждый звук — UIConfig.Fx.SoundPool копий по кругу: частые звуки (тики счёта, попадания)
+	не обрывают друг друга.
+]]
+type SoundPool = { sounds: { Sound }, nextIndex: number }
+local soundPools: { [string]: SoundPool } = {}
+function UiFx.sound(name: string, volume: number?, pitch: number?)
 	local id = SOUNDS[name] or name
-	local sound = soundCache[id]
+	local pool = soundPools[id]
+	if not pool then
+		pool = { sounds = {}, nextIndex = 1 }
+		soundPools[id] = pool
+	end
+	local index = pool.nextIndex
+	pool.nextIndex = index % math.max(Fx.SoundPool, 1) + 1
+	local sound = pool.sounds[index]
 	if not sound or sound.Parent == nil then
 		sound = Instance.new("Sound")
-		sound.Name = `UiFx_{name}`
+		sound.Name = `UiFx_{name}_{index}`
 		sound.SoundId = id
 		sound.Parent = SoundService
-		soundCache[id] = sound
+		pool.sounds[index] = sound
 	end
 	sound.Volume = volume or 0.4
+	sound.PlaybackSpeed = math.clamp(pitch or 1, 0.25, 4)
 	pcall(function()
+		sound.TimePosition = 0
 		sound:Play()
 	end)
+end
+
+-- Мажорное арпеджио «пинга» (тон, терция, квинта, октава) и сколько нот у какой редкости.
+local ARPEGGIO = { 1, 1.26, 1.5, 2 }
+local ARPEGGIO_NOTES: { [string]: number } = { Common = 1, Rare = 2, Epic = 3, Legendary = 4, Mythic = 7 }
+local ARPEGGIO_STEP = 0.07
+
+--[[
+	«Фанфара» редкости: Common — одна нота, Rare — две, Epic — три, Legendary — четыре, Mythic —
+	четыре и ещё раз октавой выше. Ноты через 0.07 с. Возвращает stop (отменяет ещё не сыгранные).
+]]
+function UiFx.arpeggio(rarityId: string, volume: number?): Stop
+	local notes = ARPEGGIO_NOTES[rarityId] or 1
+	local threads: { thread } = {}
+	for index = 1, notes do
+		local pitch = if index <= #ARPEGGIO then ARPEGGIO[index] else ARPEGGIO[index - #ARPEGGIO + 1] * 2
+		if index == 1 then
+			UiFx.sound("ping", volume or 0.4, pitch)
+		else
+			table.insert(threads, task.delay(ARPEGGIO_STEP * (index - 1), UiFx.sound, "ping", volume or 0.4, pitch))
+		end
+	end
+	return function()
+		for _, thread in threads do
+			if coroutine.status(thread) == "suspended" then
+				pcall(task.cancel, thread)
+			end
+		end
+		table.clear(threads)
+	end
 end
 
 -- Запомненные «спокойные» значения на время покачивания / тряски (чтобы эффекты не копились).
@@ -556,10 +602,14 @@ local function makeShine(face: GuiObject): Frame
 	return frame
 end
 
+-- Сколько бликов сейчас идёт по слою Shine (несколько бликов подряд не прячут его раньше времени).
+local shineSweeps: { [Instance]: number } = setmetatable({}, { __mode = "k" }) :: any
+
 --[[
 	Блик: белая косая полоса проходит по элементу (по лицевой стороне конфеты) за time (0.6 с).
 	Слой во весь размер с тем же скруглением — блик не вылезает за круглые углы. У конфет слой
-	Shine готов в сборщике; у других элементов создаётся на время блика.
+	Shine готов в сборщике и спрятан (Visible = false — не рисуется зря); здесь он показывается на
+	время блика. У других элементов слой создаётся на время блика.
 ]]
 function UiFx.shine(gui: GuiObject, time: number?)
 	local duration = time or 0.6
@@ -582,7 +632,19 @@ function UiFx.shine(gui: GuiObject, time: number?)
 		task.delay(duration + 0.05, function()
 			overlay:Destroy()
 		end)
+		return
 	end
+	overlay.Visible = true
+	shineSweeps[overlay] = (shineSweeps[overlay] or 0) + 1
+	task.delay(duration + 0.02, function()
+		local left = (shineSweeps[overlay] or 1) - 1
+		if left <= 0 then
+			shineSweeps[overlay] = nil
+			overlay.Visible = false
+		else
+			shineSweeps[overlay] = left
+		end
+	end)
 end
 
 export type ShineLoopOptions = {
@@ -634,7 +696,7 @@ export type RingOptions = {
 	z: number?, -- ZIndex (0: позади Lip/Face конфеты)
 }
 
-local function oneRing(gui: GuiObject, o: RingOptions)
+local function oneRing(gui: GuiObject, o: RingOptions): Frame
 	local time = o.time or 0.6
 	local grow = o.scale or 1.5
 	local ring = Instance.new("Frame")
@@ -673,30 +735,42 @@ local function oneRing(gui: GuiObject, o: RingOptions)
 	task.delay(time, function()
 		ring:Destroy()
 	end)
+	return ring
 end
 
--- Расходящееся кольцо (или залитая копия формы) вокруг элемента. С loop — повторяется до stop.
+--[[
+	Расходящееся кольцо (или залитая копия формы) вокруг элемента. С loop — повторяется до stop.
+	stop() гасит и уже летящие кольца этого вызова за 0.1 с (кольцо прошлого состояния кнопки не
+	доигрывает поверх нового цвета).
+]]
 function UiFx.glowRing(gui: GuiObject, opts: RingOptions?): Stop
 	local o: RingOptions = opts or {}
-	oneRing(gui, o)
-	if not o.loop then
-		return noop
+	local live: { [Frame]: boolean } = {}
+	local function spawnRing()
+		local ring = oneRing(gui, o)
+		live[ring] = true
+		task.delay(o.time or 0.6, function()
+			live[ring] = nil
+		end)
 	end
 	local running = true
 	local pending: thread? = nil
-	local gap = o.interval or ((o.time or 0.6) + 0.25)
-	local function tick()
-		pending = nil
-		if not running or gui.Parent == nil then
-			running = false
-			return
-		end
-		if gui.Visible then
-			oneRing(gui, o)
+	spawnRing()
+	if o.loop then
+		local gap = o.interval or ((o.time or 0.6) + 0.25)
+		local function tick()
+			pending = nil
+			if not running or gui.Parent == nil then
+				running = false
+				return
+			end
+			if gui.Visible then
+				spawnRing()
+			end
+			pending = task.delay(gap, tick)
 		end
 		pending = task.delay(gap, tick)
 	end
-	pending = task.delay(gap, tick)
 	return function()
 		running = false
 		local thread = pending
@@ -704,6 +778,19 @@ function UiFx.glowRing(gui: GuiObject, opts: RingOptions?): Stop
 		if thread and coroutine.status(thread) == "suspended" then
 			pcall(task.cancel, thread)
 		end
+		for ring in live do
+			if ring.Parent then
+				local stroke = ring:FindFirstChildOfClass("UIStroke")
+				if stroke then
+					tween(stroke, 0.1, { Transparency = 1 }, QUAD, OUT)
+				end
+				tween(ring, 0.1, { BackgroundTransparency = 1 }, QUAD, OUT)
+				task.delay(0.1, function()
+					ring:Destroy()
+				end)
+			end
+		end
+		table.clear(live)
 	end
 end
 
@@ -715,26 +802,54 @@ end
 export type RaysOptions = {
 	colors: { Color3 }?, -- чередующиеся цвета лучей (белый / золотой)
 	count: number?, -- лучей (14)
-	speed: number?, -- градусов в секунду (20)
+	speed: number?, -- градусов в секунду (20); со знаком: минус — вращение в обратную сторону
 	size: number?, -- диаметр в высотах элемента (2.6)
+	maxPx: number?, -- предел диаметра в пикселях (на телефоне лучи не на весь экран)
 	width: number?, -- толщина луча (доля диаметра, 0.075)
 	transparency: number?, -- прозрачность лучей (0.3)
 	glow: boolean?, -- мягкое свечение в центре (true)
+	halo: boolean?, -- мягкий широкий ореол у каждого луча (по умолчанию: на компьютере да,
+	-- на тач-устройствах нет — вдвое меньше заливки; без ореола лучи в 1.4 раза толще и чуть ярче)
+	breathe: boolean?, -- «дыхание» 1 ↔ 1.06 (по умолчанию как halo)
+	grow: number?, -- время появления 0 → 1, Quad Out без перелёта (0.4 с)
 	z: number?, -- ZIndex (0: позади конфеты; для прочих элементов ставьте лучи в отдельный слой позади)
 }
 
+export type SettleOptions = {
+	alphaAdd: number?, -- на сколько прозрачнее станут лучи (0.25)
+	spinMul: number?, -- во сколько раз медленнее вращение (0.5)
+	time: number?, -- за сколько секунд (0.6)
+}
+
+type RaysApi = {
+	holder: Frame, -- слой FxRays (для тестов и тонкой настройки)
+	stop: () -> (), -- то же, что вызвать саму ручку: лучи удаляются
+	settle: (self: RaysApi, opts: SettleOptions?) -> (), -- «успокоиться» после кульминации
+	Destroy: (self: RaysApi) -> (), -- для Trove:Add
+}
+-- Ручка лучей: её можно вызвать как функцию остановки (rays()), положить в Trove (Destroy) или
+-- «успокоить» после кульминации: rays:settle({ alphaAdd = 0.25, spinMul = 0.5, time = 0.6 }).
+export type Rays = typeof(setmetatable({} :: RaysApi, {} :: { __call: (RaysApi) -> () }))
+
 --[[
-	«Солнышко» за элементом: лучи от центра (чередуются цвета, каждый — яркая сердцевина и
-	широкий мягкий ореол, к концу тают) и круглое свечение; медленно вращается и «дышит».
-	Только твины (без соединений). Возвращает stop (лучи удаляются).
+	«Солнышко» за элементом: лучи от центра (чередуются цвета, к концу тают; на компьютере у
+	каждого ещё широкий мягкий ореол) и круглое свечение; вырастает (Quad Out), медленно вращается
+	(speed со знаком: два кольца в разные стороны не дают муара) и «дышит». Только твины (без
+	соединений). Возвращает ручку Rays: rays() / rays.stop() — убрать, rays:settle() — сделать
+	тише и медленнее (и перестать «дышать»), когда главное уже показано.
 ]]
-function UiFx.rays(gui: GuiObject, opts: RaysOptions?): Stop
+function UiFx.rays(gui: GuiObject, opts: RaysOptions?): Rays
 	local o: RaysOptions = opts or {}
+	local touch = UserInputService.TouchEnabled
 	local colors = o.colors or { WHITE, Palette.Gold.Top }
 	local count = math.max(4, o.count or 14)
 	local size = o.size or 2.6
-	local alpha = o.transparency or 0.3
-	local width = o.width or 0.075
+	local withHalo = if o.halo == nil then not touch else o.halo
+	local breathes = if o.breathe == nil then withHalo else o.breathe
+	local alpha = math.max(0, (o.transparency or 0.3) - (if withHalo then 0 else 0.05))
+	local width = (o.width or 0.075) * (if withHalo then 1 else 1.4)
+	local speed = o.speed or 20
+	local grow = o.grow or 0.4
 	local holder = Instance.new("Frame")
 	holder.Name = "FxRays"
 	holder.BackgroundTransparency = 1
@@ -743,6 +858,11 @@ function UiFx.rays(gui: GuiObject, opts: RaysOptions?): Stop
 	holder.SizeConstraint = Enum.SizeConstraint.RelativeYY
 	holder.Size = UDim2.fromScale(size, size)
 	holder.ZIndex = o.z or 0
+	if o.maxPx then
+		local cap = Instance.new("UISizeConstraint")
+		cap.MaxSize = Vector2.new(o.maxPx, o.maxPx)
+		cap.Parent = holder
+	end
 
 	-- Вдоль луча (снаружи → к центру): снаружи тает, у центра чуть прозрачнее (там сам элемент).
 	local function fade(base: number): NumberSequence
@@ -752,8 +872,9 @@ function UiFx.rays(gui: GuiObject, opts: RaysOptions?): Stop
 			NumberSequenceKeypoint.new(1, math.min(1, base + 0.25)),
 		})
 	end
-	local core = fade(alpha)
-	local halo = fade(math.min(1, alpha + 0.45))
+
+	-- Всё, что гаснет при settle: кадр и его «пиковая» прозрачность.
+	local fading: { { frame: Frame, peak: number, direct: boolean } } = {}
 
 	local function disc(name: string, scale: number, transparency: number, color: Color3)
 		local frame = Instance.new("Frame")
@@ -769,6 +890,7 @@ function UiFx.rays(gui: GuiObject, opts: RaysOptions?): Stop
 		corner.CornerRadius = UDim.new(0.5, 0)
 		corner.Parent = frame
 		frame.Parent = holder
+		table.insert(fading, { frame = frame, peak = transparency, direct = true })
 	end
 	if o.glow ~= false then
 		disc("GlowOuter", 0.62, 0.78, colors[1])
@@ -776,7 +898,7 @@ function UiFx.rays(gui: GuiObject, opts: RaysOptions?): Stop
 	end
 
 	-- Луч — прямоугольник от центра наружу: центр на половине радиуса, повёрнут по направлению.
-	local function ray(index: number, name: string, thickness: number, sequence: NumberSequence)
+	local function ray(index: number, name: string, thickness: number, peak: number)
 		local angle = (index - 1) * 360 / count
 		local radians = math.rad(angle)
 		local frame = Instance.new("Frame")
@@ -790,36 +912,104 @@ function UiFx.rays(gui: GuiObject, opts: RaysOptions?): Stop
 		frame.ZIndex = holder.ZIndex
 		local gradient = Instance.new("UIGradient")
 		gradient.Rotation = 90
-		gradient.Transparency = sequence
+		gradient.Transparency = fade(peak)
 		gradient.Parent = frame
 		frame.Parent = holder
+		table.insert(fading, { frame = frame, peak = peak, direct = false })
 	end
 	for index = 1, count do
-		ray(index, `Halo{index}`, width * 2.2, halo)
-		ray(index, `Ray{index}`, width, core)
+		if withHalo then
+			ray(index, `Halo{index}`, width * 2.2, math.min(1, alpha + 0.45))
+		end
+		ray(index, `Ray{index}`, width, alpha)
 	end
 
 	holder.Parent = gui
-	UiFx.popIn(holder, { time = 0.4 })
-	local spin = TweenService:Create(
-		holder,
-		TweenInfo.new(360 / math.max(o.speed or 20, 1), LINEAR, OUT, -1),
-		{ Rotation = 360 }
-	)
-	spin:Play()
-	local breathe: Stop = noop
-	local alive = true
-	task.delay(0.4, function()
-		if alive and holder.Parent then
-			breathe = UiFx.pulse(holder, 1.06, 2.4)
+	-- Появление: растёт из центра без перелёта (лучи бывают во весь экран — перелёт там лишний).
+	local scale = UiFx.scaleOf(holder)
+	scale.Scale = 0
+	tween(scale, grow, { Scale = 1 }, QUAD, OUT)
+
+	local spin: Tween? = nil
+	local function spinAt(degreesPerSecond: number)
+		if spin then
+			spin:Cancel()
 		end
-	end)
-	return function()
+		local rate = math.max(math.abs(degreesPerSecond), 1)
+		local direction = if degreesPerSecond < 0 then -1 else 1
+		local from = holder.Rotation % 360
+		holder.Rotation = from
+		local created = TweenService:Create(
+			holder,
+			TweenInfo.new(360 / rate, LINEAR, OUT, -1),
+			{ Rotation = from + 360 * direction }
+		)
+		created:Play()
+		spin = created
+	end
+	spinAt(speed)
+
+	local breathe: Tween? = nil
+	local alive = true
+	local settled = false
+	if breathes then
+		task.delay(grow, function()
+			if alive and not settled and holder.Parent then
+				local looping = TweenService:Create(scale, TweenInfo.new(1.2, SINE, INOUT, -1, true), { Scale = 1.06 })
+				looping:Play()
+				breathe = looping
+			end
+		end)
+	end
+
+	local function stop()
+		if not alive then
+			return
+		end
 		alive = false
-		spin:Cancel()
-		breathe()
+		if spin then
+			spin:Cancel()
+		end
+		if breathe then
+			breathe:Cancel()
+		end
 		holder:Destroy()
 	end
+
+	local handle = {} :: RaysApi
+	handle.holder = holder
+	handle.stop = stop
+	function handle.settle(_self: RaysApi, settleOpts: SettleOptions?)
+		if not alive or settled then
+			return
+		end
+		settled = true
+		local so: SettleOptions = settleOpts or {}
+		local add = so.alphaAdd or 0.25
+		local time = so.time or 0.6
+		-- Пик прозрачности p → p + add. У лучей прозрачность в градиенте (он не твинится), поэтому
+		-- их гасит фон кадра: 1 − (1 − фон)(1 − p) = p + add. У дисков свечения — сам фон.
+		for _, item in fading do
+			local target = math.min(1, item.peak + add)
+			local keep = if item.peak >= 1 then 0 else (1 - target) / (1 - item.peak)
+			local goal = if item.direct then target else 1 - keep
+			tween(item.frame, time, { BackgroundTransparency = goal }, QUAD, OUT)
+		end
+		if breathe then
+			breathe:Cancel()
+			breathe = nil
+		end
+		tween(scale, time, { Scale = 1 }, SINE, OUT)
+		spinAt(speed * (so.spinMul or 0.5))
+	end
+	function handle.Destroy(_self: RaysApi)
+		stop()
+	end
+	return setmetatable(handle, {
+		__call = function(_self: RaysApi)
+			stop()
+		end,
+	})
 end
 
 --------------------------------------------------------------------------------
@@ -975,6 +1165,86 @@ function UiFx.confetti(container: GuiBase2d, opts: ConfettiOptions?): Stop
 		liveConfetti -= count
 		holder:Destroy()
 	end)
+end
+
+--[[
+	Конфетти на одних твинах (без покадровой работы): каждая бумажка взлетает по дуге (вверх —
+	Quad Out, вниз — Quad In), кувыркается и тает. Беднее физики confetti (нет «парашюта»), зато
+	ничего не держит общий планировщик — для моментов, когда остальной интерфейс спокоен (вход
+	в игру, баннер базы) и для дешёвых залпов. Опции и общий лимит — как у confetti
+	(power — высота дуги, duration — жизнь). Возвращает stop.
+]]
+function UiFx.confettiPop(container: GuiBase2d, opts: ConfettiOptions?): Stop
+	local o: ConfettiOptions = opts or {}
+	local count = math.min(o.count or 20, UiFx.confettiCap() - liveConfetti)
+	if count <= 0 then
+		return noop
+	end
+	local area = container.AbsoluteSize
+	local width, height = math.max(area.X, 1), math.max(area.Y, 1)
+	local unit = screenUnit(container)
+	local colors = o.colors or UIConfig.Confetti
+	local origin = o.origin or Vector2.new(0.5, 0.5)
+	local spread = math.rad(o.spread or 100)
+	local power = o.power or 1
+	local duration = o.duration or 1.6
+	local holder = Instance.new("Frame")
+	holder.Name = "FxConfetti"
+	holder.BackgroundTransparency = 1
+	holder.Size = UDim2.fromScale(1, 1)
+	holder.ZIndex = o.z or 50
+	holder.Active = false
+	for _ = 1, count do
+		local strip = rng:NextNumber() < 0.45
+		local w = unit * (if strip then 0.011 else 0.019) * rng:NextNumber(0.8, 1.25)
+		local h = unit * (if strip then 0.032 else 0.019) * rng:NextNumber(0.8, 1.25)
+		local angle = -math.pi / 2 + rng:NextNumber(-0.5, 0.5) * spread
+		local reach = unit * 0.32 * power * rng:NextNumber(0.6, 1.2)
+		local life = duration * rng:NextNumber(0.75, 1)
+		local up = life * 0.38
+		local x0, y0 = origin.X * width, origin.Y * height
+		local x1, y1 = x0 + math.cos(angle) * reach, y0 + math.sin(angle) * reach
+		local x2 = x1 + math.cos(angle) * reach * 0.6
+		local y2 = y1 + unit * rng:NextNumber(0.35, 0.6)
+		local piece = Instance.new("Frame")
+		piece.Name = "Piece"
+		piece.AnchorPoint = Vector2.new(0.5, 0.5)
+		piece.BorderSizePixel = 0
+		piece.BackgroundColor3 = colors[rng:NextInteger(1, #colors)]
+		piece.Size = UDim2.fromScale(w / width, h / height)
+		piece.Position = UDim2.fromScale(x0 / width, y0 / height)
+		piece.Rotation = rng:NextNumber(0, 360)
+		piece.ZIndex = holder.ZIndex
+		piece.Parent = holder
+		tween(piece, up, { Position = UDim2.fromScale(x1 / width, y1 / height) }, QUAD, OUT)
+		-- Вторая половина дуги — отдельным твином после первой (два твина одного свойства сразу
+		-- отменяют друг друга).
+		task.delay(up, function()
+			if piece.Parent then
+				tween(piece, life - up, { Position = UDim2.fromScale(x2 / width, y2 / height) }, QUAD, IN)
+			end
+		end)
+		tween(piece, life, { Rotation = piece.Rotation + rng:NextNumber(-540, 540) }, LINEAR, OUT)
+		tween(piece, life * 0.3, { BackgroundTransparency = 1 }, QUAD, IN, life * 0.7)
+	end
+	holder.Parent = container
+	liveConfetti += count
+	local alive = true
+	local function stop()
+		if not alive then
+			return
+		end
+		alive = false
+		liveConfetti -= count
+		holder:Destroy()
+	end
+	local thread = task.delay(duration + 0.05, stop)
+	return function()
+		if coroutine.status(thread) == "suspended" then
+			pcall(task.cancel, thread)
+		end
+		stop()
+	end
 end
 
 export type BurstOptions = {
@@ -1321,9 +1591,13 @@ function UiFx.timerBar(fill: GuiObject, duration: number, colors: { Color3 }?): 
 	end)
 end
 
--- Вспышка на весь экран (цвет 0.6 → прозрачно за 0.25 с); не чаще 3 раз в секунду.
+--[[
+	Вспышка на весь экран: цвет с прозрачностью from (0.6 — лёгкий отсвет) держится hold секунд и
+	тает за time (0.25 с). Не чаще 3 раз в секунду (UIConfig.Fx.FlashMinInterval): лишние вызовы
+	молча пропускаются. Для кульминаций — UiFx.flashBig.
+]]
 local lastFlash = -math.huge
-function UiFx.flash(layer: GuiBase2d, color: Color3?, time: number?)
+function UiFx.flash(layer: GuiBase2d, color: Color3?, time: number?, from: number?, hold: number?)
 	local now = os.clock()
 	if now - lastFlash < Fx.FlashMinInterval then
 		return
@@ -1335,15 +1609,288 @@ function UiFx.flash(layer: GuiBase2d, color: Color3?, time: number?)
 	frame.Position = UDim2.fromScale(0.5, 0.5)
 	frame.Size = UDim2.fromScale(1.6, 2) -- с запасом: закрывает и вырезы экрана
 	frame.BackgroundColor3 = color or WHITE
-	frame.BackgroundTransparency = 0.6
+	frame.BackgroundTransparency = math.clamp(from or 0.6, 0, 1)
 	frame.BorderSizePixel = 0
 	frame.ZIndex = 100
+	frame.Active = false
 	frame.Parent = layer
 	local duration = time or 0.25
-	tween(frame, duration, { BackgroundTransparency = 1 }, QUAD, OUT)
-	task.delay(duration + 0.02, function()
+	local wait = math.max(hold or 0, 0)
+	tween(frame, duration, { BackgroundTransparency = 1 }, QUAD, OUT, wait)
+	task.delay(wait + duration + 0.02, function()
 		frame:Destroy()
 	end)
+end
+
+-- Большая вспышка (приземление легендарной/мифической рыбы): почти сплошной цвет (0.12), держится
+-- 0.05 с и тает за 0.45 с. То же ограничение частоты, что у flash.
+function UiFx.flashBig(layer: GuiBase2d, color: Color3?)
+	UiFx.flash(layer, color, 0.45, 0.12, 0.05)
+end
+
+--------------------------------------------------------------------------------
+-- «Толчок» поля зрения камеры (один владелец Camera.FieldOfView)
+--------------------------------------------------------------------------------
+
+type Punch = { deg: number, tIn: number, tOut: number, t: number, cancelled: boolean }
+local punches: { Punch } = {}
+local fovJob: Stop? = nil
+local fovCamera: Camera? = nil
+local fovBase = 70
+local fovWritten: number? = nil
+
+local function punchOffset(p: Punch): number?
+	if p.cancelled then
+		return nil
+	end
+	if p.t < p.tIn then
+		local k = p.t / p.tIn
+		return p.deg * (1 - (1 - k) * (1 - k)) -- Quad Out
+	end
+	local k = (p.t - p.tIn) / p.tOut
+	if k >= 1 then
+		return nil
+	end
+	return p.deg * (0.5 + 0.5 * math.cos(math.pi * k)) -- Sine InOut обратно к 0
+end
+
+--[[
+	Камера на миг «приближается» (deg < 0 — уже поле зрения) или «отъезжает» (deg > 0): за tIn
+	(0.08 с, Quad Out) до base + deg, за tOut (0.35 с, Sine) обратно. Единственный владелец
+	Camera.FieldOfView: запоминает базовое значение, складывает одновременные толчки, ограничивает
+	сумму ±UIConfig.Fx.FovPunchMax (8°) и в конце возвращает базу. Если FOV поменял кто-то другой,
+	его значение становится новой базой. Покадрово (общий планировщик). Возвращает stop (этот толчок
+	перестаёт действовать со следующего кадра).
+]]
+function UiFx.fovPunch(deg: number, tIn: number?, tOut: number?): Stop
+	local camera = Workspace.CurrentCamera
+	if not camera or deg == 0 then
+		return noop
+	end
+	local punch: Punch = {
+		deg = deg,
+		tIn = math.max(tIn or 0.08, 0.001),
+		tOut = math.max(tOut or 0.35, 0.001),
+		t = 0,
+		cancelled = false,
+	}
+	table.insert(punches, punch)
+	if not fovJob then
+		fovCamera = camera
+		fovBase = camera.FieldOfView
+		fovWritten = nil
+		fovJob = UiFx.schedule(function(dt: number): boolean
+			local current = Workspace.CurrentCamera
+			if current ~= fovCamera then
+				-- Камеру заменили: новая начинает со своего значения.
+				fovCamera = current
+				fovWritten = nil
+				if current then
+					fovBase = current.FieldOfView
+				end
+			end
+			if not current then
+				return false
+			end
+			if fovWritten and math.abs(current.FieldOfView - fovWritten) > 1e-3 then
+				fovBase = current.FieldOfView -- поле зрения поменял кто-то другой
+			end
+			local sum = 0
+			local index = 1
+			while index <= #punches do
+				local p = punches[index]
+				p.t += dt
+				local offset = punchOffset(p)
+				if offset then
+					sum += offset
+					index += 1
+				else
+					table.remove(punches, index)
+				end
+			end
+			local limit = Fx.FovPunchMax
+			local written = fovBase + math.clamp(sum, -limit, limit)
+			current.FieldOfView = written
+			fovWritten = written
+			return #punches > 0
+		end, function()
+			local current = fovCamera
+			if current and (fovWritten == nil or math.abs(current.FieldOfView - fovWritten) <= 1e-3) then
+				current.FieldOfView = fovBase
+			end
+			table.clear(punches)
+			fovJob = nil
+			fovCamera = nil
+			fovWritten = nil
+		end)
+	end
+	return function()
+		punch.cancelled = true
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Виньетка по краям экрана
+--------------------------------------------------------------------------------
+
+export type VignetteOptions = {
+	fadeIn: number?, -- появление, с (0.35, Sine Out; 0 — сразу)
+	pulseTo: number?, -- вторая прозрачность пульса (alpha + 0.2)
+	hold: number?, -- сама уйдёт через столько секунд (разовая подсветка)
+	fadeOut: number?, -- исчезновение по stop / hold, с (0.25)
+	size: number?, -- толщина полос, доля высоты экрана (0.24)
+	z: number?, -- ZIndex (90: под вспышкой, над остальным)
+}
+
+-- Остановка с плавным исчезновением: fade — за сколько секунд (по умолчанию opts.fadeOut).
+export type FadeStop = (fade: number?) -> ()
+
+--[[
+	Цветные края экрана (тревога, напряжение, «сердцебиение» редкой рыбы): 4 полосы с градиентом
+	от края (прозрачность alpha; 1 — не видно) к середине (прозрачно). color — Color3 или список
+	цветов от края внутрь. period — пульс между alpha и opts.pulseTo, полный цикл за period
+	секунд (не быстрее UIConfig.Fx.FlashMinInterval — правило «не чаще 3 раз в секунду»).
+	Только твины. Слой — ScreenGui (полосы заходят и под верхнюю панель, и в вырезы экрана).
+	Возвращает stop(fade?): плавно гасит и удаляет.
+	Примеры: напряжение Epic+ — edgeVignette(hud, цвет, 0.75, nil, { fadeIn = 0.5 });
+	поклёвка — edgeVignette(hud, { Sun.Top, Sun.Bottom }, 0.55, 0.45);
+	разовая подсветка — edgeVignette(hud, Gold.Top, 0.8, nil, { fadeIn = 0, hold = 0 }).
+]]
+function UiFx.edgeVignette(
+	layer: GuiBase2d,
+	color: Color3 | { Color3 },
+	alpha: number,
+	period: number?,
+	opts: VignetteOptions?
+): FadeStop
+	local o: VignetteOptions = opts or {}
+	local edge = math.clamp(alpha, 0, 1)
+	local fadeIn = o.fadeIn or 0.35
+	local band = o.size or 0.24
+	local area = layer.AbsoluteSize
+	local aspect = if area.X > 1 then area.Y / area.X else 0.5
+	local holder = Instance.new("Frame")
+	holder.Name = "FxVignette"
+	holder.BackgroundTransparency = 1
+	holder.Size = UDim2.fromScale(1, 1)
+	holder.ZIndex = o.z or 90
+	holder.Active = false
+
+	-- Полоса: часть «за краем» (под панелью/вырезом) сплошная, дальше тает к середине экрана.
+	local extra = 0.15
+	local bands: { Frame } = {}
+	local function makeBand(name: string, position: UDim2, size: UDim2, rotation: number, depth: number)
+		local frame = Instance.new("Frame")
+		frame.Name = name
+		frame.BorderSizePixel = 0
+		frame.Position = position
+		frame.Size = size
+		frame.ZIndex = holder.ZIndex
+		frame.BackgroundTransparency = 1
+		frame.Active = false
+		local gradient = Instance.new("UIGradient")
+		gradient.Rotation = rotation
+		local solid = extra / (depth + extra)
+		gradient.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(solid, 0),
+			NumberSequenceKeypoint.new(math.min(0.999, solid + (1 - solid) * 0.4), 0.55),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		if typeof(color) == "Color3" then
+			frame.BackgroundColor3 = color
+		else
+			frame.BackgroundColor3 = WHITE
+			local list = color :: { Color3 }
+			-- Цвет: снаружи первый, внутрь — следующие (часть «за краем» — первым цветом).
+			local points = { ColorSequenceKeypoint.new(0, list[1] or WHITE) }
+			for index, c in list do
+				local t = solid + (1 - solid) * (index - 1) / math.max(#list - 1, 1)
+				if t > 0 and t < 1 then
+					table.insert(points, ColorSequenceKeypoint.new(t, c))
+				end
+			end
+			table.insert(points, ColorSequenceKeypoint.new(1, list[#list] or WHITE))
+			gradient.Color = ColorSequence.new(points)
+		end
+		gradient.Parent = frame
+		frame.Parent = holder
+		table.insert(bands, frame)
+	end
+	local bandX = band * aspect -- та же толщина в пикселях по бокам
+	local extraX = extra * aspect
+	makeBand("Top", UDim2.fromScale(-0.1, -extra), UDim2.fromScale(1.2, band + extra), 90, band)
+	makeBand("Bottom", UDim2.fromScale(-0.1, 1 - band), UDim2.fromScale(1.2, band + extra), -90, band)
+	makeBand("Left", UDim2.fromScale(-extraX, -0.1), UDim2.fromScale(bandX + extraX, 1.2), 0, bandX)
+	makeBand("Right", UDim2.fromScale(1 - bandX, -0.1), UDim2.fromScale(bandX + extraX, 1.2), 180, bandX)
+	holder.Parent = layer
+
+	local tweens: { Tween } = {}
+	local function setAll(value: number, time: number, style: Enum.EasingStyle, direction: Enum.EasingDirection)
+		for _, frame in bands do
+			if time <= 0 then
+				frame.BackgroundTransparency = value
+			else
+				table.insert(tweens, tween(frame, time, { BackgroundTransparency = value }, style, direction))
+			end
+		end
+	end
+	setAll(edge, fadeIn, SINE, OUT)
+
+	local alive = true
+	local pulseThread: thread? = nil
+	if period then
+		local cycle = math.max(period, Fx.FlashMinInterval)
+		local low = math.clamp(o.pulseTo or (edge + 0.2), 0, 1)
+		pulseThread = task.delay(fadeIn, function()
+			pulseThread = nil
+			if not alive then
+				return
+			end
+			for _, frame in bands do
+				local looping = TweenService:Create(
+					frame,
+					TweenInfo.new(cycle / 2, SINE, INOUT, -1, true),
+					{ BackgroundTransparency = low }
+				)
+				looping:Play()
+				table.insert(tweens, looping)
+			end
+		end)
+	end
+
+	local function stop(fade: number?)
+		if not alive then
+			return
+		end
+		alive = false
+		local thread = pulseThread
+		pulseThread = nil
+		if thread and coroutine.status(thread) == "suspended" then
+			pcall(task.cancel, thread)
+		end
+		for _, playing in tweens do
+			playing:Cancel()
+		end
+		table.clear(tweens)
+		local time = fade or o.fadeOut or 0.25
+		if time <= 0 or holder.Parent == nil then
+			holder:Destroy()
+			return
+		end
+		for _, frame in bands do
+			tween(frame, time, { BackgroundTransparency = 1 }, QUAD, IN)
+		end
+		task.delay(time + 0.02, function()
+			holder:Destroy()
+		end)
+	end
+	if o.hold then
+		task.delay(fadeIn + o.hold, function()
+			stop()
+		end)
+	end
+	return stop
 end
 
 export type FlyOptions = {
@@ -1503,7 +2050,7 @@ end
 -- Появление/исчезновение целиком, обводки под экран, «лесенка»
 --------------------------------------------------------------------------------
 
--- Всё содержимое элемента плавно становится прозрачным (фон, текст, обводки).
+-- Всё содержимое элемента плавно становится прозрачным (фон, текст, обводки, 3D-окно).
 function UiFx.fadeOut(gui: GuiObject, time: number?)
 	local duration = time or 0.2
 	local items: { Instance } = gui:GetDescendants()
@@ -1514,6 +2061,8 @@ function UiFx.fadeOut(gui: GuiObject, time: number?)
 		end
 		if item:IsA("TextLabel") or item:IsA("TextButton") or item:IsA("TextBox") then
 			tween(item, duration, { TextTransparency = 1, TextStrokeTransparency = 1 }, QUAD, IN)
+		elseif item:IsA("ViewportFrame") then
+			tween(item, duration, { ImageTransparency = 1 }, QUAD, IN) -- 3D-модель (рыба на карточке)
 		elseif item:IsA("ImageLabel") or item:IsA("ImageButton") then
 			tween(item, duration, { ImageTransparency = 1 }, QUAD, IN)
 		elseif item:IsA("UIStroke") then
@@ -1522,10 +2071,15 @@ function UiFx.fadeOut(gui: GuiObject, time: number?)
 	end
 end
 
+local function isText(item: Instance?): boolean
+	return item ~= nil and (item:IsA("TextLabel") or item:IsA("TextButton") or item:IsA("TextBox"))
+end
+
 --[[
 	Обводки (UIStroke с атрибутом BaseThickness — их ставит Theme) нарисованы для экрана высотой
 	720 px; здесь их толщина подгоняется под настоящий экран (телефон — тоньше, 4K — толще), в том
-	числе у элементов, добавленных позже. Возвращает функцию отвязки.
+	числе у элементов, добавленных позже. Обводка текста не тоньше UIConfig.Fx.TextStrokeMin (2 px):
+	белый текст на жёлтом и зелёном читается только благодаря ей. Возвращает функцию отвязки.
 ]]
 function UiFx.fitStrokes(root: Instance): Stop
 	local camera = Workspace.CurrentCamera
@@ -1538,8 +2092,86 @@ function UiFx.fitStrokes(root: Instance): Stop
 		if item:IsA("UIStroke") then
 			local base = item:GetAttribute("BaseThickness")
 			if typeof(base) == "number" then
-				item.Thickness = math.max(1, math.floor(base * factor * 2 + 0.5) / 2)
+				local floor = if isText(item.Parent) then Fx.TextStrokeMin else 1
+				item.Thickness = math.max(floor, math.floor(base * factor * 2 + 0.5) / 2)
 			end
+		end
+	end
+	local function applyAll()
+		measure()
+		for _, item in root:GetDescendants() do
+			apply(item)
+		end
+	end
+	applyAll()
+	local added = root.DescendantAdded:Connect(apply)
+	local resized = if camera then camera:GetPropertyChangedSignal("ViewportSize"):Connect(applyAll) else nil
+	return function()
+		added:Disconnect()
+		if resized then
+			resized:Disconnect()
+		end
+	end
+end
+
+-- Множитель шкалы текста для экрана высотой height: 1 на телефоне (390 px), до 1.6 на больших.
+local function typeScale(height: number): number
+	if height <= 1 then
+		return 1
+	end
+	return math.clamp(height / UIConfig.TypeHeight, 1, UIConfig.TypeMaxScale)
+end
+
+--[[
+	Размер текста уровня tier ("Title" | "Button" | "Body" | "Small", UIConfig.Type) в пикселях на
+	этом экране — столько ставит fitText. Полезно, чтобы рассчитать ширину плашки под текст.
+]]
+function UiFx.textSize(tier: string): number
+	local camera = Workspace.CurrentCamera
+	local base = UIConfig.Type[tier] or UIConfig.Type.Body
+	return math.floor(base * typeScale(if camera then camera.ViewportSize.Y else 0) + 0.5)
+end
+
+--[[
+	Шкала текста: у каждой надписи с атрибутом TextTier (Theme.label { Tier = … }) ограничение
+	UITextSizeConstraint становится Max = UIConfig.Type[tier] × clamp(H / 390, 1, 1.6), Min = Max − 2
+	(H — высота экрана), так что одинаковые по смыслу надписи одного размера на всём экране.
+	Работает и для элементов, добавленных позже (копии уведомлений, призраки карточки), и при смене
+	размера экрана. Возвращает функцию отвязки (как fitStrokes; вызывается один раз на HUD).
+]]
+function UiFx.fitText(root: Instance): Stop
+	local camera = Workspace.CurrentCamera
+	local scale = 1
+	local function measure()
+		scale = typeScale(if camera then camera.ViewportSize.Y else 0)
+	end
+	local function apply(item: Instance)
+		if not isText(item) then
+			return
+		end
+		local tier = item:GetAttribute("TextTier")
+		local base = if typeof(tier) == "string" then UIConfig.Type[tier] else nil
+		if not base then
+			return
+		end
+		local size = math.floor(base * scale + 0.5)
+		local found = item:FindFirstChildOfClass("UITextSizeConstraint")
+		local constraint: UITextSizeConstraint
+		if found then
+			constraint = found
+		else
+			constraint = Instance.new("UITextSizeConstraint")
+			constraint.Name = "FitText"
+			constraint.MaxTextSize = size
+			constraint.Parent = item
+		end
+		-- Порядок: сначала та граница, что не даст Min > Max в промежутке.
+		if size >= constraint.MaxTextSize then
+			constraint.MaxTextSize = size
+			constraint.MinTextSize = math.max(1, size - 2)
+		else
+			constraint.MinTextSize = math.max(1, size - 2)
+			constraint.MaxTextSize = size
 		end
 	end
 	local function applyAll()

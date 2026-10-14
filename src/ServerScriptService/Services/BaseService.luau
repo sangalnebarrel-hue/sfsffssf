@@ -469,12 +469,9 @@ local function serveQueue()
 		local player = table.remove(waitQueue, 1) :: Player
 		local state = states[player]
 		if state and not state.Base and player.Parent == Players then
+			-- Уведомление «Тебе досталась Лазурная база!» (в цветах базы) показывает сам клиент
+			-- (HudController: плашка перешла из «Ждём базу…» в базу).
 			assignBase(player, state, base)
-			Notify.Send(
-				player,
-				`Освободилась база! Теперь твоя — {base.ColorName}`,
-				"success"
-			)
 			local character = player.Character
 			if character then
 				task.spawn(placeCharacter, player, character)
@@ -530,8 +527,9 @@ local function onPlayerAdded(player: Player)
 	-- Свободную базу берём, только если никто не ждёт в очереди — иначе встаём в конец.
 	local base = if #waitQueue == 0 then pickFreeBase() else nil
 	if base then
+		-- Без уведомления: клиент встречает базу большим баннером «ТВОЯ БАЗА — ЛАЗУРНАЯ!»
+		-- (HudController), который влетает в плашку базы.
 		assignBase(player, state, base)
-		Notify.Send(player, `Твоя база — {base.ColorName}!`, "success")
 	else
 		player:SetAttribute("BaseIndex", 0)
 		table.insert(waitQueue, player)

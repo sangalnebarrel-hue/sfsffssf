@@ -14,10 +14,12 @@
 	      Gloss     white band in the top ~45 % (UIGradient transparency 0.5 → 1): the "wet" look
 	      Shine     full-size overlay with a transparent UIGradient "Band" for UiFx.shine
 	    …content    Icon / Caption / Label (ZIndex above the face)
-	A face may carry a runtime colour instead (Theme.candy opts.color / UiFx.setCandy(root, Color3)):
-	then Face.BackgroundColor3 is that colour and "Fill" is a white → grey tint.
+	A candy may also take a runtime colour (Theme.candy opts.color / UiFx.setCandy(root, Color3)):
+	it becomes a clean swatch made from that colour (UIConfig.swatchFor), never a grey-tinted face.
 
-	Legacy helpers (C, corner, stroke, label, HOTBAR) keep working for gui/Fishing.luau.
+	Text sizes come from the type scale TYPE (UIConfig.Type): label/pill/candyButton take a `Tier`
+	("Title" | "Button" | "Body" | "Small"), stored as the TextTier attribute; at runtime
+	UiFx.fitText (HudController) sets each tiered label's UITextSizeConstraint for the real screen.
 ]]
 
 local U = require("../Util")
@@ -26,8 +28,6 @@ local Enum = U.Enum
 local UDim = U.UDim
 local UDim2 = U.UDim2
 local Vector2 = U.Vector2
-local Color3 = U.Color3
-local rgb = U.rgb
 local roblox = U.roblox
 local ColorSequence = roblox.ColorSequence
 local ColorSequenceKeypoint = roblox.ColorSequenceKeypoint
@@ -49,6 +49,8 @@ local STROKE = 3
 local INK = UI.Ink
 local WHITE = UI.White
 local P = UI.Palette
+-- Type scale: text size per tier in px at a 390 px tall screen (UiFx.fitText scales it up).
+local TYPE = UI.Type
 
 -- ZIndex layers inside a candy root (ZIndexBehavior.Sibling: they only order siblings).
 local Z = {
@@ -58,25 +60,6 @@ local Z = {
 	Content = 3, -- icons, captions, labels
 	Overlay = 5, -- cooldowns, locks
 	Top = 6, -- text over overlays
-}
-
--- Legacy flat colours (gui/Fishing.luau still uses them until it is restyled).
-local C = {
-	panel = P.Night.Bottom,
-	stroke = INK,
-	text = WHITE,
-	home = P.Leaf.Bottom,
-	toast = P.Sky.Bottom,
-	noBase = UI.NoBaseColor,
-	cast = rgb(40, 132, 226), -- the fishing action button (FishingController recolours it per state)
-	stop = rgb(200, 72, 64),
-	track = rgb(34, 42, 66),
-	zone = rgb(64, 200, 96),
-	needle = rgb(255, 255, 255),
-	pip = rgb(70, 78, 100),
-	card = rgb(250, 248, 242),
-	ink = rgb(34, 38, 56),
-	common = rgb(150, 160, 172),
 }
 
 --------------------------------------------------------------------------------
@@ -132,10 +115,6 @@ local function swatch(token: any): any
 	return token
 end
 
-local function scaled(color: any, k: number): any
-	return Color3.new(color.R * k, color.G * k, color.B * k)
-end
-
 --------------------------------------------------------------------------------
 -- Small constructors
 --------------------------------------------------------------------------------
@@ -159,6 +138,11 @@ end
 --[[
 	Text label: white Nunito ExtraBold with a dark Ink outline, TextScaled.
 	Extra keys (not Roblox properties):
+	  Tier = "Title" | "Button" | "Body" | "Small" — the type scale (TYPE): attribute TextTier and a
+	                            UITextSizeConstraint Max = TYPE[Tier], Min = Max - 2 (phone values;
+	                            UiFx.fitText rescales them for the real screen). Wins over Max/MinTextSize.
+	                            Give the label a box at least that tall and wide enough for its text:
+	                            long copy is shortened, never shrunk below the tier;
 	  MaxTextSize / MinTextSize — UITextSizeConstraint (MinTextSize defaults to 12 when MaxTextSize is set);
 	  Outline = px            — a thick UIStroke on the text (titles, captions) instead of TextStroke;
 	  OutlineColor            — its colour (default Ink);
@@ -177,20 +161,30 @@ local function label(parent: any, name: string, props: { [string]: any }): any
 	for key, value in props do
 		base[key] = value
 	end
+	local tier = base.Tier
 	local maxText = base.MaxTextSize
 	local minText = base.MinTextSize or MIN_TEXT
 	local outline = base.Outline
 	local outlineColor = base.OutlineColor
 	local textGradient = base.TextGradient
+	base.Tier = nil
 	base.MaxTextSize = nil
 	base.MinTextSize = nil
 	base.Outline = nil
 	base.OutlineColor = nil
 	base.TextGradient = nil
+	if tier then
+		assert(TYPE[tier], `Theme.label: unknown text tier {tier}`)
+		maxText = TYPE[tier]
+		minText = TYPE[tier] - 2
+	end
 	if outline and props.TextStrokeTransparency == nil then
 		base.TextStrokeTransparency = 1 -- the UIStroke draws the outline
 	end
 	local inst = U.new("TextLabel", base, parent)
+	if tier then
+		inst:SetAttribute("TextTier", tier)
+	end
 	if maxText then
 		U.new("UITextSizeConstraint", { MaxTextSize = maxText, MinTextSize = minText }, inst)
 	end
@@ -248,7 +242,8 @@ local function gloss(face: any, radius: number, props: { [string]: any }?): any
 	return frame
 end
 
--- Overlay swept by UiFx.shine: invisible while Band.Offset.X <= -1 or >= 1.
+-- Overlay swept by UiFx.shine. Hidden (Visible = false: no full-size quad rasterised every frame)
+-- until UiFx.shine shows it for the sweep; the band also waits out of sight (Offset.X = -1).
 local function shine(face: any, radius: number): any
 	local frame = U.new("Frame", {
 		Name = "Shine",
@@ -256,6 +251,7 @@ local function shine(face: any, radius: number): any
 		BorderSizePixel = 0,
 		Size = UDim2.fromScale(1, 1),
 		ZIndex = 2,
+		Visible = false,
 	}, face)
 	corner(frame, radius)
 	U.new("UIGradient", {
@@ -282,10 +278,10 @@ end
 	  radius        UICorner scale (default 0.5 = pill)
 	  lip           lip fraction of the height (default 0.08)
 	  stroke        outline px at 720p (default 3; 0 = none)
-	  color         runtime colour mode: face = this colour with a white → grey tint
+	  color         a runtime colour instead of the token: the swatch UIConfig.swatchFor(color)
 	  transparency  BackgroundTransparency of face and lip (Night panels: 0.1)
 	  faceName      name of the face (default "Face"; the base badge calls it "Swatch")
-	  gloss, shine  false to leave them out
+	  gloss, shine  false to leave them out (a Night candy gets the panel's thin, faint gloss)
 	  z             ZIndex of the lip (face = z + 1; put content at z + 2 or higher)
 ]]
 local function candy(root: any, token: any, opts: { [string]: any }?): any
@@ -300,11 +296,10 @@ local function candy(root: any, token: any, opts: { [string]: any }?): any
 	root:SetAttribute("CandyFace", faceName)
 	root:SetAttribute("CandyRadius", radius)
 
-	local look = if o.color then nil else swatch(token)
-	local lipColor = if o.color then scaled(o.color, UI.Tint.Lip) else look.Lip
+	local look = if o.color then UI.swatchFor(o.color) else swatch(token)
 	local lipFrame = U.new("Frame", {
 		Name = "Lip",
-		BackgroundColor3 = lipColor,
+		BackgroundColor3 = look.Lip,
 		BackgroundTransparency = transparency,
 		BorderSizePixel = 0,
 		Size = UDim2.fromScale(1, 1),
@@ -317,20 +312,21 @@ local function candy(root: any, token: any, opts: { [string]: any }?): any
 
 	local face = U.new("Frame", {
 		Name = faceName,
-		BackgroundColor3 = if o.color then o.color else WHITE,
+		BackgroundColor3 = WHITE,
 		BackgroundTransparency = transparency,
 		BorderSizePixel = 0,
 		Size = UDim2.fromScale(1, 1 - lip),
 		ZIndex = z + 1,
 	}, root)
 	corner(face, radius)
-	if o.color then
-		gradient(face, WHITE, Color3.new(UI.Tint.Bottom, UI.Tint.Bottom, UI.Tint.Bottom))
-	else
-		gradient(face, look.Top, look.Bottom)
-	end
+	gradient(face, look.Top, look.Bottom)
 	if o.gloss ~= false then
-		gloss(face, radius)
+		local glossy = gloss(face, radius)
+		if token == "Night" and not o.color then
+			-- Dark glass (hint pill, ribbons, panels): a thin faint highlight, never a grey stripe.
+			glossy.Size = UDim2.fromScale(0.94, 0.3)
+			glossy.BackgroundTransparency = 0.75
+		end
 	end
 	if o.shine ~= false then
 		shine(face, radius)
@@ -338,7 +334,8 @@ local function candy(root: any, token: any, opts: { [string]: any }?): any
 	return face
 end
 
--- Round white "socket" holding an emoji (flag on the base badge, toast icons).
+-- Round white "socket" holding an emoji (flag on the base badge, toast icons). emoji "" = an
+-- empty socket (the icon is a sibling drawn over it, e.g. the catch counter's 🐟 "Icon").
 local function socket(parent: any, name: string, emoji: string, props: { [string]: any }?): any
 	local base: { [string]: any } = {
 		Name = name,
@@ -359,12 +356,14 @@ local function socket(parent: any, name: string, emoji: string, props: { [string
 	corner(frame, 0.5)
 	gradient(frame, WHITE, P.Cream.Bottom)
 	stroke(frame, STROKE)
-	icon(frame, iconName, emoji, {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(0.72, 0.72),
-		ZIndex = 2,
-	})
+	if emoji ~= "" then
+		icon(frame, iconName, emoji, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.72, 0.72),
+			ZIndex = 2,
+		})
+	end
 	return frame
 end
 
@@ -373,7 +372,8 @@ end
 	props: any TextButton properties (Size, Position, AnchorPoint, LayoutOrder, Visible, …) plus
 	  Icon (emoji), Caption (text), Layout ("stack": icon over caption — square buttons;
 	  "row": icon left, caption right — pills; default "stack"), Radius (default 0.3),
-	  Square (true → UIAspectRatioConstraint 1), MaxTextSize / MinTextSize (caption),
+	  Square (true → UIAspectRatioConstraint 1), Tier (caption text tier, see label),
+	  MaxTextSize / MinTextSize (caption without a Tier; MinTextSize defaults to 12),
 	  CandyOpts (extra Theme.candy opts).
 ]]
 local function candyButton(parent: any, name: string, token: any, props: { [string]: any }): any
@@ -389,6 +389,7 @@ local function candyButton(parent: any, name: string, token: any, props: { [stri
 		Layout = true,
 		Radius = true,
 		Square = true,
+		Tier = true,
 		MaxTextSize = true,
 		MinTextSize = true,
 		CandyOpts = true,
@@ -427,8 +428,9 @@ local function candyButton(parent: any, name: string, token: any, props: { [stri
 				Text = props.Caption,
 				Outline = 2,
 				ZIndex = Z.Content,
+				Tier = props.Tier,
 				MaxTextSize = props.MaxTextSize or 24,
-				MinTextSize = props.MinTextSize or 9,
+				MinTextSize = props.MinTextSize or MIN_TEXT,
 			})
 		end
 	else
@@ -448,8 +450,9 @@ local function candyButton(parent: any, name: string, token: any, props: { [stri
 				Text = props.Caption,
 				Outline = 2,
 				ZIndex = Z.Content,
+				Tier = props.Tier,
 				MaxTextSize = props.MaxTextSize or 26,
-				MinTextSize = props.MinTextSize or 9,
+				MinTextSize = props.MinTextSize or MIN_TEXT,
 			})
 		end
 	end
@@ -459,8 +462,9 @@ end
 --[[
 	Candy pill (Frame): an emoji Icon overhanging its left end and a centred Label.
 	props: Frame properties plus Icon (emoji), IconScale (icon size as a fraction of the pill height,
-	default 1.35), Text, MaxTextSize, Socket (true → the icon sits in a white round socket named
-	"IconSocket"), Color (runtime colour mode), CandyOpts, LabelProps (extra Label properties).
+	default 1.35), Text, Tier (label text tier, see label), MaxTextSize, Socket (true → the icon
+	sits in a white round socket named "IconSocket"), Color (runtime colour mode), CandyOpts,
+	LabelProps (extra Label properties).
 ]]
 local function pill(parent: any, name: string, token: any, props: { [string]: any }): any
 	local base: { [string]: any } = { Name = name, BackgroundTransparency = 1 }
@@ -468,6 +472,7 @@ local function pill(parent: any, name: string, token: any, props: { [string]: an
 		Icon = true,
 		IconScale = true,
 		Text = true,
+		Tier = true,
 		MaxTextSize = true,
 		Socket = true,
 		Color = true,
@@ -512,6 +517,7 @@ local function pill(parent: any, name: string, token: any, props: { [string]: an
 			Text = props.Text,
 			Outline = 2,
 			ZIndex = Z.Content,
+			Tier = props.Tier,
 			MaxTextSize = props.MaxTextSize or 28,
 		}
 		for key, value in props.LabelProps or {} do
@@ -546,9 +552,9 @@ local function panel(parent: any, name: string, props: { [string]: any }): any
 	end
 	local face = candy(frame, token, candyOpts)
 	local glossy = face:FindFirstChild("Gloss")
-	if glossy then
+	if glossy and token ~= "Night" then -- (a Night candy already has the thin gloss)
 		glossy.Size = UDim2.fromScale(0.94, 0.3) -- a panel only needs a thin highlight
-		glossy.BackgroundTransparency = if token == "Night" then 0.75 else 0.3
+		glossy.BackgroundTransparency = 0.3
 	end
 	return frame
 end
@@ -568,7 +574,7 @@ return {
 	U = U,
 	UI = UI,
 	P = P,
-	C = C,
+	TYPE = TYPE,
 	Z = Z,
 	INK = INK,
 	WHITE = WHITE,

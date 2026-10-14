@@ -5,6 +5,8 @@
 
 	Модуль «чистый» (без require, только Color3): его читают и клиент (контроллеры, UiFx), и сборщик
 	интерфейса (tools/builder/gui/Theme.luau) — все цвета интерфейса заданы в одном месте.
+	Здесь же шкала размеров текста (Type), время карточки улова по редкости (CatchCardTime) и
+	«конфеты» цветов баз (BaseSwatches, swatchFor).
 
 	Палитра: у каждого цвета (токена) есть
 	  Top    — верх градиента лицевой стороны (светлее),
@@ -40,6 +42,10 @@ export type MutationStyle = {
 export type ToastKind = {
 	Token: string, -- цвет из Palette
 	Icon: string, -- эмодзи в кружке слева
+	Rainbow: boolean?, -- «конфета» переливается радугой (вращающийся градиент)
+	Big: boolean?, -- крупнее обычного (громкие новости: легендарный и мифический улов)
+	Life: number?, -- сколько секунд висит (иначе ToastDuration)
+	Priority: number?, -- кого вытеснять первым, когда места нет (меньше — раньше; по умолчанию 1)
 }
 
 -- "#RRGGBB" → Color3 (цвета записаны так же, как в STYLE.md).
@@ -75,7 +81,36 @@ local Palette: { [string]: Swatch } = {
 	Night = swatch("#2E3A66", "#161C38", "#0A0E20"), -- панели, дорожки
 	Cream = swatch("#FFFDF5", "#F2EADB", "#C9B994"), -- карточки
 	Slate = swatch("#C3CDE0", "#7C89A6", "#4E5872"), -- неактивное («ЖДЁМ…», нет базы)
+	Mint = swatch("#8CF5E0", "#14B8A6", "#0E7C70"), -- «Домой» (не путать с зелёным «ТЯНИ!»)
+	Water = swatch("#5FD8FF", "#1FA5C8", "#137A96"), -- ожидание поклёвки (вода)
 }
+
+--[[
+	«Конфеты» цветов баз (BaseConfig.Colors, ключ — Id): чистые цвета палитры вместо
+	затемнённого цвета базы, чтобы плашка «Твоя база» не выглядела грязной рядом с остальным.
+	Для цвета, которого здесь нет, — UIConfig.swatchFor(цвет).
+]]
+local BaseSwatches: { [string]: Swatch } = {
+	Red = Palette.Berry,
+	Purple = Palette.Grape,
+	Cyan = Palette.Sky,
+	Orange = Palette.Sun,
+	Green = swatch("#6FF0B0", "#14A86A", "#0E7048"),
+	Pink = swatch("#FF9AD5", "#E0489A", "#9E2468"),
+	Blue = swatch("#7AA8FF", "#2F62E0", "#1D3F9E"),
+	Yellow = swatch("#FFE65C", "#F0B400", "#A87A00"),
+}
+
+-- «Конфета» из произвольного цвета: светлый верх, сочный низ (не темнее 0.82 по яркости), тёмная губа.
+local function swatchFor(color: Color3): Swatch
+	local h, s, v = color:ToHSV()
+	local bottom = Color3.fromHSV(h, math.min(1, s * 1.15), math.max(v, 0.82))
+	return {
+		Top = color:Lerp(Color3.new(1, 1, 1), 0.35),
+		Bottom = bottom,
+		Lip = Color3.new(bottom.R * 0.62, bottom.G * 0.62, bottom.B * 0.62),
+	}
+end
 
 local function rarity(
 	top: string,
@@ -158,7 +193,36 @@ local Mutations: { [string]: MutationStyle } = {
 local UIConfig = {
 	-- Всплывающие уведомления (тосты) вверху экрана.
 	ToastDuration = 3.5, -- сколько секунд висит уведомление
-	MaxToasts = 3, -- сколько уведомлений видно одновременно
+	MaxToasts = 3, -- сколько уведомлений видно одновременно (компьютер)
+	MaxToastsTouch = 2, -- … на телефоне и планшете (иначе столбик закрывает персонажа)
+	ToastGap = 0.7, -- уведомления уходят не чаще, чем раз в столько секунд
+
+	--[[
+		Шкала размеров текста (UiFx.fitText): размер в пикселях на экране высотой TypeHeight;
+		на экранах выше растёт пропорционально, но не больше чем в TypeMaxScale раз. Надпись
+		получает уровень атрибутом TextTier (Theme.label { Tier = "Body" }).
+		  Title  — плашка базы, заголовки (мини-игра, баннер редкости, имя рыбы);
+		  Button — подписи кнопок («ЗАБРОСИТЬ», «СМОТАТЬ», «ДОМОЙ»), громкие уведомления;
+		  Body   — подсказки, уведомления, счётчик улова;
+		  Small  — плашки-«чипсы» (вес, цена), «Тапни, чтобы закрыть».
+	]]
+	Type = {
+		Title = 22,
+		Button = 18,
+		Body = 16,
+		Small = 14,
+	} :: { [string]: number },
+	TypeHeight = 390,
+	TypeMaxScale = 1.6,
+
+	-- Сколько секунд карточка улова открыта сама (по редкости; тап закрывает раньше). Только клиент.
+	CatchCardTime = {
+		Common = 2.2,
+		Rare = 2.8,
+		Epic = 3.4,
+		Legendary = 4.5,
+		Mythic = 5.5,
+	} :: { [string]: number },
 
 	-- Тёмная обводка всего интерфейса (текст, кнопки, плашки).
 	Ink = hex("#141A2E"),
@@ -181,12 +245,17 @@ local UIConfig = {
 		WHITE,
 	},
 
-	-- Вид уведомления: цвет «конфеты» и значок.
+	-- Вид уведомления: цвет «конфеты» и значок. Неизвестный вид показывается как info.
 	ToastKinds = {
 		info = { Token = "Sky", Icon = "💬" },
 		success = { Token = "Leaf", Icon = "🎉" },
-		warning = { Token = "Sun", Icon = "⚠️" },
-		danger = { Token = "Berry", Icon = "⛔" },
+		warning = { Token = "Sun", Icon = "⚠️", Priority = 2 },
+		danger = { Token = "Berry", Icon = "🚨", Priority = 3 },
+		-- Своя база (HudController красит «конфету» в цвет базы, см. BaseSwatches).
+		base = { Token = "Leaf", Icon = "🚩", Priority = 2 },
+		-- Громкие новости на весь сервер: легендарный и мифический улов.
+		Legendary = { Token = "Gold", Icon = "👑", Big = true, Life = 4.5, Priority = 2 },
+		Mythic = { Token = "Grape", Icon = "👑", Rainbow = true, Big = true, Life = 4.5, Priority = 2 },
 	} :: { [string]: ToastKind },
 
 	-- Сплошной цвет по виду (подсказки рыбалки и всё, что без градиента).
@@ -197,14 +266,23 @@ local UIConfig = {
 		danger = Palette.Berry.Bottom,
 	} :: { [string]: Color3 },
 
-	-- Цвет-заглушка, пока у игрока нет базы.
+	-- Цвет-заглушка, пока у игрока нет базы (плашка — Palette.Slate).
 	NoBaseColor = Palette.Slate.Bottom,
 
-	-- «Конфета» в произвольном цвете (цвет базы): лицевая сторона — этот цвет с градиентом
-	-- от белого к серому Bottom (умножение), губа — цвет × Lip.
-	Tint = {
-		Bottom = 0.8,
-		Lip = 0.58,
+	-- «Конфеты» цветов баз по Id (BaseConfig.Colors) и «конфета» из любого цвета.
+	BaseSwatches = BaseSwatches,
+	swatchFor = swatchFor,
+
+	-- Цвета рыбалки, которых нет в палитре (сборщик gui/Fishing.luau и FishingController).
+	Fishing = {
+		PipDone = Color3.fromRGB(64, 200, 96), -- закрашенный кружок попадания (его ищет e2e-бот — не менять)
+		TrackBottom = Color3.fromRGB(40, 50, 92), -- низ градиента дорожки мини-игры
+		PipShade = Color3.fromRGB(190, 196, 210), -- тень пустого кружка
+		NeedleShade = Color3.fromRGB(214, 224, 240), -- тень стрелки
+		Muted = Color3.fromRGB(92, 80, 62), -- приглушённый текст на кремовой карточке
+		Guide = Color3.fromRGB(255, 214, 80), -- луч-подсказка к месту рыбалки
+		ZoneGlow = hex("#B8FF9A"), -- свечение зелёной зоны
+		TimeBar = { hex("#BFEFFF"), hex("#FFD23F"), hex("#FF4D5E") }, -- время мини-игры: полно → мало
 	},
 
 	-- Лимиты и ритм эффектов (UiFx).
@@ -212,8 +290,11 @@ local UIConfig = {
 		ConfettiMaxTouch = 40, -- конфетти одновременно на телефоне/планшете
 		ConfettiMax = 60, -- … и на компьютере
 		ShineInterval = 3.5, -- блик на «спокойных» главных кнопках, раз в столько секунд
-		FlashMinInterval = 0.34, -- вспышки не чаще 3 раз в секунду
+		FlashMinInterval = 0.34, -- вспышки (и пульс виньетки) не чаще 3 раз в секунду
 		StrokeHeight = 720, -- обводки нарисованы для экрана такой высоты (UiFx.fitStrokes)
+		TextStrokeMin = 2, -- обводка текста не тоньше, px (белое на жёлтом читается только с ней)
+		FovPunchMax = 8, -- все «толчки» камеры вместе не больше стольких градусов (UiFx.fovPunch)
+		SoundPool = 4, -- копий каждого звука (частые звуки не обрывают друг друга)
 	},
 }
 

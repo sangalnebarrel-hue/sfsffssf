@@ -5,8 +5,10 @@
 	  • the chrome is made of candies: Lip (outline), face with a "Fill" gradient, Gloss, Shine;
 	  • the layout still fits on a phone, a tablet and a desktop: nothing overlaps, everything is
 	    on screen, the Home button stays above the Jump button on touch screens;
-	  • the runtime juice: base colour on the badge, «+N» over the catch counter, the draining
-	    Home cooldown, toasts by kind (colour, icon, width, slots), no frame connection at idle.
+	  • the runtime juice: base swatch on the badge and the base banner flying into it, «+N» over
+	    the catch counter (held while the HUD has CounterHold), the draining Home cooldown («ЖДИ»),
+	    toasts by kind (colour, icon, width, slots, queue while fishing widgets are up, Legendary /
+	    Mythic broadcasts), the type scale (UiFx.fitText), no frame connection at idle.
 
 	The sim ignores UIListLayout alignment, so this file computes rectangles itself (rectOf).
 
@@ -50,6 +52,19 @@ end
 
 local function notify(sim: any, p: any, text: string, kind: string)
 	sim:Find("ReplicatedStorage.Remotes.Notify"):FireClient(p, text, kind)
+end
+
+local function liveToasts(p: any): { any }
+	local list = {}
+	for _, c in p.PlayerGui.HUD.Toasts:GetChildren() do
+		if c.Name == "Toast" then
+			table.insert(list, c)
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.LayoutOrder < b.LayoutOrder
+	end)
+	return list
 end
 
 local function colorNear(a: any, b: any, eps: number?): boolean
@@ -198,6 +213,11 @@ tests["names: every widget the controllers and tests use is still there"] = func
 		"RightButtons.HomeButton.Caption",
 		"RightButtons.HomeButton.Cooldown",
 		"Toasts.ToastTemplate.Label",
+		"Toasts.ToastTemplate.IconSocket.Icon",
+		"RightButtons.HomeButton.CooldownText",
+		"BaseBanner.Caption",
+		"BaseBanner.NameLabel",
+		"BaseBanner.FlagSocket.Flag",
 		"Fishing.ActionArea.ActionButton.Icon",
 		"Fishing.ActionArea.ActionButton.Caption",
 		"Fishing.ActionArea.ActionButton.Ring",
@@ -234,7 +254,8 @@ tests["candies: badge, counter, Home and toasts have lip, gradient face, gloss a
 	checkCandy(t, hud.Status.BaseBadge, nil, "BaseBadge")
 	t.eq(hud.Status.BaseBadge:GetAttribute("CandyFace"), "Swatch", "the badge face is the Swatch")
 	checkCandy(t, hud.Status.CatchCounter, "Gold", "CatchCounter")
-	checkCandy(t, hud.RightButtons.HomeButton, "Leaf", "HomeButton")
+	checkCandy(t, hud.RightButtons.HomeButton, "Mint", "HomeButton")
+	checkCandy(t, hud.BaseBanner, nil, "BaseBanner")
 	checkCandy(t, hud.Toasts.ToastTemplate, "Sky", "ToastTemplate")
 
 	-- Text: white with an Ink outline; icons are emoji without outline.
@@ -258,6 +279,20 @@ tests["candies: badge, counter, Home and toasts have lip, gradient face, gloss a
 	t.ok(hud.Toasts.ToastTemplate.IconSocket.Icon, "icon socket on toasts")
 	t.ok(hud.RightButtons.HomeButton.Cooldown:FindFirstChild("Drain"), "draining cooldown veil")
 	t.ok(hud.RightButtons.HomeButton.Cooldown.ZIndex > hud.RightButtons.HomeButton.Caption.ZIndex)
+	-- The Home caption sits on a dark ribbon (like the action button); text tiers are set.
+	t.ok(hud.RightButtons.HomeButton:FindFirstChild("CaptionRibbon"), "Home caption ribbon")
+	t.eq(hud.RightButtons.HomeButton.Caption:GetAttribute("TextTier"), "Button")
+	t.eq(hud.Status.BaseBadge.Label:GetAttribute("TextTier"), "Title")
+	t.eq(hud.Status.CatchCounter.Label:GetAttribute("TextTier"), "Body")
+	t.eq(hud.Toasts.ToastTemplate.Label:GetAttribute("TextTier"), "Body")
+	t.ok(hud.Status.CatchCounter:FindFirstChild("IconSocket"), "the counter fish sits in a white socket")
+	-- Shine overlays are hidden until a sweep (no full-size quad drawn every frame).
+	sim:Advance(6) -- the join celebration is over
+	for _, d in hud:GetDescendants() do
+		if d.Name == "Shine" and d:IsA("Frame") and not d:IsDescendantOf(hud.Fishing) then
+			t.eq(d.Visible, false, `{d:GetFullName()} hidden at rest`)
+		end
+	end
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -300,7 +335,8 @@ tests["layout: the chrome fits on phone, tablet and desktop without overlaps"] =
 				table.insert(toasts, c)
 			end
 		end
-		t.eq(#toasts, 3, `{device}: three toasts`)
+		local cap = if device == "desktop" then UIConfig.MaxToasts else UIConfig.MaxToastsTouch
+		t.eq(#toasts, cap, `{device}: {cap} toasts (the device cap)`)
 
 		local rects: { [string]: Rect } = { badge = badge, counter = counter, home = home }
 		for i, toast in toasts do
@@ -351,20 +387,55 @@ tests["layout: the chrome fits on phone, tablet and desktop without overlaps"] =
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["badge: base colour on the glossy face, darker lip, flag, bounce on assignment"] = function(t)
+-- The base's clean swatch (UIConfig.BaseSwatches by the base's colour Id).
+local function swatchOf(p: any): any
+	local name = p:GetAttribute("BaseColorName")
+	for _, entry in BaseConfig.Colors do
+		if entry.Name == name then
+			return UIConfig.BaseSwatches[entry.Id]
+		end
+	end
+	return nil
+end
+
+tests["badge: base swatch on the glossy face; the base banner pops up, then flies into the badge"] = function(t)
 	local sim = boot(t)
 	local p = sim:AddPlayer({ UserId = 1, Name = "Badge", device = "desktop" })
 	sim:Advance(0.2)
-	local badge = p.PlayerGui.HUD.Status.BaseBadge
-	local color = p:GetAttribute("BaseColor")
-	t.ok(typeof(color) == "Color3", "base assigned")
-	t.eq(badge.Swatch.BackgroundColor3, color, "the face (Swatch) takes the base colour")
-	local lip = badge.Lip.BackgroundColor3
-	t.ok(lip.R <= color.R and lip.G <= color.G and lip.B <= color.B and lip ~= color, "darker lip")
+	local hud = p.PlayerGui.HUD
+	local badge = hud.Status.BaseBadge
+	t.ok(typeof(p:GetAttribute("BaseColor")) == "Color3", "base assigned")
+	local swatch = swatchOf(p)
+	t.ok(swatch, "a swatch for every base colour")
+	local keys = badge.Swatch.Fill.Color.Keypoints
+	t.ok(colorNear(keys[1].Value, swatch.Top), "the face takes the swatch top")
+	t.ok(colorNear(keys[#keys].Value, swatch.Bottom), "… and bottom (no grey tint)")
+	t.ok(colorNear(badge.Lip.BackgroundColor3, swatch.Lip), "swatch lip")
+	t.eq(badge.Swatch.BackgroundColor3, Color3.new(1, 1, 1), "white face under the gradient")
 	t.eq(badge.FlagSocket.Flag.Text, "🚩")
-	t.ok(badge.FxScale.Scale < 1.2 and badge.FxScale.Scale ~= 1, "the badge bounces in")
-	sim:Advance(2.5)
+	-- The banner: centre of the screen, in the same swatch, the name in capitals.
+	local banner = hud.BaseBanner
+	t.eq(banner.Visible, true, "the base banner is up")
+	t.eq(banner.Caption.Text, "ТВОЯ БАЗА")
+	t.ok(string.find(banner.NameLabel.Text, "!", 1, true), "big name with «!»")
+	t.ok(colorNear(banner.Lip.BackgroundColor3, swatch.Lip), "banner in the base swatch")
+	t.ok(banner:FindFirstChild("FxRays"), "rays behind the banner")
+	t.eq(banner.FxRays:FindFirstChild("Halo1"), nil, "banner rays without halo quads")
+	sim:Advance(2.1)
+	t.ok(banner.Visible, "still there, flying towards the badge")
+	t.ok(banner.FxScale.Scale < 1, "shrinking on the way")
+	for _ = 1, 30 do -- lands ~2.4 s after the assignment
+		if not banner.Visible then
+			break
+		end
+		sim:Advance(1 / 30)
+	end
+	t.eq(banner.Visible, false, "landed in the badge")
+	t.eq(banner:FindFirstChild("FxRays"), nil, "its rays are gone")
+	t.ok(badge.FxScale.Scale > 1, "the badge bumps when the banner lands")
+	sim:Advance(2)
 	t.near(badge.FxScale.Scale, 1, 1e-3, "and settles")
+	t.near(banner.FxScale.Scale, 1, 1e-3, "the banner is reset for next time")
 	local sparkles = 0
 	for _, d in badge:GetDescendants() do
 		if d.Name == "FxSparkle" then
@@ -390,6 +461,47 @@ tests["strokes: thinner on a phone, thicker on a desktop (fitted to the screen h
 	sim:Advance(0.1)
 	local toast = phone.PlayerGui.HUD.Toasts:FindFirstChild("Toast")
 	t.eq(toast.Lip:FindFirstChildOfClass("UIStroke").Thickness, lipStroke(phone).Thickness)
+	-- Text outlines never go below 2 px (white on Gold/Leaf/Sun reads only thanks to them).
+	t.ok(phone.PlayerGui.HUD.Status.CatchCounter.Label.Outline.Thickness >= 2, "text outline floor 2 px")
+	t.ok(toast.Label.Outline.Thickness >= 2, "… also on toasts cloned later")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["type scale: tiered labels share one size per tier, scaled from phone to desktop"] = function(t)
+	local sim = boot(t)
+	local phone = addPlayer(sim, 1, "phone")
+	local desktop = addPlayer(sim, 2, "desktop")
+	local function limits(label: any): (number, number)
+		local c = label:FindFirstChildOfClass("UITextSizeConstraint")
+		return c.MinTextSize, c.MaxTextSize
+	end
+	local function check(p: any, height: number, device: string)
+		local hud = p.PlayerGui.HUD
+		local k = math.clamp(height / UIConfig.TypeHeight, 1, UIConfig.TypeMaxScale)
+		for _, case in
+			{
+				{ hud.Status.BaseBadge.Label, "Title" },
+				{ hud.Status.CatchCounter.Label, "Body" },
+				{ hud.RightButtons.HomeButton.Caption, "Button" },
+				{ hud.Toasts.ToastTemplate.Label, "Body" },
+				{ hud.BaseBanner.Caption, "Body" },
+			}
+		do
+			local want = math.floor(UIConfig.Type[case[2]] * k + 0.5)
+			local lo, hi = limits(case[1])
+			t.eq(hi, want, `{device}: {case[1]:GetFullName()} {case[2]} max`)
+			t.eq(lo, want - 2, `{device}: … min = max - 2`)
+		end
+	end
+	check(phone, 390, "phone")
+	check(desktop, 720, "desktop")
+	-- A big broadcast toast cloned later is fitted too (Button tier).
+	notify(sim, phone, "Рыбак: легендарный «Акулёнок»!", "Legendary")
+	sim:Advance(0.1)
+	local toast = liveToasts(phone)[1]
+	t.eq(toast.Label:GetAttribute("TextTier"), "Button")
+	local _, hi = limits(toast.Label)
+	t.eq(hi, UIConfig.Type.Button, "phone Button size on the cloned toast")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -424,6 +536,54 @@ tests["catch counter: «+N» floats up when FishCaught grows, the fish wiggles"]
 	sim:AssertNoErrors({ warnings = true })
 end
 
+tests["catch counter: CounterHold keeps the old number; clearing it plays the arrival"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "desktop")
+	sim:Advance(5)
+	local hud = p.PlayerGui.HUD
+	local counter = hud.Status.CatchCounter
+	p:SetAttribute("FishCaught", 2)
+	sim:Advance(1.5)
+	t.eq(counter.Label.Text, "Улов: 2")
+	-- The catch card opens: it holds the previous total until its 🐟 flies into the counter.
+	sim:Run(function()
+		hud:SetAttribute("CounterHold", 2)
+	end, p)
+	p:SetAttribute("FishCaught", 3)
+	sim:Advance(0.2)
+	t.eq(counter.Label.Text, "Улов: 2", "held at the old total")
+	t.eq(counter:FindFirstChild("FxFloat"), nil, "no +1 while held")
+	-- (FishingController still bumps the counter on FishCaught in this wave; the next wave drops that.)
+	sim:Run(function()
+		hud:SetAttribute("CounterHold", nil)
+	end, p)
+	sim:Advance(0.05)
+	t.eq(counter.Label.Text, "Улов: 3", "the new total on arrival")
+	t.ok(counter.FxScale.Scale > 1.05, "bump on arrival")
+	local float = counter:FindFirstChild("FxFloat")
+	t.ok(float and float.Text == "+1", "+1 floats on arrival")
+	sim:Advance(1.5)
+	t.eq(counter:FindFirstChild("FxFloat"), nil)
+	t.near(counter.FxScale.Scale, 1, 1e-3)
+	-- The first catch of the session while held at 0: the counter stays hidden until arrival.
+	local q = addPlayer(sim, 2, "desktop")
+	sim:Advance(5)
+	local qhud = q.PlayerGui.HUD
+	sim:Run(function()
+		qhud:SetAttribute("CounterHold", 0)
+	end, q)
+	q:SetAttribute("FishCaught", 1)
+	sim:Advance(0.2)
+	t.eq(qhud.Status.CatchCounter.Visible, false, "hidden while the first fish is held")
+	sim:Run(function()
+		qhud:SetAttribute("CounterHold", nil)
+	end, q)
+	sim:Advance(0.05)
+	t.eq(qhud.Status.CatchCounter.Visible, true, "appears when the fish arrives")
+	t.eq(qhud.Status.CatchCounter.Label.Text, "Улов: 1")
+	sim:AssertNoErrors({ warnings = true })
+end
+
 tests["Home: the cooldown veil drains with a countdown, then a ready ring"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "desktop")
@@ -434,6 +594,8 @@ tests["Home: the cooldown veil drains with a countdown, then a ready ring"] = fu
 	t.eq(home.Cooldown.Visible, true)
 	t.eq(home.CooldownText.Visible, true)
 	t.eq(home.CooldownText.Text, tostring(math.ceil(BaseConfig.HomeCooldown)))
+	t.eq(home.Caption.Text, "ЖДИ", "«ЖДИ» instead of «ДОМОЙ» while cooling down")
+	t.ok(home.Caption.ZIndex > home.Cooldown.ZIndex, "the caption sits above the veil")
 	local first = home.Cooldown.Drain.Offset.Y
 	sim:Advance(1.2)
 	local second = home.Cooldown.Drain.Offset.Y
@@ -444,9 +606,13 @@ tests["Home: the cooldown veil drains with a countdown, then a ready ring"] = fu
 	sim:Click(p, home)
 	sim:Advance(0.1)
 	t.eq(#sim:ServerEventsFor(p, "RequestHome"), before, "no request during the cooldown")
+	t.near(home.Icon.TextTransparency, 0.85, 0.02, "the house fades")
 	sim:Advance(BaseConfig.HomeCooldown)
 	t.eq(home.Cooldown.Visible, false)
 	t.eq(home.CooldownText.Visible, false)
+	t.eq(home.Caption.Text, "ДОМОЙ", "caption restored")
+	t.ok(home.Caption.ZIndex < home.Cooldown.ZIndex, "back under the (hidden) veil")
+	t.near(home.Icon.TextTransparency, 0, 0.02, "the house is bright again")
 	sim:Advance(1)
 	t.eq(home:FindFirstChild("FxRing"), nil, "ready ring gone")
 	t.near(home.FxScale.Scale, 1, 1e-3)
@@ -456,7 +622,7 @@ end
 tests["toasts: colour and icon by kind, width by text, slots, leave and reflow"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "desktop")
-	sim:Advance(5) -- the join toast is gone
+	sim:Advance(5) -- the join banner is gone
 	local column = p.PlayerGui.HUD.Toasts
 	local function live(): { any }
 		local list = {}
@@ -483,17 +649,27 @@ tests["toasts: colour and icon by kind, width by text, slots, leave and reflow"]
 	sim:Advance(0.8)
 	local toasts = live()
 	t.eq(#toasts, 3)
+	local slotY = 0
 	for i, kind in { "success", "danger", "warning" } do
 		local style = UIConfig.ToastKinds[kind]
 		local keys = toasts[i].Face.Fill.Color.Keypoints
 		t.ok(colorNear(keys[1].Value, UIConfig.Palette[style.Token].Top), `{kind}: {style.Token} candy`)
 		t.ok(colorNear(toasts[i].Lip.BackgroundColor3, UIConfig.Palette[style.Token].Lip), `{kind}: lip`)
 		t.eq(toasts[i].IconSocket.Icon.Text, style.Icon, `{kind}: icon`)
-		t.near(toasts[i].Position.Y.Scale, (i - 1) * 0.34, 1e-3, `{kind}: in slot {i}`)
+		t.near(toasts[i].Position.Y.Scale, slotY, 1e-3, `{kind}: in slot {i}`)
 		t.near(toasts[i].FxScale.Scale, 1, 1e-3, `{kind}: popped in`)
+		slotY += toasts[i].Size.Y.Scale + 0.08
 	end
-	t.ok(toasts[1].Size.X.Scale < toasts[2].Size.X.Scale, "short text → narrower toast")
-	t.near(toasts[2].Size.X.Scale, 1, 1e-6, "long text → full width")
+	t.eq(toasts[2].IconSocket.Icon.Text, "🚨", "danger is an alarm, not «forbidden»")
+	t.ok(
+		toasts[1]:GetAttribute("NaturalWidth") < toasts[2]:GetAttribute("NaturalWidth"),
+		"short text → narrower natural width"
+	)
+	t.near(toasts[2]:GetAttribute("NaturalWidth"), 1, 1e-6, "long text → full width")
+	t.ok(toasts[2].Size.Y.Scale > toasts[1].Size.Y.Scale * 1.4, "… and two lines tall")
+	for i = 1, 3 do
+		t.near(toasts[i].Size.X.Scale, 1, 1e-3, `stacked toasts share the widest width ({i})`)
+	end
 	-- A fourth one pushes the oldest out; the rest move up.
 	notify(sim, p, "Четвёртое", "info")
 	sim:Advance(0.05)
@@ -513,6 +689,87 @@ tests["toasts: colour and icon by kind, width by text, slots, leave and reflow"]
 		end
 	end
 	t.eq(guis, 1, "only the template is left")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["toasts: one at a time while a fishing widget is up; the rest wait; danger pushes in"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	sim:Advance(5)
+	local minigame = p.PlayerGui.HUD.Fishing.Minigame
+	local function setMinigame(visible: boolean)
+		sim:Run(function()
+			minigame.Visible = visible
+		end, p)
+	end
+	-- Touch screens show two at most.
+	notify(sim, p, "Один", "info")
+	notify(sim, p, "Два", "info")
+	notify(sim, p, "Три", "info")
+	sim:Advance(0.6)
+	t.eq(#liveToasts(p), UIConfig.MaxToastsTouch, "two toasts on a phone")
+	sim:Advance(6)
+	t.eq(#liveToasts(p), 0)
+	-- The minigame opens: one slot only; the rest wait in a queue.
+	setMinigame(true)
+	notify(sim, p, "Первое", "info")
+	sim:Advance(0.2)
+	notify(sim, p, "Второе", "success")
+	sim:Advance(0.6)
+	local live = liveToasts(p)
+	t.eq(#live, 1, "only one toast above the minigame")
+	t.eq(live[1].Label.Text, "Первое")
+	-- A danger toast does not wait: it pushes the info out.
+	notify(sim, p, "Твою базу грабят!", "danger")
+	sim:Advance(0.6)
+	live = liveToasts(p)
+	t.eq(#live, 1)
+	t.eq(live[1].Label.Text, "Твою базу грабят!", "danger evicts info")
+	-- The minigame closes: the waiting toast comes out.
+	setMinigame(false)
+	sim:Advance(0.6)
+	live = liveToasts(p)
+	t.eq(#live, 2, "the queued toast shows once there is room")
+	t.eq(live[2].Label.Text, "Второе")
+	sim:Advance(8)
+	t.eq(#liveToasts(p), 0, "everyone leaves")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["toasts: Legendary is a gold candy, Mythic a spinning rainbow — 👑, bigger, longer"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "desktop")
+	sim:Advance(5)
+	notify(sim, p, "Рыбак: легендарный «Акулёнок»!", "Legendary")
+	sim:Advance(0.2)
+	notify(sim, p, "Рыбак: мифическая «Рыба-дракон» ×2!", "Mythic")
+	sim:Advance(0.2)
+	notify(sim, p, "Ура!", "success")
+	sim:Advance(0.6)
+	local live = liveToasts(p)
+	t.eq(#live, 3)
+	local legendary, mythic, plain = live[1], live[2], live[3]
+	local gold = UIConfig.Palette.Gold
+	t.ok(colorNear(legendary.Face.Fill.Color.Keypoints[1].Value, gold.Top), "Legendary: Gold candy")
+	t.eq(legendary.IconSocket.Icon.Text, "👑")
+	t.eq(mythic.IconSocket.Icon.Text, "👑")
+	t.ok(#mythic.Face.Fill.Color.Keypoints >= 6, "Mythic: rainbow face")
+	local r0 = mythic.Face.Fill.Rotation
+	sim:Advance(0.5)
+	t.ok(mythic.Face.Fill.Rotation ~= r0, "… slowly spinning")
+	t.ok(legendary.Size.Y.Scale > plain.Size.Y.Scale * 1.1, "broadcasts are bigger")
+	-- They outlive a plain toast (4.5 s vs 3.5 s); an unknown kind shows as info.
+	notify(sim, p, "???", "nonsense")
+	sim:Advance(3.1)
+	local kinds = {}
+	for _, toast in liveToasts(p) do
+		kinds[toast:GetAttribute("Kind")] = true
+	end
+	t.ok(kinds.Mythic, "the Mythic broadcast is still up")
+	t.ok(not kinds.success, "the plain one has left")
+	sim:Advance(6)
+	t.eq(#liveToasts(p), 0)
+	t.eq(sim:Require(sim:Find("ReplicatedStorage.Shared.UiFx"), p).activeJobs(), 0, "nothing left per frame")
 	sim:AssertNoErrors({ warnings = true })
 end
 

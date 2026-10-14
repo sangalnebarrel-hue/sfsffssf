@@ -24,6 +24,19 @@ local function loadConfig(name: string): any
 end
 
 local BaseConfig = loadConfig("BaseConfig")
+local UIConfig = loadConfig("UIConfig")
+
+-- Toast texts on a player's own screen (HUD.Toasts.Toast.Label).
+local function toastTexts(player: any): { string }
+	local texts = {}
+	local hud = player.PlayerGui:FindFirstChild("HUD")
+	for _, child in (if hud then hud.Toasts:GetChildren() else {}) do
+		if child.Name == "Toast" then
+			table.insert(texts, child.Label.Text)
+		end
+	end
+	return texts
+end
 
 local function boot(t: any): any
 	local sim = t.sim({ place = PLACE })
@@ -343,7 +356,7 @@ tests["base template: 12 display slots, tank prompt, alarm, dog (names the serve
 	sim:AssertNoErrors()
 end
 
-tests["join: player gets a free base, spawns on its pad, sees a toast"] = function(t)
+tests["join: player gets a free base, spawns on its pad, sees the base banner"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	local base = baseOf(sim, p)
@@ -356,7 +369,12 @@ tests["join: player gets a free base, spawns on its pad, sees a toast"] = functi
 	local pos = rootPos(p)
 	t.ok(pos, "character exists")
 	t.near(distance(pos, spawnPos(base)), 0, 0.01, "character placed on the spawn pad")
-	t.ok(anyContains(notifiesFor(sim, p), base:GetAttribute("ColorName")), "toast names the base")
+	-- The welcome is the client's big banner (HudController), not a server toast (UI v2, HUD-04).
+	local banner = p.PlayerGui.HUD.BaseBanner
+	t.eq(banner.Visible, true, "the base banner is up")
+	t.eq(banner.Caption.Text, "ТВОЯ БАЗА")
+	t.ok(#banner.NameLabel.Text > 1, "the banner names the base")
+	t.eq(#notifiesFor(sim, p), 0, "no welcome toast from the server")
 	sim:AssertNoErrors()
 end
 
@@ -407,7 +425,11 @@ tests["overflow: 9th player waits at the hub and gets the first freed base"] = f
 	t.eq(baseOf(sim, ninth), freed, "waiting player received the freed base")
 	t.eq(freed:GetAttribute("OwnerUserId"), 9)
 	t.near(distance(rootPos(ninth), spawnPos(freed)), 0, 0.01, "teleported onto the new base")
-	t.ok(anyContains(notifiesFor(sim, ninth), "Освободилась база"), "toast about the freed base")
+	-- The client announces it (in the base's colours): «Тебе досталась <Цвет> база!».
+	t.ok(
+		anyContains(toastTexts(ninth), `Тебе досталась {freed:GetAttribute("ColorName")} база!`),
+		"toast about the freed base"
+	)
 	sim:AssertNoErrors()
 end
 
@@ -505,7 +527,10 @@ tests["client HUD: badge shows the base, Home button visible and fires the remot
 	t.ok(hud, "HUD copied into PlayerGui")
 	local label = hud.Status.BaseBadge.Label
 	t.eq(label.Text, `{p:GetAttribute("BaseColorName")} база`)
-	t.eq(hud.Status.BaseBadge.Swatch.BackgroundColor3, p:GetAttribute("BaseColor"))
+	-- The badge wears the base's clean swatch (UIConfig.BaseSwatches), not a tinted base colour.
+	local swatch = UIConfig.BaseSwatches[baseOf(sim, p):GetAttribute("ColorId")]
+	t.eq(hud.Status.BaseBadge.Swatch.Fill.Color.Keypoints[1].Value, swatch.Top)
+	t.eq(hud.Status.BaseBadge.Lip.BackgroundColor3, swatch.Lip)
 	local home = hud.RightButtons.HomeButton
 	t.eq(home.Visible, true)
 
@@ -533,9 +558,13 @@ tests["client HUD: toasts appear and are capped"] = function(t)
 		end
 		return n
 	end
-	t.ok(visibleToasts() >= 1, "join toast shown")
+	t.eq(p.PlayerGui.HUD.BaseBanner.Visible, true, "join banner shown")
+	sim:Find("ReplicatedStorage.Remotes.Notify"):FireClient(p, "Привет!", "info")
+	sim:Advance(0.1)
+	t.ok(visibleToasts() >= 1, "a server toast shown")
 	sim:Advance(10)
 	t.eq(visibleToasts(), 0, "toasts disappear")
+	t.eq(p.PlayerGui.HUD.BaseBanner.Visible, false, "the banner has flown into the badge")
 	sim:AssertNoErrors()
 end
 

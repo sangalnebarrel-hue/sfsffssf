@@ -3,43 +3,63 @@
 	HudController — основной интерфейс (Этап 1) и его «сок» (образец стиля Candy Splash,
 	tools/builder/gui/STYLE.md; анимации — ReplicatedStorage.Shared.UiFx).
 
-	  • Плашка «Твоя база» (HUD.Status.BaseBadge, вверху по центру): глянцевая «конфета» цвета базы
-	    (лицевая сторона Swatch красится из атрибута BaseColor) с флажком; блик раз в несколько
-	    секунд; когда база назначена — подпрыгивает, флажок качается, вокруг звёздочки.
-	    Данные приходят с сервера через атрибуты игрока: BaseIndex, BaseColorName, BaseColor.
-	    BaseIndex = 0 — все базы заняты, игрок ждёт.
-	  • Счётчик улова (HUD.Status.CatchCounter): текст и видимость пишет FishingController; здесь —
-	    когда FishCaught растёт: «+1 🐟» всплывает справа, рыбка качается, по плашке бежит блик.
-	  • Кнопка «Домой» (HUD.RightButtons.HomeButton): просит сервер телепортировать на базу.
-	    Сервер сам проверяет кулдаун; здесь кулдаун только для анимации: тёмная вуаль «стекает»
-	    вниз, крупные цифры отсчитывают секунды, по готовности — кольцо и блик. Нажатие — кнопка
-	    сжимается, домик качается; нажатие во время кулдауна — кнопка качается «нет».
-	  • Обводки подгоняются под высоту экрана (UiFx.fitStrokes).
+	  • Плашка «Твоя база» (HUD.Status.BaseBadge, вверху по центру): глянцевая «конфета» в цветах
+	    своей базы (UIConfig.BaseSwatches по Id из BaseConfig) с флажком. Данные — атрибуты игрока
+	    BaseIndex, BaseColorName, BaseColor (их ставит сервер); BaseIndex = 0 — все базы заняты,
+	    игрок ждёт (серая плашка «Ждём базу…»).
+	  • Первая база — момент: по центру экрана баннер HUD.BaseBanner в цветах базы («ТВОЯ БАЗА» /
+	    «ЛАЗУРНАЯ!»), флажок машет, лучи, конфетти и «фанфара»; через 2 с баннер сжимается и
+	    влетает в плашку, плашка подпрыгивает и бликует. Если база досталась после ожидания в
+	    очереди — уведомление «Тебе досталась Лазурная база!» в цветах базы с 🚩.
+	  • Счётчик улова (HUD.Status.CatchCounter): текст «Улов: N» и видимость ведёт ЭТОТ контроллер
+	    по атрибуту игрока FishCaught. Договор с карточкой улова: пока у HUD (ScreenGui) есть
+	    числовой атрибут CounterHold, счётчик показывает это число и молчит; когда CounterHold
+	    убирают (nil), показывается FishCaught и играет «прилёт»: подпрыгивание 1.3, рыбка
+	    качается, «+N» всплывает справа, тик повыше тоном. Без CounterHold «прилёт» играет сразу
+	    при росте FishCaught (через кадр — успеть поставить CounterHold в тот же кадр).
+	  • Кнопка «Домой» (HUD.RightButtons.HomeButton, мятная): просит сервер телепортировать на
+	    базу. Сервер сам проверяет кулдаун; здесь кулдаун только для вида: тёмная вуаль «стекает»
+	    вниз, крупные цифры по центру, домик бледнеет, подпись «ЖДИ» над вуалью; по готовности —
+	    подпись «ДОМОЙ», кольцо и один блик. Нажатие во время кулдауна — кнопка качается «нет».
+	  • Обводки и шкала текста подгоняются под экран (UiFx.fitStrokes, UiFx.fitText).
 	  • На устройствах без тач-экрана колонка кнопок опускается к правому нижнему углу
 	    (на телефонах низ справа занят кнопкой прыжка).
+	  • Ничего не блестит «просто так»: блик у плашки — только при назначении базы, у «Домой» —
+	    когда кончился кулдаун (внимание остаётся у главной кнопки рыбалки).
 
-	Все эффекты здесь — на твинах и таймерах (без покадровых соединений), HUD живёт всю сессию
-	(ResetOnSpawn = false), поэтому соединения создаются один раз.
+	Все эффекты здесь — на твинах и таймерах (кроме коротких конфетти и «+N»), HUD живёт всю
+	сессию (ResetOnSpawn = false), поэтому соединения создаются один раз.
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local BaseConfig = require(Shared:WaitForChild("Config"):WaitForChild("BaseConfig"))
 local UIConfig = require(Shared:WaitForChild("Config"):WaitForChild("UIConfig"))
 local Net = require(Shared:WaitForChild("Net"))
+local Trove = require(Shared:WaitForChild("Util"):WaitForChild("Trove"))
 local UiFx = require(Shared:WaitForChild("UiFx"))
+local NotifyController = require(script.Parent:WaitForChild("NotifyController"))
+
+type Swatch = UIConfig.Swatch
 
 local player = Players.LocalPlayer
 
-local BADGE_SHINE_INTERVAL = 4.5 -- блик по плашке базы, с
-local HOME_SHINE_INTERVAL = 3.6 -- блик по готовой кнопке «Домой», с
+local Palette = UIConfig.Palette
+local WHITE = UIConfig.White
 
 local FLAG_HAS_BASE = "🚩"
 local FLAG_WAITING = "⏳"
 local FLAG_SEARCHING = "🔎"
+
+local BANNER_HOLD = 2 -- сколько секунд баннер базы стоит по центру
+local BANNER_FLY = 0.4 -- полёт баннера в плашку
+local CAPTION_REST = "ДОМОЙ"
+local CAPTION_WAIT = "ЖДИ"
+local Z_TOP = 6 -- Theme.Z.Top: над вуалью кулдауна
 
 local HudController = {}
 
@@ -48,20 +68,58 @@ local function numberAttribute(name: string): number
 	return if typeof(value) == "number" then value else 0
 end
 
+-- ВЕРХНИЙ РЕГИСТР для кириллицы (string.upper её не знает): «Лазурная» → «ЛАЗУРНАЯ».
+local function upperRu(text: string): string
+	local out = {}
+	for _, code in utf8.codes(text) do
+		if code >= 0x430 and code <= 0x44F then
+			code -= 0x20
+		elseif code == 0x451 then
+			code = 0x401 -- ё → Ё
+		elseif code >= 97 and code <= 122 then
+			code -= 32
+		end
+		table.insert(out, utf8.char(code))
+	end
+	return table.concat(out)
+end
+
+-- «Конфета» своей базы: чистые цвета из UIConfig.BaseSwatches (по Id), иначе из самого цвета.
+local function baseSwatch(): Swatch
+	local name = player:GetAttribute("BaseColorName")
+	local color = player:GetAttribute("BaseColor")
+	for _, entry in BaseConfig.Colors do
+		if entry.Name == name or (typeof(color) == "Color3" and entry.Color == color) then
+			local found = UIConfig.BaseSwatches[entry.Id]
+			if found then
+				return found
+			end
+		end
+	end
+	if typeof(color) == "Color3" then
+		return UIConfig.swatchFor(color)
+	end
+	return Palette.Slate
+end
+
 function HudController:Start(hud: ScreenGui)
 	local status = hud:WaitForChild("Status") :: Frame
 	local badge = status:WaitForChild("BaseBadge") :: Frame
-	badge:WaitForChild("Swatch") -- лицевая сторона: UiFx.setCandy красит её в цвет базы
+	badge:WaitForChild("Swatch") -- лицевая сторона: UiFx.setCandy красит её в цвета базы
 	local badgeLabel = badge:WaitForChild("Label") :: TextLabel
 	local flagSocket = badge:FindFirstChild("FlagSocket") :: GuiObject?
 	local flag = if flagSocket then flagSocket:FindFirstChild("Flag") :: TextLabel? else nil
 
 	local counter = status:WaitForChild("CatchCounter") :: Frame
 	local counterIcon = counter:WaitForChild("Icon") :: GuiObject
+	local counterLabel = counter:WaitForChild("Label") :: TextLabel
+
+	local banner = hud:FindFirstChild("BaseBanner") :: Frame?
 
 	local rightButtons = hud:WaitForChild("RightButtons") :: Frame
 	local homeButton = rightButtons:WaitForChild("HomeButton") :: GuiButton
-	local homeIcon = homeButton:WaitForChild("Icon") :: GuiObject
+	local homeIcon = homeButton:WaitForChild("Icon") :: TextLabel
+	local homeCaption = homeButton:FindFirstChild("Caption") :: TextLabel?
 	local cooldownOverlay = homeButton:WaitForChild("Cooldown") :: Frame
 	local drain = cooldownOverlay:FindFirstChild("Drain") :: UIGradient?
 	local cooldownText = homeButton:FindFirstChild("CooldownText") :: TextLabel?
@@ -73,53 +131,173 @@ function HudController:Start(hud: ScreenGui)
 	end
 
 	UiFx.fitStrokes(hud)
+	UiFx.fitText(hud)
 	UiFx.press(homeButton, { sound = "click" })
 
-	-- Плашка базы ------------------------------------------------------------------
-	local hadBase = false
+	-- Плашка базы и баннер ------------------------------------------------------------
+	-- "none" — ещё не знаем (только вошли), "waiting" — в очереди, "assigned" — база есть.
+	local baseState = "none"
+	local bannerTrove = Trove.new()
+	local bannerRest = if banner then banner.Position else UDim2.fromScale(0.5, 0.42)
 
-	local function celebrateBase()
-		UiFx.popIn(badge, { from = 0.55, time = 0.45 })
+	-- Плашка «приняла» базу: подпрыгивает, флажок качается, блик (только твины — без временных
+	-- объектов: момент уже отыграл баннер).
+	local function celebrateBadge()
+		UiFx.bump(badge, 1.3, 0.4)
 		local socket = flagSocket
 		if socket then
-			UiFx.popIn(socket, { from = 0.2, time = 0.5, delay = 0.08, rotate = -30 })
-			task.delay(0.5, function()
+			UiFx.popIn(socket, { from = 0.4, time = 0.4, rotate = -30 })
+			task.delay(0.35, function()
 				UiFx.wiggle(socket, 10, 3, 0.6)
 			end)
 		end
-		task.delay(0.3, function()
+		task.delay(0.15, function()
 			UiFx.shine(badge, 0.7)
 		end)
-		UiFx.sparkles(badge, { rate = 7, duration = 1.4, size = 0.6 })
-		homeButton.Visible = true
-		UiFx.popIn(homeButton, { from = 0, time = 0.45, delay = 0.25, rotate = -12 })
+		UiFx.sound("tick", 0.45, 1.2)
+	end
+
+	-- Баннер улетает в плашку: сжимается до её размера по дуге и пропадает, плашка подпрыгивает.
+	local function flyBannerToBadge()
+		local live = banner
+		if not live or not live.Visible then
+			return
+		end
+		local area = hud.AbsoluteSize
+		local origin = hud.AbsolutePosition
+		local target = UDim2.fromScale(0.5, 0.1)
+		if area.X > 1 and area.Y > 1 then
+			-- Центр плашки: X — середина стопки (плашка выровнена по центру), Y — сама плашка.
+			local x = status.AbsolutePosition.X + status.AbsoluteSize.X / 2 - origin.X
+			local y = badge.AbsolutePosition.Y + badge.AbsoluteSize.Y / 2 - origin.Y
+			target = UDim2.fromScale(x / area.X, y / area.Y)
+		end
+		local scale = UiFx.scaleOf(live)
+		local shrink = if live.AbsoluteSize.Y > 1
+			then math.clamp(badge.AbsoluteSize.Y / live.AbsoluteSize.Y, 0.15, 1)
+			else 0.3
+		local move = UiFx.tween(live, BANNER_FLY, { Position = target }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local squeeze =
+			UiFx.tween(scale, BANNER_FLY, { Scale = shrink }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		UiFx.sound("swoosh", 0.35, 1.2)
+		bannerTrove:Add(task.delay(BANNER_FLY, function()
+			move:Cancel() -- твины могли закончиться позже этого таймера — не дадим им перетереть сброс
+			squeeze:Cancel()
+			bannerTrove:Clean()
+			live.Visible = false
+			live.Position = bannerRest
+			scale.Scale = 1
+			celebrateBadge()
+		end))
+	end
+
+	-- Первая база: баннер по центру (лучи, конфетти, машущий флажок), потом — в плашку.
+	local function showBanner(swatch: Swatch, colorName: string)
+		local live = banner
+		if not live then
+			celebrateBadge()
+			return
+		end
+		bannerTrove:Clean()
+		live.Position = bannerRest
+		live.Visible = true
+		UiFx.setCandy(live, swatch)
+		local caption = live:FindFirstChild("Caption")
+		if caption and caption:IsA("TextLabel") then
+			caption.Text = "ТВОЯ БАЗА"
+		end
+		local nameLabel = live:FindFirstChild("NameLabel")
+		if nameLabel and nameLabel:IsA("TextLabel") then
+			nameLabel.Text = `{upperRu(colorName)}!`
+		end
+		UiFx.popIn(live, { from = 0.3, time = 0.45, rotate = -6 })
+		bannerTrove:Add(UiFx.rays(live, {
+			colors = { WHITE, swatch.Top },
+			count = 10,
+			halo = false,
+			breathe = false,
+			size = 2.6,
+			maxPx = 520,
+			transparency = 0.4,
+			speed = 22,
+			z = 0,
+		}))
+		-- Флажок машет ±10° (твин туда-обратно, без соединений).
+		local socket = live:FindFirstChild("FlagSocket")
+		if socket and socket:IsA("GuiObject") then
+			local rest = socket.Rotation
+			socket.Rotation = rest - 10
+			local wave = TweenService:Create(
+				socket,
+				TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+				{ Rotation = rest + 10 }
+			)
+			wave:Play()
+			bannerTrove:Add(function()
+				wave:Cancel()
+				socket.Rotation = rest
+			end)
+		end
+		bannerTrove:Add(UiFx.sparkles(live, { rate = 5, size = 0.3, area = 0.1 }))
+		local area = hud.AbsoluteSize
+		local center = live.AbsolutePosition + live.AbsoluteSize / 2 - hud.AbsolutePosition
+		local origin = if area.X > 1 and area.Y > 1
+			then Vector2.new(center.X / area.X, center.Y / area.Y)
+			else Vector2.new(0.5, 0.42)
+		-- Конфетти на твинах (confettiPop): вход в игру не держит покадровый планировщик.
+		bannerTrove:Add(UiFx.confettiPop(hud, {
+			count = 20,
+			colors = { swatch.Top, swatch.Bottom, WHITE, Palette.Gold.Top },
+			origin = origin,
+			spread = 150,
+			power = 1.4,
+			duration = 1.7,
+		}))
+		UiFx.sound("swoosh", 0.35)
+		bannerTrove:Add(UiFx.arpeggio("Epic", 0.35))
+		bannerTrove:Add(task.delay(0.3, function()
+			UiFx.shine(live, 0.7)
+		end))
+		bannerTrove:Add(task.delay(BANNER_HOLD, flyBannerToBadge))
 	end
 
 	local function refreshBadge()
 		local index = player:GetAttribute("BaseIndex")
-		local color = player:GetAttribute("BaseColor")
 		local colorName = player:GetAttribute("BaseColorName")
 
 		if typeof(index) == "number" and index > 0 and typeof(colorName) == "string" then
+			local swatch = baseSwatch()
 			badgeLabel.Text = `{colorName} база`
-			UiFx.setCandy(badge, if typeof(color) == "Color3" then color else UIConfig.NoBaseColor)
+			UiFx.setCandy(badge, swatch)
 			if flag then
 				flag.Text = FLAG_HAS_BASE
 			end
-			if not hadBase then
-				hadBase = true
-				celebrateBase()
+			local before = baseState
+			baseState = "assigned"
+			if before == "none" then
+				showBanner(swatch, colorName)
+			elseif before == "waiting" then
+				celebrateBadge()
+				NotifyController.Show(`Тебе досталась {colorName} база!`, "base", { swatch = swatch })
+			end
+			if before ~= "assigned" then
+				homeButton.Visible = true
+				UiFx.popIn(homeButton, { from = 0, time = 0.45, delay = 0.25, rotate = -12 })
 			end
 			homeButton.Visible = true
 		else
 			badgeLabel.Text = if index == 0 then "Ждём базу…" else "Ищем базу…"
-			UiFx.setCandy(badge, UIConfig.NoBaseColor)
+			UiFx.setCandy(badge, "Slate")
 			if flag then
 				flag.Text = if index == 0 then FLAG_WAITING else FLAG_SEARCHING
 			end
-			if hadBase then
-				hadBase = false
+			if baseState == "assigned" then
 				UiFx.wiggle(badge, 4, 2, 0.35)
+			end
+			if index == 0 then
+				baseState = "waiting"
+			elseif baseState == "assigned" then
+				baseState = "waiting" -- базу забрали: следующая придёт как «досталась»
 			end
 			homeButton.Visible = false
 		end
@@ -129,36 +307,65 @@ function HudController:Start(hud: ScreenGui)
 		player:GetAttributeChangedSignal(attribute):Connect(refreshBadge)
 	end
 	refreshBadge()
-	UiFx.shineLoop(badge, { interval = BADGE_SHINE_INTERVAL })
 
 	-- Счётчик улова -------------------------------------------------------------------
-	local caught = numberAttribute("FishCaught")
-	player:GetAttributeChangedSignal("FishCaught"):Connect(function()
-		local total = numberAttribute("FishCaught")
-		local gained = total - caught
-		caught = total
-		if gained <= 0 then
+	local shown = numberAttribute("FishCaught") -- число, которое сейчас на счётчике
+
+	local function heldValue(): number?
+		local value = hud:GetAttribute("CounterHold")
+		return if typeof(value) == "number" then value else nil
+	end
+
+	local function render(total: number)
+		if total > 0 then
+			counter.Visible = true
+			counterLabel.Text = `Улов: {math.floor(total)}`
+		else
+			counter.Visible = false
+		end
+	end
+
+	-- Рыба «прилетела» в счётчик: подпрыгнуть, качнуть рыбку, «+N», тик повыше.
+	local function arrival(gained: number)
+		UiFx.bump(counter, 1.3, 0.35)
+		UiFx.wiggle(counterIcon, 14, 3, 0.5)
+		UiFx.shine(counter, 0.55)
+		UiFx.sound("tick", 0.45, 1.3)
+		-- «+N» справа от плашки, чуть вверх (не налезая на плашку базы над ней).
+		UiFx.floatText(counter, `+{gained}`, {
+			position = UDim2.fromScale(1.2, 0.5),
+			size = UDim2.fromScale(0.34, 1.15),
+			colors = { WHITE, Palette.Gold.Top },
+			rise = 0.35,
+			rotate = 8,
+			time = 0.9,
+		})
+	end
+
+	local function refreshCounter(juice: boolean)
+		local hold = heldValue()
+		if hold then
+			shown = hold
+			render(hold)
 			return
 		end
-		-- FishingController уже показал счётчик и обновил текст; здесь — «сок».
-		task.defer(function()
-			if not counter.Visible then
-				return
-			end
-			UiFx.bump(counter, 1.25, 0.35)
-			UiFx.wiggle(counterIcon, 14, 3, 0.5)
-			UiFx.shine(counter, 0.55)
-			-- «+N» справа от плашки, чуть вверх (не налезая на надпись базы над ней).
-			UiFx.floatText(counter, `+{gained}`, {
-				position = UDim2.fromScale(1.2, 0.5),
-				size = UDim2.fromScale(0.34, 1.15),
-				colors = { UIConfig.White, UIConfig.Palette.Gold.Top },
-				rise = 0.35,
-				rotate = 8,
-				time = 0.9,
-			})
-		end)
+		local total = numberAttribute("FishCaught")
+		local gained = total - shown
+		shown = total
+		render(total)
+		if juice and gained > 0 and counter.Visible then
+			arrival(gained)
+		end
+	end
+
+	player:GetAttributeChangedSignal("FishCaught"):Connect(function()
+		-- Через кадр: карточка улова успевает поставить CounterHold в том же кадре.
+		task.defer(refreshCounter, true)
 	end)
+	hud:GetAttributeChangedSignal("CounterHold"):Connect(function()
+		refreshCounter(true)
+	end)
+	refreshCounter(false)
 
 	-- Кнопка «Домой» -------------------------------------------------------------------
 	local ready = true
@@ -167,12 +374,7 @@ function HudController:Start(hud: ScreenGui)
 	if cooldownText then
 		cooldownText.Visible = false
 	end
-	UiFx.shineLoop(homeButton, {
-		interval = HOME_SHINE_INTERVAL,
-		when = function()
-			return ready
-		end,
-	})
+	local captionZ = if homeCaption then homeCaption.ZIndex else 0
 
 	local function showSeconds(left: number)
 		if not cooldownText then
@@ -185,6 +387,16 @@ function HudController:Start(hud: ScreenGui)
 		cooldownText.Text = tostring(left)
 		cooldownText.Visible = true
 		UiFx.bump(cooldownText, 1.35, 0.25)
+	end
+
+	-- Вид кнопки: готова («ДОМОЙ», яркий домик) или ждёт («ЖДИ» над вуалью, бледный домик).
+	local function setWaiting(waiting: boolean)
+		UiFx.tween(homeIcon, 0.2, { TextTransparency = if waiting then 0.85 else 0 })
+		local caption = homeCaption
+		if caption then
+			caption.Text = if waiting then CAPTION_WAIT else CAPTION_REST
+			caption.ZIndex = if waiting then Z_TOP else captionZ
+		end
 	end
 
 	homeButton.Activated:Connect(function()
@@ -201,6 +413,7 @@ function HudController:Start(hud: ScreenGui)
 		-- Тёмная вуаль «стекает» вниз за время кулдауна, цифры отсчитывают секунды.
 		local duration = BaseConfig.HomeCooldown
 		cooldownOverlay.Visible = true
+		setWaiting(true)
 		if drain then
 			drain.Offset = Vector2.new(0, -0.5)
 			UiFx.tween(drain, duration, { Offset = Vector2.new(0, 0.5) }, Enum.EasingStyle.Linear)
@@ -224,9 +437,10 @@ function HudController:Start(hud: ScreenGui)
 			ready = true
 			cooldownOverlay.Visible = false
 			showSeconds(0)
+			setWaiting(false)
 			if homeButton.Visible then
 				UiFx.bump(homeButton, 1.15, 0.35)
-				UiFx.glowRing(homeButton, { color = UIConfig.Palette.Leaf.Top, scale = 1.45, thickness = 5 })
+				UiFx.glowRing(homeButton, { color = Palette.Mint.Top, scale = 1.45, thickness = 5 })
 				UiFx.shine(homeButton, 0.5)
 			end
 		end)
