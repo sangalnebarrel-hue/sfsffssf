@@ -683,11 +683,11 @@ tests["minigame: a Mythic fish needs 3 hits, the zone jumps away from the needle
 	end
 	t.ok(heard(other), "the other player was told about the Mythic catch")
 	t.ok(not heard(p), "not the fisher: their catch card shows it (a toast would cover the card)")
-	-- «Игрок1: мифическая «Рыба-дракон»!» in the Mythic toast style (kind = the rarity id).
+	-- «Игрок1: мифическая рыба «Рыба-дракон»!» in the Mythic toast style (kind = the rarity id).
 	local args = sim:LastClientEvent(other, "Notify")
 	t.eq(
 		args[1],
-		"Игрок1: мифическая «Рыба-дракон»!",
+		"Игрок1: мифическая рыба «Рыба-дракон»!",
 		"lower-case rarity (NameLower), the fish in «ёлочки»"
 	)
 	t.eq(args[2], "Mythic", "kind = the rarity id (NotifyController draws it in the rarity's colours)")
@@ -703,7 +703,7 @@ tests["announce: a mutated Legendary catch says the multiplier"] = function(t)
 	local mg, startTime = startMinigame(t, sim, p)
 	t.eq((winMinigame(sim, p, mg, startTime)), "Caught")
 	local args = sim:LastClientEvent(other, "Notify")
-	t.eq(args[1], "Игрок1: легендарная «Акулёнок» ×2!")
+	t.eq(args[1], "Игрок1: легендарная рыба «Акулёнок» ×2!")
 	t.eq(args[2], "Legendary")
 	for _, rarity in FishConfig.Rarities do
 		t.ok(typeof(rarity.NameLower) == "string" and #rarity.NameLower > 0, `{rarity.Id}: NameLower`)

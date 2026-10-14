@@ -838,7 +838,7 @@ local scenarios = {
 		still = 0.7,
 		sheet = { from = 0, to = 0.9, fps = 15, roi = { "HUD.Toasts" }, margin = 0.05 },
 		run = function(h: any)
-			h:notify("КапитанКрюк: легендарная «Акулёнок»!", "Legendary")
+			h:notify("КапитанКрюк: легендарная рыба «Акулёнок»!", "Legendary")
 		end,
 	},
 	{
@@ -847,7 +847,7 @@ local scenarios = {
 		still = 0.7,
 		sheet = { from = 0, to = 0.9, fps = 15, roi = { "HUD.Toasts" }, margin = 0.05 },
 		run = function(h: any)
-			h:notify("КапитанКрюк: мифическая «Рыба-дракон» ×2!", "Mythic")
+			h:notify("КапитанКрюк: мифическая рыба «Рыба-дракон» ×2!", "Mythic")
 		end,
 	},
 	{

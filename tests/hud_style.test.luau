@@ -306,7 +306,7 @@ tests["layout: the chrome fits on phone, tablet and desktop without overlaps"] =
 	for _, device in devices do
 		local p = players[device]
 		p:SetAttribute("FishCaught", 7) -- shows the catch counter
-		notify(sim, p, "Вася: мифическая «Рыба-дракон» ×5!", "Mythic")
+		notify(sim, p, "Вася: мифическая рыба «Рыба-дракон» ×5!", "Mythic")
 		notify(sim, p, "Сейчас нельзя вернуться домой", "warning")
 		notify(sim, p, "Ура!", "success")
 	end
@@ -737,7 +737,7 @@ tests["toasts: Legendary is a gold candy, Mythic a spinning rainbow — 👑, bi
 	sim:Advance(5)
 	notify(sim, p, "Рыбак: легендарный «Акулёнок»!", "Legendary")
 	sim:Advance(0.2)
-	notify(sim, p, "Рыбак: мифическая «Рыба-дракон» ×2!", "Mythic")
+	notify(sim, p, "Рыбак: мифическая рыба «Рыба-дракон» ×2!", "Mythic")
 	sim:Advance(0.2)
 	notify(sim, p, "Ура!", "success")
 	sim:Advance(0.6)

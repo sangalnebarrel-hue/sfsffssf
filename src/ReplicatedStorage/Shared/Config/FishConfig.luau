@@ -18,7 +18,7 @@ export type Rarity = {
 	Id: string,
 	Name: string, -- как показывать игроку: «Мифическая»
 	-- То же строчными: «мифическая» (string.lower в Luau не понимает кириллицу) — для фраз
-	-- вроде «Рыбак: мифическая «Рыба-дракон»!» (объявление FishingService).
+	-- вроде «Рыбак: мифическая рыба «Рыба-дракон»!» (объявление FishingService).
 	NameLower: string,
 	Weight: number, -- относительный шанс редкости
 	LuckPower: number, -- вес умножается на Luck ^ LuckPower (удочки лучше — редкие чаще)
