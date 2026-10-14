@@ -402,6 +402,33 @@ $LUNE run tools/terrain_check/inject.luau tools/base/Place1.base.rbxl \
 $TC /tmp/tt/place.rbxl
 ```
 
+## Fisher animation previews (pose_dump.luau + pose_sheet.py)
+
+The procedural fisher animation (FisherAnimController, FisherRig, FisherPoses, FisherRod) can be
+reviewed without Studio. `pose_dump.luau` runs the built place in RbxSim with a rigged fisher
+(`sim:AddPlayer{ rig = "R15" | "R6" }`, see tools/sim/README.md) and a watcher, and dumps what the
+WATCHER's client sees (client-local joint poses, bent rod, bobber + line, leaping / held fish) as
+parts JSON; `pose_sheet.py` draws every frame with render.py's perspective rasterizer twice: from
+the default camera behind the fisher (12.5 studs, 18° down, FOV 70, + Humanoid.CameraOffset — the
+GUI previews' camera) with the pier around, and from his right side on a plain deck.
+
+```sh
+LUNE=/opt/tools/l11/lune
+$LUNE run tools/build.luau
+# a real session: equip, cast (wind-up → release → throw), wait, bite, strike, reel, catch,
+# trophy, then a lost fish and a reel-in; 25 frames
+$LUNE run tools/preview/pose_dump.luau /tmp/anim/timeline.json [--rig R6] [--joints AnimationConstraint] [--fish Crucian]
+python3 tools/preview/pose_sheet.py /tmp/anim/timeline.json /tmp/anim/timeline.png [--only "wind,release,reel"] [--cols 5]
+# every key pose of FisherPoses on its own (contact sheet of the pose data)
+$LUNE run tools/preview/pose_dump.luau /tmp/anim/poses.json --mode poses [--rig R6]
+python3 tools/preview/pose_sheet.py /tmp/anim/poses.json /tmp/anim/poses.png
+```
+
+Labels show the controller's phase and the rod bend at that moment. The sim avatar is a block
+approximation of R15 (exact R6) without appearance; body parts are coloured by name (right arm
+darker — it holds the rod). The sim stores whole-number attribute values as float32, so the
+dumper keeps the casts off whole seconds (CastTime would round otherwise).
+
 ## GUI previews
 
 See the HUD exactly as a player would — on a phone (also a notched one and a small one), a

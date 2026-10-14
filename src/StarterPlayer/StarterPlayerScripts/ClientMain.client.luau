@@ -10,6 +10,9 @@
 	  HudController        — плашка базы, кнопка «Домой» (Этап 1);
 	  FishingController    — рыбалка своего игрока: кнопка действия, мини-игра, карточка улова (Этап 2);
 	  FishingFxController  — поплавки и лески всех игроков, переливы радужных рыб (Этап 2);
+	  FisherAnimController — тело рыбаков рядом: замах, ожидание, поклёвка, борьба, улов над
+	                         головой; гнущаяся удочка (помощники FisherRig, FisherPoses, FisherRod —
+	                         модули, не контроллеры);
 	  AmbientController    — «живой» мир: рыбки, чайки, мельница, лодки.
 ]]
 
@@ -24,6 +27,7 @@ local ORDER = {
 	"HudController",
 	"FishingController",
 	"FishingFxController",
+	"FisherAnimController",
 	"AmbientController",
 }
 

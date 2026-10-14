@@ -31,6 +31,7 @@ local Collection = require("@self/collection")
 local Misc = require("@self/misc")
 local DataStore = require("@self/datastore")
 local RandomMod = require("@self/random")
+local Rigs = require("@self/rigs")
 
 local Vector2 = roblox.Vector2
 local CFrame = roblox.CFrame
@@ -161,6 +162,7 @@ function Sim.new(opts)
 	self.input = Input.new(self)
 	self.collection = Collection.new(self)
 	self.misc = Misc.new(self)
+	self.rigs = Rigs.new(self)
 	self.DataStore = DataStore.new(self, opts.dataStore)
 
 	for _, name in CORE_SERVICES do
@@ -387,8 +389,9 @@ function Sim:_clientOwns(ctx, real, what: string): boolean
 		end
 		cur = cur.Parent
 	end
+	-- physics of the own character's parts (not e.g. attachment frames: those never replicate)
 	local char = player and player.Character
-	if char and (real == char or real:IsDescendantOf(char)) and CLIENT_PHYSICS[what] then
+	if char and real:IsA("BasePart") and real:IsDescendantOf(char) and CLIENT_PHYSICS[what] then
 		return true
 	end
 	return false
@@ -453,6 +456,7 @@ function Sim:_onReparented(real, oldParent, newParent, wasInGame: boolean, isInG
 	if real:IsA("Tool") then
 		self.players:onToolMoved(real, oldParent, newParent)
 	end
+	self.rigs:onReparented(real, oldParent, newParent)
 	if self.started and newParent ~= nil and isInGame then
 		if real:IsA("BaseScript") or real:FindFirstChildWhichIsA("BaseScript", true) then
 			self.runtime:onInstanceMoved(real)
@@ -494,8 +498,10 @@ local function clientFilter(ctx)
 	return ctx.kind == "client"
 end
 
--- Advances one frame: RenderStepped (clients), Stepped, simulation systems,
--- Heartbeat, then due timers (task.wait/delay); deferred work flushes in between.
+-- Advances one frame: RenderStepped (clients), PreAnimation + the emulated Animator
+-- (rigged characters), Stepped/PreSimulation, simulation systems (walking, joints of rigged
+-- characters, tweens), Heartbeat, then due timers (task.wait/delay); deferred work flushes in
+-- between.
 function Sim:Step(dt: number?)
 	local step = dt or self.frameTime
 	local sched = self.sched
@@ -536,6 +542,13 @@ function Sim:Step(dt: number?)
 	end
 	sched:flush()
 
+	local preAnimation = proxy:peekSignal(rs, "PreAnimation")
+	if preAnimation then
+		preAnimation:FireImmediate(step)
+	end
+	self.rigs:animate(sched.frame)
+	sched:flush()
+
 	local stepped = proxy:peekSignal(rs, "Stepped")
 	if stepped then
 		stepped:FireImmediate(sched.clock, step)
@@ -547,6 +560,7 @@ function Sim:Step(dt: number?)
 	sched:flush()
 
 	self.players:update(step)
+	self.rigs:solve()
 	self.tweens:update(step)
 	self.input:update()
 	sched:flush()
@@ -686,7 +700,21 @@ end
 -- opts: UserId, Name, DisplayName, device ("desktop"|"phone"|"tablet"|"console"),
 --       viewport (Vector2), clientDelay, characterDelay, AccountAge, MembershipType
 function Sim:AddPlayer(opts)
+	Rigs.validate(opts or {})
 	return self.proxy:wrap(self.players:add(opts))
+end
+
+-- Rigged characters (AddPlayer{ rig = "R15" | "R6" }): the pose the emulated Animator writes
+-- every frame, joint name -> Transform (joint space); joints not listed get identity. nil
+-- clears it (everything identity, "idle").
+function Sim:SetAnimatorPose(player, poses)
+	self.rigs:setPose(self:_playerReal(player), poses)
+end
+
+-- Every `everyN`-th frame the emulated Animator of this player's rig skips its write
+-- (Animator.EvaluationThrottled = true for that frame); nil turns throttling off.
+function Sim:ThrottleAnimator(player, everyN: number?)
+	self.rigs:setThrottle(self:_playerReal(player), everyN)
 end
 
 function Sim:RemovePlayer(player)

@@ -622,8 +622,11 @@ tests["cast, waiting, bite, reeling: trail, landing rings, ripples, bouncing «!
 	local fx = clientFx(sim, watcher)
 
 	sim:FireServer(fisher, "FishingCast")
-	local landing = sim:Time() + FishingConfig.CastFlightTime
-	sim:Advance(FishingConfig.CastFlightTime / 2)
+	-- the float hangs on the rod tip for CastWindUp (the wind-up), then flies CastFlightTime
+	local landing = sim:Time() + FishingConfig.CastWindUp + FishingConfig.CastFlightTime
+	sim:Advance(FishingConfig.CastWindUp / 2)
+	t.eq(fx.GetBobber(fisher).Root.CastTrail.Enabled, false, "wind-up: no trail while the float hangs on the tip")
+	sim:Advance(FishingConfig.CastWindUp / 2 + FishingConfig.CastFlightTime / 2)
 	local bobber = fx.GetBobber(fisher)
 	t.ok(bobber, "the bobber flies")
 	t.eq(bobber.Root.CastTrail.Enabled, true, "a trail behind the flying bobber")
@@ -1051,10 +1054,11 @@ tests["bobber: 1.7× bigger (own 2.2×), waterline kept; the own one outlined wi
 	t.eq(theirs.Root.BiteAlert.AlwaysOnTop, false, "another player's «!» does not")
 
 	-- Nibble: only on the local player's own bobber, only while waiting, only on this client.
-	-- UI v2 (FUI-19): FishingController nibbles by itself 1–2 times within NIBBLE_TO (1.9 s)
-	-- of the cast; let those dips pass before measuring one of our own (the bite comes no
-	-- earlier than CastFlightTime + BiteDelay.Min = 3.2 s after the cast).
-	sim:Advance(1.1)
+	-- UI v2 (FUI-19): FishingController nibbles by itself 1–2 times within NIBBLE_TO (2.2 s)
+	-- of the cast; let those dips (and the landing rings) pass before measuring one of our own
+	-- (the bite comes no earlier than CastWindUp + CastFlightTime + BiteDelay.Min = 3.5 s after
+	-- the cast).
+	sim:Advance(1.1 + FishingConfig.CastWindUp)
 	local function smallRings(fx: any): number
 		local count = 0
 		for _, instance in fx.GetEffects(fisher) do

@@ -492,12 +492,15 @@ tests["cast accepted: attributes, target in the water out from the pier, a littl
 		t.eq(p:GetAttribute("FishingState"), "Waiting")
 		-- attributes keep Vector3 as float32
 		t.near(p:GetAttribute("BobberTarget"), target, 1e-3, "BobberTarget attribute")
+		-- CastTime = the moment the float leaves the rod tip: the cast + CastWindUp (the wind-up
+		-- every client shows, FisherAnimController).
 		local castTime = p:GetAttribute("CastTime")
 		local now = sim.workspace:GetServerTimeNow()
 		t.ok(
-			typeof(castTime) == "number" and math.abs(now - castTime) < 1e-6,
-			string.format("CastTime %.4f = server time of the cast %.4f", castTime, now)
+			typeof(castTime) == "number" and math.abs(now + FishingConfig.CastWindUp - castTime) < 1e-6,
+			string.format("CastTime %.4f = server time of the cast %.4f + CastWindUp", castTime, now)
 		)
+		t.eq(data.WindUp, FishingConfig.CastWindUp, "the Waiting payload carries WindUp")
 		t.eq(time, sim:Time())
 
 		sim:FireServer(p, "FishingStop")
@@ -508,12 +511,16 @@ tests["cast accepted: attributes, target in the water out from the pier, a littl
 	sim:AssertNoErrors()
 end
 
-tests["bite: arrives within FlightTime + BiteDelay / BiteSpeed"] = function(t)
+tests["bite: arrives within WindUp + FlightTime + BiteDelay / BiteSpeed"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	ready(sim, p)
-	local lo = FishingConfig.CastFlightTime + FishingConfig.BiteDelay.Min / START_ROD.BiteSpeed
-	local hi = FishingConfig.CastFlightTime + FishingConfig.BiteDelay.Max / START_ROD.BiteSpeed
+	local lo = FishingConfig.CastWindUp
+		+ FishingConfig.CastFlightTime
+		+ FishingConfig.BiteDelay.Min / START_ROD.BiteSpeed
+	local hi = FishingConfig.CastWindUp
+		+ FishingConfig.CastFlightTime
+		+ FishingConfig.BiteDelay.Max / START_ROD.BiteSpeed
 	local delays = {}
 	for i = 1, 6 do
 		local _, _, castTime = cast(sim, p)
@@ -1123,8 +1130,8 @@ tests["session ends: StopFishing API and a released base"] = function(t)
 	sim:AssertNoErrors()
 end
 
--- Bite delay fixed to 3 s: session 1 would bite at cast1 + 3.7, session 2 (cast 1 s later)
--- bites at cast2 + 3.7. A stale bite thread of session 1 would show up 1 s early.
+-- Bite delay fixed to 3 s: session 1 would bite at cast1 + 4.0, session 2 (cast 1 s later)
+-- bites at cast2 + 4.0 (CastWindUp + CastFlightTime + 3). A stale bite thread of session 1 would show up 1 s early.
 local function staleBiteTest(t: any, extraPatches: { any })
 	local patches = {
 		{
@@ -1139,7 +1146,7 @@ local function staleBiteTest(t: any, extraPatches: { any })
 	local sim = boot(t, patches)
 	local p = addPlayer(sim, 1)
 	ready(sim, p)
-	local expected = FishingConfig.CastFlightTime + 3 / START_ROD.BiteSpeed
+	local expected = FishingConfig.CastWindUp + FishingConfig.CastFlightTime + 3 / START_ROD.BiteSpeed
 	local _, _, cast1 = cast(sim, p)
 	sim:Advance(0.2)
 	sim:FireServer(p, "FishingStop")

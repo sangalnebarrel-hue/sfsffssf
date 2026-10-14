@@ -429,6 +429,121 @@ tests["Humanoid MoveTo walks at WalkSpeed; Teleport moves the whole character"] 
 	sim:AssertNoErrors()
 end
 
+tests["rigs: R15/R6 limbs, Animator stand-in, per-client joint poses, RightGrip"] = function(t)
+	local sim = t.sim()
+	sim:AddScript(
+		sim:Find("StarterPlayer.StarterPlayerScripts"),
+		"LocalScript",
+		"Poser",
+		[[
+		-- the client poses the joint named _G.joint of Fisher's character in PreSimulation
+		local RunService = game:GetService("RunService")
+		_G.preAnimation = 0
+		RunService.PreAnimation:Connect(function() _G.preAnimation += 1 end)
+		RunService.PreSimulation:Connect(function()
+			local fisher = game.Players:FindFirstChild("Fisher")
+			local char = fisher and fisher.Character
+			local joint = _G.pose and char and char:FindFirstChild(_G.joint, true)
+			if joint then
+				_G.seen = joint.Transform
+				joint.Transform = _G.pose
+			end
+		end)
+	]]
+	)
+	sim:StartServer()
+	local fisher = sim:AddPlayer({ Name = "Fisher", rig = "R15" })
+	local watcher = sim:AddPlayer({ Name = "Watcher" })
+	local r6 = sim:AddPlayer({ Name = "Old", rig = "R6" })
+	local ac = sim:AddPlayer({ Name = "Aju", rig = "R15", joints = "AnimationConstraint" })
+	t.throws(function()
+		sim:AddPlayer({ rig = "R7" })
+	end, "rig must be")
+	sim:Advance(0.2)
+	t.ok(sim:Globals(watcher).preAnimation > 0, "PreAnimation fires every frame")
+	local char = sim:GetCharacter(fisher)
+	t.eq(sim:GetHumanoid(fisher).RigType, Enum.HumanoidRigType.R15)
+	sim:Teleport(fisher, CFrame.new(0, 3, 0))
+	sim:Step()
+	local hrp = char.HumanoidRootPart.Position
+	t.near(char.Head.Position, hrp + Vector3.new(0, 1.6, 0), 1e-3, "R15 head on the neck")
+	t.near(char.RightHand.Position.Y, hrp.Y - 1.1, 1e-3, "arm hangs at rest (identity Transforms)")
+	t.ok(char.RightUpperArm:FindFirstChild("RightShoulder"):IsA("Motor6D"))
+	t.near(
+		sim:GetCharacter(watcher).Head.Position - sim:GetRoot(watcher).Position,
+		Vector3.new(0, 1.5, 0),
+		1e-4,
+		"players without the option keep the minimal body"
+	)
+
+	-- equipped Tool: RightGrip weld from the hand's grip attachment to the Handle
+	local tool = sim:Create("Tool", { Name = "Rod", Grip = CFrame.new(0, 0, -1) }, fisher.Backpack)
+	sim:Create("Part", { Name = "Handle", Size = Vector3.new(1, 1, 4) }, tool)
+	sim:EquipTool(fisher, tool)
+	sim:Step()
+	local grip = char.RightHand:FindFirstChild("RightGrip")
+	t.ok(grip and grip:IsA("Weld") and grip.Part1 == tool.Handle, "RightGrip welds the Handle to the hand")
+	t.near(
+		tool.Handle.CFrame.Position,
+		(char.RightHand.CFrame * char.RightHand.RightGripAttachment.CFrame * tool.Grip:Inverse()).Position,
+		1e-3,
+		"the Handle follows the hand"
+	)
+
+	-- the Animator stand-in: the pose set for the player, every frame, unless throttled
+	local raised = CFrame.Angles(math.rad(90), 0, 0)
+	sim:SetAnimatorPose(fisher, { RightShoulder = raised })
+	sim:Step()
+	t.near(char.RightUpperArm:FindFirstChild("RightShoulder").Transform, raised, 1e-6, "animator pose")
+	t.ok(char.RightHand.Position.Y > hrp.Y, "arm raised by the animator pose")
+
+	-- a client's own Transform write is applied for that client only
+	local g = sim:Globals(watcher)
+	g.joint, g.pose = "RightShoulder", CFrame.Angles(math.rad(-90), 0, 0)
+	sim:Step()
+	t.near(g.seen, raised, 1e-6, "PreSimulation sees the fresh animator pose")
+	local serverHand = char.RightHand.Position
+	local watcherHand = sim:Run(function()
+		return char.RightHand.Position
+	end, watcher)
+	t.ok(serverHand.Y > hrp.Y, "the server still sees the animator pose")
+	t.ok(watcherHand.Y < hrp.Y + 1 and (watcherHand - serverHand).Magnitude > 1, "the posing client sees its own pose")
+	local watcherGrip = sim:Run(function()
+		return char.RightHand.RightGripAttachment.WorldPosition
+	end, watcher)
+	t.ok((watcherGrip - watcherHand).Magnitude < 0.5, "attachments follow the client's parts")
+	t.near(char.RightUpperArm:FindFirstChild("RightShoulder").Transform, raised, 1e-6, "Transform stays client-local")
+
+	-- throttled frames: the Animator does not write, EvaluationThrottled is true
+	g.pose = nil
+	sim:ThrottleAnimator(fisher, 1)
+	sim:Step()
+	t.eq(char.Humanoid.Animator.EvaluationThrottled, true)
+	sim:ThrottleAnimator(fisher, nil)
+	sim:Step()
+	t.eq(char.Humanoid.Animator.EvaluationThrottled, false)
+	t.near(
+		sim:Run(function()
+			return char.RightHand.Position
+		end, watcher),
+		serverHand,
+		1e-3,
+		"client view back to the replicated pose"
+	)
+
+	-- R6 and AnimationConstraint rigs
+	local old = sim:GetCharacter(r6)
+	t.eq(sim:GetHumanoid(r6).RigType, Enum.HumanoidRigType.R6)
+	t.near(old.Head.Position - sim:GetRoot(r6).Position, Vector3.new(0, 1.5, 0), 1e-3, "R6 head")
+	t.near(old["Right Arm"].Position - sim:GetRoot(r6).Position, Vector3.new(1.5, 0, 0), 1e-3, "R6 arm")
+	local aju = sim:GetCharacter(ac)
+	local shoulder = aju.RightUpperArm:FindFirstChild("RightShoulder")
+	t.ok(shoulder:IsA("AnimationConstraint"), "AnimationConstraint joints")
+	t.ok(shoulder.Attachment0.Name == "RightShoulderRigAttachment", "rig attachments")
+	t.near(aju.Head.Position - sim:GetRoot(ac).Position, Vector3.new(0, 1.6, 0), 1e-3, "solved through attachments")
+	sim:AssertNoErrors()
+end
+
 tests["Kick and RemovePlayer stop the client and fire PlayerRemoving"] = function(t)
 	local sim = build(t, {
 		{

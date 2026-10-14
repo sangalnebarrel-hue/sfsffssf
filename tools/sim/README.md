@@ -64,6 +64,7 @@ A test file returns `{ [name] = function(t) end }` or a list of `{ name, fn }`.
 | `remotes.luau`, `serialize.luau` | remote/bindable delivery between contexts, argument copying rules, DataStore value rules |
 | `datastore.luau` | in-memory DataStore backend (`sim.DataStore`) |
 | `world.luau` | CFrame moves, pivots, bounding boxes, raycasts, overlap queries |
+| `rigs.luau` | optional R15/R6 rigs: Animator stand-in, forward kinematics per client view, RightGrip |
 | `tween.luau`, `input.luau`, `collection.luau`, `misc.luau`, `random.luau`, `util.luau` | TweenService, input/CAS/prompts, CollectionService, sounds/animations, deterministic Random, helpers |
 
 **Contexts.** One DataModel is shared by the server and all clients (replication is
@@ -89,8 +90,9 @@ Destroy is emulated (fire `Destroying`, detach, lock `Parent`, disconnect, recur
 destroyed instances stay readable like in Roblox.
 
 **Time.** Nothing sleeps. `sim:Step(dt)` runs one frame:
-`RenderStepped`/`PreRender` + `BindToRenderStep` (clients) → `Stepped` → humanoid
-walking, tweens, prompt holds → `Heartbeat` → due timers (`task.wait/delay`, legacy
+`RenderStepped`/`PreRender` + `BindToRenderStep` (clients) → `PreAnimation` → the emulated
+Animator of rigged characters → `Stepped`/`PreSimulation` → humanoid walking, joints of rigged
+characters (forward kinematics), tweens, prompt holds → `Heartbeat` → due timers (`task.wait/delay`, legacy
 `wait`). Deferred work (event handlers, `task.defer`) is flushed after every phase,
 mirroring `SignalBehavior = Deferred`. A timer never fires in the frame it was created
 (`task.wait()` = one frame). `sim:Advance(seconds, step?)` repeats `Step`.
@@ -136,12 +138,29 @@ Proxy property writes from the harness queue events; call `sim:Flush()`/`Step` t
 
 ### Players
 
-- `sim:AddPlayer({ UserId, Name, DisplayName, device = "desktop"|"phone"|"tablet"|"console", viewport, clientDelay, characterDelay, AccountAge, MembershipType })` → Player. Fires `PlayerAdded`, then starts the client (ReplicatedFirst LocalScripts, StarterPlayerScripts → PlayerScripts, client RunContext scripts); with `CharacterAutoLoads` the character spawns on the next frame.
+- `sim:AddPlayer({ UserId, Name, DisplayName, device = "desktop"|"phone"|"tablet"|"console", viewport, clientDelay, characterDelay, AccountAge, MembershipType, rig = "R15"|"R6", joints = "Motor6D"|"AnimationConstraint" })` → Player. Fires `PlayerAdded`, then starts the client (ReplicatedFirst LocalScripts, StarterPlayerScripts → PlayerScripts, client RunContext scripts); with `CharacterAutoLoads` the character spawns on the next frame.
 - `sim:RemovePlayer(p)` — `PlayerRemoving` (player still parented while handlers start), `CharacterRemoving`, character destroyed, client threads/connections killed, player parented to nil. `player:Kick(msg)` does the same and records `sim.Kicks`.
 - `sim:LoadCharacter(p)`, `sim:KillCharacter(p)` (Health = 0 → `Died`, auto-respawn after `Players.RespawnTime`), `sim:GetCharacter/GetHumanoid/GetRoot(p)`, `sim:Teleport(p, cframeOrVector3)`, `sim:WalkTo(p, pos, timeout?)` → reached.
 - `sim:SetDevice(p, name)`, `sim:SetViewport(p, Vector2)`, `sim:GetPlayers()`.
 
 Characters: Model named after the player with `Humanoid` (Health/MaxHealth 100, WalkSpeed 16, JumpPower 50, JumpHeight 7.2, HipHeight 2, `Animator`), `HumanoidRootPart` (2×2×1, PrimaryPart) and `Head`, placed on `Player.RespawnLocation`, else a random enabled `SpawnLocation`, else (0, 10, 0). Each spawn re-clones `ResetOnSpawn` GUIs (others are cloned once), copies StarterPack into the Backpack and StarterCharacterScripts into the character. As in Roblox, StarterPlayerScripts/StarterGui/character contents are copied completely before their scripts start, so scripts may index siblings without `WaitForChild`.
+
+Rigged characters (`tools/sim/rigs.luau`, opt-in per player: `rig = "R15"` or `"R6"`, R15 also
+with `joints = "AnimationConstraint"` — the "Avatar Joint Upgrade" rig whose joint frames live in
+`Attachment0/1` named `<Joint>RigAttachment`): body parts and joints with the standard names (R6
+C0/C1 exact, R15 a block approximation: 15 parts, Root/Waist/Neck/Shoulders/Elbows/Wrists/Hips/
+Knees/Ankles), `RightGripAttachment`, `Humanoid.RigType`. Every frame after `PreAnimation` an
+Animator stand-in writes each joint's `Transform` (identity = idle, or the pose from
+`sim:SetAnimatorPose(p, { [jointName] = CFrame })`, joint space) on the server and drops every
+client-local `Transform`; `sim:ThrottleAnimator(p, n)` skips every n-th frame (then
+`Animator.EvaluationThrottled` is true and `Transform` keeps the last write). After
+`PreSimulation` forward kinematics places every part connected to the HumanoidRootPart through
+Motor6D / AnimationConstraint / Weld (`Part1 = Part0 * C0 * Transform * C1:Inverse()`), once with
+the replicated values and once per client that holds client-local joint values (its `Transform`,
+`C0`, `C1` or attachment writes): that client sees its own pose, the server and everyone else the
+replicated one (part CFrames written without events). Equipping a Tool on a rigged character adds
+the `RightGrip` Weld (hand grip attachment → `Tool.Grip`), unequipping removes it. Minimal
+characters are unaffected and cost nothing.
 
 ### Remotes and logs
 
@@ -206,7 +225,7 @@ a wrapped `Enum` (`Enum.KeyCode.Unknown` maps to Lune's value-0 item `None`;
 - **Humanoid**: `Health` (clamped, `HealthChanged`, `Died` once, Dead state), `TakeDamage` (ForceField aware), `MoveTo` (walks; `MoveToFinished`), `GetState/ChangeState`, `EquipTool/UnequipTools`, `LoadAnimation` (tracks with timing; `SimLength` attribute on the Animation sets the length), `RootPart`.
 - **Players/Player**: listed above; `GetMouse()` (PlayerMouse with Hit/Target stubs), group/friends stubs, `DistanceFromCharacter`.
 - **Remotes**: `RemoteEvent`/`UnreliableRemoteEvent` (`FireServer`, `FireClient`, `FireAllClients`; events fired before anyone listens are queued per receiver), `RemoteFunction` (`InvokeServer`/`InvokeClient` yield until the callback (set via `OnServerInvoke`/`OnClientInvoke`) returns; errors propagate to the caller; waits for a callback to be set; `InvokeClient` fails if the player leaves), `BindableEvent/BindableFunction` (same-context only). Serialization: tables deep-copied, metatables dropped, functions/threads/signals/cyclic tables raise, mixed or sparse arrays keep only the array part (warning), non-string dictionary keys become strings (warning), instances by reference except server-only or unparented instances sent to clients (arrive as `nil`, noted).
-- **RunService**: `IsServer/IsClient/IsStudio(true)/IsRunning(true)`, `Heartbeat`, `Stepped`, `PreSimulation`, `PostSimulation`, client-only `RenderStepped`/`PreRender`/`BindToRenderStep`.
+- **RunService**: `IsServer/IsClient/IsStudio(true)/IsRunning(true)`, `Heartbeat`, `Stepped`, `PreAnimation`, `PreSimulation`, `PostSimulation`, client-only `RenderStepped`/`PreRender`/`BindToRenderStep`.
 - **TweenService**: `Create` (validates properties/types), per-frame interpolation with Roblox easing styles/directions, `RepeatCount`, `Reverses`, `DelayTime`, `Play/Pause/Cancel`, `PlaybackState`, `Completed(state)`, newer tweens cancel older ones on the same property, `GetValue`; legacy `GuiObject:TweenSize/TweenPosition/TweenSizeAndPosition` with callbacks.
 - **GUI**: `AbsoluteSize/AbsolutePosition` from UDim2 + AnchorPoint + SizeConstraint + UIPadding + UISizeConstraint + UIAspectRatioConstraint + basic UIListLayout/UIGridLayout placement against the player's viewport (desktop 1280×720, phone 844×390, tablet 1024×768, console 1920×1080; 58 px top inset unless `IgnoreGuiInset`), `AbsoluteContentSize`, `TextBounds` (≈ 0.5 × TextSize per character), `TextFits`, GuiButton/GuiObject/TextBox events.
 - **Input**: `UserInputService` device flags per client, `InputBegan/Ended/Changed`, touch events, `IsKeyDown`, `GetKeysPressed`, `GetLastInputType`, ...; `ContextActionService` bindings and info.
@@ -215,13 +234,13 @@ a wrapped `Enum` (`Enum.KeyCode.Unknown` maps to Lune's value-0 item `None`;
 ## Fidelity limits and known differences
 
 - **No physics or rendering.** Parts move only when code moves them; nothing falls, collides or is touched automatically (`sim:Touch` exists). Welds/constraints are not simulated except that moving a character's HumanoidRootPart carries the character. Humanoid walking is a straight line at `WalkSpeed` ignoring obstacles; no jumping/falling.
-- **Replication is instant and the DataModel is shared.** Exceptions emulated: ServerStorage/ServerScriptService look empty to clients, server-only instances arrive as `nil` through remotes, and a client's writes to instances it does not own (properties, attributes, part CFrames) stay **client-local** (visible to that client only) and are listed in `sim.ClientWrites` (`strictReplication` turns them into errors). "Owned" = created by that client, inside its PlayerGui/PlayerScripts/Backpack, the camera, Lighting/SoundService/StarterGui, or physical properties of its own character. Tweens write in the context that created them. Not emulated: client `Parent`/`Destroy`/`Health` changes on server instances (applied globally, still reported), client-created instances being invisible to the server, and client edits inside its PlayerGui being invisible to server code that reads the GUI.
+- **Replication is instant and the DataModel is shared.** Exceptions emulated: ServerStorage/ServerScriptService look empty to clients, server-only instances arrive as `nil` through remotes, and a client's writes to instances it does not own (properties, attributes, part CFrames) stay **client-local** (visible to that client only) and are listed in `sim.ClientWrites` (`strictReplication` turns them into errors). "Owned" = created by that client, inside its PlayerGui/PlayerScripts/Backpack, the camera, Lighting/SoundService/StarterGui, or physical properties (CFrame, Position, velocities) of its own character's parts (not e.g. attachment frames, joint `Transform` / `C0`: those stay client-local like in Roblox). Attachment `WorldPosition`/`WorldCFrame` read the running client's view. Tweens write in the context that created them. Not emulated: client `Parent`/`Destroy`/`Health` changes on server instances (applied globally, still reported), client-created instances being invisible to the server, and client edits inside its PlayerGui being invisible to server code that reads the GUI.
 - **Deferred signals only** (`Workspace.SignalBehavior` is ignored). Handlers queued during `Destroy` still run although the connections are then disconnected. Events fired from the harness run on the next `sim:Flush()`/`Step`.
 - **No preemption.** A script looping without yielding hangs the process (the runner's per-file timeout catches it). There is no script execution timeout or re-entrancy depth limit beyond a 200 000-item flush guard.
 - **ProximityPrompts** have no automatic `PromptShown/PromptHidden`, `Exclusivity` or line-of-sight; distance is measured from the HumanoidRootPart to the prompt's parent part/attachment/model pivot.
 - **GUI layout** is approximate: no AutomaticSize, text wrapping, UIScale, UIFlexItem, alignment in list/grid layouts or ScrollingFrame clipping; `TextBounds` is an estimate.
 - **Raycasts/overlaps** treat every part as its oriented box (spheres, wedges, meshes, unions too); overlap queries compare axis-aligned bounds. Terrain exists only as the recorded `Fill*` volumes.
-- **Players**: no avatar appearance, accessories or R15 limbs (character = HumanoidRootPart + Head + Humanoid + Animator). Player objects are parented to nil, not destroyed, on leave unless `destroyPlayerOnLeave`.
+- **Players**: no avatar appearance or accessories; limbs only with the `rig` option (default character = HumanoidRootPart + Head + Humanoid + Animator); the Animator stand-in plays no AnimationTracks (only `SetAnimatorPose`); no IKControl solver. Whole-number attribute values are stored with float32 precision by Lune (keep server times like `CastTime` fractional in tests). Player objects are parented to nil, not destroyed, on leave unless `destroyPlayerOnLeave`.
 - **Lune enum database** differs slightly from Roblox (e.g. `KeyCode.Unknown` is `KeyCode.None`, value 0, so its `Name` is `"None"`).
 - **Script globals are per script but `getfenv()` returns a Lune-created wrapper table.** `loadstring` is unavailable. `require(assetId)` is unsupported.
 - **DataStores** are a single in-memory backend per sim with simplified throttling (per-key write cooldown only; no request budgets or queue drops).

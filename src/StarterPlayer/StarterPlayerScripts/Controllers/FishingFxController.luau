@@ -16,8 +16,12 @@
 	  • Полёт: дугой от кончика удочки к BobberTarget (+ FloatDepth вверх — тогда ватерлиния
 	    поплавка как раз на воде) за FishingConfig.CastFlightTime, кувыркаясь (2 оборота). Время —
 	    от CastTime по workspace:GetServerTimeNow(), поэтому у всех клиентов поплавок летит
-	    одинаково. За поплавком — искрящийся след (Trail, жёлтый → белый) и свист; приводнился —
-	    брызги и 3 расходящихся круга на воде.
+	    одинаково. CastTime — на FishingConfig.CastWindUp позже заброса: до него поплавок висит
+	    на живом кончике удочки и ходит с ней (замах рыбака — FisherAnimController), в CastTime
+	    срывается. Увидели заброс позже, чем за Fx.LaunchGuard до срыва (медленная сеть), —
+	    срыв через LaunchGuard, полёт короче, приводнение в то же время. С мига срыва за
+	    поплавком — искрящийся след (Trail, жёлтый → белый) и свист; приводнился — брызги и
+	    3 расходящихся круга на воде.
 	  • "Waiting" — покачивается на воде, леска провисает и ложится на воду; раз в
 	    Fx.RippleEvery секунд — круг (у рыбаков дальше Fx.AmbientRange — без кругов). Nibble() —
 	    своя «примерка» рыбы: поплавок заметно притапливается, круг, капли и над ним на миг «?»
@@ -115,6 +119,13 @@
 	  FishingFxController.OtherTrophy   -- Signal: (player: Player, basePosition: Vector3,
 	      rarity: string) — у ДРУГОГО рыбака встал столб света легендарной / мифической рыбы
 	      (basePosition — земля под ним; горит Fx.PillarTimeOther[rarity] с). Своему не приходит.
+	  FishingFxController.TrophyReplayed -- Signal: () — свой трофей «вспыхнул» ещё раз
+	      (ReplayOwnTrophy вернул true); FisherAnimController ещё раз «качает» рыбу руками.
+	  FishingFxController.GetBobberDip(player) -> number
+	      -- насколько поплавок сейчас притоплен рыбой, 0..1 (рывки поклёвки BiteDip, своя
+	      -- «примерка» Nibble); FisherAnimController дёргает кончик удочки вместе с ним.
+	Кончик удочки (Handle.TipAttachment) гнёт FisherAnimController (FisherRod двигает его CFrame
+	вместе с изгибом) — поплавок и леска каждый кадр берут его живую позицию.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -299,7 +310,10 @@ type Bobber = {
 	state: string, -- FishingState игрока ("Waiting" | "Bite" | "Reeling")
 	stateSince: number, -- os.clock() смены состояния
 	target: Vector3, -- где pivot поплавка на воде (BobberTarget + FloatDepth)
-	castTime: number,
+	castTime: number, -- CastTime: поплавок срывается с кончика (до этого — висит на нём, замах)
+	launchAt: number, -- … на этом клиенте (заброс увиден поздно — не раньше, чем через
+	-- Fx.LaunchGuard после того; приводняется всё равно в CastTime + CastFlightTime)
+	launched: boolean, -- свист и след уже включены (в миг срыва)
 	position: Vector3, -- где поплавок сейчас
 	landed: boolean,
 	fresh: boolean, -- создан, пока летел (заброс видели — приводнение с брызгами)
@@ -352,6 +366,8 @@ local FishingFxController = {
 	-- (player: Player, basePosition: Vector3, rarity: string) — у другого рыбака встал столб
 	-- света легендарной / мифической рыбы (см. шапку).
 	OtherTrophy = Signal.new(),
+	-- () — свой трофей «вспыхнул» ещё раз (ReplayOwnTrophy вернул true).
+	TrophyReplayed = Signal.new(),
 }
 
 local folder: Folder? = nil
@@ -1007,7 +1023,15 @@ local function readCast(bobber: Bobber)
 	local target = player:GetAttribute("BobberTarget")
 	local water = if typeof(target) == "Vector3" then target else fallbackTarget(player)
 	bobber.target = water + Vector3.new(0, bobber.floatDepth, 0)
-	bobber.castTime = finite(player:GetAttribute("CastTime")) or Workspace:GetServerTimeNow()
+	local now = Workspace:GetServerTimeNow()
+	local castTime = finite(player:GetAttribute("CastTime")) or now
+	if castTime ~= bobber.castTime then
+		bobber.castTime = castTime
+		-- Увидели заброс позже, чем за Fx.LaunchGuard до срыва (сеть медленнее CastWindUp):
+		-- срыв чуть позже, полёт короче — приводнение в то же время (FisherAnimController так же).
+		bobber.launchAt = math.min(math.max(castTime, now + Fx.LaunchGuard), castTime + FishingConfig.CastFlightTime)
+		bobber.launched = false
+	end
 end
 
 -- Точка на воде под поплавком (центр кругов и всплесков).
@@ -1366,7 +1390,9 @@ local function createBobber(tracker: Tracker): Bobber?
 		state = "Waiting",
 		stateSince = now,
 		target = Vector3.zero,
-		castTime = 0,
+		castTime = -math.huge,
+		launchAt = 0,
+		launched = false,
 		position = Vector3.zero,
 		landed = false,
 		fresh = false,
@@ -1387,13 +1413,11 @@ local function createBobber(tracker: Tracker): Bobber?
 	}
 	readCast(bobber)
 	bobber.position = anchorPosition(bobber, resolveTip(bobber, now))
-	-- Заброс видно (поплавок ещё летит): свист и след; иначе он уже на воде — без них.
+	-- Заброс видно (поплавок ещё на кончике или летит): свист и след — в миг срыва (stepBobber);
+	-- иначе он уже на воде — без них.
 	bobber.fresh = Workspace:GetServerTimeNow() - bobber.castTime < FishingConfig.CastFlightTime
+	bobber.launched = not bobber.fresh
 	setTrails(bobber.trails, false)
-	if bobber.fresh and isNear(bobber.position) then
-		setTrails(bobber.trails, true)
-		play(bobber.whoosh)
-	end
 	model:PivotTo(CFrame.new(bobber.position))
 	model.Parent = parent
 	return bobber
@@ -1403,12 +1427,16 @@ end
 -- Движение поплавка (каждый кадр, только активные)
 --------------------------------------------------------------------------------
 
--- Полёт дугой, кувыркаясь (FX.CastSpins оборотов); nil — уже долетел.
+-- Полёт дугой, кувыркаясь (FX.CastSpins оборотов); nil — уже долетел. До срыва (замах, alpha < 0)
+-- поплавок висит на живом кончике удочки и ходит вместе с ней.
 local function flightPose(bobber: Bobber, from: Vector3): (Vector3?, CFrame)
-	local alpha = (Workspace:GetServerTimeNow() - bobber.castTime) / FishingConfig.CastFlightTime
-	if alpha >= 1 then
+	local landing = bobber.castTime + FishingConfig.CastFlightTime
+	local span = landing - bobber.launchAt
+	local now = Workspace:GetServerTimeNow()
+	if now >= landing or span <= 1e-3 then
 		return nil, CFrame.identity
 	end
+	local alpha = (now - bobber.launchAt) / span
 	alpha = math.max(alpha, 0)
 	local height = math.clamp((bobber.target - from).Magnitude * 0.3, 2, 10)
 	local position = from:Lerp(bobber.target, alpha) + Vector3.new(0, height * 4 * alpha * (1 - alpha), 0)
@@ -1643,6 +1671,14 @@ stepBobber = function(bobber: Bobber, now: number)
 		if flying then
 			bobber.position = flying
 			tilt = spin
+			-- Сорвался с кончика (CastTime; до того висел на нём — замах): свист и след.
+			if not bobber.launched and Workspace:GetServerTimeNow() >= bobber.launchAt then
+				bobber.launched = true
+				if near then
+					setTrails(bobber.trails, true)
+					play(bobber.whoosh)
+				end
+			end
 		elseif popStart and now - popStart < POP_TIME then
 			bobber.position, tilt = popPose(bobber, now)
 		else
@@ -2923,7 +2959,31 @@ function FishingFxController.ReplayOwnTrophy(): boolean
 	if style.Flash and not short then
 		pillar(tracker, box.Position + Vector3.new(0, size.Y / 2 + 0.5, 0), rarity, TROPHY_PILLAR_TIME)
 	end
+	FishingFxController.TrophyReplayed:Fire()
 	return true
+end
+
+-- Насколько поплавок игрока сейчас притоплен рыбой, 0..1: рывки поклёвки (BiteDip) и своя
+-- «примерка» (Nibble). 0 — не на воде / не клюёт. Для FisherAnimController: кончик удочки
+-- дёргается вместе с поплавком.
+function FishingFxController.GetBobberDip(player: Player): number
+	local tracker = trackers[player]
+	local bobber = tracker and tracker.bobber
+	if not bobber or not bobber.landed or bobber.retractFrom or bobber.hooked then
+		return 0
+	end
+	local now = os.clock()
+	if bobber.state == "Bite" then
+		return biteDip(bobber, now)
+	end
+	local nibbleAt = bobber.nibbleAt
+	if nibbleAt and bobber.state == "Waiting" then
+		local k = (now - nibbleAt) / NIBBLE_TIME
+		if k >= 0 and k < 1 then
+			return math.sin(math.pi * k)
+		end
+	end
+	return 0
 end
 
 function FishingFxController:Start(hud: ScreenGui)
