@@ -60,7 +60,7 @@ local function flagTile(parent: any, emoji: string, props: { [string]: any }): a
 	local tile = U.new("Frame", base, parent)
 	Theme.brick(tile, "Cream", {
 		studs = 1,
-		studScale = 0.85,
+		studScale = Theme.studScale(35), -- the stud module (UIM-05): the badge's tile is ≈ 35 px tall
 		radius = 0.22,
 		spec = { x = 0.12, y = 0.12, w = 0.2, h = 0.08 },
 	})
@@ -88,6 +88,7 @@ local function buildBaseBanner(hud: any)
 		ZIndex = 20,
 	}, hud)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(560, 170) }, banner)
+	-- (The one hero brick off the stud module: a 100 px slab for two seconds, its studs in scale.)
 	Theme.brick(banner, "Leaf", {
 		studs = 6,
 		studArea = { 0.2, 0.98 },
@@ -150,6 +151,7 @@ local function buildStatus(hud: any)
 		faceName = "Swatch",
 		studs = 4,
 		studArea = { 0.17, 0.97 },
+		studScale = Theme.studScale(29), -- one stud module on every brick (≈ 29 px tall on a phone)
 		spec = { x = 0.17, y = 0.17, w = 0.08, h = 0.09 },
 	})
 	flagTile(badge, "🔎", {
@@ -179,6 +181,7 @@ local function buildStatus(hud: any)
 	Theme.brick(counter, "Gold", {
 		studs = 3,
 		studArea = { 0.3, 0.97 },
+		studScale = Theme.studScale(24),
 		spec = { x = 0.33, y = 0.17, w = 0.1, h = 0.09 },
 	})
 	Theme.icon(counter, "Icon", "🐟", {
@@ -228,7 +231,7 @@ local function buildRightButtons(hud: any)
 		Size = UDim2.fromScale(1, 0.3),
 		Visible = false,
 		Square = true,
-		Brick = { studs = 2, studScale = 0.56, spec = { x = 0.1, y = 0.1, w = 0.16, h = 0.06 } },
+		Brick = { studs = 2, studScale = Theme.studScale(60), spec = { x = 0.1, y = 0.1, w = 0.16, h = 0.06 } },
 		Icon = "🏠",
 	})
 	local icon = home:FindFirstChild("Icon")

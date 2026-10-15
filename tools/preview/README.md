@@ -862,6 +862,11 @@ pier with that very camera (cached per camera and variant, so a `CameraOffset` g
 backdrop). `h:poseLikeBackdrop()` stands the rigged character on the spot: its root
 HipHeight + half its height above the top, facing the lagoon.
 
+Avatar mode (every scenario without `world = true`): the body is drawn moved onto the FishingSpot
+wherever it really stands, and the client's `Workspace.CurrentCamera` follows the real body the
+same way (placement⁻¹ × the capture camera, like Roblox's follow camera), so the controllers'
+own-character keep-out (`FishingLayout.fisherBox`) sees the fisher where the drawing shows him.
+
 X-ray (timelines and timeline bursts, unless `xray = false`): dashed boxes over the HUD for the
 fish models (the leap arc as dots), the pillar, the halo and the nameplate, each with how much
 of it the HUD hides (HUD opacity >= 0.6), also printed in the ruler: `HeldFish 100% under HUD`
@@ -1003,7 +1008,9 @@ cropped instead (no occlusion and no solids then).
 come from `gui/backdrop.chrome_shapes`, shared with the layout check): the 58 px top bar
 (Roblox menu button, chat/more pill); on desktop the open chat window (top-left, 360x180) and
 the player list (top-right); the hotbar — 60 px slots centred, 5..65 px above the bottom, one
-per tool from the dump (number, wrapped name, white frame on the equipped one); on touch
+per tool from the dump (number, wrapped name, white frame on the equipped one) — only while the
+game keeps the Backpack CoreGui on (the frame's `hotbar` flag: since v3 HudController switches it
+off, so there is no hotbar in the previews and the layout check has none either); on touch
 devices the classic thumbstick and the Jump button: short side <= 500 px: 70 px at 25..95 px
 from the right and 20..90 px from the bottom (thumbstick mirrored on the left); bigger
 screens: 120 px at (W-170..W-50, H-210..H-90) (thumbstick at x 60..180). On `phone_notch`

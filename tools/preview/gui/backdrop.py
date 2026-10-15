@@ -25,7 +25,8 @@ from chrome_shapes(), which the layout-safety check (gui/checks.py) uses too:
   * top bar (58 px): the Roblox menu button and the chat/"more" pill at the top-left; on
     desktop also the open chat window (top-left) and the player list (top-right);
   * the hotbar: 60 px slots centred, 5..65 px above the bottom, one per tool (number + name,
-    a white frame on the equipped one);
+    a white frame on the equipped one) — not drawn when the dump's frame says hotbar = false
+    (the game switched the Backpack CoreGui off: StarterGui:SetCoreGuiEnabled);
   * touch devices: the classic thumbstick (bottom-left) and the Jump button: screens whose
     short side is <= 500 px: 70 px at 25..95 px from the right and 20..90 px from the bottom
     (thumbstick mirrored at 25..95 px from the left); bigger: 120 px at (W-170..W-50,
@@ -395,10 +396,11 @@ def _font(px):
 HOTBAR_SLOT, HOTBAR_GAP, HOTBAR_BOTTOM = 60, 5, 5
 
 
-def chrome_shapes(W, H, touch, tools, safe=(0, 0, 0)):
+def chrome_shapes(W, H, touch, tools, safe=(0, 0, 0), hotbar=True):
     """The CoreGui widgets as shapes in screen px: {name: shape}; shape = ("rrect", x0, y0, x1,
     y1, radius) or ("circle", cx, cy, r). `safe` = device insets (left, right, bottom): the
     chrome stays inside the device safe area (an assumption — verify on a notched phone).
+    `hotbar` = False: the game switched the Backpack CoreGui off (no hotbar).
     Used both to draw the chrome and by the layout-safety pass (gui/checks.py)."""
     sl, sr, sb = safe
     out = {
@@ -408,11 +410,12 @@ def chrome_shapes(W, H, touch, tools, safe=(0, 0, 0)):
     if not touch:
         out["ChatWindow"] = ("rrect", sl + 8, INSET + 4, sl + 368, INSET + 184, 8)
         out["PlayerList"] = ("rrect", W - sr - 178, 4, W - sr - 8, 74, 8)
-    n = max(1, len(tools or []))
-    total = n * HOTBAR_SLOT + (n - 1) * HOTBAR_GAP
-    x0 = W / 2 - total / 2
-    y1 = H - sb - HOTBAR_BOTTOM
-    out["Hotbar"] = ("rrect", x0, y1 - HOTBAR_SLOT, x0 + total, y1, 8)
+    if hotbar:
+        n = max(1, len(tools or []))
+        total = n * HOTBAR_SLOT + (n - 1) * HOTBAR_GAP
+        x0 = W / 2 - total / 2
+        y1 = H - sb - HOTBAR_BOTTOM
+        out["Hotbar"] = ("rrect", x0, y1 - HOTBAR_SLOT, x0 + total, y1, 8)
     if touch:
         small = min(W, H) <= 500
         size = 70 if small else 120
@@ -423,15 +426,16 @@ def chrome_shapes(W, H, touch, tools, safe=(0, 0, 0)):
     return out
 
 
-def draw_chrome(canvas, W, H, ss, touch, tools, opacity=0.8, safe=(0, 0, 0)):
-    """Draw the CoreGui overlay on an RGBA canvas of W*ss x H*ss (inside the safe area)."""
+def draw_chrome(canvas, W, H, ss, touch, tools, opacity=0.8, safe=(0, 0, 0), hotbar=True):
+    """Draw the CoreGui overlay on an RGBA canvas of W*ss x H*ss (inside the safe area); hotbar =
+    False: the Backpack CoreGui is off (StarterGui:SetCoreGuiEnabled), no hotbar."""
     over = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
     d = ImageDraw.Draw(over)
     s = ss
     A = lambda a: int(round(255 * a * opacity))  # noqa: E731
     dark = (24, 26, 32)
     tools = tools or [{"name": "Бамбуковая удочка", "equipped": False}]
-    shapes = chrome_shapes(W, H, touch, tools, safe)
+    shapes = chrome_shapes(W, H, touch, tools, safe, hotbar)
     sl = safe[0]
 
     def rr(box, r, fill=None, outline=None, width=1):
@@ -464,10 +468,10 @@ def draw_chrome(canvas, W, H, ss, touch, tools, opacity=0.8, safe=(0, 0, 0)):
         rr((pl[1] + 6, 34, pl[3] - 6, 66), 6, fill=(255, 255, 255, A(0.12)))
         d.text(((pl[1] + 16) * s, 42 * s), "Рыбак", font=_font(15 * s), fill=(255, 255, 255, A(0.9)))
 
-    # Hotbar.
+    # Hotbar (unless the game switched the Backpack CoreGui off).
     slot, gap = HOTBAR_SLOT, HOTBAR_GAP
-    x0, y0 = shapes["Hotbar"][1], shapes["Hotbar"][2]
-    for i, tool in enumerate(tools):
+    x0, y0 = shapes["Hotbar"][1:3] if hotbar else (0, 0)
+    for i, tool in enumerate(tools if hotbar else []):
         x = x0 + i * (slot + gap)
         rr((x, y0, x + slot, y0 + slot), 8, fill=(30, 33, 40, A(0.6)))
         if tool.get("equipped"):

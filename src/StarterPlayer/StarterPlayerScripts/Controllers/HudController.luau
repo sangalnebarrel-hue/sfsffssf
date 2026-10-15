@@ -28,6 +28,10 @@
 	    вниз, крупные цифры по центру, домик бледнеет, подпись «ЖДИ» над вуалью; по готовности —
 	    подпись «ДОМОЙ», кольцо и один блик. Нажатие во время кулдауна — кнопка качается «нет».
 	  • Обводки и шкала текста подгоняются под экран (UiFx.fitStrokes, UiFx.fitText).
+	  • Панель предметов Roblox (CoreGui Backpack) выключена (v3): удочку берут кнопкой «ВЗЯТЬ»
+	    у точки рыбалки (FishingController), а серый слот внизу по центру стоял под ногами
+	    рыбака и поднимал мини-игру и подсказки на него. Свою панель предметов принесёт этап
+	    магазина (несколько удочек).
 	  • На устройствах без тач-экрана колонка кнопок опускается к правому нижнему углу
 	    (на телефонах низ справа занят кнопкой прыжка).
 	  • Ничего не блестит «просто так»: блик у плашки — только при назначении базы, у «Домой» —
@@ -43,6 +47,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
@@ -118,6 +123,11 @@ function HudController:Start(hud: ScreenGui)
 	local drain = cooldownOverlay:FindFirstChild("Drain") :: UIGradient?
 	local cooldownText = homeButton:FindFirstChild("CooldownText") :: TextLabel?
 	local requestHome = Net.Event("RequestHome")
+
+	-- Панель предметов Roblox не нужна: удочку берёт кнопка «ВЗЯТЬ» (FishingController).
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+	end)
 
 	-- Без тач-экрана нет кнопки прыжка — колонку можно опустить ниже.
 	if not UserInputService.TouchEnabled then

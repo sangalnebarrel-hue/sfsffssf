@@ -71,12 +71,15 @@ local STUD_CENTER = (1 - PLATE_LIP) * PLATE_STUD_Y
 local PIP_DONE = rgb(64, 200, 96)
 local PIP_EMPTY = P.Slate.Bottom
 
--- The bottom line of the centre column (Hint, BiteAlert, Minigame): ≥ 16 px above the Roblox
--- hotbar, outlines included (its slots end 65 px above the screen bottom; HOTBAR = 74). The hint and the
--- bite/minigame never show together (FishingController hides the hint for the bite and shows
--- the miss hint as the miss ghost leaves), so they share the line and the stack stays low.
+-- The bottom line of the centre column (Hint, BiteAlert, Minigame): 16 px above the screen
+-- bottom (v3: the Roblox hotbar is off — HudController disables the Backpack CoreGui, HOTBAR = 0 —
+-- so the column stays UNDER the fisher's feet on a phone instead of on his body). The hint and
+-- the bite/minigame never show together (FishingController hides the hint for the bite and
+-- shows the miss hint as the miss ghost leaves), so they share the line and the stack stays low.
 -- FishingController moves the column sideways on narrow screens (clear of the thumbstick and
--- the action button) through Position.X.Offset; X.Scale stays 0.5.
+-- the action button) through Position.X.Offset; X.Scale stays 0.5. On phones (HUD under 500 px
+-- tall) the minigame docks LEFT of the own fisher instead (FishingLayout), the bite and the hint
+-- shrink / slide off him if they would touch him.
 local STACK_BOTTOM = UDim2.new(0.5, 0, 1, -HOTBAR - 16)
 
 -- A white highlight band in the top part of a small flat shape (bars).
@@ -295,7 +298,7 @@ local function buildActionArea(root: any)
 		Attributes = { NoSink = true },
 	})
 
-	-- «СМОТАТЬ»: a red 1x3 brick (3 studs) above the action button with the 🧵 inside its left
+	-- «СМОТАТЬ»: a red 1x3 brick (3 studs) above the action button with the 🎣 (v3: «reel the rod in», not a 🧵) inside its left
 	-- end; 0.3 of the area tall and never under 44 px (a full-size tap target on every phone),
 	-- its bottom 0.18 of the area down: ≥ 22 px above the action plate on phones, so a thumb
 	-- mashing the big button does not slip onto it (FishingController also hides it while a
@@ -306,10 +309,10 @@ local function buildActionArea(root: any)
 		Position = UDim2.fromScale(0, 0.18),
 		Size = UDim2.fromScale(0.56, 0.3),
 		Visible = false,
-		Brick = { studs = 3, studScale = 0.6, studArea = { 0.3, 0.98 } },
+		Brick = { studs = 3, studScale = Theme.studScale(44), studArea = { 0.3, 0.98 } },
 	})
 	U.new("UISizeConstraint", { MinSize = Vector2.new(0, 44) }, stop)
-	Theme.icon(stop, "Icon", "🧵", {
+	Theme.icon(stop, "Icon", "🎣", {
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0.04, BRICK_FACE * 0.5),
@@ -348,7 +351,7 @@ local function buildBiteAlert(root: any)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(380, 100) }, alert)
 	Theme.brick(alert, "Sun", {
 		studs = 6,
-		studScale = 0.6,
+		studScale = Theme.studScale(69), -- the stud module (UIM-05): ≈ 69 px tall on a phone
 		studArea = { 0.1, 0.9 },
 		radius = 0.22,
 		spec = { x = 0.04, y = 0.14, w = 0.07, h = 0.08 },
@@ -437,14 +440,16 @@ local function buildMinigame(root: any)
 		Size = UDim2.fromScale(0.4, 0.37),
 		ZIndex = 4,
 	}, root)
-	U.new("UISizeConstraint", { MaxSize = Vector2.new(520, 210), MinSize = Vector2.new(280, 120) }, mini)
+	-- (MinSize 208 wide: docked left of the fisher on the smallest phone — with the fishing camera
+	-- offset he stands left of the middle — it is ≈ 220 px.)
+	U.new("UISizeConstraint", { MaxSize = Vector2.new(520, 210), MinSize = Vector2.new(208, 92) }, mini)
 	local face = Theme.brick(mini, "Night", { radius = PLATE_RADIUS, lip = PLATE_BAND, spec = false, shine = false })
 	-- The studs of the baseplate (Theme.studRow: 2 Frames + 2 UICorners + 1 gradient each, no
 	-- outline) along the top edge, like the ceiling of a Brainrot base.
 	Theme.studRow(face, {
 		Name = "StudRow",
-		Area = { 0.03, 0.028, 0.97, 0.088 },
-		Count = 18,
+		Area = { 0.03, 0.02, 0.97, 0.1 }, -- ≈ 10 px studs on a phone (UIConfig.Brick.TopStudPx)
+		Count = 12,
 		Size = 1,
 		Token = "Night",
 		ZIndex = 1,
@@ -467,8 +472,8 @@ local function buildMinigame(root: any)
 	-- Mythic: a running rainbow), centred over the whole width.
 	label(mini, "Title", {
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.095),
-		Size = UDim2.fromScale(0.91, 0.16),
+		Position = UDim2.fromScale(0.5, 0.105),
+		Size = UDim2.fromScale(0.91, 0.15),
 		Text = "РЫБА НА КРЮЧКЕ!",
 		TextGradient = { WHITE, UI.Rarity.Common.Top },
 		ZIndex = 5,
@@ -522,7 +527,7 @@ local function buildMinigame(root: any)
 	corner(glow, 0.4)
 	Theme.brick(zone, "Leaf", {
 		studs = 3,
-		studScale = 0.6,
+		studScale = 0.8, -- ≈ 10 px studs (a narrow Mythic zone still fits three)
 		radius = 0.28,
 		stroke = 3,
 		spec = { x = 0.08, y = 0.2, w = 0.16, h = 0.12 },
@@ -683,8 +688,9 @@ end
 
 local function buildHint(root: any)
 	-- One or two lines (the Body tier) at the bottom of the centre column, 16 px above the
-	-- hotbar, between the thumbstick and the action button (FishingController moves it sideways
-	-- on narrow screens). A smooth tile by kind — dark stone Night (info), Sun (warning), Berry
+	-- screen bottom (under the fisher's feet on a phone), between the thumbstick and the action
+	-- button (FishingController moves it sideways on narrow screens and sizes the tile to its
+	-- text: FishingLayout.hintWidth). A smooth tile by kind — dark stone Night (info), Sun (warning), Berry
 	-- (danger) — with the kind's emoji in a white round tile on its left end, like the toasts.
 	-- The bite alert and the minigame use the same bottom line: they never show together.
 	-- Hint.Text is the value; the visible text is Hint.Label (above the tile's face).
@@ -781,7 +787,7 @@ local function buildCatch(root: any)
 		ZIndex = 6,
 	}, root)
 	for _, band in { "Top", "Bottom", "Left", "Right" } do
-		U.new("Frame", {
+		local frame = U.new("Frame", {
 			Name = band,
 			Active = false,
 			BackgroundColor3 = INK,
@@ -789,11 +795,16 @@ local function buildCatch(root: any)
 			BorderSizePixel = 0,
 			ZIndex = 6,
 		}, dim)
+		if band == "Left" or band == "Right" then
+			-- v3 (UIM-04): a phone card docked beside the fisher dims one side band that melts away
+			-- towards him (FishingController placeDim sets its Transparency and enables it).
+			U.new("UIGradient", { Name = "Fade", Enabled = false }, frame)
+		end
 	end
 
 	-- Same box as the card: UiFx.rays sizes its sunburst by this holder's height.
 	local cardSize = UDim2.fromScale(0.58, 0.58)
-	local cardPosition = UDim2.new(0.5, 0, 1, -HOTBAR - 16) -- 16 px more: clear of the hotbar
+	local cardPosition = UDim2.new(0.5, 0, 1, -HOTBAR - 16) -- 16 px above the screen bottom
 	local rays = U.new("Frame", {
 		Name = "CatchRays",
 		Visible = false,
@@ -806,7 +817,7 @@ local function buildCatch(root: any)
 	}, root)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(380, 400) }, rays)
 
-	-- The card: a modal above the hotbar (tap anywhere on it: skip the reveal / close). A white
+	-- The card: a modal (tap anywhere on it: skip the reveal / close). A white
 	-- toy display plate (Theme.brick, no studs on its edge, no glint). Its Lip keeps the outline
 	-- but draws no background: the side band is a LipBand along the bottom (the face hides all
 	-- but its lowest 3.5 % anyway) — a quarter of the phone screen less to blend. A mutation
@@ -857,7 +868,7 @@ local function buildCatch(root: any)
 	Theme.studRow(face, {
 		Name = "StudsTop",
 		Area = { 0.05, 0.2 / CARD_FACE, 0.95, 0.227 / CARD_FACE },
-		Count = 16,
+		Count = 9, -- (a stud module, not a rivet strip: UIM-05)
 		Size = 1,
 		Token = "Cream",
 		ZIndex = 1,
@@ -878,8 +889,8 @@ local function buildCatch(root: any)
 	local common = UI.Rarity.Common
 	local commonLook = { Top = common.Top, Bottom = common.Bottom, Lip = common.Lip }
 	Theme.brick(banner, commonLook, {
-		studs = 8,
-		studScale = 0.5,
+		studs = 6,
+		studScale = Theme.studScale(34), -- the stud module: the banner is ≈ 34 px tall on a phone
 		studArea = { 0.13, 0.87 },
 		radius = 0.22,
 		spec = { x = 0.12, y = 0.16, w = 0.07, h = 0.09 },
@@ -928,26 +939,44 @@ local function buildCatch(root: any)
 		}, glow)
 		corner(frame, 0.5)
 	end
-	-- The pedestal the fish stands on (a Steal-a-Brainrot display stand): a studded brick in the
-	-- rarity's colour (FishingController: UiFx.setCandy; Mythic: rainbow studs), in front of the
-	-- glow, behind the fish (whose belly overlaps its studs).
+	-- The pedestal the fish stands on (a Steal-a-Brainrot display stand), v3 (UIM-07): a 2x4 plate
+	-- in the rarity's colour seen from 3/4 above — its lighter TOP face (the brick's Face, the top
+	-- PEDESTAL_TOP of it) over the darker FRONT face (the side band) with the Ink outline, three
+	-- studs of the plate's top seen from above standing on the top face (a "Studs" holder in front
+	-- of the face; FishingController: UiFx.setCandy recolours them, Mythic paints them rainbow).
+	-- In front of the glow, behind the fish (its belly overlaps the top face only): it reads as a
+	-- display plate, not as a bar or a button.
 	local pedestal = U.new("Frame", {
 		Name = "Pedestal",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.fromScale(0.5, 0.592),
-		Size = UDim2.fromScale(0.34, 0.064),
+		Position = UDim2.fromScale(0.5, 0.6),
+		Size = UDim2.fromScale(0.34, 0.085),
 		ZIndex = 4,
 	}, card)
-	Theme.brick(pedestal, commonLook, {
-		studs = 4,
-		studScale = 0.75,
-		studArea = { 0.14, 0.86 },
-		radius = 0.24,
-		lip = 0.3,
+	local PEDESTAL_TOP = 0.46
+	local pedestalFace = Theme.brick(pedestal, commonLook, {
+		radius = 0.26,
+		lip = 1 - PEDESTAL_TOP,
 		stroke = 3,
-		spec = { x = 0.05, y = 0.2, w = 0.06, h = 0.16 },
+		spec = false,
 		shine = false,
 	})
+	local plateStuds = U.new("Frame", {
+		Name = "Studs",
+		BackgroundTransparency = 1,
+		Active = false,
+		Size = UDim2.fromScale(1, PEDESTAL_TOP),
+		ZIndex = pedestalFace.ZIndex + 1,
+	}, pedestal)
+	for i, x in { 0.27, 0.5, 0.73 } do
+		Theme.topStud(plateStuds, `Stud{i}`, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(x, 0.5),
+			Size = UDim2.fromScale(0.15, 0.62), -- an oval: a round stud seen from 3/4 above
+			SizeConstraint = Enum.SizeConstraint.RelativeXY,
+			Token = "Cream",
+		})
+	end
 	U.new("ViewportFrame", {
 		Name = "Viewport",
 		BackgroundTransparency = 1,
@@ -1079,7 +1108,7 @@ local function buildCatch(root: any)
 		Tier = "Title",
 		Brick = {
 			studs = 3,
-			studScale = 0.5,
+			studScale = Theme.studScale(38),
 			studArea = { 0.35, 0.95 },
 			spec = { x = 0.3, y = 0.16, w = 0.06, h = 0.1 },
 		},
@@ -1153,7 +1182,7 @@ end
 	                          «КУДА ИДТИ?» / «ПОДСЕЧЬ!» / «ЛОВИ!» / «ВЗЯТЬ» / «ЗАБРАТЬ!»), Ring
 	                          (white halo), KeyChip.Key («F» / «R2», a white tile), TapCue (👆),
 	                          Bobber (the waiting look's icon)
-	    StopButton            «СМОТАТЬ» red 1x3 brick above it (Icon 🧵 inside, Caption)
+	    StopButton            «СМОТАТЬ» red 1x3 brick above it (Icon 🎣 inside, Caption)
 	  BiteAlert               orange 1x6 brick: «КЛЮЁТ!» (Label), «!» IconLeft/IconRight,
 	                          TimerTrack (black groove) + Timer, TapPad (touch: a tap on the plate hooks)
 	  Minigame                dark stone baseplate (Face.StudRow; AuraStroke.AuraFill for Epic+):

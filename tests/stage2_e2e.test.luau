@@ -57,7 +57,8 @@ local UIConfig = loadConfig("UIConfig")
 
 -- What the player sees on the action button (FishingController LOOKS) and in the HUD.
 local CAPTION_CAST = "ЗАБРОСИТЬ"
-local CAPTION_WAIT = "ЖДЁМ…"
+local CAPTION_WAIT = "ЖДЁМ…" -- busy: the server has not answered yet / CastCooldown
+local CAPTION_WATER = "ЖДИ КЛЁВА…" -- the line is in the water (v3, UIM-09)
 local CAPTION_HOOK = "ПОДСЕЧЬ!"
 local CAPTION_REEL = "ЛОВИ!"
 local CAPTION_COLLECT = "ЗАБРАТЬ!" -- the catch card is shown whole: the button closes it
@@ -73,8 +74,8 @@ local MISS_AFTER = 0.4 -- the deliberate miss comes this long after the minigame
 -- the try ended without an outcome on screen. (RbxSim replicates attributes instantly but
 -- delays remotes by remoteLatency, so the FishingState attribute changes on the client a moment
 -- before the "Caught" / "Lost" event arrives. UI v2: the catch card opens only when the fish has
--- leapt over the head — LeapTime — plus a per-rarity hold of up to 0.9 s.)
-local OUTCOME_WAIT = FishingConfig.LeapTime + 1.5
+-- leapt over the head — LeapTime — plus a per-rarity hold of up to 1.6 s: v3, Epic and rarer +0.6 s.)
+local OUTCOME_WAIT = FishingConfig.LeapTime + 2.2
 -- The longest a catch card can stay up by itself, plus the 🐟 flying into the counter.
 local CARD_GONE = UIConfig.CatchCardTime.Mythic + 1.6
 -- Standing hints (not about an event) that FishingController shows by the fishing spot.
@@ -582,7 +583,10 @@ end
 -- Cast, check the cast was accepted, play to the end.
 local function castAndPlay(t: any, sim: any, fisher: any, timeout: number?)
 	fisher:cast()
-	t.eq(fisher:caption(), CAPTION_WAIT, "the button says «ЖДЁМ…» right after the tap")
+	t.ok(
+		fisher:caption() == CAPTION_WAIT or fisher:caption() == CAPTION_WATER,
+		`the button says «{CAPTION_WAIT}» / «{CAPTION_WATER}» right after the tap, got «{fisher:caption()}»`
+	)
 	local accepted = sim:WaitFor(function()
 		return fisher.player:GetAttribute("FishingState") == "Waiting"
 	end, 1, FRAME)
@@ -925,7 +929,10 @@ tests["(6) desktop: F casts, hooks and taps; F closes the catch card; the button
 
 	local fisher = Fisher.new(sim, p, hud, { key = true })
 	fisher:cast()
-	t.eq(hud.caption.Text, CAPTION_WAIT, "F cast the line")
+	t.ok(
+		hud.caption.Text == CAPTION_WAIT or hud.caption.Text == CAPTION_WATER,
+		`F cast the line, got «{hud.caption.Text}»`
+	)
 	t.ok(fishUntilDone(sim, { fisher }, 20), `the try ends\n{fisher:describe()}`)
 	t.eq(fisher.biteCaption, CAPTION_HOOK, "«ПОДСЕЧЬ!» on the bite")
 	t.eq(fisher.reelCaption, CAPTION_REEL, "«ЛОВИ!» in the minigame")

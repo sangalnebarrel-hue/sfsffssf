@@ -40,10 +40,20 @@ its caption on a black `Coal` tile overlapping its bottom, the key chip a small 
 «СМОТАТЬ» a red 1x3 brick; the bite alert an orange 1x6 brick; the hint a smooth dark stone tile;
 the minigame an opaque dark stone baseplate with a row of studs along its top edge, a black
 groove, the zone a green 1x3 brick the rider stands on, pips as round studs (grey → green with a
-⭐); the catch card a white display plate — the fish in a pale display window on a studded
-pedestal in the rarity's colour, studs in the gaps between its tiles, the rarity banner a long
-brick with 8 studs (Mythic: rainbow studs), the weight a grey tile in CAPS, the price a yellow
-brick with studs, «НОВИНКА!» a red tile tilted −8°, the mutation a tile in its colours.
+⭐); the catch card a white display plate — the fish in a pale display window standing on a 2x4
+plate in the rarity's colour seen from 3/4 above (a lighter top face with three oval studs over a
+darker front face, v3 UIM-07: a display plate, not a bar or a button), studs in the gaps between
+its tiles, the rarity banner a long brick with 6 studs (Mythic: rainbow studs), the weight a grey
+tile in CAPS, the price a yellow brick with studs, «НОВИНКА!» a red tile tilted −8°, the mutation
+a tile in its colours.
+
+**One stud module** (v3, UIM-05 — "all studs are equal" is what makes LEGO look like LEGO): on the
+390 px phone a front-view stud is `UIConfig.Brick.StudPx` (14) px wide (≈ 8.5 px tall), a stud seen
+from above (plates) ≈ `TopStudPx` (10) px; on bigger screens they grow like the bricks do (with
+the screen height). A brick gets its `studScale` from its height on the reference phone
+(`Theme.studScale(refHeight)`), how many fit from its width (`Theme.studCount`, pitch
+`StudPitch` × the stud). Exceptions: the base banner (a 100 px hero slab for two seconds) and the
+minigame zone (≈ 10 px, so a narrow Mythic zone still holds three).
 
 **Colours.** Bright toy-brick colours under the old token names (controllers recolour with
 `UiFx.setCandy(root, token)`; Top → Bottom, Lip = side band):
@@ -60,7 +70,8 @@ brick with studs, «НОВИНКА!» a red tile tilted −8°, the mutation a t
 | `Cream` | white plate | cards, flag tiles, sockets | #FFFFFF | #E6E9EC | #A9AFB5 |
 | `Slate` | light grey | disabled / waiting, no base | #C9CED3 | #A0A5A9 | #6C7176 |
 | `Mint` | azure | Home (never confused with the green «ЛОВИ!») | #6FE0F5 | #1FA9D6 | #0E6585 |
-| `Water` | teal | waiting for a bite | #67D9E3 | #1593A6 | #0A5763 |
+| `Water` | teal | water | #67D9E3 | #1593A6 | #0A5763 |
+| `Pond` | muted teal (Water 40 % towards Slate) | waiting for a bite («ЖДИ КЛЁВА…»: nothing to press) | #8ED5DD | #4D9AA7 | #31616B |
 
 Base colours are clean swatches too (`UIConfig.BaseSwatches`, by the BaseConfig colour Id): Red =
 Berry, Blue = Sky, Yellow = Gold, Purple = Grape, Orange = Sun, Cyan = Mint (azure), Pink
@@ -182,10 +193,14 @@ timers. Stagger groups by 0.03–0.06 s.
   on a tablet or a phone (above the avatar's head); none while the catch is on screen, 1 over
   the bite / minigame (on phones none but danger), none but danger while a hit word or a minigame
   ghost («МИМО!», «ПОЙМАНА!») rises into the column, the rest queue — a toast pushed off in the
-  first half of its life comes back; Legendary (a yellow brick, 🌟) and Mythic (rainbow, 🌈)
-  broadcasts are bricks with studs (rarer = bigger; Mythic's studs in rainbow colours) in two
-  lines — who (Small) over what (up to Title, the rarity word in capitals, light-gold /
-  running-rainbow letters), Mythic adds one thin rainbow edge pulse; leaving: rise + fade, ≥ 0.7 s apart).
+  first half of its life comes back; Legendary (a yellow brick, 🌟) and Mythic (a dark Night brick
+  in a spinning rainbow rim, 🌈) broadcasts are bricks with studs (rarer = bigger; Mythic's studs
+  and icon ring in rainbow colours — v3 UIM-06: the rainbow only on the rim, the studs and the
+  ring, never behind the letters) in two lines — who (Small, never under 14 px) over what (up to
+  Title, the rarity word in capitals; white letters with a 2.5 px Ink outline, light gold at the
+  bottom on the yellow brick), never wider than the column (the headline wraps); someone else's
+  catch never washes the screen (no edge pulse); on phones they wait while the own trophy is held
+  over the head; leaving: rise + fade, ≥ 0.7 s apart).
   Someone else's Legendary / Mythic pillar off-screen (behind the camera or past the frame's
   edge): a small chip at that screen edge (HUD.TrophyPointer → «TrophyChip», ≈ 46 px, y 0.38 of
   the HUD, ≥ 16 px from the edge) — 🌟 / 🌈 in a white tile on a round yellow / rainbow brick ringed in the catcher's
@@ -194,30 +209,40 @@ timers. Stagger groups by 0.03–0.06 s.
   Only the primary CTA idles (shine + breathing); the chrome stays calm.
 - **Fishing UI** (tools/builder/gui/Fishing.luau, FishingController): the action button is the star —
   a big round plate with a raised centre stud (ActionArea, 0.66 of the HUD height, max 320 x 240) whose
-  colour (the stud follows), icon (on the stud) and caption (on a black tile) change by state (ЗАБРОСИТЬ 🎣 → ЖДЁМ… with a bobbing float and 1–2 nibbles «?» →
+  colour (the stud follows), icon (on the stud) and caption (on a black tile) change by state (ЗАБРОСИТЬ 🎣 → ЖДИ КЛЁВА… — v3 UIM-09: a muted Pond plate 15 % smaller (its caption tile keeps its width, the caption may drop to the Small tier to stay on one line), no rings (nothing to press), a bobbing float and 1–2 nibbles «?», the first wait of the session explains itself with a hint «Жди, пока клюнет — потом жми!» →
   ПОДСЕЧЬ! «!» → ЛОВИ! 🎯; Slate ⏳ while waiting on the server, КУДА ИДТИ? 🧭 far from the spot — it
   shows the way, never scolds: a calm 💡 hint, the compass turns, the guide beam flares; ВЗЯТЬ
   in gold at the spot; a dim frozen ЖДЁМ… during the catch until the card is fully shown, then
   ЗАБРАТЬ! 👍 in Leaf with white rings — it closes the card), glow rings while it matters, shine on idle, a
   press that sinks the plate into its side band, ripple on tap, a white «transform» flash on ПОДСЕЧЬ! /
   ЛОВИ! / ЗАБРАТЬ!; a key tile («F» / «R2») on its shoulder without touch. «СМОТАТЬ» (≥ 44 px, ≥ 22 px above the circle)
-  only while waiting (a red 1x3 brick, its studs pop in): it pops out once a fish bites. Bite alert (an
-  orange 1x6 brick, its studs snap on one by one): «КЛЮЁТ!» slams in with a sun flash and a
+  only while waiting (a red 1x3 brick with 🎣 — «reel the rod in», its studs pop in): it pops out once a fish bites. Bite alert (an
+  orange 1x6 brick, its studs snap on one by one): «КЛЮЁТ!» jumps out of the own bobber (0.35 → 1,
+  flying to its slot; where that path would cross the fisher it pops up in place — v3: never a
+  screen-wide slam over the fisher) with a sun flash and a
   FOV punch, sun edge glow, one BITE_BEAT for the plate, the button and the swinging «!» glyphs, a
   gradient countdown bar (green→yellow→red); on touch the plate is a tap pad, a 👆 helps the first
   two bites, and the plate gets a little lower (or moves aside) when it would hide the own diving
-  bobber. Minigame (a dark stone baseplate; it snaps on and its studs pop in left to right): a black
+  bobber or the own fisher (on a phone it stands under his feet; when the fishing camera lowers him
+  to the very bottom of the frame — left of him, where the minigame comes next). Minigame (a dark stone baseplate; it snaps on and its studs pop in left to right): a black
   groove, the zone a green 1x3 brick with a rider by rarity standing on its studs (🐟 🐠 🐡 🦈 🐉; Legendary+
   bigger and glowing) and a glow pulse, needle ▼ with two fading ghost copies (under the zone), a
   light Rare rim, Epic+ outline/aura in the rarity colours, Legendary/Mythic slam the giant rarity
   word over the panel once (the first hit / miss / win word knocks it away: it swells and fades in
-  0.12 s — never two words stacked); on phones the panel stands beside the own bobber when it would cover
-  it; the hit is shown at once (the needle freezes gold, sparks, rising pitch) with
+  0.12 s — never two words stacked; on phones it never climbs onto the base badge: lower, over
+  the panel's top edge, and smaller); on phones (HUD under 500 px) the panel docks LEFT of the own
+  fisher (FishingLayout: under the status stack, over the thumbstick, ≥ 208 px wide) — the whole
+  fight (the brace, the crank, the bent rod) and the bobber stay in view; the hit is shown at once (the needle freezes gold, sparks, rising pitch) with
   «ОТЛИЧНО!» → «СУПЕР!» → «МЕГА!» or «ИДЕАЛЬНО!» (within 25 % of the zone centre), pip turns into a
   ⭐; on touch the panel itself is a tap pad and a 👆 cue helps the first games; on miss / timeout a
   copy (FxMinigameMiss) blushes, shakes and says «МИМО!» / «ВРЕМЯ!», and is gone before the reason
   hint springs up. Hint: a smooth tile in the kind colour (💡 / ⚠️ / 🚨 upright in a white round tile), up to two lines,
-  pops up from a few px below (the hotbar is right under it). The catch (UI v2) shows the world
+  as wide as its text (`FishingLayout.hintWidth`; at least 5 × its height), at the bottom centre
+  under the fisher's feet (on a phone left of him when it would lie on his feet; v3: no Roblox hotbar — the Backpack CoreGui is off, a custom hotbar
+  comes with the shop stage), pops up from a few px below. Info hints (💡) leave after 4 s; «where
+  to go» comes back every 10 s while it still applies; a hint whose action the player has done
+  twice (cast, took the rod, reached the spot) is not shown again (WOW-6); on phones a hint about
+  the place waits while the own trophy is held over the head (the trophy camera lowers him onto it). The catch (UI v2) shows the world
   first: the winning tap freezes the needle gold where it was tapped (gold zone flash, a glow ring, a
   small bump, a higher pop) until the server answers (≤ 1.5 s); on "Caught" the minigame plays its
   win (FxMinigameWin: ⭐, gold zone, the needle where it was tapped, sparks) and sinks away early, and
@@ -234,11 +259,14 @@ timers. Stagger groups by 0.03–0.06 s.
   pillar only rises 0.3 s later, with a thin core), shake and FOV punch, confetti; for Epic+ the
   rarity rays start around the fish (empty middle; during the title stage thin spokes, more
   transparent than the card's — `CLIMAX.TitleRays` — so no yellow/white glow piles up around the
-  fish) with the giant rarity title (TitleSlam, 0.24 of the HUD height within the side limits;
+  fish) with the giant rarity title (TitleSlam, v3: in the top band OVER the fish over the head —
+  `CLIMAX.TitleY` 0.15, 0.18 of the HUD height within the side limits, `FishingLayout.topBand`
+  keeps it above the fish (its top is computed from the model before the server places it);
   white → rarity → shade fill, a thick outline; Legendary/Mythic letter by letter, each letter
   starts its wave as it lands; a white shine sweeps the word right behind the letters) and, once
-  the shockwave is gone (+0.55 s), a light full-screen dim (the card's dim + 0.2) so rays and
-  letters pop — a title stage of 0.6 / 0.9 / 1.0 s (Epic / Legendary / Mythic; Common 0.35 and
+  the shockwave is gone (+0.55 s), a light full-screen dim (the card's dim + 0.2; not on phones:
+  the fisher holding the trophy stays bright) so rays and letters pop — a title stage of 1.2 / 1.5 /
+  1.6 s (Epic / Legendary / Mythic, v3: +0.6 s so the arms-up landing is seen; Common 0.35 and
   Rare 0.4 let the landing pop and halo play before the card) — the word leaves for the banner's place
   0.18 s before the card (`CLIMAX.Lead`, a 0.22 s flight `CLIMAX.Aim`), so when the card is born
   the word already sits at the banner's place and the card grows up under it, never over it in the
@@ -247,13 +275,18 @@ timers. Stagger groups by 0.03–0.06 s.
   then the card is born at the fish
   and settles (position Quint Out,
   no overshoot; the rays follow it): a landscape trophy card on phones (fish left, name and chips
-  right; centred — on the smallest phone above the action button, a side limit only counts when its
-  obstacle is level with the card), the 380 x 384 square elsewhere — a white toy display plate (§1: the fish in its window on a
-  studded pedestal in the rarity's colour whose studs pop in as the card settles, studs in the gaps,
+  right) docked BESIDE the own fisher (v3, UIM-04: `FishingLayout.dockSide` — the wider side: left
+  over the thumbstick or right over the action button; the fisher holding the trophy stays in view
+  next to it; there the card may be down to `CARD.DockMin` 128 px tall — smaller beside him beats
+  bigger over him on the smallest phone; if a huge trophy leaves no room even for that — centred as
+  before), the 380 x 384
+  square elsewhere — a white toy display plate (§1: the fish in its window on a
+  2x4 display plate in the rarity's colour whose studs pop in as the card settles, studs in the gaps,
   the banner's studs pop in as it unrolls, the price brick's when it rises; the price bumps with
   every number); Legendary 1.05x and Mythic 1.1x
-  the size (on phones the free space is the Mythic's), a dim around it (letterbox bars on phones;
-  none for Common). The rarity shows on the card itself: small rays behind the fish; Epic+ a live
+  the size (on phones the free space is the Mythic's), a dim around it (on phones one side band on
+  the card's side of the screen that melts away towards the fisher — its UIGradient "Fade"; the
+  card's rays never reach him; none for Common). The rarity shows on the card itself: small rays behind the fish; Epic+ a live
   rim (Epic Grape pulse, Legendary gold sweep, Mythic spinning rainbow — with a mutation it moves
   to the banner's outline and the mutation keeps the card's), Legendary/Mythic a face tinted
   towards the rarity (Mythic: a slow pastel rainbow). The name is born with the card (it slides
@@ -265,8 +298,9 @@ timers. Stagger groups by 0.03–0.06 s.
   Back Out) → chips (rise, Quad Out, the price 0.08 s later) → price count-up (a soft ease-out
   that keeps running into the landing: 0.15 s before it ≤ ~92 %) and landing (the chip squashes
   1.25 × 0.85 and springs back, Elastic Out; the price itself is the card's biggest number; 0.12 s
-  later «+N 💰» flies OUT of the chip — Back Out to the free space right of the card, never over
-  the price or «×N», smaller where tight, over the weight row only as a last resort — rises and
+  later «+N 💰» flies OUT of the chip — Back Out to the free space right of the card (a card beside
+  the fisher: onto its fish window), never over the price or «×N», smaller where tight, over the
+  weight row only as a last resort — rises and
   fades, the chip bumps as its source — Rare+, a new species or a mutation; Legendary/Mythic 💰
   rain beside the card, behind it, and a confetti volley; Mythic a rim flare, rainbow sparks and a
   little shake) → mutation (the base price only ticks and breathes one beat; corner stamp, «×N»,
@@ -276,7 +310,8 @@ timers. Stagger groups by 0.03–0.06 s.
   bottom stays). A NEW species of a Common/Rare fish gets a small fanfare (the first catch of a
   new player is usually one): a light dim, brighter rays with gold and green, sparks + a handful
   of confetti + a ping at «НОВИНКА!», a «+N 💰»; a known Common stays calm. On phones the card is
-  never shorter than 165 px (the smallest phone's Common card). Mythic's confetti comes in three
+  never shorter than 165 px (the smallest phone's Common card) — 128 px when docked beside the
+  fisher. Mythic's confetti comes in three
   volleys (landing, +1 s, the price) under the touch cap. A tap on the card skips to the end, a tap
   at least 0.6 s later closes; the action button (F / R2, the rod) never skips — it only closes
   the settled card, and not while it is being mashed (< 0.3 s since the previous press). The card
@@ -477,12 +512,13 @@ the four per-corner radii, so in RbxSim read `TopLeftRadius` (or `CandyRadius`),
 | `Theme.UI`, `Theme.P`, `Theme.TYPE`, `Theme.INK`, `Theme.WHITE` | UIConfig, its palette, the type scale, Ink, white |
 | `Theme.Z` | ZIndex layers inside a candy: `Behind 0, Lip 1, Face 2, Content 3, Overlay 5, Top 6` |
 | `Theme.BZ` | … inside a brick: `Behind 0, Studs 1, Lip 2, Face 3, Content 4, Overlay 6, Top 7` |
-| `Theme.LIP`, `Theme.STROKE`, `Theme.CANDY_STROKE`, `Theme.FONT`, `Theme.MIN_TEXT`, `Theme.HOTBAR` | 0.08 (candy), 4 px (bricks, sockets), 3 px (legacy candies), Nunito Heavy, 12 px, 74 px |
+| `Theme.LIP`, `Theme.STROKE`, `Theme.CANDY_STROKE`, `Theme.FONT`, `Theme.MIN_TEXT`, `Theme.HOTBAR` | 0.08 (candy), 4 px (bricks, sockets), 3 px (legacy candies), Nunito Heavy, 12 px, 0 px (v3: the Roblox hotbar is off) |
 | `Theme.BRICK`, `Theme.TIER_OUTLINE` | `UIConfig.Brick`; text outline per tier `{Title 4.5, Button 4, Body 3.5, Small 3}` |
 | `Theme.brick(root, token, opts?)` → face | makes `root` a brick (§6.2); opts: `studs` (count), `studArea` ({x0, x1}), `studScale` (1; a tall 2x2 brick ~0.55), `tile`, `lip`, `radius`, `stroke` (4), `color`, `faceName`, `spec` (false or {x, y, w, h}), `shine` (false to omit), `z` (BZ.Lip) |
 | `Theme.tile(root, token, opts?)` → face | a smooth tile: `brick` with `tile = true` (no studs, TileLip, TileRadius) |
 | `Theme.topStud(parent, name, props?)` → Frame | a round stud from above (plates, pips); props: Frame props + `Token` / `Color` |
 | `Theme.studRow(parent, {Area = {x0, y0, x1, y1}, Count, Rows?, Size?, Token? / Color?, ZIndex?, Name?})` → holder | rows of top studs over a plate (the minigame baseplate, the card's gaps); `Size = 1` = the holder's height |
+| `Theme.studScale(refHeight)`, `Theme.studCount(refWidth, px?)` | v3, the one stud module (§1): the `studScale` that makes a brick of `refHeight` px (on the 844 x 390 phone) carry `UIConfig.Brick.StudPx`-wide front studs; how many studs of that module fit `refWidth` px |
 | `Theme.roundPlate(button, token, opts?)` → face | a round brick with a raised centre "Stud" (opts `stud` = diameter share 0.66, `studY` = its centre on the face 0.52, `lip` 0.1) — the action button |
 | `Theme.capSequence(look)`, `Theme.studSequence(look)`, `Theme.lighten`, `Theme.darken` | the brick gradients (UiFx builds the same) |
 | `Theme.gradient(parent, top, bottom, rotation?, name?)` | UIGradient "Fill" (vertical by default) |
@@ -572,8 +608,16 @@ RenderStepped connection for all running frame effects, disconnected when none r
   No toast while the catch is on screen (the HUD has `CounterHold`, or `HUD.Fishing.CatchCard` is
   Visible); while `Minigame` or `BiteAlert` is Visible one toast shows — on phones none but
   danger (the rest queue); while a ghost (`FxMinigameWin` / `FxMinigameMiss`) plays or a hit word
-  (`Minigame.FxFloat`) rises, none but danger on every screen; keep those names and drive them
-  through `Visible`.
+  (`Minigame.FxFloat`) rises, none but danger on every screen; on phones none but danger while
+  the own character holds a `HeldFish` (v3); keep those names and drive them through `Visible`.
+- **Never cover the own fisher on a phone** (v3, WOW-1 / UIM-01…04): widgets that show during
+  the cast, the bite, the fight and the trophy are placed with
+  `Controllers.FishingLayout` (`fisherBox` — the own character with the rod and the held fish
+  projected through the camera, padded 12 px, or `fallbackFisher` where it stands at the default
+  camera; `avoid` — lower / slide aside; `dockSide` — a slot beside him; `topBand` — above him).
+  No Roblox hotbar (HudController: `SetCoreGuiEnabled(Backpack, false)`): the rod is taken with
+  «ВЗЯТЬ»; a custom hotbar comes with the shop stage — keep the bottom band under the fisher's
+  feet for the hint and «КЛЮЁТ!».
 - **Off-screen trophy chip**: `FishingFxController.OtherTrophy` (Signal: `player, basePosition,
   rarity`) fires on every client but the catcher's when a Legendary / Mythic pillar goes up;
   NotifyController clones `HUD.TrophyPointer` (children `Body` — a candy with `Icon` —, `Tip`,

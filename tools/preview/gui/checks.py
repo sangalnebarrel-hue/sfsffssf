@@ -19,8 +19,10 @@ widgets(objects, W, H) / layout_findings(...)  (RND-02)
     objects draw — backgrounds, images, Border strokes (grown by their thickness) and, for a
     text label without a background, the ink box of its text — so overhanging icons and
     caption ribbons count and invisible containers do not. Skipped: transient effects (any
-    path component starting with "Fx": FxRays, FxConfetti, FxCardOut ghosts...) and full-screen
-    layers (a widget covering >= 45 % of the screen: dims, ray holders). Every pair of widgets
+    path component starting with "Fx": FxRays, FxConfetti, FxCardOut ghosts...), full-screen
+    layers (a widget covering >= 45 % of the screen: dims, ray holders) and the screen layers
+    in LAYERS (the catch dim and rays: since v3 the dim on a phone is one side band that melts
+    towards the fisher, under half the screen, but still no widget). Every pair of widgets
     and every widget against the CoreGui chrome (gui/backdrop.chrome_shapes: Jump, thumbstick,
     hotbar, top-bar buttons, desktop chat/player list) closer than MIN_GAP (16 px) is reported
     with the gap (negative = overlap depth) and the two closest points. Glow rings (FxRing)
@@ -44,6 +46,8 @@ TEXT_FLOOR = 12
 FULLSCREEN_SHARE = 0.45
 # ScreenGui children that are containers of widgets rather than widgets themselves.
 CONTAINERS = {"HUD": {"Fishing"}}
+# Screen layers (dims, ray holders) that are never widgets, whatever their size.
+LAYERS = {"HUD.Fishing.CatchDim", "HUD.Fishing.CatchRays"}
 
 
 # ---------------------------------------------------------------------------------------
@@ -322,6 +326,8 @@ def widget_of(path):
     if len(parts) < depth:
         return None, None  # a container itself
     root = ".".join(parts[:depth])
+    if root in LAYERS:
+        return None, None  # a screen layer (the catch dim, its rays)
     if parts[depth - 1].startswith("Fx"):
         return None, None  # a transient effect at the top (confetti, ghosts, fly-ins)
     for name in parts[depth:]:

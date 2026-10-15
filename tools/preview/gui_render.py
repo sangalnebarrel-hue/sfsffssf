@@ -182,10 +182,12 @@ def render_frame(dump, frame, opts, region=None, xray=False):
     if opts.chrome:
         if region:
             full = Image.new("RGBA", (W * ss, H * ss), (0, 0, 0, 0))
-            B.draw_chrome(full, W, H, ss, dump.get("touch"), frame.get("tools"), safe=safe)
+            B.draw_chrome(full, W, H, ss, dump.get("touch"), frame.get("tools"), safe=safe,
+                          hotbar=frame.get("hotbar", True))
             canvas.alpha_composite(full.crop((x0 * ss, y0 * ss, x1 * ss, y1 * ss)))
         else:
-            B.draw_chrome(canvas, W, H, ss, dump.get("touch"), frame.get("tools"), safe=safe)
+            B.draw_chrome(canvas, W, H, ss, dump.get("touch"), frame.get("tools"), safe=safe,
+                          hotbar=frame.get("hotbar", True))
     out = canvas.reduce(ss) if ss > 1 else canvas
     if xray and world and not region:
         out = WD.xray(out, world, cover)
@@ -215,7 +217,7 @@ def frame_checks(dump, frame, layout=True):
     res = {"t": frame["t"], "fill": round(fill, 2), "fill_by": {k: round(v, 2) for k, v in by.items() if v >= 0.05}}
     if layout:
         chrome = B.chrome_shapes(W, H, dump.get("touch"), as_list(frame.get("tools")) or None,
-                                 tuple(dump.get("safe") or (0, 0, 0)))
+                                 tuple(dump.get("safe") or (0, 0, 0)), frame.get("hotbar", True))
         found, ws = C.layout_findings(frame["objects"], W, H, chrome)
         res["layout"] = found
         res["widgets"] = {name: w["box"] for name, w in ws.items()}

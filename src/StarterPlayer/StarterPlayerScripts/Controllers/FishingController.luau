@@ -12,9 +12,11 @@
 	  • Кнопка действия (ActionArea.ActionButton) видна, пока удочка в руке персонажа. Это
 	    большая круглая «пластина» с выпуклой пупыркой (на ней значок, надпись — на чёрной
 	    плашке); цвет, значок и надпись — по состоянию: «ЗАБРОСИТЬ» (Sky 🎣,
-	    единственная «живая» кнопка в покое: блик и лёгкое дыхание) → «ЖДЁМ…» (Water: поплавок
-	    покачивается, по кнопке расходятся круги, точки бегут, рыба 1–2 раза «пробует» наживку —
-	    кнопка вздрагивает, всплывает «?», поплавок в мире притапливается) → «ПОДСЕЧЬ!» (Sun,
+	    единственная «живая» кнопка в покое: блик и лёгкое дыхание) → «ЖДИ КЛЁВА…» (v3: Pond —
+	    приглушённая бирюза, кнопка меньше на 15 %: жать не нужно; поплавок покачивается, точки
+	    бегут, рыба 1–2 раза «пробует» наживку — кнопка вздрагивает, всплывает «?», поплавок в
+	    мире притапливается; в самое первое ожидание за игру — подсказка «Жди, пока клюнет —
+	    потом жми!») → «ПОДСЕЧЬ!» (Sun,
 	    знак «!», пульсирует и светится кольцами в такт поклёвке) → «ЛОВИ!» (Leaf 🎯). «ЖДЁМ…» на
 	    Slate ⏳ (песочные часы переворачиваются; нажатия не работают) — пока сервер отвечает на
 	    заброс, после подсечки и CastCooldown секунд после конца рыбалки. С удочкой, но далеко
@@ -37,16 +39,20 @@
 	  • В мини-игре нажатие засчитывается в момент касания кнопки (MouseButton1Down), а не
 	    отпускания (двойной тап по «ПОДСЕЧЬ!» сервер не считает промахом — FishingConfig.HookTapGrace).
 	    На тач-экране так же считается касание самой панели мини-игры (Minigame.TapPad).
-	  • «СМОТАТЬ» (StopButton, красный кирпичик 1x3 с 🧵) — пока леска в воде и рыбы на крючке нет:
+	  • «СМОТАТЬ» (StopButton, красный кирпичик 1x3 с 🎣 — «смотать удочку») — пока леска в воде и рыбы на крючке нет:
 	    в поклёвку и мини-игру её нет (тап мимо «ПОДСЕЧЬ!» / «ЛОВИ!» не стоит рыбы).
-	  • Поклёвка (BiteAlert): «КЛЮЁТ!» влетает «ударом», солнечная вспышка, камера на миг
+	  • Поклёвка (BiteAlert): «КЛЮЁТ!» выпрыгивает из своего поплавка и летит на своё место
+	    (v3: не «удар» на весь экран поверх рыбака; если по пути заслонила бы рыбака — «выскакивает»
+	    на месте), солнечная вспышка, камера на миг
 	    «приближается» (UiFx.fovPunch), края экрана светятся солнцем; всё дальше — в одном такте
 	    BITE_BEAT: плашка и кнопка пульсируют вместе, кольцо от кнопки на каждый такт, знаки «!»
 	    по краям качаются по очереди; к концу окна такт ускоряется. Полоска времени тает за
 	    Window секунд (зелёная → жёлтая → красная), за плашкой — спокойные лучи. На тач-экране
 	    тап по самой плашке — подсечка (BiteAlert.TapPad); новичку (первые поклёвки за игру) 👆
-	    показывает на кнопку. Свой поплавок в мире не прячется под плашкой: если его нырок
-	    попадает на неё, плашка становится чуть ниже или отъезжает вбок (keepClearOfBobber).
+	    показывает на кнопку. Ни свой поплавок, ни свой рыбак не прячутся под плашкой: если нырок
+	    поплавка или рыбак (FishingLayout.fisherBox) попадает на неё, плашка становится чуть ниже
+	    или отъезжает вбок (keepClearOfBobber); на телефоне она стоит под ногами рыбака, а если
+	    камера рыбалки опустила его к самому низу кадра — слева от него (где потом мини-игра).
 	  • Мини-игра (Minigame): стрелка = FishingRules.Needle(U0, Speed, t), где t — сколько секунд
 	    прошло с получения "Minigame" (os.clock). Нажатие отправляет серверу это же t, а сервер
 	    проверяет попадание по той же формуле — игрок видит ровно то, что проверяет сервер (и
@@ -58,8 +64,10 @@
 	    эпическая и выше — обводка в цвет редкости, лучи за панелью и цветные края экрана;
 	    легендарная и мифическая — ещё «удар» заголовка со вспышкой, огромное слово редкости над
 	    панелью (один раз; первое же слово попадания, промаха или победы его сбивает — два слова
-	    в одной полосе не складываются) и стук сердца. На телефоне панель встаёт рядом со своим
-	    поплавком, если иначе закрыла бы его (видно борьбу рыбы). Новичку (первые мини-игры за игру) 👆
+	    в одной полосе не складываются; на телефоне оно пониже и на плашку базы не залезает) и стук
+	    сердца. На телефоне (HUD ниже 500 px) панель встаёт СЛЕВА от своего рыбака
+	    (keepClearOfBobber с dock: под плашкой базы, над джойстиком) — видно всю борьбу (упор,
+	    катушку, согнутую удочку) и поплавок. Новичку (первые мини-игры за игру) 👆
 	    показывает на кнопку, пока стрелка в зоне. Попадание видно сразу, не дожидаясь сервера
 	    (он судит по тому же t; нет ответа за MaxLag + 0.2 с — предсказание забывается): стрелка
 	    на миг замирает и вспыхивает золотом, панель вздрагивает, искры, звук
@@ -86,16 +94,22 @@
 	    (FishingFxController.OwnFishLanded): чёткий удар в точке рыбы (тонкое кольцо и искры; на
 	    весь экран — ничего: ни свечения, ни вспышки краёв),
 	    тряска и «толчок» камеры, конфетти из точки над головой; у эпической и выше — лучи бьют
-	    из рыбы (середина пустая) и под ней огромное слово редкости (TitleSlam: белое → цвет
+	    из рыбы (середина пустая) и НАД ней, вверху экрана (v3: не на рыбе и не на руках —
+	    FishingLayout.topBand; верх рыбы считается по модели, пока сервер её ещё не поставил),
+	    огромное слово редкости (TitleSlam: белое → цвет
 	    редкости, толстая обводка; у легендарной и мифической — буквами, каждая, встав,
 	    качается волной; следом за буквами по слову пробегает блик), когда кольца удара ушли —
-	    экран чуть темнеет; карточка — когда слово сложилось и постояло. Карточка (CatchCard)
+	    экран чуть темнеет (не на телефоне: рыбак с трофеем остаётся ярким); карточка — когда
+	    слово сложилось и постояло (у эпической и выше v3 — на 0.6 с дольше: видно, как рыбак
+	    ловит рыбу обеими руками и поднимает её). Карточка (CatchCard)
 	    рождается в точке рыбы и встаёт на место (слово летит в её баннер, баннер вырастает из
 	    него, и его надпись проявляется, пока слово тает; лучи — за ней): на телефоне
-	    — широкая «трофейная» (рыба слева, имя и цены справа; посередине экрана — на маленьком
-	    телефоне над кнопкой действия), на планшете и компьютере — квадратная; легендарная и
-	    мифическая — крупнее. Вокруг — затемнение (у обычной нет; на телефоне — полосы сверху и
-	    снизу, как в кино) и лучи цветов редкости. Редкость видна и на самой карточке:
+	    — широкая «трофейная» (рыба слева, имя и цены справа) СБОКУ от своего рыбака, где шире
+	    (v3: FishingLayout.dockSide — слева над джойстиком или справа над кнопкой действия; не
+	    ниже CARD.DockMin, а места нет — посередине, как раньше), на планшете и компьютере —
+	    квадратная; легендарная и мифическая — крупнее. Вокруг — затемнение (у обычной нет; на
+	    телефоне — одна полоса с её стороны экрана, тающая к рыбаку, иначе — полосы сверху и
+	    снизу, как в кино) и лучи цветов редкости (до рыбака не достают). Редкость видна и на самой карточке:
 	    маленькие лучи за рыбой, у эпической и выше — «живая» обводка (виноград дышит, по
 	    золоту бежит блик, радуга вращается; с мутацией — на баннере), у легендарной и
 	    мифической — лицо в цвет редкости (у мифической по нему бежит пастельная радуга). Имя
@@ -104,7 +118,7 @@
 	    редкость, «НОВИНКА!» (штамп; вид пойман впервые за игру — у обычной и редкой это ещё и
 	    маленький праздник: искры, конфетти, лучи ярче, «+N 💰»), вес и цена (поднимаются), цена
 	    набегает до самого «приземления» (фишка пружинит, из неё вылетает «+N 💰» — на свободное
-	    место рядом с карточкой, цену не закрывает; у легендарной и мифической — дождь 💰 по
+	    место рядом с карточкой, у карточки сбоку от рыбака — на окошко с рыбой; цену не закрывает; у легендарной и мифической — дождь 💰 по
 	    бокам и конфетти, у мифической — вспышка радужной обводки), у мутации цена сперва «дышит»
 	    одну долю, потом штамп на углу рыбы, «×N» у цены, пересчёт (праздник — у полной цены) и
 	    цветная обводка карточки; последней — «Тапни — забрать!», кнопка действия — «ЗАБРАТЬ!»,
@@ -121,12 +135,19 @@
 	  • Подстраховка: сервер ставит атрибут FishingState = "Idle" раньше события; если события
 	    ("Caught" / "Lost" / "Idle") за полсекунды так и не было — рыбалка кончается сама.
 	  • Подсказка (Hint, гладкая плитка в цвет вида — тёмная 💡 / солнечная ⚠️ / ягодная 🚨, значок в
-	    белом кружке, выскакивает, въезжая снизу на несколько px — под ней панель предметов
-	    Roblox; до двух строк): почему заброс не принят, почему
+	    белом кружке, выскакивает, въезжая снизу на несколько px; шириной по своему тексту —
+	    FishingLayout.hintWidth; до двух строк): почему заброс не принят, почему
 	    рыба ушла, куда идти. Тексты причин — общие с сервером (FishingConfig.Texts). Если игрок с
 	    удочкой далеко от точки рыбалки своей базы — к ней тянется дорожка-луч (Beam, только у
-	    него). Подсказка, поклёвка и мини-игра — одна колонка внизу по центру (между джойстиком
-	    и кнопкой действия; на узком экране колонка сдвигается) и не показываются вместе.
+	    него). v3 (WOW-6): подсказка по месту (💡) уходит через HINT_INFO_TIME с; «куда идти»
+	    возвращается каждые HINT_AGAIN с, пока всё ещё к месту; подсказку, чьё действие игрок уже
+	    сделал HINT_LEARNED раз (забросил, взял удочку, дошёл до круга), больше не показываем; на
+	    телефоне, пока своя рыба над головой, подсказка по месту ждёт.
+	    Подсказка, поклёвка и мини-игра (на телефоне — кроме неё) — одна колонка внизу по центру,
+	    под ногами рыбака (на телефоне подсказка, если легла бы ему на ноги, — слева от него;
+	    между джойстиком и кнопкой действия; на узком экране колонка
+	    сдвигается) и не показываются вместе. Панели предметов Roblox нет (HudController её
+	    выключает; свою принесёт этап магазина).
 
 	Устройство файла: большие разделы (подсказка, кнопка действия, улов, поклёвка и мини-игра,
 	ответы сервера) — блоки do … end. В Luau у функции не больше 200 локальных, а весь модуль —
@@ -216,12 +237,14 @@ local WAIT_LOOK: Look = {
 	Ring = 1,
 	RingColor = WHITE,
 }
--- Леска в воде, ждём поклёвку: «водяная» кнопка с поплавком (WATER_DOTS — бегущие точки).
+-- Леска в воде, ждём поклёвку: приглушённая «водяная» кнопка с поплавком (WATER_DOTS — бегущие
+-- точки). v3 (UIM-09): не похожа на кнопку, которую надо жать, — меньше (WATER_SMALL), тише по
+-- цвету (Pond), без расходящихся кругов, надпись «ЖДИ КЛЁВА…».
 local WATER_LOOK: Look = {
 	Name = "Water",
-	Caption = "ЖДЁМ…",
+	Caption = "ЖДИ КЛЁВА…",
 	Icon = "",
-	Token = "Water",
+	Token = "Pond",
 	Key = false,
 	Ring = 1,
 	RingColor = WHITE,
@@ -341,6 +364,7 @@ type Ui = {
 	biteTapPad: GuiButton, -- касание плашки «КЛЮЁТ!» = подсечка (тач-экран)
 	hintSocket: Frame,
 	pedestal: Frame, -- UI v4: подставка рыбы на карточке (кирпичик в цвет редкости)
+	window: Frame, -- v3: окошко рыбы на карточке (туда летит «+N 💰», когда карточка сбоку от рыбака)
 }
 
 -- Исходные значения из шаблона HUD (возвращаются после анимаций).
@@ -370,6 +394,10 @@ type Defaults = {
 	stopPosition: UDim2,
 	stopSize: UDim2,
 	minigameSize: UDim2,
+	actionSize: UDim2, -- v3: кнопка действия «в покое» (ожидание поклёвки её уменьшает)
+	actionPosition: UDim2,
+	captionSize: UDim2, -- … её надпись и плашка подписи (при ожидании — прежней ширины в px)
+	ribbonSize: UDim2,
 }
 
 type Guide = { beam: Beam, from: Attachment, to: Attachment, spot: BasePart }
@@ -563,9 +591,14 @@ end
 -- Наружу из раздела (блок do … end, см. «Устройство файла» в шапке):
 local laidOutFor: Vector2? = nil -- размер HUD, под который колонка разложена
 local hintHeldUntil = 0
-local layoutColumn, showHint, clearEventHint, setContextHint, destroyGuide, setGuide, keepClearOfBobber
+local layoutColumn, showHint, clearEventHint, setContextHint, destroyGuide, setGuide, keepClearOfBobber, fisherRect
 do
+	local Layout = require(script.Parent:WaitForChild("FishingLayout")) -- раскладка у своего рыбака
 	local HINT_TIME = 3.5 -- сколько висит подсказка о событии, с
+	-- Подсказка по месту (💡, всегда «info») сама уходит через HINT_INFO_TIME с; навигационные
+	-- (куда идти) возвращаются через again секунд, пока всё ещё к месту (setContextHint).
+	local HINT_INFO_TIME = 4
+	local SHORT_SCREEN = 500 -- HUD ниже — телефон: виджеты не закрывают своего рыбака (FishingLayout)
 
 	-- Значок подсказки по её виду (в белом кружке) и цвет плитки (палитра UIConfig).
 	local HINT_ICONS: { [string]: string } = {
@@ -583,6 +616,9 @@ do
 	local hintThread: thread? = nil
 	local eventHint: { text: string, kind: string }? = nil
 	local contextHint: string? = nil
+	local contextAgain: number? = nil -- через сколько навигационная подсказка возвращается, с
+	local contextFaded = false -- подсказка по месту уже отвисела HINT_INFO_TIME (до смены текста)
+	local contextTimer: thread? = nil
 
 	--[[
 		Центральная колонка (подсказка, поклёвка, мини-игра) стоит по центру экрана, но не ближе
@@ -637,12 +673,19 @@ do
 		local small = smallTouchScreen()
 		-- Кнопка действия — у левого края своей области; лента подписи шире круга.
 		local area = boxSize(ui.actionArea, width, height)
-		local button = ui.actionButton.Size.Y.Scale * area.Y
+		local button = defaults.actionSize.Y.Scale * area.Y -- (в покое: ожидание её уменьшает)
 		local ribbon = ui.actionButton:FindFirstChild("CaptionRibbon")
 		local overhang = if ribbon and ribbon:IsA("GuiObject")
 			then button * math.max(ribbon.Size.X.Scale - 1, 0) / 2
 			else 0
-		local right = width - area.X - overhang - COLUMN_GAP
+		-- (Обводки ленты и плитки подсказки — снаружи их рамок: на планшете по 4.5 px. v3: без
+		-- хотбара подсказка стоит вровень с лентой подписи — зазор меряется по обводкам.)
+		local function lipStroke(gui: Instance?): number
+			local lip = gui and gui:FindFirstChild("Lip")
+			local stroke = lip and lip:FindFirstChildOfClass("UIStroke")
+			return if stroke then UiFx.strokeThickness(stroke) else 0
+		end
+		local right = width - area.X - overhang - lipStroke(ribbon) - lipStroke(ui.hint) - COLUMN_GAP
 		-- Слева — джойстик; значок подсказки в кружке выступает за её левый край вместе с обводкой
 		-- (а выскакивая — с перелётом, ещё на несколько px: запас 4 px на тач-экране).
 		local socket = ui.hintSocket
@@ -670,11 +713,21 @@ do
 			assign(gui, "Size", target)
 			return w
 		end
+		-- Подсказка — по своему тексту (не пустая полоса на полэкрана); мини-игра на телефоне встаёт
+		-- слева от рыбака (keepClearOfBobber, dock) — центр колонки её не учитывает.
 		local hint = ui.hint
+		local hintRest = defaults.hintSize
+		local hintWant = Layout.hintWidth(
+			ui.hint.Text,
+			UiFx.textSize("Body"),
+			boxSize(hint, width, height).Y,
+			hintRest.X.Scale * width + hintRest.X.Offset
+		)
+		local mini = fit(ui.minigame, defaults.minigameSize)
 		local widest = math.max(
-			fit(hint, defaults.hintSize),
+			fit(hint, UDim2.new(0, hintWant, hintRest.Y.Scale, hintRest.Y.Offset)),
 			boxSize(ui.biteAlert, width, height).X,
-			fit(ui.minigame, defaults.minigameSize)
+			if height < SHORT_SCREEN then 0 else mini
 		)
 		local center = width / 2
 		if right - left >= widest then
@@ -779,15 +832,23 @@ do
 		elseif contextHint then
 			text = contextHint
 		end
+		if not eventHint and contextFaded then
+			text = nil -- подсказка по месту отвисела своё (WOW-6): не висит над рыбаком всю игру
+		end
 		if not text or os.clock() < hintHeldUntil then
 			hint.Visible = false
 			return
 		end
 		local changed = force == true or not hint.Visible or hint.Text ~= text
-		if not hint.Visible then
-			layoutColumn()
-		end
 		hint.Text = text
+		if changed then
+			layoutColumn() -- ширина плитки — по тексту
+			if ui.fishing.AbsoluteSize.Y < SHORT_SCREEN then
+				-- v3: на телефоне — не на ногах своего рыбака (камера рыбалки опускает его к низу).
+				local position, size = keepClearOfBobber(hint, defaults.hintPosition, hint.Size, 0, 1)
+				hint.Position, hint.Size = position, size
+			end
+		end
 		ui.hintLabel.Text = text
 		ui.hintIcon.Text = HINT_ICONS[kind] or HINT_ICONS.info
 		UiFx.setCandy(hint, HINT_TOKENS[kind] or "Night")
@@ -824,11 +885,35 @@ do
 		end
 	end
 
-	function setContextHint(text: string?)
+	-- Подсказка по месту: видна HINT_INFO_TIME с и уходит; again — навигационная (куда идти)
+	-- возвращается через столько секунд, пока к месту. Новый текст — показывается заново.
+	local function armContext()
+		local thread = contextTimer
+		contextTimer = nil
+		if thread and thread ~= coroutine.running() and coroutine.status(thread) == "suspended" then
+			task.cancel(thread)
+		end
+		if not contextHint then
+			return
+		end
+		contextTimer = task.delay(if contextFaded then contextAgain or 0 else HINT_INFO_TIME, function()
+			contextTimer = nil
+			contextFaded = not contextFaded
+			renderHint()
+			if contextAgain or not contextFaded then
+				armContext()
+			end
+		end)
+	end
+
+	function setContextHint(text: string?, again: number?)
 		if contextHint == text then
 			return
 		end
 		contextHint = text
+		contextAgain = again
+		contextFaded = false
+		armContext()
 		renderHint()
 	end
 
@@ -886,24 +971,61 @@ do
 	end
 
 	--[[
-		Свой поплавок не прячется под виджетом колонки (поклёвка; на телефоне — и мини-игра,
-		она только вбок, не ниже — minScale > 1): его место на экране — от
-		антенны до нырка на dive studs вниз, с запасом BOBBER_CLEAR px. Если виджет в покое (rest,
-		restSize) его закрывает, он сначала становится ниже (не меньше minScale; низ — на месте,
-		ширина — в той же пропорции), иначе отъезжает вбок — туда, где ближе и есть место между
-		джойстиком и кнопкой действия. Поплавка на экране нет или места нет — всё как было.
-		Возвращает позицию и размер для виджета.
+		Виджет колонки (поклёвка, мини-игра) не закрывает своего поплавка и своего рыбака
+		(FishingLayout): поплавок — от антенны до нырка на dive studs вниз, с запасом BOBBER_CLEAR px;
+		рыбак — всё его тело с удочкой и рыбой над головой (на телефоне, если спроецировать не
+		вышло, — где он стоит у камеры по умолчанию). dock (мини-игра на телефоне): виджет сразу
+		встаёт СЛЕВА от рыбака (FishingLayout.dockLeft: напротив его середины, под плашками
+		статуса, над джойстиком; не уже MinSize его UISizeConstraint); без dock (поклёвка,
+		подсказка) — туда же, только если внизу он всё равно лёг бы на рыбака. Если виджет в покое (rest,
+		restSize) что-то закрывает, он сначала становится ниже (не меньше minScale; низ — на
+		месте), иначе отъезжает вбок — в просвет между джойстиком и кнопкой действия (у
+		прижатого слева — между краем экрана и рыбаком). Места нет — всё как было. Возвращает
+		позицию и размер для виджета и середину поплавка на экране (px корня; nil — не видно).
 	]]
+	-- Свой рыбак на экране (px HUD.Fishing, с запасом; FishingLayout.Rect): спроецированный, а на
+	-- телефоне, если не вышло, — где он стоит у камеры по умолчанию; nil — не знаем (большой экран).
+	function fisherRect(): any
+		local root = ui.fishing
+		local area = root.AbsoluteSize
+		return Layout.fisherBox(player.Character, Workspace.CurrentCamera, root.AbsolutePosition)
+			or (if area.Y < SHORT_SCREEN then Layout.fallbackFisher(area) else nil)
+	end
+
 	local BOBBER_CLEAR = 12
+	local OUTLINE = 6 -- обводка и «аура» редкости выступают за прямоугольник виджета, px
+	local STUD_RISE = 0.16 -- пупырки кирпичика торчат над ним на эту долю его высоты
+	local BITE_FLIGHT_SCALE = 0.35 -- «КЛЮЁТ!» вылетает из поплавка такой маленькой (enterBite)
 	local fishingFx: any = nil -- FishingFxController (берётся при первом вызове), false — нет
+
+	-- Верх полосы слева (px корня) для виджета, прижатого слева до x1: под видимыми плашками
+	-- статуса над ним (с зазором COLUMN_GAP); низ — над джойстиком (тач-экран).
+	local function dockBand(origin: Vector2, height: number, x1: number): (number, number)
+		local top = 8 + OUTLINE
+		for _, item in ui.status:GetChildren() do
+			if item:IsA("GuiObject") and item.Visible then
+				local at = item.AbsolutePosition - origin
+				if at.X < x1 and at.X + item.AbsoluteSize.X > Layout.EDGE then
+					top = math.max(top, at.Y + item.AbsoluteSize.Y + Layout.EDGE + OUTLINE)
+				end
+			end
+		end
+		local bottom = height - Layout.EDGE - OUTLINE
+		if UserInputService.TouchEnabled then
+			local stick = if smallTouchScreen() then JUMP_SMALL else JUMP_BIG -- джойстик — зеркало прыжка
+			bottom -= stick.bottom + stick.size
+		end
+		return top, bottom
+	end
 
 	function keepClearOfBobber(
 		gui: GuiObject,
 		rest: UDim2,
 		restSize: UDim2,
 		dive: number,
-		minScale: number
-	): (UDim2, UDim2)
+		minScale: number,
+		dock: boolean?
+	): (UDim2, UDim2, Vector2?)
 		if fishingFx == nil then
 			local module = script.Parent and script.Parent:FindFirstChild("FishingFxController")
 			local ok, controller = pcall(function(): any
@@ -920,62 +1042,70 @@ do
 				and (found :: Instance):IsA("Model")
 			then found :: Model
 			else nil
-		if not bobber or not camera then
-			return rest, restSize
-		end
 		local root = ui.fishing
 		local origin, area = root.AbsolutePosition, root.AbsoluteSize
-		local function screen(world: Vector3): Vector2?
-			local point = camera:WorldToScreenPoint(world)
-			return if point.Z > 0 then Vector2.new(point.X, point.Y) - origin else nil
+		local short = area.Y < SHORT_SCREEN
+		local keepouts: { Layout.Rect } = {}
+		local float = Layout.bobberBox(bobber, camera, origin, dive, BOBBER_CLEAR)
+		local at: Vector2? = nil
+		if float then
+			table.insert(keepouts, float)
+			at = Vector2.new((float.x0 + float.x1) / 2, float.y0 + BOBBER_CLEAR)
 		end
-		local pivot = bobber:GetPivot().Position
-		local center = screen(pivot)
-		local side = screen(pivot + camera.CFrame.RightVector)
-		local top = screen(pivot + Vector3.new(0, 1, 0))
-		local bottom = screen(pivot - Vector3.new(0, dive, 0))
-		if not center or not side or not top or not bottom then
-			return rest, restSize
+		local fisher = fisherRect()
+		if fisher then
+			table.insert(keepouts, fisher)
 		end
-		local half = (side - center).Magnitude + BOBBER_CLEAR
-		local boxLeft, boxRight = center.X - half, center.X + half
-		local boxTop = math.min(top.Y, bottom.Y) - BOBBER_CLEAR
-		local boxBottom = math.max(top.Y, bottom.Y) + BOBBER_CLEAR
 		local box = boxSize(gui, area.X, area.Y, restSize)
-		local w, h = box.X, box.Y
-		local cx = rest.X.Scale * area.X + rest.X.Offset + (0.5 - gui.AnchorPoint.X) * w
-		local bottomY = rest.Y.Scale * area.Y + rest.Y.Offset + (1 - gui.AnchorPoint.Y) * h
-		if boxRight <= cx - w / 2 or boxLeft >= cx + w / 2 or boxBottom <= bottomY - h or boxTop >= bottomY then
-			return rest, restSize -- не закрывает
-		end
-		-- Ниже: нырок кончается над виджетом.
-		local k = (bottomY - boxBottom) / h
-		if k >= minScale then
-			return rest, UDim2.fromOffset(math.floor(w * k), math.floor(h * k))
-		end
-		-- Вбок: левее или правее поплавка, в просвете колонки; если места меньше — уже, но не
-		-- уже MinSize его UISizeConstraint (без него — только в полную ширину).
+		-- (Пупырки кирпичика над ним тоже не должны задевать рыбака.)
+		local rise = if gui:FindFirstChild("Studs") then math.ceil(box.Y * STUD_RISE) else 0
 		local cap = gui:FindFirstChildOfClass("UISizeConstraint")
-		local narrowest = if cap and cap.MinSize.X > 0 then math.min(cap.MinSize.X, w) else w
-		local bestWidth, bestCenter = 0, cx
-		for index, gap in { { spanLeft, boxLeft }, { boxRight, spanRight } } do
-			local width = math.min(w, gap[2] - gap[1])
-			local middle = if index == 1 then gap[2] - width / 2 else gap[1] + width / 2
-			local better = width > bestWidth
-				or (width == bestWidth and math.abs(middle - cx) < math.abs(bestCenter - cx))
-			if width >= narrowest and better then
-				bestWidth, bestCenter = width, middle
+		local narrowest = if cap and cap.MinSize.X > 0 then math.min(cap.MinSize.X, box.X) else box.X
+		-- Место: внизу по центру (withDock — слева от рыбака), сдвинутое от поплавка и рыбака.
+		local function place(withDock: boolean): Layout.Rect
+			local placed = Layout.rectOf(rest, box, gui.AnchorPoint, area)
+			local left, right = spanLeft, spanRight
+			if withDock and fisher then
+				local top, bottom = dockBand(origin, area.Y, math.min(Layout.EDGE + box.X, fisher.x0))
+				-- (Виджет, которому можно стать меньше, — меньше целиком, не сплющенный.)
+				local shrinks = minScale < 1
+				local slot = Layout.dockLeft(
+					fisher,
+					box,
+					if shrinks then math.min(narrowest, box.X * minScale) else narrowest,
+					top,
+					bottom,
+					if shrinks then box.X / math.max(box.Y, 1) else nil
+				)
+				if slot then
+					placed, left, right = slot, Layout.EDGE, fisher.x0
+				end
 			end
+			placed.y0 -= rise
+			local moved = Layout.avoid(placed, keepouts, { left, right }, minScale, narrowest)
+			moved.y0 += rise * (moved.y1 - moved.y0) / math.max(placed.y1 - placed.y0, 1)
+			return moved
 		end
-		if bestWidth <= 0 then
-			return rest, restSize
+		-- dock (мини-игра) — сразу слева; поклёвка и подсказка — слева, только если внизу рыбака
+		-- не обойти (камера рыбалки опускает его к низу кадра).
+		local moved = place(dock == true and short)
+		if not dock and short and fisher and Layout.hits(moved, fisher) then
+			moved = place(true)
 		end
-		local shift = math.floor(bestCenter - cx + 0.5)
-		local position = UDim2.new(rest.X.Scale, rest.X.Offset + shift, rest.Y.Scale, rest.Y.Offset)
-		if bestWidth >= w then
-			return position, restSize
+		if at and fisher and Layout.flightHits(at, moved, fisher, BITE_FLIGHT_SCALE) then
+			at = nil -- (из поплавка по пути плашка закрыла бы рыбака: тогда она «выскакивает» на месте)
 		end
-		return position, UDim2.new(0, math.floor(bestWidth), restSize.Y.Scale, restSize.Y.Offset)
+		local before = Layout.rectOf(rest, box, gui.AnchorPoint, area)
+		if
+			math.abs(moved.x0 - before.x0) < 0.5
+			and math.abs(moved.x1 - before.x1) < 0.5
+			and math.abs(moved.y0 - before.y0) < 0.5
+			and math.abs(moved.y1 - before.y1) < 0.5
+		then
+			return rest, restSize, at -- не закрывает
+		end
+		local position, size = Layout.placeOf(moved, gui.AnchorPoint)
+		return position, size, at
 	end
 end
 
@@ -1085,10 +1215,11 @@ do
 	end
 
 	local BREATHE_PEAK, BREATHE_PERIOD = 1.04, 1.6 -- «дыхание» главной кнопки в покое
-	local WATER_DOTS = { "ЖДЁМ…", "ЖДЁМ.", "ЖДЁМ.." } -- бегущие точки ожидания (по 0.4 с)
+	local WATER_DOTS = { "ЖДИ КЛЁВА…", "ЖДИ КЛЁВА.", "ЖДИ КЛЁВА.." } -- бегущие точки ожидания (по 0.4 с)
+	local WATER_SMALL = 0.85 -- кнопка ожидания поклёвки меньше (её жать не нужно), доля размера
 	local WATER_DOTS_STEP = 0.4
 	local BOBBER_BOB = 0.06 -- поплавок на кнопке качается на столько (доля кнопки) …
-	local BOBBER_PERIOD = 1.2 -- … за столько секунд туда-обратно; так же часто — круг по воде
+	local BOBBER_PERIOD = 1.2 -- … за столько секунд туда-обратно
 
 	-- Белые кольца от кнопки (ВЗЯТЬ, ЛОВИ!, такт поклёвки): тонкий чёткий контур, 1 → 1.3 —
 	-- читается на дереве, воде и небе и не дотягивается до кнопки прыжка.
@@ -1160,7 +1291,41 @@ do
 				icon.Rotation = defaults.iconRotation
 			end)
 		elseif look == WATER_LOOK then
-			-- Поплавок качается на «воде» кнопки, от него расходятся круги, точки бегут.
+			-- Кнопка становится меньше (по центру своего места), поплавок качается на «воде» кнопки,
+			-- точки бегут; «примерка» рыбы — вздрагивание и «?» (nibble). Кругов нет: ничего не зовёт.
+			local restSize, restPosition = defaults.actionSize, defaults.actionPosition
+			local side = restSize.Y.Scale * ui.actionArea.AbsoluteSize.Y -- кнопка круглая
+			local shrink = (1 - WATER_SMALL) / 2
+			UiFx.tween(button, 0.25, {
+				Size = UDim2.fromScale(restSize.X.Scale * WATER_SMALL, restSize.Y.Scale * WATER_SMALL),
+				Position = restPosition + UDim2.new(0, math.round(side * shrink), -restSize.Y.Scale * shrink, 0),
+			}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+			lookTrove:Add(function()
+				UiFx.tween(button, 0.2, { Size = restSize, Position = restPosition })
+			end)
+			-- Надпись длиннее «ЗАБРОСИТЬ», а кнопка меньше: надпись и плашка подписи остаются
+			-- прежней ширины в px, а надпись может стать мельче — до уровня Small (в одну строку).
+			local ribbon = button:FindFirstChild("CaptionRibbon")
+			local keep: { [GuiObject]: UDim2 } = { [ui.actionCaption] = defaults.captionSize }
+			if ribbon and ribbon:IsA("GuiObject") then
+				keep[ribbon] = defaults.ribbonSize
+			end
+			for gui, size in keep do
+				local wide =
+					UDim2.new(size.X.Scale / WATER_SMALL, size.X.Offset, size.Y.Scale / WATER_SMALL, size.Y.Offset)
+				UiFx.tween(gui, 0.25, { Size = wide }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+				lookTrove:Add(function()
+					UiFx.tween(gui, 0.2, { Size = size })
+				end)
+			end
+			local fit = ui.actionCaption:FindFirstChildOfClass("UITextSizeConstraint")
+			if fit then
+				local min = fit.MinTextSize
+				fit.MinTextSize = math.min(min, UiFx.textSize("Small"))
+				lookTrove:Add(function()
+					fit.MinTextSize = min
+				end)
+			end
 			local bobber = ui.actionBobber
 			local rest = defaults.bobberPosition
 			bobber.Position = rest - UDim2.fromScale(0, BOBBER_BOB / 2)
@@ -1174,14 +1339,6 @@ do
 				bob:Cancel()
 				bobber.Position = rest
 			end)
-			lookTrove:Add(UiFx.glowRing(bobber, {
-				loop = true,
-				color = WHITE,
-				scale = 2.1,
-				thickness = 2.5,
-				time = 1,
-				interval = BOBBER_PERIOD,
-			}))
 			local step = 0
 			every(lookTrove, WATER_DOTS_STEP, function()
 				step = step % #WATER_DOTS + 1
@@ -1260,7 +1417,15 @@ do
 	-- без удочки в руке у точки рыбалки — «возьми удочку» (и кнопка «ВЗЯТЬ»); новичку,
 	-- который ещё ни разу не брал удочку, — куда идти. Ушёл от точки / вернулся — кнопка
 	-- меняется между «ЗАБРОСИТЬ» и «КУДА ИДТИ?».
+	-- WOW-6: подсказка-обучалка («жми», «возьми», «иди к кругу») больше не показывается, когда
+	-- игрок сделал это сам HINT_LEARNED раз за игру (подсказка стояла — и её дело сделано:
+	-- заброс, удочка в руке, пришёл к кругу); навигационная (куда идти) до тех пор возвращается
+	-- раз в HINT_AGAIN с. Предупреждения (далеко, поздно, ждём базу) — как были.
+	local HINT_LEARNED = 2
+	local HINT_AGAIN = 10
+	local learned: { [string]: number } = {}
 	local shownFar = false
+	local lastContext: string? = nil
 	function refreshContextHint()
 		local text: string? = nil
 		local guideTo: BasePart? = nil
@@ -1274,7 +1439,13 @@ do
 			shownFar = far
 			refreshButtons()
 		end
-		if not catchScreen then
+		-- v3: на телефоне (HUD ниже 500 px), пока своя рыба над головой, подсказка ждёт: рыбак с
+		-- трофеем опускается к низу кадра (камера трофея) — плитка легла бы ему на ноги.
+		local character = player.Character
+		local trophy = character ~= nil
+			and character:FindFirstChild("HeldFish") ~= nil
+			and ui.fishing.AbsoluteSize.Y < 500
+		if not catchScreen and not trophy then
 			if rod and phase == "Idle" and root and spot then
 				if near then
 					text = HINT_NEAR
@@ -1288,8 +1459,19 @@ do
 				text = HINT_FIRST
 			end
 		end
+		-- Сделал то, о чём говорила подсказка: забросил, взял удочку, дошёл до круга.
+		local done = (lastContext == HINT_NEAR and phase ~= "Idle")
+			or (lastContext == HINT_TAKE and rod ~= nil)
+			or (lastContext == HINT_FAR and near)
+		if done and lastContext then
+			learned[lastContext] = (learned[lastContext] or 0) + 1
+		end
+		lastContext = text
 		setGuide(guideTo)
-		setContextHint(text)
+		if text and (learned[text] or 0) >= HINT_LEARNED then
+			text = nil
+		end
+		setContextHint(text, if text == HINT_FAR then HINT_AGAIN else nil)
 	end
 
 	-- «КУДА ИДТИ?» нажата: вместо заброса — показать дорогу, не ругая (спокойная подсказка 💡
@@ -1564,7 +1746,7 @@ do
 			Sparkles = 2,
 			Beat = 0.27,
 			Count = 0.55,
-			Hold = 0.6,
+			Hold = 1.2, -- v3: +0.6 с — руки вверх с рыбой над головой видно до карточки
 			Scale = 1,
 			Tension = true,
 			Heartbeat = false,
@@ -1596,7 +1778,7 @@ do
 			Sparkles = 2,
 			Beat = 0.27,
 			Count = 0.65,
-			Hold = 0.9,
+			Hold = 1.5, -- v3: +0.6 с — руки вверх с рыбой над головой видно до карточки
 			Scale = 1.05,
 			Tension = true,
 			Heartbeat = true,
@@ -1628,7 +1810,7 @@ do
 			Sparkles = 2,
 			Beat = 0.27,
 			Count = 0.75,
-			Hold = 1,
+			Hold = 1.6, -- v3: +0.6 с — руки вверх с рыбой над головой видно до карточки
 			Scale = 1.1,
 			Tension = true,
 			Heartbeat = true,
@@ -1662,14 +1844,17 @@ do
 		  Heartbeat    у легендарной и мифической «сердце» бьётся всё чаще (доли LeapTime).
 		  TitleDelay, TitleStagger, TitleY, TitleHeight   огромное слово редкости — через TitleDelay
 		               после приземления, буквы через TitleStagger, центр на TitleY высоты экрана
-		               (ниже рыбы над головой: её видно; не ниже кнопки действия), высота —
+		               (v3: в полосе НАД рыбаком и рыбой над головой — FishingLayout.topBand: руки
+		               вверх и сама рыба видны; плашки статуса в это время погашены), высота —
 		               TitleHeight экрана, но не больше TitleMax px (и не шире просвета между
 		               кнопками); лучи за ним бьют из рыбы, середина (RaysHole радиуса) пустая.
+		               Сверху — 16 px до панели Roblox; не влезает (огромная рыба на маленьком
+		               телефоне) — выше, но правее TopbarRight px (её кнопки меню и чата слева).
 		  TitleRays    лучи сцены слова — тонкие спицы (Width доли диаметра) и на Fade прозрачнее
 		               лучей карточки: вокруг рыбы не встаёт жёлтая «заливка» (v3).
 		  TitleDim     сцена слова: через At после приземления (кольца удара уже ушли — заливка
 		               кадра) экран чуть темнеет целиком (на Add светлее затемнения карточки):
-		               лучи и буквы ярче.
+		               лучи и буквы ярче. v3: на телефоне — нет (рыбак с трофеем остаётся ярким).
 		  Shine        сложившееся слово один раз пробегает белый блик, с.
 		  GrowAt       баннер карточки вырастает из летящего слова на этой доле полёта (CARD.Morph).
 		  Lead, Aim    слово трогается к баннеру за Lead до карточки и долетает за Aim (v4: к её
@@ -1687,9 +1872,10 @@ do
 		Heartbeat = { 0.28, 0.46, 0.62, 0.75, 0.85, 0.93 },
 		TitleDelay = 0.05,
 		TitleStagger = 0.03,
-		TitleY = 0.56,
-		TitleHeight = 0.24,
+		TitleY = 0.15,
+		TitleHeight = 0.18,
 		TitleMax = 110,
+		TopbarRight = 172,
 		TitleDim = { At = 0.55, Add = 0.2 },
 		RaysHole = 0.3,
 		Shine = 0.4,
@@ -1709,11 +1895,12 @@ do
 	local WIDE_LETTERS = { ["Ж"] = true, ["Ш"] = true, ["Щ"] = true, ["Ы"] = true, ["Ю"] = true, ["М"] = true }
 	local NARROW_LETTERS = { ["Г"] = true, ["Е"] = true, ["З"] = true, ["С"] = true, ["Э"] = true, ["Р"] = true }
 
+	local Layout = require(script.Parent:WaitForChild("FishingLayout")) -- раскладка у своего рыбака
 	-- Карточка: широкая (телефоны) — на экране ниже WIDE_BELOW пикселей.
 	local WIDE_BELOW = 500
 	local CARD_ASPECT = 1.55 -- широкая карточка: ширина / высота
 	local CARD_TOP_GAP = 4 -- от верха HUD, px (статус под карточкой гаснет)
-	local CARD_BOTTOM_CLEAR = 95 -- от низа HUD: хотбар (65 px), 16 px и «живая» обводка (4 px × Rim), px
+	local CARD_BOTTOM_CLEAR = 24 -- от низа HUD: 16 px и «живая» обводка (4 px × Rim), px (v3: хотбара нет)
 	local CARD_SIDE_GAP = 16 -- до кнопок, джойстика и края экрана, px
 	local THUMBSTICK_CLEAR = 111 -- джойстик Roblox на телефоне (до 95 px слева) + зазор, px
 	local THUMBSTICK_CLEAR_BIG = 196 -- … на планшете (до 180 px слева)
@@ -1734,6 +1921,8 @@ do
 		  Slide, Rise  имя въезжает справа на долю ширины карточки, фишки поднимаются на долю её высоты.
 		  MinHeight    широкая карточка (телефон) не ниже стольких px, если место есть: обычная рыба
 		               на маленьком телефоне не «крошечная» (текст на ней не меньше 14 px).
+		  DockMin      … а сбоку от рыбака (v3) — не ниже стольких px: на маленьком телефоне
+		               лучше чуть меньше, но рядом с ним, чем поверх него.
 		  PriceText    цена на фишке — до стольких Title (крупное «витринное» число, по своей коробке).
 		  PriceFloat   «+N 💰»: через Delay после «приземления» цены (фишка уже пружинит) вылетает из
 		               неё за Fly с (Back Out) на свободное место справа от карточки, Lift высоты экрана
@@ -1773,6 +1962,7 @@ do
 		Slide = 0.1,
 		Rise = 0.05,
 		MinHeight = 165,
+		DockMin = 128,
 		PriceText = 1.4,
 		PriceFloat = { Delay = 0.12, Fly = 0.35, Time = 0.95, Lift = 0.1, Gap = 10, MinTitle = 1.2 },
 		New = {
@@ -1836,7 +2026,9 @@ do
 
 	-- Карточка, её лучи и заготовка «как в сборщике» (квадратная): возвращаются при смене экрана.
 	local cardDefaults: { [Instance]: Place }? = nil
-	local cardBox: { center: Vector2, size: Vector2, wide: boolean, slot: number }? = nil
+	-- dock — карточка сбоку от своего рыбака (−1 слева, 1 справа; v3, телефон), edge — его край
+	-- (px HUD.Fishing) с этой стороны: лучи и затемнение до него не достают.
+	local cardBox: { center: Vector2, size: Vector2, wide: boolean, slot: number, dock: number?, edge: number? }? = nil
 
 	local catchTrove = Trove.new() -- от "Caught" до карточки: ожидание приземления, слово редкости
 	local raysTrove = Trove.new() -- лучи за карточкой (на закрытии сжимаются, потом удаляются)
@@ -2097,7 +2289,16 @@ do
 		local button = ui.actionButton
 		if button.Visible then
 			local at = button.AbsolutePosition - origin
-			block(1, at.X - button.AbsoluteSize.X * 0.08, at.Y, rootSize.Y)
+			-- (Лента подписи шире круга — по её настоящему краю с обводкой; v3: без хотбара
+			-- квадратная карточка опускается вровень с лентой.)
+			local x = at.X - button.AbsoluteSize.X * 0.08
+			local ribbon = button:FindFirstChild("CaptionRibbon")
+			local lip = ribbon and ribbon:FindFirstChild("Lip")
+			local stroke = lip and lip:FindFirstChildOfClass("UIStroke")
+			if ribbon and ribbon:IsA("GuiObject") and ribbon.Visible then
+				x = math.min(x, ribbon.AbsolutePosition.X - origin.X - (if stroke then stroke.Thickness else 0))
+			end
+			block(1, x, at.Y, rootSize.Y)
 		end
 		local column = ui.hud:FindFirstChild("RightButtons")
 		if column and column:IsA("GuiObject") and column.Visible then
@@ -2122,22 +2323,67 @@ do
 	end
 
 	--[[
-		Место для самой крупной широкой карточки (телефоны, CARD.MaxScale): от верха HUD до хотбара
-		или — если так выйдет крупнее и ближе к середине — над кнопкой действия (тогда кнопка уже
-		не мешает по ширине). Карточка — посередине экрана, если там хватает места (на маленьком
-		телефоне — над кнопкой), иначе сдвигается от препятствий.
+		Место для самой крупной широкой карточки (телефоны, CARD.MaxScale). v3 (UIM-04): СБОКУ от
+		своего рыбака с трофеем над головой (FishingLayout.dockSide), там, где шире: слева — над
+		джойстиком, справа — над кнопкой действия и левее колонки кнопок; карточка не меньше
+		CARD.DockMin. Рыбака не знаем или сбоку тесно (огромная рыба над головой) — как раньше: от
+		верха HUD до низа экрана или — если так выйдет крупнее и ближе к середине — над кнопкой
+		действия; посередине экрана, если там хватает места, иначе сдвиг от препятствий.
+		Возвращает центр, размер и сторону (−1 / 1; nil — не сбоку) с краем рыбака с этой стороны.
 	]]
-	local function wideSlot(rootSize: Vector2): (Vector2, Vector2)
+	local function wideSlot(rootSize: Vector2): (Vector2, Vector2, number?, number?)
 		local top = CARD_TOP_GAP
 		local floor = rootSize.Y - CARD_BOTTOM_CLEAR
 		local mid = rootSize.X / 2
-		local bottoms = { floor }
 		local button = ui.actionButton
-		if button.Visible then
-			local lifted = button.AbsolutePosition.Y - ui.fishing.AbsolutePosition.Y - CARD_SIDE_GAP - CARD.RimRoom
-			if lifted < floor and lifted > top + 80 then
-				table.insert(bottoms, lifted)
+		local lifted = button.AbsolutePosition.Y - ui.fishing.AbsolutePosition.Y - CARD_SIDE_GAP - CARD.RimRoom
+		local fisher = fisherRect()
+		if fisher then
+			local aspect = CARD_ASPECT * CARD.Span
+			local small = math.min(rootSize.X, rootSize.Y) <= WIDE_BELOW
+			-- слева — над джойстиком (тач-экран), справа — над кнопкой действия
+			local leftFloor = if UserInputService.TouchEnabled
+				then rootSize.Y - (if small then 90 else 210) - CARD_SIDE_GAP - CARD.RimRoom
+				else floor
+			local rightFloor = if button.Visible then math.min(floor, lifted) else floor
+			local best: any, bestSide, bestEdge = nil, nil, nil
+			-- (Сверху — на CARD_SIDE_GAP ниже: над карточкой у края экрана — кнопки Roblox, у
+			-- карточки — «живая» обводка и «дыхание».)
+			local high = CARD_TOP_GAP + CARD.RimRoom + 8
+			for _, side in { -1, 1 } do
+				local bottom = if side < 0 then leftFloor else rightFloor
+				local left, right = sideLimits(rootSize, high, bottom)
+				local slot = Layout.dockSide(
+					side,
+					fisher,
+					Vector2.new(rootSize.X, bottom - high),
+					CARD.DockMin * aspect,
+					high,
+					bottom,
+					aspect,
+					if side < 0 then left else right
+				)
+				-- (Слева — чуть охотнее: рыбак с трофеем между карточкой и «ЗАБРАТЬ!».)
+				local area = if slot
+					then (slot.x1 - slot.x0) * (slot.y1 - slot.y0) * (if side < 0 then 1.1 else 1)
+					else 0
+				if slot and (not best or area > best.area) then
+					best = { rect = slot, area = area }
+					bestSide, bestEdge = side, if side < 0 then fisher.x0 else fisher.x1
+				end
 			end
+			if best then
+				local rect = best.rect
+				local w = (rect.x1 - rect.x0) / CARD.Span
+				return Vector2.new((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2),
+					Vector2.new(w, w / CARD_ASPECT),
+					bestSide,
+					bestEdge
+			end
+		end
+		local bottoms = { floor }
+		if button.Visible and lifted < floor and lifted > top + 80 then
+			table.insert(bottoms, lifted)
 		end
 		local best, bestCenter, bestSize = -math.huge, Vector2.new(mid, (top + floor) / 2), Vector2.new(120, 80)
 		for _, bottom in bottoms do
@@ -2155,7 +2401,7 @@ do
 				bestSize = Vector2.new(w, h)
 			end
 		end
-		return bestCenter, bestSize
+		return bestCenter, bestSize, nil, nil
 	end
 
 	-- Затемнение — четыре полосы ВОКРУГ карточки (заходят под её скруглённые края на r px и далеко
@@ -2163,13 +2409,55 @@ do
 	-- широкой карточки (телефон) — только верх и низ, как кадр в кино: по бокам от неё узкие
 	-- полоски мира, а лучи видны над и под ней. Без карточки (center = nil, сцена огромного слова)
 	-- — верхняя полоса на весь экран, остальные пустые.
-	local function placeDim(center: Vector2?, size: Vector2?, wide: boolean?)
+	-- v3 (UIM-04): карточка сбоку от рыбака (dock −1 / 1, edge — его край) — одна полоса на её
+	-- стороне экрана, которая к рыбаку тает (UIGradient "Fade"): рыбак с трофеем остаётся ярким.
+	local function placeDim(center: Vector2?, size: Vector2?, wide: boolean?, dock: number?, edge: number?)
 		local topBand, bottomBand, leftBand, rightBand = table.unpack(ui.dimBands)
+		for _, band in { leftBand, rightBand } do
+			local fade = band:FindFirstChild("Fade")
+			if fade and fade:IsA("UIGradient") then
+				fade.Enabled = false
+			end
+		end
 		if not center or not size then
 			topBand.Position = UDim2.fromScale(-1, -1)
 			topBand.Size = UDim2.fromScale(3, 3)
 			for _, band in { bottomBand, leftBand, rightBand } do
 				band.Size = UDim2.new()
+			end
+			return
+		end
+		if dock and edge then
+			local width = ui.fishing.AbsoluteSize.X
+			local band = if dock < 0 then leftBand else rightBand
+			for _, other in { topBand, bottomBand, if dock < 0 then rightBand else leftBand } do
+				other.Size = UDim2.new()
+			end
+			band.Visible = true
+			-- Полоса от края экрана (и за ним — вырезы) до самого рыбака (edge — с запасом
+			-- Layout.FISHER_PAD); плавно тает от середины карточки: над и под карточкой у рыбака —
+			-- светлее, у края экрана — темнее, сам рыбак не затемнён.
+			local stop = edge - dock * Layout.FISHER_PAD
+			local from = center.X
+			local span = (if dock < 0 then stop else width - stop) + width
+			band.Position = if dock < 0 then UDim2.new(-1, 0, -1, 0) else UDim2.new(0, math.round(stop), -1, 0)
+			band.Size = UDim2.new(1, math.round(if dock < 0 then stop else width - stop), 3, 0)
+			local fade = band:FindFirstChild("Fade")
+			if fade and fade:IsA("UIGradient") then
+				local k = math.clamp(if dock < 0 then (width + from) / span else (from - stop) / span, 0.01, 0.99)
+				fade.Enabled = true
+				fade.Rotation = 0
+				fade.Transparency = if dock < 0
+					then NumberSequence.new({
+						NumberSequenceKeypoint.new(0, 0),
+						NumberSequenceKeypoint.new(k, 0),
+						NumberSequenceKeypoint.new(1, 1),
+					})
+					else NumberSequence.new({
+						NumberSequenceKeypoint.new(0, 1),
+						NumberSequenceKeypoint.new(k, 0),
+						NumberSequenceKeypoint.new(1, 0),
+					})
 			end
 			return
 		end
@@ -2213,8 +2501,9 @@ do
 		local rootSize = root.AbsoluteSize
 		local wide = rootSize.Y < WIDE_BELOW
 		local center: Vector2, size: Vector2
+		local dock: number?, edge: number? = nil, nil
 		if wide then
-			center, size = wideSlot(rootSize)
+			center, size, dock, edge = wideSlot(rootSize)
 		else
 			local pos, box = restRect(ui.card, defaults[ui.card], rootSize)
 			local capPlace = nil
@@ -2242,7 +2531,8 @@ do
 			then math.max(scale / CARD.MaxScale, math.min(1, CARD.MinHeight / math.max(slot, 1)))
 			else scale
 		local scaled = size * grow
-		center += Vector2.new(0, (size.Y - scaled.Y) / 2)
+		-- (Сбоку от рыбака — по середине своего места; иначе низ остаётся на месте.)
+		center += Vector2.new(0, if dock then 0 else (size.Y - scaled.Y) / 2)
 		size = scaled
 		if not wide then
 			-- Квадратная не налезает на кнопку действия, джойстик (планшет 4:3) и колонку справа:
@@ -2284,8 +2574,8 @@ do
 			end
 			applyPlace(gui, place)
 		end
-		cardBox = { center = center, size = size, wide = wide, slot = slot }
-		placeDim(center, size, wide)
+		cardBox = { center = center, size = size, wide = wide, slot = slot, dock = dock, edge = edge }
+		placeDim(center, size, wide, dock, edge)
 	end
 
 	-- Прямоугольник элемента карточки «в покое» (пиксели HUD.Fishing) — куда влетает слово
@@ -2671,7 +2961,7 @@ do
 		толстая обводка; буквы влетают по одной и, встав, качаются (волна бежит по слову), следом
 		за ними слово один раз пробегает белый блик.
 	]]
-	local function slamTitle(rarityId: string, reveal: Reveal, style: UIConfig.RarityStyle)
+	local function slamTitle(rarityId: string, reveal: Reveal, style: UIConfig.RarityStyle, fishTop: number?)
 		local text = TITLE_TEXT[rarityId]
 		if not text then
 			return
@@ -2689,7 +2979,25 @@ do
 		if button.Visible and at.X < (rootSize.X + math.min(total * height, rootSize.X)) / 2 then
 			middle = math.max(math.min(middle, at.Y - CARD_SIDE_GAP - height / 2), height / 2)
 		end
+		-- v3 (WOW-4): над рыбаком и рыбой над головой — руки вверх с трофеем не под буквами (рыбу
+		-- сервер ставит чуть позже слова — её верх fishTop посчитан заранее).
+		local fisher = fisherRect()
+		if fisher and fishTop then
+			fisher = Layout.rect(fisher.x0, math.min(fisher.y0, fishTop - Layout.FISHER_PAD), fisher.x1, fisher.y1)
+		end
+		-- (Сверху — 16 px до верхней панели Roblox: кнопки меню и чата в ней; тесно — выше, но
+		-- правее этих кнопок.)
+		local bandY, bandH = Layout.topBand(fisher, middle, height, Layout.EDGE, 28)
+		local clearLeft = 0
+		if not bandY then
+			bandY, bandH = Layout.topBand(fisher, middle, height, CARD_TOP_GAP, 28)
+			clearLeft = CLIMAX.TopbarRight
+		end
+		if bandY and bandH then
+			middle, height = bandY, bandH
+		end
 		local left, right = sideLimits(rootSize, middle - height / 2, middle + height / 2)
+		left = math.max(left, clearLeft)
 		-- (Ещё 10 px с каждой стороны: обводка букв и их «выскок» Back Out выходят за рамку.)
 		local room = 2 * math.max(math.min(rootSize.X / 2 - left, right - rootSize.X / 2) - 10, 40)
 		local width = math.min(total * height, room)
@@ -3440,6 +3748,10 @@ do
 		local box = cardBox
 		local small = if box then math.clamp(box.slot / CARD.RefHeight, 0.7, 1) else 1
 		local maxPx = if touch then reveal.MaxPx * small else reveal.MaxPx * CARD.DesktopRays
+		if box and box.edge and not hole then
+			-- Карточка сбоку от рыбака: лучи за ней до него не дотягиваются (рыбак с трофеем — яркий).
+			maxPx = math.min(maxPx, math.max(2 * math.abs(box.edge - box.center.X), box.size.X * CARD.Span))
+		end
 		ui.rays.Visible = true
 		local main = raysTrove:Add(UiFx.rays(ui.rays, {
 			colors = colors or style.Rays,
@@ -3544,7 +3856,8 @@ do
 		showFishModel(fish)
 		card.Visible = true
 		ui.rays.Visible = true
-		local box = cardBox :: { center: Vector2, size: Vector2, wide: boolean, slot: number }
+		local box =
+			cardBox :: { center: Vector2, size: Vector2, wide: boolean, slot: number, dock: number?, edge: number? }
 		-- Где доли стоят «в покое» (после раскладки): к этому они едут и пружинят.
 		local rest = {
 			banner = ui.banner.Size,
@@ -3606,7 +3919,7 @@ do
 			placeDim(nil)
 			dimTo(reveal.Dim, DIM_TIME)
 			later(cardTrove, 0.2, function()
-				placeDim(box.center, box.size, box.wide)
+				placeDim(box.center, box.size, box.wide, box.dock, box.edge)
 			end)
 		elseif reveal.Dim < 1 then
 			dim.Visible = true
@@ -3855,7 +4168,13 @@ do
 					height, spot = fit, Vector2.new(edge + fit * perHeight / 2, y)
 				end
 			end
-			if height < math.min(root.Y * share, UiFx.textSize("Title") * spec.MinTitle) then
+			if box.dock then
+				-- Карточка сбоку от рыбака (v3): по сторонам — он сам и край экрана; «+N 💰» летит влево,
+				-- на окошко с рыбой на высоте цены (рыба на карточке — та же, что у него над головой).
+				local windowPos, windowSize = cardRect(ui.window)
+				height = math.min(root.Y * share, windowSize.X * 0.96 / perHeight)
+				spot = Vector2.new(windowPos.X + windowSize.X / 2, source.Y - height * 0.2)
+			elseif height < math.min(root.Y * share, UiFx.textSize("Title") * spec.MinTitle) then
 				-- Справа места нет: вверх, над строкой веса (её верх — над фишкой цены).
 				height = root.Y * share
 				local weightPos = cardRect(ui.weightChip)
@@ -4122,6 +4441,31 @@ do
 	-- легендарной и мифической — ещё лёгкий отсвет экрана, у мифической — радужные края), тряска,
 	-- «толчок», конфетти из точки над головой; у эпической и выше — лучи и огромное слово (сцена
 	-- слова); через Hold — карточка. На весь экран ничего яркого: приземление должно быть видно.
+	-- Верх рыбы над головой своего рыбака на экране (px HUD.Fishing), ещё до того, как её поставил
+	-- сервер: макушка + FishingConfig.HeldFishGap + высота модели рыбы (× HeldScale редкости, если
+	-- он есть, с запасом на вес). nil — не видно.
+	local function fishTopY(fish: FishingRules.FishData): number?
+		local character = player.Character
+		local head = character and character:FindFirstChild("Head")
+		local camera = Workspace.CurrentCamera
+		if not head or not head:IsA("BasePart") or not camera then
+			return nil
+		end
+		local template = fishTemplate(fish)
+		local height = 1.5
+		if template then
+			local _, size = template:GetBoundingBox()
+			height = math.max(size.Y, math.min(size.X, size.Z) * 0.5)
+		end
+		local scales = (FishingConfig :: any).HeldScale
+		local scale = if type(scales) == "table" and type(scales[fish.Rarity]) == "number"
+			then scales[fish.Rarity] * 1.15
+			else 1
+		local top = head.Position + Vector3.new(0, head.Size.Y / 2 + FishingConfig.HeldFishGap + height * scale, 0)
+		local point = camera:WorldToScreenPoint(top)
+		return if point.Z > 0 then point.Y - ui.fishing.AbsolutePosition.Y else nil
+	end
+
 	local function onLanded(fish: FishingRules.FishData, serial: number, world: Vector3?)
 		if serial ~= catchSerial then
 			return
@@ -4201,7 +4545,7 @@ do
 			ui.rays.Position = offset(at.X, at.Y)
 			later(catchTrove, CLIMAX.TitleDelay, function()
 				startRays(fish, CLIMAX.RaysHole)
-				slamTitle(fish.Rarity, reveal, style)
+				slamTitle(fish.Rarity, reveal, style, fishTopY(fish))
 			end)
 			-- Слово вылетает к месту баннера за CLIMAX.Lead до карточки: она рождается под уже
 			-- улетевшим словом (не «наезжает» на него посреди экрана); баннер вырастает из него.
@@ -4213,8 +4557,8 @@ do
 			-- Экран чуть темнеет целиком (CLIMAX.TitleDim): лучи и буквы ярче; карточка (если она
 			-- уже не открылась) потом темнит до своего.
 			later(catchTrove, CLIMAX.TitleDim.At, function()
-				if reveal.Dim >= 1 or ui.card.Visible then
-					return
+				if reveal.Dim >= 1 or ui.card.Visible or (cardBox and cardBox.dock) then
+					return -- (v3: карточка сбоку от рыбака — он с трофеем остаётся ярким)
 				end
 				local dim = ui.dim
 				placeDim(nil)
@@ -4422,7 +4766,8 @@ do
 		local alert = ui.biteAlert
 		local restSize = alertSize or alert.Size
 		alertSize = restSize
-		local position, size = keepClearOfBobber(alert, defaults.alertPosition, restSize, BITE_DIVE, BITE_MIN_SCALE)
+		local position, size, float =
+			keepClearOfBobber(alert, defaults.alertPosition, restSize, BITE_DIVE, BITE_MIN_SCALE)
 		alert.Position = position
 		alert.Size = size
 		alert.Visible = true
@@ -4441,10 +4786,21 @@ do
 			ui.biteTapPad.Visible = false
 		end)
 
-		-- «КЛЮЁТ!» влетает ударом (2.3 → 1 и лёгкая тряска — небольшая: плашка стоит у самой
-		-- панели предметов): солнечная вспышка, камера на миг «приближается», свист и звон.
+		-- «КЛЮЁТ!» выпрыгивает из своего поплавка и с размаху встаёт на место (v3: не «удар» на пол-
+		-- экрана поверх рыбака — 0.35 → 1 с перелётом по дуге от поплавка; поплавка не видно —
+		-- удар 1.6 → 1 на месте), лёгкая тряска; солнечная вспышка, камера на миг «приближается»,
+		-- свист и звон.
 		local slam = UiFx.scaleOf(alert)
-		slam.Scale = 2.3
+		if float then
+			local box = alert.AbsoluteSize
+			alert.Position = offset(float.X, float.Y + box.Y * (alert.AnchorPoint.Y - 0.5))
+			slam.Scale = 0.35
+			UiFx.tween(alert, 0.3, { Position = position }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		else
+			-- (Без полёта: у своего рыбака на телефоне — «выскакивает» из малого на месте, иначе
+			-- — удар сверху, крупнее себя: на рыбака не наезжает.)
+			slam.Scale = if ui.fishing.AbsoluteSize.Y < 500 then 0.35 else 1.6
+		end
 		UiFx.tween(slam, 0.38, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 		later(phaseTrove, 0.21, function()
 			UiFx.shake(alert, 0.006, 0.22)
@@ -4572,7 +4928,7 @@ do
 		Mythic = "🐉",
 	}
 	local RIDER_BIG = 1.25
-	local SHORT_SCREEN = 500 -- HUD ниже — телефон: мини-игра встаёт рядом с поплавком
+	local SHORT_SCREEN = 500 -- HUD ниже — телефон: мини-игра встаёт слева от рыбака
 	local REEL_DIVE = 0.8 -- поплавок в мини-игре мечется и притапливается на столько studs
 	local RARITY_WORD_TIME = 0.9 -- слово редкости над панелью (легендарная, мифическая), с
 
@@ -4779,13 +5135,33 @@ do
 		end
 		local height = 0.2 * area.Y
 		local top = panel.AbsolutePosition - root.AbsolutePosition
-		local x = (top.X + panel.AbsoluteSize.X / 2) / area.X
+		-- Над панелью и не шире её (на телефоне она прижата влево — слово не уходит за край экрана
+		-- и не ложится на рыбака).
+		local width = math.min(0.62 * area.X, panel.AbsoluteSize.X * 1.1)
+		local x = math.clamp(top.X + panel.AbsoluteSize.X / 2, width / 2 + 8, area.X - width / 2 - 8) / area.X
 		local y = (top.Y - height * 0.45) / area.Y
+		-- v3: на телефоне панель стоит прямо под плашкой базы — слово не налезает на плашку: оно
+		-- ниже (заходит на верх панели, где та же редкость) и мельче, почти не поднимается.
+		local ceiling = 0
+		for _, item in ui.status:GetChildren() do
+			if item:IsA("GuiObject") and item.Visible then
+				local at = item.AbsolutePosition - root.AbsolutePosition
+				if math.abs(at.X + item.AbsoluteSize.X / 2 - x * area.X) < (item.AbsoluteSize.X + width) / 2 then
+					ceiling = math.max(ceiling, at.Y + item.AbsoluteSize.Y + 4)
+				end
+			end
+		end
+		local rise = 0.06
+		if top.Y - height * 0.95 < ceiling then
+			local fit = math.clamp(top.Y + height * 0.3 - ceiling, height * 0.6, height)
+			y = (ceiling + fit / 2) / area.Y
+			height, rise = fit, 0.01
+		end
 		local word = UiFx.floatText(root, `{upper(rarity.Name)}!`, {
 			position = UDim2.fromScale(x, y),
-			size = UDim2.fromScale(0.62, 0.2),
+			size = UDim2.fromScale(width / area.X, height / area.Y),
 			colors = if style.Rainbow then UIConfig.Rainbow else { WHITE, style.Top, style.Bottom },
-			rise = 0.06,
+			rise = rise,
 			time = RARITY_WORD_TIME,
 			rotate = -4,
 			z = 13,
@@ -4932,13 +5308,15 @@ do
 			0.08
 		)
 		ui.zoneFlash.BackgroundTransparency = 1
-		-- Короткий экран (телефон): панель встаёт рядом со своим поплавком, а не на него — борьба
-		-- рыбы (рывки, пена, брызги) видна; не хватает места — как обычно, по центру.
+		-- Короткий экран (телефон): панель встаёт СЛЕВА от своего рыбака (v3: борьба — упор, катушка,
+		-- согнутая удочка — видна целиком) и не на свой поплавок (рывки, пена, брызги видны); не
+		-- хватает места — как обычно, внизу по центру.
 		local panel = ui.minigame
 		local restSize = panel.Size
 		panel.Position = defaults.minigamePosition
 		if ui.hud.AbsoluteSize.Y < SHORT_SCREEN then
-			local position, size = keepClearOfBobber(panel, defaults.minigamePosition, restSize, REEL_DIVE, math.huge)
+			local position, size =
+				keepClearOfBobber(panel, defaults.minigamePosition, restSize, REEL_DIVE, math.huge, true)
 			panel.Position, panel.Size = position, size
 			phaseTrove:Add(function()
 				panel.Position = defaults.minigamePosition
@@ -5500,9 +5878,14 @@ do
 		nibbleWorld()
 	end
 
+	local waitedOnce = false -- v3 (UIM-09): самое первое ожидание за игру — подсказка, что делать
 	local function onWaiting(_data: { [string]: any })
 		hookSent = false
 		setPhase("Waiting")
+		if not waitedOnce then
+			waitedOnce = true
+			showHint("Жди, пока клюнет — потом жми!", "info")
+		end
 		local first = nibbleRandom:NextNumber(NIBBLE_FROM, NIBBLE_TO - 0.5)
 		later(phaseTrove, first, nibble)
 		if nibbleRandom:NextNumber() < 0.5 then
@@ -5836,6 +6219,7 @@ local function collectUi(hud: ScreenGui): Ui
 		biteTapPad = child(alert, "TapPad"),
 		hintSocket = child(hint, "IconSocket"),
 		pedestal = child(card, "Pedestal"),
+		window = child(child(card, "Face"), "Window"),
 	}
 end
 
@@ -5867,6 +6251,10 @@ local function readDefaults(): Defaults
 		stopPosition = ui.stopButton.Position,
 		stopSize = ui.stopButton.Size,
 		minigameSize = ui.minigame.Size,
+		actionSize = ui.actionButton.Size,
+		actionPosition = ui.actionButton.Position,
+		captionSize = ui.actionCaption.Size,
+		ribbonSize = (ui.actionButton:FindFirstChild("CaptionRibbon") :: GuiObject).Size,
 	}
 end
 

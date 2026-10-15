@@ -67,6 +67,7 @@
 	    scene = { base, waterY, movers, exclude } | null (world_capture scene()),
 	    beats = { { name, t } } | null, events = { { name, kind, t } } | null,
 	    frames = { { t, still, sheet, burst, timeline, tools = { {name, equipped} },
+	                 hotbar (false: the game switched the Backpack CoreGui off — no hotbar drawn),
 	                 objects = { <object>... },
 	                 world = { cam, items, solids, movers, marks } (world scenarios)
 	                       | { solids } (the own avatar) } },
@@ -951,8 +952,9 @@ function Harness:simStep(dt: number)
 	end
 	self.sim:Step(dt)
 	self:syncToolPose()
-	if self.world then
-		self.world:observe()
+	local capture = self.world or self.avatarCapture
+	if capture then
+		capture:observe()
 	end
 end
 
@@ -1821,6 +1823,12 @@ local function checkLayout(sim: any, info: { [any]: any })
 	end
 end
 
+-- Is the Roblox hotbar on (StarterGui:SetCoreGuiEnabled(Backpack / All, false) switches it off)?
+local function hotbarOn(sim: any): boolean
+	local states = sim.coreGui or {}
+	return states[tostring(Enum.CoreGuiType.Backpack)] ~= false and states[tostring(Enum.CoreGuiType.All)] ~= false
+end
+
 -- Hotbar contents for the CoreGui overlay: Backpack tools, then the one in hand.
 local function toolsOf(player: any): { any }
 	local list = {}
@@ -2087,6 +2095,8 @@ local function main()
 				capture = made
 				if s.world then
 					h.world = capture
+				else
+					h.avatarCapture = capture -- its follow camera is kept up during `run` too
 				end
 			else
 				h:warn(`world capture failed to start: {made}`)
@@ -2205,6 +2215,7 @@ local function main()
 				burst = marks[t].burst == true,
 				timeline = marks[t].timeline == true,
 				tools = toolsOf(player),
+				hotbar = hotbarOn(sim),
 				objects = objects,
 			}
 			if not capture and not s.world then

@@ -556,13 +556,16 @@ tests["type scale: tiered labels share one size per tier, scaled from phone to d
 	end
 	check(phone, 390, "phone")
 	check(desktop, 720, "desktop")
-	-- A big broadcast toast cloned later: «кто» (Byline) at the Small tier, «что» (Label) sized by
-	-- its box between Body and Title (on a phone Title − 2: both lines end above the avatar's head).
+	-- A big broadcast toast cloned later: «кто» (Byline) at the Small size but never under 14 px
+	-- (v3, UIM-06), «что» (Label) sized by its box between Body and Title (on a phone Title − 2:
+	-- both lines end above the avatar's head).
 	notify(sim, phone, "Рыбак: легендарная рыба «Акулёнок»!", "Legendary")
 	sim:Advance(0.1)
 	local toast = liveToasts(phone)[1]
-	t.eq(toast.Byline:GetAttribute("TextTier"), "Small")
-	t.eq(select(2, limits(toast.Byline)), UIConfig.Type.Small, "phone Small size on the byline")
+	t.eq(toast.Byline:GetAttribute("TextTier"), nil, "the byline has its own floor")
+	local bylineMin, bylineMax = limits(toast.Byline)
+	t.eq(bylineMax, UIConfig.Type.Small, "phone Small size on the byline")
+	t.ok(bylineMin >= 14, `… never under 14 px ({bylineMin})`)
 	t.eq(toast.Label:GetAttribute("TextTier"), nil, "the headline is box-driven")
 	local lo, hi = limits(toast.Label)
 	t.eq(hi, UIConfig.Type.Title - 2, "phone: the headline up to Title − 2")
@@ -861,7 +864,9 @@ tests["toasts: a PC keeps one toast over the minigame, none over the catch card;
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["toasts: Legendary is a studded yellow brick, Mythic a spinning rainbow — bigger, longer"] = function(t)
+tests["toasts: Legendary is a studded yellow brick, Mythic a dark brick in a spinning rainbow rim — bigger, longer"] = function(
+	t
+)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "desktop")
 	sim:Advance(5)
@@ -892,23 +897,25 @@ tests["toasts: Legendary is a studded yellow brick, Mythic a spinning rainbow �
 	t.ok(distinct >= 3, `Mythic: rainbow studs ({distinct} colours)`)
 	t.eq(legendary.IconSocket.Icon.Text, "🌟")
 	t.eq(mythic.IconSocket.Icon.Text, "🌈")
-	t.ok(#mythic.Face.Fill.Color.Keypoints >= 6, "Mythic: rainbow face")
-	-- Two lines: who (small) over what (big; the rarity word in capitals, gold / running rainbow).
+	-- v3 (UIM-06): the rainbow only on the rim, the studs and the icon's ring — a dark face, white letters.
+	t.ok(colorNear(capTop(mythic.Face.Fill), UIConfig.Palette.Night.Top), "Mythic: a dark (Night) face")
+	local rim = mythic.Lip:FindFirstChildOfClass("UIStroke")
+	t.ok(rim and rim:FindFirstChild("FxRim") and #rim.FxRim.Color.Keypoints >= 6, "… in a rainbow rim")
+	t.ok(mythic.IconSocket:FindFirstChildOfClass("UIStroke"):FindFirstChild("FxRim"), "… and a rainbow icon ring")
+	-- Two lines: who (small) over what (big; the rarity word in capitals; white, gold at the bottom).
 	t.eq(legendary.Byline.Text, "Рыбак")
 	t.eq(legendary.Label.Text, "ЛЕГЕНДАРНЫЙ «Акулёнок»!")
 	t.eq(mythic.Byline.Text, "Рыбак")
 	t.eq(mythic.Label.Text, "МИФИЧЕСКАЯ рыба «Рыба-дракон» ×2!")
 	t.ok(legendary.Byline.AbsolutePosition.Y < legendary.Label.AbsolutePosition.Y, "who above what")
 	t.ok(colorNear(legendary.Label.TextFill.Color.Keypoints[1].Value, Color3.new(1, 1, 1)), "light gold letters")
-	t.ok(#mythic.Label.TextFill.Color.Keypoints >= 6, "rainbow letters")
+	t.eq(mythic.Label:FindFirstChild("TextFill"), nil, "white letters on the dark face (readable)")
 	t.eq(plain:FindFirstChild("Byline"), nil, "a plain toast stays one label")
 	t.ok(plain:FindFirstChild("Studs") == nil, "… and a smooth tile")
-	t.ok(p.PlayerGui.HUD:FindFirstChild("FxVignette"), "Mythic: one thin rainbow pulse on the screen edges")
-	local hue0 = mythic.Label.TextFill.Color.Keypoints[1].Value
-	local r0 = mythic.Face.Fill.Rotation
+	t.eq(p.PlayerGui.HUD:FindFirstChild("FxVignette"), nil, "someone else's catch never washes the screen")
+	local r0 = rim.FxRim.Rotation
 	sim:Advance(0.5)
-	t.ok(mythic.Face.Fill.Rotation ~= r0, "… slowly spinning")
-	t.ok(mythic.Label.TextFill.Color.Keypoints[1].Value ~= hue0, "… and the rainbow letters run")
+	t.ok(rim.FxRim.Rotation ~= r0, "… the rainbow rim slowly spins")
 	t.ok(legendary.Size.Y.Scale > plain.Size.Y.Scale * 1.1, "broadcasts are bigger")
 	-- They outlive a plain toast (4.5 s vs 3.5 s); an unknown kind shows as info.
 	notify(sim, p, "???", "nonsense")

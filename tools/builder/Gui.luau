@@ -3,9 +3,9 @@
 	StarterGui.ScreenOrientation to LandscapeSensor).
 
 	Sizing rules (phones first):
-	  • everything is in Scale, never fixed pixels — except HOTBAR: the fishing widgets stand
-	    that many pixels above the screen bottom, because the Roblox hotbar (CoreGui, drawn over
-	    PlayerGui) is a fixed-pixel band there (60 px slots, 5..65 px from the bottom, centred);
+	  • everything is in Scale, never fixed pixels — except the 16 px gaps to the screen edges
+	    and to the CoreGui (the Roblox hotbar is switched off since v3: HudController disables
+	    the Backpack CoreGui, the rod is taken with «ВЗЯТЬ»; Theme.HOTBAR = 0);
 	  • SizeConstraint RelativeYY makes widgets scale with screen HEIGHT, so they look the same
 	    on a phone and on a PC; UISizeConstraint caps them on big screens;
 	  • ScreenInsets = CoreUISafeInsets keeps widgets out of the notch and the Roblox top bar.
@@ -24,9 +24,13 @@
 	  Fishing       (St.2) ActionArea bottom-right, LEFT of the mobile Jump button (phones: 70 px
 	                at 25..95 px from the right; screens over 500 px tall: 120 px at 50..170 px);
 	                the centre column — Hint, BiteAlert, Minigame (never shown together) — on one
-	                bottom line 16 px above the hotbar, between the thumbstick and the action
-	                button (FishingController shifts it on narrow screens);
-	                CatchCard as a modal between the status stack and the hotbar.
+	                bottom line 16 px above the screen bottom, between the thumbstick and the
+	                action button (FishingController shifts it on narrow screens). v3, phones
+	                (HUD under 500 px tall): nothing covers the own fisher (FishingLayout) — the
+	                minigame docks LEFT of him, the hint and «КЛЮЁТ!» stay under his feet, the
+	                catch card docks left beside the trophy, the giant rarity word goes to the
+	                top band;
+	                CatchCard as a modal between the status stack and the screen bottom.
 	  (Stage 5)     shop as a centred modal.
 
 	Controllers that use these names: HudController, NotifyController, FishingController.

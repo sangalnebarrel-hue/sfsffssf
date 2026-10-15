@@ -9,14 +9,16 @@
 	  • другие контроллеры: NotifyController.Show(text, kind?, look?).
 	kind — вид из UIConfig.ToastKinds: "info" | "success" | "warning" | "danger" (Sky 💬 / Leaf 🎉 /
 	Sun ⚠️ / Berry 🚨), "base" (цвета своей базы, 🚩 — look.swatch передаёт HudController),
-	"Legendary" (жёлтый кирпич с 🌟) и "Mythic" (переливается радугой, 🌈) — громкие новости о
-	редком улове: дольше (4.5 с), со звёздочками, в две строки, и это уже не плитка, а кирпич с
-	пупырками (UiFx.setStuds; у мифической пупырки радугой) — чем реже улов, тем больше кирпич.
-	Сервер присылает их одной строкой «Кто: что поймал» (FishingService) — здесь она делится по
-	первому ": ": сверху мелко кто (Byline), снизу крупно что (Label: первое слово — редкость — заглавными, буквы золотом /
-	радугой, у мифической радуга бежит); на тач-экране такое уведомление может быть шире колонки
-	(до BIG_WIDE_TOUCH), без тач-экрана строка «что» переносится. Мифическая ещё один раз
-	проводит тонкой радугой по краям экрана. Неизвестный вид — как "info".
+	"Legendary" (жёлтый кирпич с 🌟) и "Mythic" (тёмный кирпич в радужной рамке, 🌈) — громкие
+	новости о редком улове: дольше (4.5 с), со звёздочками, в две строки, и это уже не плитка, а
+	кирпич с пупырками (UiFx.setStuds; у мифической пупырки радугой) — чем реже улов, тем больше
+	кирпич. Сервер присылает их одной строкой «Кто: что поймал» (FishingService) — здесь она
+	делится по первому ": ": сверху кто (Byline, не мельче BYLINE_MIN px), снизу крупно что
+	(Label: первое слово — редкость — заглавными; белые буквы с толстой обводкой, у легендарной
+	снизу в золото). v3 (UIM-06): радуга мифической — только по рамке (она вращается), на пупырках
+	и на кольце значка: на тёмной плитке белые буквы читаются; уведомление не шире колонки —
+	длинная строка «что» переносится. Чужой улов не красит экран (никаких радужных краёв: новичок
+	не подумает, что это он поймал). Неизвестный вид — как "info".
 	look = { swatch = {Top, Bottom, Lip}?, icon = "🚩"? } заменяет цвет и значок вида.
 
 	Каждое уведомление — копия HUD.Toasts.ToastTemplate (имя "Toast"), ширина — по длине текста
@@ -32,7 +34,8 @@
 	Сколько видно сразу: UIConfig.MaxToasts на компьютере, MaxToastsTouch на планшете,
 	MaxToastsPhone на телефоне (HUD ниже PHONE_HEIGHT px: второе легло бы на голову персонажа).
 	Пока улов на экране (у HUD атрибут CounterHold — от "Caught" до прилёта 🐟 в счётчик — или
-	видна HUD.Fishing.CatchCard) — ни одного; пока мини-игра или «КЛЮЁТ!» (Minigame / BiteAlert)
+	видна HUD.Fishing.CatchCard) — ни одного; на телефоне ни одного (кроме «опасности») и пока
+	своя рыба над головой (HeldFish в своём персонаже, v3: трофей не под уведомлением); пока мини-игра или «КЛЮЁТ!» (Minigame / BiteAlert)
 	— одно, а на телефоне ни одного, кроме «опасности»; пока доигрывает копия мини-игры
 	(FxMinigameWin / FxMinigameMiss: «ПОЙМАНА!», «МИМО!») или над панелью поднимается слово
 	попадания (Minigame.FxFloat) — ни одного, кроме «опасности», на любом экране: эти слова
@@ -56,6 +59,7 @@
 	покадровый эффект планировщика UiFx (где столб относительно камеры); нет значков — ничего.
 ]]
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -112,17 +116,17 @@ local CHAT_GAP = 76
 local COLUMN_MIN = 320
 -- Громкие (две строки): строка «кто» — уровня Small, «что» — до Title (не мельче Body, иначе
 -- переносится); на тач-экране такое уведомление может быть шире колонки во столько раз.
-local BIG_WIDE_TOUCH = 1.4
+local BIG_WIDE_TOUCH = 1 -- v3 (UIM-06): не шире колонки (длинная строка переносится)
+local BYLINE_MIN = 14 -- «кто» не мельче стольких px (v3, UIM-06)
+local BIG_OUTLINE = 4 -- обводка букв громкого уведомления (при 720 px; на телефоне ≈ 2.5 px)
+local RIM_THICK = 1.6 -- радужная рамка мифической толще обычной обводки плитки во столько раз
 local BIG_CHAR = 0.58 -- средняя ширина буквы в долях размера текста (Nunito Heavy)
 local BIG_PAD = 0.86 -- доля высоты «конфеты» под строки (остальное — поля и губа)
 local BIG_LINE = 1.25 -- высота строки в размерах её текста
-local BIG_RAINBOW_LIGHT = 0.45 -- радужные буквы на радужной «конфете» светлее (читаются с обводкой)
 local CANDY_LIP = UIConfig.Brick.TileLip -- боковина плитки уведомления, доля высоты (Theme.tile)
 -- Громкое уведомление — кирпич: пупырки по верху (размер — доля высоты, сколько — по ширине).
 local BIG_STUD_SCALE = 0.5
 local BIG_STUD_AREA = { 0.16, 0.97 }
--- Радуга по краям экрана при мифической новости: тонко, один раз (UiFx.edgeVignette).
-local MYTHIC_EDGE: UiFx.VignetteOptions = { fadeIn = 0.25, hold = 0.5, fadeOut = 0.5, size = 0.1 }
 -- Значок чужого улова вне экрана (см. шапку): центр — на Y высоты HUD (справа — не ниже, чем Gap
 -- над кнопками «ДОМОЙ»; следующий у того же края — выше на Stack своих высот), от края — Gap
 -- px, «тычет» к краю на Bob px за Period с; смотрим на точку столба на Lift studs над землёй;
@@ -154,6 +158,10 @@ local function busy(): boolean
 	return false
 end
 
+-- v3: своя рыба над головой (HeldFish в своём персонаже) — на телефоне уведомление легло бы
+-- поверх трофея (колонка уведомлений — над головой персонажа).
+local trophyHeld = false
+
 local function isPhone(): boolean
 	local hud = container and container.Parent
 	return UserInputService.TouchEnabled
@@ -170,6 +178,9 @@ local function capacity(priority: number?): number
 		return 0 -- улов на экране: от "Caught" (прыжок, карточка) до прилёта 🐟 в счётчик
 	end
 	local phone = isPhone()
+	if phone and trophyHeld and (priority or 1) < URGENT then
+		return 0 -- своя рыба над головой: уведомления ждут, пока трофей не уйдёт
+	end
 	if busy() then
 		-- «МИМО!», «ПОЙМАНА!» и слова попаданий поднимаются в колонку: пока они на экране — ни одного.
 		local covered = phone or ghosts > 0 or words > 0
@@ -362,7 +373,7 @@ end
 
 -- Две строки громкого уведомления: Label — «что» (до Title, золотом / радугой), над ним
 -- Byline — «кто» (Small). Доли — от высоты уведомления (строки занимают BIG_PAD её).
-local function dressBig(frame: Frame, label: TextLabel, style: ToastKind, layout: BigLayout, trove: Trove.Trove)
+local function dressBig(frame: Frame, label: TextLabel, style: ToastKind, layout: BigLayout)
 	local small, body = UiFx.textSize("Small"), UiFx.textSize("Body")
 	local title = layout.head
 	local total = (if layout.byline then small else 0) + title * layout.lines
@@ -376,7 +387,13 @@ local function dressBig(frame: Frame, label: TextLabel, style: ToastKind, layout
 		byline.AnchorPoint = Vector2.new(1, 0)
 		byline.Position = UDim2.fromScale(label.Position.X.Scale, top)
 		byline.Size = UDim2.fromScale(label.Size.X.Scale, bylineShare)
-		byline:SetAttribute("TextTier", "Small")
+		-- Уровень Small, но не мельче BYLINE_MIN px (на телефоне Small — 14, его нижний предел был 12).
+		byline:SetAttribute("TextTier", nil)
+		local bylineFit = byline:FindFirstChildOfClass("UITextSizeConstraint") or Instance.new("UITextSizeConstraint")
+		bylineFit.MinTextSize = 1
+		bylineFit.MaxTextSize = math.max(small, BYLINE_MIN)
+		bylineFit.MinTextSize = math.max(BYLINE_MIN, small - 2)
+		bylineFit.Parent = byline
 		byline.Parent = frame
 	end
 	label.Text = layout.headline
@@ -392,8 +409,8 @@ local function dressBig(frame: Frame, label: TextLabel, style: ToastKind, layout
 	fit.Parent = label
 	local outline = label:FindFirstChild("Outline")
 	if outline and outline:IsA("UIStroke") then
-		outline:SetAttribute("BaseThickness", 3)
-		outline.Thickness = 3
+		outline:SetAttribute("BaseThickness", BIG_OUTLINE)
+		outline.Thickness = UiFx.strokeThickness(outline)
 	end
 	-- Кирпич, а не плитка: пупырки по верху (сколько — по ширине; у мифической — радугой).
 	local column = container
@@ -409,23 +426,48 @@ local function dressBig(frame: Frame, label: TextLabel, style: ToastKind, layout
 	if style.Rainbow then
 		UiFx.paintStuds(frame, UIConfig.Rainbow)
 	end
-	-- Буквы: золото сверху вниз (светлое — чтобы читалось на жёлтом кирпиче) или радуга
-	-- вдоль строки, которая бежит.
-	local gradient = Instance.new("UIGradient")
-	gradient.Name = "TextFill"
-	if style.Rainbow then
-		local colors = {}
-		for _, color in UIConfig.Rainbow do
-			table.insert(colors, UiFx.lighten(color, BIG_RAINBOW_LIGHT))
-		end
-		gradient.Color = UiFx.sequence(colors)
-		gradient.Rotation = 0
-		gradient.Parent = label
-		trove:Add(UiFx.rainbow(gradient, { speed = 0.35, colors = colors }))
-	else
+	-- Буквы: белые с толстой обводкой (у легендарной книзу светлое золото — на жёлтом кирпиче
+	-- читается); у мифической — просто белые на тёмной плитке (радуга — на рамке, v3 UIM-06).
+	if not style.Rainbow then
+		local gradient = Instance.new("UIGradient")
+		gradient.Name = "TextFill"
 		gradient.Color = UiFx.sequence({ UIConfig.White, UIConfig.White, UIConfig.Palette.Gold.Top })
 		gradient.Rotation = 90
 		gradient.Parent = label
+	end
+end
+
+-- Мифическая: радуга по рамке плитки и по кольцу значка (UIGradient "FxRim" на их обводке),
+-- рамка толще в RIM_THICK раз; градиенты медленно вращаются (твины до уборки trove).
+local function rainbowRim(frame: Frame, trove: Trove.Trove)
+	local strokes: { UIStroke } = {}
+	local lip = frame:FindFirstChild("Lip")
+	local ring = lip and lip:FindFirstChildOfClass("UIStroke")
+	if ring then
+		ring.Thickness = UiFx.strokeThickness(ring) * RIM_THICK
+		table.insert(strokes, ring)
+	end
+	local socket = frame:FindFirstChild("IconSocket")
+	local socketRing = socket and socket:FindFirstChildOfClass("UIStroke")
+	if socketRing then
+		table.insert(strokes, socketRing)
+	end
+	for _, stroke in strokes do
+		stroke.Color = UIConfig.White
+		local fill = Instance.new("UIGradient")
+		fill.Name = "FxRim"
+		fill.Color = UiFx.sequence(UIConfig.Rainbow)
+		fill.Rotation = 0
+		fill.Parent = stroke
+		local spin = TweenService:Create(
+			fill,
+			TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1),
+			{ Rotation = 360 }
+		)
+		spin:Play()
+		trove:Add(function()
+			spin:Cancel()
+		end)
 	end
 end
 
@@ -471,7 +513,7 @@ present = function(item: Pending)
 		label.TextWrapped = true
 		label:SetAttribute("TextTier", "Body") -- до вставки: UiFx.fitText подгонит при добавлении
 		if layout then
-			dressBig(frame, label, style, layout, trove)
+			dressBig(frame, label, style, layout)
 		end
 	end
 	local socket = frame:FindFirstChild("IconSocket")
@@ -480,26 +522,9 @@ present = function(item: Pending)
 		icon.Text = look.icon or style.Icon
 	end
 	if style.Rainbow then
-		-- Радужная «конфета»: цвета радуги по лицевой стороне, градиент медленно вращается.
-		local face = UiFx.faceOf(frame)
-		local fill = face:FindFirstChild("Fill")
-		if fill and fill:IsA("UIGradient") then
-			fill.Color = UiFx.sequence(UIConfig.Rainbow)
-			fill.Rotation = 0
-			local spin = TweenService:Create(
-				fill,
-				TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1),
-				{ Rotation = 360 }
-			)
-			spin:Play()
-			trove:Add(function()
-				spin:Cancel()
-			end)
-		end
-		local lip = frame:FindFirstChild("Lip")
-		if lip and lip:IsA("GuiObject") then
-			lip.BackgroundColor3 = UIConfig.Rarity.Mythic.Lip
-		end
+		-- Мифическая (v3, UIM-06): тёмная плитка (Night, цвет вида) — радуга только по рамке, на
+		-- пупырках и на кольце значка; белые буквы читаются.
+		rainbowRim(frame, trove)
 	end
 
 	table.insert(active, toast)
@@ -534,13 +559,7 @@ present = function(item: Pending)
 	if big then
 		trove:Add(UiFx.sparkles(frame, { rate = 7, duration = 2, size = 0.45 }))
 		trove:Add(UiFx.arpeggio(if style.Rainbow then "Legendary" else "Epic", 0.25))
-		local hud = parent.Parent
-		if style.Rainbow and hud and hud:IsA("GuiBase2d") then
-			-- Мифическая: один раз тонкая радуга по краям экрана — «весь сервер почувствовал».
-			trove:Add(task.delay(0.15, function()
-				UiFx.edgeVignette(hud, UIConfig.Rainbow, 0.7, nil, MYTHIC_EDGE)
-			end))
-		end
+		-- (v3, UIM-06: чужой улов экран не красит — края экрана только у своего.)
 	elseif item.kind == "success" or item.kind == "base" then
 		trove:Add(UiFx.sparkles(frame, { rate = 6, duration = 1.2, size = 0.75 }))
 	elseif item.kind == "danger" then
@@ -862,6 +881,26 @@ function NotifyController:Start(hud: ScreenGui)
 		-- Улов на экране держит счётчик (атрибут HUD CounterHold, FishingController): всё это
 		-- время — ни одного уведомления.
 		hud:GetAttributeChangedSignal("CounterHold"):Connect(onBusyChanged)
+	end
+	-- v3: на телефоне, пока своя рыба над головой (HeldFish), — тоже (см. capacity).
+	local player = Players.LocalPlayer
+	local function watchCharacter(character: Model)
+		local function update()
+			local held = character:FindFirstChild("HeldFish") ~= nil
+			if held ~= trophyHeld then
+				trophyHeld = held
+				onBusyChanged()
+			end
+		end
+		character.ChildAdded:Connect(update)
+		character.ChildRemoved:Connect(update)
+		update()
+	end
+	if player then
+		player.CharacterAdded:Connect(watchCharacter)
+		if player.Character then
+			watchCharacter(player.Character)
+		end
 	end
 
 	Net.Event("Notify").OnClientEvent:Connect(function(text: any, kind: any)

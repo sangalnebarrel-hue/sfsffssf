@@ -12,8 +12,9 @@
 	    a miss, no frame effect (RenderStepped/Heartbeat) running while idle, connection counts
 	    back to their baseline;
 	  • the layout fits on a phone, a tablet and a desktop: nothing overlaps the status stack, the
-	    Home button, the hotbar, the thumbstick or the Jump button, and the widgets do not overlap
-	    each other.
+	    Home button, the thumbstick or the Jump button, and the widgets do not overlap each other
+	    (v3: the Roblox hotbar is off; on a phone the minigame docks LEFT of the own fisher, the
+	    catch card beside him — FishingLayout).
 	The server's FishingService is switched off (like tests/stage2_client.test.luau): the harness
 	plays the server and fires FishingState itself.
 
@@ -29,7 +30,7 @@ local Vector3 = roblox.Vector3
 local CFrame = roblox.CFrame
 
 local INSET = 58 -- RbxSim's top bar inset for ScreenGuis without IgnoreGuiInset
-local HOTBAR_TOP = 65 -- the Roblox hotbar: 60 px slots, 5..65 px above the bottom
+local BOTTOM_GAP = 16 -- v3: no Roblox hotbar (HudController switches the Backpack CoreGui off)
 
 local function loadConfig(name: string): any
 	local path = `src/ReplicatedStorage/Shared/Config/{name}.luau`
@@ -253,7 +254,7 @@ tests["parts: the fishing widgets are toy bricks with their decorations; text ne
 	checkCandy(t, area.StopButton, "StopButton")
 	t.ok(isCandy(area.StopButton, Palette.Berry), "StopButton: a red brick")
 	t.eq(studCount(area.StopButton), 3, "…1x3: three studs")
-	t.eq(area.StopButton.Icon.Text, "🧵")
+	t.eq(area.StopButton.Icon.Text, "🎣", "v3 (UIM-09): the rod — «reel it in», not a sewing thread")
 
 	local alert = f.BiteAlert
 	checkCandy(t, alert, "BiteAlert")
@@ -317,7 +318,7 @@ tests["parts: the fishing widgets are toy bricks with their decorations; text ne
 		t.eq(holder.Stud1:GetAttribute("CandyStud"), "top")
 	end
 	checkCandy(t, card.Banner, "Banner")
-	t.eq(studCount(card.Banner), 8, "a long studded banner")
+	t.eq(studCount(card.Banner), 6, "a long studded banner (v3: the one stud module, UIM-05)")
 	checkCandy(t, card.Pedestal, "Pedestal")
 	t.ok(studCount(card.Pedestal) >= 3, "a studded pedestal")
 	t.ok(card.Pedestal.ZIndex < card.Viewport.ZIndex, "the fish stands in front of its pedestal")
@@ -400,9 +401,13 @@ tests["action button: a look per state (Take, Cast, Wait, Bite, Reel), pop on ch
 	local rest = button.Icon.Rotation
 	sim:Advance(0.8)
 	t.ok(math.abs(button.Icon.Rotation - rest) > 90, "the hourglass flips")
-	-- UI v2 (FUI-19): the line in the water — a Water candy with a bobbing bobber and running dots.
+	-- UI v2 (FUI-19): the line in the water — a bobbing bobber and running dots. v3 (UIM-09): it
+	-- does not look like a button to press — a muted Pond plate, 15 % smaller, no rings, «ЖДИ КЛЁВА…»,
+	-- and the first wait of the session explains it with a hint.
+	local restHeight = button.Size.Y.Scale
 	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
-	t.ok(isCandy(button, Palette.Water), "Water while waiting for a bite")
+	t.ok(isCandy(button, Palette.Pond), "Pond while waiting for a bite")
+	t.eq(fishing(p).Hint.Text, "Жди, пока клюнет — потом жми!", "the first wait explains itself")
 	t.eq(button.Icon.Text, "", "the bobber replaces the emoji")
 	t.eq(button.Bobber.Visible, true, "a drawn bobber")
 	local bobY = button.Bobber.Position.Y.Scale
@@ -412,7 +417,9 @@ tests["action button: a look per state (Take, Cast, Wait, Bite, Reel), pop on ch
 		captions[button.Caption.Text] = true
 	end
 	t.ok(math.abs(button.Bobber.Position.Y.Scale - bobY) > 1e-3, "the bobber bobs")
-	t.ok(captions["ЖДЁМ."] and captions["ЖДЁМ.."], "the dots run")
+	t.ok(captions["ЖДИ КЛЁВА."] and captions["ЖДИ КЛЁВА.."], "the dots run")
+	t.ok(math.abs(button.Size.Y.Scale - restHeight * 0.85) < 0.01, "a smaller plate: nothing to press")
+	t.eq(count(button, "FxRing"), 0, "no rings calling for a tap")
 	t.ok(fishing(p).ActionArea.StopButton.Visible, "«СМОТАТЬ» while the line is out")
 
 	-- «ПОДСЕЧЬ!»: Sun with the «!» glyph, white halo, pulse and glow rings.
@@ -663,8 +670,9 @@ end
 
 -- The card opens when the fish has landed over the head (FishingFxController.OwnFishLanded;
 -- without a leap — here "Caught" comes without the server's FishFx — LeapTime + 0.3 s) plus a
--- per-rarity hold (at most 1 s: the giant title of a Mythic stands alone first).
-local CARD_OPENS = FishingConfig.LeapTime + 0.3 + 1.2
+-- per-rarity hold (at most 1.6 s: v3 — Epic and rarer +0.6 s, the arms-up landing with the fish
+-- and the giant title stand alone first).
+local CARD_OPENS = FishingConfig.LeapTime + 0.3 + 1.8
 -- After a tap skips the reveal the card ignores taps this long (FishingController CLIMAX.SkipDwell).
 local SKIP_DWELL = 0.6
 
@@ -1434,8 +1442,8 @@ tests["catch: the card opens on the landing signal (OwnFishLanded) plus the rari
 	sim:Run(function()
 		fx.OwnFishLanded:Fire("Legendary", Vector3.new(0, 10, 0))
 	end, p)
-	sim:Advance(0.6)
-	t.eq(card.Visible, false, "Legendary: a 0.9 s hold after the landing (the giant title stands alone)")
+	sim:Advance(1.2)
+	t.eq(card.Visible, false, "Legendary: a 1.5 s hold after the landing (the arms-up landing and the giant title)")
 	t.eq(fishing(p).TitleSlam.Visible, true, "…the title is up meanwhile")
 	sim:Advance(0.4)
 	t.eq(card.Visible, true, "the card is up — well before the fallback (LeapTime + 0.3 s, then the hold)")
@@ -1998,10 +2006,17 @@ tests["layout: the fishing UI fits on phone, tablet and desktop without overlaps
 			t.ok(rect.x >= 0 and rect.x + rect.w <= vp.X, `{device}: {name} {fmt(rect)} inside the width`)
 			t.ok(rect.y >= INSET and rect.y + rect.h <= vp.Y, `{device}: {name} {fmt(rect)} inside the height`)
 		end
-		-- The centre column stands above the hotbar.
+		-- v3: no hotbar — the Backpack CoreGui is off; the centre column keeps 16 px to the bottom.
+		t.eq(sim.coreGui[tostring(Enum.CoreGuiType.Backpack)], false, "the Roblox hotbar (Backpack CoreGui) is off")
 		for _, name in { "minigame", "alert", "hint", "card" } do
 			local rect = all[name]
-			t.ok(rect.y + rect.h <= vp.Y - HOTBAR_TOP, `{device}: {name} {fmt(rect)} above the hotbar`)
+			t.ok(rect.y + rect.h <= vp.Y - BOTTOM_GAP, `{device}: {name} {fmt(rect)} ≥ 16 px above the bottom`)
+		end
+		if device == "phone" then
+			-- v3 (UIM-01): the minigame docks left of the fisher (here, without a camera on him,
+			-- where he stands at the default camera: the middle of the screen).
+			t.ok(mini.x + mini.w <= vp.X / 2 - 50, `{device}: the minigame {fmt(mini)} docks left of the fisher`)
+			t.ok(mini.x >= 16, `{device}: … 16 px from the screen edge`)
 		end
 		-- No overlaps: the action column vs the centre column, the chrome vs everything.
 		local pairs = {
@@ -2091,20 +2106,35 @@ tests["catch card layout: a landscape trophy card on phones, square on tablet / 
 		local button = rectOf(sim, p, f.ActionArea.ActionButton.CaptionRibbon)
 		t.ok(f.CatchCard.Visible, `{device}: the card is up`)
 		if device == "phone" then
+			-- v3 (UIM-04): docked beside the fisher (here where he stands at the default camera:
+			-- the middle of the screen), so smaller than the old centred one, still readable.
 			t.ok(card.w > card.h * 1.4, `{device}: a landscape card {fmt(card)}`)
-			t.ok(card.h >= 200, `{device}: big on the phone {fmt(card)}`)
+			t.ok(card.h >= 165, `{device}: big enough on the phone {fmt(card)}`)
+			t.ok(card.x + card.w <= vp.X / 2 - 50 or card.x >= vp.X / 2 + 50, `{device}: beside the fisher {fmt(card)}`)
 			local fish = rectOf(sim, p, f.CatchCard.Viewport)
-			t.ok(fish.h >= 150, `{device}: a big fish {fmt(fish)}`)
+			t.ok(fish.h >= 120, `{device}: a big fish {fmt(fish)}`)
+			-- The dim: one side band on the card's side that melts towards the fisher.
+			local fades = 0
+			for _, side in { "Left", "Right" } do
+				local fade = f.CatchDim[side]:FindFirstChild("Fade")
+				if fade and fade.Enabled then
+					fades += 1
+				end
+			end
+			t.eq(fades, 1, `{device}: one side band of the dim fades towards the fisher`)
 		else
 			t.near(card.w / card.h, 380 / 384, 0.05, `{device}: the square card {fmt(card)}`)
 		end
 		t.ok(card.x + card.w * 1.04 <= button.x, `{device}: clear of the action button {fmt(card)} / {fmt(button)}`)
-		t.ok(card.y + card.h <= vp.Y - HOTBAR_TOP - 16, `{device}: above the hotbar {fmt(card)}`)
+		t.ok(card.y + card.h <= vp.Y - BOTTOM_GAP, `{device}: ≥ 16 px above the bottom {fmt(card)}`)
 		t.ok(card.y >= INSET, `{device}: below the top bar {fmt(card)}`)
 		if device ~= "desktop" then
 			local small = math.min(vp.X, vp.Y) <= 500
-			local stickRight = if small then 95 else 180
-			t.ok(card.x >= stickRight + 8, `{device}: clear of the thumbstick {fmt(card)}`)
+			local stick: Rect = if small
+				then { x = 25, y = vp.Y - 90, w = 70, h = 70 }
+				else { x = 60, y = vp.Y - 210, w = 120, h = 120 }
+			local grown: Rect = { x = stick.x - 8, y = stick.y - 8, w = stick.w + 16, h = stick.h + 16 }
+			t.eq(overlap(card, grown), 0, `{device}: clear of the thumbstick {fmt(card)}`)
 		end
 		t.ok(hud.Status.BaseBadge.Label.TextTransparency > 0.95, `{device}: the status stack faded under the card`)
 	end

@@ -463,7 +463,7 @@ local scenarios = {
 	},
 	{
 		name = "start",
-		desc = "Just spawned: rod in the backpack, newcomer hint",
+		desc = "Just spawned: rod in the backpack (no Roblox hotbar), newcomer hint",
 		still = 0.8,
 		run = function(h: any)
 			h:giveRod()
@@ -542,7 +542,7 @@ local scenarios = {
 	},
 	{
 		name = "waiting",
-		desc = "Line in the water: Water «ЖДЁМ…» with the bobbing bobber, ripples, dots, nibbles; «СМОТАТЬ»",
+		desc = "Line in the water: a smaller muted Pond «ЖДИ КЛЁВА…» with the bobbing bobber, dots, nibbles; the first-wait tip; «СМОТАТЬ» 🎣",
 		still = 1.5,
 		sheet = { from = 0, to = 2.4, fps = 10, roi = { "HUD.Fishing.ActionArea" }, margin = 0.06 },
 		run = function(h: any)
@@ -552,7 +552,7 @@ local scenarios = {
 	},
 	{
 		name = "bite",
-		desc = "A bite: «КЛЮЁТ!» slam, «!» glyphs, Sun edges, one 0.45 s beat; «ПОДСЕЧЬ!»",
+		desc = "A bite: «КЛЮЁТ!» jumps out of the bobber to its slot under the fisher, «!» glyphs, Sun edges, one 0.45 s beat; «ПОДСЕЧЬ!»",
 		still = 0.35,
 		sheet = { from = 0, to = 1.2, fps = 15, roi = FISHING_ROI, margin = 0.04 },
 		run = function(h: any)
@@ -943,7 +943,7 @@ local scenarios = {
 	},
 	{
 		name = "toast_mythic",
-		desc = "Broadcast of someone's Mythic Rainbow catch: the rainbow toast with 🌈, running rainbow letters, rainbow screen edges",
+		desc = "Broadcast of someone's Mythic Rainbow catch: a dark Night brick with 🌈 in a spinning rainbow rim, white letters, no screen edges",
 		still = 0.7,
 		sheet = { from = 0, to = 0.9, fps = 15, roi = { "HUD.Toasts" }, margin = 0.05 },
 		run = function(h: any)

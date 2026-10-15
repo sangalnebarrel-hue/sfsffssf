@@ -66,7 +66,11 @@
 	the rigged character on the FishingSpot facing the lagoon (its root HipHeight + half its
 	height above the top: feet on the planks). In world mode the client's
 	Workspace.CurrentCamera is put on the capture camera every step, so the controllers'
-	Camera:WorldToScreenPoint maths and AmbientEngine's view culling match the drawing.
+	Camera:WorldToScreenPoint maths and AmbientEngine's view culling match the drawing. In
+	avatar mode (the body is drawn moved onto the FishingSpot, wherever it really stands) the
+	client's camera follows the real body the same way (placement⁻¹ × the capture camera, like
+	Roblox's follow camera): FishingController's own-character keep-out sees the fisher where
+	the drawing shows him.
 
 	API (used by gui_dump.luau):
 	  Capture.installHooks()                   before Sim.new: ParticleEmitter:Emit recorder
@@ -787,9 +791,24 @@ function Capture:eventList(): { any }
 	return out
 end
 
+-- Avatar mode: the client's camera sees the REAL body as the drawing shows the placed one
+-- (camera = placement⁻¹ × the capture camera; no placement = the capture camera itself).
+function Capture:_followCamera()
+	local camera = self.sim.workspace.CurrentCamera
+	local character = self.player.Character
+	if not camera then
+		return
+	end
+	local cam = self:cameraNow()
+	local view = CFrame.lookAt(cam.eyeW, cam.eyeW + cam.f)
+	local placed = if character then self:placement(character) else nil
+	camera.CFrame = if placed then placed:Inverse() * view else view
+end
+
 function Capture:_step(dt: number)
 	self.time += dt
 	if self.avatarOnly then
+		self:_followCamera()
 		return -- (nothing accumulates: the body is read at the frame)
 	end
 	local scan = self:scan()
@@ -1485,10 +1504,15 @@ function Capture:begin()
 	self.time = 0
 end
 
--- Presence tracking only (cheap): gui_dump's harness calls it after every step of `run`.
+-- Presence tracking only (cheap): gui_dump's harness calls it after every step of `run`
+-- (avatar mode: only the follow camera).
 function Capture:observe()
 	self.sim:Run(function()
-		self:_observe()
+		if self.avatarOnly then
+			self:_followCamera()
+		else
+			self:_observe()
+		end
 	end, self.player)
 end
 

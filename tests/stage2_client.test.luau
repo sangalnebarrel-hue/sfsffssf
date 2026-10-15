@@ -266,9 +266,9 @@ tests["states: captions, colours, Stop button; Hook is sent once from button, to
 	pressF(sim, p)
 	t.eq(#sent(sim, p, "FishingCast"), 1, "F casts")
 	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = FishingConfig.CastFlightTime })
-	t.eq(caption(sim, p), "ЖДЁМ…")
+	t.eq(caption(sim, p), "ЖДИ КЛЁВА…", "v3 (UIM-09): what to do, not «ЖДЁМ…»")
 	t.eq(stop.Visible, true, "line is out")
-	t.ok(isCandy(button, UIConfig.Palette.Water), "a Water candy while the line is in the water (UI v2)")
+	t.ok(isCandy(button, UIConfig.Palette.Pond), "a muted Pond candy while the line is in the water (v3)")
 	pressF(sim, p)
 	sim:ActivateTool(p)
 	sim:Advance(0.1)
@@ -438,8 +438,9 @@ end
 
 -- UI v2 (FUI-01): the card opens when the caught fish has landed over the head
 -- (FishingFxController.OwnFishLanded; without a leap — the harness sends "Caught" without the
--- server's FishFx — LeapTime + 0.3 s) plus a per-rarity hold of at most 0.9 s.
-local CARD_OPENS = FishingConfig.LeapTime + 0.3 + 1.0
+-- server's FishFx — LeapTime + 0.3 s) plus a per-rarity hold of at most 1.6 s (v3: Epic and rarer
+-- +0.6 s — the arms-up landing is seen before the card).
+local CARD_OPENS = FishingConfig.LeapTime + 0.3 + 1.6
 -- After a tap skips the reveal the card ignores taps this long (FishingController CLIMAX.SkipDwell).
 local SKIP_DWELL = 0.6
 
@@ -602,7 +603,9 @@ tests["hints: far → guide beam to the own FishingSpot, near → «Жми», De
 
 	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, 0), FlightTime = 0.7 })
 	sim:Advance(0.3)
-	t.eq(hint.Visible, false, "no contextual hint while fishing")
+	-- v3 (UIM-09): the very first wait explains itself once; otherwise no contextual hint.
+	t.eq(hint.Text, "Жди, пока клюнет — потом жми!", "the first wait: a one-time tip")
+	t.ok(hint.Text ~= "Жми «Забросить»", "no contextual hint while fishing")
 	serverSays(sim, p, "Lost", { Reason = "late", Text = "Не успел подсечь!" })
 	t.eq(hint.Text, "Не успел подсечь!")
 	serverSays(sim, p, "Lost", { Reason = "timeout" })

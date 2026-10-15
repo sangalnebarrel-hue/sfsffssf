@@ -54,8 +54,10 @@ local UI = U.loadPure("src/ReplicatedStorage/Shared/Config/UIConfig.luau")
 -- The UI font: Nunito Heavy (Black 900; Cyrillic). The map's signs keep Util.FONT (ExtraBold).
 local FONT = roblox.Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Heavy)
 local MIN_TEXT = 12 -- never let TextScaled shrink text below this on phones
--- Pixels from the screen bottom to the fishing widgets: clears the Roblox hotbar (see Gui.luau).
-local HOTBAR = 74
+-- Pixels reserved at the screen bottom for the Roblox hotbar under the fishing widgets: 0 since
+-- v3 — HudController switches the Backpack CoreGui off (the rod is taken with «ВЗЯТЬ»; a custom
+-- hotbar comes with the shop stage). The widgets keep 16 px to the screen bottom (Gui.luau).
+local HOTBAR = 0
 -- Fraction of a candy's height taken by the lip under the face (legacy candies: 8 %).
 local LIP = 0.08
 -- Outline thickness at 720 px screen height (UiFx.fitStrokes scales it to the real screen):
@@ -486,6 +488,20 @@ local function studs(root: any, look: any, z: number, opts: { [string]: any }): 
 		U.new("UIGradient", { Name = "Fill", Color = sequence_, Rotation = 0 }, stud)
 	end
 	return holder
+end
+
+--[[
+	v3 (UIM-05), ONE stud module per device: studScale for a brick whose height on the reference
+	phone (844 x 390, HUD 332 px) is refHeight px, so its front-view studs come out
+	UIConfig.Brick.StudPx wide there (and scale with the screen like the bricks do); studCount —
+	how many studs of that module fit refWidth px (the stud area's width) at the StudPitch pitch.
+]]
+local function studScale(refHeight: number): number
+	return BRICK.StudPx / (BRICK.StudW * refHeight)
+end
+
+local function studCount(refWidth: number, px: number?): number
+	return math.clamp(math.floor(refWidth / ((px or BRICK.StudPx) * BRICK.StudPitch)), 1, BRICK.MaxStuds)
 end
 
 --[[
@@ -1003,6 +1019,8 @@ return {
 	tile = tile,
 	topStud = topStud,
 	studRow = studRow,
+	studScale = studScale,
+	studCount = studCount,
 	roundPlate = roundPlate,
 	socket = socket,
 	candyButton = candyButton,
