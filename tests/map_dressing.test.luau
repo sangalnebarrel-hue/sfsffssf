@@ -229,6 +229,22 @@ tests["surf and wet-sand strips never overlap (no shimmering transparent / studd
 		end
 		t.eq(#overlaps, 0, `{name} strips overlapping: {table.concat(overlaps, "; ", 1, math.min(#overlaps, 4))}`)
 	end
+	-- v3 fix W5: the surf is short LEGO plates with gaps (no long white kerb), the top over the
+	-- wave crests (WaterWaveSize 0.15: at least 0.1 above)
+	local long, low = {}, {}
+	for _, d in map.Shore:GetDescendants() do
+		if d:IsA("BasePart") and d.Name == "Foam" then
+			local size = d.Size
+			if math.max(size.X, size.Z) > 9 then
+				table.insert(long, `{d.CFrame.Position} {size}`)
+			end
+			if d.CFrame.Position.Y + size.Y / 2 < 0.25 then
+				table.insert(low, `{d.CFrame.Position}`)
+			end
+		end
+	end
+	t.eq(#long, 0, `surf plates longer than 9 studs: {table.concat(long, "; ", 1, math.min(#long, 4))}`)
+	t.eq(#low, 0, `surf plates under the wave crests: {table.concat(low, "; ", 1, math.min(#low, 4))}`)
 end
 
 tests["moving details: Sway / Bob / Spin / Pulse / Drift marks are well-formed and never nested"] = function(t)
