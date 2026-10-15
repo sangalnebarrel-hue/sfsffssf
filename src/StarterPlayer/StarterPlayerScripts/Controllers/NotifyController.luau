@@ -16,7 +16,8 @@
 	делится по первому ": ": сверху кто (Byline, не мельче BYLINE_MIN px), снизу крупно что
 	(Label: первое слово — редкость — заглавными; белые буквы с толстой обводкой, у легендарной
 	снизу в золото). Радуга мифической — только по обводке (она вращается): на тёмной плашке
-	белые буквы читаются; уведомление не шире колонки — длинная строка «что» переносится. Чужой
+	белые буквы читаются; уведомление не шире колонки (на тач-экране — 1.25 колонки), длинная
+	строка «что» переносится, только если не влезает и так (ширина — по буквам, UiFx.textWidth). Чужой
 	улов не красит экран (никаких радужных краёв: новичок не подумает, что это он поймал).
 	Неизвестный вид — как "info".
 	look = { swatch = {Top, Bottom, Lip}?, icon = "🚩"? } заменяет цвет и значок вида.
@@ -115,20 +116,21 @@ local CHAT_RIGHT = 368
 local CHAT_GAP = 76
 local COLUMN_MIN = 320
 -- Громкие (две строки): строка «кто» — уровня Small, «что» — до Title (не мельче Body, иначе
--- переносится); на тач-экране такое уведомление может быть шире колонки во столько раз.
-local BIG_WIDE_TOUCH = 1 -- v3 (UIM-06): не шире колонки (длинная строка переносится)
+-- переносится). На тач-экране такое уведомление может быть шире колонки (до BIG_WIDE_TOUCH её
+-- ширины, по центру — до кнопки «Домой» не достаёт): «что» помещается одной строкой хотя бы
+-- уровня Body, и плашка ниже — не ложится на голову персонажа (SIM-C1-02).
+local BIG_WIDE_TOUCH = 1.25
 local BYLINE_MIN = 14 -- «кто» не мельче стольких px (v3, UIM-06)
 local BIG_OUTLINE = 4 -- обводка букв громкого уведомления (при 720 px; на телефоне ≈ 2.6 px)
 local RIM_THICK = 1.4 -- радужная обводка мифической толще обычной во столько раз
-local BIG_CHAR = 0.68 -- средняя ширина буквы в долях размера текста (Montserrat Heavy, ЗАГЛАВНЫЕ)
 local BIG_PAD = 0.9 -- доля высоты плашки под строки (остальное — поля)
 local BIG_LINE = 1.22 -- высота строки в размерах её текста
-local CHAR = 0.56 -- средняя ширина буквы обычного текста (Montserrat Heavy) в долях его размера
 -- Значок чужого улова вне экрана (см. шапку): центр — на Y высоты HUD (справа — не ниже, чем Gap
 -- над кнопками «ДОМОЙ»; следующий у того же края — выше на Stack своих высот), от края — Gap
 -- px, «тычет» к краю на Bob px за Period с; смотрим на точку столба на Lift studs над землёй;
--- значков не больше Max (лишний уходит — самый старый).
-local POINTER = { Y = 0.38, Stack = 1.35, Gap = 16, Bob = 6, Period = 0.8, Lift = 40, Max = 3 }
+-- значков не больше Max (лишний уходит — самый старый). Над колонкой кнопок — ColumnGap px от
+-- края кольца (толстая обводка и кольцо цвета базы выходят за значок; правило — ≥ 16 px).
+local POINTER = { Y = 0.38, Stack = 1.35, Gap = 16, ColumnGap = 20, Bob = 6, Period = 0.8, Lift = 40, Max = 3 }
 
 local NotifyController = {}
 
@@ -301,13 +303,14 @@ end
 
 -- Сколько текста влезает: ширина уведомления под надпись (доля колонки) и нужна ли вторая строка.
 local function measure(text: string, tier: string): (number, boolean)
-	local length = utf8.len(text) or #text
 	local column = container
 	local columnWidth = if column then column.AbsoluteSize.X else 0
 	if columnWidth <= 1 then
+		local length = utf8.len(text) or #text
 		return math.clamp(0.34 + length * 0.021, 0.56, 1), false -- раскладки ещё нет
 	end
-	local textWidth = length * CHAR * UiFx.textSize(tier)
+	-- Ширина по буквам (UiFx.textWidth: заглавные шире строчных — SIM-C1-02).
+	local textWidth = UiFx.textWidth(text, UiFx.textSize(tier))
 	local share = textWidth / (LABEL_SHARE * 0.94) / columnWidth
 	if share <= 1 then
 		return math.max(share, MIN_WIDTH), false
@@ -351,9 +354,11 @@ local function bigLayout(text: string): BigLayout
 	local widest = if touch then BIG_WIDE_TOUCH else 1
 	local room = widest * area.X * LABEL_SHARE * 0.94
 	local function width(line: string?, px: number): number
-		return if line then (utf8.len(line) or #line) * BIG_CHAR * px else 0
+		return if line then UiFx.textWidth(line, px) else 0
 	end
-	-- «Что» в одну строку (на тач-экране — мельче, но не мельче Body), иначе в две.
+	-- «Что» в одну строку (на тач-экране — мельче, но не мельче Body), иначе в две. Ширина — по
+	-- буквам (UiFx.textWidth): «ЛЕГЕНДАРНАЯ рыба «Акулёнок»!» — заглавные только в первом слове;
+	-- оценка «все заглавные» переносила её на маленьком телефоне в три строки на голову персонажа.
 	local lines = if width(headline, if touch then body else title) > room then 2 else 1
 	local need = math.max(width(byline, small), width(headline, title) / lines)
 	local natural = math.clamp(need / (LABEL_SHARE * 0.94) / area.X, MIN_WIDTH, widest)
@@ -676,7 +681,7 @@ local function stepPointers(): boolean
 	local view = camera.ViewportSize
 	local side = math.clamp(area.Y * 0.118, 46, 72) -- размер значка (HUD.TrophyPointer)
 	local reach = side * 0.92 -- от центра до кончика острого края
-	-- Справа внизу — колонка кнопок («ДОМОЙ»): значок над ней, не ближе POINTER.Gap.
+	-- Справа внизу — колонка кнопок («ДОМОЙ»): значок над ней, не ближе POINTER.ColumnGap.
 	local column = hud:FindFirstChild("RightButtons")
 	local columnTop = math.huge
 	if column and column:IsA("GuiObject") and column.Visible then
@@ -715,7 +720,7 @@ local function stepPointers(): boolean
 			local x = if right then area.X - POINTER.Gap - reach - wave else POINTER.Gap + reach + wave
 			local y = area.Y * POINTER.Y
 			if right then
-				y = math.min(y, columnTop - POINTER.Gap - side * 0.75)
+				y = math.min(y, columnTop - POINTER.ColumnGap - side * 0.75)
 			end
 			local edge = if right then "right" else "left"
 			y -= slots[edge] * side * POINTER.Stack

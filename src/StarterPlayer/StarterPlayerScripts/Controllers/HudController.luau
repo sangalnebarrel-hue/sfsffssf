@@ -31,7 +31,7 @@
 	    домика (UiFx.press; мышью — ещё и наведение). Сервер сам проверяет кулдаун; здесь кулдаун
 	    только для вида: тёмная вуаль «стекает» вниз, крупные наклонные цифры по центру (последние
 	    3 с — оранжевой вспышкой), домик бледнеет, подпись «ЖДИ» над вуалью; по готовности — «удар»,
-	    подпись «ДОМОЙ» въезжает снизу, кольцо и один блик. Нажатие во время кулдауна — кнопка
+	    подпись «ДОМОЙ» «бьёт» на месте, кольцо и один блик. Нажатие во время кулдауна — кнопка
 	    качается «нет». Красный кружок «!» (HomeButton.Badge) спрятан: его зажжёт магазин (этап 3).
 	  • Обводки и шкала текста подгоняются под экран (UiFx.fitStrokes, UiFx.fitText).
 	  • Панель предметов Roblox (CoreGui Backpack) выключена (v3): удочку берут кнопкой «ВЗЯТЬ»
@@ -81,7 +81,6 @@ local BANNER_HOLD = 2 -- сколько секунд баннер базы ст�
 local BANNER_FLY = 0.4 -- полёт баннера в плашку
 local CAPTION_REST = "ДОМОЙ"
 local CAPTION_WAIT = "ЖДИ"
-local SLIDE_IN = 90 -- колонка кнопок въезжает из-за правого края экрана, px
 
 local HudController = {}
 
@@ -315,20 +314,12 @@ function HudController:Start(hud: ScreenGui)
 				NotifyController.Show(`Тебе досталась {colorName} база!`, "base", { swatch = swatch })
 			end
 			if before ~= "assigned" then
-				-- Колонка кнопок въезжает справа (Back Out), домик «выскакивает»: кнопка не растёт
-				-- к кнопке прыжка под ней.
+				-- Кнопка «Домой» выскакивает на своём месте (масштаб, не позиция: по Position колонки
+				-- раскладывают подсказку, «СМОТАТЬ» и значок чужого улова — SIM-C1-06), домик
+				-- «вкручивается» следом. Перелёт Back Out ≈ 1.07 — до кнопки прыжка не дотягивается.
 				homeButton.Visible = true
-				local rest = rightButtons.Position
-				rightButtons.Position = rest + UDim2.fromOffset(SLIDE_IN, 0)
-				UiFx.tween(
-					rightButtons,
-					0.4,
-					{ Position = rest },
-					Enum.EasingStyle.Back,
-					Enum.EasingDirection.Out,
-					0.25
-				)
-				UiFx.popIn(homeIcon, { from = 0, time = 0.4, delay = 0.45, rotate = -25 })
+				UiFx.popIn(homeButton, { from = 0.3, time = 0.4, delay = 0.25 })
+				UiFx.popIn(homeIcon, { from = 0, time = 0.4, delay = 0.4, rotate = -25 })
 			end
 			homeButton.Visible = true
 		else
@@ -551,9 +542,11 @@ function HudController:Start(hud: ScreenGui)
 		UiFx.tween(homeIcon, 0.2, { TextTransparency = if waiting then 0.85 else 0 })
 		local caption = homeCaption
 		if caption then
-			-- «Слот-машина»: старая подпись уезжает вверх, новая въезжает снизу.
-			UiFx.swapText(caption, if waiting then CAPTION_WAIT else CAPTION_REST)
+			-- Новая подпись «бьёт» на месте (не «слот-машина»: в маленькой кнопке старая и новая
+			-- подписи наезжали друг на друга и на цифры кулдауна — SIM-C1-07). Слой — до текста.
 			caption.ZIndex = if waiting then captionTop else captionZ
+			UiFx.setText(caption, if waiting then CAPTION_WAIT else CAPTION_REST)
+			UiFx.punch(caption, { from = 0.6, peak = 1.12 })
 		end
 	end
 

@@ -3273,6 +3273,57 @@ function UiFx.textSize(tier: string): number
 	return math.floor(base * typeScale(if camera then camera.ViewportSize.Y else 0) + 0.5)
 end
 
+-- Ширина символов Montserrat Heavy в долях размера текста (TextSize = высота строки; замерено по
+-- шрифту превью, tools/preview/fonts): заглавные и строчные кириллицы и латиницы, цифры, знаки.
+local GLYPH_WIDTH: { [number]: number } = {
+	[32] = 0.25, -- пробел
+	[33] = 0.26, -- !
+	[34] = 0.4, -- "
+	[40] = 0.31, -- (
+	[41] = 0.31, -- )
+	[43] = 0.5, -- +
+	[44] = 0.25, -- ,
+	[45] = 0.32, -- -
+	[46] = 0.25, -- .
+	[58] = 0.25, -- :
+	[63] = 0.5, -- ?
+	[171] = 0.53, -- «
+	[187] = 0.53, -- »
+	[215] = 0.5, -- ×
+	[8212] = 0.82, -- —
+	[8230] = 0.76, -- …
+}
+
+--[[
+	Ширина строки text при размере текста px (Montserrat Heavy, как в Theme.label) — оценка по
+	символам: заглавная кириллица ≈ 0.68 размера, строчная ≈ 0.59, латиница и цифры уже, пробел и
+	знаки препинания ≈ 0.25, эмодзи ≈ 0.82. Для раскладки плашек под текст до того, как он нарисован
+	(уведомления); средняя «на букву» для смешанного текста ошибается на 20 % в обе стороны.
+]]
+function UiFx.textWidth(text: string, px: number): number
+	local units = 0
+	for _, code in utf8.codes(text) do
+		local w = GLYPH_WIDTH[code]
+		if w == nil then
+			if (code >= 0x410 and code <= 0x42F) or code == 0x401 then
+				w = 0.68 -- А…Я, Ё
+			elseif (code >= 0x430 and code <= 0x44F) or code == 0x451 then
+				w = 0.59 -- а…я, ё
+			elseif code >= 65 and code <= 90 then
+				w = 0.62 -- A…Z
+			elseif (code >= 97 and code <= 122) or (code >= 48 and code <= 57) then
+				w = 0.52 -- a…z, 0…9
+			elseif code >= 0x2000 then
+				w = if code == 0xFE0F or code == 0x200D then 0 else 0.82 -- эмодзи (селектор и ZWJ — без ширины)
+			else
+				w = 0.55
+			end
+		end
+		units += w
+	end
+	return units * px
+end
+
 --[[
 	Шкала текста: у каждой надписи с атрибутом TextTier (Theme.label { Tier = … }) ограничение
 	UITextSizeConstraint становится Max = UIConfig.Type[tier] × clamp(H / 390, 1, 1.6), Min = Max − 2

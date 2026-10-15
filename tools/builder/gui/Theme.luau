@@ -789,7 +789,7 @@ local function badge(parent: any, name: string?, props: { [string]: any }?): any
 		Outline = 2.5,
 		ZIndex = SZ.Content,
 		MaxTextSize = 40,
-		MinTextSize = 10,
+		MinTextSize = MIN_TEXT, -- (the disc is ≥ 22 px: a 12 px «!» always fits)
 	})
 	return frame
 end
@@ -871,10 +871,11 @@ end
 -- simButton / plate and then these go.
 --------------------------------------------------------------------------------
 
--- The fishing widgets' layout (FishingController / FishingLayout gaps to the Jump button, the
--- thumbstick, the chat pill) was tuned with the v3 outline: compat shapes keep it until the
--- fishing waves re-tune their gaps for UIConfig.Sim.Stroke.
-local COMPAT_STROKE = 4
+-- Outline weights of the compat shapes: the big ones (the action disc, «СМОТАТЬ», the bite and
+-- minigame panels, the catch card and its banner) get the chrome's chunky UIConfig.Sim.Stroke —
+-- the most important button is the chunkiest, as in the reference (SIM-C1-03); the small ones
+-- (tiles, chips, pills: the key chip, the price and weight chips, «НОВИНКА!») the minor outline.
+local COMPAT_STROKE = MINOR
 
 -- v3 brick / tile → a sim plate (studs, spec, lip ignored); a dark smooth tile → glass.
 local function brick(root: any, token: any, opts: { [string]: any }?): any
@@ -885,13 +886,14 @@ local function brick(root: any, token: any, opts: { [string]: any }?): any
 	if tile and isDark(look) then
 		return glass(root, { radius = radius, shine = o.shine, z = o.z })
 	end
+	local thickness = o.stroke or (if tile then COMPAT_STROKE else STROKE)
 	return sim(root, look, {
 		radius = radius,
-		stroke = o.stroke or COMPAT_STROKE,
+		stroke = thickness,
 		faceName = o.faceName,
 		shine = o.shine,
 		z = o.z,
-		rim = if (o.stroke or COMPAT_STROKE) < 4 then 1.5 else nil,
+		rim = if thickness < 4 then 1.5 else nil,
 	})
 end
 
@@ -903,10 +905,14 @@ local function tile(root: any, token: any, opts: { [string]: any }?): any
 	return brick(root, token, o)
 end
 
--- v4 round plate (the action button) → a round sim button (no raised stud).
+-- v4 round plate (the action button) → a round sim button (no raised stud), chunky outline + gloss.
 local function roundPlate(button: any, token: any, opts: { [string]: any }?): any
 	local o = opts or {}
-	return sim(button, token, { round = true, color = o.color, shine = o.shine, z = o.z, stroke = COMPAT_STROKE })
+	return sim(
+		button,
+		token,
+		{ round = true, color = o.color, shine = o.shine, z = o.z, stroke = STROKE, gloss = true }
+	)
 end
 
 -- v3 studs seen from above: nothing is drawn any more (a detached, empty frame is returned).
@@ -931,7 +937,7 @@ local function candyButton(parent: any, name: string, token: any, props: { [stri
 	if o.Radius == nil then
 		o.Radius = if o.Brick then SIM.Radius else SIM.PlateRadius
 	end
-	local simOpts: { [string]: any } = { stroke = COMPAT_STROKE }
+	local simOpts: { [string]: any } = { stroke = STROKE }
 	for key, value in o.SimOpts or {} do
 		simOpts[key] = value
 	end
@@ -939,7 +945,7 @@ local function candyButton(parent: any, name: string, token: any, props: { [stri
 	return simButton(parent, name, token, o)
 end
 
--- v1-v3 pill → plate (with the v3 outline, see COMPAT_STROKE).
+-- v1-v3 pill → plate (chips: the minor outline, see COMPAT_STROKE).
 local function pill(parent: any, name: string, token: any, props: { [string]: any }): any
 	local o: { [string]: any } = {}
 	for key, value in props do

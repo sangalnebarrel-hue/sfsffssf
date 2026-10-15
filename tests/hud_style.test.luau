@@ -382,6 +382,23 @@ tests["sim: badge, counter (stat), Home, banner (title), toasts — the referenc
 	-- No stud anywhere in the GUI (HUD chrome and the fishing widgets): the map keeps them.
 	local studs = studsUnder(hud)
 	t.eq(#studs, 0, `no studs in the GUI ({table.concat(studs, ", ")})`)
+	-- One UIStroke per GuiObject (Roblox draws only one reliably; SIM-C1-01: a second, disabled
+	-- "Outline" on the action icon shadowed the real one and the controller switched that off).
+	local doubled = {}
+	for _, d in hud:GetDescendants() do
+		if d:IsA("GuiObject") then
+			local strokes = 0
+			for _, c in d:GetChildren() do
+				if c:IsA("UIStroke") then
+					strokes += 1
+				end
+			end
+			if strokes > 1 then
+				table.insert(doubled, d:GetFullName())
+			end
+		end
+	end
+	t.eq(#doubled, 0, `at most one UIStroke per GUI object ({table.concat(doubled, ", ")})`)
 	for _, d in hud:GetDescendants() do
 		local style = d:GetAttribute("CandyStyle")
 		if style ~= nil then

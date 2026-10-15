@@ -13,8 +13,10 @@
 	  • Кнопка действия (ActionArea.ActionButton) видна, пока удочка в руке персонажа. Это
 	    большая круглая кнопка (значок посередине, надпись — на тёмной полупрозрачной
 	    «таблетке»); цвет, значок и надпись — по состоянию: «ЗАБРОСИТЬ» (Sky 🎣,
-	    единственная «живая» кнопка в покое: блик и лёгкое дыхание) → «ЖДИ КЛЁВА…» (v3: Pond —
-	    приглушённая бирюза, кнопка меньше на 15 %: жать не нужно; поплавок покачивается, точки
+	    единственная «живая» кнопка в покое: дышит, блестит, раз в ≈ 3 с качает значком; пока за
+	    сессию не было заброса — на её левом плече качается красный кружок «!», как у кнопок
+	    образца) → «ЖДИ КЛЁВА…» (v3: Pond — приглушённая бирюза, кнопка меньше на 15 % и чуть
+	    покачивается: жать не нужно; поплавок покачивается, точки
 	    бегут, рыба 1–2 раза «пробует» наживку — кнопка вздрагивает, всплывает «?», поплавок в
 	    мире притапливается; в самое первое ожидание за игру — подсказка «Жди, пока клюнет —
 	    потом жми!») → «ПОДСЕЧЬ!» (Sun,
@@ -350,7 +352,7 @@ type Ui = {
 	dimBands: { Frame },
 	-- UI v2, игра (кнопка, поклёвка, мини-игра, подсказка):
 	actionArea: Frame,
-	actionOutline: UIStroke, -- обводка знака «!» на кнопке (у эмодзи выключена)
+	actionOutline: UIStroke, -- тёмный контур значка на кнопке (у знака «!» толще)
 	actionFill: UIGradient, -- его заливка белый → золотой
 	actionBobber: Frame, -- поплавок вместо значка, пока ждём поклёвку
 	keyChip: Frame,
@@ -365,7 +367,7 @@ type Ui = {
 	tapPad: GuiButton, -- касание панели мини-игры = нажатие (тач-экран)
 	biteTapPad: GuiButton, -- касание плашки «КЛЮЁТ!» = подсечка (тач-экран)
 	hintSocket: Frame,
-	pedestal: Frame, -- UI v4: подставка рыбы на карточке (кирпичик в цвет редкости)
+	pedestal: Frame, -- подиум рыбы на карточке (в цвет редкости)
 	window: Frame, -- v3: окошко рыбы на карточке (туда летит «+N 💰», когда карточка сбоку от рыбака)
 }
 
@@ -1216,7 +1218,7 @@ do
 		return LOOKS[phase]
 	end
 
-	local BREATHE_PEAK, BREATHE_PERIOD = 1.04, 1.6 -- «дыхание» главной кнопки в покое
+	local BREATHE_PEAK, BREATHE_PERIOD = 1.05, 1.4 -- «дыхание» главной кнопки в покое (≈ 2 px к краям)
 	local WATER_DOTS = { "ЖДИ КЛЁВА…", "ЖДИ КЛЁВА.", "ЖДИ КЛЁВА.." } -- бегущие точки ожидания (по 0.4 с)
 	local WATER_SMALL = 0.85 -- кнопка ожидания поклёвки меньше (её жать не нужно), доля размера
 	local WATER_DOTS_STEP = 0.4
@@ -1242,36 +1244,35 @@ do
 		local button = ui.actionButton
 		local icon = ui.actionIcon
 		icon.Rotation = defaults.iconRotation
+		-- Красный кружок «!» (как у «Магазина» образца) зовёт новичка: на «ВЗЯТЬ» и «ЗАБРОСИТЬ», пока
+		-- за сессию не было ни одного заброса (атрибут Casted: фаза уже была не Idle); качается
+		-- раз в 3 с (UiFx.badgeBob — таймеры). При смене «ВЗЯТЬ» → «ЗАБРОСИТЬ» не мигает; прячется,
+		-- когда вид уже другой.
+		if phase ~= "Idle" then
+			button:SetAttribute("Casted", true) -- леска уже была в воде (заброс принят)
+		end
+		local badge = button:FindFirstChild("Badge")
+		if badge and badge:IsA("GuiObject") then
+			if (look == CAST_LOOK or look == TAKE_LOOK) and not button:GetAttribute("Casted") then
+				if not badge.Visible then
+					UiFx.badgeBob(badge)
+				end
+			elseif badge.Visible then
+				UiFx.badgeHide(badge)
+			end
+		end
+		if look == CAST_LOOK or look == TAKE_LOOK then
+			-- Главная кнопка «дышит» (вдох-выдох — один твин за такт, только в покое: нажатие его
+			-- прерывает), блестит, а её значок раз в ≈ 3 с качается с «вдохом» — не в такт блику.
+			-- Больше в покое на экране ничего не шевелится.
+			lookTrove:Add(UiFx.breathe(button, { peak = BREATHE_PEAK, period = BREATHE_PERIOD }))
+			lookTrove:Add(UiFx.wobbleLoop(icon, { angle = if look == TAKE_LOOK then 14 else 10, bump = 1.1 }))
+		end
 		if look == CAST_LOOK then
-			-- Главная кнопка «дышит» и блестит; больше в покое на экране ничего не шевелится.
-			lookTrove:Add(UiFx.shineLoop(button, { interval = UIConfig.Fx.ShineInterval }))
-			-- Вдох-выдох — один твин туда-обратно за такт; нажатие (свой твин масштаба) его прерывает,
-			-- а следующий такт начинается, только когда кнопка снова в покое.
-			local scale = UiFx.scaleOf(button)
-			local breathInfo =
-				TweenInfo.new(BREATHE_PERIOD / 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, true)
-			local breath: Tween? = nil
-			every(lookTrove, BREATHE_PERIOD, function()
-				if button.Visible and math.abs(scale.Scale - 1) < 0.01 then
-					local created = TweenService:Create(scale, breathInfo, { Scale = BREATHE_PEAK })
-					created:Play()
-					breath = created
-				end
-			end, 0.8)
-			lookTrove:Add(function()
-				if breath and breath.PlaybackState == Enum.PlaybackState.Playing then
-					breath:Cancel()
-					scale.Scale = 1
-				end
-			end)
+			lookTrove:Add(UiFx.shineLoop(button, { interval = UIConfig.Fx.ShineInterval, delay = 1.7 }))
 		elseif look == TAKE_LOOK then
 			lookTrove:Add(UiFx.shineLoop(button, { interval = 2.4, delay = 0.6 }))
 			lookTrove:Add(whiteRings(1.0))
-			every(lookTrove, 2.6, function()
-				if button.Visible then
-					UiFx.wiggle(icon, 14, 3, 0.5)
-				end
-			end, 1.2)
 		elseif look == WAIT_LOOK then
 			-- Песочные часы переворачиваются.
 			local turns = 0
@@ -1346,6 +1347,8 @@ do
 				step = step % #WATER_DOTS + 1
 				ui.actionCaption.Text = WATER_DOTS[step]
 			end)
+			-- Плашка ожидания чуть покачивается (поворот ±1.5°, один бесконечный твин): «на волне».
+			lookTrove:Add(UiFx.sway(button))
 		elseif look == REEL_LOOK or look == COLLECT_LOOK then
 			lookTrove:Add(whiteRings(1.1))
 		end
@@ -1358,8 +1361,10 @@ do
 		local button = ui.actionButton
 		UiFx.setCandy(button, look.Token)
 		ui.actionIcon.Text = look.Icon
-		-- «!» — знак текстом: белый → золотой с обводкой; эмодзи — как есть.
-		ui.actionOutline.Enabled = look.Glyph == true
+		-- Обводка у значка всегда (тёмный контур эмодзи, как в образце); у знака «!» (белый →
+		-- золотой) она толще. Выключать её нельзя: другой обводки у значка нет.
+		ui.actionOutline:SetAttribute("BaseThickness", if look.Glyph then 5 else 3.5)
+		ui.actionOutline.Thickness = UiFx.strokeThickness(ui.actionOutline)
 		ui.actionFill.Enabled = look.Glyph == true
 		ui.actionBobber.Visible = look.Bobber == true
 		ui.actionRing.Color = look.RingColor
@@ -2003,13 +2008,8 @@ do
 
 	local CARD_WIDE: { [string]: { [string]: any } } = {
 		Banner = { Position = UDim2.fromScale(0.5, 0.025), Size = UDim2.fromScale(1.05, 0.19) },
-		-- UI v4, витрина-пластина: окно рыбы слева, ряд пупырок под баннером, столбик пупырок между
-		-- рыбой и столбцом справа (второй столбик не нужен — нулевой размер); рыба стоит на подставке.
-		-- (Дети лица — в долях лица: оно 0.965 высоты карточки.)
+		-- Витрина: окно рыбы слева, рыба стоит на подиуме (Pedestal). (Дети лица — в долях лица.)
 		["Face.Window"] = { Position = UDim2.fromScale(0.03, 0.296), Size = UDim2.fromScale(0.44, 0.676) },
-		["Face.StudsTop"] = { Position = UDim2.fromScale(0.04, 0.236), Size = UDim2.fromScale(0.92, 0.036) },
-		["Face.StudsLeft"] = { Position = UDim2.fromScale(0.479, 0.32), Size = UDim2.fromScale(0.032, 0.64) },
-		["Face.StudsRight"] = { Size = UDim2.fromScale(0, 0) },
 		FishGlow = { Position = UDim2.fromScale(0.25, 0.545), Size = UDim2.fromScale(0.6, 0.6) },
 		Pedestal = { Position = UDim2.fromScale(0.25, 0.925), Size = UDim2.fromScale(0.25, 0.115) },
 		Viewport = { Position = UDim2.fromScale(0.25, 0.545), Size = UDim2.fromScale(0.42, 0.68) },

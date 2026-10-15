@@ -430,6 +430,7 @@ tests["action button: a look per state (Take, Cast, Wait, Bite, Reel), pop on ch
 	t.ok(isCandy(button, Palette.Sun), "Sun on the bite")
 	t.eq(button.Icon.Text, "!")
 	t.ok(button.Icon.Outline.Enabled and button.Icon.TextFill.Enabled, "the «!» is an outlined white → gold glyph")
+	t.eq(button.Icon.Outline:GetAttribute("BaseThickness"), 5, "… with a thicker contour than the emoji")
 	t.eq(button.Bobber.Visible, false)
 	t.ok(button.Ring.Transparency < 0.1, "white halo")
 	t.ok(count(button, "FxRing") > 0, "glow rings")
@@ -450,7 +451,9 @@ tests["action button: a look per state (Take, Cast, Wait, Bite, Reel), pop on ch
 	t.eq(button.Caption.Text, "ЛОВИ!")
 	t.ok(isCandy(button, Palette.Leaf), "Leaf while reeling")
 	t.eq(button.Icon.Text, "🎯")
-	t.eq(button.Icon.Outline.Enabled, false, "an emoji again, no glyph outline")
+	t.ok(button.Icon.Outline.Enabled, "an emoji again: it keeps its dark contour (never switched off)")
+	t.eq(button.Icon.Outline:GetAttribute("BaseThickness"), 3.5, "… at the emoji's weight")
+	t.eq(button.Icon.TextFill.Enabled, false, "… and no glyph fill")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -1556,9 +1559,18 @@ tests["v2 parts: tiers on the playing widgets, key chip, «!» glyph slot, bobbe
 			end
 		end
 	end
-	-- The key chip instead of a «[F]» suffix; the «!» glyph styling waits on the icon (off).
+	-- The key chip instead of a «[F]» suffix. The icon is an outlined emoji (SIM-C1-01: exactly one
+	-- "Outline" stroke, on, 3.5 at 720 — the «!» glyph only thickens it and turns its fill on).
 	t.eq(button.KeyChip.Key.Text, "F")
-	t.eq(button.Icon.Outline.Enabled, false)
+	local iconStrokes = 0
+	for _, c in button.Icon:GetChildren() do
+		if c:IsA("UIStroke") then
+			iconStrokes += 1
+		end
+	end
+	t.eq(iconStrokes, 1, "one contour on the action icon")
+	t.ok(button.Icon.Outline.Enabled, "the emoji is outlined like the reference's icons")
+	t.eq(button.Icon.Outline:GetAttribute("BaseThickness"), 3.5)
 	t.eq(button.Icon.TextFill.Enabled, false)
 	t.eq(button.TapCue.Text, "👆")
 	t.eq(button.TapCue.Visible, false)

@@ -1,8 +1,10 @@
 --[[
-	Fishing — HUD.Fishing (stage 2) in the UI v3 «Кирпичики» style (toy bricks with studs): the
-	action button, the bite alert, the minigame, the hint and the catch card (the big reveal).
-	Controller and all the motion: FishingController (UiFx). Layout rules: tools/builder/Gui.luau;
-	look and API: tools/builder/gui/STYLE.md (§3 "Fishing UI", §6).
+	Fishing — HUD.Fishing (stage 2) in the UI v5 «Симулятор» style (the user's reference: chunky
+	gradient plates with a thick outline in a dark shade of their own hue, outlined emoji, white
+	Montserrat Heavy text with a dark outline, dark glass pills; NO studs — they belong to the
+	map): the action button, the bite alert, the minigame, the hint and the catch card (the big
+	reveal). Controller and all the motion: FishingController (UiFx). Layout rules:
+	tools/builder/Gui.luau; look and API: tools/builder/gui/STYLE.md.
 
 	Names are a contract (FishingController, tests and the preview scenarios find widgets by
 	name); everything not listed here is decoration and may change:
@@ -11,29 +13,30 @@
 	  TimeBar.Fill, Help}   Hint   CatchCard.{Banner.RarityLabel, Viewport, NameLabel,
 	  MutationLabel, InfoLabel, TapHint}
 	UI v2, the playing widgets (FishingController): ActionArea.ActionButton.{KeyChip.Key, TapCue,
-	Bobber} (the desktop key chip, the first-timer 👆, the waiting look's icon),
-	BiteAlert.{IconLeft, IconRight, TapPad} (the «!» glyphs, the touch tap pad over the plate),
-	Minigame.{Clock, TapPad, Track.Rider, Track.Needle.Head} (⏱, the touch tap pad over the
-	panel, the fish riding the zone — its glyph by rarity, the ▼ needle head),
+	Bobber, Badge} (the desktop key chip, the first-timer 👆, the waiting look's icon, the red «!»
+	newcomer badge), BiteAlert.{IconLeft, IconRight, TapPad} (the «!» glyphs, the touch tap pad
+	over the plate), Minigame.{Clock, TapPad, Track.Rider, Track.Needle.Head} (⏱, the touch tap
+	pad over the panel, the fish riding the zone — its glyph by rarity, the ▼ needle head),
 	Hint.IconSocket.Icon (the hint's emoji).
-	Value-holding labels on bricks (Hint, CatchCard.MutationLabel, CatchCard.InfoLabel) keep
+	Value-holding labels on plates (Hint, CatchCard.MutationLabel, CatchCard.InfoLabel) keep
 	their Text as the contract value but draw it through children (children render above their
-	parent, so the brick's face would hide the label's own text): Hint.Label, MutationLabel.Caption,
-	InfoLabel.Weight / InfoLabel.Price (bricks; the price counts up). The catch also uses (by name)
+	parent, so the plate's face would hide the label's own text): Hint.Label, MutationLabel.Caption,
+	InfoLabel.Weight / InfoLabel.Price (chips; the price counts up). The catch also uses (by name)
 	CatchCard.{FishGlow, NewStamp, Lip (its outline), InfoLabel.Price.Multiplier, Pedestal} and
 	TitleSlam.{Label, Letters} (the giant rarity title).
 	Minigame pips keep a visible BackgroundColor3 (filled = green 64,200,96, as the e2e bot reads
 	it); the zone and the needle keep Position.X = centre and Size.X = width in track fractions.
 
-	UI v4 (the widgets as toy bricks, STYLE.md §3): the action button is a round plate with a
-	raised centre stud (Theme.roundPlate) and a black caption tile, «СМОТАТЬ» a red 1x3 brick,
-	the key chip a small white tile; the bite alert an orange 1x6 brick; the hint a smooth dark
-	stone tile; the minigame a dark stone baseplate with a row of studs along its top edge, a
-	black groove, the zone a green 1x3 brick the fish rides on, pips as round studs seen from
-	above; the catch card a white display plate (studs in the gaps between its tiles, the fish
-	in a display window on a studded pedestal in the rarity's colour, the rarity banner a long
-	studded brick, the price a yellow studded brick, the weight a grey tile, «НОВИНКА!» a red
-	tile). Children with the attribute NoSink stay put when UiFx.press sinks the brick's face.
+	The widgets (still built through the v3 / v4 Theme names — brick, tile, roundPlate,
+	candyButton, pill — which now build sim plates; the fishing waves move them to sim / glass /
+	simButton / plate): the action button is a round sim disc with the chunky outline and a gloss,
+	an outlined emoji in the middle, the caption on a dark glass pill across its bottom and a red
+	«!» badge on its upper left shoulder for a newcomer; «СМОТАТЬ» a red sim button, the key chip a
+	small white chip; the bite alert an orange plate; the hint a dark glass pill with italic text;
+	the minigame a dark plate with a black groove, the zone a green bar the fish rides on, pips as
+	round chips; the catch card a white plate (the fish in a display window on a podium in the
+	rarity's colour, the rarity banner a long plate, the price a yellow chip, the weight a grey
+	chip, «НОВИНКА!» a red stamp).
 ]]
 
 local Theme = require("./Theme")
@@ -52,22 +55,16 @@ local BZ = Theme.BZ
 local INK = Theme.INK
 local WHITE = Theme.WHITE
 local HOTBAR = Theme.HOTBAR
-local BRICK = Theme.BRICK
-local BRICK_FACE = 1 - BRICK.Lip -- a brick's face covers its top; content is centred on it
-local TILE_FACE = 1 - BRICK.TileLip
 local corner = Theme.corner
 local stroke = Theme.stroke
 local label = Theme.label
 
--- The action button's round plate: side band depth, the raised stud (diameter share of the face,
--- its centre as a share of the face's height) and where that centre is on the button.
-local PLATE_LIP = 0.1
-local PLATE_STUD = 0.66
-local PLATE_STUD_Y = 0.46
-local STUD_CENTER = (1 - PLATE_LIP) * PLATE_STUD_Y
+-- The action disc: the centre of its icon, a share of the disc's height (a little above the
+-- middle, clear of the caption pill across its bottom).
+local ICON_Y = 0.414
 
 -- Pip colours: the e2e bot recognises a filled pip by this exact green (FishingController too);
--- an empty pip is a light grey stud with a faint white ★.
+-- an empty pip is a light grey chip with a faint white ★.
 local PIP_DONE = rgb(64, 200, 96)
 local PIP_EMPTY = P.Slate.Bottom
 
@@ -125,7 +122,7 @@ local function groove(parent: any, name: string, props: { [string]: any }, radiu
 end
 
 --------------------------------------------------------------------------------
--- Action area: the round plate and the «СМОТАТЬ» brick
+-- Action area: the round action disc and the «СМОТАТЬ» button
 --------------------------------------------------------------------------------
 
 local function buildActionArea(root: any)
@@ -149,14 +146,14 @@ local function buildActionArea(root: any)
 	-- minigame) between the thumbstick and this area.
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(320, 240) }, area)
 
-	-- The star of the screen: a round toy plate seen from above (Theme.roundPlate: an Ink-ringed
-	-- disc on its dark side band, a raised centre stud carrying the icon). FishingController
-	-- recolours it per state with UiFx.setCandy — the stud follows (Sky «ЗАБРОСИТЬ», Slate «ЖДЁМ…»
-	-- / «КУДА ИДТИ?», Water «ЖДЁМ…» (line in the water), Sun «ПОДСЕЧЬ!», Leaf «ЛОВИ!» /
-	-- «ЗАБРАТЬ!», Gold «ВЗЯТЬ»). The caption sits on a black tile across the bottom of the plate
-	-- (readable on any colour), at the Button text tier: the tile is wide enough for «ЗАБРОСИТЬ»
-	-- at 16+ px on the smallest phone. When pressed, the plate's face sinks into its side band
-	-- (UiFx.press) and the icon rides it; the caption tile, the key chip and the 👆 stay put.
+	-- The star of the screen: a round sim disc (Theme.roundPlate: the light → juicy gradient, the
+	-- chunky outline in a dark shade of its hue, a light rim and a gloss) with an outlined emoji in
+	-- the middle. FishingController recolours it per state with UiFx.setCandy (Sky «ЗАБРОСИТЬ»,
+	-- Slate «ЖДЁМ…» / «КУДА ИДТИ?», Pond «ЖДИ КЛЁВА…» (line in the water), Sun «ПОДСЕЧЬ!», Leaf
+	-- «ЛОВИ!» / «ЗАБРАТЬ!», Gold «ВЗЯТЬ»), makes it breathe and wiggle its icon at rest. The
+	-- caption sits on a dark glass pill across the bottom of the disc (readable on any colour),
+	-- at the Button text tier: the pill is wide enough for «ЗАБРОСИТЬ» at 16+ px on the smallest
+	-- phone. A press squashes the whole button (UiFx.press) and kicks the icon.
 	local action = U.new("TextButton", {
 		Name = "ActionButton",
 		Text = "",
@@ -169,7 +166,7 @@ local function buildActionArea(root: any)
 	}, area)
 	U.new("UIAspectRatioConstraint", { AspectRatio = 1, DominantAxis = Enum.DominantAxis.Height }, action)
 	corner(action, 0.5) -- the Ring and the glow rings follow the round shape
-	Theme.roundPlate(action, "Sky", { lip = PLATE_LIP, stud = PLATE_STUD, studY = PLATE_STUD_Y })
+	Theme.roundPlate(action, "Sky")
 	-- Ring: a white halo outside the Ink outline, lit while the button matters (bite, take).
 	U.new("UIStroke", {
 		Name = "Ring",
@@ -180,43 +177,34 @@ local function buildActionArea(root: any)
 		LineJoinMode = Enum.LineJoinMode.Round,
 		Attributes = { BaseThickness = 5 },
 	}, action)
-	-- The icon on the raised stud: an emoji per state; on the bite it becomes the «!» glyph
-	-- (white → gold, Ink outline — FishingController enables Outline and TextFill for it, off for
-	-- the emoji).
+	-- The icon in the middle of the disc: an outlined emoji per state (the reference's
+	-- black-outlined icons); on the bite it becomes the «!» glyph (white → gold): FishingController
+	-- turns TextFill on for it and makes the one "Outline" thicker (5 at 720), never off.
 	local icon = Theme.icon(action, "Icon", "🎣", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, STUD_CENTER),
+		Position = UDim2.fromScale(0.5, ICON_Y),
 		Size = UDim2.fromScale(0.58, 0.58),
 		ZIndex = BZ.Content,
+		Outline = 3.5,
 	})
-	U.new("UIStroke", {
-		Name = "Outline",
-		Enabled = false,
-		Color = INK,
-		Thickness = 4,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
-		LineJoinMode = Enum.LineJoinMode.Round,
-		Attributes = { BaseThickness = 4 },
-	}, icon)
 	U.new("UIGradient", {
 		Name = "TextFill",
 		Enabled = false,
 		Color = Theme.sequence({ WHITE, P.Gold.Top }),
 		Rotation = 90,
 	}, icon)
-	-- Waiting for a bite («ЖДЁМ…» on Water): a drawn bobber on the stud instead of the emoji — a
-	-- red/white ball with an Ink outline and a little antenna (FishingController bobs it and sends
-	-- ripples from it). Its Position belongs to that bob (a looping tween): NoSink.
+	-- Waiting for a bite («ЖДИ КЛЁВА…» on Pond): a drawn bobber instead of the emoji — a red/white
+	-- ball with an Ink outline and a little antenna (FishingController bobs it and sends ripples
+	-- from it). Its Position belongs to that bob (a looping tween).
 	local bobber = U.new("Frame", {
 		Name = "Bobber",
 		Visible = false,
 		BackgroundColor3 = WHITE,
 		BorderSizePixel = 0,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, STUD_CENTER + 0.03),
+		Position = UDim2.fromScale(0.5, ICON_Y + 0.03),
 		Size = UDim2.fromScale(0.3, 0.3),
 		ZIndex = BZ.Content,
-		Attributes = { NoSink = true },
 	}, action)
 	corner(bobber, 0.5)
 	stroke(bobber, 3)
@@ -241,7 +229,7 @@ local function buildActionArea(root: any)
 	}, bobber)
 	corner(antenna, 0.5)
 	stroke(antenna, 2.5)
-	-- The caption tile: a black smooth tile over the bottom of the plate (the toy's name plate),
+	-- The caption pill: dark glass over the bottom of the disc (Theme.tile of a dark token = glass),
 	-- the caption on it in CAPS at the Button tier.
 	local ribbon = U.new("Frame", {
 		Name = "CaptionRibbon",
@@ -249,19 +237,17 @@ local function buildActionArea(root: any)
 		Position = UDim2.fromScale(0.5, 0.86),
 		Size = UDim2.fromScale(1.3, 0.3),
 		ZIndex = BZ.Content + 1,
-		Attributes = { NoSink = true },
 	}, action)
-	Theme.tile(ribbon, "Coal", { radius = 0.3, spec = false, shine = false })
+	Theme.tile(ribbon, "Coal", { radius = 0.3, shine = false })
 	label(action, "Caption", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.86 - 0.15 * BRICK.TileLip),
+		Position = UDim2.fromScale(0.5, 0.86),
 		Size = UDim2.fromScale(1.22, 0.23),
 		Text = "ЗАБРОСИТЬ",
 		ZIndex = BZ.Content + 2,
 		Tier = "Button",
-		Attributes = { NoSink = true },
 	})
-	-- Desktop / console: the action key as a little white key tile on the plate's shoulder (an
+	-- Desktop / console: the action key as a little white key chip on the disc's shoulder (an
 	-- Ink «F» / «R2»), instead of a «[F]» suffix that would shrink the caption.
 	local chip = U.new("Frame", {
 		Name = "KeyChip",
@@ -270,18 +256,25 @@ local function buildActionArea(root: any)
 		Position = UDim2.fromScale(0.9, 0.12),
 		Size = UDim2.fromScale(0.3, 0.3),
 		ZIndex = BZ.Content + 3,
-		Attributes = { NoSink = true },
 	}, action)
-	Theme.tile(chip, "Cream", { radius = 0.28, spec = false, shine = false })
+	Theme.tile(chip, "Cream", { radius = 0.28, shine = false })
 	label(chip, "Key", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, TILE_FACE * 0.5),
-		Size = UDim2.fromScale(0.84, TILE_FACE * 0.76),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.84, 0.76),
 		Text = "F",
 		TextColor3 = INK,
 		TextStrokeTransparency = 1,
 		ZIndex = BZ.Content,
 		Tier = "Small",
+	})
+	-- The reference's red «!» notification badge, on the disc's upper LEFT shoulder (the key chip
+	-- has the right one on a PC): FishingController pops it in and wobbles it on «ВЗЯТЬ» /
+	-- «ЗАБРОСИТЬ» until the session's first cast (UiFx.badgeBob / badgeHide). Hidden by default.
+	Theme.badge(action, "Badge", {
+		Position = UDim2.fromScale(0.13, 0.13),
+		Size = UDim2.fromScale(0.3, 0.3),
+		ZIndex = BZ.Content + 3,
 	})
 	-- First-timer cue: a 👆 tapping the button while the needle is in the zone (the player's
 	-- first minigames of the session; FishingController shows it and bounces it). On the
@@ -295,12 +288,11 @@ local function buildActionArea(root: any)
 		Size = UDim2.fromScale(0.48, 0.48),
 		Rotation = -16,
 		ZIndex = BZ.Content + 4,
-		Attributes = { NoSink = true },
 	})
 
-	-- «СМОТАТЬ»: a red 1x3 brick (3 studs) above the action button with the 🎣 (v3: «reel the rod in», not a 🧵) inside its left
-	-- end; 0.3 of the area tall and never under 44 px (a full-size tap target on every phone),
-	-- its bottom 0.18 of the area down: ≥ 22 px above the action plate on phones, so a thumb
+	-- «СМОТАТЬ»: a red sim button above the action disc with the outlined 🎣 («reel the rod in»)
+	-- at its left end; 0.3 of the area tall and never under 44 px (a full-size tap target on every
+	-- phone), its bottom 0.18 of the area down: ≥ 22 px above the action disc on phones, so a thumb
 	-- mashing the big button does not slip onto it (FishingController also hides it while a
 	-- fish is on the hook: the bite and the minigame). Narrow enough to stay clear of the Home
 	-- button on the right.
@@ -309,20 +301,20 @@ local function buildActionArea(root: any)
 		Position = UDim2.fromScale(0, 0.18),
 		Size = UDim2.fromScale(0.56, 0.3),
 		Visible = false,
-		Brick = { studs = 3, studScale = Theme.studScale(44), studArea = { 0.3, 0.98 } },
+		Radius = UI.Sim.Radius,
 	})
 	U.new("UISizeConstraint", { MinSize = Vector2.new(0, 44) }, stop)
 	Theme.icon(stop, "Icon", "🎣", {
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.fromScale(0.04, BRICK_FACE * 0.5),
+		Position = UDim2.fromScale(0.04, 0.5),
 		Size = UDim2.fromScale(0.7, 0.7),
 		ZIndex = BZ.Content,
 	})
 	label(stop, "Caption", {
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.fromScale(0.95, BRICK_FACE * 0.5),
-		Size = UDim2.fromScale(0.68, BRICK_FACE * 0.64),
+		Position = UDim2.fromScale(0.95, 0.5),
+		Size = UDim2.fromScale(0.68, 0.64),
 		Text = "СМОТАТЬ",
 		ZIndex = BZ.Content,
 		Tier = "Button",
@@ -334,10 +326,10 @@ end
 --------------------------------------------------------------------------------
 
 local function buildBiteAlert(root: any)
-	-- Where the minigame appears next (they are never shown together). An orange 1x6 brick (6
-	-- studs on its top edge): «КЛЮЁТ!» with a «!» glyph on both ends and a countdown in a black
-	-- groove; FishingController slams it in and puts calm rays behind it (UiFx.rays at ZIndex 0 =
-	-- behind the studs, the side band and the face). 0.8H x 0.21H: ≈265 x 70 px on a phone,
+	-- Where the minigame appears next (they are never shown together). An orange sim plate:
+	-- «КЛЮЁТ!» with a «!» glyph on both ends and a countdown in a black groove; FishingController
+	-- slams it in and puts calm rays behind it (UiFx.rays at ZIndex 0 = behind the outline and the
+	-- face). 0.8H x 0.21H: ≈265 x 70 px on a phone,
 	-- «КЛЮЁТ!» ≈38 px; 380 x 100 at most (PC, tablet).
 	local alert = U.new("Frame", {
 		Name = "BiteAlert",
@@ -350,16 +342,12 @@ local function buildBiteAlert(root: any)
 	}, root)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(380, 100) }, alert)
 	Theme.brick(alert, "Sun", {
-		studs = 6,
-		studScale = Theme.studScale(69), -- the stud module (UIM-05): ≈ 69 px tall on a phone
-		studArea = { 0.1, 0.9 },
 		radius = 0.22,
-		spec = { x = 0.04, y = 0.14, w = 0.07, h = 0.08 },
 	})
 	label(alert, "Label", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, BRICK_FACE * 0.4),
-		Size = UDim2.fromScale(0.6, BRICK_FACE * 0.62),
+		Position = UDim2.fromScale(0.5, 0.4),
+		Size = UDim2.fromScale(0.6, 0.62),
 		Text = "КЛЮЁТ!",
 		Outline = 5,
 		TextGradient = { WHITE, P.Gold.Top },
@@ -372,7 +360,7 @@ local function buildBiteAlert(root: any)
 		label(alert, side[1], {
 			SizeConstraint = Enum.SizeConstraint.RelativeYY,
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(side[2], BRICK_FACE * 0.47),
+			Position = UDim2.fromScale(side[2], 0.47),
 			Size = UDim2.fromScale(0.5, 1.02),
 			Text = "!",
 			Rotation = side[3],
@@ -386,8 +374,8 @@ local function buildBiteAlert(root: any)
 	-- green → yellow → red). Timer is anchored left, so it drains towards the left end.
 	groove(alert, "TimerTrack", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, BRICK_FACE * 0.82),
-		Size = UDim2.fromScale(0.6, BRICK_FACE * 0.17),
+		Position = UDim2.fromScale(0.5, 0.82),
+		Size = UDim2.fromScale(0.6, 0.17),
 		ZIndex = BZ.Content,
 	}, 0.5, 3)
 	local timer = U.new("Frame", {
@@ -395,8 +383,8 @@ local function buildBiteAlert(root: any)
 		BackgroundColor3 = P.Leaf.Top,
 		BorderSizePixel = 0,
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.fromScale(0.2, BRICK_FACE * 0.82),
-		Size = UDim2.fromScale(0.6, BRICK_FACE * 0.17),
+		Position = UDim2.fromScale(0.2, 0.82),
+		Size = UDim2.fromScale(0.6, 0.17),
 		ZIndex = BZ.Content + 1,
 	}, alert)
 	corner(timer, 0.5)
@@ -421,14 +409,12 @@ end
 -- Minigame
 --------------------------------------------------------------------------------
 
--- The baseplate's corners and side band (a big plate: a thin band).
+-- The panel's corners.
 local PLATE_RADIUS = 0.1
-local PLATE_BAND = 0.06
 
 local function buildMinigame(root: any)
-	-- A dark stone baseplate (opaque) with a row of studs seen from above along its top edge;
-	-- width from the screen WIDTH (like the toasts), capped on big screens. Rows (fractions of
-	-- the panel height): the studs (0.03..0.085), the rarity title (0.095..0.255) — a band where
+	-- A dark Night sim panel (opaque); width from the screen WIDTH (like the toasts), capped on
+	-- big screens. Rows (fractions of the panel height): the rarity title (0.095..0.255) — a band where
 	-- the 🐟 rider and the ▼ needle head stand on the track — the track (0.42..0.63) — the status
 	-- row (⏱ + time bar left, hit pips right) — the help line. Content ZIndex 4..7; effects
 	-- (sparks, words) go at 8 over the panel, the touch TapPad at 9 on top of everything.
@@ -443,17 +429,7 @@ local function buildMinigame(root: any)
 	-- (MinSize 208 wide: docked left of the fisher on the smallest phone — with the fishing camera
 	-- offset he stands left of the middle — it is ≈ 220 px.)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(520, 210), MinSize = Vector2.new(208, 92) }, mini)
-	local face = Theme.brick(mini, "Night", { radius = PLATE_RADIUS, lip = PLATE_BAND, spec = false, shine = false })
-	-- The studs of the baseplate (Theme.studRow: 2 Frames + 2 UICorners + 1 gradient each, no
-	-- outline) along the top edge, like the ceiling of a Brainrot base.
-	Theme.studRow(face, {
-		Name = "StudRow",
-		Area = { 0.03, 0.02, 0.97, 0.1 }, -- ≈ 10 px studs on a phone (UIConfig.Brick.TopStudPx)
-		Count = 12,
-		Size = 1,
-		Token = "Night",
-		ZIndex = 1,
-	})
+	Theme.brick(mini, "Night", { radius = PLATE_RADIUS, shine = false })
 	-- Epic+ aura: a rarity-coloured rim outside the Ink outline (FishingController enables it
 	-- and recolours / animates "AuraFill": Legendary — a gold shine band, Mythic — a rainbow).
 	corner(mini, PLATE_RADIUS)
@@ -503,8 +479,8 @@ local function buildMinigame(root: any)
 			ZIndex = 1,
 		}, track)
 	end
-	-- The zone: a green 1x3 brick (transparent root = the logical box; its 3 studs poke out of the
-	-- groove and the rider stands on them) on a soft light-green glow that breathes in HEIGHT
+	-- The zone: a green sim bar with a thin outline (transparent root = the logical box; the rider
+	-- stands on it) on a soft light-green glow that breathes in HEIGHT
 	-- only (its width is the zone's), plus a white Flash layer for hits. ZIndex 3: under the
 	-- rider (5) and the needle (6), above the needle's ghost trail (2).
 	local zone = U.new("Frame", {
@@ -526,11 +502,8 @@ local function buildMinigame(root: any)
 	}, zone)
 	corner(glow, 0.4)
 	Theme.brick(zone, "Leaf", {
-		studs = 3,
-		studScale = 0.8, -- ≈ 10 px studs (a narrow Mythic zone still fits three)
 		radius = 0.28,
 		stroke = 3,
-		spec = { x = 0.08, y = 0.2, w = 0.16, h = 0.12 },
 		shine = false,
 	})
 	local flash = U.new("Frame", {
@@ -542,7 +515,7 @@ local function buildMinigame(root: any)
 		ZIndex = BZ.Overlay,
 	}, zone)
 	corner(flash, 0.28)
-	-- The fish on the hook: a 🐟 standing on the zone's studs (FishingController keeps it over
+	-- The fish on the hook: a 🐟 standing on the zone (FishingController keeps it over
 	-- the zone, wiggles it and makes it hop to the next zone). Above the zone, under the needle.
 	local rider = Theme.icon(track, "Rider", "🐟", {
 		Visible = false,
@@ -555,7 +528,7 @@ local function buildMinigame(root: any)
 		ZIndex = 5,
 	})
 	corner(rider, 0.5) -- round glow rings around the rider (Legendary / Mythic)
-	-- The needle: a thin white brick poking out of the groove (UiFx.trail adds ghosts) with a ▼
+	-- The needle: a thin white bar poking out of the groove (UiFx.trail adds ghosts) with a ▼
 	-- head above the groove, so «стрелка» is literally an arrow.
 	local needle = U.new("Frame", {
 		Name = "Needle",
@@ -605,9 +578,9 @@ local function buildMinigame(root: any)
 	}, timeBar)
 	corner(fill, 0.5)
 	miniGloss(fill, 2)
-	-- Pips: hits needed — round 1x1 studs seen from above (a light grey stud with a faint white
-	-- ★: its "Fill" lights the colour from the top left, a translucent white "Cap" is the stud's
-	-- top) / done (the same stud in green with a stamped ⭐). The pip's own BackgroundColor3 is
+	-- Pips: hits needed — round chips (a light grey chip with a faint white ★: its "Fill" lights
+	-- the colour from the top left, a translucent white "Cap" is its gloss) / done (the same chip
+	-- in green with a stamped ⭐). The pip's own BackgroundColor3 is
 	-- the colour (the e2e bot reads it), the gradient and the cap only light it.
 	local pips = U.new("Frame", {
 		Name = "Pips",
@@ -708,39 +681,41 @@ local function buildHint(root: any)
 		ZIndex = 4,
 	}, root)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(440, 64) }, hint)
-	Theme.tile(hint, "Night", { radius = 0.25, spec = { x = 0.1, y = 0.16, w = 0.05, h = 0.1 } })
+	Theme.tile(hint, "Night", { radius = 0.25 })
 	Theme.socket(hint, "IconSocket", "💡", {
 		AnchorPoint = Vector2.new(0.3, 0.5),
-		Position = UDim2.fromScale(0, TILE_FACE * 0.5),
+		Position = UDim2.fromScale(0, 0.5),
 		Size = UDim2.fromScale(1.12, 1.12),
 		ZIndex = BZ.Content,
 	})
 	label(hint, "Label", {
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.fromScale(0.955, TILE_FACE * 0.5),
-		Size = UDim2.fromScale(0.8, TILE_FACE * 0.9),
+		Position = UDim2.fromScale(0.955, 0.5),
+		Size = UDim2.fromScale(0.8, 0.9),
 		Text = "",
 		TextWrapped = true,
+		Italic = true, -- the reference's timer pill: italic white text on dark glass
 		ZIndex = BZ.Content,
 		Tier = "Body",
 	})
 end
 
 --------------------------------------------------------------------------------
--- Catch card: the big reveal (UI v2: FUI-02 / 03 / 07 / 12; UI v4: a toy display plate)
+-- Catch card: the big reveal (UI v2: FUI-02 / 03 / 07 / 12; UI v5: a white sim display plate)
 --------------------------------------------------------------------------------
 
 --[[
 	The card as built here is the SQUARE layout (desktop / tablet, 380 x 384 at most). On short
 	screens (HUD under 500 px tall: phones) FishingController re-lays the same instances out as
 	a landscape trophy card (CARD_WIDE in the controller): the fish on the left, name / chips /
-	tap hint in a right column, the same child names (also the plate's decoration under its
-	Face: Window, StudsTop, StudsLeft, StudsRight). The controller also places the card (and
+	tap hint in a right column, the same child names (also the display window under its Face:
+	Face.Window). The controller also places the card (and
 	its CatchRays) itself every time it opens: centred in its slot, born at the held fish.
 ]]
 local CARD_RADIUS = 0.09
-local CARD_BAND = 0.035 -- the plate's side band (drawn as a LipBand along the bottom: fill)
-local CARD_FACE = 1 - CARD_BAND
+-- The share of the card the v4 plate's face covered (it had a side band): the window and the
+-- children were laid out in it; kept so the tuned layout stays put.
+local CARD_FACE = 0.965
 
 -- Name text on the white plate: a dark rarity gradient with a white outline (FUI-12).
 local NAME_COMMON = { P.Night.Top, INK }
@@ -748,29 +723,6 @@ local NAME_COMMON = { P.Night.Top, INK }
 -- The display window behind the fish: a recessed pale sky panel (one quad + its outline).
 local WINDOW_TOP = rgb(250, 253, 255)
 local WINDOW_BOTTOM = rgb(214, 230, 246)
-
--- Studs seen from above on the plate's face (in the gaps between its tiles): a row, or a
--- column (sized by the holder's WIDTH, so the same column works in both layouts).
-local function studColumn(face: any, name: string, area: { number }, count: number)
-	local holder = U.new("Frame", {
-		Name = name,
-		BackgroundTransparency = 1,
-		Active = false,
-		Position = UDim2.fromScale(area[1], area[2]),
-		Size = UDim2.fromScale(area[3] - area[1], area[4] - area[2]),
-		ZIndex = 1,
-	}, face)
-	for i = 1, count do
-		Theme.topStud(holder, `Stud{i}`, {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, (i - 0.5) / count),
-			Size = UDim2.fromScale(0.8, 0.8),
-			SizeConstraint = Enum.SizeConstraint.RelativeXX,
-			Token = "Cream",
-		})
-	end
-	return holder
-end
 
 local function buildCatch(root: any)
 	-- The dim around the card: four Ink bands (Top, Bottom, Left, Right) that FishingController
@@ -817,13 +769,11 @@ local function buildCatch(root: any)
 	}, root)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(380, 400) }, rays)
 
-	-- The card: a modal (tap anywhere on it: skip the reveal / close). A white
-	-- toy display plate (Theme.brick, no studs on its edge, no glint). Its Lip keeps the outline
-	-- but draws no background: the side band is a LipBand along the bottom (the face hides all
-	-- but its lowest 3.5 % anyway) — a quarter of the phone screen less to blend. A mutation
-	-- recolours that outline (FishingController, FUI-07). ZIndex inside the card: Lip/LipBand 1,
-	-- Face 2 (with its Window, stud rows and columns), FishGlow 3, Banner and Pedestal 4,
-	-- Viewport 5, NameLabel / InfoLabel / TapHint 6, NewStamp / MutationLabel 8.
+	-- The card: a modal (tap anywhere on it: skip the reveal / close). A white sim display plate
+	-- (Cream: the light → cream gradient, the outline in its dark shade, a light rim). A mutation
+	-- recolours that outline (FishingController, FUI-07). ZIndex inside the card: Lip 1, Face 2
+	-- (with its Window), FishGlow 3, Banner and Pedestal 4, Viewport 5, NameLabel / InfoLabel /
+	-- TapHint 6, NewStamp / MutationLabel 8.
 	local card = U.new("TextButton", {
 		Name = "CatchCard",
 		Visible = false,
@@ -837,23 +787,10 @@ local function buildCatch(root: any)
 	}, root)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(380, 400) }, card)
 	corner(card, CARD_RADIUS)
-	local face = Theme.brick(card, "Cream", { radius = CARD_RADIUS, lip = CARD_BAND, spec = false, z = 1 })
-	local lip = card:FindFirstChild("Lip")
-	lip.BackgroundTransparency = 1
-	local lipBand = U.new("Frame", {
-		Name = "LipBand",
-		BackgroundColor3 = P.Cream.Lip,
-		BorderSizePixel = 0,
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.fromScale(0, 1),
-		Size = UDim2.fromScale(1, 0.2),
-		ZIndex = lip.ZIndex,
-	}, card)
-	corner(lipBand, 0.45) -- ≈ the card's corner radius (its shorter side is its height)
+	-- (The minor outline: the placement's thumbstick gap on the smallest phone was tuned with it.)
+	local face = Theme.brick(card, "Cream", { radius = CARD_RADIUS, stroke = Theme.MINOR, z = 1 })
 
-	-- The plate's decoration on its face (face coordinates: the card's y / CARD_FACE): the
-	-- display window behind the fish, a row of studs under the banner, a column of studs on
-	-- each side of the window (on phones: one column between the fish and the right column).
+	-- The display window behind the fish (in the v4 face's coordinates: the card's y / CARD_FACE).
 	local window = U.new("Frame", {
 		Name = "Window",
 		BackgroundColor3 = WHITE,
@@ -865,20 +802,10 @@ local function buildCatch(root: any)
 	corner(window, 0.12)
 	stroke(window, 3)
 	Theme.gradient(window, WINDOW_TOP, WINDOW_BOTTOM)
-	Theme.studRow(face, {
-		Name = "StudsTop",
-		Area = { 0.05, 0.2 / CARD_FACE, 0.95, 0.227 / CARD_FACE },
-		Count = 9, -- (a stud module, not a rivet strip: UIM-05)
-		Size = 1,
-		Token = "Cream",
-		ZIndex = 1,
-	})
-	studColumn(face, "StudsLeft", { 0.014, 0.25 / CARD_FACE, 0.05, 0.585 / CARD_FACE }, 5)
-	studColumn(face, "StudsRight", { 0.95, 0.25 / CARD_FACE, 0.986, 0.585 / CARD_FACE }, 5)
 
-	-- Rarity banner overhanging both sides: a long brick with 8 studs (FishingController:
-	-- UiFx.setCandy with UIConfig.Rarity[r] — the studs follow; Mythic: an animated rainbow,
-	-- rainbow studs + sparkles; Epic+: the giant TitleSlam flies into it).
+	-- Rarity banner overhanging both sides: a long sim plate with the chunky outline
+	-- (FishingController: UiFx.setCandy with UIConfig.Rarity[r]; Mythic: an animated rainbow +
+	-- sparkles; Epic+: the giant TitleSlam flies into it).
 	local banner = U.new("Frame", {
 		Name = "Banner",
 		AnchorPoint = Vector2.new(0.5, 0),
@@ -889,16 +816,12 @@ local function buildCatch(root: any)
 	local common = UI.Rarity.Common
 	local commonLook = { Top = common.Top, Bottom = common.Bottom, Lip = common.Lip }
 	Theme.brick(banner, commonLook, {
-		studs = 6,
-		studScale = Theme.studScale(34), -- the stud module: the banner is ≈ 34 px tall on a phone
-		studArea = { 0.13, 0.87 },
 		radius = 0.22,
-		spec = { x = 0.12, y = 0.16, w = 0.07, h = 0.09 },
 	})
 	label(banner, "RarityLabel", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, BRICK_FACE * 0.5),
-		Size = UDim2.fromScale(0.72, BRICK_FACE * 0.72),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.72, 0.72),
 		Text = "ОБЫЧНАЯ",
 		Outline = 4.5,
 		ZIndex = BZ.Content,
@@ -909,7 +832,7 @@ local function buildCatch(root: any)
 		Theme.icon(banner, side[1], "⭐", {
 			SizeConstraint = Enum.SizeConstraint.RelativeYY,
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(side[2], BRICK_FACE * 0.5),
+			Position = UDim2.fromScale(side[2], 0.5),
 			Size = UDim2.fromScale(0.82, 0.82),
 			ZIndex = BZ.Content,
 		})
@@ -939,13 +862,12 @@ local function buildCatch(root: any)
 		}, glow)
 		corner(frame, 0.5)
 	end
-	-- The pedestal the fish stands on (a Steal-a-Brainrot display stand), v3 (UIM-07): a 2x4 plate
-	-- in the rarity's colour seen from 3/4 above — its lighter TOP face (the brick's Face, the top
-	-- PEDESTAL_TOP of it) over the darker FRONT face (the side band) with the Ink outline, three
-	-- studs of the plate's top seen from above standing on the top face (a "Studs" holder in front
-	-- of the face; FishingController: UiFx.setCandy recolours them, Mythic paints them rainbow).
-	-- In front of the glow, behind the fish (its belly overlaps the top face only): it reads as a
-	-- display plate, not as a bar or a button.
+	-- The podium the fish stands on (a simulator display stand, UI v5): a round plate in the
+	-- rarity's colours seen a little from above — a sim stadium (the face's light → saturated
+	-- gradient is its body; FishingController recolours it with UiFx.setCandy and flashes its
+	-- rim) with a lighter TOP face: a translucent white stadium over its upper part, edged in Ink,
+	-- so the colour under it tints it. In front of the glow, behind the fish: it reads as a
+	-- podium, not as an empty bar or a button.
 	local pedestal = U.new("Frame", {
 		Name = "Pedestal",
 		AnchorPoint = Vector2.new(0.5, 1),
@@ -953,30 +875,17 @@ local function buildCatch(root: any)
 		Size = UDim2.fromScale(0.34, 0.085),
 		ZIndex = 4,
 	}, card)
-	local PEDESTAL_TOP = 0.46
-	local pedestalFace = Theme.brick(pedestal, commonLook, {
-		radius = 0.26,
-		lip = 1 - PEDESTAL_TOP,
-		stroke = 3,
-		spec = false,
-		shine = false,
-	})
-	local plateStuds = U.new("Frame", {
-		Name = "Studs",
-		BackgroundTransparency = 1,
-		Active = false,
-		Size = UDim2.fromScale(1, PEDESTAL_TOP),
-		ZIndex = pedestalFace.ZIndex + 1,
-	}, pedestal)
-	for i, x in { 0.27, 0.5, 0.73 } do
-		Theme.topStud(plateStuds, `Stud{i}`, {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(x, 0.5),
-			Size = UDim2.fromScale(0.15, 0.62), -- an oval: a round stud seen from 3/4 above
-			SizeConstraint = Enum.SizeConstraint.RelativeXY,
-			Token = "Cream",
-		})
-	end
+	local podium = Theme.sim(pedestal, commonLook, { round = true, stroke = Theme.MINOR, rim = false, shine = false })
+	local top = U.new("Frame", {
+		Name = "Top",
+		BackgroundColor3 = WHITE,
+		BackgroundTransparency = 0.45,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 0.6),
+		ZIndex = 1,
+	}, podium)
+	corner(top, 0.5)
+	stroke(top, 2, 0.5)
 	U.new("ViewportFrame", {
 		Name = "Viewport",
 		BackgroundTransparency = 1,
@@ -1001,11 +910,11 @@ local function buildCatch(root: any)
 		ZIndex = 8,
 		Text = "НОВИНКА!",
 		MaxTextSize = 24,
-		Brick = { tile = true, radius = 0.25, spec = { x = 0.05, y = 0.18, w = 0.06, h = 0.14 } },
+		Radius = 0.25,
 		LabelProps = {
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, TILE_FACE * 0.5),
-			Size = UDim2.fromScale(0.88, TILE_FACE * 0.7),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.88, 0.7),
 			Outline = 3,
 		},
 	})
@@ -1032,20 +941,19 @@ local function buildCatch(root: any)
 	Theme.tile(mutation, { Top = gold.Top, Bottom = gold.Bottom, Lip = gold.Lip }, {
 		radius = 0.25,
 		stroke = 3.5,
-		spec = { x = 0.2, y = 0.18, w = 0.06, h = 0.14 },
 	})
 	Theme.icon(mutation, "Icon", gold.Icon, {
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 		AnchorPoint = Vector2.new(0.35, 0.5),
-		Position = UDim2.fromScale(0, TILE_FACE * 0.46),
+		Position = UDim2.fromScale(0, 0.46),
 		Size = UDim2.fromScale(1.45, 1.45),
 		Rotation = -10,
 		ZIndex = BZ.Content,
 	})
 	label(mutation, "Caption", {
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.fromScale(0.95, TILE_FACE * 0.5),
-		Size = UDim2.fromScale(0.8, TILE_FACE * 0.74),
+		Position = UDim2.fromScale(0.95, 0.5),
+		Size = UDim2.fromScale(0.8, 0.74),
 		Text = "",
 		Outline = 3,
 		ZIndex = BZ.Content,
@@ -1070,10 +978,10 @@ local function buildCatch(root: any)
 	})
 
 	-- Weight and price chips; InfoLabel.Text is the summary «1,2 кг · цена 35 💰» (the value),
-	-- Price.Label counts up from 0: the hero number, a tall label (0.8 of the brick's face) that
+	-- Price.Label counts up from 0: the hero number, a tall label (0.8 of the chip's face) that
 	-- FishingController turns into display text (box-driven, up to 1.4 × Title, never under
 	-- Button − 2). Weight is a light grey tile with Ink text in CAPS (never the rarity's colour
-	-- again), the price a yellow studded brick (it is what a thief steals) with the «×N» of a
+	-- again), the price a yellow Gold chip (it is what a thief steals) with the «×N» of a
 	-- mutation slammed on its corner.
 	local info = U.new("TextLabel", {
 		Name = "InfoLabel",
@@ -1095,7 +1003,6 @@ local function buildCatch(root: any)
 		IconScale = 1.3,
 		Text = "1 КГ",
 		Tier = "Body",
-		Brick = { tile = true, spec = false },
 		LabelProps = { Outline = false, TextColor3 = INK, TextStrokeTransparency = 1 },
 	})
 	local price = Theme.pill(info, "Price", "Gold", {
@@ -1106,13 +1013,7 @@ local function buildCatch(root: any)
 		IconScale = 1.45,
 		Text = "0",
 		Tier = "Title",
-		Brick = {
-			studs = 3,
-			studScale = Theme.studScale(38),
-			studArea = { 0.35, 0.95 },
-			spec = { x = 0.3, y = 0.16, w = 0.06, h = 0.1 },
-		},
-		LabelProps = { Size = UDim2.fromScale(0.78, BRICK_FACE * 0.8) },
+		LabelProps = { Size = UDim2.fromScale(0.78, 0.8) },
 	})
 	label(price, "Multiplier", {
 		Visible = false,
@@ -1176,28 +1077,27 @@ end
 	hidden). ZIndex inside Fishing: Hint / BiteAlert / Minigame 4, CatchDim 6, CatchRays 7,
 	ActionArea 9, CatchCard 10, TitleSlam 12.
 	  ActionArea              bottom-right container, sized by screen height
-	    ActionButton          round plate (Theme.roundPlate: Lip, Face with the raised Stud): Icon
-	                          (emoji or the «!» glyph: Outline, TextFill) on the stud,
-	                          CaptionRibbon (black tile) + Caption («ЗАБРОСИТЬ» / «ЖДЁМ…» /
+	    ActionButton          round sim disc (Theme.roundPlate: Lip, Face with Gloss / Rim): Icon
+	                          (an outlined emoji or the «!» glyph: one Outline, TextFill),
+	                          CaptionRibbon (dark glass pill) + Caption («ЗАБРОСИТЬ» / «ЖДЁМ…» /
 	                          «КУДА ИДТИ?» / «ПОДСЕЧЬ!» / «ЛОВИ!» / «ВЗЯТЬ» / «ЗАБРАТЬ!»), Ring
-	                          (white halo), KeyChip.Key («F» / «R2», a white tile), TapCue (👆),
-	                          Bobber (the waiting look's icon)
-	    StopButton            «СМОТАТЬ» red 1x3 brick above it (Icon 🎣 inside, Caption)
-	  BiteAlert               orange 1x6 brick: «КЛЮЁТ!» (Label), «!» IconLeft/IconRight,
+	                          (white halo), KeyChip.Key («F» / «R2», a white chip), TapCue (👆),
+	                          Bobber (the waiting look's icon), Badge (the newcomer's red «!»)
+	    StopButton            «СМОТАТЬ» red sim button above it (Icon 🎣, Caption)
+	  BiteAlert               orange sim plate: «КЛЮЁТ!» (Label), «!» IconLeft/IconRight,
 	                          TimerTrack (black groove) + Timer, TapPad (touch: a tap on the plate hooks)
-	  Minigame                dark stone baseplate (Face.StudRow; AuraStroke.AuraFill for Epic+):
-	                          Title (rarity gradient), Track (black groove: Zone — a green brick
-	                          with 3 studs: Glow, Flash; Rider 🐟 on its studs; Needle: Head ▼),
-	                          Clock ⏱ + TimeBar (Fill), Pips (Pip1..Pip5: studs from above with a
-	                          Cap and a Star), Help, TapPad
-	  Hint                    smooth tile: IconSocket.Icon + Label (Hint.Text = the value)
+	  Minigame                dark Night sim panel (AuraStroke.AuraFill for Epic+):
+	                          Title (rarity gradient), Track (black groove: Zone — a green bar:
+	                          Glow, Flash; Rider 🐟 on it; Needle: Head ▼), Clock ⏱ + TimeBar
+	                          (Fill), Pips (Pip1..Pip5: round chips with a Cap and a Star), Help, TapPad
+	  Hint                    dark glass pill: IconSocket.Icon + Label (italic; Hint.Text = the value)
 	  CatchDim, CatchRays     the reveal's dim and the holder of its sunburst, behind the card
-	  CatchCard               TextButton (tap: skip the reveal / close) — a white display plate:
-	                          Face.{Window, StudsTop, StudsLeft, StudsRight}, Banner (a studded
-	                          brick: RarityLabel, stars), FishGlow, Pedestal (studded brick),
-	                          Viewport (the fish model), NewStamp «НОВИНКА!» (red tile), NameLabel,
-	                          MutationLabel (corner stamp tile: Icon, Caption), InfoLabel (Weight
-	                          tile, Price brick; Price.Multiplier «×N»), TapHint, LipBand.
+	  CatchCard               TextButton (tap: skip the reveal / close) — a white sim display plate:
+	                          Face.Window, Banner (a sim plate: RarityLabel, stars), FishGlow,
+	                          Pedestal (the podium: a sim stadium with a lighter Top), Viewport (the
+	                          fish model), NewStamp «НОВИНКА!» (red stamp), NameLabel, MutationLabel
+	                          (corner stamp: Icon, Caption), InfoLabel (Weight chip, Price chip;
+	                          Price.Multiplier «×N»), TapHint.
 	                          Square here; phones: the landscape layout of FishingController
 	                          (same children)
 	  TitleSlam               the giant rarity title of Epic+ (Label, Letters), flies into the

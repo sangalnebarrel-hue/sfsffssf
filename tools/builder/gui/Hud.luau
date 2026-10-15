@@ -108,8 +108,9 @@ local function buildStatus(hud: any)
 
 	-- "Your base" badge: a label plate in the base colour (HudController paints it with the base's
 	-- swatch, UIConfig.BaseSwatches; the face is named Swatch), the 🚩 overhanging its left end
-	-- (a transparent holder, tilted like a sticker). LayoutOrder 20 leaves room above it for the
-	-- money counter (Stage 3) and below it for the shield timer (Stage 4).
+	-- (a transparent holder, tilted like a sticker; 60 % of it hangs off the plate with a thick
+	-- contour, so the red 🚩 still reads on the red base's plate). LayoutOrder 20 leaves room above
+	-- it for the money counter (Stage 3) and below it for the shield timer (Stage 4).
 	local badge = U.new("Frame", {
 		Name = "BaseBadge",
 		LayoutOrder = 20,
@@ -118,7 +119,8 @@ local function buildStatus(hud: any)
 	Theme.sim(badge, "Slate", { faceName = "Swatch", radius = SIM.PlateRadius })
 	Theme.socket(badge, "FlagSocket", "🔎", {
 		IconName = "Flag",
-		AnchorPoint = Vector2.new(0.35, 0.55),
+		IconOutline = 4,
+		AnchorPoint = Vector2.new(0.6, 0.55),
 		Position = UDim2.fromScale(0, 0.5),
 		Size = UDim2.fromScale(1.25, 1.25),
 		Rotation = 8,
