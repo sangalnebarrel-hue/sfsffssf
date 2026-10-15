@@ -95,7 +95,8 @@
 	    весь экран — ничего: ни свечения, ни вспышки краёв),
 	    тряска и «толчок» камеры, конфетти из точки над головой; у эпической и выше — лучи бьют
 	    из рыбы (середина пустая) и НАД ней, вверху экрана (v3: не на рыбе и не на руках —
-	    FishingLayout.topBand; верх рыбы считается по модели, пока сервер её ещё не поставил),
+	    FishingLayout.topBand; где встанет рыба, считается по модели, пока сервер её ещё не
+	    поставил; над огромной рыбой на телефоне места нет — слово сбоку от неё),
 	    огромное слово редкости (TitleSlam: белое → цвет
 	    редкости, толстая обводка; у легендарной и мифической — буквами, каждая, встав,
 	    качается волной; следом за буквами по слову пробегает блик), когда кольца удара ушли —
@@ -1849,7 +1850,9 @@ do
 		               TitleHeight экрана, но не больше TitleMax px (и не шире просвета между
 		               кнопками); лучи за ним бьют из рыбы, середина (RaysHole радиуса) пустая.
 		               Сверху — 16 px до панели Roblox; не влезает (огромная рыба на маленьком
-		               телефоне) — выше, но правее TopbarRight px (её кнопки меню и чата слева).
+		               телефоне) — выше, но правее TopbarRight px (её кнопки меню и чата слева);
+		               и там тесно (трофей × HeldScale на телефоне упирается в верх) — сбоку от
+		               рыбака с рыбой, где просвет шире, на той же высоте (не мельче TitleSide px).
 		  TitleRays    лучи сцены слова — тонкие спицы (Width доли диаметра) и на Fade прозрачнее
 		               лучей карточки: вокруг рыбы не встаёт жёлтая «заливка» (v3).
 		  TitleDim     сцена слова: через At после приземления (кольца удара уже ушли — заливка
@@ -1876,6 +1879,7 @@ do
 		TitleHeight = 0.18,
 		TitleMax = 110,
 		TopbarRight = 172,
+		TitleSide = 24,
 		TitleDim = { At = 0.55, Add = 0.2 },
 		RaysHole = 0.3,
 		Shine = 0.4,
@@ -2955,13 +2959,15 @@ do
 	end
 
 	--[[
-		Слово (одной надписью или по буквам) — посередине экрана, чуть ниже рыбы над головой (на
-		лучах редкости), высотой CLIMAX.TitleHeight экрана (не шире просвета между кнопками), в
-		пикселях HUD.Fishing. Заливка — белое → цвет редкости → его тень (мифическая — радуга),
-		толстая обводка; буквы влетают по одной и, встав, качаются (волна бежит по слову), следом
-		за ними слово один раз пробегает белый блик.
+		Слово (одной надписью или по буквам) — над рыбаком и рыбой над головой (на лучах
+		редкости), высотой CLIMAX.TitleHeight экрана (не шире просвета между кнопками), в
+		пикселях HUD.Fishing; над рыбой места нет — сбоку от них (см. TitleSide). fish — где на
+		экране встанет рыба (её ставит сервер чуть позже слова). Заливка — белое → цвет
+		редкости → его тень (мифическая — радуга), толстая обводка; буквы влетают по одной и,
+		встав, качаются (волна бежит по слову), следом за ними слово один раз пробегает белый
+		блик.
 	]]
-	local function slamTitle(rarityId: string, reveal: Reveal, style: UIConfig.RarityStyle, fishTop: number?)
+	local function slamTitle(rarityId: string, reveal: Reveal, style: UIConfig.RarityStyle, fish: Layout.Rect?)
 		local text = TITLE_TEXT[rarityId]
 		if not text then
 			return
@@ -2980,10 +2986,16 @@ do
 			middle = math.max(math.min(middle, at.Y - CARD_SIDE_GAP - height / 2), height / 2)
 		end
 		-- v3 (WOW-4): над рыбаком и рыбой над головой — руки вверх с трофеем не под буквами (рыбу
-		-- сервер ставит чуть позже слова — её верх fishTop посчитан заранее).
+		-- сервер ставит чуть позже слова — где она встанет, fish, посчитано заранее).
 		local fisher = fisherRect()
-		if fisher and fishTop then
-			fisher = Layout.rect(fisher.x0, math.min(fisher.y0, fishTop - Layout.FISHER_PAD), fisher.x1, fisher.y1)
+		if fisher and fish then
+			local pad = Layout.FISHER_PAD
+			fisher = Layout.rect(
+				math.min(fisher.x0, fish.x0 - pad),
+				math.min(fisher.y0, fish.y0 - pad),
+				math.max(fisher.x1, fish.x1 + pad),
+				fisher.y1
+			)
 		end
 		-- (Сверху — 16 px до верхней панели Roblox: кнопки меню и чата в ней; тесно — выше, но
 		-- правее этих кнопок.)
@@ -2993,17 +3005,33 @@ do
 			bandY, bandH = Layout.topBand(fisher, middle, height, CARD_TOP_GAP, 28)
 			clearLeft = CLIMAX.TopbarRight
 		end
+		local centerX = rootSize.X / 2
+		local room: number
 		if bandY and bandH then
 			middle, height = bandY, bandH
 		end
 		local left, right = sideLimits(rootSize, middle - height / 2, middle + height / 2)
 		left = math.max(left, clearLeft)
 		-- (Ещё 10 px с каждой стороны: обводка букв и их «выскок» Back Out выходят за рамку.)
-		local room = 2 * math.max(math.min(rootSize.X / 2 - left, right - rootSize.X / 2) - 10, 40)
+		room = 2 * math.max(math.min(centerX - left, right - centerX) - 10, 40)
+		if not bandY and fisher then
+			-- v3: над рыбой с трофеем места нет (телефон) — сбоку от них, где просвет шире, на той
+			-- же высоте (не выше 16 px от верха): слово рядом с рыбой, а не на ней.
+			middle = math.max(middle, Layout.EDGE + height / 2)
+			left, right = sideLimits(rootSize, middle - height / 2, middle + height / 2)
+			local from, to = left, fisher.x0
+			if right - fisher.x1 > fisher.x0 - left then
+				from, to = fisher.x1, right
+			end
+			local side = to - from - 20
+			if side >= total * CLIMAX.TitleSide then
+				centerX, room = (from + to) / 2, side
+			end
+		end
 		local width = math.min(total * height, room)
 		height = math.min(height, width / total)
 		title.AnchorPoint = Vector2.new(0.5, 0.5)
-		title.Position = UDim2.fromScale(0.5, middle / math.max(rootSize.Y, 1))
+		title.Position = UDim2.fromScale(centerX / math.max(rootSize.X, 1), middle / math.max(rootSize.Y, 1))
 		title.Size = UDim2.fromScale(width / math.max(rootSize.X, 1), height / math.max(rootSize.Y, 1))
 		clearTitle()
 		titleWave.stopped = false
@@ -4441,10 +4469,10 @@ do
 	-- легендарной и мифической — ещё лёгкий отсвет экрана, у мифической — радужные края), тряска,
 	-- «толчок», конфетти из точки над головой; у эпической и выше — лучи и огромное слово (сцена
 	-- слова); через Hold — карточка. На весь экран ничего яркого: приземление должно быть видно.
-	-- Верх рыбы над головой своего рыбака на экране (px HUD.Fishing), ещё до того, как её поставил
-	-- сервер: макушка + FishingConfig.HeldFishGap + высота модели рыбы (× HeldScale редкости, если
-	-- он есть, с запасом на вес). nil — не видно.
-	local function fishTopY(fish: FishingRules.FishData): number?
+	-- Где встанет рыба над головой своего рыбака на экране (px HUD.Fishing), ещё до того, как её
+	-- поставил сервер: от макушки + FishingConfig.HeldFishGap вверх на высоту модели рыбы и вширь
+	-- на её длину (× HeldScale редкости, с запасом на вес). nil — не видно.
+	local function fishBox(fish: FishingRules.FishData): Layout.Rect?
 		local character = player.Character
 		local head = character and character:FindFirstChild("Head")
 		local camera = Workspace.CurrentCamera
@@ -4452,18 +4480,28 @@ do
 			return nil
 		end
 		local template = fishTemplate(fish)
-		local height = 1.5
+		local height, length = 1.5, 3
 		if template then
 			local _, size = template:GetBoundingBox()
 			height = math.max(size.Y, math.min(size.X, size.Z) * 0.5)
+			length = math.max(size.X, size.Z)
 		end
-		local scales = (FishingConfig :: any).HeldScale
-		local scale = if type(scales) == "table" and type(scales[fish.Rarity]) == "number"
-			then scales[fish.Rarity] * 1.15
-			else 1
-		local top = head.Position + Vector3.new(0, head.Size.Y / 2 + FishingConfig.HeldFishGap + height * scale, 0)
-		local point = camera:WorldToScreenPoint(top)
-		return if point.Z > 0 then point.Y - ui.fishing.AbsolutePosition.Y else nil
+		local scale = (FishingConfig.HeldScale[fish.Rarity] or 1) * 1.15
+		local base = head.Position + Vector3.new(0, head.Size.Y / 2 + FishingConfig.HeldFishGap, 0)
+		local half = camera.CFrame.RightVector * (length * scale / 2)
+		local top = camera:WorldToScreenPoint(base + Vector3.new(0, height * scale, 0))
+		local a = camera:WorldToScreenPoint(base - half)
+		local b = camera:WorldToScreenPoint(base + half)
+		if top.Z <= 0 or a.Z <= 0 or b.Z <= 0 then
+			return nil
+		end
+		local origin = ui.fishing.AbsolutePosition
+		return Layout.rect(
+			math.min(a.X, b.X) - origin.X,
+			top.Y - origin.Y,
+			math.max(a.X, b.X) - origin.X,
+			math.max(a.Y, b.Y) - origin.Y
+		)
 	end
 
 	local function onLanded(fish: FishingRules.FishData, serial: number, world: Vector3?)
@@ -4545,7 +4583,7 @@ do
 			ui.rays.Position = offset(at.X, at.Y)
 			later(catchTrove, CLIMAX.TitleDelay, function()
 				startRays(fish, CLIMAX.RaysHole)
-				slamTitle(fish.Rarity, reveal, style, fishTopY(fish))
+				slamTitle(fish.Rarity, reveal, style, fishBox(fish))
 			end)
 			-- Слово вылетает к месту баннера за CLIMAX.Lead до карточки: она рождается под уже
 			-- улетевшим словом (не «наезжает» на него посреди экрана); баннер вырастает из него.
