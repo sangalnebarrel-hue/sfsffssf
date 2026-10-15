@@ -352,12 +352,16 @@ timers. Stagger groups by 0.03–0.06 s.
   «+1», `ReplayOwnTrophy` pops it once more: ball, halo, sparks, the own nameplate pops in (no
   replay — 0.5 s after the counter is released), a chime, a short pillar for Legendary/Mythic — on
   short screens (< 500 px) no pillar and a 0.7× halo, so nothing rings the counter; once the
-  card has opened the own camera offset rises 0.6 stud — hidden by the card — so the trophy and
-  its plate clear the counter afterwards). **The held fish is alive** on every client in range
-  (FishLife): it bobs, wags its tail and every 1.3–2.2 s flops (the body bends from 42 % of its
-  length, plus a small hop and roll), a stronger flop on the replay; it never leaves its spot or
-  changes size — the same trophy for the title, the card and the replay —, and the nameplate only
-  drifts gently, never shakes;
+  card has opened the own camera offset rises 0.6 stud (+ half of what the bigger fish grew upwards
+  — ≈ 0.5–1 stud) — hidden by the card — so the trophy and its plate clear the counter afterwards). **The held
+  fish is bigger than life** — `FishingConfig.HeldScale` by rarity (1.6–1.75), never longer than
+  `HeldMaxLength` 8 studs (a carp ≈ 3.4 studs, the dragon fish 8; the server scales the model,
+  attribute `Scale`), and the leap grows to exactly that size in flight — **and alive**
+  on every client in range (FishLife): it bobs, wags its tail and every 1.3–2.2 s flops (the body
+  bends from 42 % of its length, plus a small hop and roll, both scaled with the fish), a stronger
+  flop on the replay and with every show-off of the fisher; it never leaves its spot or changes
+  size — the same trophy for the title, the card and the replay —, and the nameplate only drifts
+  gently, never shakes;
   Legendary/Mythic: a light pillar (narrower on your own screen; for everyone else wider with
   distance — ≥ 25 px from the neighbouring pier —, taller with distance — 40 + d / 2 studs, a beam
   to the sky from any pier —, starting above the catcher's nameplate when near, and longer,
@@ -366,18 +370,32 @@ timers. Stagger groups by 0.03–0.06 s.
   up, a splash and a tail flick away, the shadow flees and fades.
 - **The fisher's body** (FisherAnimController + FisherRig / FisherPoses / FisherRod; every client
   animates every fisher within 150 studs, writing joint.Transform in PreSimulation over the default
-  Animate pose): a wind-up with the bobber hanging at the rod tip until `CastTime` (= cast +
-  `FishingConfig.CastWindUp` 0.3 s, so all clients see it), the throw exactly when the bobber leaves
-  the tip, waiting sway + looking at the bobber, bite startle and tip jerks with the bobber's dips,
-  a strike, the reel fight (braced legs, left-hand crank at 2.2 Hz, body and rod swung in phase
-  with the bobber's thrashing), catch (yank, look up at the leap, both hands up under the fish over
-  the head, a hop and «pumps»; a held trophy is carried overhead while walking), loss (slump, head
-  shake). The rod bends towards the line under load and whips on the cast (a spring, ≈6 Hz); its
-  TipAttachment moves with the bend, so the line and the flying bobber follow the bent tip. Poses
-  and timings: FisherPoses (key-pose sheets: tools/preview/pose_dump.luau + pose_sheet.py). While
-  walking, torso and head go back to the normal animation at once (arms stay posed); every
-  transition is a crossfade, nothing pops. Rules: no uploaded / Studio-registered animations, no
-  C0 writes (AnimationConstraint rigs), no per-frame work when nobody fishes nearby.
+  Animate pose). Cartoon-sized for a phone (≈ 20 px per stud from the default camera): pelvis hops
+  of 0.2–0.55 stud, rod jerks of 15–25°, sideways sways — lateral and vertical moves, which read
+  from behind, rather than leans, which do not. The rod is held ≈ 40° to the RIGHT of the bobber
+  (`FishingConfig.CastSide` 8–11 studs puts the bobber ≈ 20° right): from behind the whole rod, its
+  bend and the line down-left to the bobber read as a «Λ». A 3/4 side-arm wind-up (rod up and
+  right, the tip ≤ 15° past vertical; the own bobber hanging at the tip fades near the camera),
+  cocked with a tremor until `CastTime` (= cast + `FishingConfig.CastWindUp` 0.3 s, so all clients
+  see it), the throw exactly when the bobber leaves the tip, the follow-through held until it
+  lands; waiting sway + looking at the bobber + a fidget every 2.5–4 s (weight shift, rod twitch,
+  glance, foot tap); bite startle (a hop, shoulders up) and a crouch, the tip and the body jerking
+  with the bobber's dips; a strike with a hop; the reel fight (deep crouch, lean back, left-hand
+  crank at 2.2 Hz, the rod led after the bobber's thrashing ±18°, the body tugged sideways, the rod
+  whipping sideways and bending further for Epic+), a rod pull at the predicted minigame hit, a
+  dip on a miss; catch (yank — Epic+ with a hop —, look up at the leap, both hands up under the
+  fish over the head, a squat under its weight and a jump, Legendary/Mythic a spin on the spot,
+  «pumps»; then every 2.6 s a show-off: an arm pump with a fish flop and a sweep left-right; the
+  own replay after the card is a 1.2 s celebration; a held trophy is carried overhead while
+  walking), loss (slump: shoulders and head down, the rod dropped to the right, the left arm
+  hanging, a stomp, a head shake). The rod bends towards the line under load and whips on the cast
+  (a spring, ≈6 Hz); its TipAttachment moves with the bend, so the line and the flying bobber
+  follow the bent tip. Poses and timings: FisherPoses (key-pose sheets:
+  tools/preview/pose_dump.luau + pose_sheet.py). While walking, torso and head go back to the
+  normal animation at once (arms stay posed); every transition is a crossfade, nothing pops. R6:
+  no pelvis shift at all and half the waist lean (no waist: RootJoint tilts the legs too). Rules: no uploaded / Studio-registered
+  animations, no C0 writes (AnimationConstraint rigs), no per-frame work when nobody fishes
+  nearby; far fishers keep no growing lists.
 
 ## 4. Budgets (phones first)
 

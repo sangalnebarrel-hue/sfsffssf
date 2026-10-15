@@ -469,7 +469,8 @@ GUI previews' camera) with the pier around, and from his right side on a plain d
 LUNE=/opt/tools/l11/lune
 $LUNE run tools/build.luau
 # a real session: equip, cast (wind-up → release → throw), wait, bite, strike, reel, catch,
-# trophy, then a lost fish and a reel-in; 25 frames
+# trophy (landing squat + jump, a show-off), then a lost fish and a reel-in; 28 frames (the bite
+# waits 4.5 s so a wait fidget shows)
 $LUNE run tools/preview/pose_dump.luau /tmp/anim/timeline.json [--rig R6] [--joints AnimationConstraint] [--fish Crucian]
 python3 tools/preview/pose_sheet.py /tmp/anim/timeline.json /tmp/anim/timeline.png [--only "wind,release,reel"] [--cols 5]
 # every key pose of FisherPoses on its own (contact sheet of the pose data)

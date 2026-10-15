@@ -22,8 +22,10 @@
 
 	Позы задаются в пространстве Part0 сустава («торс») относительно позы покоя (руки опущены):
 	Transform = C0rot⁻¹ · R · C0rot (FisherPoses — углы). У R6 нет талии, локтей и кистей:
-	fold() складывает их в RootJoint и плечи (угол удочки сохраняется), сдвиг таза на R6 не
-	применяется (ноги R6 не сгибаются). На R15 опущенный таз компенсируют колени
+	fold() складывает их в RootJoint (наклоны талии — наполовину: RootJoint R6 наклоняет и ноги) и
+	плечи (угол удочки сохраняется), сдвиг таза на R6 не
+	применяется ни у позы, ни у добавок (подскоки, пружинка — ноги R6 не сгибаются, RootJoint
+	несёт и ноги: ступни ушли бы с настила). На R15 опущенный таз компенсируют колени
 	(legBend: бедро +θ, колено −2θ, лодыжка +θ — ступни остаются на земле).
 
 	API:
@@ -164,7 +166,16 @@ function FisherRig.isAlive(rig: Rig): boolean
 	return true
 end
 
--- R6: талия → в RootJoint, локоть и кисть → в плечо (угол удочки тот же), левый локоть — наполовину.
+-- R6: наклоны талии (вперёд-назад, вбок) идут в RootJoint наполовину — он наклоняет торс вместе
+-- с ногами (у R6 нет талии), полный наклон поднял бы ступни; поворот — целиком.
+local R6_LEAN = 0.5
+local function r6Waist(waist: CFrame): CFrame
+	local x, y, z = waist:ToEulerAnglesYXZ()
+	return CFrame.fromEulerAnglesYXZ(x * R6_LEAN, y, z * R6_LEAN)
+end
+
+-- R6: талия → в RootJoint (r6Waist), локоть и кисть → в плечо (угол удочки тот же), левый
+-- локоть — наполовину.
 -- cf / w / add — позы, веса и добавки по каналам (меняются на месте).
 function FisherRig.fold(rig: Rig, cf: { [string]: CFrame }, w: { [string]: number }, add: { [string]: CFrame })
 	if rig.rigType ~= "R6" then
@@ -172,13 +183,19 @@ function FisherRig.fold(rig: Rig, cf: { [string]: CFrame }, w: { [string]: numbe
 	end
 	local root, waist = cf.Root, cf.Waist
 	if waist then
-		cf.Root = (if root then root.Rotation else CFrame.identity) * waist
+		cf.Root = (if root then root.Rotation else CFrame.identity) * r6Waist(waist)
 		w.Root = math.max(w.Root or 0, w.Waist or 0)
 	elseif root then
 		cf.Root = root.Rotation
 	end
 	if add.Waist then
-		add.Root = (add.Root or CFrame.identity) * add.Waist
+		add.Root = (add.Root or CFrame.identity) * r6Waist(add.Waist)
+	end
+	local addRoot = add.Root
+	if addRoot then
+		-- и у добавок (подскоки, пружинка, «переступил») — только поворот: RootJoint R6 несёт
+		-- торс вместе с ногами, сдвиг поднял бы ступни над настилом / утопил их в нём
+		add.Root = addRoot.Rotation
 	end
 	local shoulder = cf.RShoulder
 	if shoulder then

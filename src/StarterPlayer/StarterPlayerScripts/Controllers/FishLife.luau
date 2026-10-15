@@ -6,6 +6,8 @@
 	Рыба над головой (HeldFish — модель сервера, FishingService.holdFish: детали приварены к
 	Body, Body — к голове сваркой «HoldWeld»): каждый кадр пишем C0 этих сварок поверх исходных
 	(запомнены при hold, возвращаются в release — точь-в-точь).
+	  • Рыба крупнее модели во столько раз, сколько в её атрибуте Scale (FishingService:
+	    FishingConfig.HeldScale) — во столько же раз выше покачивание и подскоки шлепков.
 	  • Покачивание: вверх-вниз на BOB studs (легендарная и мифическая — BOB_RARE) с периодом
 	    BOB_PERIOD, хвост лениво ходит из стороны в сторону (IDLE_WAG рад у кончика), рыба чуть
 	    качается «носом» (IDLE_ROCK).
@@ -145,6 +147,8 @@ function FishLife.hold(model: Model, seed: number, rarity: string?, delay: numbe
 	end
 	local rng = Random.new(seed)
 	local start = os.clock() + (delay or 0)
+	local scaleAttr = model:GetAttribute("Scale")
+	local size = if typeof(scaleAttr) == "number" and scaleAttr > 0 then scaleAttr else 1
 	return {
 		model = model,
 		weld = headWeld,
@@ -158,8 +162,8 @@ function FishLife.hold(model: Model, seed: number, rarity: string?, delay: numbe
 		nextFlop = start + FIRST_FLOP,
 		flopAt = nil,
 		power = 1,
-		bob = if rarity and RARE[rarity] then BOB_RARE else BOB,
-		hop = if rarity and RARE[rarity] then HOP_RARE else HOP,
+		bob = size * (if rarity and RARE[rarity] then BOB_RARE else BOB),
+		hop = size * (if rarity and RARE[rarity] then HOP_RARE else HOP),
 		plates = {},
 		shiftLocal = Vector3.zero,
 		bentInside = false,

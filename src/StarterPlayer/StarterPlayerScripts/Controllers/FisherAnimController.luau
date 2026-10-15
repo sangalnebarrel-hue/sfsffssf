@@ -24,29 +24,43 @@
 
 	Позы и тайминги — FisherPoses; переходы — плавные (CFrame:Lerp каждого сустава от
 	«снимка» текущей позы, с плавностью), ничего не «щёлкает», даже если событие оборвало
-	движение на середине. Фазы (mode):
+	движение на середине. Мультяшно и крупно — на телефоне рыбак ≈ 20 px на stud: подскоки
+	таза 0,2–0,55 stud, рывки рук 15–25°, качания вбок; удочка в руке ПРАВЕЕ поплавка — из-за
+	спины видны вся удочка, её изгиб и леска. Фазы (mode):
 	  Ready   — взял удочку: поднял, глянул на кончик, опустил (Hold);
 	  Hold    — удочка в руке между забросами: лёгкое покачивание ещё FisherPoses.Timing.Linger с,
 	            потом слой отпускается (обычная анимация);
-	  Cast    — замах (свой — сразу по нажатию: Cue("castPress"); чужой — когда пришло
-	            "Waiting"), «взведён» с дрожью, бросок ровно к CastTime (сервер ставит CastTime
-	            на FishingConfig.CastWindUp позже заброса — поплавок срывается с кончика как раз
-	            в миг броска, у всех клиентов), проводка и успокоение → Wait;
+	  Cast    — замах «сбоку на три четверти» (удочка вверх-вправо, корпус довёрнут; свой — сразу
+	            по нажатию: Cue("castPress"); чужой — когда пришло "Waiting"), «взведён» с дрожью,
+	            бросок ровно к CastTime (сервер ставит CastTime на FishingConfig.CastWindUp позже
+	            заброса — поплавок срывается с кончика как раз в миг броска, у всех клиентов),
+	            проводка держится, пока поплавок летит (до приводнения), успокоение → Wait;
 	  Wait    — ждём: покачивание, дыхание, взгляд на поплавок; «примерка» рыбы и нырки
-	            поплавка (FishingFxController.GetBobberDip) дёргают кончик удочки;
-	  Bite    — вздрогнул, подался вперёд, дрожит, кончик дёргается с поплавком;
-	  Strike  — подсечка (свой — по нажатию, Cue("hookPress"); чужой — Bite → Reeling) → Reel;
-	  Reel    — борьба: упор ногами, левая рука крутит катушку, корпус и удочку мотает в такт
-	            метаниям поплавка (FishingFxController: тот же ReelSpeed и фаза), дрожь
-	            натяжения; своя — сильнее у редкой рыбы, попадание в мини-игре ("Zone") —
-	            рывок удочкой;
-	  Caught  — FishFx caught: рывок, взгляд вверх за прыжком рыбы, к концу прыжка обе руки
-	            вверх, рыба приземлилась (HeldFish) — подскок и «качание» руками (легендарная /
-	            мифическая — ещё прыжок и больше качаний) → Trophy;
+	            поплавка (FishingFxController.GetBobberDip) дёргают кончик удочки; раз в
+	            FisherPoses.Timing.Fidget с — «живое» движение (переступил, дёрнул удочкой,
+	            огляделся, притопнул);
+	  Bite    — вздрогнул (подскок, плечи вверх), присел и завалился к удочке, дрожит, кончик и
+	            сам рыбак дёргаются с поплавком;
+	  Strike  — подсечка с подскоком (свой — по нажатию, Cue("hookPress"); чужой — Bite →
+	            Reeling) → Reel;
+	  Reel    — борьба: глубоко присел и откинулся, левая рука крутит катушку, удочку ведёт за
+	            метаниями поплавка (FishingFxController: тот же ReelSpeed и фаза), рыбака
+	            дёргает вбок, удочка хлещет вбок (FisherRod), дрожь натяжения; своя — сильнее
+	            у редкой рыбы; попадание в мини-игре — рывок удочкой сразу по нажатию
+	            (FishingController: Cue("tapHit"), победное — "tapWin"; "Zone" сервера — только
+	            если рывка по нажатию не было), нажал мимо — удочка клюнула ("tapMiss");
+	  Caught  — FishFx caught: рывок (эпическая и выше — с подскоком), взгляд вверх за прыжком
+	            рыбы, к концу прыжка обе руки вверх, рыба приземлилась (HeldFish) — присел под
+	            её весом, подпрыгнул, «качание» руками (легендарная / мифическая — ещё оборот на
+	            месте с рыбой и больше качаний) → Trophy;
 	  Trophy  — пока HeldFish над головой: держит её обеими руками (удочка смотрит вперёд над
-	            водой), дышит; повтор трофея своего игрока (FishingFxController.TrophyReplayed) —
-	            ещё «качание»; рыба исчезла — руки вниз → Hold;
-	  Lost    — FishFx lost: поник, качает головой, выпрямился → Hold;
+	            водой), дышит, колени пружинят; раз в Timing.Trophy.ShowEvery с «показ» — рывок
+	            руками вместе со шлепком рыбы (FishingFxController.KickHeldFish) и поворот с ней
+	            влево-вправо; повтор трофея своего игрока (FishingFxController.TrophyReplayed) —
+	            настоящий праздник (присел, два прыжка, три качания, поворот); рыба исчезла —
+	            руки вниз → Hold;
+	  Lost    — FishFx lost: поник (плечи и голова вниз, присел, удочка вправо-вниз, левая рука
+	            повисла), топнул, качает головой, выпрямился → Hold;
 	  Retract — "Idle" без улова / потери: крутит катушку, сматывая леску → Hold.
 	Активная рыбалка важнее трофея: забросил с рыбой над головой — руки ловят, а после
 	"Idle" (рыба ещё над головой) снова держат её.
@@ -62,14 +76,19 @@
 	Бюджет: одно соединение PreSimulation на всех, только пока кого-то анимируем (рыбачит,
 	держит рыбу, доигрывает короткое движение) и он не дальше RANGE studs от своего персонажа
 	(без персонажа — от камеры); остальные отпущены. Дальний рыбак проверяется таймером раз
-	в POLL секунд, только пока такой есть. Ни одного Instance в кадре; ≈15 записей Transform
-	и ≤14 C0 удочки на рыбака. Подписки на игрока / персонажа убираются вместе с ним.
+	в POLL секунд, только пока такой есть; его слои и импульсы не копятся (у неанимируемого
+	список слоёв — одна текущая фаза, импульсов нет). Ни одного Instance в кадре; ≈15 записей
+	Transform и ≤14 C0 удочки на рыбака (удочка дальше ROD_NEAR studs не гнётся, неизменный
+	изгиб не переписывается). Торс, голова и BobberTarget — из кэша, поплавок ищется раз за кадр.
+	Подписки на игрока / персонажа убираются вместе с ним.
 
 	API (для FishingController, будущих эффектов и тестов):
 	  FisherAnimController.Cue(name: string) -> ()
 	      -- свои предсказанные события (без ожидания сервера): "castPress" — нажал «Забросить»
 	      -- (замах сразу; нет ответа CastTimeout с — опускает), "hookPress" — нажал «Подсечь»,
-	      -- "castCancel" — заброс не принят, "tapHit" — попал в мини-игре.
+	      -- "castCancel" — заброс не принят, "tapHit" — попал в мини-игре (предсказание
+	      -- FishingController; "Zone" сервера на него уже не дёргает), "tapWin" — победное
+	      -- нажатие (рывок сильнее), "tapMiss" — нажал мимо зоны.
 	  FisherAnimController.PhaseChanged -- Signal: (player: Player, phase: string) — фаза
 	      -- движения рыбака сменилась (имена — список выше; ещё "Release" — миг броска, поплавок
 	      -- срывается с кончика; "Landed" — пойманная рыба приземлилась над головой; "None" —
@@ -78,6 +97,7 @@
 	  FisherAnimController.IsAnimating(player) -> boolean       -- слой сейчас пишет суставы
 	  FisherAnimController.GetRodBend(player) -> number         -- изгиб удочки у кончика, рад
 	  FisherAnimController.GetRodTip(player) -> Attachment?     -- кончик удочки в руке
+	  FisherAnimController.GetDebug(player) -> { layers, pulses, fidgets }? -- для тестов
 	  FisherAnimController.Enabled: boolean                     -- выключатель (true)
 ]]
 
@@ -117,6 +137,10 @@ local RETRACT_CRANK_HZ = 4
 local INTENSITY: { [string]: number } = { Common = 1, Rare = 1.1, Epic = 1.25, Legendary = 1.4, Mythic = 1.6 }
 local OTHER_INTENSITY = 1.2
 local RARE_CATCH: { [string]: boolean } = { Legendary = true, Mythic = true }
+local BIG_CATCH: { [string]: boolean } = { Epic = true, Legendary = true, Mythic = true }
+local EPIC_INTENSITY = INTENSITY.Epic -- своя рыба не слабее: удочка гнётся сильнее (FisherRod)
+local EPIC_BEND = 0.8 -- рад, предел изгиба тогда (обычный — FisherRod MAX_BEND)
+local ROD_NEAR = 60 -- дальше удочку не гнём (изгиб — пара пикселей), studs
 local DEG = math.pi / 180
 
 local T = FisherPoses.Timing
@@ -178,6 +202,15 @@ type Fisher = {
 	lookW: number,
 	lookTarget: Vector3?, -- куда смотрел (взгляд гаснет к ней плавно)
 	loadPulseUntil: number,
+	water: Vector3?, -- атрибут BobberTarget (кэш: читается в AttributeChanged, не каждый кадр)
+	torsoPart: BasePart?, -- UpperTorso / Torso и Head (кэш, проверяется по Parent)
+	headPart: BasePart?,
+	tapAt: number, -- os.clock() последнего рывка удочкой в мини-игре (предсказанного или "Zone")
+	nextFidget: number, -- ожидание: когда следующее «живое» движение
+	fidgetAt: number,
+	fidgetKind: number, -- 0 — нет; 1 переступил, 2 дёрнул удочкой, 3 огляделся, 4 притопнул
+	fidgets: number,
+	nextShow: number, -- трофей: когда следующий «показ» рыбы
 }
 
 local FisherAnimController = {
@@ -319,8 +352,8 @@ local function addRot(add: Add, channel: string, x: number, y: number, z: number
 	add[channel] = rot(x, y, z) * (add[channel] or IDENTITY)
 end
 
-local function addMove(add: Add, channel: string, dy: number, dz: number)
-	add[channel] = CFrame.new(0, dy, dz) * (add[channel] or IDENTITY)
+local function addMove(add: Add, channel: string, dx: number, dy: number, dz: number)
+	add[channel] = CFrame.new(dx, dy, dz) * (add[channel] or IDENTITY)
 end
 
 local function wave(now: number, hz: number, phase: number?): number
@@ -360,6 +393,28 @@ local function intensity(f: Fisher): number
 	return INTENSITY[f.rarity or "Common"] or 1
 end
 
+-- Импульс — короткая добавка поверх (PULSE[kind], amount — масштаб); только у тех, кого сейчас
+-- анимируем: у дальних (не active) список не растёт — их некому разбирать покадрово.
+local function pulse(f: Fisher, kind: string, duration: number, amount: number?, delay: number?)
+	if not f.active then
+		return
+	end
+	table.insert(f.pulses, { at = os.clock() + (delay or 0), duration = duration, kind = kind, amount = amount or 1 })
+end
+
+-- Число 0..1 по зерну рыбака и номеру (паузы между «живыми» движениями — у каждого свои).
+local function hash(seed: number, n: number): number
+	local x = math.sin(seed * 12.9898 + n * 78.233) * 43758.5453
+	return x - math.floor(x)
+end
+
+-- Рыба над головой шлёпает хвостом вместе с рывком рук (FishingFxController.KickHeldFish).
+local function kickFish(f: Fisher, power: number)
+	if fx and type(fx.KickHeldFish) == "function" then
+		pcall(fx.KickHeldFish, f.player, power)
+	end
+end
+
 -- Добавочное движение фазы (k — вес слоя 0..1).
 local LAYER: { [string]: (f: Fisher, now: number, add: Add, k: number) -> () } = {}
 
@@ -369,26 +424,73 @@ LAYER.Hold = function(f: Fisher, now: number, add: Add, k: number)
 end
 LAYER.Ready = LAYER.Hold
 
-LAYER.Wait = function(f: Fisher, now: number, add: Add, k: number)
-	local dip = dipOf(f)
-	addRot(add, "RShoulder", k * (2 * wave(now, 0.45, f.seed) - 10 * dip), 0, 0)
-	addRot(add, "RWrist", -14 * dip * k, 0, 0)
-	addRot(add, "Waist", k * wave(now, 0.25, f.seed), 0, 1.5 * k * wave(now, 0.3, f.seed))
+-- Ожидание: раз в FisherPoses.Timing.Fidget с одно «живое» движение (по кругу, с разной паузой):
+-- 1 — переступил (таз вбок), 2 — дёрнул удочкой, 3 — огляделся, 4 — притопнул. Не во время
+-- «примерки» (поплавок притоплен).
+local FIDGET_TIME = { 1.2, 0.35, 1, 0.7 }
+local function fidget(f: Fisher, now: number, add: Add, k: number, dip: number)
+	if k > 0.5 and now >= f.nextFidget then
+		if dip < 0.2 then
+			f.fidgets += 1
+			f.fidgetKind = 1 + (f.fidgets + math.floor(f.seed * 7)) % 4
+			f.fidgetAt = now
+		end
+		local range = T.Fidget
+		f.nextFidget = now + range.Min + (range.Max - range.Min) * hash(f.seed, f.fidgets)
+	end
+	local kind = f.fidgetKind
+	if kind == 0 then
+		return
+	end
+	local u = (now - f.fidgetAt) / FIDGET_TIME[kind]
+	if u >= 1 then
+		f.fidgetKind = 0
+		return
+	end
+	local side = if f.fidgets % 2 == 0 then 1 else -1
+	local e = k * math.sin(math.pi * u)
+	if kind == 1 then
+		local shift = k * (1 - math.cos(2 * math.pi * u)) / 2
+		addMove(add, "Root", 0.15 * side * shift, 0, 0)
+		addRot(add, "Root", 0, 0, -4 * side * shift)
+		addRot(add, "Waist", 0, 0, 6 * side * shift)
+	elseif kind == 2 then
+		addRot(add, "RWrist", 12 * e, 0, 0)
+		addRot(add, "RShoulder", 5 * e, 0, 0)
+	elseif kind == 3 then
+		local g = k * smoothstep(0, 0.25, u) * (1 - smoothstep(0.7, 1, u))
+		addRot(add, "Neck", 4 * g, 30 * side * g, 0)
+		addRot(add, "Waist", 0, 8 * side * g, 0)
+	else
+		local tap = k * math.max(0, math.sin(2 * math.pi * 2 * u))
+		addRot(add, "RHip", 14 * tap, 0, 0)
+		addRot(add, "RKnee", -24 * tap, 0, 0)
+	end
 end
 
+LAYER.Wait = function(f: Fisher, now: number, add: Add, k: number)
+	local dip = dipOf(f)
+	addRot(add, "RShoulder", k * (2 * wave(now, 0.45, f.seed) - 14 * dip), 0, 0)
+	addRot(add, "RWrist", -18 * dip * k, 0, 0)
+	addRot(add, "Waist", k * wave(now, 0.25, f.seed), 0, 1.5 * k * wave(now, 0.3, f.seed))
+	fidget(f, now, add, k, dip)
+end
+
+-- Клюёт: дрожит, кончик удочки и весь рыбак дёргаются вниз с каждым нырком поплавка.
 LAYER.Bite = function(f: Fisher, now: number, add: Add, k: number)
 	local dip = dipOf(f)
-	addRot(add, "RShoulder", k * (wave(now, 11, f.seed) - 10 * dip), 0, 0)
-	addRot(add, "RWrist", k * (wave(now, 11, f.seed + 1) - 14 * dip), 0, 0)
-	addRot(add, "Waist", -3 * dip * k, 0, 0)
+	addRot(add, "RShoulder", k * (1.5 * wave(now, 11, f.seed) - 16 * dip), 0, 0)
+	addRot(add, "RWrist", k * (1.5 * wave(now, 11, f.seed + 1) - 18 * dip), 0, 0)
+	addRot(add, "Waist", -5 * dip * k, 0, -4 * dip * k)
+	addMove(add, "Root", 0, -0.12 * dip * k, 0)
 end
 
 LAYER.Cast = function(f: Fisher, now: number, add: Add, k: number)
 	-- «взведён»: дрожь, пока ждём CastTime
 	local windAt, releaseAt = f.windAt, f.releaseAt
 	if windAt and now >= windAt and (releaseAt == nil or now < releaseAt - T.Swing) then
-		addRot(add, "RShoulder", 1.5 * k * wave(now, 9, f.seed), 0, 0)
-		addRot(add, "Waist", 0.6 * k * wave(now, 0.9, f.seed), 0, 0)
+		addRot(add, "RShoulder", 2.5 * k * wave(now, 9, f.seed), 0, 0)
+		addRot(add, "Waist", 0.8 * k * wave(now, 0.9, f.seed), 0, 0)
 	end
 end
 
@@ -396,16 +498,17 @@ LAYER.Reel = function(f: Fisher, now: number, add: Add, k: number)
 	local s = intensity(f) * k
 	local t = now + f.seed
 	-- левая рука крутит катушку (плечо и локоть со сдвигом фаз 90°)
-	addRot(add, "LShoulder", 12 * s * wave(now, CRANK_HZ), 0, 0)
-	addRot(add, "LElbow", 22 * s * wave(now, CRANK_HZ, math.pi / 2), 0, 0)
-	-- рыба мотает поплавок (FishingFxController: sin(t·ReelSpeed)): удочку тянет за ним,
-	-- корпус откидывается против рывка
+	addRot(add, "LShoulder", 14 * s * wave(now, CRANK_HZ), 0, 0)
+	addRot(add, "LElbow", 26 * s * wave(now, CRANK_HZ, math.pi / 2), 0, 0)
+	-- рыба мотает поплавок (FishingFxController: влево на sin(t·ReelSpeed)): удочку ведёт за ним,
+	-- рыбака дёргает к рыбе (таз вбок), корпус откидывается против рывка
 	local pull = math.sin(t * REEL_SPEED)
-	addRot(add, "RShoulder", 0, -8 * s * pull, 0)
-	addRot(add, "Waist", 0, 3 * s * pull, -4 * s * pull)
+	addRot(add, "RShoulder", 0, 18 * s * pull, 0)
+	addRot(add, "Waist", 0, 6 * s * pull, -8 * s * pull)
+	addMove(add, "Root", -0.22 * s * pull, 0, 0)
 	-- дрожь натяжения
-	addRot(add, "RWrist", 1.2 * s * wave(now, 13, f.seed), 0, 0)
-	addRot(add, "RElbow", 1.2 * s * wave(now, 13, f.seed + 2), 0, 0)
+	addRot(add, "RWrist", 1.5 * s * wave(now, 13, f.seed), 0, 0)
+	addRot(add, "RElbow", 1.5 * s * wave(now, 13, f.seed + 2), 0, 0)
 end
 LAYER.Strike = function(f: Fisher, now: number, add: Add, k: number)
 	LAYER.Reel(f, now, add, k * smoothstep(0.15, 0.45, now - f.modeSince))
@@ -414,8 +517,8 @@ end
 LAYER.Retract = function(f: Fisher, now: number, add: Add, k: number)
 	local u = now - f.modeSince
 	local e = k * (1 - smoothstep(T.Retract.Crank - 0.1, T.Retract.Crank + 0.1, u))
-	addRot(add, "LShoulder", 10 * e * wave(now, RETRACT_CRANK_HZ), 0, 0)
-	addRot(add, "LElbow", 20 * e * wave(now, RETRACT_CRANK_HZ, math.pi / 2), 0, 0)
+	addRot(add, "LShoulder", 12 * e * wave(now, RETRACT_CRANK_HZ), 0, 0)
+	addRot(add, "LElbow", 24 * e * wave(now, RETRACT_CRANK_HZ, math.pi / 2), 0, 0)
 end
 
 LAYER.Caught = function(f: Fisher, now: number, add: Add, k: number)
@@ -426,70 +529,117 @@ LAYER.Caught = function(f: Fisher, now: number, add: Add, k: number)
 	addRot(add, "Neck", 25 * up * k, 0, 0)
 end
 
+-- Рыба над головой: дышит, колени пружинят; раз в Trophy.ShowEvery с «показ» — рывок руками
+-- вместе со шлепком рыбы (FishLife.kick) и поворот корпуса с рыбой влево-вправо.
 LAYER.Trophy = function(f: Fisher, now: number, add: Add, k: number)
 	local breath = wave(now, 0.8, f.seed)
-	addRot(add, "RShoulder", 3 * k * breath, 0, 0)
-	addRot(add, "LShoulder", 3 * k * breath, 0, 0)
+	addRot(add, "RShoulder", 5 * k * breath, 0, 0)
+	addRot(add, "LShoulder", 5 * k * breath, 0, 0)
 	addRot(add, "Neck", 2 * k * wave(now, 0.8, f.seed + 1.2), 0, 0)
+	addMove(add, "Root", 0, -0.08 * k * (1 - math.cos(2 * math.pi * 1.2 * (now + f.seed))) / 2, 0)
+	if k > 0.5 and now >= f.nextShow then
+		f.nextShow = now + T.Trophy.ShowEvery
+		pulse(f, "pump", 0.45, 1)
+		pulse(f, "sweep", T.Trophy.ShowSweep, 1)
+		kickFish(f, 0.8)
+	end
 end
 
+-- Сорвалась: левая рука повисла и качнулась, голова качается «эх!».
 LAYER.Lost = function(f: Fisher, now: number, add: Add, k: number)
 	local u = now - f.modeSince
 	local from, to = T.Lost.ShakeFrom, T.Lost.ShakeTo
 	if u > from and u < to then
-		local e = envelope((u - from) / (to - from), 0.2)
-		addRot(add, "Neck", 0, 14 * e * k * math.sin(2 * math.pi * 2.8 * (u - from)), 0)
+		local e = envelope((u - from) / (to - from), 0.15)
+		addRot(add, "Neck", 0, 20 * e * k * math.sin(2 * math.pi * 2.5 * (u - from)), 0)
+	end
+	if u > 0.1 and u < 1.1 then
+		local v = u - 0.1
+		addRot(add, "LShoulder", 14 * k * math.exp(-4 * v) * math.sin(2 * math.pi * 1.6 * v), 0, 0)
 	end
 end
 
--- Импульсы — короткие добавки поверх (amount — масштаб).
+-- Импульсы (u — доля 0..1, amount — масштаб).
 local PULSE: { [string]: (u: number, add: Add, amount: number, f: Fisher) -> () } = {
-	-- поклёвка: вздрогнул
+	-- поклёвка: вздрогнул — подскок, плечи вверх, удочка рывком вверх
 	startle = function(u: number, add: Add, amount: number)
 		local e = envelope(u, 0.2) * amount
-		addRot(add, "Waist", 6 * e, 0, 0)
-		addRot(add, "RShoulder", 10 * e, 0, 0)
-		addMove(add, "Root", 0.06 * e, 0)
+		addRot(add, "Waist", 16 * e, 0, 0)
+		addRot(add, "RShoulder", 22 * e, 0, 12 * e)
+		addRot(add, "LShoulder", 0, 0, -12 * e)
+		addMove(add, "Root", 0, 0.2 * e, 0)
 	end,
-	-- легендарная / мифическая: подпрыгнул
+	-- подсечка: рывок с подскоком
+	yank = function(u: number, add: Add, amount: number)
+		local e = math.sin(math.pi * u) * amount
+		addMove(add, "Root", 0, 0.35 * e, 0)
+		addRot(add, "Waist", 8 * e, 0, 0)
+	end,
+	-- эпическая и выше: подпрыгнул, когда рыба выскочила
 	hop = function(u: number, add: Add, amount: number)
 		local e = math.sin(math.pi * u) * amount
-		addMove(add, "Root", 0.1 * e, 0)
+		addMove(add, "Root", 0, 0.45 * e, 0)
 		addRot(add, "RShoulder", 10 * e, 0, 0)
 	end,
-	-- рыба приземлилась над головой: присел и пружинит
+	-- рыба приземлилась над головой: присел под её весом и подпрыгнул от радости (amount —
+	-- доля полного прыжка), приземлился
 	bounce = function(u: number, add: Add, amount: number)
-		-- присел под весом рыбы (−0.12) и подпрыгнул от радости (+0.2), приземлился
+		local up = 0.55 * amount
 		local y = if u < 0.3
-			then -0.12 * math.sin(u / 0.3 * math.pi / 2)
-			elseif u < 0.65 then -0.12 + 0.32 * math.sin((u - 0.3) / 0.35 * math.pi / 2)
-			else 0.2 * math.cos((u - 0.65) / 0.35 * math.pi / 2)
-		addMove(add, "Root", y * amount, 0)
+			then -0.25 * math.sin(u / 0.3 * math.pi / 2)
+			elseif u < 0.65 then -0.25 + (0.25 + up) * math.sin((u - 0.3) / 0.35 * math.pi / 2)
+			else up * math.cos((u - 0.65) / 0.35 * math.pi / 2)
+		addMove(add, "Root", 0, y, 0)
 	end,
-	-- «качание» трофеем: руки вверх-вниз (amount — сколько качаний)
+	-- легендарная / мифическая: оборот на месте с рыбой над головой
+	spin = function(u: number, add: Add, amount: number)
+		addRot(add, "Root", 0, 360 * amount * u * u * (3 - 2 * u), 0)
+	end,
+	-- «качание» трофеем: руки вверх-вниз и чуть в стороны, рыбак пружинит (amount — сколько качаний)
 	pump = function(u: number, add: Add, amount: number)
-		local swing = 8 * math.sin(2 * math.pi * amount * u) * (1 - u)
-		addRot(add, "RShoulder", swing, 0, 0)
-		addRot(add, "LShoulder", swing, 0, 0)
+		local swing = math.sin(2 * math.pi * amount * u) * (1 - u)
+		addRot(add, "RShoulder", 16 * swing, 0, 8 * swing)
+		addRot(add, "LShoulder", 16 * swing, 0, -8 * swing)
+		addMove(add, "Root", 0, -0.12 * math.abs(swing), 0)
 	end,
-	-- попал в мини-игре: рывок удочкой
+	-- поворот корпуса с рыбой влево-вправо (показать трофей)
+	sweep = function(u: number, add: Add, amount: number)
+		addRot(add, "Waist", 0, 15 * amount * math.sin(2 * math.pi * u), 0)
+	end,
+	-- попал в мини-игре: рывок удочкой (amount 1.6 — победное нажатие)
 	tap = function(u: number, add: Add, amount: number)
 		local e = math.sin(math.pi * u) * amount
-		addRot(add, "RShoulder", 12 * e, 0, 0)
-		addRot(add, "Waist", 4 * e, 0, 0)
+		addRot(add, "RShoulder", 22 * e, 0, 0)
+		addRot(add, "Waist", 6 * e, 0, -4 * e)
+		addMove(add, "Root", 0, 0.08 * e, 0)
+	end,
+	-- нажал мимо зоны: удочка клюнула вниз, корпус качнулся
+	fumble = function(u: number, add: Add, amount: number)
+		local e = math.sin(math.pi * u) * amount
+		addRot(add, "RShoulder", -10 * e, 0, 0)
+		addRot(add, "Waist", 0, 0, 6 * e)
+		addRot(add, "Neck", 0, 0, -6 * e)
+	end,
+	-- сорвалась: топнул с досады (нога вверх, удар, тело вздрогнуло)
+	stomp = function(u: number, add: Add, amount: number)
+		local lift = if u < 0.5
+			then math.sin(u / 0.5 * math.pi / 2)
+			elseif u < 0.62 then math.cos((u - 0.5) / 0.12 * math.pi / 2)
+			else 0
+		addRot(add, "RHip", 35 * lift * amount, 0, 0)
+		addRot(add, "RKnee", -60 * lift * amount, 0, 0)
+		if u >= 0.62 then
+			addMove(add, "Root", 0, -0.1 * amount * math.sin((u - 0.62) / 0.38 * math.pi), 0)
+		end
 	end,
 	-- заброс не принят: пожал плечами
 	shrug = function(u: number, add: Add, amount: number)
 		local e = math.sin(math.pi * u) * amount
-		addRot(add, "RShoulder", 0, 0, 8 * e)
-		addRot(add, "LShoulder", 0, 0, -8 * e)
-		addRot(add, "Neck", -6 * e, 0, 4 * e)
+		addRot(add, "RShoulder", 0, 0, 14 * e)
+		addRot(add, "LShoulder", 0, 0, -14 * e)
+		addRot(add, "Neck", -6 * e, 0, 6 * e)
 	end,
 }
-
-local function pulse(f: Fisher, kind: string, duration: number, amount: number?, delay: number?)
-	table.insert(f.pulses, { at = os.clock() + (delay or 0), duration = duration, kind = kind, amount = amount or 1 })
-end
 
 --------------------------------------------------------------------------------
 -- Фазы
@@ -503,13 +653,23 @@ end
 
 local function setMode(f: Fisher, mode: string, now: number)
 	if f.mode ~= mode then
-		for _, layer in f.layers do
-			layer.target = 0
+		if f.active then
+			for _, layer in f.layers do
+				layer.target = 0 -- гаснут плавно (stepFisher их и уберёт)
+			end
+		else
+			table.clear(f.layers) -- далеко, не анимируем: гасить некому — список не растёт
 		end
 		if LAYER[mode] then
 			table.insert(f.layers, { mode = mode, w = 0, target = 1 })
 		end
 		f.mode = mode
+		if mode == "Wait" then
+			f.nextFidget = now + T.Fidget.Min
+			f.fidgetKind = 0
+		elseif mode == "Trophy" and f.nextShow < now then
+			f.nextShow = now + 1 -- трофей без приземления (подошёл позже, снова держит после "Idle")
+		end
 		phase(f, mode)
 	end
 	f.modeSince = now
@@ -608,9 +768,19 @@ local function castTrack(f: Fisher, now: number)
 		f.releaseAt = release
 		table.insert(keys, key(release, POSES.Release, inCubic))
 		table.insert(keys, key(release + T.Follow, POSES.Throw, outQuad))
-		table.insert(keys, key(release + T.Follow + T.Settle, POSES.Wait, outBack))
+		-- проводка держится за летящим поплавком до приводнения (CastTime + CastFlightTime)
+		local castTime = f.player:GetAttribute("CastTime")
+		local landing = release + FishingConfig.CastFlightTime
+		if typeof(castTime) == "number" and castTime == castTime then
+			local serverLanding = now + castTime + FishingConfig.CastFlightTime - Workspace:GetServerTimeNow()
+			landing = math.clamp(serverLanding, release + T.Follow, landing)
+		end
+		if landing > release + T.Follow + 1e-3 then
+			table.insert(keys, key(landing, POSES.Throw))
+		end
+		table.insert(keys, key(landing + T.Settle, POSES.Wait, inOutSine))
 		play(f, "Cast", now, keys)
-		after(f, release + T.Follow + T.Settle, "Wait")
+		after(f, landing + T.Settle, "Wait")
 	else
 		play(f, "Cast", now, keys)
 	end
@@ -642,6 +812,7 @@ local function startStrike(f: Fisher, now: number)
 	})
 	after(f, now + s.Up + s.Hold + s.Down, "Reel")
 	f.loadPulseUntil = now + s.Up + s.Hold
+	pulse(f, "yank", s.Up + s.Hold + 0.15)
 end
 
 local function startReel(f: Fisher, now: number)
@@ -669,19 +840,27 @@ local function startCaught(f: Fisher, now: number, rarity: string)
 		key(now + math.max(c.Yank, leap - c.Raise), POSES.Yank),
 		key(now + math.max(c.Yank, leap - c.Raise) + c.Raise, trophyPose(f), outBack),
 	})
-	if RARE_CATCH[rarity] then
-		pulse(f, "hop", 0.3, 1, 0.05)
+	if BIG_CATCH[rarity] then
+		pulse(f, "hop", 0.35, 1, 0.05)
 	end
 end
 
+-- Рыба приземлилась над головой: присел под её весом и подпрыгнул (обычная — пониже), качает
+-- её руками; легендарная / мифическая — ещё оборот на месте с рыбой. Дальше — «показы» рыбы
+-- (LAYER.Trophy) через Trophy.FirstShow.
 local function land(f: Fisher, now: number)
 	if f.landed then
 		return
 	end
 	f.landed = true
-	pulse(f, "bounce", T.Caught.Bounce)
-	local pumps = if RARE_CATCH[f.rarity or ""] then 3 else 2
+	local rarity = f.rarity or "Common"
+	pulse(f, "bounce", T.Caught.Bounce, if rarity == "Common" then 0.65 else 1)
+	local pumps = if RARE_CATCH[rarity] then 3 else 2
 	pulse(f, "pump", pumps / 2.5, pumps)
+	if RARE_CATCH[rarity] then
+		pulse(f, "spin", T.Caught.Spin, 1, 0.12)
+	end
+	f.nextShow = now + T.Trophy.FirstShow
 	phase(f, "Landed")
 	if f.heldFish then
 		setMode(f, "Trophy", now) -- дорожка уже кончается позой трофея
@@ -696,6 +875,18 @@ local function startLost(f: Fisher, now: number)
 		key(now + l.Hold + l.Recover, restPose(f), inOutSine),
 	})
 	after(f, now + l.Hold + l.Recover, "Rest")
+	pulse(f, "stomp", 0.45, 1, 0.1)
+end
+
+-- Повтор своего трофея после карточки (FishingFxController.TrophyReplayed) — настоящий
+-- праздник (≈ Celebrate с): присел и подпрыгнул, ещё прыжок, три качания и поворот с рыбой.
+local function celebrate(f: Fisher, now: number)
+	local d = T.Celebrate
+	pulse(f, "bounce", T.Caught.Bounce, 1)
+	pulse(f, "hop", 0.35, 1, T.Caught.Bounce + 0.05)
+	pulse(f, "pump", d, 3)
+	pulse(f, "sweep", d, 1)
+	f.nextShow = now + d + T.Trophy.ShowEvery
 end
 
 local function cancelCast(f: Fisher, now: number)
@@ -909,6 +1100,12 @@ local function deactivate(f: Fisher)
 	f.master = 0
 	table.clear(f.last.cf)
 	table.clear(f.last.w)
+	-- импульсы и погасшие слои больше некому доигрывать: остаётся слой текущей фазы
+	table.clear(f.pulses)
+	table.clear(f.layers)
+	if LAYER[f.mode] then
+		table.insert(f.layers, { mode = f.mode, w = 0, target = 1 })
+	end
 	active[f] = nil
 	if engaged(f) then
 		startPolling() -- ушёл далеко, а рыбалка идёт: вернётся — подхватим
@@ -1021,8 +1218,21 @@ local function bobberPoint(f: Fisher): Vector3?
 			return model:GetPivot().Position
 		end
 	end
-	local target = f.player:GetAttribute("BobberTarget")
-	return if typeof(target) == "Vector3" then target else nil
+	return f.water
+end
+
+-- Торс и голова персонажа (кэш; заменили — ищем снова).
+local function bodyParts(f: Fisher, rig: FisherRig.Rig): (BasePart?, BasePart?)
+	local character = f.character
+	local torso, head = f.torsoPart, f.headPart
+	if character and (not torso or torso.Parent ~= character or not head or head.Parent ~= character) then
+		local t = character:FindFirstChild(if rig.rigType == "R15" then "UpperTorso" else "Torso")
+		local h = character:FindFirstChild("Head")
+		torso = if t and t:IsA("BasePart") then t else nil
+		head = if h and h:IsA("BasePart") then h else nil
+		f.torsoPart, f.headPart = torso, head
+	end
+	return torso, head
 end
 
 -- Скорость персонажа по сдвигу HumanoidRootPart (MoveDirection чужих не реплицируется).
@@ -1052,7 +1262,7 @@ local function rodLoad(f: Fisher, now: number): number
 	elseif mode == "Strike" then
 		load = if now < f.loadPulseUntil then 34 else 28
 	elseif mode == "Reel" then
-		load = (26 + 9 * math.abs(math.sin((now + f.seed) * REEL_SPEED))) * math.sqrt(intensity(f))
+		load = (28 + 12 * math.abs(math.sin((now + f.seed) * REEL_SPEED))) * math.sqrt(intensity(f))
 		if now < f.loadPulseUntil then
 			load -= 10
 		end
@@ -1147,9 +1357,10 @@ local function stepFisher(f: Fisher, now: number, dt: number)
 	end
 
 	-- к поплавку: корпус (пополам таз и талия) — к точке на воде (BobberTarget: летящий над
-	-- головой поплавок с рыбой не крутит корпус), взгляд — на сам поплавок
-	local water = f.player:GetAttribute("BobberTarget")
-	local facing = if FISHING[f.mode] and typeof(water) == "Vector3" then water else nil
+	-- головой поплавок с рыбой не крутит корпус), взгляд — на сам поплавок (он же — куда тянет
+	-- леска удочку: один раз за кадр)
+	local water = f.water
+	local facing = if FISHING[f.mode] then water else nil
 	local target = if LOOK[f.mode] then bobberPoint(f) else nil
 	local rootCFrame = root.CFrame
 	local yawTarget = if facing then math.clamp(flatYaw(rootCFrame, facing), -YAW_LIMIT, YAW_LIMIT) else 0
@@ -1164,10 +1375,8 @@ local function stepFisher(f: Fisher, now: number, dt: number)
 	end
 	local lookTarget = f.lookTarget -- (взгляд гаснет плавно — к последней точке)
 	if f.lookW > 0.01 and lookTarget then
-		local character = f.character :: Model
-		local torso = character:FindFirstChild(if rig.rigType == "R15" then "UpperTorso" else "Torso")
-		local head = character:FindFirstChild("Head")
-		if torso and torso:IsA("BasePart") and head and head:IsA("BasePart") then
+		local torso, head = bodyParts(f, rig)
+		if torso and head then
 			local v = torso.CFrame:VectorToObjectSpace(lookTarget - head.Position)
 			local flat = math.sqrt(v.X * v.X + v.Z * v.Z)
 			local yaw = math.clamp(math.atan2(-v.X, -v.Z) / DEG, -LOOK_YAW, LOOK_YAW)
@@ -1230,7 +1439,17 @@ local function stepFisher(f: Fisher, now: number, dt: number)
 	end
 	local rod = f.rod
 	if rod then
-		FisherRod.step(rod, dt, rodLoad(f, now) * f.master, bobberPoint(f))
+		local viewer = viewerPosition()
+		if viewer and (viewer - root.Position).Magnitude > ROD_NEAR then
+			FisherRod.restore(rod) -- далеко: прямая, без записей (изгиб — пара пикселей)
+		else
+			local load = rodLoad(f, now) * f.master
+			-- в борьбе удочку ещё и хлещет вбок вслед за рывками рыбы (поплавок — влево на sin)
+			local side = if f.mode == "Reel"
+				then root.CFrame.RightVector * (-0.4 * load * math.sin((now + f.seed) * REEL_SPEED))
+				else nil
+			FisherRod.step(rod, dt, load, target, side, if intensity(f) >= EPIC_INTENSITY then EPIC_BEND else nil)
+		end
 	end
 end
 
@@ -1272,6 +1491,8 @@ local function bindCharacter(f: Fisher, character: Model?)
 	f.heldFish = nil
 	f.root = nil
 	f.humanoid = nil
+	f.torsoPart = nil
+	f.headPart = nil
 	f.mode = "None"
 	f.keys = {}
 	f.layers = {}
@@ -1381,7 +1602,21 @@ local function track(player: Player)
 		lookW = 0,
 		lookTarget = nil,
 		loadPulseUntil = 0,
+		water = nil,
+		torsoPart = nil,
+		headPart = nil,
+		tapAt = -math.huge,
+		nextFidget = 0,
+		fidgetAt = 0,
+		fidgetKind = 0,
+		fidgets = 0,
+		nextShow = 0,
 	}
+	local function readWater()
+		local water = player:GetAttribute("BobberTarget")
+		f.water = if typeof(water) == "Vector3" then water else nil
+	end
+	readWater()
 	fishers[player] = f
 	f.trove:Add(function()
 		bindCharacter(f, nil)
@@ -1390,6 +1625,8 @@ local function track(player: Player)
 	f.trove:Connect(player.AttributeChanged, function(name: string)
 		if name == "FishingState" then
 			onStateChanged(f)
+		elseif name == "BobberTarget" then
+			readWater()
 		elseif name == "FishFx" then
 			onFxChanged(f)
 		elseif name == "CastTime" and f.mode == "Cast" and f.state == "Waiting" then
@@ -1446,10 +1683,18 @@ function FisherAnimController.Cue(name: string)
 		end
 	elseif name == "castCancel" then
 		cancelCast(f, now)
-	elseif name == "tapHit" then
+	elseif name == "tapHit" or name == "tapWin" then
+		-- попал (FishingController — сразу по нажатию, ещё до "Zone"): рывок удочкой; победное —
+		-- сильнее, дальше рывок «Поймал» (Yank)
 		if f.mode == "Reel" or f.mode == "Strike" then
-			pulse(f, "tap", 0.2)
+			pulse(f, "tap", 0.22, if name == "tapWin" then 1.6 else 1)
 			f.loadPulseUntil = now + 0.25
+			f.tapAt = now
+		end
+	elseif name == "tapMiss" then
+		-- мимо зоны: удочка клюнула вниз (рыба сорвётся — решит сервер, "Lost")
+		if f.mode == "Reel" then
+			pulse(f, "fumble", 0.25)
 		end
 	end
 end
@@ -1473,6 +1718,16 @@ function FisherAnimController.GetRodBend(player: Player): number
 	return if rod then FisherRod.bend(rod) else 0
 end
 
+-- Для тестов: длины списков слоёв и импульсов рыбака (у дальних не растут) и сколько было
+-- «живых» движений в ожидании.
+function FisherAnimController.GetDebug(player: Player): { layers: number, pulses: number, fidgets: number }?
+	local f = fishers[player]
+	if not f then
+		return nil
+	end
+	return { layers = #f.layers, pulses = #f.pulses, fidgets = f.fidgets }
+end
+
 function FisherAnimController.GetRodTip(player: Player): Attachment?
 	local f = fishers[player]
 	local tool = f and f.tool
@@ -1491,7 +1746,7 @@ function FisherAnimController:Start(_hud: Instance?)
 		fx.TrophyReplayed:Connect(function()
 			local f = fishers[Players.LocalPlayer]
 			if f and f.heldFish and f.active then
-				pulse(f, "pump", 1 / 2.5, 1)
+				celebrate(f, os.clock())
 			end
 		end)
 	end
@@ -1504,8 +1759,8 @@ function FisherAnimController:Start(_hud: Instance?)
 		local now = os.clock()
 		if state == "Minigame" then
 			f.rarity = if type(data) == "table" and typeof(data.Rarity) == "string" then data.Rarity else nil
-		elseif state == "Zone" then
-			FisherAnimController.Cue("tapHit")
+		elseif state == "Zone" and now - f.tapAt > 0.6 then
+			FisherAnimController.Cue("tapHit") -- (не было предсказанного рывка на это попадание)
 		elseif state == "Denied" then
 			cancelCast(f, now)
 		end

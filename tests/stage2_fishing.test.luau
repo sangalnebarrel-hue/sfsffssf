@@ -939,6 +939,14 @@ tests["caught: after LeapTime the fish is held above the head, welded, removed a
 	t.eq(held:GetAttribute("Rarity"), "Common")
 	t.eq(held:GetAttribute("Kg"), fish.Kg)
 	t.eq(held:GetAttribute("Value"), fish.Value)
+	-- Bigger than life (FishingConfig.HeldScale by rarity, never longer than HeldMaxLength).
+	local template = sim:Find("ReplicatedStorage.Assets.Fish.Perch.Gold")
+	local _, templateSize = template:GetBoundingBox()
+	local scale =
+		math.min(FishingConfig.HeldScale.Common, FishingConfig.HeldMaxLength / math.max(templateSize.X, templateSize.Z))
+	t.near(held:GetAttribute("Scale"), scale, 1e-3, "attribute Scale = HeldScale[rarity]")
+	local _, heldSize = held:GetBoundingBox()
+	t.near(heldSize, templateSize * scale, 0.02, "the model is scaled by it")
 	local head = character.Head
 	local body = held.PrimaryPart
 	t.ok(body, "has a PrimaryPart")
