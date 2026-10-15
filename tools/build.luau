@@ -100,8 +100,10 @@ terrain.PhysicsGrid = baked.physicsGrid
 terrain.WaterColor = rgb(36, 156, 186)
 terrain.WaterTransparency = 0.55
 terrain.WaterReflectance = 0.2
-terrain.WaterWaveSize = 0.1
-terrain.WaterWaveSpeed = 8
+-- Slightly livelier waves (v3 ambient): still calm, the bobbers' rings (RingLift 0.3) and the
+-- client's foam rings (0.12 over WaterTop) stay above the crests.
+terrain.WaterWaveSize = 0.15
+terrain.WaterWaveSpeed = 10
 terrain.Decoration = false -- no terrain grass blades (there is no solid terrain anyway)
 -- No realistic volumetric clouds: the sky has chunky voxel clouds (Map.Sky) instead.
 local clouds = terrain:FindFirstChildOfClass("Clouds")

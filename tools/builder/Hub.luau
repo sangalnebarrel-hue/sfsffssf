@@ -2700,7 +2700,8 @@ local function washingLine(F: any, x0: number, x1: number, z: number)
 	for k, col in { C.White, lerpColor(C.Blue, C.Cream, 0.3), C.Cream } do
 		local x = x0 + (x1 - x0) * k / 4
 		local w = if k == 2 then 0.8 else 1.0
-		F:box(`Laundry{k}`, x - w, 2.9 + (k % 2) * 0.5, z - 0.08, x + w, 5.0, z + 0.08, col, DECOR)
+		local item = F:box(`Laundry{k}`, x - w, 2.9 + (k % 2) * 0.5, z - 0.08, x + w, 5.0, z + 0.08, col, DECOR)
+		Kit.sway(item, F:at(x, 5.0, z), 6, "X", 2.6 + 0.3 * k) -- (swings on the line in the breeze)
 	end
 end
 

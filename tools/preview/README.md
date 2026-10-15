@@ -424,6 +424,37 @@ $LUNE run tools/terrain_check/inject.luau tools/base/Place1.base.rbxl \
 $TC /tmp/tt/place.rbxl
 ```
 
+## Living world previews (ambient_dump.luau + ambient_sheet.py)
+
+The client's living world (AmbientController and its helpers: wind and sway, bobbing boats with foam
+rings, glints, jumping fish, schools, gulls, butterflies, dragonflies, clouds, chase lights, waterfall
+flow) over time, as ONE client sees it. `ambient_dump.luau` runs the built place in RbxSim with a
+player, puts the client's camera at named views, lets the real controllers run and dumps every
+`--step` seconds the parts in view with the client-local CFrames / transparency (frame entries
+replace the scene's by `id`). Particles, SurfaceGui rings and Beams get stand-ins (glints = small
+bright balls, splash droplets, ring and foam outlines as segments, waterfall streaks sliding down
+with the beam texture). It also prints the engine's numbers per view (parts moved + properties
+written per frame, peak vs budget, items updated / culled, tier sizes, by kind).
+`ambient_sheet.py` renders `<view>_sheet.png` (all frames), `<view>_motion.png` (the first frame
+with everything that moved painted red, plus the engine's numbers), optionally `<view>_crop.png`
+(one region of every frame, enlarged) and `<view>.gif`.
+
+```sh
+LUNE=/opt/tools/l11/lune
+$LUNE run tools/build.luau
+$LUNE run tools/preview/export_terrain.luau Place1.rbxl /tmp/amb/smoothgrid.bin
+# views: spot (the fishing camera), spot_wide, pier, platform, hub, beach, waterfall, fair, garden, boat
+$LUNE run tools/preview/ambient_dump.luau /tmp/amb/dump.json --views spot,platform,boat,garden \
+    --frames 8 --step 0.25 [--jump spot] [--swoop spot] [--device phone|desktop]
+python3 tools/preview/ambient_sheet.py /tmp/amb/dump.json /tmp/amb --terrain /tmp/amb/smoothgrid.bin \
+    [--size 800] [--cols 4] [--crop spot:690,220,300,170 --zoom 2] [--gif]
+```
+
+`--jump VIEW` makes a fish jump right when that view's frames start (AmbientController.JumpSoon);
+`--swoop VIEW` waits for the pier gull's low pass (AmbientController.SwoopSoon). ~20 s for 3 views
+of 8 frames to dump, ~1 s per 800-px frame to render. Not shown: real particles (only the stand-ins),
+the terrain water's waves, GlobalWind on smoke.
+
 ## Fisher animation previews (pose_dump.luau + pose_sheet.py)
 
 The procedural fisher animation (FisherAnimController, FisherRig, FisherPoses, FisherRod) can be

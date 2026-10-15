@@ -255,7 +255,8 @@ above); Map.luau fails the build when a cap is exceeded or Nature falls short.
 
 ### Ambient attributes (the contract for the client's ambient motion)
 
-Builders only **mark** what moves; the client animates it (AmbientController, the [ambient] wave),
+Builders only **mark** what moves; the client animates it (AmbientController + AmbientEngine /
+AmbientWind / AmbientWorld / AmbientWater / AmbientCritters),
 locally: everything that moves is CanCollide/CanQuery false, except the palm trees (their trunks
 collide; they sway only 1.2° about the foot, which stays put). "Pivot" = a Model's
 pivot (its PrimaryPart's CFrame × PivotOffset) or a BasePart's CFrame × PivotOffset. Moving things
@@ -265,12 +266,28 @@ are never nested inside another moving model (an inner one is ignored).
 |---|---|---|
 | `Spin` (°/s) | Model under Workspace.Map | turns about its pivot's LookVector; child Models with `KeepUpright = true` stay level (windmills, Ferris wheel, golden fish, the beach pinwheels) |
 | `Bob` (studs), `BobPeriod` (s, default 3) | Model in Workspace.Map or Workspace.Bases | rises and falls and rolls a little about its pivot (boats, buoys, rafts, the float lines, drifting crates, lily clusters) |
-| `Sway` (° amplitude), `SwayAxis` (string "X" / "Y" / "Z": the pivot's local axis, default "X"), `SwayPeriod` (s, default 3) | Model or BasePart (parts parented under a swaying part ride on it), in Workspace.Map or Workspace.Bases | swings to and fro about the pivot (the hang point), phase hashed from the pivot position: flags and pennants (`Y` about the pole: `Flag.Cloth`, Props.flagPole's `Cloth`, gateway/landmark/nature flags), bunting and festoons (`Z` along the rope), lamp banners and hanging baskets, the pier's pennant string, net, drying fish, hung buoys, wind chime, windsock (`Y`), weathervanes (`Y`, 25°), palm trees (1.2° about the foot), reeds and kelp (about the bed) |
+| `Sway` (° amplitude), `SwayAxis` (string "X" / "Y" / "Z": the pivot's local axis, default "X"), `SwayPeriod` (s, default 3) | Model or BasePart (parts parented under a swaying part ride on it), in Workspace.Map or Workspace.Bases | swings to and fro about the pivot (the hang point), phase hashed from the pivot position, amplitude × the wind gust (0.6–1.4, gusts travel across the map along the wind): flags and pennants (`Y` about the pole: `Flag.Cloth`, Props.flagPole's `Cloth`, gateway/landmark/nature flags), bunting and festoons (`Z` along the rope), lamp banners and hanging baskets, the pier's pennant string, net, drying fish, hung buoys, wind chime, windsock (`Y`), weathervanes (`Y`, 25°), palm trees (1.2° about the foot), reeds and kelp (about the bed) |
 | `Pulse` (transparency amplitude), `PulsePeriod` (s) | Model (every part in it) | transparency breathes around the parts' own value, phase travelling with position (`Map.Shore.Foam`) |
 | `Drift` (studs/s) | Model under Map.Sky | circles slowly round the island centre (the clouds) |
 
-Cull to ~250 studs from the camera; at most ~400 extra moved parts per tick on top of the ~655
-moved today (BulkMoveTo at 30 Hz).
+Without an attribute (found by name, so builders keep them that way):
+
+| what | rule | motion |
+|---|---|---|
+| chase lights | `Neon` parts named `…Bulb<n>` / `…Bulbs<n>` (≥ 2 under one parent; inside Spin / Sway models too) | marquee: 2 on / 2 off marching 6 steps a second (2-bulb sets blink in turn), off = Transparency 0.55 (Ferris wheel rim, fair festoon, fair arch) |
+| wind | ParticleEmitters named `Smoke`, `Mist`, `Petals`, `Steam`, `Leaves` | `WindAffectsDrag` on (Drag raised to 0.3–0.5 if lower); the client sets `Workspace.GlobalWind` from the gust |
+| foam rings | every `Bob` model on the water (pivot within 4 studs of WaterTop) | an oval ring (SurfaceGui) round the hull = parts crossing the waterline, thin ropes / moorings (< 0.35 × > 2.5 studs) and masts left out; pier `Post`s crossing the water get a round one |
+| waterfall flow | parts `Curtain<i>_<j>` in `Landmarks.Waterfall.Waterfall` | a Beam down the front face (texture streaming down) |
+| butterflies | parts named `…Bloom…` (not `…Eye`), ≥ 3 in a 16-stud cell = a flower bed | up to 6 butterflies flutter round the beds nearest the camera |
+
+The engine (AmbientEngine): ONE `RunService.PreRender` connection for all of it, asleep (none) when
+nothing is in range. Each item's tier comes from how fast it moves ON SCREEN (studs/s of its fastest
+point × pixels per stud at its distance): > 20 Hz needed → every frame, 7.5–20 Hz → a third of the tier
+per frame (≈ 20 Hz each), else an eighth (≈ 7.5 Hz); only items in the camera's view (+ radius) are
+touched; at most 220 parts moved + properties written per frame on phones (400 on PC) — one
+`BulkMoveTo`. Ranges: Sway 250, Pulse 200, Bob 400, chase lights 300, Spin 900 studs, clouds 2500.
+Measured (tools/preview/ambient_dump.luau, phone): 120–140 per frame at a fishing spot (peak = the
+budget), 20–60 in a yard; RbxSim frame cost 3.6 ms vs 9.6 ms for the old 30 Hz mover (same view).
 
 ## 4. Preview
 

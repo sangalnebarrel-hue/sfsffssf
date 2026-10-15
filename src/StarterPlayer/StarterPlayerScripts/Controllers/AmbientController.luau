@@ -1,254 +1,134 @@
 --!strict
 --[[
-	AmbientController — «живой» мир, только для красоты и только на клиенте:
-	  • стайки разноцветных рыб плавают под водой по озеру;
-	  • чайки кружат над островом-деревней и машут крыльями;
-	  • крутятся лопасти мельницы, колесо обозрения и всё прочее, что строитель карты пометил:
-	    любая Model внутри Workspace.Map с числовым атрибутом Spin (градусов в секунду)
-	    вращается вокруг оси своей точки опоры (pivot, ось = LookVector). Вложенные модели с
-	    атрибутом KeepUpright = true (кабинки колеса) при этом остаются ровными;
-	  • покачиваются на волнах лодки, буйки, плоты — любая Model в Workspace.Map или
-	    Workspace.Bases с числовым атрибутом Bob (амплитуда в studs; BobPeriod — период в секундах,
-	    по умолчанию 3).
-	Рыбы и чайки создаются локально (сервер о них не знает), без коллизий и теней. Всё двигается
-	через Workspace:BulkMoveTo примерно 30 раз в секунду — дёшево даже для телефонов.
-	Количество — в AMBIENT ниже.
+	AmbientController — «живой» мир, только для красоты и только на клиенте. Сам контроллер —
+	сборка; работа в помощниках (модули рядом):
+	  AmbientEngine   — общий «мотор»: ОДНО соединение PreRender на всё, ярусы по
+	                    расстоянию (каждый кадр / ≈20 Гц / ≈7 Гц), только то, что на экране,
+	                    бюджет деталей на кадр, все движения одним BulkMoveTo; рядом ничего —
+	                    соединение отключается;
+	  AmbientWind     — один ветер: порывы бегут волной по миру, Workspace.GlobalWind (дым,
+	                    туман водопада, лепестки сносит по ветру);
+	  AmbientWorld    — то, что пометил строитель карты (DESIGN.md «Ambient attributes»):
+	                    Spin (мельница, колесо обозрения…), Bob (лодки, буйки), Sway (флаги,
+	                    вымпелы, гирлянды, паруса, ветряной конус, колокольчики, пальмы, камыш,
+	                    водоросли — по ветру), Pulse (пена прибоя), Drift (облака) и «бегущий
+	                    огонь» лампочек колеса обозрения и гирлянд;
+	  AmbientWater    — блики солнца на воде, выпрыгивающие рыбы, стайки у поверхности, пена
+	                    вокруг лодок и свай, струи водопада;
+	  AmbientCritters — чайки (машут / парят / пике у пирса), бабочки у клумб, стрекозы у пирса.
+
+	Бюджеты (замер в RbxSim: tools/preview/ambient_dump.luau, tests/ambient.test.luau):
+	  • 1 соединение (RunService.PreRender) на весь живой мир; 0 — когда рядом нечего двигать;
+	  • не больше Budget деталей + записей свойств за кадр: телефон 220, ПК 400 (телефон: у точки
+	    рыбалки ≈ 120–140 за кадр, пик = бюджет; на платформе пирса ≈ 60; во дворе базы 20–60);
+	    в RbxSim кадр у точки рыбалки стоит 3,6 мс против 9,6 мс у старого «всё раз в 2 кадра»;
+	  • своих деталей ≈ 200: стайки 60, чайки 56, бабочки 18, стрекозы 9, две рыбы для прыжка
+	    (модели карася и окуня, 27) + брызги и 2 круга, блики 3, кольца пены 24
+	    (MapConfig.PartBudget.RuntimeReserve.AmbientLife = 200);
+	  • частиц: блики ≈ 10 одновременно, брызги прыжка 10–12 раз в 5–9 с;
+	  • ни одного Instance в кадре (всё создаётся при старте, пул переиспользуется).
+
+	API (тесты, превью): AmbientController.Engine (AmbientEngine или nil до загрузки карты),
+	AmbientController.Ready (true, когда всё собрано), AmbientController.Summary (сколько чего
+	нашлось), AmbientController.Water / .Critters (State помощников), AmbientController.JumpSoon() / SwoopSoon().
 ]]
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local AmbientEngine = require(script.Parent:WaitForChild("AmbientEngine"))
+local AmbientWind = require(script.Parent:WaitForChild("AmbientWind"))
+local AmbientWorld = require(script.Parent:WaitForChild("AmbientWorld"))
+local AmbientWater = require(script.Parent:WaitForChild("AmbientWater"))
+local AmbientCritters = require(script.Parent:WaitForChild("AmbientCritters"))
 local MapConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("MapConfig"))
 
-local AMBIENT = {
-	FishCount = 36,
-	GullCount = 8,
-	UpdateRate = 30, -- раз в секунду
-}
+local BUDGET_TOUCH = 220
+local BUDGET_DESKTOP = 400
+local NEAREST_BASE = 170 -- ближайший к камере пирс (стаи, стрекозы, чайка, пена у свай) — не дальше
+local FLOWER_CELL = 16 -- клумбы: цветы группами по клеткам столько studs
+local FLOWER_MIN = 3 -- … не меньше стольких цветов в клетке
 
-local FISH_COLORS = {
-	Color3.fromRGB(255, 150, 40),
-	Color3.fromRGB(255, 210, 60),
-	Color3.fromRGB(80, 170, 255),
-	Color3.fromRGB(255, 100, 140),
-	Color3.fromRGB(130, 220, 120),
-	Color3.fromRGB(190, 120, 255),
-}
-
-type Mover = {
-	parts: { BasePart },
-	offsets: { CFrame },
-	update: (self: Mover, t: number) -> CFrame,
-	flap: boolean,
-	phase: number,
-}
-
--- Ровная часть вращающейся модели (кабинка колеса): где её точка опоры на колесе и как она
--- повёрнута в мире (этот поворот сохраняется).
-type Upright = {
-	pivot: Vector3, -- точка опоры в системе координат вращающейся модели
-	rotation: CFrame, -- исходный поворот в мире
-	parts: { BasePart },
-	offsets: { CFrame }, -- детали относительно точки опоры
-}
-
-type Spinner = {
-	model: Model,
-	base: CFrame, -- исходная точка опоры (pivot) модели
-	speed: number, -- радиан в секунду
-	angle: number,
-	parts: { BasePart },
-	offsets: { CFrame }, -- детали относительно base
-	uprights: { Upright },
-}
-
-type Bobber = {
-	model: Model,
-	base: CFrame, -- исходная точка опоры
-	amplitude: number,
-	omega: number, -- радиан в секунду
-	phase: number,
-	parts: { BasePart },
-	offsets: { CFrame },
-}
+type Base = AmbientWater.Base
 
 local AmbientController = {}
+AmbientController.Engine = nil :: AmbientEngine.Engine?
+AmbientController.Ready = false
+AmbientController.Summary = {} :: { [string]: any }
+AmbientController.Flowers = {} :: { Vector3 } -- клумбы для бабочек (верх цветов)
+AmbientController.Water = AmbientWater.State
+AmbientController.Critters = AmbientCritters.State
 
-local function decorPart(parent: Instance, size: Vector3, color: Color3, shape: Enum.PartType?): Part
-	local part = Instance.new("Part")
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanQuery = false
-	part.CanTouch = false
-	part.CastShadow = false
-	part.Size = size
-	part.Color = color
-	part.Material = Enum.Material.SmoothPlastic
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	if shape then
-		part.Shape = shape
-	end
-	part.Parent = parent
-	return part
+-- Рыба выпрыгнет на ближайшем тике (по обычным правилам места) — тесты и превью.
+function AmbientController.JumpSoon()
+	AmbientWater.JumpSoon()
 end
 
-local function makeFish(folder: Instance, rng: Random): Mover
-	local color = FISH_COLORS[rng:NextInteger(1, #FISH_COLORS)]
-	local size = rng:NextNumber(0.8, 1.5)
-	local body = decorPart(folder, Vector3.new(0.7, 0.8, 1.6) * size, color)
-	local tail = decorPart(folder, Vector3.new(0.15, 0.7, 0.6) * size, color:Lerp(Color3.new(1, 1, 1), 0.25))
-
-	-- Swims around the lake (between the island and the shore) at its own radius/speed/depth.
-	local radius = rng:NextNumber(MapConfig.HubRadius + 15, MapConfig.LagoonRadius - 25)
-	local speed = rng:NextNumber(4, 9) / radius * (if rng:NextNumber() < 0.5 then -1 else 1)
-	local depth = rng:NextNumber(1.6, 3.2)
-	local start = rng:NextNumber(0, math.pi * 2)
-	local wobble = rng:NextNumber(4, 14)
-
-	local mover = {
-		parts = { body, tail },
-		offsets = { CFrame.identity, CFrame.new(0, 0, 0.95 * size) },
-		flap = false,
-		phase = rng:NextNumber(0, 10),
-	} :: any
-	function mover.update(self: Mover, t: number): CFrame
-		local a = start + t * speed
-		local r = radius + math.sin(t * 0.3 + self.phase) * wobble
-		local x, z = math.sin(a) * r, math.cos(a) * r
-		local ahead = a + 0.05 * math.sign(speed)
-		local nx, nz = math.sin(ahead) * r, math.cos(ahead) * r
-		local position = Vector3.new(x, MapConfig.WaterTop - depth, z)
-		return CFrame.lookAt(position, Vector3.new(nx, position.Y, nz))
-	end
-	return mover
+-- «Пирсовая» чайка нырнёт к пирсу на ближайшем тике — тесты и превью.
+function AmbientController.SwoopSoon()
+	AmbientCritters.SwoopSoon()
 end
 
-local function makeGull(folder: Instance, rng: Random): Mover
-	local white = Color3.fromRGB(245, 245, 245)
-	local body = decorPart(folder, Vector3.new(0.9, 0.8, 2.2), white)
-	local left = decorPart(folder, Vector3.new(2.6, 0.15, 0.9), Color3.fromRGB(225, 225, 230))
-	local right = decorPart(folder, Vector3.new(2.6, 0.15, 0.9), Color3.fromRGB(225, 225, 230))
-	local beak = decorPart(folder, Vector3.new(0.25, 0.25, 0.5), Color3.fromRGB(255, 190, 60))
-
-	local radius = rng:NextNumber(40, MapConfig.HubRadius - 20)
-	local height = rng:NextNumber(45, 75)
-	local speed = rng:NextNumber(10, 16) / radius
-	local start = rng:NextNumber(0, math.pi * 2)
-
-	local mover = {
-		parts = { body, left, right, beak },
-		offsets = { CFrame.identity, CFrame.new(-1.6, 0.1, 0), CFrame.new(1.6, 0.1, 0), CFrame.new(0, 0, -1.3) },
-		flap = true,
-		phase = rng:NextNumber(0, 10),
-	} :: any
-	function mover.update(self: Mover, t: number): CFrame
-		local a = start + t * speed
-		local position =
-			Vector3.new(math.sin(a) * radius, height + math.sin(t * 0.7 + self.phase) * 3, math.cos(a) * radius)
-		local ahead = Vector3.new(math.sin(a + 0.05) * radius, position.Y, math.cos(a + 0.05) * radius)
-		return CFrame.lookAt(position, ahead) * CFrame.Angles(0, 0, math.rad(-18)) -- banking into the turn
+-- Базы игроков: точка рыбалки, поворот базы (−Z — к лагуне), сваи пирса у воды.
+local function collectBases(bases: Instance?): { Base }
+	local list: { Base } = {}
+	if not bases then
+		return list
 	end
-	return mover
-end
-
--- Ближайшая вложенная модель с KeepUpright = true между деталью и вращающейся моделью.
-local function uprightAncestor(part: BasePart, root: Model): Model?
-	local node = part.Parent
-	while node and node ~= root do
-		if node:IsA("Model") and node:GetAttribute("KeepUpright") == true then
-			return node
-		end
-		node = node.Parent
-	end
-	return nil
-end
-
--- Собирает вращающиеся модели карты: все Model с числовым атрибутом Spin.
-local function collectSpinners(map: Instance): { Spinner }
-	local spinners: { Spinner } = {}
-	for _, inst in map:GetDescendants() do
-		local spin = inst:GetAttribute("Spin")
-		if not inst:IsA("Model") or typeof(spin) ~= "number" or spin == 0 then
-			continue
-		end
-		local model = inst :: Model
-		local base = model:GetPivot()
-		local spinner: Spinner = {
-			model = model,
-			base = base,
-			speed = math.rad(spin),
-			angle = 0,
-			parts = {},
-			offsets = {},
-			uprights = {},
-		}
-		local groups: { [Model]: Upright } = {}
-		local origins: { [Model]: CFrame } = {}
-		for _, d in model:GetDescendants() do
-			if not d:IsA("BasePart") then
-				continue
-			end
-			local part = d :: BasePart
-			local holder = uprightAncestor(part, model)
-			if holder then
-				local group: Upright? = groups[holder]
-				local origin: CFrame? = origins[holder]
-				if not group or not origin then
-					local pivot = holder:GetPivot()
-					origin = pivot
-					group = {
-						pivot = base:PointToObjectSpace(pivot.Position),
-						rotation = pivot.Rotation,
-						parts = {},
-						offsets = {},
-					}
-					origins[holder] = pivot
-					groups[holder] = group
-					table.insert(spinner.uprights, group :: Upright)
+	for _, model in bases:GetChildren() do
+		local spot = model:FindFirstChild("FishingSpot")
+		if model:IsA("Model") and spot and spot:IsA("BasePart") then
+			local posts = {}
+			for _, d in model:GetDescendants() do
+				if d:IsA("BasePart") and d.Name == "Post" then
+					local half = d.Size.Y / 2
+					local y = d.Position.Y
+					if y - half < MapConfig.WaterTop and y + half > MapConfig.WaterTop + 0.5 and d.Size.X <= 3 then
+						table.insert(posts, Vector3.new(d.Position.X, MapConfig.WaterTop, d.Position.Z))
+					end
 				end
-				local g = group :: Upright
-				table.insert(g.parts, part)
-				table.insert(g.offsets, (origin :: CFrame):Inverse() * part.CFrame)
-			else
-				table.insert(spinner.parts, part)
-				table.insert(spinner.offsets, base:Inverse() * part.CFrame)
 			end
+			table.insert(list, { model = model, spot = spot.Position, cf = model:GetPivot(), posts = posts })
 		end
-		table.insert(spinners, spinner)
 	end
-	return spinners
+	return list
 end
 
--- Собирает покачивающиеся модели: все Model с числовым атрибутом Bob (кроме вложенных в другие).
-local function collectBobbers(root: Instance, into: { Bobber })
-	for _, inst in root:GetDescendants() do
-		local amplitude = inst:GetAttribute("Bob")
-		if not inst:IsA("Model") or typeof(amplitude) ~= "number" or amplitude == 0 then
-			continue
-		end
-		local model = inst :: Model
-		local period = model:GetAttribute("BobPeriod")
-		local base = model:GetPivot()
-		local bobber: Bobber = {
-			model = model,
-			base = base,
-			amplitude = amplitude,
-			omega = 2 * math.pi / (if typeof(period) == "number" and period > 0 then period else 3),
-			-- своя фаза у каждой лодки (по координатам — одинаково у всех игроков)
-			phase = (base.Position.X * 0.37 + base.Position.Z * 0.61) % (2 * math.pi),
-			parts = {},
-			offsets = {},
-		}
-		for _, d in model:GetDescendants() do
-			if d:IsA("BasePart") then
-				table.insert(bobber.parts, d)
-				table.insert(bobber.offsets, base:Inverse() * d.CFrame)
+-- Клумбы: верх цветов («Bloom…»), сгруппированных по клеткам.
+local function collectFlowers(roots: { Instance }): { Vector3 }
+	local cells: { [string]: { sum: Vector3, top: number, count: number } } = {}
+	for _, root in roots do
+		for _, d in root:GetDescendants() do
+			if
+				d:IsA("BasePart")
+				and string.find(d.Name, "Bloom", 1, true)
+				and not string.find(d.Name, "Eye", 1, true)
+			then
+				local p = d.Position
+				local key = `{math.floor(p.X / FLOWER_CELL)},{math.floor(p.Z / FLOWER_CELL)}`
+				local cell = cells[key]
+				if not cell then
+					cell = { sum = Vector3.zero, top = -math.huge, count = 0 }
+					cells[key] = cell
+				end
+				cell.sum += p
+				cell.top = math.max(cell.top, p.Y + d.Size.Y / 2)
+				cell.count += 1
 			end
 		end
-		table.insert(into, bobber)
 	end
+	local list = {}
+	for _, cell in cells do
+		if cell.count >= FLOWER_MIN then
+			local c = cell.sum / cell.count
+			table.insert(list, Vector3.new(c.X, cell.top, c.Z))
+		end
+	end
+	table.sort(list, function(a: Vector3, b: Vector3): boolean
+		return a.X + a.Z * 1e-3 < b.X + b.Z * 1e-3
+	end)
+	return list
 end
 
 function AmbientController:Start(_hud: ScreenGui)
@@ -256,126 +136,78 @@ function AmbientController:Start(_hud: ScreenGui)
 	folder.Name = "Ambient (client)"
 	folder.Parent = Workspace
 
-	local rng = Random.new(7)
-	local movers: { Mover } = {}
-	for _ = 1, AMBIENT.FishCount do
-		table.insert(movers, makeFish(folder, rng))
-	end
-	for _ = 1, AMBIENT.GullCount do
-		table.insert(movers, makeGull(folder, rng))
-	end
+	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	local engine = AmbientEngine.new(if touch then BUDGET_TOUCH else BUDGET_DESKTOP)
+	AmbientController.Engine = engine
 
-	local allParts: { BasePart } = {}
-	for _, mover in movers do
-		for _, part in mover.parts do
-			table.insert(allParts, part)
-		end
-	end
-	local cframes: { CFrame } = table.create(#allParts, CFrame.identity)
-
-	-- Вращающиеся модели карты (мельница, колесо обозрения …). Карта уже лежит в месте
-	-- (StreamingEnabled выключен) — коротко ждём её, не задерживая остальные контроллеры.
-	local spinners: { Spinner } = {}
-	local spinParts: { BasePart } = {}
-	local spinFrames: { CFrame } = {}
-	local bobbers: { Bobber } = {}
+	-- Карта уже в месте (StreamingEnabled выключен), базы сервер создаёт при старте —
+	-- коротко ждём их, не задерживая остальные контроллеры.
 	task.spawn(function()
 		local map = Workspace:WaitForChild("Map", 10)
+		local basesFolder = Workspace:WaitForChild("Bases", 10)
+		local summary: { [string]: any } = { items = {}, parts = {} }
+		local bobs = {}
+		for _, root in { map, basesFolder } do
+			if root then
+				local s = AmbientWorld.Collect(root, engine)
+				for kind, n in s.items do
+					summary.items[kind] = (summary.items[kind] or 0) + n
+				end
+				for kind, n in s.parts do
+					summary.parts[kind] = (summary.parts[kind] or 0) + n
+				end
+				for _, bob in s.bobs do
+					table.insert(bobs, bob)
+				end
+				summary.windEmitters = (summary.windEmitters or 0) + AmbientWind.Follow(root)
+			end
+		end
+
+		local bases = collectBases(basesFolder)
+		local function nearestBase(): Base?
+			local cam = engine.camPos
+			local best, bestDist = nil, NEAREST_BASE
+			for _, base in bases do
+				local d = Vector3.new(base.spot.X - cam.X, 0, base.spot.Z - cam.Z).Magnitude
+				if d < bestDist and base.model.Parent then
+					best, bestDist = base, d
+				end
+			end
+			return best
+		end
+		local roots: { Instance } = {}
 		if map then
-			spinners = collectSpinners(map)
-			collectBobbers(map, bobbers)
+			table.insert(roots, map)
 		end
-		-- базы сервер создаёт при старте, до прихода игроков
-		local bases = Workspace:WaitForChild("Bases", 10)
-		if bases then
-			collectBobbers(bases, bobbers)
+		if basesFolder then
+			table.insert(roots, basesFolder)
 		end
-	end)
-
-	-- Поворачивает все вращающиеся модели на их угол. Позиции считаются заново от исходной
-	-- точки опоры, поэтому ошибки округления не копятся.
-	local function updateSpinners(elapsed: number)
-		for index = #spinners, 1, -1 do
-			if not spinners[index].model:IsDescendantOf(Workspace) then
-				table.remove(spinners, index) -- модель удалили — больше не трогаем её детали
-			end
-		end
-		local n = 0
-		for _, spinner in spinners do
-			spinner.angle = (spinner.angle + spinner.speed * elapsed) % (2 * math.pi)
-			local frame = spinner.base * CFrame.Angles(0, 0, spinner.angle)
-			for k, part in spinner.parts do
-				n += 1
-				spinParts[n] = part
-				spinFrames[n] = frame * spinner.offsets[k]
-			end
-			for _, group in spinner.uprights do
-				-- кабинка едет вместе с колесом, но сохраняет свой исходный поворот
-				local pivot = CFrame.new(frame * group.pivot) * group.rotation
-				for k, part in group.parts do
-					n += 1
-					spinParts[n] = part
-					spinFrames[n] = pivot * group.offsets[k]
-				end
-			end
-		end
-		-- лодки и буйки: плавно вверх-вниз с лёгким креном
-		local t = os.clock()
-		for index = #bobbers, 1, -1 do
-			if not bobbers[index].model:IsDescendantOf(Workspace) then
-				table.remove(bobbers, index)
-			end
-		end
-		for _, bobber in bobbers do
-			local w = bobber.omega * t + bobber.phase
-			local frame = bobber.base
-				* CFrame.new(0, bobber.amplitude * math.sin(w), 0)
-				* CFrame.Angles(0.04 * math.sin(w), 0, 0.03 * math.cos(w))
-			for k, part in bobber.parts do
-				n += 1
-				spinParts[n] = part
-				spinFrames[n] = frame * bobber.offsets[k]
-			end
-		end
-		for k = #spinParts, n + 1, -1 do
-			spinParts[k] = nil
-			spinFrames[k] = nil
-		end
-		if n > 0 then
-			Workspace:BulkMoveTo(spinParts, spinFrames, Enum.BulkMoveMode.FireCFrameChanged)
-		end
-	end
-
-	local accumulator = 0
-	local interval = 1 / AMBIENT.UpdateRate
-	RunService.Heartbeat:Connect(function(dt: number)
-		accumulator += dt
-		if accumulator < interval then
-			return
-		end
-		local elapsed = accumulator
-		accumulator = 0
-		updateSpinners(elapsed)
-		local t = os.clock()
-		local i = 0
-		for _, mover in movers do
-			local root = mover:update(t)
-			for k, offset in mover.offsets do
-				local cf = root * offset
-				if mover.flap and (k == 2 or k == 3) then
-					local angle = math.sin(t * 9 + mover.phase) * 0.45 * (if k == 2 then 1 else -1)
-					cf = root
-						* CFrame.new(offset.Position.X * 0.15, 0.1, 0)
-						* CFrame.Angles(0, 0, angle)
-						* CFrame.new(offset.Position.X * 0.85, 0, 0)
-				elseif not mover.flap and k == 2 then
-					cf = cf * CFrame.Angles(0, math.sin(t * 10 + mover.phase) * 0.5, 0) -- tail wiggle
-				end
-				i += 1
-				cframes[i] = cf
-			end
-		end
-		Workspace:BulkMoveTo(allParts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
+		local flowers = collectFlowers(roots)
+		AmbientController.Flowers = flowers
+		local rng = Random.new(7)
+		AmbientWater.Start(engine, folder, map, {
+			bobs = bobs,
+			bases = function()
+				return bases
+			end,
+			nearestBase = nearestBase,
+			rng = rng,
+		})
+		AmbientCritters.Start(engine, folder, {
+			nearestBase = nearestBase,
+			flowers = flowers,
+			rng = rng,
+		})
+		engine:Every(0.25, function(now: number)
+			AmbientWind.Apply(now, engine.camPos)
+		end)
+		summary.bobs = #bobs
+		summary.bases = #bases
+		summary.flowers = #flowers
+		summary.parts.own = #folder:GetChildren()
+		AmbientController.Summary = summary
+		engine:Start()
+		AmbientController.Ready = true
 	end)
 end
 

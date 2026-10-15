@@ -403,7 +403,19 @@ local function lookout(bridge: any, cf: any, hw: number, bedLocal: number, theme
 		Kit.lamp(b.model, lampCf, { height = 6.5, post = C.Iron, trim = C.Navy, light = i == 2 })
 		b:pole(`FlagPole{i}`, 0.7, ox, zh - 0.75, -0.05, 13, C.Cream)
 		local fx0, fx1 = ox + sx * 0.3, ox + sx * 5.3
-		b:box(`Flag{i}`, math.min(fx0, fx1), 9.4, zh - 0.9, math.max(fx0, fx1), 12.6, zh - 0.6, theme.color, Kit.DECOR)
+		local flag = b:box(
+			`Flag{i}`,
+			math.min(fx0, fx1),
+			9.4,
+			zh - 0.9,
+			math.max(fx0, fx1),
+			12.6,
+			zh - 0.6,
+			theme.color,
+			Kit.DECOR
+		)
+		-- (flutters about the pole on the client: DESIGN.md «Ambient attributes»)
+		Kit.sway(flag, b.cf * CFrame.new(fx0, 11, zh - 0.75), 9, "Y", 2.2 + 0.2 * i)
 		flagX[i] = ox
 		if i == 1 then
 			-- the fish stall, its counter at the wing's inner edge facing the bridge deck

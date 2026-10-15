@@ -13,7 +13,10 @@
 	  FisherAnimController — тело рыбаков рядом: замах, ожидание, поклёвка, борьба, улов над
 	                         головой; гнущаяся удочка (помощники FisherRig, FisherPoses, FisherRod —
 	                         модули, не контроллеры);
-	  AmbientController    — «живой» мир: рыбки, чайки, мельница, лодки.
+	  AmbientController    — «живой» мир: ветер (флаги, пальмы, дым), лодки и пена, блики,
+	                         выпрыгивающие рыбы и стайки, чайки, бабочки, стрекозы, облака, огоньки
+	                         (помощники AmbientEngine, AmbientWind, AmbientWorld, AmbientWater,
+	                         AmbientCritters — модули, не контроллеры).
 ]]
 
 local Players = game:GetService("Players")

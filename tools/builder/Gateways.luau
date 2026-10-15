@@ -338,7 +338,9 @@ ARCHES.market = function(b: any, text: string, color: any)
 	-- pennants on the mast tops, flying inwards
 	for i, sx in { -1, 1 } do
 		local x = sx * ARCH_X
-		b:box(`Pennant{i}`, x - sx * 4.3, ARCH_H + 4.6, -0.1, x - sx * 1.1, ARCH_H + 6.2, 0.1, color, Kit.DECOR)
+		local pennant =
+			b:box(`Pennant{i}`, x - sx * 4.3, ARCH_H + 4.6, -0.1, x - sx * 1.1, ARCH_H + 6.2, 0.1, color, Kit.DECOR)
+		Kit.sway(pennant, b.cf * CFrame.new(x - sx * 1.1, ARCH_H + 5.4, 0), 10, "Y", 2.1 + 0.3 * i) -- (about the mast)
 	end
 	-- cork floats hanging from the yard (red and white) between the lanterns
 	for k, x in { -3.1, 3.1 } do
