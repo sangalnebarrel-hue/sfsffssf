@@ -79,8 +79,8 @@
 	    экрана нарастает узкая рамка цвета редкости (мифическая — светлая радуга по кругу) и в
 	    миг приземления обрывается, камера перед приземлением чуть «отъезжает», у легендарной и
 	    мифической всё чаще бьётся «сердце». Рыба выпрыгивает и садится над головой
-	    (FishingFxController.OwnFishLanded): удар в точке рыбы (кольца и искры; на весь экран —
-	    ничего, у легендарной и мифической — края экрана коротко вспыхивают узкой полосой),
+	    (FishingFxController.OwnFishLanded): чёткий удар в точке рыбы (тонкое кольцо и искры; на
+	    весь экран — ничего: ни свечения, ни вспышки краёв),
 	    тряска и «толчок» камеры, конфетти из точки над головой; у эпической и выше — лучи бьют
 	    из рыбы (середина пустая) и под ней огромное слово редкости (TitleSlam: белое → цвет
 	    редкости, толстая обводка; у легендарной и мифической — буквами, каждая, встав,
@@ -1398,8 +1398,8 @@ type Reveal = {
 	Heartbeat: boolean, -- «сердце» во время прыжка
 	Title: boolean, -- огромное слово редкости
 	Letters: boolean, -- … по буквам, волной
-	Flash: Color3?, -- края экрана на миг вспыхивают при приземлении (мифическая — радугой); на
-	-- весь экран — ничего: главное — удар в точке рыбы, приземление должно быть видно
+	Flash: Color3?, -- «громкое» приземление (легендарная и мифическая): звук ниже и свист; на весь
+	-- экран — ничего (v3: и края не вспыхивают): главное — удар в точке рыбы, его должно быть видно
 	Shake: boolean, -- лёгкая тряска камеры при приземлении
 	Fov: number, -- «толчок» поля зрения при приземлении, ° (перед ним камера чуть «отъезжает»)
 	Burst: number, -- удар в точке рыбы при приземлении: кольцо расходится до стольких высот экрана
@@ -1433,9 +1433,8 @@ do
 		               узкая рамка (CLIMAX.Tension), у легендарной и мифической — ускоряющееся
 		               «сердце» и камера чуть «отходит» перед приземлением.
 		  приземление  рыба долетела до места над головой (FishingFxController.OwnFishLanded; нет
-		               сигнала — через LeapTime + 0.3 с): рамка обрывается, кольца-волна и искры из
-		               точки рыбы, у легендарной и мифической края экрана на миг вспыхивают узкой
-		               полосой (CLIMAX.Flash, без заливки всего экрана), тряска, «толчок» камеры,
+		               сигнала — через LeapTime + 0.3 с): рамка обрывается, тонкое кольцо (CLIMAX.Shock)
+		               и искры из точки рыбы (без свечения и вспышки краёв), тряска, «толчок» камеры,
 		               конфетти; у эпической и выше через CLIMAX.TitleDelay — лучи из точки рыбы
 		               (середина пустая, рыбу видно) и огромное слово редкости (буквы волной, блик),
 		               через CLIMAX.TitleDim.At — лёгкое затемнение всего экрана.
@@ -1640,14 +1639,17 @@ do
 		  Tension      рамка по краям экрана (эпическая и выше): узкая (Size высоты экрана),
 		               нарастает From → To к приземлению (Quad In) и обрывается на нём; мифическая —
 		               радуга, светлее на Light, бежит по кругу.
-		  Flash        на приземлении края экрана на миг вспыхивают (легендарная и мифическая): Alpha,
-		               Size, Hold и Fade — короче и уже рамки напряжения.
+		  Shock        удар приземления — тонкое кольцо вокруг рыбы: до Size + Grow × REVEAL.Burst высоты
+		               экрана, толщина Thickness px, Time с; без свечения в середине и без вспышки краёв
+		               экрана (v3: чёткий удар в точке рыбы, не заливка кадра).
 		  Heartbeat    у легендарной и мифической «сердце» бьётся всё чаще (доли LeapTime).
 		  TitleDelay, TitleStagger, TitleY, TitleHeight   огромное слово редкости — через TitleDelay
 		               после приземления, буквы через TitleStagger, центр на TitleY высоты экрана
 		               (ниже рыбы над головой: её видно; не ниже кнопки действия), высота —
 		               TitleHeight экрана, но не больше TitleMax px (и не шире просвета между
 		               кнопками); лучи за ним бьют из рыбы, середина (RaysHole радиуса) пустая.
+		  TitleRays    лучи сцены слова — тонкие спицы (Width доли диаметра) и на Fade прозрачнее
+		               лучей карточки: вокруг рыбы не встаёт жёлтая «заливка» (v3).
 		  TitleDim     сцена слова: через At после приземления (кольца удара уже ушли — заливка
 		               кадра) экран чуть темнеет целиком (на Add светлее затемнения карточки):
 		               лучи и буквы ярче.
@@ -1660,7 +1662,8 @@ do
 		WinTime = 0.8,
 		SkipDwell = 0.6,
 		Tension = { Size = 0.13, From = 0.85, To = 0.5, Light = 0.3 },
-		Flash = { Alpha = 0.55, Size = 0.12, Hold = 0.04, Fade = 0.3 },
+		Shock = { Size = 0.36, Grow = 0.18, Thickness = 9, Time = 0.34 },
+		TitleRays = { Width = 0.05, Fade = 0.22 },
 		Heartbeat = { 0.28, 0.46, 0.62, 0.75, 0.85, 0.93 },
 		TitleDelay = 0.05,
 		TitleStagger = 0.03,
@@ -3376,7 +3379,10 @@ do
 			speed = reveal.Speed,
 			size = reveal.Size,
 			maxPx = maxPx,
-			transparency = reveal.Alpha,
+			-- сцена слова (hole): тонкие лучи-спицы, прозрачнее — удар в точке рыбы не заливается
+			-- (CLIMAX.TitleRays); за карточкой — обычные
+			width = if hole then CLIMAX.TitleRays.Width else nil,
+			transparency = if hole then math.min(reveal.Alpha + CLIMAX.TitleRays.Fade, 0.85) else reveal.Alpha,
 			glow = not touch,
 			grow = 0.5,
 			hole = hole,
@@ -3396,8 +3402,8 @@ do
 				speed = -reveal.Speed * 0.6,
 				size = reveal.Size * 1.2,
 				maxPx = maxPx * 1.12,
-				width = 0.045,
-				transparency = math.min(reveal.Alpha + 0.2, 0.8),
+				width = if hole then CLIMAX.TitleRays.Width * 0.6 else 0.045,
+				transparency = math.min(reveal.Alpha + 0.2 + (if hole then CLIMAX.TitleRays.Fade else 0), 0.88),
 				glow = false,
 				halo = false,
 				breathe = false,
@@ -4056,11 +4062,17 @@ do
 			then Vector2.new(point.X / math.max(rootSize.X, 1), point.Y / math.max(rootSize.Y, 1))
 			else Vector2.new(0.45, 0.32)
 
+		-- Удар — тонкое кольцо вокруг рыбы (CLIMAX.Shock), без свечения в середине и без вспышки
+		-- краёв экрана: чёткий удар в точке рыбы, а не заливка кадра (v3; белый шар и «звезда»
+		-- тонких лучей — в мире, FishingFxController).
+		local shock = CLIMAX.Shock
 		UiFx.shockwave(ui.hud, origin, {
 			color = style.Top,
 			colors = if style.Rainbow then UIConfig.Rainbow else nil,
-			size = reveal.Burst,
-			glow = 0.8, -- лёгкое свечение в центре: рыба под ним видна
+			size = shock.Size + shock.Grow * reveal.Burst,
+			thickness = shock.Thickness,
+			time = shock.Time,
+			glow = 1,
 		})
 		-- Искры — следом за кольцом (в кадр приземления рыбу ничто не закрывает).
 		later(celebrationTrove, 0.05, function()
@@ -4073,18 +4085,6 @@ do
 				z = 61,
 			}))
 		end)
-		if reveal.Flash then
-			-- Края экрана на миг вспыхивают узкой полосой (мифическая — радугой по кругу); середина
-			-- экрана чистая.
-			local flash = CLIMAX.Flash
-			UiFx.edgeVignette(ui.hud, { reveal.Flash, style.Bottom }, flash.Alpha, nil, {
-				fadeIn = 0,
-				hold = flash.Hold,
-				fadeOut = flash.Fade,
-				size = flash.Size,
-				cycle = if style.Rainbow then UIConfig.Rainbow else nil,
-			})
-		end
 		if reveal.Shake then
 			UiFx.cameraShake(0.35, 0.4)
 		end

@@ -147,6 +147,9 @@ local function clientFx(h: any): any
 end
 
 local CARD_ROI = { "HUD.Fishing.CatchCard" }
+-- The fishing spot on screen (rod tip, line, bobber, shadow) as a fixed part of the screen:
+-- world FX have no GUI path (gui_render.py roi_region: { frac = { x0, y0, x1, y1 } }).
+local FX_ROI = { frac = { 0.33, 0.12, 0.7, 0.72 } }
 local FISHING_ROI = { "HUD.Fishing.Minigame", "HUD.Fishing.BiteAlert", "HUD.Fishing.ActionArea" }
 local HIT_ROI = { "HUD.Fishing.Minigame", "HUD.Fishing.ActionArea" }
 
@@ -997,6 +1000,92 @@ local scenarios = {
 					fx.Nibble()
 				end, h.player)
 			end
+		end,
+	},
+	-- v3 [fx] world FX polish (FishingFxController + FishLife / FishShadow / FishingLine): real
+	-- casts and catches, bursts of the moments that move (not in --all; by name, with --bursts).
+	{
+		name = "fx_cast",
+		desc = "A real cast from the tap: wind-up, the tip's whip trail at the release, the bobber's flight on a curved line, the landing plop",
+		server = true,
+		world = true,
+		standard = false,
+		still = { 0.32, 1.05 },
+		burst = { from = 0, to = 1.6, fps = 30, roi = { FX_ROI } },
+		run = function(h: any)
+			h:forceFish({ Id = "Crucian" })
+			h:standAtSpot()
+			h:equipRod()
+			h:poseLikeBackdrop()
+			h:advance(0.4)
+			h:click("HUD.Fishing.ActionArea.ActionButton")
+		end,
+	},
+	{
+		name = "fx_wait",
+		desc = "Waiting on the water: the slack line, the fish shadow swimming in and circling the bobber, nudging it on a nibble",
+		server = true,
+		world = true,
+		standard = false,
+		still = { 1.0, 3.0 },
+		sheet = { from = 0, to = 4.8, fps = 5, roi = { FX_ROI } },
+		burst = false,
+		run = function(h: any)
+			h:forceFish({ Id = "Crucian" })
+			h:standAtSpot()
+			h:equipRod()
+			h:poseLikeBackdrop()
+			h:advance(0.4)
+			h:click("HUD.Fishing.ActionArea.ActionButton")
+			h:advance(1.0) -- landed (CastWindUp 0.3 + flight 0.7)
+		end,
+	},
+	{
+		name = "fx_bite",
+		desc = "The bite with the world: the shadow lunges under the bobber, the line snaps taut on every jerk",
+		server = true,
+		world = true,
+		standard = false,
+		still = { 0.1, 0.4 },
+		burst = { from = 0, to = 1.0, fps = 30, roi = { FX_ROI } },
+		run = function(h: any)
+			castReal(h, { Id = "SharkPup" })
+		end,
+	},
+	{
+		name = "fx_reel",
+		desc = "The fight (Legendary): the shadow thrashes under the bobber, the taut line vibrates and glows",
+		server = true,
+		world = true,
+		standard = false,
+		still = { 0.5, 1.2 },
+		burst = { from = 0, to = 1.0, fps = 30, roi = { FX_ROI } },
+		run = function(h: any)
+			castReal(h, { Id = "SharkPup" }, true)
+		end,
+	},
+	{
+		name = "catch_landing",
+		desc = "A real Legendary catch around the landing (0.85..1.75 s after the winning tap): the leap flexes and drips, the landing is a crisp burst at the fish",
+		server = true,
+		world = true,
+		standard = false,
+		still = { 1.0, 1.3 },
+		burst = { from = 0.6, to = 1.6, fps = 30, roi = {} },
+		run = function(h: any)
+			h:playCatch({ Id = "SharkPup" })
+		end,
+	},
+	{
+		name = "catch_landing_mythic",
+		desc = "A real Mythic Rainbow catch around the landing: the crisp burst at the fish, no screen tint",
+		server = true,
+		world = true,
+		standard = false,
+		still = { 1.0, 1.3 },
+		burst = { from = 0.6, to = 1.6, fps = 30, roi = {} },
+		run = function(h: any)
+			h:playCatch({ Id = "DragonFish", Mutation = "Rainbow" })
 		end,
 	},
 	{
