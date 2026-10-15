@@ -1,32 +1,38 @@
 --!strict
 --[[
-	HudController — основной интерфейс (Этап 1) и его «сок» (образец стиля «Кирпичики», UI v3,
+	HudController — основной интерфейс (Этап 1) и его «сок» (образец стиля «Симулятор», UI v5,
 	tools/builder/gui/STYLE.md; анимации — ReplicatedStorage.Shared.UiFx).
 
-	  • Плашка «Твоя база» (HUD.Status.BaseBadge, вверху по центру): кирпичик с пупырками в цветах
-	    своей базы (UIConfig.BaseSwatches по Id из BaseConfig, UiFx.setCandy красит и пупырки) с
-	    белой плиткой-флажком, надпись заглавными: «ЛАЗУРНАЯ БАЗА». Данные — атрибуты игрока
+	  • Плашка «Твоя база» (HUD.Status.BaseBadge, вверху по центру): сочная плашка в цветах своей
+	    базы (UIConfig.BaseSwatches по Id из BaseConfig; UiFx.setCandy красит градиент и толстую
+	    обводку) с 🚩 на левом краю, надпись заглавными: «ЛАЗУРНАЯ БАЗА». Данные — атрибуты игрока
 	    BaseIndex, BaseColorName, BaseColor (их ставит сервер); BaseIndex = 0 — все базы заняты,
-	    игрок ждёт (светло-серый кирпичик «ЖДЁМ БАЗУ…»).
-	  • Первая база — момент: по центру экрана баннер HUD.BaseBanner в цветах базы («ТВОЯ БАЗА» /
-	    «ЛАЗУРНАЯ!»), флажок машет, лучи, конфетти и «фанфара»; через 2 с баннер сжимается и
-	    влетает в плашку, плашка подпрыгивает и бликует. Если база досталась после ожидания в
-	    очереди — уведомление «Тебе досталась Лазурная база!» в цветах базы с 🚩.
-	  • Счётчик улова (HUD.Status.CatchCounter, жёлтый кирпичик «🐟 12»): число N (Label.Text —
-	    только цифры, как у монет) и видимость ведёт ЭТОТ контроллер
+	    игрок ждёт (светло-серая плашка «ЖДЁМ БАЗУ…»).
+	  • Первая база — момент: по центру экрана огромная надпись HUD.BaseBanner, как заголовок
+	    образца («ТВОЯ БАЗА» / «ЛАЗУРНАЯ!» в цветах базы, с толстой обводкой и тенью, без
+	    плашки): имя «влетает» (slam) и вспыхивает, флажок машет, лучи, конфетти и «фанфара»;
+	    через 2 с надпись сжимается и влетает в плашку, плашка подпрыгивает, её ободок
+	    вспыхивает, блик. Если база досталась после ожидания в очереди — уведомление «Тебе
+	    досталась Лазурная база!» в цветах базы с 🚩.
+	  • Счётчик улова (HUD.Status.CatchCounter — крупное наклонное число без плашки, как «10»
+	    образца, и 🐟): число N (Label.Text — только цифры) и видимость ведёт ЭТОТ контроллер
 	    по атрибуту игрока FishCaught. Договор с карточкой улова: пока у HUD (ScreenGui) есть
 	    числовой атрибут CounterHold, счётчик показывает это число и молчит; когда CounterHold
 	    убирают (nil), показывается FishCaught и играет «прилёт»: подпрыгивание 1.3, рыбка
-	    качается, «+N» всплывает справа, тик повыше тоном. Без CounterHold «прилёт» играет сразу
-	    при росте FishCaught (через кадр — успеть поставить CounterHold в тот же кадр). Пока 🐟
-	    летит из карточки, у HUD есть строковый атрибут CounterIncoming — её редкость: счётчик,
-	    которого ещё нет (первый улов), выскакивает с «0» — рыбе есть куда лететь; прилёт —
-	    в цвете редкости (подпрыгивание выше, кольцо от плашки, «+N» крупнее, уровнем Button).
-	    Снимают его вместе с CounterHold (редкость запомнена до прилёта).
-	  • Кнопка «Домой» (HUD.RightButtons.HomeButton, лазурный кирпичик 2x2 с 🏠 и «ДОМОЙ»): просит
-	    сервер телепортировать на базу. Сервер сам проверяет кулдаун; здесь кулдаун только для вида: тёмная вуаль «стекает»
-	    вниз, крупные цифры по центру, домик бледнеет, подпись «ЖДИ» над вуалью; по готовности —
-	    подпись «ДОМОЙ», кольцо и один блик. Нажатие во время кулдауна — кнопка качается «нет».
+	    «плющится» и качается, число катится «одометром» и вспыхивает, искры, «+N» всплывает
+	    справа, тик повыше тоном. Без CounterHold «прилёт» играет сразу при росте FishCaught (через
+	    кадр — успеть поставить CounterHold в тот же кадр). Пока 🐟 летит из карточки, у HUD есть
+	    строковый атрибут CounterIncoming — её редкость: счётчик, которого ещё нет (первый улов),
+	    выскакивает с «0» — рыбе есть куда лететь; прилёт — в цвете редкости (подпрыгивание выше,
+	    кольцо, число на миг в цветах редкости, «+N» крупнее, уровнем Button). Снимают его вместе
+	    с CounterHold (редкость запомнена до прилёта).
+	  • Кнопка «Домой» (HUD.RightButtons.HomeButton, фиолетовая квадратная кнопка с 🏠 и «ДОМОЙ»
+	    на нижнем краю): просит сервер телепортировать на базу. Нажатие — сжатие, перелёт и «пинок»
+	    домика (UiFx.press; мышью — ещё и наведение). Сервер сам проверяет кулдаун; здесь кулдаун
+	    только для вида: тёмная вуаль «стекает» вниз, крупные наклонные цифры по центру (последние
+	    3 с — оранжевой вспышкой), домик бледнеет, подпись «ЖДИ» над вуалью; по готовности — «удар»,
+	    подпись «ДОМОЙ» въезжает снизу, кольцо и один блик. Нажатие во время кулдауна — кнопка
+	    качается «нет». Красный кружок «!» (HomeButton.Badge) спрятан: его зажжёт магазин (этап 3).
 	  • Обводки и шкала текста подгоняются под экран (UiFx.fitStrokes, UiFx.fitText).
 	  • Панель предметов Roblox (CoreGui Backpack) выключена (v3): удочку берут кнопкой «ВЗЯТЬ»
 	    у точки рыбалки (FishingController), а серый слот внизу по центру стоял под ногами
@@ -36,12 +42,12 @@
 	    (на телефонах низ справа занят кнопкой прыжка).
 	  • Ничего не блестит «просто так»: блик у плашки — только при назначении базы, у «Домой» —
 	    когда кончился кулдаун (внимание остаётся у главной кнопки рыбалки).
-	  • UI v4: «прилёт» в счётчик — ещё и «одометр» (прошлое число уезжает вверх и тает, новое
+	  • «Прилёт» в счётчик — ещё и «одометр» (прошлое число уезжает вверх и тает, новое
 	    поднимается снизу с пружинкой). Плашки изредка «живут» (раз в 8–12 с, по одной, только в
 	    покое — не рыбачим, нет улова, уведомлений, и 6 с после последнего события): флажок базы
 	    качнётся, 🐟 кувыркнётся, 🏠 подпрыгнет. Одна цепочка таймеров, без покадровой работы.
 
-	Все эффекты здесь — на твинах и таймерах (кроме коротких конфетти и «+N»), HUD живёт всю
+	Все эффекты здесь — на твинах и таймерах (кроме коротких конфетти, искр и «+N»), HUD живёт всю
 	сессию (ResetOnSpawn = false), поэтому соединения создаются один раз.
 ]]
 
@@ -75,6 +81,7 @@ local BANNER_HOLD = 2 -- сколько секунд баннер базы ст�
 local BANNER_FLY = 0.4 -- полёт баннера в плашку
 local CAPTION_REST = "ДОМОЙ"
 local CAPTION_WAIT = "ЖДИ"
+local SLIDE_IN = 90 -- колонка кнопок въезжает из-за правого края экрана, px
 
 local HudController = {}
 
@@ -137,6 +144,8 @@ function HudController:Start(hud: ScreenGui)
 	UiFx.fitStrokes(hud)
 	UiFx.fitText(hud)
 	UiFx.press(homeButton, { sound = "click" })
+	-- Вход в игру: плашка выскакивает (до неё долетит баннер базы).
+	UiFx.popIn(badge, { from = 0.6, time = 0.32 })
 	-- Когда в HUD что-то происходило (прилёт рыбы, база, «Домой», рыбалка): «жизнь» плашек
 	-- (в конце Start) ждёт после этого MICRO_QUIET секунд.
 	local lastActivity = os.clock()
@@ -147,11 +156,11 @@ function HudController:Start(hud: ScreenGui)
 	local bannerTrove = Trove.new()
 	local bannerRest = if banner then banner.Position else UDim2.fromScale(0.5, 0.45)
 
-	-- Плашка «приняла» базу: подпрыгивает, флажок качается, блик (только твины — без временных
-	-- объектов: момент уже отыграл баннер).
+	-- Плашка «приняла» базу: подпрыгивает, ободок вспыхивает, флажок «вкручивается» и качается,
+	-- блик (только твины — момент уже отыграл баннер).
 	local function celebrateBadge()
-		UiFx.bump(badge, 1.3, 0.4)
-		UiFx.studsPop(badge, { delay = 0.12, stagger = 0.05 }) -- пупырки «защёлкиваются» по очереди
+		UiFx.bump(badge, 1.25, 0.4)
+		UiFx.rimFlash(badge, { delay = 0.12, bump = 1 })
 		local socket = flagSocket
 		if socket then
 			UiFx.popIn(socket, { from = 0.4, time = 0.4, rotate = -30 })
@@ -209,17 +218,32 @@ function HudController:Start(hud: ScreenGui)
 		bannerTrove:Clean()
 		live.Position = bannerRest
 		live.Visible = true
-		UiFx.setCandy(live, swatch)
 		local caption = live:FindFirstChild("Caption")
 		if caption and caption:IsA("TextLabel") then
 			caption.Text = "ТВОЯ БАЗА"
 		end
+		-- Имя — огромная надпись в цветах базы (белое сверху → Top → Bottom), как заголовок
+		-- образца: «влетает» (slam) и вспыхивает цветом базы.
 		local nameLabel = live:FindFirstChild("NameLabel")
 		if nameLabel and nameLabel:IsA("TextLabel") then
-			nameLabel.Text = `{TextUtil.upper(colorName)}!`
+			UiFx.setText(nameLabel, `{TextUtil.upper(colorName)}!`)
+			local fill = nameLabel:FindFirstChild("TextFill")
+			if fill and fill:IsA("UIGradient") then
+				fill.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, WHITE),
+					ColorSequenceKeypoint.new(0.4, WHITE:Lerp(swatch.Top, 0.6)),
+					ColorSequenceKeypoint.new(0.7, swatch.Top),
+					ColorSequenceKeypoint.new(1, swatch.Bottom),
+				})
+			end
+			bannerTrove:Add(task.delay(0.12, function()
+				UiFx.slam(nameLabel, 1.8, 0.3)
+			end))
+			bannerTrove:Add(task.delay(0.45, function()
+				UiFx.flashText(nameLabel, swatch.Top, 0.4)
+			end))
 		end
 		UiFx.popIn(live, { from = 0.3, time = 0.45, rotate = -6 })
-		UiFx.studsPop(live, { delay = 0.3, stagger = 0.05 })
 		bannerTrove:Add(UiFx.rays(live, {
 			colors = { WHITE, swatch.Top },
 			count = 10,
@@ -291,8 +315,20 @@ function HudController:Start(hud: ScreenGui)
 				NotifyController.Show(`Тебе досталась {colorName} база!`, "base", { swatch = swatch })
 			end
 			if before ~= "assigned" then
+				-- Колонка кнопок въезжает справа (Back Out), домик «выскакивает»: кнопка не растёт
+				-- к кнопке прыжка под ней.
 				homeButton.Visible = true
-				UiFx.popIn(homeButton, { from = 0, time = 0.45, delay = 0.25, rotate = -12 })
+				local rest = rightButtons.Position
+				rightButtons.Position = rest + UDim2.fromOffset(SLIDE_IN, 0)
+				UiFx.tween(
+					rightButtons,
+					0.4,
+					{ Position = rest },
+					Enum.EasingStyle.Back,
+					Enum.EasingDirection.Out,
+					0.25
+				)
+				UiFx.popIn(homeIcon, { from = 0, time = 0.4, delay = 0.45, rotate = -25 })
 			end
 			homeButton.Visible = true
 		else
@@ -338,9 +374,10 @@ function HudController:Start(hud: ScreenGui)
 		end
 	end
 
-	-- «Одометр» (UI v4): прошлое число уезжает вверх и тает, новое поднимается снизу с пружинкой
+	-- «Одометр»: прошлое число уезжает вверх и тает, новое поднимается снизу с пружинкой
 	-- (Back Out). Label.Text — уже новое число (договор), прошлое едет копией FxOdometer.
 	local counterRest = counterLabel.Position
+	local greeting = 0 -- поколение «приветствия» редкости на числе (последнее снимает цвет)
 	local function rollCounter(old: string)
 		local ghost = counterLabel:Clone()
 		ghost.Name = "FxOdometer"
@@ -373,8 +410,20 @@ function HudController:Start(hud: ScreenGui)
 		rollCounter(tostring(math.max(math.floor(shown - gained), 0)))
 		local style = if rarity then UIConfig.Rarity[rarity] else nil
 		UiFx.bump(counter, if style then 1.45 else 1.3, if style then 0.45 else 0.35)
+		-- 🐟 «плющится» и пружинит (Elastic), качается; число вспыхивает (золотом или цветом
+		-- редкости), из счётчика брызжут искры.
+		local iconScale = UiFx.scaleOf(counterIcon)
+		iconScale.Scale = 1.35
+		UiFx.tween(iconScale, 0.45, { Scale = 1 }, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out)
 		UiFx.wiggle(counterIcon, 14, 3, 0.5)
-		UiFx.shine(counter, 0.55)
+		UiFx.flashText(counterLabel, if style and not style.Rainbow then style.Top else Palette.Gold.Top, 0.35)
+		UiFx.burst(counter, {
+			count = 8,
+			power = 0.45,
+			time = 0.4,
+			origin = Vector2.new(0.6, 0.5),
+			colors = { WHITE, Palette.Gold.Top, if style then style.Top else Palette.Gold.Bottom },
+		})
 		UiFx.sound("tick", 0.45, 1.3)
 		local colors = { WHITE, Palette.Gold.Top } -- (обычная рыба — золото: серое «+1» не радует)
 		if style then
@@ -383,12 +432,28 @@ function HudController:Start(hud: ScreenGui)
 			elseif rarity ~= "Common" then
 				colors = { UiFx.lighten(style.Top, 0.35), style.Bottom }
 			end
-			UiFx.glowRing(counter, {
+			UiFx.glowRing(counterIcon, {
 				color = if style.Rainbow then WHITE else style.Top,
-				scale = 1.35,
+				scale = 1.6,
 				thickness = 4,
 				time = 0.5,
 			})
+			-- Число на миг в цветах редкости (белое сверху → Top → Bottom), потом снова белое.
+			local fill = counterLabel:FindFirstChild("TextFill")
+			if fill and fill:IsA("UIGradient") and not style.Rainbow then
+				greeting += 1
+				local mine = greeting
+				fill.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, WHITE),
+					ColorSequenceKeypoint.new(0.45, style.Top),
+					ColorSequenceKeypoint.new(1, style.Bottom),
+				})
+				task.delay(0.8, function()
+					if greeting == mine then
+						fill.Color = ColorSequence.new(WHITE)
+					end
+				end)
+			end
 		end
 		-- «+N» справа от плашки, чуть вверх (не налезая на плашку базы над ней).
 		local px = UiFx.textSize("Button") -- «+N» уровнем Button (Offset у UDim — целые пиксели)
@@ -474,7 +539,11 @@ function HudController:Start(hud: ScreenGui)
 		end
 		cooldownText.Text = tostring(left)
 		cooldownText.Visible = true
-		UiFx.bump(cooldownText, 1.35, 0.25)
+		-- Последние 3 секунды — крупнее и оранжевой вспышкой: «почти готово».
+		UiFx.bump(cooldownText, if left <= 3 then 1.45 else 1.35, 0.25)
+		if left <= 3 then
+			UiFx.flashText(cooldownText, Palette.Sun.Top, 0.4)
+		end
 	end
 
 	-- Вид кнопки: готова («ДОМОЙ», яркий домик) или ждёт («ЖДИ» над вуалью, бледный домик).
@@ -482,7 +551,8 @@ function HudController:Start(hud: ScreenGui)
 		UiFx.tween(homeIcon, 0.2, { TextTransparency = if waiting then 0.85 else 0 })
 		local caption = homeCaption
 		if caption then
-			caption.Text = if waiting then CAPTION_WAIT else CAPTION_REST
+			-- «Слот-машина»: старая подпись уезжает вверх, новая въезжает снизу.
+			UiFx.swapText(caption, if waiting then CAPTION_WAIT else CAPTION_REST)
 			caption.ZIndex = if waiting then captionTop else captionZ
 		end
 	end
@@ -528,8 +598,9 @@ function HudController:Start(hud: ScreenGui)
 			showSeconds(0)
 			setWaiting(false)
 			if homeButton.Visible then
-				UiFx.bump(homeButton, 1.15, 0.35)
-				UiFx.glowRing(homeButton, { color = Palette.Mint.Top, scale = 1.45, thickness = 5 })
+				UiFx.punch(homeButton, { from = 0.9, peak = 1.15 })
+				UiFx.rimFlash(homeButton, { bump = 1 })
+				UiFx.glowRing(homeButton, { color = Palette.Grape.Top, scale = 1.45, thickness = 5 })
 				UiFx.shine(homeButton, 0.5)
 			end
 		end)

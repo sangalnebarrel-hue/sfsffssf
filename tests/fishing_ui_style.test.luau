@@ -1,7 +1,8 @@
 --[[
-	The fishing UI in the "Candy Splash" style (tools/builder/gui/Fishing.luau + FishingController,
-	look and rules: tools/builder/gui/STYLE.md §3 / §6.5) in RbxSim against the built Place1.rbxl:
-	  • the parts: every widget is a candy (or a candy-styled bar) with the documented decorations;
+	The fishing UI (tools/builder/gui/Fishing.luau + FishingController, look and rules:
+	tools/builder/gui/STYLE.md) in RbxSim against the built Place1.rbxl:
+	  • the parts: UI v5 «Симулятор» — every widget is a sim plate / button (a gradient face, a thick
+	    outline in the dark shade of its hue) or glass, with the documented decorations, and no studs;
 	  • each state's look: the action button per state (Sky / Slate / Sun / Leaf / Gold, icon,
 	    ring), the bite alert (slam, rays, flash, draining timer), the minigame (rarity title,
 	    trail under the zone, hit juice: «ОТЛИЧНО!» / «СУПЕР!» / «ИДЕАЛЬНО!», stamped stars,
@@ -145,8 +146,8 @@ local function colorNear(a: any, b: any, eps: number?): boolean
 	return math.abs(a.R - b.R) <= e and math.abs(a.G - b.G) <= e and math.abs(a.B - b.B) <= e
 end
 
--- The candy / brick shows a style (palette token / rarity / mutation): face gradient and lip. A
--- brick's face starts with its light cap: its Top sits at UIConfig.Brick.CapStop.
+-- The sim plate shows a style (palette token / rarity / mutation): face gradient and the Lip (the
+-- outline's colour). Its Top sits at UIConfig.Brick.CapStop (0 since UI v5: no cap).
 local function isCandy(root: any, style: any): boolean
 	local face = root:FindFirstChild(root:GetAttribute("CandyFace") or "Face")
 	local keys = face.Fill.Color.Keypoints
@@ -163,32 +164,49 @@ local function isCandy(root: any, style: any): boolean
 		and colorNear(root.Lip.BackgroundColor3, style.Lip)
 end
 
--- UI v4: every fishing widget is a toy brick (Theme.brick / tile / roundPlate): Lip (the side
--- band, Ink outline designed at 4 px) behind a capped face, no glossy band.
+-- UI v5: every fishing widget is a sim plate (Theme.sim, or the compat brick / tile / roundPlate
+-- that build it): the Lip carries the outline (no fill) in the dark shade of the swatch, the face
+-- (a Top → Bottom gradient) covers the whole root; or the glass look (no outline).
 local function checkCandy(t: any, root: any, what: string)
 	local faceName = root:GetAttribute("CandyFace")
 	t.ok(type(faceName) == "string", `{what}: CandyFace attribute`)
-	t.ok(root:GetAttribute("CandyStyle") == "brick" or root:GetAttribute("CandyStyle") == "tile", `{what}: a brick`)
+	local style = root:GetAttribute("CandyStyle")
+	t.ok(style == "sim" or style == "glass", `{what}: a sim plate or glass ({style})`)
 	t.eq(root.BackgroundTransparency, 1, `{what}: transparent root`)
 	local lip, face = root:FindFirstChild("Lip"), root:FindFirstChild(faceName)
 	t.ok(lip and face, `{what}: Lip and {faceName}`)
-	t.ok(lip.ZIndex < face.ZIndex, `{what}: the lip is behind the face`)
+	t.ok(lip.ZIndex < face.ZIndex, `{what}: the outline is behind the face`)
+	t.eq(lip.BackgroundTransparency, 1, `{what}: the Lip draws no band`)
+	t.eq(face.Size.Y.Scale, 1, `{what}: the face covers the whole root (no side band)`)
 	local outline = lip:FindFirstChildOfClass("UIStroke")
-	t.ok(outline and colorNear(outline.Color, UIConfig.Ink), `{what}: Ink outline on the lip`)
+	t.ok(outline and colorNear(outline.Color, lip.BackgroundColor3), `{what}: the outline in the swatch's dark shade`)
 	t.ok(type(outline:GetAttribute("BaseThickness")) == "number", `{what}: outline fitted to the screen`)
-	t.ok(
-		outline:GetAttribute("BaseThickness") >= 3,
-		`{what}: a thick outline ({outline:GetAttribute("BaseThickness")})`
-	)
+	if style == "sim" then
+		t.ok(
+			outline:GetAttribute("BaseThickness") >= 3,
+			`{what}: a thick outline ({outline:GetAttribute("BaseThickness")})`
+		)
+	end
 	local fill = face:FindFirstChild("Fill")
 	t.ok(fill and fill:IsA("UIGradient"), `{what}: Fill gradient`)
-	t.eq(face:FindFirstChild("Gloss"), nil, `{what}: no glossy band (a brick)`)
 end
 
--- Front-view studs on a brick (Theme.brick studs): how many.
-local function studCount(root: any): number
-	local holder = root:FindFirstChild("Studs")
-	return if holder then #holder:GetChildren() else 0
+-- Anything stud-like under root (UI v5: the GUI has no studs; empty v3 holders left by
+-- Fishing.luau until the fishing waves delete them draw nothing).
+local function studsUnder(root: any): { string }
+	local found = {}
+	for _, d in root:GetDescendants() do
+		local name = d.Name
+		if
+			string.match(name, "^Stud%d*$")
+			or d:GetAttribute("CandyStud") ~= nil
+			or name == "Spec"
+			or ((string.match(name, "^Studs") ~= nil or name == "StudRow") and #d:GetChildren() > 0)
+		then
+			table.insert(found, d:GetFullName())
+		end
+	end
+	return found
 end
 
 -- Every effect instance (Fx*) under the player's GUI, except the persistent FxScale UIScales.
@@ -227,39 +245,32 @@ local tests = {}
 -- Parts
 --------------------------------------------------------------------------------
 
-tests["parts: the fishing widgets are toy bricks with their decorations; text never too small"] = function(t)
+tests["parts: the fishing widgets are sim plates with their decorations, no studs; text never too small"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	local f = fishing(p)
 	local area = f.ActionArea
 
-	-- UI v4: the action button is a round plate (a round brick with a raised centre stud that
-	-- carries the icon), its caption on a black tile; «СМОТАТЬ» a red 1x3 brick; the key chip a tile.
+	-- UI v5: the action button is a round sim button (no raised stud), its caption on a glass pill
+	-- (the reference's timer pill); «СМОТАТЬ» a red sim button; the key chip a white plate.
 	local action = area.ActionButton
 	checkCandy(t, action, "ActionButton")
 	t.ok(isCandy(action, Palette.Gold), "ActionButton: painted with the «ВЗЯТЬ» look (no rod)")
 	t.ok(action.Ring:IsA("UIStroke"), "ActionButton.Ring halo")
-	t.eq(action:GetAttribute("CandyRadius"), 0.5, "a round plate")
-	local raised = action.Face:FindFirstChild("Stud")
-	t.ok(raised and raised:GetAttribute("CandyStud") == "raised", "a raised centre stud")
-	t.ok(raised and raised.Cap:FindFirstChild("Fill"), "…with a lit cap (recoloured with the plate)")
+	t.eq(action:GetAttribute("CandyRadius"), 0.5, "a round button")
+	t.eq(action.Face:FindFirstChild("Stud"), nil, "no raised stud")
 	checkCandy(t, action.CaptionRibbon, "CaptionRibbon")
-	t.ok(isCandy(action.CaptionRibbon, Palette.Coal), "a black caption tile")
-	t.ok(action.Caption.ZIndex > action.CaptionRibbon.ZIndex, "caption over its tile")
+	t.eq(action.CaptionRibbon:GetAttribute("CandyStyle"), "glass", "the caption on a glass pill")
+	t.ok(action.Caption.ZIndex > action.CaptionRibbon.ZIndex, "caption over its pill")
 	t.ok(action.Caption:FindFirstChild("Outline"), "outlined caption")
-	for _, name in { "CaptionRibbon", "Caption", "KeyChip", "TapCue", "Bobber" } do
-		t.eq(action[name]:GetAttribute("NoSink"), true, `{name} stays put when the plate sinks (press)`)
-	end
 	checkCandy(t, action.KeyChip, "KeyChip")
 	checkCandy(t, area.StopButton, "StopButton")
-	t.ok(isCandy(area.StopButton, Palette.Berry), "StopButton: a red brick")
-	t.eq(studCount(area.StopButton), 3, "…1x3: three studs")
+	t.ok(isCandy(area.StopButton, Palette.Berry), "StopButton: a red button")
 	t.eq(area.StopButton.Icon.Text, "🎣", "v3 (UIM-09): the rod — «reel it in», not a sewing thread")
 
 	local alert = f.BiteAlert
 	checkCandy(t, alert, "BiteAlert")
-	t.ok(isCandy(alert, Palette.Sun), "BiteAlert: an orange brick")
-	t.eq(studCount(alert), 6, "…1x6: six studs")
+	t.ok(isCandy(alert, Palette.Sun), "BiteAlert: an orange plate")
 	t.eq(alert.Label.Text, "КЛЮЁТ!")
 	t.ok(alert.Label:FindFirstChild("TextFill") and alert.Label:FindFirstChild("Outline"), "gradient, outlined title")
 	-- UI v2 (FUI-08): «!» glyphs — white → gold text with an Ink outline, not the ❗ emoji.
@@ -273,25 +284,20 @@ tests["parts: the fishing widgets are toy bricks with their decorations; text ne
 	end
 	t.ok(alert.TimerTrack.ZIndex < alert.Timer.ZIndex, "the timer bar sits on its track")
 
-	-- The minigame: a dark stone baseplate with a row of studs seen from above along its top edge.
+	-- The minigame: a dark navy sim panel (no studs along its top edge any more).
 	local mini = f.Minigame
 	checkCandy(t, mini, "Minigame")
-	t.ok(isCandy(mini, Palette.Night), "Minigame: a dark stone plate")
+	t.ok(isCandy(mini, Palette.Night), "Minigame: a dark navy panel")
 	t.eq(mini.Face.BackgroundTransparency, 0, "…opaque")
-	local row = mini.Face:FindFirstChild("StudRow")
-	t.ok(row and #row:GetChildren() >= 12, "a row of studs along its top edge")
-	t.eq(row.Stud1:GetAttribute("CandyStud"), "top", "…seen from above")
-	t.ok(row.Position.Y.Scale + row.Size.Y.Scale <= mini.Title.Position.Y.Scale, "…above the title")
+	t.eq(mini.Face:FindFirstChild("StudRow"), nil, "no row of studs")
 	t.ok(mini.Title:FindFirstChild("TextFill") and mini.Title:FindFirstChild("Outline"), "rarity-gradient title")
 	for i = 1, 5 do
 		local pip = mini.Pips[`Pip{i}`]
 		t.eq(pip.Star.Text, "★", `Pip{i} has a white star glyph (⭐ when stamped)`)
-		t.ok(pip:FindFirstChild("Cap"), `Pip{i}: a round stud seen from above (its lit cap)`)
 	end
 	local track, zone, needle = mini.Track, mini.Track.Zone, mini.Track.Needle
 	checkCandy(t, zone, "Zone")
-	t.ok(isCandy(zone, Palette.Leaf), "Zone: a green brick")
-	t.eq(studCount(zone), 3, "…1x3: three studs (the rider stands on them)")
+	t.ok(isCandy(zone, Palette.Leaf), "Zone: a green plate")
 	t.ok(zone.Glow.ZIndex < zone.Lip.ZIndex, "the zone's glow is behind it")
 	t.ok(zone.Flash.ZIndex > zone.Face.ZIndex, "hit flash over the zone")
 	t.ok(needle.ZIndex > zone.ZIndex, "the needle is drawn over the zone")
@@ -301,35 +307,29 @@ tests["parts: the fishing widgets are toy bricks with their decorations; text ne
 	t.ok(mini.TimeBar.Fill:FindFirstChild("Gloss"), "glossy time bar")
 
 	checkCandy(t, f.Hint, "Hint")
-	t.eq(f.Hint:GetAttribute("CandyStyle"), "tile", "Hint: a smooth tile")
-	t.ok(isCandy(f.Hint, Palette.Night), "Hint: dark stone")
+	t.eq(f.Hint:GetAttribute("CandyStyle"), "glass", "Hint: the reference's timer pill (glass)")
+	t.ok(isCandy(f.Hint, Palette.Glass), "Hint: dark glass")
 	t.eq(f.Hint.TextTransparency, 1, "Hint.Text is the value, Hint.Label shows it")
-	t.eq(f.Hint.IconSocket.Rotation, 0, "an upright icon in its white round tile")
+	t.eq(f.Hint.IconSocket.Rotation, 0, "an upright outlined icon")
 
-	-- The catch card: a white display plate — the fish in a window on a studded pedestal, studs in
-	-- the gaps, the rarity banner a long studded brick, the price a yellow studded brick.
+	-- The catch card: a white plate — the fish in a window on a pedestal in the rarity's colour,
+	-- the rarity banner, the price on a yellow chip. No studs anywhere.
 	local card = f.CatchCard
 	checkCandy(t, card, "CatchCard")
 	t.ok(isCandy(card, Palette.Cream), "CatchCard: a white plate")
 	t.ok(card.Face:FindFirstChild("Window"), "a display window behind the fish")
-	for _, name in { "StudsTop", "StudsLeft", "StudsRight" } do
-		local holder = card.Face:FindFirstChild(name)
-		t.ok(holder and #holder:GetChildren() >= 4, `{name}: studs in the gaps`)
-		t.eq(holder.Stud1:GetAttribute("CandyStud"), "top")
-	end
 	checkCandy(t, card.Banner, "Banner")
-	t.eq(studCount(card.Banner), 6, "a long studded banner (v3: the one stud module, UIM-05)")
 	checkCandy(t, card.Pedestal, "Pedestal")
-	t.ok(studCount(card.Pedestal) >= 3, "a studded pedestal")
 	t.ok(card.Pedestal.ZIndex < card.Viewport.ZIndex, "the fish stands in front of its pedestal")
 	t.ok(card.Pedestal.ZIndex > card.FishGlow.ZIndex, "…which stands in front of the glow")
 	checkCandy(t, card.MutationLabel, "MutationLabel")
 	checkCandy(t, card.NewStamp, "NewStamp")
 	checkCandy(t, card.InfoLabel.Weight, "Weight chip")
-	t.eq(card.InfoLabel.Weight:GetAttribute("CandyStyle"), "tile", "the weight on a grey tile")
+	t.eq(card.InfoLabel.Weight:GetAttribute("CandyRadius"), UIConfig.Sim.PlateRadius, "the weight on a grey chip")
 	checkCandy(t, card.InfoLabel.Price, "Price chip")
-	t.ok(isCandy(card.InfoLabel.Price, Palette.Gold), "price on a yellow brick")
-	t.ok(studCount(card.InfoLabel.Price) >= 3, "…with studs")
+	t.ok(isCandy(card.InfoLabel.Price, Palette.Gold), "price on a yellow chip")
+	local studs = studsUnder(f)
+	t.eq(#studs, 0, `no studs in the fishing UI ({table.concat(studs, ", ")})`)
 	t.ok(card.FishGlow.ZIndex < card.Viewport.ZIndex, "the glow is behind the fish")
 	t.ok(card.NameLabel:FindFirstChild("Outline") and card.NameLabel:FindFirstChild("TextFill"), "big outlined name")
 
@@ -391,14 +391,15 @@ tests["action button: a look per state (Take, Cast, Wait, Bite, Reel), pop on ch
 	sim:Advance(0.6)
 	t.near(button.FxScale.Scale, 1, 1e-3, "settles")
 
-	-- A tap: ripple + squash; «ЖДЁМ…» while the server answers: Slate ⏳ that flips.
+	-- A tap: ripple + squash; «ЖДЁМ…» while the server answers: Slate ⏳ that flips. (The icon's
+	-- rest rotation is read before the tap: UI v5's press kicks the icon −8° for 0.25 s.)
+	local rest = button.Icon.Rotation
 	sim:Click(p, button)
 	sim:Advance(0.05)
 	t.ok(count(button, "FxRing") > 0, "a ripple on the tap")
 	t.eq(button.Caption.Text, "ЖДЁМ…")
 	t.ok(isCandy(button, Palette.Slate), "Slate while the cast is pending")
 	t.eq(button.Icon.Text, "⏳")
-	local rest = button.Icon.Rotation
 	sim:Advance(0.8)
 	t.ok(math.abs(button.Icon.Rotation - rest) > 90, "the hourglass flips")
 	-- UI v2 (FUI-19): the line in the water — a bobbing bobber and running dots. v3 (UIM-09): it
@@ -754,7 +755,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 	t.eq(
 		card.Lip:FindFirstChildOfClass("UIStroke"):FindFirstChild("FxRimFill"),
 		nil,
-		"a plain Common card keeps its Ink outline"
+		"a plain Common card keeps its own outline"
 	)
 
 	-- The same species again: calm — no «НОВИНКА!», no dim, no confetti, no «+N 💰», rarity rays.
@@ -913,6 +914,7 @@ tests["mutation: stamped after the base price — «×N», recount, outline; Gol
 	local card = fishing(p).CatchCard
 	local badge = card.MutationLabel
 	local outline = card.Lip:FindFirstChildOfClass("UIStroke")
+	local outlineRest = outline.Color -- (UI v5: the card's dark navy outline, Palette.Cream.Lip)
 	local price = card.InfoLabel.Price.Label
 	local cases = {
 		{ "Gold", "Золотая мутация ×2", "ЗОЛОТАЯ ×2!", "×2", 2 },
@@ -969,8 +971,8 @@ tests["mutation: stamped after the base price — «×N», recount, outline; Gol
 		sim:Click(p, card)
 		sim:Advance(0.05)
 		t.eq(card.Visible, false, `{case[1]}: closed`)
-		t.eq(outline:FindFirstChild("FxRimFill"), nil, `{case[1]}: the outline is Ink again`)
-		t.ok(colorNear(outline.Color, UIConfig.Ink), `{case[1]}: Ink outline`)
+		t.eq(outline:FindFirstChild("FxRimFill"), nil, `{case[1]}: the outline is plain again`)
+		t.ok(colorNear(outline.Color, outlineRest), `{case[1]}: the card's own outline colour`)
 		sim:Advance(1)
 	end
 	sim:Advance(3)
@@ -1242,7 +1244,7 @@ tests["closing: skip, then close — the card itself flies into the counter, �
 	t.eq(hud:GetAttribute("CounterIncoming"), nil, "…and the incoming mark is cleared")
 	t.eq(counter.Label.Text, "1")
 	t.ok(counter.FxScale.Scale > 1, "the counter bumps when the fish arrives")
-	t.ok(counter:FindFirstChild("FxRing"), "…with a ring in the rarity colour")
+	t.ok(counter:FindFirstChild("FxRing", true), "…with a ring in the rarity colour (round the 🐟)")
 	sim:Advance(0.3)
 	t.eq(hud:FindFirstChild("FxFlyFrom"), nil, "the 🐟's start point is gone once the last ★ left")
 	sim:Advance(3)
@@ -1464,7 +1466,7 @@ end
 -- Hint, idle
 --------------------------------------------------------------------------------
 
-tests["hint: a dark stone tile with an icon by kind, slides up with a bounce"] = function(t)
+tests["hint: a glass pill with an icon by kind, slides up with a bounce"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	ready(sim, p)
@@ -1473,14 +1475,16 @@ tests["hint: a dark stone tile with an icon by kind, slides up with a bounce"] =
 	t.eq(hint.Visible, true)
 	t.eq(hint.Text, "Жми «Забросить»")
 	t.eq(hint.Label.Text, hint.Text, "the label shows the value")
-	t.eq(hint.IconSocket.Icon.Text, "💡", "info: 💡 (in a white socket, like the toasts)")
-	t.ok(isCandy(hint, Palette.Night), "info: a dark stone tile")
+	t.eq(hint.IconSocket.Icon.Text, "💡", "info: 💡 (outlined, overhanging, like the toasts)")
+	t.ok(isCandy(hint, Palette.Glass), "info: the dark glass pill")
+	t.eq(hint:GetAttribute("CandyStyle"), "glass")
 	local rest = hint.Position
 
 	serverSays(sim, p, "Denied", { Reason = "far", Text = "Подойди к краю своего пирса" })
 	t.eq(hint.Label.Text, "Подойди к краю своего пирса")
 	t.eq(hint.IconSocket.Icon.Text, "⚠️", "warning: ⚠️")
-	t.ok(isCandy(hint, Palette.Sun), "warning: an orange tile")
+	t.ok(isCandy(hint, Palette.Sun), "warning: an orange plate")
+	t.eq(hint:GetAttribute("CandyStyle"), "sim", "… solid, with its outline")
 	-- UI v2 (M6): it slides up by a few px only (the hotbar is right under it) and pops.
 	t.near(hint.Position.Y.Scale, rest.Y.Scale, 1e-6, "slides by pixels, not by a share of the screen")
 	t.ok(hint.Position.Y.Offset > rest.Y.Offset, "slides up from below")
@@ -1493,7 +1497,7 @@ tests["hint: a dark stone tile with an icon by kind, slides up with a bounce"] =
 	serverSays(sim, p, "Idle", { Reason = "stop" })
 	t.eq(hint.Label.Text, "Леска смотана")
 	t.eq(hint.IconSocket.Icon.Text, "💡", "info again")
-	t.ok(isCandy(hint, Palette.Night), "a dark stone tile again")
+	t.ok(isCandy(hint, Palette.Glass), "glass again")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -1595,7 +1599,7 @@ tests["far from the spot: «КУДА ИДТИ?» 🧭 casts nothing — the hint
 	t.eq(#sim:ServerEventsFor(p, "FishingCast"), 0, "no cast far from the spot")
 	t.ok(beam.Width1 > width, "the guide beam flares")
 	-- UI v2 (M4): the button shows the way, it does not scold: a calm info hint 💡 pops again.
-	t.ok(isCandy(f.Hint, Palette.Night), "the hint pops again, calm (info, not a warning)")
+	t.ok(isCandy(f.Hint, Palette.Glass), "the hint pops again, calm (info, not a warning)")
 	t.eq(f.Hint.IconSocket.Icon.Text, "💡")
 	t.ok(f.Hint.FxScale.Scale < 1, "… with a pop")
 	standAtSpot(sim, p)

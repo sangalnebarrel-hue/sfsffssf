@@ -1,33 +1,33 @@
 --!strict
 --[[
-	NotifyController — всплывающие уведомления (HUD.Toasts) в стиле «Кирпичики» (UI v3:
-	гладкие плитки цвета вида, значок в белой круглой плитке; tools/builder/gui/STYLE.md;
-	анимации — ReplicatedStorage.Shared.UiFx).
+	NotifyController — всплывающие уведомления (HUD.Toasts) в стиле «Симулятор» (UI v5: сочные
+	плашки цвета вида с толстой обводкой в тёмный оттенок цвета, эмодзи с тёмным контуром на левом
+	краю, белый текст с обводкой; tools/builder/gui/STYLE.md; анимации — ReplicatedStorage.Shared.UiFx).
 
 	Источники:
 	  • сервер: RemoteEvent "Notify" (text, kind);
 	  • другие контроллеры: NotifyController.Show(text, kind?, look?).
 	kind — вид из UIConfig.ToastKinds: "info" | "success" | "warning" | "danger" (Sky 💬 / Leaf 🎉 /
 	Sun ⚠️ / Berry 🚨), "base" (цвета своей базы, 🚩 — look.swatch передаёт HudController),
-	"Legendary" (жёлтый кирпич с 🌟) и "Mythic" (тёмный кирпич в радужной рамке, 🌈) — громкие
-	новости о редком улове: дольше (4.5 с), со звёздочками, в две строки, и это уже не плитка, а
-	кирпич с пупырками (UiFx.setStuds; у мифической пупырки радугой) — чем реже улов, тем больше
-	кирпич. Сервер присылает их одной строкой «Кто: что поймал» (FishingService) — здесь она
+	"Legendary" (золотая плашка с 🌟) и "Mythic" (тёмная плашка в радужной обводке, 🌈) — громкие
+	новости о редком улове: крупнее и дольше (4.5 с), со звёздочками, в две строки, влетают
+	«ударом» с перелётом, от них расходится кольцо цвета редкости, строка «что» вспыхивает
+	золотом. Сервер присылает их одной строкой «Кто: что поймал» (FishingService) — здесь она
 	делится по первому ": ": сверху кто (Byline, не мельче BYLINE_MIN px), снизу крупно что
 	(Label: первое слово — редкость — заглавными; белые буквы с толстой обводкой, у легендарной
-	снизу в золото). v3 (UIM-06): радуга мифической — только по рамке (она вращается), на пупырках
-	и на кольце значка: на тёмной плитке белые буквы читаются; уведомление не шире колонки —
-	длинная строка «что» переносится. Чужой улов не красит экран (никаких радужных краёв: новичок
-	не подумает, что это он поймал). Неизвестный вид — как "info".
+	снизу в золото). Радуга мифической — только по обводке (она вращается): на тёмной плашке
+	белые буквы читаются; уведомление не шире колонки — длинная строка «что» переносится. Чужой
+	улов не красит экран (никаких радужных краёв: новичок не подумает, что это он поймал).
+	Неизвестный вид — как "info".
 	look = { swatch = {Top, Bottom, Lip}?, icon = "🚩"? } заменяет цвет и значок вида.
 
 	Каждое уведомление — копия HUD.Toasts.ToastTemplate (имя "Toast"), ширина — по длине текста
 	(текст по шкале UiFx.fitText: Body); длинный текст — в две строки. Если уведомлений
 	несколько, все тянутся до ширины самого широкого (значки встают в столбик). Колонку
 	раскладывает этот модуль (без UIListLayout): новое уведомление съезжает сверху в свой слот с
-	пружинкой, значок в белом кружке «вкручивается» (−180° → 0), когда плитка села (у
-	предупреждения и громких — потом ещё качается), по плитке пробегает блик, у громких пупырки
-	«защёлкиваются» по очереди; «успех» и громкие — со звёздочками, «опасность» — встряхивается.
+	пружинкой, значок «вкручивается» (−180° → 0), когда плашка села (у предупреждения и громких —
+	потом ещё качается), по плашке пробегает блик, у громких вспыхивает ободок; «успех» и
+	громкие — со звёздочками, «опасность» — встряхивается.
 	Соседи съезжают на новые места с лёгким перелётом (Back Out). Без тач-экрана колонка (по центру) сужается так,
 	чтобы не задевать окно чата Roblox слева вверху (CHAT_RIGHT, CHAT_GAP), и при смене размера окна.
 
@@ -52,8 +52,8 @@
 
 	Чужой легендарный / мифический улов (FishingFxController.OtherTrophy), чей столб света сейчас
 	не на экране (за спиной или за краем кадра): у края экрана с его стороны — маленький значок
-	(копия HUD.TrophyPointer, «TrophyChip»: 🌟 на золотой / 🌈 на радужной «конфете» в кольце цвета
-	базы рыбака, острый край «тычет» к краю экрана), пока столб горит (FishingConfig.Fx.
+	(копия HUD.TrophyPointer, «TrophyChip»: 🌟 на золотой / 🌈 на радужной круглой кнопке в кольце
+	цвета базы рыбака, острый край «тычет» к краю экрана), пока столб горит (FishingConfig.Fx.
 	PillarTimeOther); столб попал в кадр — значка нет. На телефоне — не во время своей поклёвки,
 	мини-игры и улова (то же правило, что у уведомлений). Пока есть хоть один значок — один
 	покадровый эффект планировщика UiFx (где столб относительно камеры); нет значков — ничего.
@@ -118,15 +118,12 @@ local COLUMN_MIN = 320
 -- переносится); на тач-экране такое уведомление может быть шире колонки во столько раз.
 local BIG_WIDE_TOUCH = 1 -- v3 (UIM-06): не шире колонки (длинная строка переносится)
 local BYLINE_MIN = 14 -- «кто» не мельче стольких px (v3, UIM-06)
-local BIG_OUTLINE = 4 -- обводка букв громкого уведомления (при 720 px; на телефоне ≈ 2.5 px)
-local RIM_THICK = 1.6 -- радужная рамка мифической толще обычной обводки плитки во столько раз
-local BIG_CHAR = 0.58 -- средняя ширина буквы в долях размера текста (Nunito Heavy)
-local BIG_PAD = 0.86 -- доля высоты «конфеты» под строки (остальное — поля и губа)
-local BIG_LINE = 1.25 -- высота строки в размерах её текста
-local CANDY_LIP = UIConfig.Brick.TileLip -- боковина плитки уведомления, доля высоты (Theme.tile)
--- Громкое уведомление — кирпич: пупырки по верху (размер — доля высоты, сколько — по ширине).
-local BIG_STUD_SCALE = 0.5
-local BIG_STUD_AREA = { 0.16, 0.97 }
+local BIG_OUTLINE = 4 -- обводка букв громкого уведомления (при 720 px; на телефоне ≈ 2.6 px)
+local RIM_THICK = 1.4 -- радужная обводка мифической толще обычной во столько раз
+local BIG_CHAR = 0.68 -- средняя ширина буквы в долях размера текста (Montserrat Heavy, ЗАГЛАВНЫЕ)
+local BIG_PAD = 0.9 -- доля высоты плашки под строки (остальное — поля)
+local BIG_LINE = 1.22 -- высота строки в размерах её текста
+local CHAR = 0.56 -- средняя ширина буквы обычного текста (Montserrat Heavy) в долях его размера
 -- Значок чужого улова вне экрана (см. шапку): центр — на Y высоты HUD (справа — не ниже, чем Gap
 -- над кнопками «ДОМОЙ»; следующий у того же края — выше на Stack своих высот), от края — Gap
 -- px, «тычет» к краю на Bob px за Period с; смотрим на точку столба на Lift studs над землёй;
@@ -310,7 +307,7 @@ local function measure(text: string, tier: string): (number, boolean)
 	if columnWidth <= 1 then
 		return math.clamp(0.34 + length * 0.021, 0.56, 1), false -- раскладки ещё нет
 	end
-	local textWidth = length * 0.5 * UiFx.textSize(tier)
+	local textWidth = length * CHAR * UiFx.textSize(tier)
 	local share = textWidth / (LABEL_SHARE * 0.94) / columnWidth
 	if share <= 1 then
 		return math.max(share, MIN_WIDTH), false
@@ -377,7 +374,7 @@ local function dressBig(frame: Frame, label: TextLabel, style: ToastKind, layout
 	local small, body = UiFx.textSize("Small"), UiFx.textSize("Body")
 	local title = layout.head
 	local total = (if layout.byline then small else 0) + title * layout.lines
-	local top = (1 - CANDY_LIP - BIG_PAD) / 2
+	local top = (1 - BIG_PAD) / 2
 	local bylineShare = if layout.byline then BIG_PAD * small / total else 0
 	if layout.byline then
 		local byline = label:Clone()
@@ -412,22 +409,13 @@ local function dressBig(frame: Frame, label: TextLabel, style: ToastKind, layout
 		outline:SetAttribute("BaseThickness", BIG_OUTLINE)
 		outline.Thickness = UiFx.strokeThickness(outline)
 	end
-	-- Кирпич, а не плитка: пупырки по верху (сколько — по ширине; у мифической — радугой).
-	local column = container
-	local area = if column then column.AbsoluteSize else Vector2.zero
-	local studs = 4
-	if area.X > 1 and area.Y > 1 then
-		local w = layout.natural * area.X * (BIG_STUD_AREA[2] - BIG_STUD_AREA[1])
-		local h = layout.height * area.Y
-		studs = math.clamp(math.round(w / (h * 0.75)), 3, UIConfig.Brick.MaxStuds)
+	-- Значок — не выше плашки: громкая плашка в две строки выше обычной (значок растёт с ней).
+	local socket = frame:FindFirstChild("IconSocket")
+	if socket and socket:IsA("GuiObject") then
+		socket.Size = UDim2.fromScale(socket.Size.X.Scale * 0.85, socket.Size.Y.Scale * 0.85)
 	end
-	frame:SetAttribute("CandyStyle", "brick")
-	UiFx.setStuds(frame, studs, style.Token, { scale = BIG_STUD_SCALE, area = BIG_STUD_AREA })
-	if style.Rainbow then
-		UiFx.paintStuds(frame, UIConfig.Rainbow)
-	end
-	-- Буквы: белые с толстой обводкой (у легендарной книзу светлое золото — на жёлтом кирпиче
-	-- читается); у мифической — просто белые на тёмной плитке (радуга — на рамке, v3 UIM-06).
+	-- Буквы: белые с толстой обводкой (у легендарной книзу светлое золото — на жёлтой плашке
+	-- читается); у мифической — просто белые на тёмной плашке (радуга — на обводке).
 	if not style.Rainbow then
 		local gradient = Instance.new("UIGradient")
 		gradient.Name = "TextFill"
@@ -437,8 +425,8 @@ local function dressBig(frame: Frame, label: TextLabel, style: ToastKind, layout
 	end
 end
 
--- Мифическая: радуга по рамке плитки и по кольцу значка (UIGradient "FxRim" на их обводке),
--- рамка толще в RIM_THICK раз; градиенты медленно вращаются (твины до уборки trove).
+-- Мифическая: радуга по обводке плашки (UIGradient "FxRim" на её UIStroke), обводка толще в
+-- RIM_THICK раз; градиент медленно вращается (твин до уборки trove).
 local function rainbowRim(frame: Frame, trove: Trove.Trove)
 	local strokes: { UIStroke } = {}
 	local lip = frame:FindFirstChild("Lip")
@@ -446,11 +434,6 @@ local function rainbowRim(frame: Frame, trove: Trove.Trove)
 	if ring then
 		ring.Thickness = UiFx.strokeThickness(ring) * RIM_THICK
 		table.insert(strokes, ring)
-	end
-	local socket = frame:FindFirstChild("IconSocket")
-	local socketRing = socket and socket:FindFirstChildOfClass("UIStroke")
-	if socketRing then
-		table.insert(strokes, socketRing)
 	end
 	for _, stroke in strokes do
 		stroke.Color = UIConfig.White
@@ -522,8 +505,8 @@ present = function(item: Pending)
 		icon.Text = look.icon or style.Icon
 	end
 	if style.Rainbow then
-		-- Мифическая (v3, UIM-06): тёмная плитка (Night, цвет вида) — радуга только по рамке, на
-		-- пупырках и на кольце значка; белые буквы читаются.
+		-- Мифическая: тёмная плашка (Night, цвет вида) — радуга только по обводке; белые буквы
+		-- читаются.
 		rainbowRim(frame, trove)
 	end
 
@@ -533,16 +516,30 @@ present = function(item: Pending)
 	frame.Visible = true
 	frame.Parent = parent
 
-	-- Въезд: сверху в слот с пружиной, значок выскакивает следом, потом блик.
+	-- Въезд: сверху в слот с пружиной, значок выскакивает следом, потом блик. Громкие — «удар» с
+	-- перелётом (0.3 → 1.12 → 1), при посадке — кольцо цвета редкости, вспышка ободка и строки.
 	UiFx.tween(frame, ENTER_TIME, { Position = slotPosition(slot) }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-	UiFx.popIn(frame, { from = if big then 0.3 else 0.5, time = ENTER_TIME })
 	if big then
-		UiFx.studsPop(frame, { delay = ENTER_TIME * 0.7, stagger = 0.04 }) -- пупырки «защёлкиваются»
+		UiFx.punch(frame, { from = 0.3, peak = 1.12, up = 0.2, settle = 0.25 })
+		trove:Add(task.delay(ENTER_TIME, function()
+			local rarity = UIConfig.Rarity[item.kind]
+			UiFx.glowRing(frame, {
+				color = if rarity and not rarity.Rainbow then rarity.Top else UIConfig.White,
+				scale = 1.25,
+				time = 0.45,
+				thickness = 4,
+			})
+			UiFx.rimFlash(frame, { bump = 1 })
+			if label and label:IsA("TextLabel") then
+				UiFx.flashText(label, UIConfig.Palette.Gold.Top, 0.4)
+			end
+		end))
+	else
+		UiFx.popIn(frame, { from = 0.5, time = ENTER_TIME })
 	end
 	if socket and socket:IsA("GuiObject") then
-		-- Значок в белом кружке «вкручивается» (−180° → 0, Back Out), когда плитка села; у
-		-- предупреждения и громких новостей потом ещё и качается — сам значок в кружке (кружок
-		-- круглый: качать его незачем, а его рамка не «распухает» у края колонки).
+		-- Значок «вкручивается» (−180° → 0, Back Out), когда плашка села; у предупреждения и
+		-- громких новостей потом ещё и качается.
 		UiFx.popIn(socket, { from = 0, time = 0.35, delay = 0.22, rotate = -180 })
 		if item.kind == "warning" or big then
 			trove:Add(task.delay(0.62, function()
@@ -770,11 +767,19 @@ local function onOtherTrophy(player: any, base: any, rarity: any)
 		local lip = body:FindFirstChild("Lip")
 		if lip and lip:IsA("GuiObject") then
 			lip.BackgroundColor3 = style.Lip
+			local edge = lip:FindFirstChildOfClass("UIStroke")
+			if edge then
+				edge.Color = style.Lip
+			end
 		end
 	end
 	local tip = frame:FindFirstChild("Tip")
 	if tip and tip:IsA("GuiObject") then
-		tip.BackgroundColor3 = if style.Rainbow then UIConfig.Rainbow[1] else style.Top
+		tip.BackgroundColor3 = if style.Rainbow then UIConfig.Rainbow[1] else style.Bottom
+		local edge = tip:FindFirstChildOfClass("UIStroke")
+		if edge then
+			edge.Color = style.Lip
+		end
 	end
 	local ring = frame:FindFirstChild("BaseRing")
 	local stroke = ring and ring:FindFirstChild("Stroke")
