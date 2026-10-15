@@ -482,6 +482,28 @@ approximation of R15 (exact R6) without appearance; body parts are coloured by n
 darker — it holds the rod). The sim stores whole-number attribute values as float32, so the
 dumper keeps the casts off whole seconds (CastTime would round otherwise).
 
+### Fishing world FX close-ups (fx_dump.luau)
+
+`fx_dump.luau` records the OWN client of a rigged R15 fisher through a real session — cast,
+landing, wait, nibble, bite, reel, the leap and the held trophy — with what FishingFxController
+and its helpers draw: the line as its Bézier (sticks), trails as streaks of their last Lifetime,
+every part in `Workspace.FishingFx` (the bobber, the fish shadow — pre-mixed with the water colour
+under a thin water slab, because render.py blends only the nearest transparent surface —, drips),
+the leaping / held fish. Each segment carries a close-up camera (`frame.close`: the rod tip from
+the side for the cast, the bobber from above the pier for the wait, the fish from behind the
+fisher for the trophy); `pose_sheet.py --views close` draws it (`game` = the default camera).
+
+```sh
+$LUNE run tools/build.luau
+$LUNE run tools/preview/fx_dump.luau /tmp/fx/fx.json
+# segments: cast land wait nibble bite reel leap trophy
+python3 tools/preview/pose_sheet.py /tmp/fx/fx.json /tmp/fx/trophy.png --only trophy --views close --cols 8 --cell 280x200
+python3 tools/preview/pose_sheet.py /tmp/fx/fx.json /tmp/fx/cast.png --only cast --views close,game --cols 6
+```
+
+render.py draws a `SpecialMesh` of type Sphere as an ellipsoid (`MESHES["Ellipsoid"]`); other
+mesh shapes are still their box.
+
 ## GUI previews
 
 See the HUD exactly as a player would — on a phone (also a notched one and a small one), a
@@ -641,6 +663,16 @@ real Legendary minigame: on a phone the panel stands beside the reeling bobber),
 someone else's Legendary pillar on the next pier, off-screen — the broadcast and the 🌟 chip at the
 screen edge on its side; `FishingFxController.OtherTrophy` is fired directly, with the player itself
 as the catcher).
+
+Fishing world FX (v3, `server = true`, `world = true`, not in `--all`; by name, with `--bursts`):
+`fx_cast` (wind-up, the tip's whip trail at the release, the flight on a curved line, the landing
+plop; burst 0..1.6 s), `fx_wait` (the slack line, the fish shadow swimming in and circling; sheet
+0..4.8 s @ 5 fps), `fx_bite` (the shadow lunges, the line snaps taut on every jerk), `fx_reel`
+(Legendary fight: the shadow thrashes, the taut line trembles), `catch_landing` /
+`catch_landing_mythic` (a real Legendary / Mythic Rainbow catch around the landing, burst
+0.6..1.6 s over the whole screen: the crisp burst at the fish, no screen wash). Their `roi` is a
+fixed part of the screen — `{ frac = { x0, y0, x1, y1 } }` (fractions of the screen; world FX
+have no GUI path) — and may be mixed with GUI paths.
 
 Scenarios find widgets by name only (`HUD.Fishing.ActionArea.ActionButton`, `HUD.Fishing.CatchCard`,
 `HUD.RightButtons.HomeButton`, ...), so they survive restyles; a missing or hidden widget is a

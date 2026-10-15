@@ -204,11 +204,14 @@ timers. Stagger groups by 0.03–0.06 s.
   fade out, the button freezes; Epic+ get a narrow edge frame (0.13 of the height) that builds
   0.85 → 0.5 alpha into the landing (Quad In) and cuts off on it — Mythic's is a light rainbow
   cycling around the frame —, Legendary/Mythic an accelerating heartbeat (sound only) and a slight
-  FOV wind-up while the fish leaps. On the landing (`FishingFxController.OwnFishLanded`) **no
-  full-screen flash**: a shockwave (`UiFx.shockwave`) and sparks from the fish's point, for
-  Legendary/Mythic a short narrow edge flash (0.12 of the height, ≈ 0.34 s; Mythic cycling
-  rainbow), shake and FOV punch, confetti; for Epic+ the rarity rays start around the fish (empty
-  middle) with the giant rarity title (TitleSlam, 0.24 of the HUD height within the side limits;
+  FOV wind-up while the fish leaps. On the landing (`FishingFxController.OwnFishLanded`) **a crisp
+  burst at the fish, never a wash** (v3): a thin shockwave ring (`UiFx.shockwave`, `CLIMAX.Shock`:
+  no glowing middle, ≈ 0.34 s) and sparks from the fish's point — no edge flash —, in the world a
+  small white pop, a star of thin rarity rays and a thin halo at the fish (the own Legendary/Mythic
+  pillar only rises 0.3 s later, with a thin core), shake and FOV punch, confetti; for Epic+ the
+  rarity rays start around the fish (empty middle; during the title stage thin spokes, more
+  transparent than the card's — `CLIMAX.TitleRays` — so no yellow/white glow piles up around the
+  fish) with the giant rarity title (TitleSlam, 0.24 of the HUD height within the side limits;
   white → rarity → shade fill, a thick outline; Legendary/Mythic letter by letter, each letter
   starts its wave as it lands; a white shine sweeps the word right behind the letters) and, once
   the shockwave is gone (+0.55 s), a light full-screen dim (the card's dim + 0.2) so rays and
@@ -255,13 +258,25 @@ timers. Stagger groups by 0.03–0.06 s.
   nameplate pops in only now — it stayed hidden while the catch was on screen) and stays ≈ 3 s.
   Rarity tiers (dim, rays, confetti volleys, burst, hold, beat, count, auto-close): `REVEAL` in
   FishingController; the card's tuning (float, new-species fanfare, collect flight): `CARD`.
-- **World FX** (FishingFxController, + FishingService for the broadcast): cast with a sparkly trail on
-  the bobber and a whoosh, a splash + expanding ripple rings on landing, slow ripples and nibbles
-  (the own bobber — 2.2× the template — dips half a stud with a ring, drops and a «?») while
-  waiting, the bite: a plunge, a big splash, rings, a bouncing «!» badge with
-  stars and a blinking outline on your own bobber; a wake while reeling. On a catch a spout, then the
-  fish **leaps out of the water** and flies in an arc (spinning, rarity-coloured sparkle trail) to
-  above the fisher's head — `OwnFishLanded` fires the frame it lands — then a halo, a nameplate
+- **World FX** (FishingFxController + helpers FishingLine / FishShadow / FishLife / FishBody, +
+  FishingService for the broadcast): the cast — a white whip streak off the rod tip from the forward
+  swing (`Handle.Whip`, synced with the fisher's release), a sparkly trail on the bobber and a
+  whoosh, the line trailing it in a curve; the landing «plop» — splash, a low spout, rings, a higher
+  splash sound, and the bobber dips ≈ 0.55 stud, pops back past its waterline and settles in a
+  damped bob; while waiting the line is slack and breathes, slow ripples and nibbles (the own
+  bobber — 2.2× the template — dips half a stud with a ring, drops and a «?»). **A fish shadow**
+  (a dark blurred oval + tail, SmoothPlastic, under the water) swims in from afar, circles and
+  inspects the bobber, darts in and pokes it on a nibble, lunges under it on the bite and tugs
+  away, thrashes under it while reeling (bigger with the own fish's rarity, a flank glint on the
+  swings) and flees + fades when the fish is lost or the line is reeled in — the own always, other
+  fishers within `Fx.AmbientRange`. The bite: a plunge, a big splash, rings, a bouncing «!» badge
+  with stars and a blinking outline on your own bobber, the line jerking slack and tight; while
+  reeling a wake, the line taut and trembling sideways (≈ 13 Hz, a few hundredths of a stud),
+  pulsing in width and colour; the strike flashes it white, a lost fish red (then it goes slack).
+  On a catch a spout, then the fish **leaps out of the water** and flies in an arc (spinning,
+  rarity-coloured sparkle trail; it flexes and beats its tail, water drips off it) to above the
+  fisher's head — `OwnFishLanded` fires the frame it lands — then the crisp burst (white pop, star
+  of thin rays, halo), a nameplate
   (rarity, name, mutation, price; sized in studs + pixels; above the fish for others, popping in
   at the landing; beside it — to the right — for your own, hidden while the catch is on screen:
   under the title it would repeat the word, by the card show the final price early) and the
@@ -271,13 +286,17 @@ timers. Stagger groups by 0.03–0.06 s.
   replay — 0.5 s after the counter is released), a chime, a short pillar for Legendary/Mythic — on
   short screens (< 500 px) no pillar and a 0.7× halo, so nothing rings the counter; once the
   card has opened the own camera offset rises 0.6 stud — hidden by the card — so the trophy and
-  its plate clear the counter afterwards);
+  its plate clear the counter afterwards). **The held fish is alive** on every client in range
+  (FishLife): it bobs, wags its tail and every 1.3–2.2 s flops (the body bends from 42 % of its
+  length, plus a small hop and roll), a stronger flop on the replay; it never leaves its spot or
+  changes size — the same trophy for the title, the card and the replay —, and the nameplate only
+  drifts gently, never shakes;
   Legendary/Mythic: a light pillar (narrower on your own screen; for everyone else wider with
   distance — ≥ 25 px from the neighbouring pier —, taller with distance — 40 + d / 2 studs, a beam
   to the sky from any pier —, starting above the catcher's nameplate when near, and longer,
   `Fx.PillarTimeOther`; their broadcast toast lands with it, `FishingFxController.OtherTrophy`
-  points the HUD chip at it) and a confetti burst, seen by everyone. A lost fish: the line flashes, the bobber pops up, a splash and
-  a tail flick away.
+  points the HUD chip at it) and a confetti burst, seen by everyone. A lost fish: the line flashes red and goes slack, the bobber pops
+  up, a splash and a tail flick away, the shadow flees and fades.
 - **The fisher's body** (FisherAnimController + FisherRig / FisherPoses / FisherRod; every client
   animates every fisher within 150 studs, writing joint.Transform in PreSimulation over the default
   Animate pose): a wind-up with the bobber hanging at the rod tip until `CastTime` (= cast +
@@ -299,6 +318,15 @@ timers. Stagger groups by 0.03–0.06 s.
   everything destroyed when done. No RenderStepped/Heartbeat connection while nothing animates.
 - World: at most 2 ParticleEmitters active per player at a time; parts for ripples/pillars are
   client-side, CanCollide/CanQuery/CanTouch false, CastShadow false, destroyed after use.
+- Fishing world FX v3 (measured in tests/fishing_fx.test.luau): everything rides the one shared
+  RenderStepped of FishingFxController (gone when nothing animates). Fish shadow: 2 parts + 1
+  BulkMoveTo per bobber per frame (own always, others within `Fx.AmbientRange`); line: ≤ 6 Beam /
+  Attachment writes per frame; whip: 1 Trail + 1 Attachment for ≈ 0.5 s; leap: 1 BulkMoveTo of
+  the fish's parts (≤ 30) per frame for ≈ 1 s + ≤ 12 drip balls; held fish: within 60 studs 1
+  HoldWeld C0 + 1 C0 per bending part per frame (client-only writes, the server never sees them),
+  up to 120 studs one write every other frame, beyond that nothing (a 0.5 s timer, no
+  connection). New connections: CharacterAdded per player, ChildAdded per character, one
+  FishingState listener.
 - Fisher animation: one PreSimulation connection for all fishers, only while someone within 150
   studs fishes / holds a trophy / finishes a short move; ≈15 Transform writes + ≤ 14 rod-weld C0
   writes per animated fisher per frame, no Instance created per frame.

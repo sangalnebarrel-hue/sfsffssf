@@ -6,8 +6,8 @@
 	    ring), the bite alert (slam, rays, flash, draining timer), the minigame (rarity title,
 	    trail under the zone, hit juice: «ОТЛИЧНО!» / «СУПЕР!» / «ИДЕАЛЬНО!», stamped stars,
 	    sparks), the miss ghost («МИМО!»), the catch card per rarity (dim, rays, pop-in with a
-	    turn, «НОВАЯ!», count-up, confetti; Legendary/Mythic: flash, second ring, rainbow), the
-	    mutation badge effects and the hint pill by kind;
+	    turn, «НОВАЯ!», count-up, confetti; Legendary/Mythic: a crisp burst at the fish — no edge
+	    flash —, second ring, rainbow), the mutation badge effects and the hint pill by kind;
 	  • effects start and are cleaned up: no Fx* instances left after a full catch/close and after
 	    a miss, no frame effect (RenderStepped/Heartbeat) running while idle, connection counts
 	    back to their baseline;
@@ -710,7 +710,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["catch: Legendary and Mythic are louder — tension, flash at the landing, giant title, dim, second ring, rainbow"] = function(
+tests["catch: Legendary and Mythic are louder — tension, a crisp burst at the landing, giant title, dim, second ring, rainbow"] = function(
 	t
 )
 	local sim = boot(t)
@@ -740,7 +740,12 @@ tests["catch: Legendary and Mythic are louder — tension, flash at the landing,
 		"Legendary: the landing is a burst at the fish (rings, FxShock)"
 	)
 	t.eq(hud:FindFirstChild("FxFlash"), nil, "…no full-screen flash: the landing stays visible")
-	t.ok(hud:FindFirstChild("FxVignette"), "…the screen edges glow gold instead")
+	t.ok(
+		waitFor(sim, function()
+			return hud:FindFirstChild("FxVignette") == nil
+		end, 0.1),
+		"…and no edge flash either: the tension frame cuts off (v3: a crisp burst at the fish, no wash)"
+	)
 	t.ok(
 		waitFor(sim, function()
 			return f.TitleSlam.Visible
@@ -788,7 +793,8 @@ tests["catch: Legendary and Mythic are louder — tension, flash at the landing,
 		"Mythic: the giant title"
 	)
 	t.eq(hud:FindFirstChild("FxFlash"), nil, "Mythic: no screen tint…")
-	t.ok(hud:FindFirstChild("FxShock") and hud:FindFirstChild("FxVignette"), "…a burst at the fish and rainbow edges")
+	t.ok(hud:FindFirstChild("FxShock"), "…a burst at the fish (rainbow rings)")
+	t.eq(hud:FindFirstChild("FxVignette"), nil, "…no rainbow edge flash (v3: no wash on phones)")
 	t.ok(openCard(sim, p))
 	t.eq(count(f.CatchRays, "FxRays"), 2, "Mythic: an extra ring of rays")
 	local mythicRays = 0

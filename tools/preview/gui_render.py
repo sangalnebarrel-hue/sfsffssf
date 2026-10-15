@@ -240,6 +240,12 @@ def roi_region(dump, frames, spec):
     if not roi:
         return (0, 0, W, H)
     box = None
+    # { frac = { x0, y0, x1, y1 } } — a fixed part of the screen (world FX: the bobber, the line)
+    for r in roi:
+        if isinstance(r, dict) and isinstance(r.get("frac"), list) and len(r["frac"]) == 4:
+            fx = r["frac"]
+            b = (fx[0] * W, fx[1] * H, fx[2] * W, fx[3] * H)
+            box = b if box is None else (min(box[0], b[0]), min(box[1], b[1]), max(box[2], b[2]), max(box[3], b[3]))
     for f in frames:
         for o in f["objects"]:
             if o["path"] in roi:

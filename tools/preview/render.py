@@ -158,6 +158,7 @@ MESHES = {
     "CornerWedge": _corner_wedge_mesh(),
     "Cylinder": _cylinder_mesh(),
     "Ball": _sphere_mesh(),
+    "Ellipsoid": _sphere_mesh(),  # SpecialMesh "Sphere" on a part: the sphere stretched to Size
 }
 
 

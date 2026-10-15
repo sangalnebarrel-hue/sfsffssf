@@ -47,7 +47,11 @@ def cameras(frame):
     root = _vec(frame.get("root", focus - np.array([0.0, 2.5, 0.0])))
     side_target = root + look * 2.5 + np.array([0.0, 1.2, 0.0])
     side = (side_target + right * SIDE_DISTANCE + np.array([0.0, 1.0, 0.0]), side_target)
-    return {"game": game, "side": side}
+    views = {"game": game, "side": side}
+    close = frame.get("close")
+    if close:  # fx_dump.luau: a close-up camera per frame (eye, target, fov)
+        views["close"] = (_vec(close["eye"]), _vec(close["target"]))
+    return views
 
 
 # The side view shows only the fisher, his rod and FX on a plain deck (the pier would hide him).
@@ -75,9 +79,12 @@ def side_scene(frame):
 
 def draw_cell(scene_parts, frame, view, w, h):
     eye, target = cameras(frame)[view]
-    static = scene_parts if view == "game" else side_scene(frame)
+    static = scene_parts if view in ("game", "close") else side_scene(frame)
     scene = render.Scene({"parts": static + frame["parts"]})
-    cam = render.PerspCamera(eye, target, FOV if view == "game" else 50.0, w, h, SS)
+    fov = FOV if view == "game" else 50.0
+    if view == "close":
+        fov = float(frame["close"].get("fov", 50.0))
+    cam = render.PerspCamera(eye, target, fov, w, h, SS)
     buf, _ = render.render_persp(scene, cam, outlines=True, fog=(400.0, 2000.0))
     return render.to_image(buf, SS)
 
@@ -109,13 +116,13 @@ def main():
     draw = ImageDraw.Draw(sheet)
     font = render._font(14)
     small = render._font(12)
-    draw.text(
-        (8, 7),
-        f"Fisher animation ({data['mode']}, {data['rig']}) — top: default camera behind the fisher; "
-        "bottom: side view from his right. As another player's client sees it.",
-        fill=(20, 24, 30),
-        font=font,
-    )
+    if data["mode"] == "fx":
+        heading = (f"Fishing world FX (fx_dump.luau, {data['rig']}) — views: {', '.join(views)} "
+                   "(close = a close-up of the segment). As the fisher's own client sees it.")
+    else:
+        heading = (f"Fisher animation ({data['mode']}, {data['rig']}) — top: default camera behind the fisher; "
+                   "bottom: side view from his right. As another player's client sees it.")
+    draw.text((8, 7), heading, fill=(20, 24, 30), font=font)
     for i, frame in enumerate(frames):
         col, row = i % cols, i // cols
         x0, y0 = col * w, title_h + row * cell_h

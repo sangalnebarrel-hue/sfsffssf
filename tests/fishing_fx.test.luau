@@ -20,7 +20,14 @@
 	    with the big «!» (others: smaller, not on top, no stars); Nibble(); the bite plunge;
 	    cast trail, landing rings, waiting ripples, a sagging line while waiting, the wake and the
 	    pulsing line while reeling;
-	  • budgets: ≤ Fx.MaxEmitters ParticleEmitters per fisher, every FX part anchored without
+	  • v3 [fx]: the held fish lives on the watcher's client (HoldWeld / tail welds client-local,
+    bob + flops within bounds, the nameplate does not shake, restored, LifeRange LOD); the fish
+    shadow (appears, circles, pokes on a nibble, lunges on the bite, bigger in a rare fight,
+    flees when lost; quiet SmoothPlastic parts; AmbientRange LOD); the rod tip's whip trail at
+    the release, the curved line in flight, the landing plop, the taut line's tremble; the leap
+    flexes and drips (drips gone before the hand-over); the landing is a crisp burst (no own
+    pillar in the landing frame);
+  • budgets: ≤ Fx.MaxEmitters ParticleEmitters per fisher, every FX part anchored without
 	    collisions/queries/touch/shadows, nothing left in Workspace.FishingFx afterwards, no
 	    RenderStepped and no extra connections when idle; viewers farther than Fx.Range see only
 	    the pillar; a leaving fisher's FX disappear on other clients; late joiners do not replay.
@@ -58,6 +65,7 @@ local Vector2 = roblox.Vector2
 -- FishingFxController's camera offset while the player's own fishing is on screen.
 local CAMERA_OFFSET = Vector3.new(2.2, 1, 0)
 local TROPHY_CAMERA = Vector3.new(2.2, 1.6, 0) -- own fish over the head after the card opened
+local OWN_PILLAR_DELAY = 0.3 -- FishingFxController FX.OwnPillarDelay: the own pillar after the burst
 
 --------------------------------------------------------------------------------
 -- Sim helpers
@@ -749,7 +757,20 @@ tests["cast, waiting, bite, reeling: trail, landing rings, ripples, bouncing «!
 	end
 	t.ok(count > 5, "the line's width pulses while reeling")
 	t.ok(tinted, "the line glows orange under tension")
-	t.eq(bobber.Line.CurveSize1, 0, "taut under tension (no sag)")
+	-- Taut: no sag, but the string trembles sideways (FishingLine: CurveSize1 along a side axis).
+	local bends, slack = {}, 0
+	sim:WaitFor(function()
+		local line = bobber.Line
+		bends[math.floor(line.CurveSize1 * 100)] = true
+		slack = math.max(slack, math.abs(line.CurveSize1), math.abs(line.CurveSize0))
+		return false
+	end, 0.3, FRAME)
+	count = 0
+	for _ in bends do
+		count += 1
+	end
+	t.ok(slack <= 0.25, `taut under tension: no sag, only a tremble ({slack} studs)`)
+	t.ok(count > 4, "…the taut line vibrates (CurveSize1 changes every frame)")
 	t.eq(bobber.Root.Wake.Enabled, true, "a foam wake behind the thrashing bobber")
 	t.eq(alert.Enabled, false, "no «!» while reeling")
 	sim:FireServer(fisher, "FishingStop")
@@ -924,10 +945,17 @@ tests["own client: OwnFishLanded fires once, on the landing frame, at the held f
 	t.near(
 		plate.StudsOffsetWorldSpace.Y,
 		held:GetBoundingBox().Position.Y - held.PrimaryPart.Position.Y,
-		1e-3,
-		"…level with it"
+		0.05,
+		"…level with it (FishLife only adds a gentle bob)"
 	)
-	t.ok(findEffect(ownFx, fisher, "PillarCore"), "the own pillar at the landing")
+	t.eq(
+		findEffect(ownFx, fisher, "PillarCore"),
+		nil,
+		"the landing frame is a crisp burst at the fish: no own pillar yet"
+	)
+	t.ok(findEffect(ownFx, fisher, "Burst"), "…a star burst of thin rays around the fish")
+	sim:Advance(0.35, FRAME)
+	t.ok(findEffect(ownFx, fisher, "PillarCore"), "the own pillar rises right after the burst (OwnPillarDelay)")
 	t.eq(fisher.PlayerGui.HUD:GetAttribute("CounterHold") ~= nil, true, "(the catch is on the fisher's screen)")
 	t.eq(
 		plate.Enabled,
@@ -959,7 +987,14 @@ tests["own client: OwnFishLanded fires once, on the landing frame, at the held f
 		"the watcher has no trophy of its own: nothing"
 	)
 	sim:Advance(
-		math.max(0, FishingConfig.HoldFishTime.Legendary - 0.5 - FishingConfig.Fx.PillarTime.Legendary - 1.7),
+		math.max(
+			0,
+			FishingConfig.HoldFishTime.Legendary
+				- 0.5
+				- 0.35 -- (the wait for the own pillar above)
+				- FishingConfig.Fx.PillarTime.Legendary
+				- 1.7
+		),
 		COARSE
 	)
 	t.ok(fisher.Character:FindFirstChild("HeldFish"), "still holding the fish")
@@ -1235,11 +1270,337 @@ tests["pillar for the others: wider with distance (≥ 25 px from the neighbouri
 	t.ok(mine.Glow.Width0 < theirs.Glow.Width0, "the fisher's own pillar stays narrow")
 	-- Lifetimes: the own pillar goes after PillarTime, the neighbour's lives PillarTimeOther.
 	local landed = caughtAt + FishingConfig.LeapTime
-	sim:Advance(math.max(landed + Fx.PillarTime.Legendary + 0.2 - sim:Time(), 0))
+	sim:Advance(math.max(landed + OWN_PILLAR_DELAY + Fx.PillarTime.Legendary + 0.2 - sim:Time(), 0))
 	t.eq(findEffect(own, fisher, "PillarGlow"), nil, "the own pillar is gone (the card covers it anyway)")
 	t.ok(findEffect(other, fisher, "PillarGlow"), "the neighbour still sees it")
-	sim:Advance(Fx.PillarTimeOther.Legendary - Fx.PillarTime.Legendary)
+	sim:Advance(Fx.PillarTimeOther.Legendary - Fx.PillarTime.Legendary - OWN_PILLAR_DELAY)
 	t.eq(findEffect(other, fisher, "PillarGlow"), nil, "… until PillarTimeOther")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- v3 [fx]: the held fish alive, the fish shadow, the cast / line polish, the leap flex
+--------------------------------------------------------------------------------
+
+-- A player with an R15 rig (the sim then solves the welds per client: HeldFish follows the
+-- watcher's client-local HoldWeld C0).
+local function addRigged(sim: any, id: number): any
+	local player = sim:AddPlayer({
+		UserId = id,
+		Name = `Player{id}`,
+		DisplayName = `Игрок{id}`,
+		device = "phone",
+		rig = "R15",
+	})
+	sim:Advance(0.5)
+	return player
+end
+
+local function angleBetween(a: any, b: any): number
+	local _, angle = (a:Inverse() * b):ToAxisAngle()
+	return math.deg(math.abs(angle))
+end
+
+tests["held fish alive: flops, bobs and wiggles on the watcher's client only; the nameplate stays put; restored; nothing per frame after"] = function(
+	t
+)
+	local sim = boot(t)
+	local fisher = addRigged(sim, 1)
+	local watcher = addPlayer(sim, 2)
+	local far = addPlayer(sim, 3)
+	forceFish(sim, "Puffer") -- Rare: a nameplate
+	ready(sim, fisher)
+	standBeside(sim, watcher, fisher)
+	sim:Teleport(far, spotOf(sim, fisher).Position + Vector3.new(0, 170, 0)) -- within Fx.Range, beyond LifeRange
+	local fx = clientFx(sim, watcher)
+	sim:Advance(0.5)
+	local rendering = renderSteppedCount(sim, watcher)
+	local connections = sim:CountConnections(watcher)
+
+	local mg, startTime = startMinigame(t, sim, fisher)
+	t.eq((playMinigame(sim, fisher, mg, startTime)), "Caught")
+	local held = sim:WaitFor(function()
+		local leap = findEffect(fx, fisher, "Leap")
+		local model = fisher.Character:FindFirstChild("HeldFish")
+		return if model and leap == nil then model else nil
+	end, FishingConfig.LeapTime + 1, FRAME)
+	t.ok(held, "the held fish is over the head, the leap handed it over")
+	local body = held.PrimaryPart
+	local weld = body.HoldWeld
+	local serverC0 = weld.C0 -- the replicated value (the server never changes it)
+	local tail, tailWeld = nil, nil
+	for _, d in held:GetDescendants() do
+		if d:IsA("BasePart") and d.Name == "Tail" then
+			tail = d
+			tailWeld = d:FindFirstChild("HoldWeld")
+		end
+	end
+	t.ok(tail and tailWeld, "the Puffer's tail is welded to its body")
+	local tailC0 = tailWeld.C0
+	local plate = sim:WaitFor(function()
+		return findEffect(fx, fisher, "Nameplate")
+	end, 0.5, FRAME)
+	t.ok(plate, "a nameplate over it")
+
+	-- What the watcher sees over 3 s (at least one flop: FIRST_FLOP 0.35 s, then every ≤ 2.2 s).
+	local rest = body.CFrame -- the pose the leap handed over
+	local headRest = fisher.Character.Head.CFrame
+	local maxMove, maxTurn, tailMoved, weldMoved = 0, 0, 0, 0
+	local plateLo, plateHi, bodyLo, bodyHi = math.huge, -math.huge, math.huge, -math.huge
+	local farMoved = 0
+	sim:WaitFor(function()
+		sim:Run(function()
+			local head = fisher.Character.Head.CFrame
+			local seen = head * headRest:Inverse() * rest -- the rest pose where the head is now
+			maxMove = math.max(maxMove, (body.Position - seen.Position).Magnitude)
+			maxTurn = math.max(maxTurn, angleBetween(seen, body.CFrame))
+			weldMoved = math.max(weldMoved, (weld.C0.Position - serverC0.Position).Magnitude)
+			tailMoved = math.max(tailMoved, angleBetween(tailWeld.C0, tailC0))
+			local y = body.Position.Y + plate.StudsOffsetWorldSpace.Y
+			plateLo, plateHi = math.min(plateLo, y), math.max(plateHi, y)
+			bodyLo, bodyHi = math.min(bodyLo, body.Position.Y), math.max(bodyHi, body.Position.Y)
+		end, watcher)
+		sim:Run(function()
+			farMoved = math.max(farMoved, (weld.C0.Position - serverC0.Position).Magnitude)
+		end, far)
+		return false
+	end, 3, FRAME)
+	t.ok(weldMoved > 0.05, `the watcher's client moves the HoldWeld ({weldMoved} studs)`)
+	t.near(weld.C0, serverC0, 1e-6, "…client-locally: the server's C0 never changes")
+	t.ok(maxMove > 0.1 and maxMove < 1.2, `it bobs and hops a little ({maxMove} studs)…`)
+	t.ok(maxTurn > 5 and maxTurn < 45, `…and flops, but stays the same trophy ({maxTurn}°)`)
+	t.ok(tailMoved > 4, `the body bends: the tail swings on its weld ({tailMoved}°)`)
+	t.ok(
+		plateHi - plateLo < (bodyHi - bodyLo) * 0.8 and plateHi - plateLo < 0.4,
+		`the nameplate bobs gently, not with every flop (plate {plateHi - plateLo}, body {bodyHi - bodyLo})`
+	)
+	t.eq(farMoved, 0, "a viewer farther than LifeRange: the fish is left at rest (no weld writes)")
+
+	sim:Advance(FishingConfig.HoldFishTime.Rare, COARSE)
+	t.eq(fisher.Character:FindFirstChild("HeldFish"), nil, "the held fish is gone")
+	sim:Advance(0.5)
+	t.eq(renderSteppedCount(sim, watcher), rendering, "no per-frame work left on the watcher's client")
+	t.eq(sim:CountConnections(watcher), connections, `no connections left\n{sim:FormatConnections(watcher)}`)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- The own client's FishingFx folder (where its bobber lives).
+local function shadowOf(fx: any, fisher: any): (any, any)
+	local bobber = fx.GetBobber(fisher)
+	local folder = bobber and bobber.Parent
+	if not folder then
+		return nil, nil
+	end
+	return folder:FindFirstChild("FishShadow"), folder:FindFirstChild("FishShadowTail")
+end
+
+local function flatDistance(a: any, b: any): number
+	return Vector3.new(a.X - b.X, 0, a.Z - b.Z).Magnitude
+end
+
+tests["cast and line: the tip's whip trail at the release, a curved line in flight, the landing plop"] = function(t)
+	local sim = boot(t)
+	local fisher = addRigged(sim, 1) -- (the rod tip in the hand: RbxSim poses only rigged characters)
+	forceFish(sim, "Crucian")
+	local rod = nil
+	ready(sim, fisher)
+	for _, item in fisher.Character:GetChildren() do
+		if item:IsA("Tool") then
+			rod = item
+		end
+	end
+	local fx = clientFx(sim, fisher)
+	sim:Advance(1.037) -- (keep CastTime fractional: RbxSim stores whole-number attributes as float32)
+	sim:FireServer(fisher, "FishingCast")
+	local castAt = sim:Time()
+	local release = castAt + FishingConfig.CastWindUp
+	local landing = release + FishingConfig.CastFlightTime
+	local whipFrom, whipOff, whipGone, curved = nil, nil, nil, 0
+	local lowest, restY, backUp = math.huge, nil, false
+	local launched = nil -- the client's own release moment (its CastTrail turns on)
+	sim:WaitFor(function()
+		local whip = rod.Handle:FindFirstChild("Whip")
+		local now = sim:Time()
+		local cast = fx.GetBobber(fisher)
+		if not launched and cast and cast.Root.CastTrail.Enabled then
+			launched = now
+		end
+		if whip and whip.Enabled and not whipFrom then
+			whipFrom = now
+		elseif whip and not whip.Enabled and whipFrom and not whipOff then
+			whipOff = now
+		elseif not whip and whipFrom and not whipGone then
+			whipGone = now
+		end
+		local bobber = fx.GetBobber(fisher)
+		if bobber and now > release + 0.1 and now < landing - 0.1 then
+			curved = math.max(curved, bobber.Line.CurveSize0)
+		end
+		if bobber and now >= landing then
+			restY = restY or (fisher:GetAttribute("BobberTarget").Y + bobber:GetAttribute("FloatDepth"))
+			local y = bobber:GetPivot().Position.Y
+			lowest = math.min(lowest, y)
+			backUp = backUp or (now > landing + 0.5 and math.abs(y - restY) <= 0.25)
+		end
+		return now >= landing + 1.2
+	end, 3, FRAME)
+	t.ok(whipFrom and launched, "a whip trail on the rod tip (Handle.Whip)")
+	-- (against the client's own release: its server clock runs a little behind in RbxSim)
+	t.ok(
+		whipFrom >= launched - 0.15 - FRAME and whipFrom <= launched,
+		`…from the forward swing, just before the float leaves the tip ({whipFrom - launched} s)`
+	)
+	t.ok(whipOff and whipOff - launched <= 0.25, "…off right after the release")
+	t.ok(whipGone and whipGone - launched <= 0.6, "…and removed with its attachment")
+	t.eq(rod.Handle:FindFirstChild("WhipBase"), nil, "no attachment left on the rod")
+	t.ok(curved > 1, `the line trails the flying float in a curve (CurveSize0 {curved})`)
+	t.ok(lowest < restY - 0.2, `the landing plop: the float dips under its waterline ({lowest - restY})`)
+	t.ok(backUp, "…and floats back up")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["fish shadow: swims in and circles, pokes on a nibble, lunges on the bite, bigger in a rare fight, flees when lost"] = function(
+	t
+)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1)
+	local watcher = addPlayer(sim, 2)
+	forceFish(sim, "SharkPup") -- Legendary: a big shadow in the fight
+	ready(sim, fisher)
+	sim:Teleport(watcher, spotOf(sim, fisher).Position + Vector3.new(0, Fx.AmbientRange + 30, 0))
+	local own = clientFx(sim, fisher)
+	local other = clientFx(sim, watcher)
+	sim:Advance(1.037)
+	sim:FireServer(fisher, "FishingCast")
+	local landing = sim:Time() + FishingConfig.CastWindUp + FishingConfig.CastFlightTime
+	sim:WaitFor(function()
+		return sim:Time() >= landing + 0.05
+	end, 2, FRAME)
+	local body, tail = shadowOf(own, fisher)
+	t.ok(body and tail, "a fish shadow under the own bobber (FishShadow + FishShadowTail)")
+	t.eq(body.Transparency, 1, "…unseen right after the landing")
+	t.eq(body.Material, roblox.Enum.Material.SmoothPlastic, "SmoothPlastic: no LEGO studs")
+	t.ok(body.Anchored and not body.CanCollide and not body.CanQuery and not body.CanTouch, "anchored and quiet")
+	t.eq(body.CastShadow, false)
+	t.ok(body:FindFirstChildOfClass("SpecialMesh"), "an ellipsoid body (SpecialMesh «Sphere»)")
+	t.eq(shadowOf(other, fisher), nil, "a viewer farther than Fx.AmbientRange: no shadow")
+
+	local water = fisher:GetAttribute("BobberTarget")
+	local seen, near, far = 1, math.huge, 0
+	sim:WaitFor(function()
+		seen = math.min(seen, body.Transparency)
+		local d = flatDistance(body.Position, water)
+		near, far = math.min(near, d), math.max(far, d)
+		return sim:Time() >= landing + 2.2
+	end, 3, FRAME)
+	t.ok(seen < 0.6, `it shows up (transparency {seen})`)
+	t.ok(body.Position.Y < water.Y, "under the water")
+	t.ok(far < 8.5 and near < 4, `it swims in and around the bobber ({near}..{far} studs)`)
+
+	-- the own nibble: a poke right at the bobber
+	local poked = math.huge
+	t.eq(
+		sim:Run(function()
+			return own.Nibble()
+		end, fisher),
+		true,
+		"a nibble"
+	)
+	sim:WaitFor(function()
+		poked = math.min(poked, flatDistance(body.Position, water))
+		return false
+	end, 0.3, FRAME)
+	t.ok(poked < 1.4, `…the shadow pokes the bobber ({poked} studs)`)
+
+	-- the bite: it lunges under the bobber
+	sim:WaitFor(function()
+		return fisher:GetAttribute("FishingState") == "Bite"
+	end, 10, FRAME)
+	sim:Advance(0.2)
+	t.ok(flatDistance(body.Position, water) < 2, "the bite: right under the bobber")
+
+	-- the fight (own Legendary): bigger
+	local count = #stateEvents(sim, fisher)
+	sim:FireServer(fisher, "FishingHook")
+	local name = nextState(sim, fisher, count, 1)
+	t.eq(name, "Minigame")
+	sim:Advance(0.3)
+	t.near(body.Size.X, 2.6 * 1.6, 0.05, "the own Legendary fight: a 1.6× shadow (FX.ShadowScale)")
+
+	-- lost (a miss): it darts away from the fisher and fades, then goes with the bobber
+	local root = sim:GetRoot(fisher).Position
+	local before = flatDistance(body.Position, root)
+	local mg = stateEvents(sim, fisher)[count + 1].args[2]
+	local moment = findMoment(sim, mg, mg.ZoneCenter, FishingConfig.HookTapGrace + 0.05, false)
+	sim:WaitFor(function()
+		return sim:Time() >= stateEvents(sim, fisher)[count + 1].time + moment
+	end, 10, FRAME)
+	sim:FireServer(fisher, "FishingTap", moment)
+	local fled, faded = 0, 0
+	sim:WaitFor(function()
+		if body.Parent then
+			fled = math.max(fled, flatDistance(body.Position, root) - before)
+			faded = math.max(faded, body.Transparency)
+		end
+		return body.Parent == nil
+	end, 2, FRAME)
+	t.ok(fled > 4, `it flees away from the fisher ({fled} studs)`)
+	t.ok(faded > 0.9, "…fading out")
+	t.eq(body.Parent, nil, "gone with the bobber")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["leap: the caught fish flexes its tail and drips water; the drips are gone before the hand-over"] = function(t)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1)
+	local watcher = addPlayer(sim, 2)
+	forceFish(sim, "Perch")
+	ready(sim, fisher)
+	standBeside(sim, watcher, fisher)
+	local fx = clientFx(sim, watcher)
+	local mg, startTime = startMinigame(t, sim, fisher)
+	t.eq((playMinigame(sim, fisher, mg, startTime)), "Caught")
+	local leap = sim:WaitFor(function()
+		return findEffect(fx, fisher, "Leap")
+	end, 0.3, FRAME)
+	t.ok(leap, "the leap")
+	local tail = leap:FindFirstChild("Tail")
+	t.ok(tail, "the Perch's tail")
+	local restTail = leap:GetPivot():ToObjectSpace(tail.CFrame)
+	local bend, drips, maxDrips = 0, {}, 0
+	local quiet = true
+	sim:WaitFor(function()
+		if leap.Parent then
+			local now = leap:GetPivot():ToObjectSpace(tail.CFrame)
+			bend = math.max(bend, angleBetween(now, restTail))
+		end
+		local alive = 0
+		for _, instance in fx.GetEffects(fisher) do
+			if instance.Name == "Drip" then
+				drips[instance] = true
+				alive += 1
+				if
+					not instance.Anchored
+					or instance.CanCollide
+					or instance.CanQuery
+					or instance.CastShadow
+					or instance.Material ~= roblox.Enum.Material.SmoothPlastic
+				then
+					quiet = false
+				end
+			end
+		end
+		maxDrips = math.max(maxDrips, alive)
+		return leap.Parent == nil
+	end, FishingConfig.LeapTime + 1, FRAME)
+	local made = 0
+	for drip in drips do
+		made += 1
+		t.eq(drip.Parent, nil, "every drip is gone")
+	end
+	t.ok(bend > 8, `the tail flexes against the body in the air ({bend}°)`)
+	t.ok(made >= 5 and made <= 12, `water drips off the fish ({made} drops, ≤ 12)`)
+	t.ok(quiet, "drips are anchored, quiet, SmoothPlastic")
 	sim:AssertNoErrors({ warnings = true })
 end
 
