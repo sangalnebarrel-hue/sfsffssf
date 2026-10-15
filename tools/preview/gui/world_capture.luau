@@ -1,56 +1,83 @@
 --[[
-	world_capture.luau — records the client's world FX in RbxSim over time and projects them
-	into the GUI preview's pier frame, so gui_render.py can draw the world UNDER the HUD
-	(tools/preview/gui_dump.luau, scenarios with `world = true`; see tools/preview/README.md,
-	"World FX in the previews").
+	world_capture.luau — records the client's 3D world in RbxSim over time and projects it into
+	the GUI preview's pier frame, so gui_render.py can draw the world UNDER the HUD
+	(tools/preview/gui_dump.luau; see tools/preview/README.md, "World in the previews").
 
-	What is captured (every 60 fps step of the capture window, drawn at the dumped frames):
-	  • Workspace.FishingFx (FishingFxController's folder) — everything in it — and, in every
-	    character, the HeldFish model and any ParticleEmitter / Trail / Beam / BillboardGui /
-	    PointLight (character body parts themselves are not drawn: the backdrop has a stand-in);
-	  • fish models (a Model with a Title attribute or named HeldFish / Leap / Dive): drawn as the
-	    fish sprite (docs/gear) over the model's projected box, length and nose direction;
-	    hidden when every part is invisible (LocalTransparencyModifier — the leap handoff);
-	  • BaseParts: Block (visible faces, lit), Ball (disc), Cylinder (hull of the end circles),
-	    with Color, Transparency x LocalTransparencyModifier, Neon (unlit + glow); parts with
-	    Transparency 1 are carriers (their SurfaceGui, emitters and trails still draw);
-	  • SurfaceGui on a part face: its GUI laid out at the canvas size (PixelsPerStud x face, or
-	    CanvasSize), warped onto the projected face; back faces culled;
-	  • BillboardGui (Adornee / parent part / attachment): placed at the projected point plus
-	    StudsOffsetWorldSpace and the camera-relative StudsOffset, sized "studs x px-per-stud +
-	    px" at its depth, MaxDistance applied, its GUI laid out at that size;
-	  • Beam: a camera-facing ribbon along the Bezier (CurveSize0/1 along the attachments'
-	    WorldAxis), Width0 -> Width1, Color / Transparency along it;
-	  • Trail: the ribbon between its two attachments' positions over the last Lifetime
-	    seconds, Color / Transparency / WidthScale by age;
-	  • ParticleEmitter: simulated here — continuous Rate while Enabled and every Emit(n)
-	    (installHooks() adds Emit to RbxSim, which has none): spawn in the parent part's box (or
-	    at the attachment), EmissionDirection + SpreadAngle, Speed, Lifetime, Acceleration, Drag
-	    (speed halves every 1/Drag s), LockedToPart; drawn as dots sized by Size / coloured by
-	    Color / Transparency over the particle's life (deterministic random);
-	  • PointLight: a faint glow of its Colour.
-	Not captured: Highlights, Decals/Textures, meshes (drawn as their box), sounds, camera shake.
+	Two modes (Capture.new opts.mode):
+	  "world"  (scenarios with `world = true`) — everything below;
+	  "avatar" (every other scenario) — only the own character (posed body, the rod in hand, a
+	           held fish), always drawn standing on the FishingSpot facing the lagoon (where the
+	           old stand-in stood) at the default camera: the standard stills show the real
+	           avatar, not a statue.
+
+	What is captured (every 60 fps step of the capture window, written at the dumped frames):
+	  • SOLIDS (drawn by gui/solids.py with a z-buffer, lit like the backdrop and hidden by it
+	    where the scene is nearer; written in the spot frame, see below):
+	      – every character: its body parts as the CLIENT sees them (FisherAnimController's
+	        joint Transforms — wind-up, throw, bite, reel, arms up with the fish, lost slump),
+	        classic avatar colours by part name (RbxSim avatars have no appearance) plus a hair
+	        stand-in on the head; the Tool's parts (the rod bent by FisherRod — client-local Weld
+	        C0s); the HeldFish model (FishLife's flop and bob — client-local C0s);
+	      – every BasePart in the player's Workspace.FishingFx (bobber, fish shadow — a
+	        SpecialMesh «Sphere» is shape "Ellipsoid" —, drips, leap / dive copies, pillar …);
+	      – ambient life (world mode, unless opts.ambient == false): the parts of the client's
+	        Workspace["Ambient (client)"] in view (schools, jumping fish, gulls, butterflies,
+	        dragonflies …) and the map's MOVERS — every part of a Model / BasePart that
+	        AmbientWorld moves (attributes Sway / Bob / Spin / Pulse, chase-light bulbs
+	        "…Bulb<n>"; not the Drift clouds) within MOVER_RANGE studs of the spot, with its
+	        client-local CFrame and transparency (static data once in scene().movers, per frame
+	        only { id, CFrame, transparency } of the ones in view). Movers keep the LEGO studs
+	        they have in the place (their saved surfaces, Plastic only); no other solid gets
+	        studs. Their rest geometry is listed in scene().exclude, so the backdrop is rendered
+	        WITHOUT them (no double image).
+	    A part counts while Transparency x LocalTransparencyModifier < 0.98.
+	  • 2D ITEMS (gui/world.py; painted after the solids, hidden behind them and the scene):
+	      – SurfaceGui on a part face: its GUI laid out at the canvas size (PixelsPerStud x face,
+	        or CanvasSize), warped onto the projected face; back faces culled (foam rings, jump
+	        rings …);
+	      – BillboardGui (Adornee / parent part / attachment): placed at the projected point plus
+	        StudsOffsetWorldSpace and the camera-relative StudsOffset, sized "studs x px-per-stud
+	        + px" at its depth, MaxDistance applied, its GUI laid out at that size (the trophy's
+	        nameplate, the «?» of a nibble …);
+	      – Beam: a camera-facing ribbon along the Bezier (CurveSize0/1 along the attachments'
+	        WorldAxis), Width0 -> Width1, Color / Transparency along it — the fishing line leaves
+	        the bent rod's live TipAttachment;
+	      – Trail: the ribbon between its two attachments' positions over the last Lifetime
+	        seconds, Color / Transparency / WidthScale by age;
+	      – ParticleEmitter: simulated here — continuous Rate while Enabled and every Emit(n)
+	        (installHooks() adds Emit to RbxSim, which has none): spawn in the parent part's box
+	        (or at the attachment), EmissionDirection + SpreadAngle, Speed, Lifetime,
+	        Acceleration, Drag (speed halves every 1/Drag s), LockedToPart; dots sized by Size /
+	        coloured by Color / Transparency over the particle's life (deterministic random) —
+	        sparkles, splashes, water glints;
+	      – PointLight: a faint glow of its Colour.
+	  • MARKS (the x-ray boxes of timelines): fish models (a Model with a Title attribute or named
+	    HeldFish / Leap / Dive, with their screen path), the pillar, the halo, the nameplate.
+	Not captured: Highlights, Decals/Textures, meshes other than the sphere (drawn as their
+	box), sounds, camera shake, the terrain water's ripples, Drift clouds (static in the backdrop).
 
 	Camera = the GUI backdrop's (gui/backdrop.py): the Roblox default third-person camera,
 	12.5 studs from the focus, 18 deg down, vertical FOV 70, focus 4.6 studs above the top of
 	the player's FishingSpot, looking along the base's LookVector, plus the local Humanoid's
-	CameraOffset (in the character's frame). Coordinates in the dump are screen px of the
-	device (the same as the HUD objects); the camera itself is written in the spot frame
-	(right, up, forward) so the backdrop renders base 1's pier with the very same camera.
-	The sim's character is lifted so its head matches the stand-in's (see Capture.HEAD) and the
-	rod is moved so its TipAttachment sits at the stand-in's rod tip (Capture.ROD_TIP) — then
-	the fishing line, the cast and the held fish line up with the drawn avatar. The client's
-	Workspace.CurrentCamera is put on this camera every step too (observe), so the controllers'
-	Camera:WorldToScreenPoint maths match the drawing.
+	CameraOffset (in the character's frame; world mode). Screen coordinates in the dump are px
+	of the device (the same as the HUD objects); the camera and the solids are written in the
+	SPOT FRAME (right, up, forward from the top of the FishingSpot), so the backdrop renders
+	base 1's pier with the very same camera (gui_dump pins the player to base 1). pose() stands
+	the rigged character on the FishingSpot facing the lagoon (its root HipHeight + half its
+	height above the top: feet on the planks). In world mode the client's
+	Workspace.CurrentCamera is put on the capture camera every step, so the controllers'
+	Camera:WorldToScreenPoint maths and AmbientEngine's view culling match the drawing.
 
 	API (used by gui_dump.luau):
 	  Capture.installHooks()                   before Sim.new: ParticleEmitter:Emit recorder
 	  Capture.new(opts) -> capture             opts = { sim, player, W, H, spot (BasePart), look
-	                                           (Vector3), dumpTree (function), fishByTitle }
-	  capture:pose()                           puts the character / rod where the backdrop has them
+	                                           (Vector3), dumpTree (function), fishByTitle,
+	                                           mode = "world" | "avatar", ambient = bool? }
+	  capture:pose()                           stands the character on the FishingSpot
 	  capture:step(dt)                         call after every sim step of the capture window
-	  capture:frame() -> { cam, items, marks } the world at the current time (JSON-ready)
+	  capture:frame() -> { cam, items, solids, movers, marks }   the world now (JSON-ready)
 	  capture:camera() -> { eye, focus, fov }  the base camera (no offset), spot frame
+	  capture:scene() -> { base, waterY, movers, exclude }   static data (gui/solids.py)
 	  capture:begin()                          time 0 of the scenario (after `run`)
 	  capture:observe()                        presence tracking during `run` (every step)
 	  capture:eventList() -> { { name, kind = "appear" | "disappear" | "signal", t } }
@@ -69,17 +96,29 @@ Capture.__index = Capture
 
 -- The backdrop camera (gui/backdrop.py CAM_*): keep in sync.
 Capture.CAMERA = { distance = 12.5, pitch = 18, fov = 70, focusHeight = 4.6 }
--- The stand-in avatar (gui/backdrop.py avatar_parts), spot frame (right, up, forward) from the
--- spot's top: head centre and the tip of the raised rod.
-Capture.HEAD = Vector3.new(0, 4.62, 0)
-Capture.ROD_TIP = Vector3.new(1.5, 7.995, 7.868)
 
 local MAX_PARTICLES = 400 -- alive per emitter
 local MAX_EMIT = 200 -- per Emit() call
 -- FX that get an x-ray box (besides fish models): the pillar, the halo, the nameplate.
 local MARK_PREFIXES = { "PillarCore", "PillarBeam", "Halo", "Pop", "Nameplate" }
 local FISH_NAMES = { HeldFish = true, Leap = true, Dive = true }
-local LIGHT = Vector3.new(0.35, 1, -0.25).Unit
+local AMBIENT_FOLDER = "Ambient (client)" -- AmbientController's own parts
+-- Map movers (AmbientWorld): kinds and how far from the spot they are drawn moving, studs.
+-- Farther ones (and the Drift clouds) stay in the backdrop at rest: their motion is a pixel.
+local MOVER_KINDS = { "Sway", "Bob", "Spin", "Pulse" }
+Capture.MOVER_RANGE = { Sway = 220, Bob = 320, Pulse = 220, Spin = 650, Chase = 320 }
+local AMBIENT_RANGE = 600 -- the client's own ambient parts: farther = parked / invisible
+local MIN_PX = 0.35 -- a solid smaller than this on screen is not written
+-- RbxSim avatars have no appearance: the classic look by body part name, and a hair stand-in.
+local SKIN, SHIRT, PANTS = { 245, 205, 48 }, { 13, 105, 172 }, { 164, 189, 71 }
+local HAIR = { 92, 58, 33 }
+local BODY_COLORS: { [string]: { number } } = {
+	Head = SKIN,
+	UpperTorso = SHIRT,
+	LowerTorso = SHIRT,
+	Torso = SHIRT,
+}
+local SURFACES = { "Top", "Bottom", "Front", "Back", "Left", "Right" }
 
 --------------------------------------------------------------------------------
 -- Hooks
@@ -186,36 +225,6 @@ local function startsWithAny(name: string, prefixes: { string }): boolean
 	return false
 end
 
--- Convex hull (monotone chain) of 2D points { {x, y} }.
-local function hull(points: { { number } }): { { number } }
-	table.sort(points, function(a, b)
-		return a[1] < b[1] or (a[1] == b[1] and a[2] < b[2])
-	end)
-	local function cross(o, a, b)
-		return (a[1] - o[1]) * (b[2] - o[2]) - (a[2] - o[2]) * (b[1] - o[1])
-	end
-	local lower, upper = {}, {}
-	for _, p in points do
-		while #lower >= 2 and cross(lower[#lower - 1], lower[#lower], p) <= 0 do
-			table.remove(lower)
-		end
-		table.insert(lower, p)
-	end
-	for i = #points, 1, -1 do
-		local p = points[i]
-		while #upper >= 2 and cross(upper[#upper - 1], upper[#upper], p) <= 0 do
-			table.remove(upper)
-		end
-		table.insert(upper, p)
-	end
-	table.remove(lower)
-	table.remove(upper)
-	for _, p in upper do
-		table.insert(lower, p)
-	end
-	return lower
-end
-
 -- World CFrame of what a BillboardGui / emitter / trail hangs on.
 local function anchorCFrame(inst: any): any?
 	if inst == nil then
@@ -238,6 +247,69 @@ local function effectiveTransparency(part: any): number
 	local t = get(part, "Transparency", 0)
 	local ltm = get(part, "LocalTransparencyModifier", 0)
 	return 1 - (1 - t) * (1 - ltm)
+end
+
+local function rn(v: number, k: number): number
+	if v ~= v or v == math.huge or v == -math.huge then
+		return 0
+	end
+	return math.round(v * k) / k
+end
+
+-- render.py's shape names; a SpecialMesh «Sphere» stretches the sphere to the part's Size.
+local function shapeOf(part: any): string
+	local mesh = part:FindFirstChildOfClass("SpecialMesh")
+	if mesh and get(mesh, "MeshType", nil) == Enum.MeshType.Sphere then
+		return "Ellipsoid"
+	end
+	if part:IsA("WedgePart") then
+		return "Wedge"
+	elseif part:IsA("CornerWedgePart") then
+		return "CornerWedge"
+	elseif part:IsA("Part") then
+		return enumNameOf(get(part, "Shape", nil), "Block")
+	end
+	return "Block"
+end
+
+-- The classic avatar look by body part name (the rest of the character keeps its colours).
+local function bodyColor(name: string): { number }?
+	local c = BODY_COLORS[name]
+	if c then
+		return c
+	end
+	if string.find(name, "Arm", 1, true) or string.find(name, "Hand", 1, true) then
+		return SKIN
+	elseif string.find(name, "Leg", 1, true) or string.find(name, "Foot", 1, true) then
+		return PANTS
+	end
+	return nil
+end
+
+-- The saved LEGO surfaces of a map part (the engine draws studs on Plastic only).
+local function surfacesOf(part: any): { [string]: string }?
+	if get(part, "Material", nil) ~= Enum.Material.Plastic then
+		return nil
+	end
+	local out, any = {}, false
+	for _, face in SURFACES do
+		local s = get(part, face .. "Surface", nil)
+		if typeof(s) == "EnumItem" and s.Name ~= "Smooth" then
+			out[face] = s.Name
+			any = true
+		end
+	end
+	return if any then out else nil
+end
+
+local function movingKind(inst: any): string?
+	for _, kind in MOVER_KINDS do
+		local value = inst:GetAttribute(kind)
+		if typeof(value) == "number" and value ~= 0 then
+			return kind
+		end
+	end
+	return nil
 end
 
 --------------------------------------------------------------------------------
@@ -267,9 +339,93 @@ function Capture.new(opts: any): any
 		logIndex = #emitLog,
 		time = 0,
 		t0 = 0,
+		avatarOnly = opts.mode == "avatar",
+		movers = {}, -- { part, id } (map parts AmbientWorld moves, within MOVER_RANGE)
+		moverInfo = {}, -- static data per mover id (scene().movers)
+		exclude = {}, -- their rest geometry in world coordinates (scene().exclude)
+		waterY = 0,
 	}, Capture)
-	self:connectSignals()
+	self.ambient = not self.avatarOnly and opts.ambient ~= false
+	local ok, mapConfig = pcall(function()
+		return self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.Config.MapConfig"))
+	end)
+	self.waterY = (if ok and type(mapConfig) == "table" then mapConfig.WaterTop or 0 else 0) - self.origin.Y
+	if not self.avatarOnly then
+		self:connectSignals()
+	end
+	if self.ambient then
+		self:collectMovers()
+	end
 	return self
+end
+
+-- The map parts AmbientWorld moves (its contract: tools/builder/DESIGN.md «Ambient attributes»)
+-- near the spot, read at rest (server view): static data for the dump, their rest geometry for
+-- the backdrop's exclusion list.
+function Capture:collectMovers()
+	local seen = {}
+	local origin = self.origin
+	local function add(part: any, kind: string)
+		if seen[part] then
+			return
+		end
+		seen[part] = true
+		local range = Capture.MOVER_RANGE[kind] or 0
+		if (part.Position - origin).Magnitude - part.Size.Magnitude / 2 > range then
+			return
+		end
+		local id = #self.movers + 1
+		table.insert(self.movers, { part = part, id = id, radius = part.Size.Magnitude / 2 })
+		local entry: { [string]: any } = {
+			s = { rn(part.Size.X, 1000), rn(part.Size.Y, 1000), rn(part.Size.Z, 1000) },
+			c = rgb(part.Color),
+			sh = shapeOf(part),
+			k = kind,
+		}
+		if get(part, "Material", nil) == Enum.Material.Neon then
+			entry.m = 1
+		end
+		entry.sf = surfacesOf(part)
+		self.moverInfo[id] = entry
+		local p = part.Position
+		table.insert(self.exclude, {
+			rn(p.X, 100),
+			rn(p.Y, 100),
+			rn(p.Z, 100),
+			rn(part.Size.X, 100),
+			rn(part.Size.Y, 100),
+			rn(part.Size.Z, 100),
+		})
+	end
+	local function partsOf(inst: any, kind: string)
+		if inst:IsA("BasePart") then
+			add(inst, kind)
+		end
+		for _, d in inst:GetDescendants() do
+			if d:IsA("BasePart") then
+				add(d, kind)
+			end
+		end
+	end
+	for _, rootName in { "Map", "Bases" } do
+		local root = self.sim.workspace:FindFirstChild(rootName)
+		if root then
+			for _, d in root:GetDescendants() do
+				if d:IsA("Model") or d:IsA("BasePart") then
+					local kind = movingKind(d)
+					if kind then
+						partsOf(d, kind)
+					elseif
+						d:IsA("BasePart")
+						and get(d, "Material", nil) == Enum.Material.Neon
+						and string.match(d.Name, "Bulbs?%d+$")
+					then
+						add(d, "Chase") -- chase lights: only their transparency changes
+					end
+				end
+			end
+		end
+	end
 end
 
 function Capture:random(): number
@@ -287,32 +443,67 @@ function Capture:toLocal(p: any): any
 	return Vector3.new(d:Dot(self.right), d:Dot(self.up), d:Dot(self.fwd))
 end
 
--- The sim's character where the backdrop's stand-in is: head at Capture.HEAD, facing `look`;
--- the rod's TipAttachment at Capture.ROD_TIP.
-function Capture:pose()
-	local character = self.player.Character
+-- Where a character's HumanoidRootPart stands on the FishingSpot (world): feet on its top,
+-- facing the lagoon.
+function Capture:standPose(character: any): any?
 	local root = character and character:FindFirstChild("HumanoidRootPart")
-	local head = character and character:FindFirstChild("Head")
-	if not root or not head then
-		return
+	if not root then
+		return nil
 	end
-	local headWorld = self:toWorld(Capture.HEAD)
-	local rootPos = root.Position + (headWorld - head.Position)
-	self.sim:Teleport(self.player, CFrame.lookAt(rootPos, rootPos + self.fwd))
-	for _, tool in character:GetChildren() do
-		if tool:IsA("Tool") then
-			local handle = tool:FindFirstChild("Handle")
-			local tip = handle and handle:FindFirstChild("TipAttachment", true)
-			if handle and tip then
-				local delta = self:toWorld(Capture.ROD_TIP) - tip.WorldPosition
-				for _, d in tool:GetDescendants() do
-					if d:IsA("BasePart") then
-						d.CFrame = d.CFrame + delta
-					end
-				end
-			end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local hip = if humanoid then get(humanoid, "HipHeight", 2) else 2
+	local at = self:toWorld(Vector3.new(0, hip + root.Size.Y / 2, 0))
+	return CFrame.lookAt(at, at + self.fwd)
+end
+
+-- The character on the FishingSpot (world scenarios: the line, the cast and the catch start
+-- from where the camera expects the fisher).
+function Capture:pose()
+	local pose = self:standPose(self.player.Character)
+	if pose then
+		self.sim:Teleport(self.player, pose)
+	end
+end
+
+-- How a character's parts are placed in the drawing: nil = where they are; else a CFrame
+-- that moves them onto the FishingSpot (avatar mode, or a fisher standing elsewhere).
+function Capture:placement(character: any): any?
+	local root = character:FindFirstChild("HumanoidRootPart")
+	local pose = self:standPose(character)
+	if not root or not pose then
+		return nil
+	end
+	if not self.avatarOnly then
+		local d = root.Position - pose.Position
+		if Vector3.new(d.X, 0, d.Z).Magnitude < 1.5 and math.abs(d.Y) < 2 then
+			return nil
+		end
+		if character ~= self.player.Character then
+			return nil -- someone else: where he really is
 		end
 	end
+	return pose * root.CFrame:Inverse()
+end
+
+-- A CFrame in the spot frame: { x, y, z, R00 .. R22 } (render.py's row-major "cf").
+function Capture:cfLocal(cf: any): { number }
+	local p = self:toLocal(cf.Position)
+	local r, u, f = self.right, self.up, self.fwd
+	local X, Y, Z = cf.XVector, cf.YVector, cf.ZVector
+	return {
+		rn(p.X, 1000),
+		rn(p.Y, 1000),
+		rn(p.Z, 1000),
+		rn(X:Dot(r), 1e4),
+		rn(Y:Dot(r), 1e4),
+		rn(Z:Dot(r), 1e4),
+		rn(X:Dot(u), 1e4),
+		rn(Y:Dot(u), 1e4),
+		rn(Z:Dot(u), 1e4),
+		rn(X:Dot(f), 1e4),
+		rn(Y:Dot(f), 1e4),
+		rn(Z:Dot(f), 1e4),
+	}
 end
 
 function Capture:connectSignals()
@@ -343,7 +534,7 @@ function Capture:cameraNow(): any
 	local character = self.player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if humanoid and root then
+	if humanoid and root and not self.avatarOnly then
 		local ok, value = pcall(function()
 			return humanoid.CameraOffset
 		end)
@@ -378,6 +569,18 @@ function Capture:camera(): any
 	return { eye = { eye.X, eye.Y, eye.Z }, focus = { focus.X, focus.Y, focus.Z }, fov = cam.fov }
 end
 
+-- The dump's static part: the player's base, the water level (spot frame), the movers' static
+-- data (index = id of the frames' `movers`) and their rest geometry in world coordinates
+-- { x, y, z, sx, sy, sz } — gui/backdrop.py renders the pier without them.
+function Capture:scene(): any
+	return {
+		base = self.player:GetAttribute("BaseIndex"),
+		waterY = rn(self.waterY, 1000),
+		movers = self.moverInfo,
+		exclude = self.exclude,
+	}
+end
+
 -- (x, y, depth) of a world point in screen px; depth <= 0 = behind the camera.
 local function project(cam: any, W: number, H: number, p: any): (number, number, number)
 	local rel = p - cam.eyeW
@@ -392,14 +595,15 @@ end
 -- What to look at
 --------------------------------------------------------------------------------
 
--- This player's Workspace.FishingFx: every client of the sim makes its own (RbxSim shares one
--- DataModel), and a folder of a client that has left may still be there.
-function Capture:fxFolder(): any?
+-- This player's client folder (Workspace.FishingFx, Workspace["Ambient (client)"]): every
+-- client of the sim makes its own (RbxSim shares one DataModel), and a folder of a client that
+-- has left may still be there.
+function Capture:clientFolder(name: string): any?
 	local sim = self.sim
 	local ctx = sim:_ctxFor(self.player)
 	local fallback = nil
 	for _, c in sim.workspace:GetChildren() do
-		if c.Name == "FishingFx" then
+		if c.Name == name then
 			local real = sim:Unwrap(c)
 			if sim.proxy.createdBy[real] == ctx then
 				return c
@@ -410,38 +614,50 @@ function Capture:fxFolder(): any?
 	return fallback
 end
 
+function Capture:fxFolder(): any?
+	return self:clientFolder("FishingFx")
+end
+
 local function isFishModel(inst: any): boolean
 	return inst:IsA("Model") and (FISH_NAMES[inst.Name] == true or inst:GetAttribute("Title") ~= nil)
 end
 
--- { inst, fish = model?, character = bool } for every instance to consider.
+-- { inst, fish = model?, top = bool?, character = Model?, ambient = bool? } for every
+-- instance to consider (avatar mode: only the own character).
 function Capture:scan(): { any }
 	local out = {}
-	local folder = self:fxFolder()
-	local function walk(inst: any, fish: any?, inCharacter: boolean)
+	local function walk(inst: any, fish: any?, character: any?, ambient: boolean?)
 		for _, c in inst:GetChildren() do
 			local f = fish
 			if not f and isFishModel(c) then
 				f = c
-				table.insert(out, { inst = c, fish = c, top = true })
+				table.insert(out, { inst = c, fish = c, top = true, character = character, ambient = ambient })
 			end
-			if inCharacter and not f then
-				if not c:IsA("BasePart") then
-					table.insert(out, { inst = c, character = true })
-				end
-			else
-				table.insert(out, { inst = c, fish = f })
-			end
-			walk(c, f, inCharacter)
+			table.insert(out, { inst = c, fish = f, character = character, ambient = ambient })
+			walk(c, f, character, ambient)
 		end
 	end
+	if self.avatarOnly then
+		local character = self.player.Character
+		if character then
+			walk(character, nil, character)
+		end
+		return out
+	end
+	local folder = self:fxFolder()
 	if folder then
-		walk(folder, nil, false)
+		walk(folder, nil, nil)
+	end
+	if self.ambient then
+		local own = self:clientFolder(AMBIENT_FOLDER)
+		if own then
+			walk(own, nil, nil, true)
+		end
 	end
 	for _, plr in self.sim:GetPlayers() do
 		local character = plr.Character
 		if character then
-			walk(character, nil, true)
+			walk(character, nil, character)
 		end
 	end
 	return out
@@ -573,6 +789,9 @@ end
 
 function Capture:_step(dt: number)
 	self.time += dt
+	if self.avatarOnly then
+		return -- (nothing accumulates: the body is read at the frame)
+	end
 	local scan = self:scan()
 	self:_observe()
 
@@ -639,7 +858,7 @@ function Capture:_step(dt: number)
 	-- fish paths (screen centres, for the x-ray arc)
 	local cam = self:cameraNow()
 	for _, entry in scan do
-		if entry.top and entry.fish then
+		if entry.top and entry.fish and not entry.ambient then
 			local ok, box = pcall(function()
 				return entry.fish:GetBoundingBox()
 			end)
@@ -733,111 +952,96 @@ function Capture:screenBox(cam: any, cf: any, size: any): ({ number }?, number)
 	return { r1(x0), r1(y0), r1(x1), r1(y1) }, math.max(depth, NEAR)
 end
 
-function Capture:partItems(cam: any, part: any, items: { any })
+-- Is a sphere (world centre, radius) on screen (with a margin) and at least MIN_PX big?
+function Capture:inView(cam: any, pos: any, radius: number): boolean
+	local rel = pos - cam.eyeW
+	local z = rel:Dot(cam.f)
+	if z < -radius then
+		return false
+	end
+	if z > 0.05 then
+		if radius * cam.fp / z < MIN_PX then
+			return false
+		end
+		local tanV = (self.H / 2) / cam.fp
+		local tanH = tanV * self.W / self.H
+		local slack = radius * 1.5
+		if math.abs(rel:Dot(cam.r)) - slack > z * tanH or math.abs(rel:Dot(cam.u)) - slack > z * tanV then
+			return false
+		end
+	end
+	return true
+end
+
+-- One solid (gui/solids.py): cf (spot frame), s (size), c (colour), sh (shape), t
+-- (transparency, if any), m = 1 (Neon). `place` moves it (a re-placed character).
+function Capture:solidOf(part: any, color: { number }?, place: any?): { [string]: any }?
 	local t = effectiveTransparency(part)
 	if t >= 0.98 then
-		return
+		return nil
 	end
-	local color = part.Color
-	local neon = get(part, "Material", nil) == Enum.Material.Neon
-	local shape = if part:IsA("Part") then enumNameOf(get(part, "Shape", nil), "Block") else "Block"
-	local cf, size = part.CFrame, part.Size
-	local alpha = r1((1 - t) * 100) / 100
-	local _, _, depth = project(cam, self.W, self.H, cf.Position)
-	depth = math.max(depth, NEAR)
-	local near = math.max(depth - size.Magnitude / 2, NEAR)
-	local function shaded(n: any): { number }
-		local k = if neon then 1.15 else 0.62 + 0.38 * math.max(0, n:Dot(LIGHT))
-		return {
-			math.min(255, math.round(color.R * 255 * k)),
-			math.min(255, math.round(color.G * 255 * k)),
-			math.min(255, math.round(color.B * 255 * k)),
-		}
+	local cf = part.CFrame
+	if place then
+		cf = place * cf
 	end
-	if shape == "Ball" then
-		local x, y, z = project(cam, self.W, self.H, cf.Position)
-		if z <= NEAR then
-			return
-		end
-		local r = math.min(size.X, size.Y, size.Z) / 2 * cam.fp / z
-		table.insert(items, {
-			k = "circle",
-			x = r1(x),
-			y = r1(y),
-			r = r1(r),
-			c = shaded(Vector3.new(0, 1, 0)),
-			a = alpha,
-			neon = neon,
-			d = depth,
-			dn = near,
+	local size = part.Size
+	local e: { [string]: any } = {
+		cf = self:cfLocal(cf),
+		s = { rn(size.X, 1000), rn(size.Y, 1000), rn(size.Z, 1000) },
+		c = color or rgb(part.Color),
+		sh = shapeOf(part),
+	}
+	if t > 0.005 then
+		e.t = rn(t, 100)
+	end
+	if get(part, "Material", nil) == Enum.Material.Neon then
+		e.m = 1
+	end
+	return e
+end
+
+-- The hair stand-in of an avatar head (no accessories in RbxSim): a cap and the back of the
+-- head, so the head's turn reads from behind like on a real avatar.
+function Capture:hairOf(head: any, place: any?, solids: { any })
+	local cf = head.CFrame
+	if place then
+		cf = place * cf
+	end
+	local s = head.Size.Y
+	local pieces = {
+		{ CFrame.new(0, s * 0.5 + 0.1, 0.04), Vector3.new(s * 1.1, 0.3, s * 1.1) },
+		{ CFrame.new(0, s * 0.12, s * 0.5 + 0.09), Vector3.new(s * 1.1, s * 0.8, 0.22) },
+	}
+	for _, piece in pieces do
+		local size = piece[2]
+		table.insert(solids, {
+			cf = self:cfLocal(cf * piece[1]),
+			s = { rn(size.X, 1000), rn(size.Y, 1000), rn(size.Z, 1000) },
+			c = HAIR,
+			sh = "Block",
 		})
-		return
 	end
-	if shape == "Cylinder" then
-		-- the hull of the clipped side quads and caps (12-gon prism along the part's X axis)
-		local axis = cf.XVector
-		local radius = math.min(size.Y, size.Z) / 2
-		local rings = {}
-		for k, sx in { -1, 1 } do
-			local centre = cf.Position + axis * (sx * size.X / 2)
-			rings[k] = {}
-			for i = 0, 11 do
-				local a = i / 12 * math.pi * 2
-				table.insert(
-					rings[k],
-					centre + cf.YVector * (math.cos(a) * radius) + cf.ZVector * (math.sin(a) * radius)
-				)
-			end
-		end
-		local pts = {}
-		local function add(poly: { any })
-			for _, p in clipProject(cam, self.W, self.H, poly) do
-				table.insert(pts, p)
-			end
-		end
-		for i = 1, 12 do
-			local j = i % 12 + 1
-			add({ rings[1][i], rings[1][j], rings[2][j], rings[2][i] })
-		end
-		add(rings[1])
-		add(rings[2])
-		if #pts < 3 then
-			return
-		end
-		table.insert(items, {
-			k = "poly",
-			pts = hull(pts),
-			c = shaded(Vector3.new(0, 1, 0)),
-			a = alpha,
-			neon = neon,
-			d = depth,
-			dn = near,
-		})
-		return
-	end
-	-- Block (and anything else as its box): the faces turned to the camera.
-	for _, face in BOX_FACES do
-		local nw = cf:VectorToWorldSpace(face.n)
-		local centre = cf.Position + nw * math.abs(face.n:Dot(size)) / 2
-		if (cam.eyeW - centre):Dot(nw) > 0 then
-			local poly = {}
-			for _, i in face.c do
-				table.insert(poly, boxCorner(cf, size, i))
-			end
-			local pts = clipProject(cam, self.W, self.H, poly)
-			if #pts >= 3 then
-				table.insert(items, {
-					k = "poly",
-					pts = pts,
-					c = shaded(nw),
-					a = alpha,
-					neon = neon,
-					d = depth,
-					dn = near,
-				})
+end
+
+-- The movers in view now: { id, cf (12, spot frame), transparency } each.
+function Capture:moverFrames(cam: any): { { number } }
+	local out = {}
+	for _, m in self.movers do
+		local part = m.part
+		if part.Parent then
+			local cf = part.CFrame
+			if self:inView(cam, cf.Position, m.radius) then
+				local t = effectiveTransparency(part)
+				if t < 0.98 then
+					local row = self:cfLocal(cf)
+					table.insert(row, 1, m.id)
+					table.insert(row, rn(t, 100))
+					table.insert(out, row)
+				end
 			end
 		end
 	end
+	return out
 end
 
 -- Face corners (TL, TR, BR, BL of the canvas) in the part's local space, and the normal.
@@ -1124,14 +1328,16 @@ function Capture:particleItem(cam: any, emitter: any, state: any, items: { any }
 	})
 end
 
-function Capture:fishItem(cam: any, model: any, items: { any }, marks: { any })
+-- The x-ray mark of a fish model (its parts are solids): the screen box, its path so far, and
+-- whether it is hidden (every part invisible — the leap's handoff).
+function Capture:fishMark(cam: any, model: any, marks: { any })
 	local ok, box, size = pcall(function()
 		return model:GetBoundingBox()
 	end)
 	if not ok then
 		return
 	end
-	local screen, depth = self:screenBox(cam, box, size)
+	local screen = self:screenBox(cam, box, size)
 	if not screen then
 		return
 	end
@@ -1142,55 +1348,63 @@ function Capture:fishItem(cam: any, model: any, items: { any }, marks: { any })
 			break
 		end
 	end
-	local nose = box.Position + box.XVector * (size.X / 2)
-	local tail = box.Position - box.XVector * (size.X / 2)
-	local nx, ny = project(cam, self.W, self.H, nose)
-	local tx, ty = project(cam, self.W, self.H, tail)
-	local cx, cy = project(cam, self.W, self.H, box.Position)
-	local title = model:GetAttribute("Title")
-	local fish = model:GetAttribute("FishId") or (if typeof(title) == "string" then self.fishByTitle[title] else nil)
-	local mark = {
+	table.insert(marks, {
 		name = model.Name,
 		box = screen,
 		path = self.paths[model],
 		hidden = hidden,
-	}
-	table.insert(marks, mark)
-	if hidden or not fish then
-		return
-	end
-	table.insert(items, {
-		k = "fish",
-		fish = fish,
-		mutation = model:GetAttribute("Mutation"),
-		x = r1(cx),
-		y = r1(cy),
-		len = r1(math.sqrt((nx - tx) ^ 2 + (ny - ty) ^ 2)),
-		ang = r1(math.deg(math.atan2(ny - ty, nx - tx))),
-		box = screen,
-		d = depth,
-		dn = math.max(depth - size.Magnitude / 2, NEAR),
-		name = model.Name,
 	})
 end
 
 function Capture:_frame(): any
 	local cam = self:cameraNow()
-	local items, marks = {}, {}
+	local items, marks, solids = {}, {}, {}
+	local placements: { [any]: any } = {}
+	local function placeOf(character: any): any?
+		local p = placements[character]
+		if p == nil then
+			p = self:placement(character) or false
+			placements[character] = p
+		end
+		return if p then p else nil
+	end
 	for _, entry in self:scan() do
 		local inst = entry.inst
+		local character = entry.character
 		if entry.top and entry.fish then
-			self:fishItem(cam, entry.fish, items, marks)
+			if not entry.ambient and not self.avatarOnly then
+				self:fishMark(cam, entry.fish, marks)
+			end
 		elseif inst:IsA("BasePart") then
-			if not entry.fish and not entry.character then
-				self:partItems(cam, inst, items)
-				if inst.Parent and inst.Parent.Name == "FishingFx" and startsWithAny(inst.Name, MARK_PREFIXES) then
-					local screen = self:screenBox(cam, inst.CFrame, inst.Size)
-					if screen then
-						table.insert(marks, { name = inst.Name, box = screen })
+			local visible = true
+			if entry.ambient then
+				local pos = inst.Position
+				visible = (pos - cam.eyeW).Magnitude < AMBIENT_RANGE and self:inView(cam, pos, inst.Size.Magnitude / 2)
+			end
+			if visible then
+				local place = if character then placeOf(character) else nil
+				local body = character ~= nil and inst.Parent == character
+				local solid = self:solidOf(inst, if body then bodyColor(inst.Name) else nil, place)
+				if solid then
+					table.insert(solids, solid)
+					if body and inst.Name == "Head" then
+						self:hairOf(inst, place, solids)
 					end
 				end
 			end
+			if
+				not character
+				and inst.Parent
+				and inst.Parent.Name == "FishingFx"
+				and startsWithAny(inst.Name, MARK_PREFIXES)
+			then
+				local screen = self:screenBox(cam, inst.CFrame, inst.Size)
+				if screen then
+					table.insert(marks, { name = inst.Name, box = screen })
+				end
+			end
+		elseif self.avatarOnly then
+			continue -- (avatar mode: the body, the rod and a held fish only)
 		elseif inst:IsA("SurfaceGui") then
 			self:surfaceItem(cam, inst, items)
 		elseif inst:IsA("BillboardGui") then
@@ -1222,6 +1436,9 @@ function Capture:_frame(): any
 				end
 			end
 		end
+	end
+	if self.avatarOnly then
+		return { solids = solids }
 	end
 	-- particles of emitters that are gone already
 	local seen = {}
@@ -1256,6 +1473,8 @@ function Capture:_frame(): any
 			fov = Capture.CAMERA.fov,
 		},
 		items = items,
+		solids = solids,
+		movers = if self.ambient then self:moverFrames(cam) else nil,
 		marks = shown,
 	}
 end

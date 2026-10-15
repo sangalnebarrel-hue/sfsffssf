@@ -508,20 +508,27 @@ mesh shapes are still their box.
 
 See the HUD exactly as a player would — on a phone (also a notched one and a small one), a
 tablet or a PC — without Roblox Studio: still images of every HUD state, contact sheets of the
-animations, 30 fps bursts of the punchy first 0.8 s, and catch timelines where the world FX
-(the leap, the held fish, the pillar, confetti) play UNDER the HUD with a beat ruler under
-every frame. Drawn over a real frame of the game (the pier view) with the Roblox CoreGui
-chrome on top, plus automatic checks: layout safety (gaps to Jump, the thumbstick, the
-hotbar and between widgets), GPU fill per frame and the 12 px text floor. Made for design
-critique: everything is a PNG (and a text report).
+animations, 30 fps bursts of the punchy first 0.8 s, and timelines where the 3D world plays
+UNDER the HUD with a beat ruler under every frame: the real posed avatar (FisherAnimController:
+wind-up, throw, bite, reel with the bent rod, both arms up with the fish, the lost slump), the
+line from the bent tip, the bobber, the fish shadow, the leap, the trophy's flop, the pillar,
+confetti, and the ambient life in view (jumping fish, schools, gulls, dragonflies, foam rings,
+swaying flags, the turning windmill and Ferris wheel). Drawn over a real frame of the game (the
+pier view) with the Roblox CoreGui chrome on top, plus automatic checks: layout safety (gaps to
+Jump, the thumbstick, the hotbar and between widgets), GPU fill per frame and the 12 px text
+floor. Made for design critique: everything is a PNG (and a text report).
 
 ```sh
-# the standard set: 37 states x phone + desktop (stills, 17 animation sheets each, 12 bursts on
-# the phone, 2 overviews) + the checks on phone_notch, phone_small and tablet (~6.5 min on 4 cores)
+# the standard set: 48 states x phone + desktop (stills, 25 animation sheets each, 13 bursts on
+# the phone, 2 overviews) + the checks on phone_notch, phone_small and tablet (~10 min on 4 cores)
 python3 tools/preview/gui_render.py --all --out /tmp/ui
-# the catch timelines (real server, world FX under the HUD, beat rulers), phone, ~1.5 min
+# the timelines (real server, the 3D world under the HUD, beat rulers), phone, ~2.5 min: the catch
+# timelines + a whole session with the avatar (fishing_timeline), the trophy after the card
+# (trophy_hold), a lost fish (lost_fish) and the living world from the pier tip (ambient_pier)
 python3 tools/preview/gui_render.py --timeline --out /tmp/ui
 python3 tools/preview/gui_render.py --timeline --devices phone,phone_notch --gif --out /tmp/ui
+# one of them; the world without the HUD of the same frames is <scenario>_world.png
+python3 tools/preview/gui_render.py --scenario fishing_timeline --devices phone --out /tmp/ui
 # a few scenarios (dumped first), with their animation sheets and bursts, on three devices
 python3 tools/preview/gui_render.py --scenario bite,catch_mythic --devices phone,phone_notch,desktop \
     --sheets --bursts --out /tmp/ui
@@ -547,9 +554,11 @@ Output in `--out`:
 | `<device>/<scenario>.png` | the still: the whole screen + a caption bar (device, scenario, time, fill). Several still times: `<scenario>@<t>.png` |
 | `<device>/<scenario>_sheet.png` | animation contact sheet: every frame of the scenario's sheet window cropped to its region of interest, each labelled with its time and fill |
 | `<device>/<scenario>_burst.png` | the first 0.8 s at 30 fps (slams, stamps, pops, the catch), with the beat ruler when the scenario has beats |
-| `<device>/<scenario>_timeline.png` | catch timelines: every frame full screen with the world FX, x-ray boxes and a beat ruler (see below) |
+| `<device>/<scenario>_timeline.png` | timelines: every frame full screen (or the timeline's `roi`) with the 3D world, x-ray boxes and a beat ruler (see below) |
+| `<device>/<scenario>_world.png` | scenarios with `worldView`: the timeline's frames once more WITHOUT the HUD and the chrome — the avatar and the world the widgets hide (cropped to its `roi`) |
+| `<device>/<scenario>_motion.png` | a `worldView` with a still camera (`ambient_pier`): its first frame with every pixel that changed during the clip painted red, and the share of the frame that moved |
 | `<device>/<scenario>_layout.png` | a still with its layout-safety findings drawn: the gap in px between the closest points (red < 8 px, amber < 16 px, pink = a glow ring inside Jump/thumbstick) |
-| `<device>/<scenario>_burst.gif`, `_timeline.gif` | with `--gif`: the same frames as an animation (real speed) |
+| `<device>/<scenario>_burst.gif`, `_timeline.gif`, `_world.gif` | with `--gif`: the same frames as an animation (real speed) |
 | `overview_<device>.png` | every still of the device in one image (with `--all`, or more than 3 dumps) |
 | `checks.txt`, `checks.json` | the checks of every dump: fill per frame (peak, median), layout findings and small text per still, the beats (see [Checks](#checks-fill-layout-safety-text-floor)) |
 | `json/<device>/<scenario>.json` | the dumps (see below) |
@@ -567,22 +576,31 @@ Examples of the current HUD are in `docs/ui/`.
    player's PlayerGui at the requested times (60 fps virtual time in between). Scenarios
    with `server = true` (the catch timelines) run in a second sim whose FishingService is
    live: the harness plays like a person (taps the real buttons) and the server does the
-   rest. Scenarios with `world = true` also record the client's world FX
-   (`gui/world_capture.luau`, see [World FX](#world-fx-in-the-previews)). Script errors and
+   rest. Every player is an R15 rig (RbxSim `rig = "R15"`) on base 1 (`BaseConfig.
+   RandomAssignment` is switched off in the sims: the backdrop is base 1's pier), and while a
+   Tool is equipped RbxSim's Animator stand-in holds Roblox's "toolnone" pose
+   (`FisherPoses.Hold`, like the Animate script). Every frame records the own avatar as the
+   client sees it; scenarios with `world = true` record the whole 3D world
+   (`gui/world_capture.luau`, see [World](#the-3d-world-in-the-previews)). Script errors and
    warnings of the run go into the dump and are printed.
 2. `tools/preview/gui_render.py` draws each frame at the device resolution, 2x supersampled:
-   the backdrop, the world FX (world dumps), every GuiObject in draw order (`gui/paint.py`,
-   text in `gui/text.py`), then the CoreGui chrome (`gui/backdrop.py`), and downsamples. It
-   runs the checks (`gui/checks.py`) on every frame and writes `checks.txt`.
+   the backdrop, the 3D world (the avatar, FX, ambient life — `gui/solids.py` with a z-buffer
+   against the backdrop's depth, then the 2D world items of `gui/world.py`), every GuiObject in
+   draw order (`gui/paint.py`, text in `gui/text.py`), then the CoreGui chrome
+   (`gui/backdrop.py`), and downsamples. It runs the checks (`gui/checks.py`) on every frame
+   and writes `checks.txt`.
    If any dump had a script error it still writes everything, then prints `SCRIPT ERRORS in …`
    and exits with code 2: those previews do not show the real game.
    The dumps run in parallel Lune processes (`--jobs`, default = CPU count, max 8, split
    across devices) and every frame of every dump is rendered in one process pool.
 
-Speed (4 cores): `--all` takes ~6.5 min (~2.7 min of dumping 37 scenarios on 5 devices, ~4 min
-rendering 74 stills, 34 sheets, 12 bursts and ~135 layout overlays; `--no-checks-devices`
-saves ~2 min); `--timeline` ~1.5 min; one scenario on one device ~2 s to dump, a still
-~0.3 s, a full-screen catch frame ~1.5 s (the sunburst).
+Speed (4 cores, nothing else running): `--all` takes ~10 min (~6 min of dumping 48 scenarios
+on 5 devices — the R15 rigs and the avatar capture cost ~13 % of it, the living world of the
+client most of the rest —, ~3.5 min rendering 118 stills, 50 sheets, 13 bursts and the layout
+overlays; `--no-checks-devices` saves ~3 min); `--timeline` ~2.3 min for its 7 scenarios; one
+scenario on one device ~2–4 s to dump (a real-server session ~10–16 s), a still ~0.3 s, the
+avatar ~0.02 s of it, a world frame with ~600 moving parts ~0.4 s, a full-screen catch frame
+~1.5 s (the sunburst). New backdrops (a resolution, a camera or a variant) ~2–5 s once each.
 
 ### Devices
 
@@ -655,6 +673,10 @@ rendered by `--timeline` or by name):
 | `catch_timeline` | a real Legendary catch (Акулёнок) from the winning tap (title stage, card, close, trophy replay) | 0..8 s @ 6 fps + burst |
 | `catch_timeline_common` | a real Common catch (Карасик) | 0..5.5 s @ 6 fps + burst |
 | `catch_timeline_mythic` | a real Mythic Rainbow catch (Рыба-дракон) | 0..9 s @ 6 fps + burst |
+| `fishing_timeline` | a whole real session with the avatar (Epic Рыба-меч) from the tap «ЗАБРОСИТЬ»: wind-up and throw, the wait (shadow, nibbles), the bite, the strike, the fight with the bent rod and the taut line, the winning tap, the leap, both arms up with the fish, the card (the bite comes 2.6 s after the landing: `h:fixBiteDelay`) | 0..9.5 s @ 4 fps + `_world` (no HUD) |
+| `trophy_hold` | after the card has closed: the Legendary trophy over the head bobs and flops (FishLife), the nameplate beside it, both arms hold it up (cropped to the fisher, no x-ray) | 0..3.2 s @ 5 fps |
+| `lost_fish` | a Rare fight, then a tap outside the zone: «МИМО!», the line flashes red and goes slack, the fish dives off, the shadow flees, the fisher slumps and shakes his head (on a phone the minigame panel hides him: see `_world`) | 0..3.4 s @ 8 fps + `_world` |
+| `ambient_pier` | the living world from the pier tip, nothing else happening (stub server): a fish jumps (`AmbientController.JumpSoon` at 1.2 s), the pier gull swoops (`SwoopSoon`), schools, dragonflies, foam rings, swaying flags, the windmill and the Ferris wheel turn | 0..6 s @ 4 fps + `_world` + `_motion` |
 
 World + HUD scenarios in `gui_scenarios.luau` (`server = true`, `world = true`, not in `--all`; by
 name): `bite_world` (a real bite: the bobber dives above the «КЛЮЁТ!» plate), `minigame_world` (a
@@ -684,9 +706,14 @@ warning, not a crash (clicks are forced). A scenario is
 	still = t | { t, ... },                   -- still times (default 0.6)
 	sheet = { from, to, fps, roi = { paths }, margin },
 	burst = true | false | { from, to, fps, roi, margin },  -- default 0..0.8 s @ 30 fps
-	timeline = { from, to, fps },             -- full-screen frames for the _timeline composite
+	timeline = { from, to, fps, tail?, roi? },-- frames for the _timeline composite (full screen
+	                                          -- unless roi); tail = s kept after the last beat (0.7)
+	worldView = true | { roi, margin, cell }, -- also _world: the timeline frames without the HUD
+	xray = false,                             -- no x-ray boxes on the timeline
 	server = true,                            -- the real FishingService (a second sim)
-	world = true,                             -- record the world FX (gui/world_capture.luau)
+	world = true,                             -- record the whole 3D world (gui/world_capture.luau)
+	ambient = false,                          -- … without the ambient life
+	during = function(h) ... end,             -- keeps playing while the frames are dumped
 	beats = { spec, ... },                    -- replaces DEFAULT_BEATS; extraBeats adds to them
 	fresh = true, settle = s, standard = false,
 }
@@ -695,6 +722,11 @@ warning, not a crash (clicks are forced). A scenario is
 The sheet region is the union of the `roi` objects' screen boxes over all sheet frames plus
 `margin` x screen height (none listed or none visible = the whole screen).
 
+`during` runs as a coroutine after time 0: each of its harness steps (`h:advance`, `h:click`,
+`h:waitFor` …) is a step of the frame loop, so a scenario can tap and wait while its frames are
+dumped (`fishing_timeline`: time 0 = before the cast tap, the bite, the strike and the hits come
+in `during`).
+
 The harness `h` (documented in `gui_scenarios.luau`'s header and `gui_dump.luau`):
 `h:advance`, `h:gui`, `h:visible`, `h:shown(path)` (visible AND not scaled to nothing or
 faded out), `h:waitFor`, `h:waitVisible`, `h:click`, `h:press`, `h:serverSays(state, data)`
@@ -702,14 +734,21 @@ faded out), `h:waitFor`, `h:waitVisible`, `h:click`, `h:press`, `h:serverSays(st
 `h:standFar`, `h:config`, `h:minigame(rarity, extra)`, `h:caught(fish, total)`, and for
 `server = true` scenarios:
 
-* `h:playCatch(fish, opts?) -> FishData` — a whole real catch: onto the spot (posed like the
-  backdrop's stand-in), rod in hand, tap «ЗАБРОСИТЬ», wait for the bite, tap «ПОДСЕЧЬ!» after
-  `opts.reaction` s (0.3), then win the minigame by tapping when the needle crosses the zone
-  at `opts.aim` (-1..1 of the half-width, 0 = the centre). Returns right after the WINNING tap
-  (make that time 0). `fish = { Id, Mutation?, Kg? }`.
+* `h:playCatch(fish, opts?) -> FishData` — a whole real catch: `h:readyReal(fish)` (every roll
+  gives `fish`, onto the spot facing the lagoon, rod in hand), `h:castAndHook(opts)` (tap
+  «ЗАБРОСИТЬ», wait for the bite, tap «ПОДСЕЧЬ!» after `opts.reaction` s (0.3); returns the
+  "Minigame" event), `h:playMinigame(mg, opts)` (tap when the needle crosses the zone at
+  `opts.aim`, -1..1 of the half-width, 0 = the centre; `opts.miss` = one tap well outside the
+  zone, not before `opts.after` s). Returns right after the WINNING (or missing) tap (make that
+  time 0). `fish = { Id, Mutation?, Kg? }`.
 * `h:forceFish(fish) -> FishData` — every roll gives this fish (`FishingService.RollFishForTest`).
-* `h:stateEvents() -> { { time, state, data } }` — the FishingState events this client got.
-* `h:poseLikeBackdrop()`, `h.world` — the world capture of a `world = true` scenario.
+* `h:fixBiteDelay(s)` — the bite comes `s` after the landing (restored after the scenario).
+* `h:stateEvents() -> { { time, state, data } }`, `h:stateAfter(count, state)` — the
+  FishingState events this client got.
+* `h:clientModule(name)` — the own client's controller module (`AmbientController`,
+  `FishingFxController`, `FisherAnimController` …).
+* `h:poseLikeBackdrop()` (the character onto the FishingSpot, facing the lagoon), `h.world` —
+  the world capture of a `world = true` scenario.
 
 #### Beats
 
@@ -747,26 +786,65 @@ A spec is `{ name, appear = path | { paths } }`, `{ name, appearNamed = "FxFlash
 `{ name, fn = function(h) -> bool }`. When a widget is renamed, update `DEFAULT_BEATS` or pass
 `beats` / `extraBeats` in the scenario.
 
-### World FX in the previews
+### The 3D world in the previews
 
-`gui/world_capture.luau` records, at every 60 fps step of a `world = true` scenario,
-everything in the player's `Workspace.FishingFx` (FishingFxController) and, in every
-character, the HeldFish model and any emitter / trail / beam / billboard / light — and
-projects it with the backdrop's camera into screen px. `gui/world.py` draws it over the
-backdrop, under the HUD:
+`gui/world_capture.luau` records, at every 60 fps step of the capture window, what the
+player's own CLIENT sees in the world, and `gui_render.py` draws it over the backdrop, under
+the HUD. Two modes:
 
-* fish models (Title attribute, or named HeldFish / Leap / Dive) → the `docs/gear` sprite over
-  the model's projected box, along its nose direction; hidden while every part is invisible
-  (LocalTransparencyModifier — the leap handoff);
-* parts: Block (visible faces, lit), Ball, Cylinder (hull), Transparency x
-  LocalTransparencyModifier, Neon unlit with a glow; a part with Transparency 1 only carries
-  its SurfaceGui / emitters / trails;
-* SurfaceGui → its GUI at the canvas size, warped onto the projected face (back faces culled);
+* **avatar** — every scenario without `world = true`: only the own character (its posed body,
+  the rod in hand, a held fish), drawn standing on the FishingSpot facing the lagoon (where the
+  old blocky stand-in stood) at the default camera. The standard stills show the real avatar
+  in whatever pose the real controllers give it (the "toolnone" arm with the rod, the
+  `castPress` wind-up after the tap…).
+* **world** — `world = true`: the avatar, the FX, the ambient life, the 2D items below, and
+  the client's `Workspace.CurrentCamera` is put on the capture camera on every step, so the
+  controllers' own screen maths (`Camera:WorldToScreenPoint`: where the catch card is born,
+  whether a widget hides the own bobber) and AmbientEngine's view culling agree with the
+  drawing.
+
+**Solids** (`gui/solids.py`: render.py's rasterizer with a z-buffer, lit by render.py's sun,
+fogged by the place's atmosphere and colour-graded like the backdrop, with outlines; per pixel
+against the backdrop's own depth, so the pier rail hides the feet and the fisher hides the
+bobber behind his head):
+
+* every character's body parts as the client sees them — FisherAnimController's joint
+  Transforms (RbxSim's forward kinematics per client view): wind-up, the throw, the wait with
+  the left hand at the reel, the bite, the strike, the reel, both arms up with the fish, the
+  lost slump. RbxSim avatars have no appearance: the classic look by part name (yellow skin,
+  blue shirt, green trousers) and a brown hair stand-in (a cap and the back of the head) so the
+  head's turn reads from behind;
+* the Tool — the rod bent by FisherRod (client-local Weld C0s), the line's TipAttachment with it;
+* the HeldFish model (FishLife's bob and flop: client-local C0s), the leap / dive copies;
+* every BasePart in the player's `Workspace.FishingFx` (bobber, the fish shadow — a SpecialMesh
+  «Sphere» is an ellipsoid —, drips, the pillar …);
+* ambient life (world mode; `ambient = false` turns it off): the parts of the client's
+  `Workspace["Ambient (client)"]` in view (schools, jumping fish, gulls, butterflies,
+  dragonflies …) and the map's **movers** — the parts of every Model / BasePart that
+  AmbientWorld moves (attributes `Sway` / `Bob` / `Spin` / `Pulse`, chase-light bulbs
+  `…Bulb<n>`; not the `Drift` clouds) within `Capture.MOVER_RANGE` studs of the spot (Sway /
+  Pulse 220, Bob / bulbs 320, Spin 650: the windmill and the Ferris wheel), at their client-local
+  CFrame and transparency. The dump lists their static data once (`scene.movers`) and their rest
+  geometry (`scene.exclude`, world coordinates); the backdrop of a world dump is rendered
+  without them, so nothing is drawn twice.
+* parts under the water surface are mixed with the water colour by the length of the ray under
+  the surface (`WATER_CLEAR` 6 studs: the shadow half a stud down reads, deep things fade);
+  transparent parts blend far to near; Neon parts are unlit and glow.
+* LEGO studs: only movers keep the studs they have in the place (Plastic + their saved surfaces);
+  avatar, FX and ambient parts never get studs (RbxSim's `Instance.new("Part")` reports Studs on
+  top — the capture does not pass surfaces on).
+
+**2D items** (`gui/world.py`, painted after the solids, hidden where the scene or a solid is
+nearer than the item's nearest point by a margin — so the bobber and the leap behind the
+player's head are hidden, while rings on the deck are not cut):
+
+* SurfaceGui → its GUI at the canvas size, warped onto the projected face (back faces culled):
+  foam rings, jump rings;
 * BillboardGui → laid out at "studs x px-per-stud + px" at its depth, StudsOffset(WorldSpace),
-  SizeOffset, MaxDistance;
+  SizeOffset, MaxDistance: the trophy's nameplate, the «?» of a nibble;
 * Beam → a ribbon along the Bezier (CurveSize0/1 along the attachments' WorldAxis), Width0/1,
-  Color / Transparency along it; Trail → the ribbon of its attachments' last Lifetime seconds,
-  Color / Transparency / WidthScale by age;
+  Color / Transparency along it — the line leaves the bent rod's live tip; Trail → the ribbon
+  of its attachments' last Lifetime seconds, Color / Transparency / WidthScale by age;
 * ParticleEmitter → simulated (RbxSim has none; `Emit` is hooked): Rate while Enabled and
   every `Emit(n)`, spawned in the parent part's box (or at the attachment), EmissionDirection +
   SpreadAngle, Speed, Lifetime, Acceleration, Drag, LockedToPart; dots by Size, Color and
@@ -774,31 +852,26 @@ backdrop, under the HUD:
   confetti squares); deterministic;
 * PointLight → a faint glow.
 
-The capture also puts the client's `Workspace.CurrentCamera` there on every step, so the
-controllers' own screen maths (`Camera:WorldToScreenPoint`: where the catch card is born, whether a
-widget hides the own bobber) agree with what is drawn.
-
 Camera: the backdrop's — the Roblox default third-person camera 12.5 studs from the focus,
 18 deg down, vertical FOV 70, focus 4.6 studs above the top of the own FishingSpot, looking
 along the base's LookVector — plus the local Humanoid's `CameraOffset` (in the character's
-frame). The dump writes the camera per frame in the spot frame (right, up, forward), and the
-backdrop is rendered of base 1's pier with that very camera (cached per camera, so a
-`CameraOffset` gets its own backdrop). The sim's character is lifted so its head matches the
-stand-in's, and the rod is moved so its `TipAttachment` sits at the stand-in's rod tip — the
-line, the cast, the leap and the held fish line up with the drawn avatar.
+frame; world mode). The dump writes the camera per frame and the solids in the spot frame
+(right, up, forward from the top of the FishingSpot), and the backdrop is rendered of base 1's
+pier with that very camera (cached per camera and variant, so a `CameraOffset` gets its own
+backdrop). `h:poseLikeBackdrop()` stands the rigged character on the spot: its root
+HipHeight + half its height above the top, facing the lagoon.
 
-Occlusion: the backdrop's renderer also writes its opaque depth; a world pixel is hidden
-where the scene (the stand-in avatar, the pier, the map; not the water) is nearer than the
-item's nearest point by a margin — so the bobber and the leap behind the player's head are
-hidden, as in the game, while rings on the deck are not cut.
+X-ray (timelines and timeline bursts, unless `xray = false`): dashed boxes over the HUD for the
+fish models (the leap arc as dots), the pillar, the halo and the nameplate, each with how much
+of it the HUD hides (HUD opacity >= 0.6), also printed in the ruler: `HeldFish 100% under HUD`
+is the card hiding the trophy. `--no-world` draws the plain backdrop, `--no-hud` only the
+world; `worldView` scenarios get the HUD-less frames as `_world.png` anyway.
 
-X-ray (timelines and timeline bursts): dashed boxes over the HUD for the fish models (the leap
-arc as dots), the pillar, the halo and the nameplate, each with how much of it the HUD hides
-(HUD opacity >= 0.6), also printed in the ruler: `HeldFish 100% under HUD` is the card hiding
-the trophy. `--no-world` draws the plain backdrop, `--no-hud` only the world.
-
-Not drawn: Highlights, Decals/Textures, mesh shapes (their box), camera shake / FOV punches
-(the GUI part of them is), terrain water ripples. The stand-in avatar does not move.
+Not drawn: Highlights, Decals/Textures (no face on the head), mesh shapes other than the
+sphere (their box), accessories (the hair is a stand-in), camera shake / FOV punches (the GUI
+part of them is), the terrain water's ripples and waves, the Drift clouds' drift (they stay in
+the backdrop). Speed: an avatar frame costs ~0.05 s, a world frame with ~600 movers and ambient
+parts ~0.4 s.
 
 ### Checks: fill, layout safety, text floor
 
@@ -910,14 +983,20 @@ Roblox's 1 px dark border, as in the game.
 
 **Backdrop** (`--bg pier`): `render.py`'s perspective renderer at the device resolution — the
 Roblox default third-person camera (12.5 studs behind the head, 18 deg down, vertical FOV 70;
-a world dump's per-frame camera when it has one) behind a blocky stand-in avatar (classic R6
-colours, bamboo rod raised) on base 1's FishingSpot, looking over the lagoon. Parts/terrain
-come from `export_parts.luau` / `export_terrain.luau`; the image and its depth buffer are
-cached in `tools/preview/gui/.cache/` (ignored by version control; key = place path, size,
-mtime, `backdrop.VERSION` (bumped when the export format changes, e.g. 4 = stud surfaces) +
-resolution + camera; `GUI_PREVIEW_CACHE` moves it), ~3–5 s per new resolution or camera. The
-pier is drawn with its LEGO studs like the map renders. If it cannot be
-rendered, `docs/preview_pier.png` is cropped instead (no occlusion then).
+a world dump's per-frame camera when it has one) over base 1's FishingSpot, looking over the
+lagoon. The fisher on the spot is drawn per frame from the dump (the real posed avatar, see
+[the 3D world](#the-3d-world-in-the-previews)); the backdrop is the empty pier (`_noav` in the
+cache) and, for world dumps, also without the map's movers (`_x<hash>`: `scene.exclude`). Only
+an old dump without solids still gets the blocky stand-in avatar (classic R6 colours, bamboo
+rod raised). Parts/terrain come from `export_parts.luau` / `export_terrain.luau`; the image,
+its depth per pixel (the 2D items' occlusion) and per supersampled pixel (the solids' z test;
+the sky is +inf) and the place's look for the solids (`ctx_<key>.json`: base 1's spot, grading,
+fog, water) are cached in `tools/preview/gui/.cache/` (ignored by version control; key = place
+path, size, mtime, `backdrop.VERSION` (bumped when the export or the depth changes: 4 = stud
+surfaces, 5 = sky depth +inf and the variants) + resolution + camera + variant;
+`GUI_PREVIEW_CACHE` moves it), ~2–5 s per new resolution, camera or variant. The pier is drawn
+with its LEGO studs like the map renders. If it cannot be rendered, `docs/preview_pier.png` is
+cropped instead (no occlusion and no solids then).
 
 **CoreGui chrome** (drawn over the HUD at 80 % opacity, so overlaps stay visible; the shapes
 come from `gui/backdrop.chrome_shapes`, shared with the layout check): the 58 px top bar

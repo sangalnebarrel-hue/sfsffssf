@@ -2,16 +2,23 @@
 
 Backdrop ("pier", the default): a player-eye frame of the real map rendered by
 tools/preview/render.py at the device resolution — the third-person camera 12.5 studs behind
-a blocky stand-in avatar (classic R6 colours, bamboo rod in hand) standing on base 1's
-FishingSpot and looking over the lagoon (vertical FOV 70, like the Roblox default camera).
-World dumps (gui/world_capture.luau) carry their camera per frame in the spot frame (right,
-up, forward from the top of the FishingSpot): Humanoid.CameraOffset moves it, and the
-backdrop is rendered for that camera (default_camera() is the one without an offset).
-Parts and terrain come from export_parts.luau / export_terrain.luau of the place; the
-image and the opaque depth buffer (for the world FX occlusion) are cached in
-tools/preview/gui/.cache/ (keyed by the place file, the resolution and the camera). If that
-fails, docs/preview_pier.png is cropped instead. "plain" is a flat sky/sea gradient,
-anything else is an image path (cover-fitted).
+the fisher standing on base 1's FishingSpot and looking over the lagoon (vertical FOV 70,
+like the Roblox default camera). Variants (cache keys):
+  * with the stand-in (`avatar=True`, old dumps without solids): a blocky R6 figure, rod raised;
+  * without it (`avatar=False`): every dump of gui_dump.luau now draws the real, posed avatar
+    itself (gui/solids.py) — the backdrop is the empty pier;
+  * without the map's movers (`exclude`, world dumps): the parts AmbientWorld moves near the
+    spot (flags, boats, the windmill, the Ferris wheel …; world_capture.luau scene().exclude)
+    are left out and drawn per frame where the client has them.
+World dumps carry their camera per frame in the spot frame (right, up, forward from the top
+of the FishingSpot): Humanoid.CameraOffset moves it, and the backdrop is rendered for that
+camera (default_camera() is the one without an offset). Parts and terrain come from
+export_parts.luau / export_terrain.luau of the place; the image, the opaque depth per pixel
+(the world FX occlusion) and per supersampled pixel (the solids' z test) are cached in
+tools/preview/gui/.cache/ (keyed by the place file, the resolution, the camera and the
+variant), with the place's look for the solids (world_context: base 1's spot, grading, fog,
+water). If that fails, docs/preview_pier.png is cropped instead. "plain" is a flat sky/sea
+gradient, anything else is an image path (cover-fitted).
 
 Chrome (drawn over the HUD, semi-transparent, like CoreGui above PlayerGui); the shapes come
 from chrome_shapes(), which the layout-safety check (gui/checks.py) uses too:
@@ -45,7 +52,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PREVIEW = os.path.dirname(HERE)
 REPO = os.path.dirname(os.path.dirname(PREVIEW))
 CACHE = os.environ.get("GUI_PREVIEW_CACHE", os.path.join(HERE, ".cache"))
-VERSION = 4  # bump when the camera/avatar or the export format changes (4: stud surfaces)
+VERSION = 5  # bump when the camera/avatar, the export or the depth change (4: stud surfaces, 5: sky depth inf)
 INSET = 58
 
 # Camera: Roblox default third-person, focus on the head.
@@ -179,7 +186,45 @@ def camera_key(cam):
     return "_cam" + hashlib.sha1(repr(vals).encode()).hexdigest()[:8]
 
 
-def render_pier(W, H, place, ss=2, cam=None):
+def _look_of(data):
+    """The place's look for render.py and the solids: grade, fog, fog tint, water."""
+    import render as R  # tools/preview/render.py
+
+    out = {"grade": data.get("grade"), "fog": [R.FOG_START, R.FOG_END], "fog_tint": None,
+           "water_color": [40, 120, 205], "water_opacity": R.WATER_OPACITY}
+    if data.get("water"):
+        out["water_color"] = [float(c) for c in data["water"]["color"]]
+        out["water_opacity"] = float(min(max(1.0 - data["water"].get("transparency", 0.45) + 0.1, 0.3), 0.9))
+    if data.get("atmosphere"):
+        fog, tint = R.atmosphere_fog(data["atmosphere"])
+        out["fog"] = [float(v) for v in fog]
+        out["fog_tint"] = [float(tint[0]), [float(c) for c in tint[1]]] if tint else None
+    return out
+
+
+def exclude_parts(parts, exclude, tol=0.05):
+    """`parts` without those matching an entry [x, y, z, sx, sy, sz] of `exclude` (position
+    and size within `tol` studs): the map's movers at rest (world_capture scene().exclude)."""
+    if not exclude:
+        return parts, 0
+    ex = np.asarray(exclude, float).reshape(-1, 6)
+    ex = ex[np.argsort(ex[:, 0])]
+    pos = np.array([p["cf"][:3] for p in parts], float).reshape(-1, 3)
+    size = np.array([p["size"] for p in parts], float).reshape(-1, 3)
+    lo = np.searchsorted(ex[:, 0], pos[:, 0] - tol)
+    hi = np.searchsorted(ex[:, 0], pos[:, 0] + tol)
+    drop = np.zeros(len(parts), bool)
+    for i in np.nonzero(hi > lo)[0]:
+        cand = ex[lo[i]:hi[i]]
+        ok = (np.abs(cand[:, :3] - pos[i]).max(1) < tol) & (np.abs(cand[:, 3:] - size[i]).max(1) < tol)
+        drop[i] = bool(ok.any())
+    return [p for p, d in zip(parts, drop) if not d], int(drop.sum())
+
+
+def render_pier(W, H, place, ss=2, cam=None, avatar=True, exclude=None):
+    """(image, depth (H, W), depth_ss (H*ss, W*ss), context) of the pier for a camera: the view
+    distance of the opaque scene (inf = sky; water does not count), the nearest of each ss x ss
+    block and per supersampled pixel; context = world_context's dict."""
     sys.path.insert(0, PREVIEW)
     import render as R  # tools/preview/render.py
     import terrain_export
@@ -189,16 +234,22 @@ def render_pier(W, H, place, ss=2, cam=None):
     with open(parts_path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
     ground, look = _spot_camera(data)
-    data["parts"] = data["parts"] + avatar_parts(ground, look)
+    if exclude:
+        data["parts"], dropped = exclude_parts(data["parts"], exclude)
+        if dropped < len(exclude):
+            _log(f"backdrop: {len(exclude) - dropped} of {len(exclude)} movers not found in the export")
+    if avatar:
+        data["parts"] = data["parts"] + avatar_parts(ground, look)
     data["slots"] = []
-    R.GRADE = data.get("grade")
-    fog = [R.FOG_START, R.FOG_END]
+    look_info = _look_of(data)
+    R.GRADE = look_info["grade"]
+    fog = look_info["fog"]
     if data.get("water"):
-        R.WATER_COLOR = np.array(data["water"]["color"], np.float32)
-        R.WATER_OPACITY = float(min(max(1.0 - data["water"].get("transparency", 0.45) + 0.1, 0.3), 0.9))
+        R.WATER_COLOR = np.array(look_info["water_color"], np.float32)
+        R.WATER_OPACITY = look_info["water_opacity"]
         R.TERRAIN_COLORS["Water"] = tuple(int(c) for c in R.WATER_COLOR)
-    if data.get("atmosphere"):
-        fog, R.FOG_TINT = R.atmosphere_fog(data["atmosphere"])
+    if look_info["fog_tint"]:
+        R.FOG_TINT = (look_info["fog_tint"][0], np.array(look_info["fog_tint"][1], np.float32))
     scene = R.Scene(data)
 
     class Args:
@@ -220,12 +271,16 @@ def render_pier(W, H, place, ss=2, cam=None):
     cam = R.PerspCamera(world(spec["eye"]), world(spec["focus"]), float(spec.get("fov", CAM_FOV)), W, H, ss)
     mesh = R._terrain_mesh_persp(args, cam)
     buf, info = R.render_persp(R.with_terrain(scene, mesh), cam, outlines=True, fog=args.fog)
-    # Opaque depth per output pixel (view-axis distance, inf = sky; water does not count): the
-    # nearest of each ss x ss block, for the world FX occlusion (gui/world.py).
-    z = -1.0 / np.asarray(info["zbuf"], np.float32)
-    z[~np.isfinite(z)] = np.inf
+    # Opaque depth (view-axis distance, inf = sky; water does not count): per supersampled
+    # pixel (the solids' z test, gui/solids.py) and the nearest of each ss x ss block (the
+    # world FX occlusion, gui/world.py).
+    with np.errstate(divide="ignore"):
+        z = -1.0 / np.asarray(info["zbuf"], np.float32)
+    z[~np.isfinite(z) | (z <= 0)] = np.inf  # (an empty pixel's -1/inf is -0: the sky)
+    depth_ss = z.astype(np.float32).copy()
     depth = z.reshape(H, ss, W, ss).min(axis=(1, 3)).astype(np.float32)
-    return R.to_image(buf, ss).convert("RGB"), depth
+    ctx = dict(look_info, ground=[float(v) for v in ground], look=[float(v) for v in look])
+    return R.to_image(buf, ss).convert("RGB"), depth, depth_ss, ctx
 
 
 def _fallback(W, H):
@@ -253,37 +308,79 @@ def plain(W, H):
     return Image.fromarray(arr.clip(0, 255).astype(np.uint8), "RGB")
 
 
-def backdrop(W, H, mode="pier", place=None, cam=None, with_depth=False):
+def backdrop(W, H, mode="pier", place=None, cam=None, with_depth=False, avatar=True, exclude=None, layers=False):
     """The background image for a W x H screen; `cam` = a camera in the spot frame (see
     default_camera; world dumps carry one per frame: Humanoid.CameraOffset moves it).
+    avatar = draw the blocky stand-in fisher (dumps without solids); exclude = the movers to
+    leave out (world_capture scene().exclude).
     with_depth=True returns (image, depth) — depth (H, W) float32 view distance of the opaque
-    scene (stand-in avatar, pier, map; inf = sky) or None for non-pier backdrops."""
+    scene (pier, map, the stand-in; inf = sky) or None for non-pier backdrops; layers=True
+    returns (image, depth, depth_ss) — depth_ss per supersampled pixel (2x) or None."""
+    depth_ss = None
     if mode == "plain":
         im, depth = plain(W, H), None
     elif mode not in ("pier", None):
         im, depth = cover(Image.open(mode).convert("RGB"), W, H), None
     else:
-        im, depth = _pier(W, H, place or os.path.join(REPO, "Place1.rbxl"), cam)
+        im, depth, depth_ss = _pier(W, H, place or os.path.join(REPO, "Place1.rbxl"), cam, avatar, exclude)
+    if layers:
+        return im, depth, depth_ss
     return (im, depth) if with_depth else im
 
 
-def _pier(W, H, place, cam):
+def exclude_key(exclude):
+    """'' or a short tag of an exclusion list for cache file names."""
+    if not exclude:
+        return ""
+    return "_x" + hashlib.sha1(json.dumps(exclude, separators=(",", ":")).encode()).hexdigest()[:8]
+
+
+def _pier(W, H, place, cam, avatar=True, exclude=None):
     try:
         key = _place_key(place)
-        path = os.path.join(CACHE, f"bg_{W}x{H}_{key}{camera_key(cam)}.png")
+        variant = ("" if avatar else "_noav") + exclude_key(exclude)
+        path = os.path.join(CACHE, f"bg_{W}x{H}_{key}{camera_key(cam)}{variant}.png")
         zpath = path[:-4] + "_depth.npy"
-        if os.path.isfile(path) and os.path.isfile(zpath):
-            return Image.open(path).convert("RGB"), np.load(zpath)
+        sspath = path[:-4] + "_depthss.npy"
+        cpath = os.path.join(CACHE, f"ctx_{key}.json")
+        if os.path.isfile(path) and os.path.isfile(zpath) and os.path.isfile(sspath):
+            return Image.open(path).convert("RGB"), np.load(zpath), np.load(sspath).astype(np.float32)
         t = time.time()
-        im, depth = render_pier(W, H, place, cam=cam if camera_key(cam) else None)
+        im, depth, depth_ss, ctx = render_pier(W, H, place, cam=cam if camera_key(cam) else None, avatar=avatar,
+                                               exclude=exclude)
         os.makedirs(CACHE, exist_ok=True)
         im.save(path)
         np.save(zpath, depth)
-        _log(f"pier backdrop {W}x{H}{camera_key(cam)} rendered in {time.time() - t:.1f}s -> {path}")
-        return im, depth
+        np.save(sspath, depth_ss.astype(np.float16))
+        with open(cpath, "w", encoding="utf-8") as fh:
+            json.dump(ctx, fh)
+        _log(f"pier backdrop {W}x{H}{camera_key(cam)}{variant} rendered in {time.time() - t:.1f}s -> {path}")
+        return im, depth, depth_ss
     except Exception as exc:  # no Lune, no place, renderer error...
         T.warn_once(f"pier backdrop failed ({exc}); using docs/preview_pier.png")
-        return _fallback(W, H), None
+        return _fallback(W, H), None, None
+
+
+def world_context(place=None):
+    """The solids' Context (gui/solids.py): base 1's FishingSpot top and look, the place's
+    grading, fog and water — cached next to the backdrops (ctx_<place key>.json)."""
+    sys.path.insert(0, PREVIEW)
+    from . import solids as S
+
+    place = place or os.path.join(REPO, "Place1.rbxl")
+    key = _place_key(place)
+    cpath = os.path.join(CACHE, f"ctx_{key}.json")
+    if not os.path.isfile(cpath):
+        parts_path, _ = _export(place, key)
+        with open(parts_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        ground, look = _spot_camera(data)
+        ctx = dict(_look_of(data), ground=[float(v) for v in ground], look=[float(v) for v in look])
+        os.makedirs(CACHE, exist_ok=True)
+        with open(cpath, "w", encoding="utf-8") as fh:
+            json.dump(ctx, fh)
+    with open(cpath, "r", encoding="utf-8") as fh:
+        return S.Context.from_json(json.load(fh))
 
 
 # ---------------------------------------------------------------------------------------
