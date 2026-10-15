@@ -2014,7 +2014,9 @@ do
 		Pedestal = { Position = UDim2.fromScale(0.25, 0.925), Size = UDim2.fromScale(0.25, 0.115) },
 		Viewport = { Position = UDim2.fromScale(0.25, 0.545), Size = UDim2.fromScale(0.42, 0.68) },
 		NewStamp = { Position = UDim2.fromScale(0.14, 0.32), Size = UDim2.fromScale(0.26, 0.12) },
-		MutationLabel = { Position = UDim2.fromScale(0.25, 0.9), Size = UDim2.fromScale(0.42, 0.12), Rotation = -4 },
+		-- (UI v5: чуть выше — обведённый значок мутации у нижнего угла не подходит к джойстику
+		-- ближе 16 px на маленьком телефоне.)
+		MutationLabel = { Position = UDim2.fromScale(0.25, 0.88), Size = UDim2.fromScale(0.42, 0.12), Rotation = -4 },
 		NameLabel = { Position = UDim2.fromScale(0.75, 0.272), Size = UDim2.fromScale(0.46, 0.205) },
 		-- Цена — главное число карточки: её «фишка» выше веса (крупный текст, уровень Title).
 		InfoLabel = { Position = UDim2.fromScale(0.75, 0.485), Size = UDim2.fromScale(0.42, 0.355) },

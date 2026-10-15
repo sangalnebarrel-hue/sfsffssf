@@ -1127,13 +1127,14 @@ tests["sim in motion: press squash + shade + overshoot + icon kick (no sink); sn
 	t.eq(face:FindFirstChild("FxMorph"), nil, "the veil is gone")
 	t.near(button.FxScale.Scale, 1, 1e-3)
 
-	-- The «transform» flash: a white overlay on the face, the icon pops and a ring goes out.
+	-- The «transform» flash: a white overlay on the face and the icon pops. No ring of its own
+	-- (the fishing looks add theirs: next to the Jump button an extra ring would touch it).
 	client(sim, p, function()
 		UiFx.morphFlash(button)
 	end)
 	t.ok(face:FindFirstChild("FxMorph"), "a white flash over the face")
 	t.ok(button.Icon.FxScale.Scale < 0.9, "the icon pops")
-	t.ok(button:FindFirstChild("FxRing"), "a ring goes out")
+	t.eq(button:FindFirstChild("FxRing"), nil, "no ring of its own")
 	t.eq(face:FindFirstChild("Stud"), nil, "no raised stud any more")
 	sim:Advance(0.6)
 	t.eq(face:FindFirstChild("FxMorph"), nil, "the flash is gone")
