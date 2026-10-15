@@ -1481,7 +1481,7 @@ local function heroMill(parent: any, cf: any, spin: number): any
 	wedge(b, "DoorRoof", Vector3.new(8.4, 1.6, 2.6), CFrame.new(0, 11, -10.75), roof)
 	b:box("WallLampCap", 4.6, 8.4, -10.6, 6, 8.9, -9.4, timber, Kit.NOSHADOW)
 	b:box("WallLamp", 4.8, 6.8, -10.4, 5.8, 8.4, -9.45, C.Glow, Kit.NEON_DECOR)
-	b:box("Ceiling", -8, 13.4, -8, 8, 15, 8, C.WoodLight)
+	b:box("Ceiling", -8, 13.4, -8, 8, 15, 8, C.WoodLight):SetAttribute("StudsBottom", true) -- (LEGO underside)
 	-- inside (on the plinth's stone floor): a millstone on its shaft left of the way through,
 	-- flour sacks on the right, a lantern on a chain from the ceiling
 	b:block(

@@ -98,6 +98,7 @@
 local U = require("./Util")
 local Props = require("./Props")
 local P = require("./Palette")
+local Movers = require("./Movers")
 
 local Vector3 = U.Vector3
 local CFrame = U.CFrame
@@ -494,14 +495,51 @@ end
 -- Signs
 ------------------------------------------------------------------------------------------
 
-local function surfaceGui(part: any, name: string, face: any, pixelsPerStud: number): any
+-- (MaxDistance, v3 fix F4: a sign whose letters are a few pixels tall from the next base is
+-- still laid out and drawn — its own draw call — unless it has a MaxDistance; default 120 studs)
+local function surfaceGui(part: any, name: string, face: any, pixelsPerStud: number, maxDistance: number?): any
 	return U.new("SurfaceGui", {
 		Name = name,
 		Face = face,
 		SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud,
 		PixelsPerStud = pixelsPerStud,
 		LightInfluence = 0,
+		MaxDistance = maxDistance or 120,
 	}, part)
+end
+
+-- The owner's name in the LEGO-brick UI style («Кирпичики», tools/builder/gui/STYLE.md): Nunito
+-- Heavy, white fading to cream, a thick round Ink outline (sticker letters that read on any base
+-- colour and across the lagoon).
+local SIGN_FONT = U.Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Heavy)
+local SIGN_INK = Color3.fromRGB(21, 23, 28) -- UIConfig.Ink
+local SIGN_CREAM = Color3.fromRGB(255, 241, 201)
+local function stickerText(label: any, outline: number)
+	label.FontFace = SIGN_FONT
+	label.TextColor3 = C.White
+	label.TextStrokeTransparency = 1
+	U.new("UIStroke", {
+		Name = "Outline",
+		Color = SIGN_INK,
+		Thickness = outline,
+		LineJoinMode = Enum.LineJoinMode.Round,
+	}, label)
+	U.new("UIGradient", {
+		Name = "Cream",
+		Rotation = 90,
+		Color = U.roblox.ColorSequence.new(C.White, SIGN_CREAM),
+	}, label)
+end
+-- The base's name in its colour (BaseService sets TextColor3) with an Ink outline.
+local function baseNameText(label: any, outline: number)
+	label.FontFace = SIGN_FONT
+	label.TextStrokeTransparency = 1
+	U.new("UIStroke", {
+		Name = "Outline",
+		Color = SIGN_INK,
+		Thickness = outline,
+		LineJoinMode = Enum.LineJoinMode.Round,
+	}, label)
 end
 
 -- TextLabel filling a horizontal band [top, top + height] (scale) of its parent.
@@ -773,13 +811,14 @@ local function buildGrounds(template: any, plot: any)
 	local hw, front = plot.halfWidth, plot.front
 
 	-- Lawn over the whole plot (the fence, the hedge and the house terrace stand on it).
-	span(floor, "Lawn", -hw + 0.4, hw - 0.4, -0.4, LAWN, front + 0.4, plot.back - 0.4, C.Lawn)
+	-- (whole studs: 135 x 149, its stud rows in phase with the stripes', v3 fix W4)
+	span(floor, "Lawn", -hw + 0.5, hw - 0.5, -0.4, LAWN, front + 0.5, plot.back - 0.5, C.Lawn)
 	-- Mowing stripes: darker 8-stud bands running inland (Grow a Garden style); the outer ones run
 	-- down the side strips to the house terrace.
 	for _, sx in { -1, 1 } do
-		for _, st in { { 8.4, 16.4, 54 }, { 24.4, 32.4, 54 }, { 40.4, 48.4, TERRACE_Z }, { 56.4, 64.4, TERRACE_Z } } do
+		for _, st in { { 8.5, 16.5, 54 }, { 24.5, 32.5, 54 }, { 40.5, 48.5, TERRACE_Z }, { 56.5, 64.5, TERRACE_Z } } do
 			local xa, xb = mirror(sx, st[1], st[2])
-			span(floor, "Stripe", xa, xb, LAWN - 0.1, STRIPE, front + 0.6, st[3] - 0.2, C.LawnStripe, FLAT)
+			span(floor, "Stripe", xa, xb, LAWN - 0.1, STRIPE, front + 1.5, st[3] - 0.5, C.LawnStripe, FLAT)
 		end
 	end
 
@@ -1027,8 +1066,9 @@ end
 
 local function signFace(board: any, face: any)
 	local gui = surfaceGui(board, "Sign" .. face.Name, face, 32)
-	textBand(gui, "OwnerLabel", "Свободно", C.Ink, 0.08, 0.54, false)
-	textBand(gui, "BaseLabel", "База", C.White, 0.64, 0.3, true)
+	-- (v3 fix WOW-5: the brick UI's sticker letters, like the owner sign over the flag)
+	stickerText(textBand(gui, "OwnerLabel", "Свободно", C.White, 0.08, 0.54, false), 4)
+	baseNameText(textBand(gui, "BaseLabel", "База", C.White, 0.64, 0.3, false), 3)
 end
 
 local function buildGate(template: any, plot: any)
@@ -1125,31 +1165,113 @@ local function buildFlag(template: any): any
 		{ CanCollide = false }
 	)
 
-	-- Owner sign above the mast (BaseService writes the owner name / base name).
+	-- Owner sign above the mast (BaseService writes the owner name / base name), a LEGO brick in
+	-- the «Кирпичики» UI style (v3 fix WOW-5): a plate in the base colour (Accent GUI objects:
+	-- BaseService paints their BackgroundColor3) with a thick Ink outline, a darker lip and three
+	-- studs on top; the owner's name in white sticker letters, the base's name in its colour on a
+	-- cream tile. Studs + pixels (10 x 3.2 studs + 150 x 52 px): readable across the lagoon
+	-- (MaxDistance 500), the labels stay direct children of OwnerSign (BaseService finds them).
 	-- The pole is a cylinder (local X = up), so the offset is along local X.
 	local signOffset = Vector3.new(poleH / 2 + 6.5, 0, 0)
 	local attachment = U.new("Attachment", { Name = "SignAttachment", CFrame = CFrame.new(signOffset) }, pole)
 	local sign = U.new("BillboardGui", {
 		Name = "OwnerSign",
-		Size = UDim2.new(16, 0, 5, 0), -- studs
+		Size = UDim2.new(10, 150, 3.2, 52), -- studs + px
 		LightInfluence = 0,
-		MaxDistance = 250,
+		MaxDistance = 500,
 		AlwaysOnTop = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, attachment)
-	for _, spec in { { "OwnerLabel", "Свободно", 0, 0.6 }, { "BaseLabel", "База", 0.6, 0.4 } } do
-		U.new("TextLabel", {
-			Name = spec[1],
-			Position = UDim2.fromScale(0, spec[3]),
-			Size = UDim2.fromScale(1, spec[4]),
-			BackgroundTransparency = 1,
-			Text = spec[2],
-			TextScaled = true,
-			FontFace = U.FONT,
-			TextColor3 = C.White,
-			TextStrokeColor3 = C.Ink,
-			TextStrokeTransparency = 0.2,
-		}, sign)
+	local function accent(frame: any, shade: number?): any
+		frame:SetAttribute("Accent", true)
+		if shade then
+			frame:SetAttribute("AccentShade", shade)
+		end
+		return frame
 	end
+	local function corner(frame: any, scale: number)
+		U.new("UICorner", { CornerRadius = U.UDim.new(scale, 0) }, frame)
+	end
+	local function ink(frame: any, thickness: number)
+		U.new("UIStroke", {
+			Name = "Outline",
+			Color = SIGN_INK,
+			Thickness = thickness,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			LineJoinMode = Enum.LineJoinMode.Round,
+		}, frame)
+	end
+	-- studs on top (behind the plate: only their round tops show)
+	for i, x in { 0.2, 0.5, 0.8 } do
+		local stud = accent(
+			U.new("Frame", {
+				Name = `Stud{i}`,
+				AnchorPoint = U.Vector2.new(0.5, 0),
+				Position = UDim2.fromScale(x, 0),
+				Size = UDim2.fromScale(0.13, 0.3),
+				BackgroundColor3 = C.Cream,
+				BorderSizePixel = 0,
+				ZIndex = 1,
+			}, sign),
+			0.12
+		)
+		corner(stud, 0.35)
+		ink(stud, 2.5)
+	end
+	local plate = accent(U.new("Frame", {
+		Name = "Plate",
+		Position = UDim2.fromScale(0, 0.14),
+		Size = UDim2.fromScale(1, 0.86),
+		BackgroundColor3 = C.Cream,
+		BorderSizePixel = 0,
+		ZIndex = 2,
+	}, sign))
+	corner(plate, 0.22)
+	ink(plate, 3)
+	local lip = accent(
+		U.new("Frame", {
+			Name = "Lip",
+			AnchorPoint = U.Vector2.new(0, 1),
+			Position = UDim2.fromScale(0, 1),
+			Size = UDim2.fromScale(1, 0.2),
+			BackgroundColor3 = C.Cream,
+			BorderSizePixel = 0,
+			ZIndex = 3,
+		}, plate),
+		-0.35
+	)
+	corner(lip, 0.5)
+	local tile = U.new("Frame", {
+		Name = "Tile",
+		Position = UDim2.fromScale(0.08, 0.56),
+		Size = UDim2.fromScale(0.84, 0.31),
+		BackgroundColor3 = SIGN_CREAM:Lerp(C.White, 0.5),
+		BorderSizePixel = 0,
+		ZIndex = 4,
+	}, sign)
+	corner(tile, 0.5)
+	ink(tile, 2)
+	local owner = U.new("TextLabel", {
+		Name = "OwnerLabel",
+		Position = UDim2.fromScale(0.06, 0.17),
+		Size = UDim2.fromScale(0.88, 0.38),
+		BackgroundTransparency = 1,
+		Text = "Свободно",
+		TextScaled = true,
+		ZIndex = 5,
+	}, sign)
+	stickerText(owner, 3.5)
+	local baseName = U.new("TextLabel", {
+		Name = "BaseLabel",
+		Position = UDim2.fromScale(0.11, 0.575),
+		Size = UDim2.fromScale(0.78, 0.27),
+		BackgroundTransparency = 1,
+		Text = "База",
+		TextScaled = true,
+		TextColor3 = C.White,
+		ZIndex = 5,
+	}, sign)
+	baseNameText(baseName, 2)
 	return signOffset
 end
 
@@ -1503,7 +1625,7 @@ local function buildSlot(slots: any, index: number, frame: any, expected: { any 
 	local pedestal = box(slot, "Pedestal", frame, 0, y0 + 1.7, 0, 6.8, 3.4, 6.8, C.Cabinet, { CastShadow = true })
 	local top = y0 + 3.4
 	box(slot, "Band", frame, 0, top - 0.5, -3.45, 7, 0.9, 0.3, -0.1, DECOR)
-	box(slot, "Rim", frame, 0, top + 0.3, 0, 7.4, 0.6, 7.4, C.Gold)
+	box(slot, "Rim", frame, 0, top + 0.3, 0, 7, 0.6, 7, C.Gold)
 	local base = top + 0.6
 	local display = box(slot, "Display", frame, 0, base + 3.1, 0, 6.2, 6.2, 6.2, C.DisplayWater, {
 		Material = M.Glass,
@@ -1544,7 +1666,8 @@ local function buildSlot(slots: any, index: number, frame: any, expected: { any 
 	})
 
 	-- Label on the front face: "Пусто" until a fish is put on display; the slot number above it.
-	local gui = surfaceGui(pedestal, "LabelGui", Enum.NormalId.Front, 50)
+	-- (30 px per stud and drawn only within 60 studs: 12 of these per base, v3 fix F4)
+	local gui = surfaceGui(pedestal, "LabelGui", Enum.NormalId.Front, 30, 60)
 	U.new("TextLabel", {
 		Name = "Label",
 		Position = UDim2.fromScale(0.06, 0.52),
@@ -1625,7 +1748,9 @@ local function buildArcades(template: any)
 		span(arc, "Beam", xa, xb, beamBottom, ARC_EAVE, ARC_Z0, ARC_Z1, C.WoodDark)
 		-- a light plank ceiling under the bays (the market hall is bright inside)
 		xa, xb = X(ARC_IN + 1.8, ARC_WALL)
-		span(arc, "Ceiling", xa, xb, ARC_EAVE - 0.35, ARC_EAVE - 0.05, ARC_Z0, ARC_Z1, C.WoodLight, FLAT)
+		local ceiling =
+			span(arc, "Ceiling", xa, xb, ARC_EAVE - 0.35, ARC_EAVE - 0.05, ARC_Z0, ARC_Z1, C.WoodLight, FLAT)
+		ceiling:SetAttribute("StudsBottom", true) -- (the LEGO underside over the aisle: Studs.luau)
 		-- the market bays: two roof slopes (a solid prism whose gable end faces the court), a ridge
 		-- cap, a lantern hanging from the beam at the bay's centre
 		local ra, rb = X(ARC_IN - 0.9, wo + 0.8)
@@ -2441,9 +2566,19 @@ end
 local PIER_HALF = 8 -- walkway deck x = +-8
 local PLATFORM_DEPTH = 22 -- the end platform: from the pier's end (lz = -PierLength) 22 studs inland
 local PLAT_HALF = 20 -- platform x = +-20
+-- The shelter on the platform's -X side (v3 fix W1: 2.5 studs further out and 6 inland than
+-- before): its post centres x PAV_X0 / PAV_X1, z pierEnd + PAV_Z0 / PAV_Z1. Seen from the default
+-- follow camera behind the spot (base-local (0, 9.5, -55.6), 18° down) the front-right post
+-- (-12.5, -60.5) stands just outside a phone's frame (2.16:1, vertical FOV 70: ±56.6° across at
+-- eye level, less towards the deck), so it no longer cuts a brown diagonal through the lagoon;
+-- only the roof's corner shows top-left. (The back-left post keeps 0.1 off the corner pile.)
+local PAV_X0, PAV_X1 = -PLAT_HALF + 1.2, -12.5
+local PAV_Z0, PAV_Z1 = 11.5, 21
 
--- Deck slab (top at `top`) with raised plank strips (4 studs wide, every 8; 0.1 short of the
--- deck's ends): along Z for the walkway, across (along X) for the platform. z0 < z1.
+-- Deck slab (top at `top`) with raised plank strips (4 studs wide, every 8) lying on its top:
+-- along Z for the walkway (from z0 to plankEnd, default z1), across (along X) for the platform,
+-- the whole width (v3 fix W4: whole-stud plank faces; the strips' ends only touch the deck's
+-- sides at its top edge, no shared face area). z0 < z1.
 -- Plank strip tones (zero-part variety, v3 detail): weathered boards in three tones by turns, so the
 -- long runs of deck do not read as one flat colour.
 local PLANK_TONES = {
@@ -2453,7 +2588,15 @@ local PLANK_TONES = {
 }
 local plankTone = 0
 
-local function deck(parent: any, halfWidth: number, z0: number, z1: number, across: boolean, top: number)
+local function deck(
+	parent: any,
+	halfWidth: number,
+	z0: number,
+	z1: number,
+	across: boolean,
+	top: number,
+	plankEnd: number?
+)
 	span(parent, "Deck", -halfWidth, halfWidth, DECK - 1.2, top, z0, z1, C.Plank)
 	local flat = { CastShadow = false }
 	local function strip(): any
@@ -2463,13 +2606,13 @@ local function deck(parent: any, halfWidth: number, z0: number, z1: number, acro
 	if across then
 		local z = z0 + 2
 		while z + 4 <= z1 - 1 do
-			span(parent, "Planks", -halfWidth + 0.1, halfWidth - 0.1, DECK - 0.2, PLANK, z, z + 4, strip(), flat)
+			span(parent, "Planks", -halfWidth, halfWidth, top, PLANK, z, z + 4, strip(), flat)
 			z += 8
 		end
 	else
 		local x = -halfWidth + 2
 		while x + 4 <= halfWidth - 2 + 0.01 do
-			span(parent, "Planks", x, x + 4, DECK - 0.2, PLANK, z0 + 0.1, z1 - 0.1, strip(), flat)
+			span(parent, "Planks", x, x + 4, top, PLANK, z0, plankEnd or z1, strip(), flat)
 			x += 8
 		end
 	end
@@ -2480,8 +2623,9 @@ local function buildPier(template: any, pierEnd: number, pileBottom: number): nu
 	local PIER_END = pierEnd + PLATFORM_DEPTH -- walkway ends, platform begins
 	local pier = U.model(template, "Pier")
 	local hw = PIER_HALF
-	-- (the walkway slab sits 0.14 under the promenade tiles it runs into: no shared plane)
-	deck(pier, hw, PIER_END, 0, false, DECK - 0.1)
+	-- (the walkway slab sits 0.14 under the promenade tiles it runs into: no shared plane; its
+	-- planks stop a stud short of the promenade's edge, so they never run in under its flags)
+	deck(pier, hw, PIER_END, 0, false, DECK - 0.1, -1)
 	-- Timber kerbs along both edges.
 	for _, sx in { -1, 1 } do
 		span(pier, "Kerb", sx * hw, sx * (hw + 1.2), DECK - 1.4, DECK + 0.6, PIER_END, 0, C.WoodDark)
@@ -2515,7 +2659,7 @@ local function buildPier(template: any, pierEnd: number, pileBottom: number): nu
 
 	-- End platform (its front kerb ends exactly at the end of the pier corridor).
 	local plat = U.model(template, "Platform")
-	local z0, z1 = pierEnd + 1.2, PIER_END
+	local z0, z1 = pierEnd + 1, PIER_END -- (40 x 21: whole studs)
 	deck(plat, PLAT_HALF, z0, z1, true, DECK)
 	local e = PLAT_HALF
 	span(plat, "Kerb", -e - 1.2, e + 1.2, DECK - 1.4, DECK + 0.6, pierEnd, z0, C.WoodDark)
@@ -2526,7 +2670,7 @@ local function buildPier(template: any, pierEnd: number, pileBottom: number): nu
 	-- Piles and rails (the front middle stays open for casting). The back corner piles stop 0.1
 	-- short of the deck's and side kerbs' back ends (no shared end planes).
 	local pe = e + 0.6
-	local zf, zb = z0 + 0.4, z1 - 1.1
+	local zf, zb = z0 + 0.6, z1 - 1.1 -- (front posts at -70.4: the PierKit lanterns stand on them)
 	for _, p in
 		{
 			{ -pe, zf },
@@ -2552,8 +2696,8 @@ end
 -- or takes raycasts, so the camera never pops in against it) and a lantern under it.
 local function buildPavilion(template: any, pierEnd: number)
 	local pav = U.model(template, "Pavilion")
-	local x0, x1 = -PLAT_HALF + 1, -10 -- post centres
-	local z0, z1 = pierEnd + 5.5, pierEnd + 17.5
+	local x0, x1 = PAV_X0, PAV_X1 -- post centres
+	local z0, z1 = pierEnd + PAV_Z0, pierEnd + PAV_Z1
 	local postTop = DECK + 10
 	for _, x in { x0, x1 } do
 		for _, z in { z0, z1 } do
@@ -2579,12 +2723,15 @@ local function buildPavilion(template: any, pierEnd: number)
 
 	-- Where the owner stands to fish (stage 2 checks the distance to this part): a light tint of
 	-- the base colour in a cream ring, with glints rising off it so the spot catches the eye.
+	-- (v3 fix W4: the ring 7 x 7 round the 5 x 5 mat — exactly one ring of whole studs; the mat is a
+	-- smooth LEGO tile, Studs = false. The server reads only FishingSpot.Position.)
 	local sz = pierEnd + 4.5
 	local plat = template:FindFirstChild("Platform")
-	span(plat, "SpotRing", -3.4, 3.4, DECK, PLANK + 0.15, sz - 3.4, sz + 3.4, C.Cream, { CanCollide = false })
-	local spot = span(template, "FishingSpot", -2.6, 2.6, DECK, PLANK + 0.3, sz - 2.6, sz + 2.6, 0.35, {
+	span(plat, "SpotRing", -3.5, 3.5, DECK, PLANK + 0.15, sz - 3.5, sz + 3.5, C.Cream, { CanCollide = false })
+	local spot = span(template, "FishingSpot", -2.5, 2.5, DECK, PLANK + 0.3, sz - 2.5, sz + 2.5, 0.35, {
 		CastShadow = false,
 	})
+	spot:SetAttribute("Studs", false)
 	Props.fx(spot, "sparkle", {
 		name = "Glints",
 		rate = 2.5,
@@ -2606,8 +2753,8 @@ end
 
 local function buildPierProps(template: any, pierEnd: number)
 	local props = U.model(template, "PierProps")
-	-- Rod rack on the left of the platform.
-	local rx, rz = -15, pierEnd + 14
+	-- Rod rack on the left of the platform, under the shelter behind its bench.
+	local rx, rz = (PAV_X0 + PAV_X1) / 2, pierEnd + PAV_Z1 - 3.5
 	for _, dx in { -3, 3 } do
 		span(props, "RackPost", rx + dx - 0.4, rx + dx + 0.4, DECK, DECK + 5.4, rz - 0.4, rz + 0.4, C.Wood)
 	end
@@ -2845,14 +2992,14 @@ local function buildPierDressing(template: any, pierEnd: number, waterY: number,
 	sway(sock, at(wx, wy, wz), 12, "Y", 3.6)
 	-- the shelter: a pennant on its roof and a shell wind chime under its front edge
 	local roofTop = DECK + 10 + 1.2 + 1.4 + 1.4 + 1.4
-	local xc, zc = (-PLAT_HALF + 1 - 10) / 2, pierEnd + 11.5
+	local xc, zc = (PAV_X0 + PAV_X1) / 2, pierEnd + (PAV_Z0 + PAV_Z1) / 2
 	span(plat, "RoofMast", xc - 0.15, xc + 0.15, roofTop, roofTop + 3.4, zc - 0.15, zc + 0.15, C.WoodDark, KIT)
 	local flag = span(plat, "RoofFlag", xc - 0.05, xc + 0.05, roofTop + 2.1, roofTop + 3.2, zc + 0.15, zc + 2.3, 0, KIT)
 	sway(flag, at(xc, roofTop + 2.6, zc + 0.15), 10, "Y", 2.0)
 	local chime = U.model(plat, "WindChime")
-	local cy, cz = DECK + 10, pierEnd + 4.6
-	span(chime, "ChimeBar", -15.4, -13.6, cy - 0.25, cy, cz - 0.1, cz + 0.1, C.WoodDark, KIT)
-	for i, x in { -15.1, -14.5, -13.9 } do
+	local cy, cz = DECK + 10, pierEnd + PAV_Z0 - 0.9 -- (just in front of the front posts)
+	span(chime, "ChimeBar", xc - 0.9, xc + 0.9, cy - 0.25, cy, cz - 0.1, cz + 0.1, C.WoodDark, KIT)
+	for i, x in { xc - 0.6, xc, xc + 0.6 } do
 		local drop = if i == 2 then 1.5 else 1.1
 		span(
 			chime,
@@ -2867,7 +3014,7 @@ local function buildPierDressing(template: any, pierEnd: number, waterY: number,
 			KIT
 		)
 	end
-	sway(chime, at(-14.5, cy, cz), 7, "X", 1.8)
+	sway(chime, at(xc, cy, cz), 7, "X", 1.8)
 
 	-- One of four little scenes per base on the free deck at the front right (x 8..15).
 	local scenes = U.model(kit, "Scenes")
@@ -3133,6 +3280,9 @@ return function(game: any, mapCfg: any)
 	buildYardDressing(template)
 	tagAmbient(template)
 	buildBoat(template, waterY, lastPostZ)
+	-- Everything the client moves (the boat's Bob, the Sway details) neither collides nor takes
+	-- raycasts or touches (Movers.luau).
+	Movers.quiet(template)
 
 	local count = 0
 	for _, d in template:GetDescendants() do

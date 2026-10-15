@@ -123,8 +123,11 @@ lighting.Ambient = rgb(96, 94, 100)
 lighting.OutdoorAmbient = rgb(112, 116, 130)
 lighting.ColorShift_Top = rgb(236, 220, 196)
 lighting.ColorShift_Bottom = rgb(0, 0, 0)
-lighting.EnvironmentDiffuseScale = 0.3
-lighting.EnvironmentSpecularScale = 0.08 -- less plastic sky reflection on the blocks
+lighting.EnvironmentDiffuseScale = 0.35
+-- A little sky reflection on the plastic (v3 fix WOW-7, was 0.08): the LEGO studs' rims catch it and
+-- read as raised bricks, not a printed pattern. Kept modest so pale sand / plaster / snow do not
+-- blow out — to check in Studio (phone emulator, Graphics 1 and 3) against 0.08 and 0.45.
+lighting.EnvironmentSpecularScale = 0.2
 lighting.ExposureCompensation = -0.3 -- no overexposure: pale sand/plaster/snow keep their colour
 lighting.GlobalShadows = true
 lighting.ShadowSoftness = 0.25
@@ -392,6 +395,60 @@ for _, d in (if checkAssets then checkAssets:GetDescendants() else {}) do
 		end
 	end
 end
+-- Hero studded surfaces on whole studs (v3 fix W4): the base's lawn, stripes, decks, planks, the
+-- ring round the fishing spot and the display rims, the promenade's paving and sea wall, the
+-- hub's plaza and avenue paving. A big studded face (a side >= 6) with a fractional side shows
+-- cut half-studs along an edge and stud rows out of phase with its neighbours'; the build fails
+-- on a hero one and reports how many others there are (trees, props: no rule).
+local HERO = {
+	BaseTemplate = { Lawn = true, Stripe = true, Deck = true, Planks = true, SpotRing = true, Rim = true },
+	Promenade = { Tile = true, Runner = true, Medallion = true, Plaza = true, KerbOuter = true, Coping = true },
+	Plaza = true, -- (Map.Hub.Plaza: every piece)
+	Avenues = { Runner = true, RunnerEdge = true, Bricks = true },
+}
+local function heroFace(part: any, root: any): boolean
+	local x = part.Parent
+	while x and x ~= root.Parent do
+		local rule = HERO[x.Name]
+		if rule == true then
+			return true
+		elseif type(rule) == "table" and rule[part.Name] then
+			return true
+		end
+		x = x.Parent
+	end
+	return false
+end
+local fractionalHero = {}
+for _, entry in
+	{
+		{ checkTemplate, checkTemplate },
+		{ find(checkMap, { "Promenade" }), find(checkMap, { "Promenade" }) },
+		{ find(checkMap, { "Hub" }), find(checkMap, { "Hub" }) },
+	}
+do
+	if entry[1] then
+		for _, part in
+			Studs.fractionalFaces(entry[1], function(p)
+				return heroFace(p, entry[2])
+			end)
+		do
+			table.insert(fractionalHero, `{part:GetFullName()} {part.Size}`)
+		end
+	end
+end
+expect(
+	#fractionalHero == 0,
+	`{#fractionalHero} hero studded faces not on whole studs: {table.concat(
+		fractionalHero,
+		", ",
+		1,
+		math.min(#fractionalHero, 6)
+	)}`
+)
+local fractionalOther = #Studs.fractionalFaces(checkMap)
+	+ (if checkTemplate then #Studs.fractionalFaces(checkTemplate) else 0)
+
 local leftMap = Studs.coplanarPairs({ checkMap })
 local leftTemplate = if checkTemplate then Studs.coplanarPairs({ checkTemplate }) else 0
 expect(leftMap + leftTemplate == 0, `{leftMap + leftTemplate} coplanar stud overlaps left (map {leftMap})`)
@@ -453,7 +510,8 @@ print(
 	`  studs: map {studdedMap}, template {studdedTemplate} × {MapConfig.BaseCount}`
 		.. ` (≈ {studdedMap + studdedTemplate * MapConfig.BaseCount} at runtime; {studsMap.ok + studsTemplate.ok} qualified); coplanar tops fixed:`
 		.. ` raised {coplanarMap.raised + coplanarTemplate.raised}, lowered {coplanarMap.lowered + coplanarTemplate.lowered},`
-		.. ` flattened {coplanarMap.flattened + coplanarTemplate.flattened}, left {coplanarMap.left + coplanarTemplate.left}`
+		.. ` flattened {coplanarMap.flattened + coplanarTemplate.flattened}, left {coplanarMap.left + coplanarTemplate.left};`
+		.. ` big faces off whole studs (trees, props): {fractionalOther}`
 )
 local nature = {}
 for kind, count in mapResult.natureCounts or {} do

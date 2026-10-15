@@ -437,6 +437,15 @@ tests["water: a fish jumps ahead on the lagoon (not near bobbers, not while the 
 	-- foam rings round the boats near the camera, flow beams on the waterfall
 	t.ok(ambient.Water.foamSpecs >= 30, `boats and buoys with a foam ring: {ambient.Water.foamSpecs}`)
 	t.ok(ambient.Water.foam >= 1, `foam rings near the fishing spot: {ambient.Water.foam}`)
+	-- v3 fix F5: the rings' breathing is written only when it changed visibly (FOAM_STEP), checked
+	-- FOAM_HZ (2) times a second, the stroke only: ≤ 2 property writes a second per ring, not 20
+	local engine = ambient.Engine
+	engine.Profile = {}
+	sim:Advance(2)
+	local writes = engine.Profile.Foam or 0
+	engine.Profile = nil
+	local rings = ambient.Water.foam
+	t.ok(writes <= rings * 2 * 2 + 2, `foam writes in 2 s: {writes} for {rings} rings`)
 	t.ok(ambient.Water.waterfallBeams >= 10, `flow beams on the waterfall: {ambient.Water.waterfallBeams}`)
 	sim:AssertNoErrors()
 end

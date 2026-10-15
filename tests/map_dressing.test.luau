@@ -3,7 +3,9 @@
 	part / light budget (and Nature's guaranteed share), the expected models, a spinning windmill, a clear promenade walkway,
 	clear water in front of the piers and along the bridges, deterministic output; the v3 micro-detail kits (Shore,
 	Promenade details, Hub details: budgets, decor flags, the cast clear zones, no overlapping surf / wet-sand strips) and
-	the ambient attributes (Sway / Bob / Spin / Pulse / Drift well-formed, never nested).
+	the ambient attributes (Sway / Bob / Spin / Pulse / Drift well-formed, never nested; every
+	mover's parts neither collide nor take raycasts / touches — palm trunks excepted —, the floats
+	you can stand on do not bob: tools/builder/Movers.luau), the float lines framing every cast lane.
 
 	Run: lune run tools/run_tests.luau map_dressing
 ]]
@@ -13,6 +15,7 @@ local roblox = require("@lune/roblox")
 local U = require("../tools/builder/Util")
 local VoxelWorld = require("../tools/builder/VoxelWorld")
 local buildMap = require("../tools/builder/Map")
+local Movers = require("../tools/builder/Movers")
 
 local cfg = U.loadPure("src/ReplicatedStorage/Shared/Config/MapConfig.luau")
 local world = VoxelWorld.new(cfg)
@@ -144,6 +147,30 @@ tests["micro-detail kits: within their budgets, decor only"] = function(t)
 	end
 	t.ok(counts.Foam >= 150 and counts.WetSand >= 150, `surf {counts.Foam} and wet sand {counts.WetSand} strips`)
 	t.ok(counts.Float >= 32, `float lines ({counts.Float} floats)`)
+	-- v3 fix W2: big LEGO floats (Cylinder + band, ≥ 1.4 studs: a foam ring) out in the cast lane's
+	-- view (base-local z -80..-116, |x| 26..30), on every base
+	local perBase = {}
+	for _, m in map.Shore.Lagoon:GetChildren() do
+		if m.Name == "Float" and m:IsA("Model") then
+			local body = m.PrimaryPart
+			t.ok(
+				body and body.Shape == roblox.Enum.PartType.Cylinder and body.Size.Y >= 1.4,
+				`{m:GetFullName()}: a big round float`
+			)
+			t.ok(typeof(m:GetAttribute("Bob")) == "number", `{m:GetFullName()}: bobs`)
+			if body then
+				for i = 1, cfg.BaseCount do
+					local lx, lz = world:toBaseLocal(i, body.CFrame.Position.X, body.CFrame.Position.Z)
+					if math.abs(lx) >= 26 and math.abs(lx) <= 30 and lz <= -80 and lz >= -116 then
+						perBase[i] = (perBase[i] or 0) + 1
+					end
+				end
+			end
+		end
+	end
+	for i = 1, cfg.BaseCount do
+		t.ok((perBase[i] or 0) >= 6, `base {i}: {perBase[i] or 0} floats in the cast lane's view`)
+	end
 	t.ok(counts.Signpost >= 6 and counts.Bollard >= 30, `signposts {counts.Signpost}, bollards {counts.Bollard}`)
 end
 
@@ -247,14 +274,6 @@ tests["moving details: Sway / Bob / Spin / Pulse / Drift marks are well-formed a
 			if not primary then
 				table.insert(bad, `{name}: no pivot part`)
 			end
-			-- swinging parts never collide (the palms' trunks excepted: 1.2° about their foot)
-			if not string.find(d.Name, "Palm") and d.Name ~= "FarTree" then
-				for _, p in (if d:IsA("BasePart") then { d } else d:GetDescendants()) do
-					if p:IsA("BasePart") and p.CanCollide then
-						table.insert(bad, `{p:GetFullName()}: collides but swings`)
-					end
-				end
-			end
 		elseif kind == "Pulse" then
 			if typeof(d:GetAttribute("PulsePeriod")) ~= "number" then
 				table.insert(bad, `{name}: Pulse without PulsePeriod`)
@@ -265,7 +284,29 @@ tests["moving details: Sway / Bob / Spin / Pulse / Drift marks are well-formed a
 			end
 		end
 	end
+	-- v3 fix F2: every part the client moves (any mark) neither collides nor takes raycasts or
+	-- touches — the palms' trunks excepted (1.2° about their foot): Movers.quiet
+	for _, d in map:GetDescendants() do
+		if movingKind(d) and (d:IsA("Model") or d:IsA("BasePart")) then
+			for _, p in (if d:IsA("BasePart") then { d } else d:GetDescendants()) do
+				if p:IsA("BasePart") and (p.CanCollide or p.CanQuery or p.CanTouch) then
+					if not Movers.isSolidTrunk(d, p) then
+						table.insert(bad, `{p:GetFullName()}: solid / queryable but moves ({movingKind(d)})`)
+					end
+				end
+			end
+		end
+	end
 	t.eq(#bad, 0, `malformed moving details: {table.concat(bad, "; ", 1, math.min(#bad, 5))}`)
+	-- the floats you can stand on stay still (a bob seen only on one client would carry a child)
+	for _, d in map:GetDescendants() do
+		if d.Name == "SwimPlatform" or d.Name == "Raft" or d.Name == "FishFarm" or d.Name == "Houseboat" then
+			t.eq(d:GetAttribute("Bob"), nil, `{d:GetFullName()}: still (no Bob)`)
+			for _, c in d:GetDescendants() do
+				t.eq(c:GetAttribute("Bob"), nil, `{c:GetFullName()}: still (no Bob)`)
+			end
+		end
+	end
 	t.ok(counts.Sway >= 100, `swinging details: {counts.Sway}`)
 	t.ok(counts.Bob >= 80, `bobbing models: {counts.Bob}`)
 	t.ok(counts.Pulse >= 1 and counts.Drift >= 10, `pulse {counts.Pulse}, drifting clouds {counts.Drift}`)

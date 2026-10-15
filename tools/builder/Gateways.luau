@@ -41,7 +41,7 @@
 	                                orangery and the potting shed, the florist's thatched cottage,
 	                                planted beds and a hedge maze to a gazebo
 	      south (0)   playground    round plaza in cream limestone rings with a brick-and-slate
-	                                medallion: a teal rubber play yard in a cream rim filled by the
+	                                medallion: a yellow rubber play yard in a cream rim filled by the
 	                                play fort (a tall roofed tower and a castle tower joined by a
 	                                rope bridge, a slide, a climbing wall, a fireman's pole) and
 	                                swings, a sandpit, a roundabout, a painted hopscotch, the ice
@@ -105,7 +105,9 @@ local VERDI = U.rgb(86, 160, 140)
 local VERDI_LIGHT = U.rgb(132, 192, 170)
 local VERDI_DARK = U.rgb(62, 128, 116)
 local INLAY = U.rgb(112, 128, 156) -- the one cool slate-blue inlay of every plaza
-local RUBBER = U.rgb(72, 156, 160) -- the play yard's teal rubber
+-- the play yard's rubber: a bright LEGO yellow baseplate (v3 fix W6: the old teal read as a pool
+-- of water next to the lagoon; green would melt into the lawns)
+local RUBBER = U.rgb(245, 205, 48)
 local SMOKED = mix(C.Gold, C.WoodDark, 0.35) -- smoked fish on the racks
 local BRASS = mix(C.Gold, C.WoodDark, 0.3) -- telescopes
 local INK = Kit.shade(C.WoodDark, 0.7) -- dark brown sign text on cream boards
@@ -142,7 +144,10 @@ local function disc(b: any, name: string, x: number, z: number, r: number, y0: n
 		then { { 1, 0.35 }, { 0.35, 1 }, { 0.85, 0.6 }, { 0.6, 0.85 } }
 		else { { 1, 0.4 }, { 0.4, 1 }, { 0.77, 0.77 } }
 	for i, q in rects do
-		b:box(`{name}{i}`, x - r * q[1], y0, z - r * q[2], x + r * q[1], y1, z + r * q[2], color, Kit.NOSHADOW)
+		-- (half extents on whole studs: the pieces' stud grids line up, so the overlapping
+		-- rects of one colour may share a plane — no coplanar shimmer, nothing to move, v3 W3)
+		local hx, hz = math.max(1, math.floor(r * q[1] + 0.5)), math.max(1, math.floor(r * q[2] + 0.5))
+		b:box(`{name}{i}`, x - hx, y0, z - hz, x + hx, y1, z + hz, color, Kit.NOSHADOW)
 	end
 end
 
@@ -899,7 +904,7 @@ local function pond(parent: any, cf: any, r: number)
 	local b = Kit.builder(parent, "Pond", cf)
 	local rim =
 		b:box("Rim", -r - 1.2, -0.5, -(r + 1.2) * 0.62, r + 1.2, 0.35, (r + 1.2) * 0.62, C.StoneLight, Kit.NOSHADOW)
-	b:box("RimB", -(r + 1.2) * 0.62, -0.52, -r - 1.2, (r + 1.2) * 0.62, 0.37, r + 1.2, C.StoneLight, Kit.NOSHADOW)
+	b:box("RimB", -(r + 1.2) * 0.62, -0.52, -r - 1.2, (r + 1.2) * 0.62, 0.41, r + 1.2, C.StoneLight, Kit.NOSHADOW)
 	local water = { CanCollide = false, CastShadow = false }
 	b:box("Water", -r, -0.3, -r * 0.62, r, 0.5, r * 0.62, mix(POOL, C.Water, 0.3), water)
 	b:box("WaterB", -r * 0.62, -0.32, -r, r * 0.62, 0.52, r, mix(POOL, C.Water, 0.3), water)
@@ -2528,19 +2533,22 @@ end
 --------------------------------------------------------------------------------------------
 
 -- Round plaza paving in visible rings: a band of cream limestone at r1..r2 round the flag field
--- (tans a step apart vanish at eye level; cream on tan reads). 6 parts.
+-- (tans a step apart vanish at eye level; cream on tan reads). 6 parts. (Layers 0.06 apart: a
+-- phone's depth buffer tells them apart from afar, the studs post-pass needs no move, v3 W3.)
 local function ringPaving(paving: any, r1: number, r2: number)
-	disc(paving, "Ring", 0, 0, r2, -0.5, FLOOR + 0.04, C.Limestone)
-	disc(paving, "Inner", 0, 0, r1, -0.45, FLOOR + 0.08, PAVE)
+	disc(paving, "Ring", 0, 0, r2, -0.5, FLOOR + 0.06, C.Limestone)
+	disc(paving, "Inner", 0, 0, r1, -0.45, FLOOR + 0.12, PAVE)
 end
 
 -- A round mosaic medallion at (x, z) (top at y): a limestone disc with a brick cross and the
 -- plaza's cool slate-blue hub. 6 parts.
 local function medallion(paving: any, x: number, z: number, r: number, y: number)
 	disc(paving, "Medallion", x, z, r, -0.4, y, C.Limestone)
-	paving:box("MedallionNS", x - 0.6, -0.35, z - r + 0.9, x + 0.6, y + 0.06, z + r - 0.9, C.Brick, Kit.NOSHADOW)
-	paving:box("MedallionEW", x - r + 0.9, -0.35, z - 0.6, x + r - 0.9, y + 0.05, z + 0.6, C.Brick, Kit.NOSHADOW)
-	paving:box("MedallionHub", x - 1.4, -0.3, z - 1.4, x + 1.4, y + 0.1, z + 1.4, INLAY, Kit.NOSHADOW)
+	-- (the cross: two 2-stud bars of whole studs, one height — their grids line up)
+	local arm = math.max(2, math.floor(r - 0.9))
+	paving:box("MedallionNS", x - 1, -0.35, z - arm, x + 1, y + 0.06, z + arm, C.Brick, Kit.NOSHADOW)
+	paving:box("MedallionEW", x - arm, -0.35, z - 1, x + arm, y + 0.06, z + 1, C.Brick, Kit.NOSHADOW)
+	paving:box("MedallionHub", x - 1.4, -0.3, z - 1.4, x + 1.4, y + 0.12, z + 1.4, INLAY, Kit.NOSHADOW)
 end
 
 -- A planter of jewel-tone flowers in a limestone box (Props.planter, 7 parts).
@@ -2666,12 +2674,14 @@ local function marketPlaza(model: any, at: any, paving: any, view: any, h: any):
 	paving:box("HallFloor", -33.6, -0.5, -23.6, -7.4, FLOOR + 0.14, 21.6, PAVE3, Kit.NOSHADOW)
 	-- a compass rose where the walk crosses the middle: limestone arms, slate-blue points, a
 	-- brick hub
-	paving:box("CompassNS", -1.1, -0.4, -7.5, 1.1, FLOOR + 0.22, 7.5, C.Limestone, Kit.NOSHADOW)
-	paving:box("CompassEW", -7.5, -0.4, -1.1, 7.5, FLOOR + 0.2, 1.1, C.Limestone, Kit.NOSHADOW)
+	-- (the arms whole studs at one height: their grids line up; each layer 0.06 over the one
+	-- under it, v3 W3)
+	paving:box("CompassNS", -1, -0.4, -8, 1, FLOOR + 0.22, 8, C.Limestone, Kit.NOSHADOW)
+	paving:box("CompassEW", -8, -0.4, -1, 8, FLOOR + 0.22, 1, C.Limestone, Kit.NOSHADOW)
 	for i, p in { { 0, -7 }, { 0, 7 }, { -7, 0 }, { 7, 0 } } do
-		paving:box(`Point{i}`, p[1] - 1.4, -0.35, p[2] - 1.4, p[1] + 1.4, FLOOR + 0.26, p[2] + 1.4, INLAY, Kit.NOSHADOW)
+		paving:box(`Point{i}`, p[1] - 1.4, -0.35, p[2] - 1.4, p[1] + 1.4, FLOOR + 0.28, p[2] + 1.4, INLAY, Kit.NOSHADOW)
 	end
-	paving:box("CompassHub", -2.2, -0.4, -2.2, 2.2, FLOOR + 0.3, 2.2, C.Brick, Kit.NOSHADOW)
+	paving:box("CompassHub", -2.2, -0.4, -2.2, 2.2, FLOOR + 0.34, 2.2, C.Brick, Kit.NOSHADOW)
 	-- the hall, its counters facing the walk, crates and barrels behind and between them, more
 	-- spilling out by the arch
 	marketHall(model, at(-20.5, -1), h.roof, paint)
@@ -2828,21 +2838,23 @@ end
 
 --[[
 	The south playground: a round plaza in rings (cream limestone, a brick-and-slate medallion) with
-	a teal rubber play yard in a cream rim on the left under the big play fort and the swings, a
-	sandpit and a painted hopscotch on the right, the ice cream stall, planters and benches by the
-	walk in from the arch.
+	a yellow rubber play yard (a LEGO baseplate) in a cream rim on the left under the big play fort
+	and the swings, a sandpit and a painted hopscotch on the right, the ice cream stall, planters
+	and benches by the walk in from the arch.
 ]]
 local function playgroundPlaza(model: any, at: any, paving: any, view: any, h: any): number
 	local color, paint = h.color, h.paint
 	disc(paving, "Pad", 0, 0, 40, -0.6, FLOOR, PAVE)
 	ringPaving(paving, 21.5, 26)
-	paving:box("Axis", -5, -0.5, -38, 5, FLOOR + 0.12, 38, PAVE2, Kit.NOSHADOW)
+	-- (each layer 0.06 over the one under it: pad, ring, inner field, the walk, its joints, the
+	-- medallion — v3 W3)
+	paving:box("Axis", -5, -0.5, -38, 5, FLOOR + 0.18, 38, PAVE2, Kit.NOSHADOW)
 	-- limestone cross joints along the walk (flags, not a running track)
 	for k, z in { -31, -15, 13, 29 } do
-		paving:box(`AxisJoint{k}`, -4.9, -0.4, z - 0.8, 4.9, FLOOR + 0.16, z + 0.8, C.Limestone, Kit.NOSHADOW)
+		paving:box(`AxisJoint{k}`, -4.9, -0.4, z - 0.8, 4.9, FLOOR + 0.24, z + 0.8, C.Limestone, Kit.NOSHADOW)
 	end
-	medallion(paving, 0, -2, 4.8, FLOOR + 0.18)
-	-- the play yard: teal rubber in a cream rim (the rim a step lower, a border round the mat)
+	medallion(paving, 0, -2, 4.8, FLOOR + 0.3)
+	-- the play yard: yellow rubber in a cream rim (the rim a step lower, a border round the mat)
 	paving:box("PlayMatRim", -35, -0.55, -20.4, -6.8, FLOOR + 0.2, 22.6, C.Cream, Kit.NOSHADOW)
 	paving:box("PlayMat", -33.8, -0.5, -19.2, -8, FLOOR + 0.32, 21.4, RUBBER, Kit.NOSHADOW)
 	-- a painted hopscotch on the flags right of the walk

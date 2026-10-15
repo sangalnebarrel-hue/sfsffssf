@@ -7,9 +7,12 @@
 	No uploaded textures, no extra instances, no extra draw calls; studs stay crisp on phones.
 
 	Studs.apply(root) — a qualifying part (Studs.qualifies) gets Material = Plastic, Studs on the
-	face that points world-up, Inlet on the face that points world-down and Smooth on the other
-	four (all six set explicitly, whichever local axis points up). Everything else is untouched
-	(builders make SmoothPlastic + Smooth surfaces, so it stays flat).
+	face that points world-up and Smooth on the other five (all six set explicitly, whichever local
+	axis points up). Inlet (LEGO's hollow underside) on the face that points world-down only where
+	asked: attribute StudsBottom = true on the part or an ancestor (a ceiling you walk under, e.g.
+	the market arcades') and never on foliage (FOLIAGE_NAME) — v3 fix W7: canopies, roofs and decks
+	seen from below no longer show rows of dark holes. Everything else is untouched (builders make
+	SmoothPlastic + Smooth surfaces, so it stays flat).
 
 	A part qualifies when it is
 	  * a Part / SpawnLocation with Shape Block (no wedges = LEGO slopes are smooth, no cylinders,
@@ -27,10 +30,11 @@
 	Knobs: PATHS_AS_TILES (variant B: paving, avenues, plaza, bridges and walks stay smooth LEGO
 	"tiles"; default false = variant A, studs on paths too), FOLIAGE (studs on tree/bush tops).
 
-	Studs.resolveCoplanar(roots) — two overlapping up faces at the same height z-fight. With the
+	Studs.resolveCoplanar(roots) — two overlapping up faces at (nearly) one height — closer than
+	COPLANAR_EPS (0.05: a phone's depth buffer cannot tell them apart from 150+ studs) — z-fight. With the
 	old SmoothPlastic in one colour that was invisible; with two stud grids out of phase (or studs
 	against a flat face) it shimmers. Every such pair (unless both are studded, the same colour and
-	their grids line up) is separated by moving one top RAISE (0.02) studs: the smaller part up,
+	their grids line up) is separated by moving one top RAISE (0.06) studs: the smaller part up,
 	else the smaller down, else the bigger up / down (a part grows or shrinks, its bottom stays).
 	A move is allowed only if it does not reach another overlapping layer that was above / below
 	(layers never swap) and keeps the part's first direction; gameplay parts never move (tags,
@@ -38,7 +42,7 @@
 	until nothing moves (a moved face may meet another one at its new height; passes 2+ only
 	re-test moved faces), at most MAX_PASSES; a pair no move can fix (a paving disc of three
 	pieces squeezed between two layers) is flattened: its studded pieces — with every same-colour
-	piece of that surface — become SmoothPlastic tiles. Typical map: ~170 parts moved 0.02–0.04,
+	piece of that surface — become SmoothPlastic tiles. Typical map: ~170 parts moved 0.06–0.12,
 	a handful flattened. Studs.coplanarPairs(roots) counts what is left (self-check, tests: 0).
 ]]
 
@@ -213,8 +217,14 @@ function Studs.qualifies(part: any, root: any): (boolean, string)
 	return true, "ok"
 end
 
--- Plastic + Studs on the world-up face, Inlet on the world-down face, the rest Smooth.
-local function studify(part: any)
+-- Does this studded part show LEGO's hollow underside (Inlet on the world-down face)? Only where
+-- StudsBottom = true (part or ancestor) and never on foliage.
+function Studs.wantsInlet(part: any, root: any): boolean
+	return attrUp(part, root, "StudsBottom") == true and not matchesAny(part.Name, Studs.FOLIAGE_NAME)
+end
+
+-- Plastic + Studs on the world-up face, Inlet on the world-down face where wanted, the rest Smooth.
+local function studify(part: any, root: any)
 	local axis, sign = upAxis(part)
 	local faces = FACES[axis :: number]
 	part.Material = Enum.Material.Plastic
@@ -222,7 +232,9 @@ local function studify(part: any)
 		part[face] = Enum.SurfaceType.Smooth
 	end
 	part[if sign > 0 then faces[1] else faces[2]] = Enum.SurfaceType.Studs
-	part[if sign > 0 then faces[2] else faces[1]] = Enum.SurfaceType.Inlet
+	if Studs.wantsInlet(part, root) then
+		part[if sign > 0 then faces[2] else faces[1]] = Enum.SurfaceType.Inlet
+	end
 end
 
 -- Applies the studs to every qualifying BasePart under root. Returns counts per reason
@@ -235,7 +247,7 @@ function Studs.apply(root: any): { [string]: number }
 			local ok, why = Studs.qualifies(part, root)
 			stats[why] = (stats[why] or 0) + 1
 			if ok then
-				studify(part)
+				studify(part, root)
 			end
 		end
 	end
@@ -258,6 +270,29 @@ function Studs.isStudded(part: any): boolean
 	return part.Material == Enum.Material.Plastic and #Studs.studFaces(part) > 0
 end
 
+-- Studded parts whose up face is big (a side >= minSide studs, default CLEAN_BELOW) but not whole
+-- studs on both sides (± 0.02): the engine draws cut half-studs along an edge there, and the rows
+-- run out of phase with the neighbours'. `filter(part)` picks the parts to check (nil = all).
+-- The build lists them (v3 fix W4) and fails on the hero surfaces in HERO_FACES.
+function Studs.fractionalFaces(root: any, filter: ((any) -> boolean)?, minSide: number?): { any }
+	local list = {}
+	local least = minSide or Studs.CLEAN_BELOW
+	for _, part in root:GetDescendants() do
+		if part:IsA("BasePart") and Studs.isStudded(part) and (filter == nil or filter(part)) then
+			local axis, _, a, b = upAxis(part)
+			if axis and math.max(a, b) >= least - 1e-3 then
+				local function whole(x: number): boolean
+					return math.abs(x - math.floor(x + 0.5)) <= 0.02
+				end
+				if not (whole(a) and whole(b)) then
+					table.insert(list, part)
+				end
+			end
+		end
+	end
+	return list
+end
+
 -- Does the Studs face of a studded part point world-up?
 function Studs.studsFaceUp(part: any): boolean
 	local faces = Studs.studFaces(part)
@@ -272,13 +307,15 @@ end
 -- Coplanar resolver
 --------------------------------------------------------------------------------
 
-Studs.RAISE = 0.02 -- studs a top moves per fix
-Studs.COPLANAR_EPS = 0.006 -- two tops closer than this are coplanar
+-- studs a top moves per fix: 0.06 (v3 fix W3; 0.02 was within z-fight range of a phone's depth
+-- buffer at 150+ studs), still too small to see as a step
+Studs.RAISE = 0.06
+Studs.COPLANAR_EPS = 0.05 -- two tops closer than this are coplanar (z-fight range: v3 fix W3)
 Studs.OVERLAP_MARGIN = 0.05 -- faces must overlap by more than this (touching edges do not count)
-Studs.MAX_PASSES = 6
+Studs.MAX_PASSES = 8 -- (the map needs 7 with the wider z-fight range of W3)
 local CELL = 16 -- XZ grid of the pair search (studs)
 
--- Decor-only attributes: they do not protect a part from the 0.02 move.
+-- Decor-only attributes: they do not protect a part from the RAISE move.
 local DECOR_ATTR = {
 	Accent = true,
 	AccentShade = true,

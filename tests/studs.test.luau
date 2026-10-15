@@ -2,14 +2,16 @@
 	LEGO studs (tools/builder/Studs.luau, art direction v5) — pure Lune, no sim: builds the map and
 	the base template like tools/build.luau, runs Studs.apply + Studs.resolveCoplanar and checks
 	  • the rules on hand-made parts: blocks only, opaque SmoothPlastic/Plastic only, whole studs on
-	    small faces, the face that points world-up gets Studs whatever local axis it is, Studs = false
-	    / true attributes, variant B (PATHS_AS_TILES), foliage switch, water-like names;
+	    small faces, the face that points world-up gets Studs whatever local axis it is, Inlet below
+	    only where StudsBottom = true (never on foliage), Studs = false / true attributes, variant B
+	    (PATHS_AS_TILES), foliage switch, water-like names;
 	  • the coplanar fix on hand-made parts: out-of-phase grids and studs-on-flat move, one aligned
 	    grid of one colour stays, protected parts never move, layers never swap, a squeezed paving
 	    disc becomes one flat tile;
-	  • the real map and template: Plastic only where studded, one Studs face up / Inlet down,
-	    nothing on water / glass / sky / seabed, every land cap and the base lawns and decks studded,
-	    the fishing spot smooth, no coplanar stud overlap left, counts in their band, deterministic;
+	  • the real map and template: Plastic only where studded, one Studs face up / an Inlet down
+	    only where asked (the arcade ceilings), nothing on water / glass / sky / seabed, every land
+	    cap and the base lawns and decks studded, the fishing spot smooth, the hero faces on whole
+	    studs, no coplanar stud overlap left, counts in their band, deterministic;
 	  • runtime parts stay smooth: rods / bobbers / fish (Assets) and every Part created in src/.
 
 	Run: lune run tools/run_tests.luau studs
@@ -82,14 +84,22 @@ local tests = {}
 -- Rules on hand-made parts
 --------------------------------------------------------------------------------
 
-tests["a flat block gets Plastic, Studs on top, Inlet below, the sides Smooth"] = function(t)
+tests["a flat block gets Plastic, Studs on top, the rest Smooth; Inlet below only where asked"] = function(t)
 	local box = sandbox()
 	local deck = block(box, "Deck", Vector3.new(8, 1, 4), CFrame.new(0, 0, 0))
+	-- a ceiling asks for the LEGO underside (StudsBottom = true, here on an ancestor) …
+	local hall = U.model(box, "Hall")
+	hall:SetAttribute("StudsBottom", true)
+	local ceiling = block(hall, "Ceiling", Vector3.new(8, 0.4, 6), CFrame.new(0, 10, 0))
+	-- … a canopy never does (no holes punched in the leaves)
+	local canopy = block(hall, "Canopy", Vector3.new(6, 2, 6), CFrame.new(20, 10, 0))
 	local s = Studs.apply(box)
-	t.eq(s.ok, 1, "one part studded")
+	t.eq(s.ok, 3, "three parts studded")
 	t.eq(deck.Material, Enum.Material.Plastic, "Plastic (surfaces render only on Plastic)")
-	t.eq(surfaces(deck), "Studs,Inlet,Smooth,Smooth,Smooth,Smooth", "Top Studs, Bottom Inlet")
+	t.eq(surfaces(deck), "Studs,Smooth,Smooth,Smooth,Smooth,Smooth", "Top Studs, the bottom smooth")
 	t.ok(Studs.studsFaceUp(deck), "the Studs face points up")
+	t.eq(surfaces(ceiling), "Studs,Inlet,Smooth,Smooth,Smooth,Smooth", "StudsBottom: Bottom Inlet")
+	t.eq(surfaces(canopy), "Studs,Smooth,Smooth,Smooth,Smooth,Smooth", "foliage: no Inlet")
 end
 
 tests["the face pointing world-up gets the studs whatever local axis points up"] = function(t)
@@ -102,6 +112,7 @@ tests["the face pointing world-up gets the studs whatever local axis points up"]
 	local flipped = block(box, "Flipped", Vector3.new(4, 1, 4), CFrame.Angles(math.rad(180), 0, 0))
 	-- yawed 30°: still the top
 	local yawed = block(box, "Yawed", Vector3.new(4, 1, 6), CFrame.new(20, 0, 0) * CFrame.Angles(0, math.rad(30), 0))
+	box:SetAttribute("StudsBottom", true) -- (the Inlet shows which face points down)
 	Studs.apply(box)
 	t.eq(rolled.CFrame.RightVector.Y > 0.99, true, "setup: rolled +X up")
 	t.eq(rolled.RightSurface, Enum.SurfaceType.Studs, "rolled: +X face studded")
@@ -254,14 +265,16 @@ tests["coplanar: protected parts never move, layers never swap, a squeezed disc 
 	})
 	local under = block(box, "Under", Vector3.new(6, 1, 6), CFrame.new(20, 0, 0))
 	-- a paving disc: three overlapping pieces of one colour, one rotated, between a layer below and
-	-- a runner above, both 0.025 away (no room for a second height)
-	local base = block(box, "Ground", Vector3.new(64, 2, 64), CFrame.new(60, -1 + 0.4 - 0.025, 0))
+	-- a runner above, both `gap` away: out of z-fight range (COPLANAR_EPS) but nearer than a
+	-- move (RAISE) — no room for a second height
+	local gap = (Studs.COPLANAR_EPS + Studs.RAISE) / 2
+	local base = block(box, "Ground", Vector3.new(64, 2, 64), CFrame.new(60, -1 + 0.4 - gap, 0))
 	local stone = rgb(196, 172, 132)
 	local d1 = block(box, "Disc1", Vector3.new(21, 0.8, 9), CFrame.new(60, 0, 0), stone)
 	local d2 = block(box, "Disc2", Vector3.new(9, 0.8, 21), CFrame.new(60, 0, 0), stone)
 	local d3 =
 		block(box, "Disc3", Vector3.new(15, 0.8, 15), CFrame.new(60, 0, 0) * CFrame.Angles(0, math.rad(45), 0), stone)
-	local runner = block(box, "Runner", Vector3.new(4, 0.8, 40), CFrame.new(60, 0.025, 0), rgb(170, 90, 70))
+	local runner = block(box, "Runner", Vector3.new(4, 0.8, 40), CFrame.new(60, gap, 0), rgb(170, 90, 70))
 	Studs.apply(box)
 	local before = { spot = top(spot), pad = top(pad), runner = top(runner), base = top(base) }
 	local fix, flipped = Studs.resolveCoplanar({ box })
@@ -311,7 +324,9 @@ local function invariants(t: any, root: any)
 						inlets += 1
 					end
 				end
-				t.eq(inlets, 1, `{d:GetFullName()}: one Inlet face (the bottom)`)
+				-- (the LEGO underside only where a ceiling asks for it, never on foliage)
+				local want = if Studs.wantsInlet(d, root) then 1 else 0
+				t.eq(inlets, want, `{d:GetFullName()}: {want} Inlet face (the bottom)`)
 				local x = d.Parent
 				while x and x ~= root.Parent do
 					t.ok(not Studs.SKIP_ANCESTOR[x.Name], `{d:GetFullName()}: studs under {x.Name}`)
@@ -356,7 +371,35 @@ tests["template: the same invariants; lawns and decks studded, the fishing spot 
 		end
 	end
 	local spot = template:FindFirstChild("FishingSpot", true)
-	t.ok(spot ~= nil and not Studs.isStudded(spot), "FishingSpot smooth (5.2 × 5.2: cut studs on a small face)")
+	t.ok(spot ~= nil and not Studs.isStudded(spot), "FishingSpot smooth (a LEGO tile: Studs = false)")
+	-- v3 fix W4: the hero surfaces on whole studs — the ring round the spot is exactly one ring of
+	-- whole studs round the 5 x 5 mat; lawn, stripes, decks, planks and display rims whole too
+	local ring = platform and platform:FindFirstChild("SpotRing")
+	t.ok(ring ~= nil and Studs.isStudded(ring), "SpotRing studded")
+	if ring and spot then
+		t.near(ring.Size.X, 7, 1e-3, "SpotRing 7 wide")
+		t.near(ring.Size.Z, 7, 1e-3, "SpotRing 7 deep")
+		t.near(spot.Size.X, 5, 1e-3, "FishingSpot 5 wide")
+		t.near(spot.Size.Z, 5, 1e-3, "FishingSpot 5 deep")
+	end
+	local HERO = { Lawn = true, Stripe = true, Deck = true, Planks = true, SpotRing = true, Rim = true }
+	local off = Studs.fractionalFaces(template, function(p: any): boolean
+		return HERO[p.Name] == true
+	end)
+	local names = {}
+	for i = 1, math.min(#off, 5) do
+		table.insert(names, `{off[i]:GetFullName()} {off[i].Size}`)
+	end
+	t.eq(#off, 0, `hero faces off whole studs: {table.concat(names, ", ")}`)
+	-- v3 fix W7: no Inlet under the shelter's roof; the market arcade's ceiling keeps it
+	local pav = template:FindFirstChild("Pavilion")
+	for _, roof in (if pav then pav:GetChildren() else {}) do
+		if roof:IsA("BasePart") and roof.Name == "Roof" then
+			t.ok(roof.BottomSurface ~= Enum.SurfaceType.Inlet, "no Inlet under the shelter's roof")
+		end
+	end
+	local ceiling = template:FindFirstChild("Ceiling", true)
+	t.ok(ceiling ~= nil and Studs.wantsInlet(ceiling, template), "the arcade ceiling asks for the LEGO underside")
 end
 
 tests["map: every land cap is studded, nothing under Ground.Underwater"] = function(t)

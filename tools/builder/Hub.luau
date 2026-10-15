@@ -439,6 +439,7 @@ local function signText(part: any, face: any, text: string, color: any, stroke: 
 		SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud,
 		PixelsPerStud = 24,
 		LightInfluence = 0.15,
+		MaxDistance = 250, -- (v3 fix F4: not laid out and drawn from across the map)
 	}, part)
 	local label = U.new("TextLabel", {
 		Name = "Text",
@@ -1692,9 +1693,15 @@ local BASIN_R = 23 -- outer face of the tower's basin walls (its corners reach r
 -- Inlay at the tower's feet: a sandstone eight-point star of two squares (half size STAR, one
 -- turned 45°) in a dark stone outline STAR_EDGE wide. Its axis points reach r ≈ 42 under the
 -- avenue runners, its diagonal points run on as rays to the shop porches and the fun fair.
-local STAR, STAR_EDGE = 28, 1.8
+local STAR, STAR_EDGE = 28, 2 -- (the outline squares 60 x 60: whole studs)
 local STAR_TIP = (STAR + STAR_EDGE) * sqrt(2) -- outline point on every axis and diagonal
 local RAY_W = 6 -- ray width (the dark edges add STAR_EDGE on each side)
+local STAR_STEP = 0.06 -- the turned star square (and its outline) sits this much lower
+-- A run z0..z1 trimmed at its start to whole studs (the end stays put): studded paving strips
+-- without cut studs along an edge (v3 fix W4).
+local function wholeRun(z0: number, z1: number): (number, number)
+	return z1 - math.max(1, math.floor(z1 - z0 + 0.5)), z1
+end
 
 --[[
 	Round plaza: rows of 8 studs of warm stone out to PLAZA_R and an inlay round the basin: the
@@ -1702,8 +1709,8 @@ local RAY_W = 6 -- ray width (the dark edges add STAR_EDGE on each side)
 	the shop porches and the fun fair arch, and a terracotta ring (r 47..52) crossing under the
 	rays and the runners. The avenues' terracotta runners (buildAvenues) start on the star's axis
 	points and carry the walk on to every bridge. Each layer stands at least 0.06 above the one
-	under it (paving 0.2, ring 0.32, outline 0.44, star 0.56, runner 0.62), so no two colours share
-	a plane. 31 parts.
+	under it (paving 0.2, ring 0.32, the turned outline 0.38, outline 0.44, the turned star 0.50 —
+	a flat tile —, star 0.56, runner 0.62), so no two colours or stud grids share a plane. 31 parts.
 ]]
 local function buildPlaza(hub: any, G: number)
 	local F = newFrame(U.model(hub, "Plaza"), CFrame.new(0, G, 0))
@@ -1729,12 +1736,19 @@ local function buildPlaza(hub: any, G: number)
 		end
 		z0 = z1
 	end
-	-- the star: outline squares under sandstone squares (the parts under the basin are hidden)
+	-- the star: outline squares under sandstone squares (the parts under the basin are hidden).
+	-- The square turned 45° (its points on the axes) lies STAR_STEP under the other one and is a
+	-- flat tile (Studs = false): two stud grids crossing at 45° in one plane would shimmer; both
+	-- stars stay above both outlines, so the dark outline still follows the 8-point silhouette.
 	for _, layer in { { "StarEdge", STAR + STAR_EDGE, 0.44, H.paveDark }, { "Star", STAR, 0.56, H.medallion } } do
-		local h, top = layer[2], layer[3]
+		local h = layer[2]
 		for k, yaw in { 0, 45 } do
+			local top = layer[3] - (k - 1) * STAR_STEP
 			local S = newFrame(F.model, F.cf * CFrame.Angles(0, rad(yaw), 0))
-			S:box(`{layer[1]}{k}`, -h, top - 0.5, -h, h, top, h, layer[4], FLAT)
+			local square = S:box(`{layer[1]}{k}`, -h, top - 0.5, -h, h, top, h, layer[4], FLAT)
+			if k == 2 then
+				square:SetAttribute("Studs", false)
+			end
 		end
 	end
 	-- rays from the star's diagonal points (each starts inside the point) to the shop porches
@@ -1743,13 +1757,15 @@ local function buildPlaza(hub: any, G: number)
 	for k = 0, 3 do
 		local R = radialFrame(F.model, 45 + k * 90, G)
 		local e = RAY_W / 2 + STAR_EDGE
-		R:box(`RayEdge{k + 1}`, -e, -0.06, rayIn, e, 0.44, rayOut + STAR_EDGE, H.paveDark, FLAT)
-		R:box(`Ray{k + 1}`, -RAY_W / 2, 0.06, rayIn, RAY_W / 2, 0.56, rayOut, H.medallion, FLAT)
+		local e0, e1 = wholeRun(rayIn, rayOut + STAR_EDGE)
+		local r0, r1 = wholeRun(rayIn, rayOut)
+		R:box(`RayEdge{k + 1}`, -e, -0.06, e0, e, 0.44, e1, H.paveDark, FLAT)
+		R:box(`Ray{k + 1}`, -RAY_W / 2, 0.06, r0, RAY_W / 2, 0.56, r1, H.medallion, FLAT)
 	end
 	-- terracotta ring: one chord per axis and diagonal (the chords overlap in thin wedges at the
 	-- inner corners, all one colour)
 	local b0, b1 = 47, 52
-	local len = 2 * b1 * math.tan(rad(22.5)) + 0.1
+	local len = math.ceil(2 * b1 * math.tan(rad(22.5)) + 0.1)
 	for k = 0, 7 do
 		local R = radialFrame(F.model, k * 45, G)
 		R:box(`Band{k + 1}`, -len / 2, -0.18, b0, len / 2, 0.32, b1, H.ring, FLAT)
@@ -1980,7 +1996,7 @@ local function buildTower(hub: any, G: number)
 	end
 	top += 5.6 -- the dome's tip
 	local spout = F:box("Spout1", -1.6, top - 0.4, -1.6, 1.6, top + 3.2, 1.6, H.waterLight, FLOW)
-	F:box("Spout2", -1.1, top + 3.2, -1.1, 1.1, top + 6.6, 1.1, H.waterLight, FLOW)
+	local spout2 = F:box("Spout2", -1.1, top + 3.2, -1.1, 1.1, top + 6.6, 1.1, H.waterLight, FLOW)
 	emitter(spout, "Spray", {
 		rate = 16,
 		life = { 1.1, 1.5 },
@@ -2009,9 +2025,11 @@ local function buildTower(hub: any, G: number)
 	}, { crown = true })
 	-- a pale gold shine along its back
 	fish:box("BackShine", -7 * s, 4.75 * s, -2.3 * s, 3.4 * s, 5.4 * s, 2.3 * s, H.goldLight, DECOR)
-	-- a warm light just under the belly (it turns with the fish) lifts the underside the players
-	-- see from the plaza: the shaded gold stays gold instead of going olive
-	local under = U.new("Attachment", { Name = "UnderGlow", CFrame = CFrame.new(-2 * s, -7.6 * s, 0) }, body)
+	-- a warm light just under the belly lifts the underside the players see from the plaza: the
+	-- shaded gold stays gold instead of going olive. It hangs on the (static) spout on the spin
+	-- axis, not on the turning fish: a light that moves has its share of the lighting grid
+	-- recomputed every frame (v3 fix F9), a fill light on the axis looks the same.
+	local under = U.new("Attachment", { Name = "UnderGlow", CFrame = CFrame.new(0, 4.4, 0) }, spout2)
 	pointLight(under, 16, 1.6, lerpColor(C.LightColor, C.Glow, 0.4))
 	emitter(body, "Sparkles", {
 		rate = 6,
@@ -2235,8 +2253,10 @@ local function buildAvenues(hub: any, cfg: any, G: number)
 		local look = FRONTAGE[(i - 1) % #FRONTAGE + 1]
 		F:box("Bricks", -11, -0.3, AVENUE_START, 11, 0.35, endZ, H.street, FLAT)
 		-- the runner starts on the plaza star's axis point and stops just short of the bridge deck
-		F:box("RunnerEdge", -5, -0.3, STAR_TIP - 4.6, 5, 0.5, endZ - 0.6, H.paveDark, FLAT)
-		F:box("Runner", -4, -0.3, STAR_TIP - 4, 4, 0.62, endZ - 1.2, H.runner, FLAT)
+		local e0, e1 = wholeRun(STAR_TIP - 4.6, endZ - 0.6)
+		local r0, r1 = wholeRun(STAR_TIP - 4, endZ - 1.2)
+		F:box("RunnerEdge", -5, -0.3, e0, 5, 0.5, e1, H.paveDark, FLAT)
+		F:box("Runner", -4, -0.3, r0, 4, 0.62, r1, H.runner, FLAT)
 		for j, sx in { -1, 1 } do
 			F:box(`Kerb{j}`, sx * 11, -0.3, AVENUE_START + 4, sx * 12.4, 0.8, endZ, H.kerb, FLAT)
 		end
@@ -2637,8 +2657,8 @@ end
 local LANE_PATH_IN = PLAZA_R + 4
 
 -- Gravel path over x0..x1 × z0..z1, its top 0.1 above the lawn (0.1 under the plaza paving). 1 part.
-local function gravelPath(F: any, name: string, x0: number, z0: number, x1: number, z1: number): any
-	return F:box(name, x0, -0.3, z0, x1, 0.1, z1, H.gravel, FLAT)
+local function gravelPath(F: any, name: string, x0: number, z0: number, x1: number, z1: number, top: number?): any
+	return F:box(name, x0, -0.3, z0, x1, top or 0.1, z1, H.gravel, FLAT)
 end
 
 -- Woodpile of length len along local X centred at (x, z), its cut ends facing local −Z: a stack
@@ -3598,7 +3618,8 @@ local function buildFrontages(hub: any, cfg: any, G: number)
 					end
 					x1 -= 2
 				end
-				gravelPath(F, "SideWalk", sx * 27.4, zc - 1.5, sx * x1, zc + 1.5)
+				-- (top 0.06: a clear step under the lane walk's kerb (0.12) and over the lawn)
+				gravelPath(F, "SideWalk", sx * 27.4, zc - 1.5, sx * x1, zc + 1.5, 0.06)
 			end
 			local want = if sx < 0 then 2 else 1
 			local candidates = if sx < 0

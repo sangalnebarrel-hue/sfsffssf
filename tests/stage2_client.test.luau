@@ -811,6 +811,9 @@ tests["bobber: another player's cast flies to BobberTarget, bites, reels and is 
 	t.eq(fx.GetBobber(fisher), nil, "no bobber while Idle")
 
 	local spot = ownBase(sim, fisher).FishingSpot
+	-- the watcher visits the fisher's pier (the line is drawn within Fx.Range of the viewer)
+	sim:Teleport(watcher, spot.CFrame.Position + Vector3.new(8, 3, 6))
+	sim:Advance(0.1)
 	local out = spot.CFrame * CFrame.new(0, 0, -22)
 	local target = Vector3.new(out.Position.X, 0, out.Position.Z)
 	fisher:SetAttribute("BobberTarget", target)
@@ -847,6 +850,19 @@ tests["bobber: another player's cast flies to BobberTarget, bites, reels and is 
 	t.eq(bobber.Root.BiteAlert.Enabled, false)
 	local reel = bobber:GetPivot().Position
 	t.ok((reel - rest).Magnitude > 0.05, "thrashes / is drawn in while reeling")
+
+	-- the watcher goes home across the lagoon (beyond Fx.Range): no line there, the bobber still
+	-- moves, a few times a second (v3 fix F7)
+	sim:Teleport(watcher, spot.CFrame.Position + (spot.CFrame.Position * Vector3.new(-2, 0, -2)) + Vector3.new(0, 3, 0))
+	sim:Advance(0.1)
+	t.ok(
+		(watcher.Character.HumanoidRootPart.Position - bobber:GetPivot().Position).Magnitude > FishingConfig.Fx.Range,
+		"setup: far"
+	)
+	t.eq(line.Enabled, false, "far: no line across the lagoon")
+	local moved = bobber:GetPivot().Position
+	sim:Advance(0.6)
+	t.ok((bobber:GetPivot().Position - moved).Magnitude > 1e-3, "far: still moves (throttled)")
 
 	-- every client draws the bobber (both the watcher's and the fisher's own)
 	local copies = 0

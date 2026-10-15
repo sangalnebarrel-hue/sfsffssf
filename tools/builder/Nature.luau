@@ -824,9 +824,7 @@ local function houseboat(parent: any, cf: any, bed: number, seed: number): any
 	b:box("Pipe", 1.2, 5.85, 2.0, 1.8, 7.4, 2.6, C.Iron, Kit.NOSHADOW)
 	b:box("FlowerBox", -2.4, 1.0, -7.3, -0.4, 1.7, -6.3, C.Wood, Kit.NOSHADOW)
 	b:box("Blooms", -2.2, 1.65, -7.1, -0.6, 2.35, -6.5, pairOf(r())[1], FOLIAGE)
-	b:finish(hull)
-	b.model:SetAttribute("Bob", 0.15)
-	b.model:SetAttribute("BobPeriod", 4.6)
+	b:finish(hull) -- (it can be stood on: still and solid, no Bob)
 	-- the mooring post on the shore side (+X) and a rope from it to the deck
 	local post = U.part(
 		m,
@@ -867,9 +865,7 @@ local function fishFarm(parent: any, cf: any, seed: number): any
 	end
 	b:box("FeederPost", R - 2.2, 0.45, -R + 0.15, R - 1.5, 4.0, -R + 0.85, C.WoodDark, Kit.NOSHADOW)
 	b:box("FeederBox", R - 2.6, 3.9, -R - 0.25, R - 1.1, 5.0, -R + 1.25, C.WoodLight, Kit.NOSHADOW)
-	b:finish(first)
-	b.model:SetAttribute("Bob", 0.12)
-	b.model:SetAttribute("BobPeriod", 3.8 + (seed % 5) * 0.2)
+	b:finish(first) -- (its walkways can be stood on: still and solid, no Bob)
 	return b.model
 end
 

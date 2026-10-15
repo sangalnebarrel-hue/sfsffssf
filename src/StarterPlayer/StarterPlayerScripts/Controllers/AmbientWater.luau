@@ -15,9 +15,12 @@
 	    виляет, хвост — на шарнире у тела. У чужого и своего поплавка стая уходит глубже;
 	  • пена вокруг всего, что качается на воде (лодки, буйки, плоты, садки) и у свай ближайшего
 	    пирса: кольцо-овал по корпусу у ватерлинии (SurfaceGui: белая обводка, едва заметная
-	    заливка; мачты, верёвки и швартовы не в счёт). Пул из FOAM_POOL колец раздаётся
-	    ближайшим (≤ FOAM_RANGE) раз в 0,5 с; белее, когда корпус внизу качания (в такт Bob),
-	    10 раз в секунду;
+	    заливка; мачты, верёвки и швартовы не в счёт; корпус — по всем 8 углам деталей, так что
+	    и поставленный «на попа» цилиндр-поплавок получает круг). Пул из FOAM_POOL колец
+	    раздаётся ближайшим (≤ FOAM_RANGE) раз в 0,5 с; обводка белее, когда корпус внизу качания
+	    (в такт Bob): проверка FOAM_HZ (2) раза в секунду, а запись — только когда прозрачность
+	    ушла от записанной на FOAM_STEP и больше (не больше 2 записей в секунду на кольцо, заливка
+	    не «дышит» — v3 fix F5);
 	  • водопад: лучи (Beam) с бегущей вниз текстурой поверх «занавесей» воды (без деталей).
 	AmbientWater.Start(engine, folder, map, context)
 	AmbientWater.State — для тестов и превью (прыжки, стаи, пена).
@@ -87,8 +90,10 @@ local FOAM_POST = 3.4 -- кольцо вокруг сваи, studs
 local FOAM_PPS = 12 -- пикселей SurfaceGui на stud
 local FOAM_STROKE = 0.35 -- толщина белой обводки, studs
 local FOAM_COLOR = Color3.fromRGB(240, 250, 255)
-local FOAM_T, FOAM_SWING = 0.38, 0.22 -- прозрачность обводки и её «дыхание»
-local FOAM_FILL = 0.84 -- заливка внутри кольца (почти прозрачная)
+local FOAM_T, FOAM_SWING = 0.38, 0.16 -- прозрачность обводки и её «дыхание»
+local FOAM_FILL = 0.84 -- заливка внутри кольца (почти прозрачная, не «дышит»)
+local FOAM_HZ = 2 -- «дыхание» пены проверяется столько раз в секунду …
+local FOAM_STEP = 0.05 -- … и пишется, только если прозрачность изменилась хотя бы на столько
 
 local AmbientWater = {}
 AmbientWater.JumpSoon = function() end -- (до старта — ничего)
@@ -657,14 +662,19 @@ local function hullSpec(bob: Bob): Foam?
 			local thin = math.min(size.X, size.Z) < 0.35 and math.max(size.X, size.Z) > 2.5
 			local y, half = d.Position.Y, d.Size.Y / 2
 			if not thin and y - half < WATER + 1.2 and y + half > WATER - 1.5 then
+				-- (все 8 углов: у повёрнутой детали — цилиндра-поплавка осью вверх — ширина
+				-- по горизонтали лежит в её локальной Y)
 				for sx = -1, 1, 2 do
-					for sz = -1, 1, 2 do
-						local corner = d.CFrame * Vector3.new(sx * size.X / 2, 0, sz * size.Z / 2)
-						local l =
-							flatRot:PointToObjectSpace(corner - Vector3.new(frame.Position.X, 0, frame.Position.Z))
-						local a, b = lo, hi
-						lo = if a then Vector3.new(math.min(a.X, l.X), 0, math.min(a.Z, l.Z)) else l
-						hi = if b then Vector3.new(math.max(b.X, l.X), 0, math.max(b.Z, l.Z)) else l
+					for sy = -1, 1, 2 do
+						for sz = -1, 1, 2 do
+							local corner = d.CFrame * Vector3.new(sx * size.X / 2, sy * size.Y / 2, sz * size.Z / 2)
+							local l = flatRot:PointToObjectSpace(
+								Vector3.new(corner.X - frame.Position.X, 0, corner.Z - frame.Position.Z)
+							)
+							local a, b = lo, hi
+							lo = if a then Vector3.new(math.min(a.X, l.X), 0, math.min(a.Z, l.Z)) else l
+							hi = if b then Vector3.new(math.max(b.X, l.X), 0, math.max(b.Z, l.Z)) else l
+						end
 					end
 				end
 			end
@@ -692,7 +702,7 @@ local function hullSpec(bob: Bob): Foam?
 	}
 end
 
-type Ring = { part: Part, fill: Frame, stroke: UIStroke }
+type Ring = { part: Part, fill: Frame, stroke: UIStroke, written: number }
 
 -- Кольцо пены: плоская невидимая деталь с SurfaceGui — скруглённая рамка (овал / круг) с
 -- белой обводкой и едва заметной заливкой. Одна деталь на кольцо любой длины.
@@ -727,7 +737,7 @@ local function makeFoamRing(folder: Instance): Ring
 	stroke.Thickness = thick
 	stroke.Transparency = 1
 	stroke.Parent = fill
-	return { part = part, fill = fill, stroke = stroke }
+	return { part = part, fill = fill, stroke = stroke, written = FOAM_T }
 end
 
 local function startFoam(engine: Engine, folder: Instance, context: Context)
@@ -752,16 +762,19 @@ local function startFoam(engine: Engine, folder: Instance, context: Context)
 		minRate = 10,
 		range = 60, -- (pos — у камеры, пока роздано хоть одно кольцо; иначе далеко: не работает)
 		cost = FOAM_POOL,
-		interval = 0.1,
+		interval = 1 / FOAM_HZ,
 		kind = "Foam",
 		write = function(_: Item, t: number, e: Engine)
 			for k, spec in assigned do
-				-- белее, когда корпус внизу качания (Bob: смещение A·sin)
+				-- белее, когда корпус внизу качания (Bob: смещение A·sin); пишем только заметное
 				local s = math.sin(spec.omega * t + spec.phase)
 				local ring = rings[k]
-				ring.stroke.Transparency = FOAM_T + FOAM_SWING * s
-				ring.fill.BackgroundTransparency = FOAM_FILL + 0.06 * s
-				e.w += 2
+				local transparency = FOAM_T + FOAM_SWING * s
+				if math.abs(transparency - ring.written) >= FOAM_STEP then
+					ring.written = transparency
+					ring.stroke.Transparency = transparency
+					e.w += 1
+				end
 			end
 		end,
 		data = {},
@@ -834,6 +847,7 @@ local function startFoam(engine: Engine, folder: Instance, context: Context)
 				ring.part.CFrame = CFrame.new(spec.pos.X, WATER + FOAM_LIFT, spec.pos.Z) * spec.rot
 				ring.stroke.Transparency = FOAM_T
 				ring.fill.BackgroundTransparency = FOAM_FILL
+				ring.written = FOAM_T
 			end
 		end
 		local count = 0
