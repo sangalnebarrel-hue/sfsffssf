@@ -1109,8 +1109,8 @@ local scenarios = {
 	{
 		name = "trophy_chip",
 		desc = "Someone else's Legendary catch on the next pier (off-screen): the broadcast and a 🌟 chip at the screen edge on the pillar's side",
+		-- (In --all since UI v5: its gap to the Home column is checked on every device.)
 		world = true,
-		standard = false,
 		still = { 0.8, 2.0 },
 		sheet = { from = 0, to = 1.2, fps = 10, roi = {} },
 		run = function(h: any)

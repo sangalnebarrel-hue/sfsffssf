@@ -152,10 +152,10 @@ temporary instances, cancel tweens) and accept a Trove or return a cleanup funct
 | rim flash | the face's light rim flashes solid white and fades back to `RimAlpha`, a white overlay 0.6 → 1 on the face, a breath 1 → 1.06 → 1 (`rimFlash`: the bite alert, «СМОТАТЬ», the minigame plate, the card's pedestal / banner / price, the badge on arrival, broadcast toasts) | 0.3 s |
 | morph flash | an important look change (ПОДСЕЧЬ! / ЛОВИ! / ЗАБРАТЬ!): a white overlay on the face 0.4 → 1 and the icon pops 0.6 → 1.15 → 1 | 0.2 / 0.32 s |
 | recolour | a copy of the face's OLD gradient covers it and fades while the new colours are already under it; the outline tweens to its new colour | 0.16 s |
-| breathe | a primary button's idle life (ready for the fishing waves): one slow breath 1 → 1.04 → 1 every period, only when visible, not pressed, not punched | 1.8 s period |
+| breathe | a primary button's idle life (ВЗЯТЬ / ЗАБРОСИТЬ: 1.05 every 1.4 s): one slow breath 1 → peak → 1 every period, only when visible, not pressed, not punched | 1.8 s period |
 | shine | a white diagonal band (Transparency 1 → 0.25 → 1) sweeping Offset −1 → 1 across a button / plate | 0.6 s, every 3.5 s on the idle primary button |
 | bob | an icon hops by 8 % of its height through its AnchorPoint (Quad Out up, Bounce Out down) — position and scale stay free for other effects | 0.18 + 0.32 s, every 2.2–3.0 s |
-| sway | a slow ±1.5° rotation loop (for a waiting plate) | 2.4 s period |
+| sway | a slow ±1.5° rotation loop (the waiting plate «ЖДИ КЛЁВА…») | 2.4 s period |
 | badge wobble | the red «!» pops in (punch 0 → 1.25 → 1, a white ring, a high tick), then every 2.8–3.6 s wiggles ±12° with a 1.12 bump; `badgeHide` swells and shrinks it away | 0.5 s per wobble |
 | number roll | the counter («slot machine»): the old number slides up and fades (Quad In), the new one rises from below (Back Out); the digits flash a colour (`flashText`, ≥ 0.34 s apart), the counter bumps (1.3; 1.45 for a fish from the card) and its 🐟 squashes (Elastic) | 0.16 / 0.24 s |
 | count-up | a number ticks from → to (Quad Out); each new number bumps 1.06 → 1 (≤ 12 Hz: the catch card's price) | 0.6–1.0 s |
@@ -212,9 +212,10 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   square purple Grape sim button, a big outlined 🏠 and «ДОМОЙ» ON its bottom edge, the red «!»
   badge on its top-right corner — hidden until the shop of stage 3; the press squashes it, kicks
   the 🏠; cooldown: a dark veil drains down, big italic digits in the middle — the last 3 s
-  flash orange —, the house fades, «ЖДИ» rolls in over the veil; ready: a punch, a rim flash, a
-  purple ring, one shine, «ДОМОЙ» rolls back; a press during the cooldown shakes it «no»; the
-  first base slides the button column in from the right edge, Back Out, and pops the 🏠); toasts
+  flash orange —, the house fades, «ЖДИ» punches in over the veil; ready: a punch, a rim flash, a
+  purple ring, one shine, «ДОМОЙ» punches back in its clipped caption band; a press during the
+  cooldown shakes it «no»; the first base pops the button in on its own spot (scale 0.3 → 1, Back
+  Out — never the column's Position: the fishing layout reads it) and spins the 🏠 in); toasts
   (sim plates by kind — Sky info, Leaf success, Sun warning, Berry danger, the base colour for the
   base — with the outlined icon overhanging the left end; slide-down + bounce and a 0.5 → 1 pop,
   the icon spins in (−180° → 0, Back Out) once the plate has landed — warning and big news: then
@@ -228,7 +229,10 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   behind the letters) broadcasts are bigger plates that punch in (0.3 → 1.12 → 1) and land with a
   ring in the rarity colour, a rim flash and a gold flash of the headline, in two lines — who
   (Small, never under 14 px) over what (up to Title, the rarity word in capitals), never wider than
-  the column (the headline wraps); someone else's catch never washes the screen (no edge pulse); on
+  the column — 1.25 columns on a touch screen, centred, clear of Home — (the headline wraps only
+  when one line does not fit even at Body — measured per glyph, `UiFx.textWidth`: on the smallest
+  phone the plate stays low, over the avatar's head, not on it); someone else's
+  catch never washes the screen (no edge pulse); on
   phones they wait while the own trophy is held over the head; leaving: rise + fade, ≥ 0.7 s
   apart).
   Someone else's Legendary / Mythic pillar off-screen (behind the camera or past the frame's
@@ -236,12 +240,15 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   the HUD, ≥ 16 px from the edge) — an outlined 🌟 / 🌈 on a round yellow / rainbow sim disc ringed
   in the catcher's base colour, its tip nudging 6 px towards the edge — for the pillar's life;
   gone while the pillar is on screen; on phones hidden during the own bite / minigame / catch (the
-  toast rule). Only the primary CTA idles (its shine); the chrome stays calm.
+  toast rule). Only the primary CTA idles (breath, shine, icon wiggle, the newcomer's «!»); the chrome stays calm.
 - **Fishing UI** (tools/builder/gui/Fishing.luau, FishingController; UI v5: Fishing.luau still calls
   the v3/v4 builder names, which the compat shims of §6.3 now build in the sim look — no studs,
-  side bands or raised studs; the empty stud holders it still makes draw nothing; the fishing
-  waves move it to the sim API and re-tune its looks): the action button is the star —
-  a big round sim button (ActionArea, 0.66 of the HUD height, max 320 x 240) whose
+  side bands or raised studs, no empty stud holders; the fishing waves move it to the sim API and
+  re-tune its looks): the action button is the star — a big round sim disc with the chunky outline
+  and a gloss and an outlined emoji (ActionArea, 0.66 of the HUD height, max 320 x 240); at rest
+  ВЗЯТЬ / ЗАБРОСИТЬ breathe (1.05 every 1.4 s), shine and wiggle their icon with a little bump every
+  2.8–3.6 s, and until the session's first cast a red «!» badge wobbles on the disc's upper left
+  shoulder (the key chip has the right one); the waiting plate sways ±1.5°; the disc's
   colour, icon and caption (on a glass pill overlapping its bottom) change by state (ЗАБРОСИТЬ 🎣 → ЖДИ КЛЁВА… — v3 UIM-09: a muted Pond plate 15 % smaller (its caption pill keeps its width, the caption may drop to the Small tier to stay on one line), no rings (nothing to press), a bobbing float and 1–2 nibbles «?», the first wait of the session explains itself with a hint «Жди, пока клюнет — потом жми!» →
   ПОДСЕЧЬ! «!» → ЛОВИ! 🎯; Slate ⏳ while waiting on the server, КУДА ИДТИ? 🧭 far from the spot — it
   shows the way, never scolds: a calm 💡 hint, the compass turns, the guide beam flares; ВЗЯТЬ
@@ -269,7 +276,7 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   «ОТЛИЧНО!» → «СУПЕР!» → «МЕГА!» or «ИДЕАЛЬНО!» (within 25 % of the zone centre), pip turns into a
   ⭐; on touch the panel itself is a tap pad and a 👆 cue helps the first games; on miss / timeout a
   copy (FxMinigameMiss) blushes, shakes and says «МИМО!» / «ВРЕМЯ!», and is gone before the reason
-  hint springs up. Hint: a glass pill (a warning / danger: an orange / red plate) with the outlined 💡 / ⚠️ / 🚨 overhanging it, up to two lines,
+  hint springs up. Hint: a glass pill with italic text, like the reference's timer pill (a warning / danger: an orange / red plate) with the outlined 💡 / ⚠️ / 🚨 overhanging it, up to two lines,
   as wide as its text (`FishingLayout.hintWidth`; at least 5 × its height), at the bottom centre
   under the fisher's feet (on a phone left of him when it would lie on his feet; v3: no Roblox hotbar — the Backpack CoreGui is off, a custom hotbar
   comes with the shop stage), pops up from a few px below. Info hints (💡) leave after 4 s; «where
@@ -314,7 +321,7 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   bigger over him on the smallest phone; if a huge trophy leaves no room even for that — centred as
   before), the 380 x 384
   square elsewhere — a white display card (the fish in its window on a
-  pedestal plate in the rarity's colour whose rim flashes as the card settles, the banner's rim
+  podium in the rarity's colour — a sim stadium with a lighter top face — whose rim flashes as the card settles, the banner's rim
   flashes as it unrolls, the price chip's when it rises; the price bumps with every number); Legendary 1.05x and Mythic 1.1x
   the size (on phones the free space is the Mythic's), a dim around it (on phones one side band on
   the card's side of the screen that melts away towards the fisher — its UIGradient "Fade"; the
@@ -510,7 +517,7 @@ colours the stage-2 tests check; use `UIConfig.Rarity` / `Mutations` for gradien
   Shadow     (opts.shadow) a soft Ink copy of the shape ShadowY lower, ZIndex z − 1
   Lip        the OUTLINE carrier: a full-size Frame with no fill (BackgroundTransparency 1;
              BackgroundColor3 = the swatch's Lip, kept for readers), UICorner, UIStroke (Border,
-             Round joins, colour = Lip, BaseThickness = Sim.Stroke 6 — compat shapes 4), ZIndex z
+             Round joins, colour = Lip, BaseThickness = Sim.Stroke 6 — compat tiles and chips 4), ZIndex z
              (SZ.Lip 1)
   <Face>     Frame, FULL size, ZIndex z + 1, white + UIGradient "Fill" Top → Bottom (Rotation 90),
              UICorner; glass: BackgroundTransparency Alpha, the outline and the rim transparent
@@ -555,7 +562,7 @@ radii, so in RbxSim read `TopLeftRadius` (or `CandyRadius`), not `CornerRadius`.
 | `Theme.shine(face, radius)` | the hidden Shine overlay on its own |
 | `Theme.rarityGradient(parent, rarityId, rotation?)` | rarity gradient; Mythic gets rainbow stops + attribute `Rainbow = true` (animate with `UiFx.rainbow`) |
 | `Theme.gradient`, `Theme.multiGradient`, `Theme.sequence`, `Theme.numbers`, `Theme.lighten`, `Theme.darken`, `Theme.swatch`, `Theme.corner`, `Theme.stroke(parent, px, transparency?, color?)`, `Theme.outline(parent, px, color?, transparency?)` | small helpers; `stroke` / `outline` carry `BaseThickness` |
-| **compat** (until the fishing waves restyle `gui/Fishing.luau`): `Theme.brick`, `tile`, `roundPlate`, `candyButton`, `pill`, `topStud`, `studRow`, `studScale`, `BZ`, `BRICK` | `brick` / `tile` / `roundPlate` build sim plates with a 4 px outline (the fishing layout's gaps were tuned with it; a dark `tile` becomes glass), `candyButton` → `simButton`, `pill` → `plate`; `topStud` / `studRow` draw NOTHING (a detached empty Frame), `studScale` = 1; `BZ` = `SZ`, `BRICK = { Lip 0, TileLip 0, Radius, TileRadius, CapStop 0 }` |
+| **compat** (until the fishing waves restyle `gui/Fishing.luau`): `Theme.brick`, `tile`, `roundPlate`, `candyButton`, `pill`, `topStud`, `studRow`, `studScale`, `BZ`, `BRICK` | build the sim look: `brick` (panels: the bite alert, the minigame, the rarity banner), `roundPlate` (the action disc, + gloss) and `candyButton` (→ `simButton`: «СМОТАТЬ») get the chunky `Sim.Stroke` 6 — the most important button is the chunkiest, as in the reference; `tile` and `pill` (→ `plate`: chips, the key chip, «НОВИНКА!») the minor 4; `opts.stroke` wins (the zone 3, the catch card 4: its thumbstick gap on the smallest phone); a dark `tile` becomes glass; `topStud` / `studRow` draw NOTHING (a detached empty Frame), `studScale` = 1; `BZ` = `SZ`, `BRICK = { Lip 0, TileLip 0, Radius, TileRadius, CapStop 0 }` |
 
 ### 6.4 UiFx (client, `require(ReplicatedStorage.Shared.UiFx)`)
 
@@ -578,7 +585,7 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `bump(gui, peak?, time?)` | timers | 1.22 → 1 spring (counters, rewards) |
 | `slam(gui, from?, time?)` / `stamp(gui, rotate?, time?)` | timers | 2.2 → 1 + small shake / 3 → 1 with a −16° turn |
 | `pulse(gui, peak?, period?)` → stop | timers | 1 ↔ 1.08, Sine, 0.8 s |
-| `breathe(gui, {peak?, period?, when?})` → stop | timers | one breath 1 → 1.04 → 1 every 1.8 s while visible and at rest |
+| `breathe(gui, {peak?, period?, when?})` → stop | timers | one breath 1 → 1.04 → 1 every 1.8 s while visible and at rest (the action disc: 1.05 every 1.4 s) |
 | `bob(icon, {lift?, every?, hops?, when?})` → stop | timers | the icon hops through its AnchorPoint every 2.2–3.0 s (or `hops` times) |
 | `sway(gui, {angle?, period?})` → stop | timers | ±1.5° rotation loop (one tween) |
 | `wobbleLoop(gui, {angle?, bump?, every?})` → stop | timers | wiggle ±12° + bump 1.12 every 2.8–3.6 s |
@@ -586,6 +593,7 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `staggerPop(items, {from?, gap?, time?, delay?})` | timers | pop a list one after another |
 | `swapText(label, text, {out?, inTime?, lift?})` | timers | the slot-machine roll (a "FxSwap" ghost of the old text) |
 | `flashText(label, color, time?)` | timers | TextColor3 → colour → rest (≥ 0.34 s apart per label) |
+| `textWidth(text, px)` | — | estimated width of Montserrat Heavy text at TextSize `px`, per glyph (capitals ≈ 0.68, small letters ≈ 0.59, digits and Latin narrower, spaces and punctuation ≈ 0.25, emoji ≈ 0.82 of the size): plates sized to their text before it is drawn (toasts) |
 | `ringTimer(gui, duration, {colors?, thickness?, pad?})` → stop | timers | §2 ring timer ("FxRingTimer" with Left / Right halves) |
 | `wiggle(gui, angle?, swings?, time?)` | timers | ±6°, 3 swings, 0.4 s; restarts cleanly, returns to the rest rotation |
 | `shake(gui, amount?, time?)` | timers | Position jitter ±1.5 %; **no effect inside a UIListLayout** (use wiggle there) |

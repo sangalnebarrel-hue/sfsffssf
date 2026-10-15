@@ -520,7 +520,7 @@ Jump, the thumbstick, the hotbar and between widgets), GPU fill per frame and th
 floor. Made for design critique: everything is a PNG (and a text report).
 
 ```sh
-# the standard set: 49 states x phone + desktop (stills, 26 animation sheets each, 13 bursts on
+# the standard set: 50 states x phone + desktop (stills, 27 animation sheets each, 13 bursts on
 # the phone, 2 overviews) + the checks on phone_notch, phone_small and tablet (~10 min on 4 cores)
 python3 tools/preview/gui_render.py --all --out /tmp/ui
 # the timelines (real server, the 3D world under the HUD, beat rulers), phone, ~2.5 min: the catch
@@ -683,10 +683,11 @@ rendered by `--timeline` or by name):
 World + HUD scenarios in `gui_scenarios.luau` (`server = true`, `world = true`, not in `--all`; by
 name): `bite_world` (a real bite: the bobber dives above the «КЛЮЁТ!» plate), `minigame_world` (a
 real Legendary minigame: on a phone the panel stands beside the reeling bobber), `nibble_world`
-(the own bobber's nibble: the dip, ring, drops and «?»), `trophy_chip` (`world = true` only:
-someone else's Legendary pillar on the next pier, off-screen — the broadcast and the 🌟 chip at the
-screen edge on its side; `FishingFxController.OtherTrophy` is fired directly, with the player itself
-as the catcher).
+(the own bobber's nibble: the dip, ring, drops and «?»). `trophy_chip` (`world = true` only, IN
+`--all` since UI v5 so its gap to the Home column is checked on every device): someone else's
+Legendary pillar on the next pier, off-screen — the broadcast and the 🌟 chip at the screen edge on
+its side; `FishingFxController.OtherTrophy` is fired directly, with the player itself as the
+catcher.
 
 Fishing world FX (v3, `server = true`, `world = true`, not in `--all`; by name, with `--bursts`):
 `fx_cast` (wind-up, the tip's whip trail at the release, the flight on a curved line, the landing
