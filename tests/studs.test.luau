@@ -439,7 +439,10 @@ tests["map + template: no coplanar stud overlap left, no layer swapped, few part
 	end
 	local moved = stats.fixMap.raised + stats.fixMap.lowered
 	t.ok(moved > 50 and moved < 400, `map parts moved: {moved}`)
-	t.ok(stats.fixMap.flattened < 30, `map parts flattened: {stats.fixMap.flattened}`)
+	-- (v3 W3: the builders keep their layers 0.06 apart, so no studded paving goes flat — the
+	-- gateway plazas' walks and medallions, the hub's side walks, the pond rims keep their studs)
+	t.ok(stats.fixMap.flattened <= 4, `map parts flattened: {stats.fixMap.flattened}`)
+	t.eq(stats.fixTemplate.flattened, 0, "template parts flattened")
 end
 
 tests["counts: studded parts in the expected band"] = function(t)

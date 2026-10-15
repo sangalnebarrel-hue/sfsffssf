@@ -72,11 +72,13 @@ Rules:
   * **Coplanar tops:** two overlapping up faces closer than 0.05 (`Studs.COPLANAR_EPS`: a phone's
     depth buffer cannot tell them apart from 150+ studs) with different stud grids (or studs on
     flat) shimmer, so the post-pass moves one top 0.06 (`Studs.RAISE`; the smaller up first;
-    never a gameplay part, never onto or past another layer; ~280 parts, 0.06–0.12) or, when
-    there is no room, makes that paving piece a flat SmoothPlastic tile (~15). Builders keep
-    layered decor ≥ 0.06 apart (v3 fix W3: the hub star's square turned 45° is a flat tile 0.06
-    under the other one; every other promenade flag stands 0.1 higher); same-colour aligned grids
-    may stay level.
+    never a gameplay part, never onto or past another layer; ~245 parts, 0.06–0.12) or, when
+    there is no room, makes that paving piece a flat SmoothPlastic tile (none today). Builders
+    keep layered decor ≥ 0.06 apart (v3 fix W3: the hub star's square turned 45° is a flat tile
+    0.06 under the other one; every other promenade flag stands 0.1 higher; the gateway plazas'
+    rings, walks, medallions and compass, the pond rims and the hub's side walks step 0.06; a
+    `disc` of overlapping rects has whole-stud half extents, so its pieces' grids line up);
+    same-colour aligned grids may stay level.
   * **Hero faces on whole studs (v3 fix W4):** the surfaces players stand on and look at — the
     base's lawn (135 × 149) and stripes, decks (platform 40 × 21) and full-length plank strips,
     the ring round the fishing spot (7 × 7 round the 5 × 5 mat: one ring of whole studs; the mat

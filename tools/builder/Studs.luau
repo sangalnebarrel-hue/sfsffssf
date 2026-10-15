@@ -42,8 +42,9 @@
 	until nothing moves (a moved face may meet another one at its new height; passes 2+ only
 	re-test moved faces), at most MAX_PASSES; a pair no move can fix (a paving disc of three
 	pieces squeezed between two layers) is flattened: its studded pieces — with every same-colour
-	piece of that surface — become SmoothPlastic tiles. Typical map: ~170 parts moved 0.06–0.12,
-	a handful flattened. Studs.coplanarPairs(roots) counts what is left (self-check, tests: 0).
+	piece of that surface — become SmoothPlastic tiles. Typical map + template: ~245 parts moved
+	0.06–0.12, none flattened (builders keep their layers 0.06 apart). Studs.coplanarPairs(roots)
+	counts what is left (self-check, tests: 0).
 ]]
 
 local U = require("./Util")
