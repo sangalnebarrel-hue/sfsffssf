@@ -15,14 +15,22 @@
 	толчок от ускорения кончика (инерция): замах — кончик отстаёт, резкая остановка броска или
 	подсечки — хлёст; леска ослабла (поймал / сорвалась) — удочка распрямляется с отскоком.
 
+	В борьбе рыба ещё и хлещет удочку вбок (side — добавочный изгиб в сторону её рывка), у
+	крупной рыбы предел изгиба больше (maxBend). Изгиб не изменился (меньше SKIP рад за кадр:
+	≈0,003 stud у кончика) — C0 не переписываем: долгое ожидание с ровной нагрузкой не пишет
+	ничего.
+
 	Записи только в C0 Weld'ов удочки и CFrame её TipAttachment, у себя на клиенте
 	(не реплицируются; у каждого игрока свой изгиб каждой удочки). restore() возвращает всё как
 	было — ДО того, как удочка уходит в рюкзак (иначе в следующий раз она достанется согнутой).
 
 	API:
 	  FisherRod.attach(tool) -> Rod?         -- nil: не удочка (нет Handle / TipAttachment)
-	  FisherRod.step(rod, dt, load, toward)  -- load — угол нагрузки, рад; toward — точка в мире,
-	                                         -- куда тянет леска (nil — вниз)
+	  FisherRod.step(rod, dt, load, toward, side?, maxBend?)
+	                                         -- load — угол нагрузки, рад; toward — точка в мире,
+	                                         -- куда тянет леска (nil — вниз); side — вектор в
+	                                         -- мире: ещё изгиб в его сторону на его длину, рад;
+	                                         -- maxBend — предел изгиба, рад (MAX_BEND)
 	  FisherRod.bend(rod) -> number          -- текущий изгиб у кончика, рад (0 — прямая)
 	  FisherRod.isSettled(rod) -> boolean    -- прямая и не качается (можно отпускать)
 	  FisherRod.restore(rod)
@@ -34,9 +42,10 @@ local SPRING = 38 -- собственная частота изгиба, рад/
 local DAMPING = 0.18 -- затухание: после хлёста ≈3 видимых качания
 local INERTIA = 0.22 -- сколько ускорение кончика гнёт удочку: при ≈1300 studs/с² (бросок) ≈11°
 local MAX_ACCEL = 2500 -- studs/с²: выше — рывок кадра (телепорт, лаг), не движение
-local MAX_BEND = 0.6 -- рад, у кончика (≈34°)
+local MAX_BEND = 0.6 -- рад, у кончика (≈34°); крупная рыба — больше (step maxBend)
 local SUBSTEP = 1 / 120
 local EPSILON = 0.002 -- рад: изгиб меньше — удочка прямая
+local SKIP = 1e-3 -- рад: изгиб сдвинулся меньше (|Δy| + |Δz|) — C0 не переписываем
 
 type Segment = {
 	weld: Weld,
@@ -58,6 +67,8 @@ export type Rod = {
 	lastTip: Vector3?, -- где был «прямой» кончик в прошлом кадре (для инерции)
 	lastVelocity: Vector3?,
 	bent: boolean, -- C0 / кончик сейчас изменены
+	appliedY: number, -- изгиб, записанный в C0 (by, bz) — пропуск неизменного
+	appliedZ: number,
 }
 
 function FisherRod.attach(tool: Tool): Rod?
@@ -98,6 +109,8 @@ function FisherRod.attach(tool: Tool): Rod?
 		lastTip = nil,
 		lastVelocity = nil,
 		bent = false,
+		appliedY = 0,
+		appliedZ = 0,
 	}
 end
 
@@ -162,7 +175,11 @@ local function apply(rod: Rod)
 		end
 		return
 	end
+	if rod.bent and math.abs(rod.by - rod.appliedY) + math.abs(rod.bz - rod.appliedZ) < SKIP then
+		return -- (C0 зависят только от by и bz: пропуск точный до SKIP)
+	end
 	rod.bent = true
+	rod.appliedY, rod.appliedZ = rod.by, rod.bz
 	local u = Vector3.new(0, rod.by / angle, rod.bz / angle)
 	local axis = Vector3.xAxis:Cross(u)
 	local length = rod.length
@@ -179,7 +196,7 @@ local function apply(rod: Rod)
 end
 
 -- Один кадр: пружина к нагрузке + инерция кончика; пишет C0 и кончик.
-function FisherRod.step(rod: Rod, dt: number, load: number, toward: Vector3?)
+function FisherRod.step(rod: Rod, dt: number, load: number, toward: Vector3?, side: Vector3?, maxBend: number?)
 	if dt <= 0 then
 		return
 	end
@@ -194,6 +211,11 @@ function FisherRod.step(rod: Rod, dt: number, load: number, toward: Vector3?)
 			across = across.Unit
 			ty, tz = across.Y * load, across.Z * load
 		end
+	end
+	if side then
+		local sideways = handleCFrame:VectorToObjectSpace(side)
+		ty += sideways.Y
+		tz += sideways.Z
 	end
 	-- Инерция: ускорение «прямого» кончика поперёк удочки гнёт её в обратную сторону.
 	local tipNow = handleCFrame:PointToWorldSpace(Vector3.new(rod.length, 0, 0))
@@ -228,9 +250,10 @@ function FisherRod.step(rod: Rod, dt: number, load: number, toward: Vector3?)
 		rod.bz += rod.vz * h
 	end
 	local angle = FisherRod.bend(rod)
-	if angle > MAX_BEND then
-		rod.by *= MAX_BEND / angle
-		rod.bz *= MAX_BEND / angle
+	local limit = maxBend or MAX_BEND
+	if angle > limit then
+		rod.by *= limit / angle
+		rod.bz *= limit / angle
 	end
 	apply(rod)
 end

@@ -5301,6 +5301,19 @@ end
 -- Действие игрока: забросить / подсечь / тянуть / закрыть карточку
 --------------------------------------------------------------------------------
 
+-- Своё тело рыбака отвечает на нажатие сразу, не дожидаясь сервера (FisherAnimController.Cue:
+-- "castPress" — замах, "hookPress" — подсечка, в мини-игре "tapHit" / "tapWin" — рывок удочкой
+-- на предсказанное попадание, "tapMiss" — удочка клюнула вниз). Модуль берётся при первом вызове.
+local function fisherCue(name: string)
+	local module = script.Parent and script.Parent:FindFirstChild("FisherAnimController")
+	local ok, anim = pcall(function(): any
+		return if module and module:IsA("ModuleScript") then require(module) :: any else nil
+	end)
+	if ok and anim and type(anim.Cue) == "function" then
+		pcall(anim.Cue, name)
+	end
+end
+
 local function tap(now: number)
 	-- Сервер не примет чаще TapInterval — по своим часам: с запасом TAP_SLACK на разброс сети
 	-- нажатие, отправленное «впритык», не потеряется молча.
@@ -5328,6 +5341,7 @@ local function tap(now: number)
 			local predicted = mg.Hits + 1
 			predictedHit = predicted
 			punchHit(mg, predicted, math.abs(u - mg.ZoneCenter) <= mg.ZoneWidth * PERFECT_SHARE, u, mg.ZoneCenter)
+			fisherCue("tapHit")
 			-- Сервер может молча не засчитать нажатие (раньше TapInterval по его часам, после
 			-- прощённого промаха…): без ответа за MaxLag + 0.2 с предсказание забывается, иначе
 			-- следующее настоящее попадание осталось бы без удара.
@@ -5345,6 +5359,9 @@ local function tap(now: number)
 		then
 			predictedHit = mg.HitsNeeded
 			holdWin(u)
+			fisherCue("tapWin")
+		elseif predictedHit == nil and not FishingRules.IsHit(u, mg.ZoneCenter, mg.ZoneWidth) then
+			fisherCue("tapMiss") -- (промах решит сервер; тело отвечает сразу)
 		end
 	end
 	Net.Event("FishingTap"):FireServer(now - minigameStart)
@@ -5363,18 +5380,6 @@ end
 -- Тап по самой карточке улова: пропустить доли или закрыть (tapCard; действие — см. doAction).
 local function tryCloseCard()
 	tapCard()
-end
-
--- Своё тело рыбака отвечает на нажатие сразу, не дожидаясь сервера (FisherAnimController.Cue:
--- "castPress" — замах, "hookPress" — подсечка). Модуль берётся при первом вызове.
-local function fisherCue(name: string)
-	local module = script.Parent and script.Parent:FindFirstChild("FisherAnimController")
-	local ok, anim = pcall(function(): any
-		return if module and module:IsA("ModuleScript") then require(module) :: any else nil
-	end)
-	if ok and anim and type(anim.Cue) == "function" then
-		pcall(anim.Cue, name)
-	end
 end
 
 -- fromButton: нажатие пришло с самой кнопки (её сжимает UiFx.press); клавиша и тап удочкой

@@ -25,7 +25,8 @@
 	     «Рыба-дракон» ×5!» — база рыбака, мутация и её множитель). Рыба выпрыгивает из воды
 	     у поплавка и летит к рыбаку (это рисуют клиенты, см. атрибут FishFx ниже), а через
 	     LeapTime, когда она долетела, рыба (модель HeldFish в персонаже, атрибуты FishId, Rarity,
-	     Mutation, Kg, Value — для таблички над ней) появляется над головой рыбака на
+	     Mutation, Kg, Value — для таблички над ней; Scale — во сколько раз она крупнее модели,
+	     FishingConfig.HeldScale) появляется над головой рыбака на
 	     FishingRules.HoldFishTime(редкость) секунд (её видят все).
 	  6. Сам заканчивает рыбалку: персонаж умер или исчез ("died"), убрал удочку ("unequipped",
 	     сразу по Tool.Unequipped),
@@ -297,8 +298,22 @@ local function fishModel(fish: FishData): Model?
 	return if model and model:IsA("Model") and model.PrimaryPart then model else nil
 end
 
--- Рыба (копия Assets.Fish.<Id>.<мутация>) над головой рыбака: не закреплена, без массы
--- и столкновений, приварена к голове (Weld с явным C0) — двигается вместе с персонажем.
+-- Во сколько раз рыба над головой крупнее модели (FishingConfig.HeldScale / HeldMaxLength): по
+-- редкости и не длиннее HeldMaxLength studs (так же считает прыжок рыбы у клиентов —
+-- FishingFxController heldScale).
+local function heldScale(fish: FishData, model: Model): number
+	local scale = FishingConfig.HeldScale[fish.Rarity] or 1
+	local _, size = model:GetBoundingBox()
+	local length = math.max(size.X, size.Z)
+	if length > 0 then
+		scale = math.min(scale, FishingConfig.HeldMaxLength / length)
+	end
+	return math.max(scale, 1)
+end
+
+-- Рыба (копия Assets.Fish.<Id>.<мутация>) над головой рыбака: крупнее настоящей (heldScale —
+-- Model:ScaleTo до сварок, атрибут Scale), не закреплена, без массы и столкновений, приварена
+-- к голове (Weld с явным C0) — двигается вместе с персонажем.
 local function holdFish(state: PlayerState, character: Model, fish: FishData)
 	clearHeldFish(state)
 	local head = character:FindFirstChild("Head")
@@ -309,6 +324,10 @@ local function holdFish(state: PlayerState, character: Model, fish: FishData)
 	local model = template:Clone()
 	local body = model.PrimaryPart :: BasePart
 	model.Name = "HeldFish"
+	local scale = heldScale(fish, model)
+	if scale ~= 1 then
+		model:ScaleTo(scale)
+	end
 
 	-- Центр рамки рыбы встаёт над макушкой; оси модели совпадают с осями головы
 	-- (голова рыбы, +X модели, смотрит вправо от персонажа).
@@ -342,6 +361,7 @@ local function holdFish(state: PlayerState, character: Model, fish: FishData)
 	model:SetAttribute("Mutation", fish.Mutation)
 	model:SetAttribute("Kg", fish.Kg)
 	model:SetAttribute("Value", fish.Value)
+	model:SetAttribute("Scale", scale) -- во сколько раз крупнее модели (прыжок рыбы растёт до него)
 	model.Parent = character
 
 	state.HeldFish = model

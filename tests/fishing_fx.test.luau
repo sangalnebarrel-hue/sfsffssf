@@ -8,7 +8,9 @@
 	    "<n>|lost|…"), so clients still see the bobber on the water;
 	  • the caught fish (a client-side copy of Assets.Fish.<Id>.<Mutation>) leaps from the bobber's
 	    water point in an arc and lands exactly where the server's HeldFish appears (LeapTime after
-	    the catch), then disappears; the bobber flies with it and is gone after the leap;
+	    the catch) and at its size (FishingConfig.HeldScale — already bigger than the model out of
+	    the water), then disappears; the bobber flies with it and is gone after the leap;
+	  • v3 [anim-b]: the own bobber is tugged toward the pier by every minigame hit ("Zone");
 	  • the fisher's own client: OwnFishLanded fires once, on the landing frame, at the held fish;
 	    Humanoid.CameraOffset slides right/up while fishing and back once the held fish is gone;
 	  • at the landing: a neon pop, a camera-facing halo; Rare and up: a nameplate (rarity, name,
@@ -379,8 +381,8 @@ tests["catch: FishFx before Idle; the fish leaps from the bobber to exactly wher
 	sim:WaitFor(function()
 		leap = leap or findEffect(fx, fisher, "Leap")
 		if leap and leap.Parent then
-			local box = leap:GetBoundingBox()
-			table.insert(path, { time = sim:Time(), pivot = leap:GetPivot(), center = box.Position })
+			local box, size = leap:GetBoundingBox()
+			table.insert(path, { time = sim:Time(), pivot = leap:GetPivot(), center = box.Position, size = size })
 			for _, d in leap:GetDescendants() do
 				if
 					d:IsA("BasePart") and (not d.Anchored or d.CanCollide or d.CanQuery or d.CanTouch or d.CastShadow)
@@ -414,6 +416,17 @@ tests["catch: FishFx before Idle; the fish leaps from the bobber to exactly wher
 	t.ok(heldAt <= caughtAt + FishingConfig.LeapTime + 3 * FRAME, "…not later")
 	local last = path[#path]
 	t.near(last.pivot, held:GetPivot(), 0.02, "the leap ends exactly where the held fish hangs")
+	-- … and at its size: the held fish is bigger than the model (FishingConfig.HeldScale), the leap
+	-- grows to it (out of the water already bigger than the model)
+	local scale = held:GetAttribute("Scale")
+	t.ok(typeof(scale) == "number" and scale >= FishingConfig.HeldScale.Rare - 1e-3, `held fish Scale {scale}`)
+	local _, heldSize = held:GetBoundingBox()
+	local _, templateSize = template:GetBoundingBox()
+	t.near(last.size, heldSize, 0.05, "the leap ends at the held fish's size")
+	t.ok(
+		first.size.X > templateSize.X * 1.05,
+		`out of the water already bigger than the model ({first.size.X} vs {templateSize.X})`
+	)
 	t.ok(last.time >= heldAt - 1e-9, "the copy disappears only when the held fish is there")
 	t.eq(leap.Parent, nil, "the copy is gone")
 	t.eq(fx.GetBobber(fisher), nil, "the bobber flew in with the fish and is gone")
@@ -998,9 +1011,15 @@ tests["own client: OwnFishLanded fires once, on the landing frame, at the held f
 		COARSE
 	)
 	t.ok(fisher.Character:FindFirstChild("HeldFish"), "still holding the fish")
+	-- (a bigger fish — attribute Scale, FishingConfig.HeldScale — grows up from the head: the camera
+	-- rises by half of that growth more)
+	local heldFish = fisher.Character.HeldFish
+	local heldScale = heldFish:GetAttribute("Scale")
+	t.ok(typeof(heldScale) == "number" and heldScale > 1, `the held fish is bigger than life ({heldScale})`)
+	local _, heldBox = heldFish:GetBoundingBox()
 	t.near(
 		cameraOffset(sim, fisher),
-		TROPHY_CAMERA,
+		TROPHY_CAMERA + Vector3.new(0, 0.5 * heldBox.Y * (1 - 1 / heldScale), 0),
 		0.01,
 		"…and the camera stays aside, a little higher since the card opened (the trophy clears the counter)"
 	)
@@ -1356,9 +1375,12 @@ tests["held fish alive: flops, bobs and wiggles on the watcher's client only; th
 			maxTurn = math.max(maxTurn, angleBetween(seen, body.CFrame))
 			weldMoved = math.max(weldMoved, (weld.C0.Position - serverC0.Position).Magnitude)
 			tailMoved = math.max(tailMoved, angleBetween(tailWeld.C0, tailC0))
-			local y = body.Position.Y + plate.StudsOffsetWorldSpace.Y
+			-- (relative to the head: the fisher himself squats, jumps and pumps with the trophy now)
+			local headY = fisher.Character.Head.Position.Y
+			local y = body.Position.Y + plate.StudsOffsetWorldSpace.Y - headY
+			local bodyY = body.Position.Y - headY
 			plateLo, plateHi = math.min(plateLo, y), math.max(plateHi, y)
-			bodyLo, bodyHi = math.min(bodyLo, body.Position.Y), math.max(bodyHi, body.Position.Y)
+			bodyLo, bodyHi = math.min(bodyLo, bodyY), math.max(bodyHi, bodyY)
 		end, watcher)
 		sim:Run(function()
 			farMoved = math.max(farMoved, (weld.C0.Position - serverC0.Position).Magnitude)
@@ -1601,6 +1623,47 @@ tests["leap: the caught fish flexes its tail and drips water; the drips are gone
 	t.ok(bend > 8, `the tail flexes against the body in the air ({bend}°)`)
 	t.ok(made >= 5 and made <= 12, `water drips off the fish ({made} drops, ≤ 12)`)
 	t.ok(quiet, "drips are anchored, quiet, SmoothPlastic")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["own bobber in the fight: every hit (Zone) tugs it toward the pier"] = function(t)
+	local sim = boot(t)
+	local fisher = addRigged(sim, 1) -- (a rig: the rod tip, where the line pulls, is in the hand)
+	forceFish(sim, "SharkPup") -- two hits: the first one is a Zone
+	ready(sim, fisher)
+	local fx = clientFx(sim, fisher)
+	local mg, startTime = startMinigame(t, sim, fisher)
+	local samples = {}
+	local zoneAt = nil
+	local before = #stateEvents(sim, fisher)
+	local name = playMinigame(sim, fisher, mg, startTime, false, function()
+		sim:Run(function()
+			local bobber = fx.GetBobber(fisher)
+			local root = fisher.Character and fisher.Character:FindFirstChild("HumanoidRootPart")
+			if bobber and root then
+				local d = flat(bobber:GetPivot().Position - root.Position).Magnitude
+				table.insert(samples, { time = sim:Time(), d = d })
+			end
+		end, fisher)
+		local entry = stateEvents(sim, fisher)[before + 1]
+		if not zoneAt and entry and entry.args[1] == "Zone" then
+			zoneAt = entry.time
+		end
+	end)
+	t.eq(name, "Caught")
+	t.ok(zoneAt ~= nil, "the first hit was a Zone")
+	local function at(time: number): number
+		local best = math.huge
+		for _, s in samples do
+			if s.time <= time + 1e-6 then
+				best = s.d
+			end
+		end
+		return best
+	end
+	local zone = zoneAt :: number
+	local at0, after = at(zone), at(zone + 0.3)
+	t.ok(at0 - after > 2.5, `the hit tugs the bobber toward the pier ({at0} → {after} studs)`)
 	sim:AssertNoErrors({ warnings = true })
 end
 

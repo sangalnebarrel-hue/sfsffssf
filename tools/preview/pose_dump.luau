@@ -342,7 +342,10 @@ else
 	local service = sim:Require(sim:Find("ServerScriptService.Services.FishingService"))
 	local rules = sim:Require(sim:Find("ReplicatedStorage.Shared.FishingRules"))
 	local config = sim:Require(sim:Find("ReplicatedStorage.Shared.Config.FishingConfig"))
+	local poses = sim:Require(sim:Find("StarterPlayer.StarterPlayerScripts.Controllers.FisherPoses"))
 	LeapTime = config.LeapTime
+	-- the bite waits long enough for a fidget (FisherPoses.Timing.Fidget) to show
+	config.BiteDelay.Min, config.BiteDelay.Max = 4.5, 4.5
 	local def = rules.GetFish(opts.fish)
 	local value, income = rules.Price(opts.fish, def.MinKg, nil)
 	service.RollFishForTest = function()
@@ -366,6 +369,8 @@ else
 	at(release + 0.1, "throw")
 	at(release + 0.3, "settle")
 	at(release + 1, "waiting")
+	-- first fidget: Wait starts at the landing + Settle, the fidget Fidget.Min later (≈0.35 s in)
+	at(release + config.CastFlightTime + poses.Timing.Settle + poses.Timing.Fidget.Min + 0.3, "wait: fidget")
 	local bite = waitState("Bite", 10)
 	assert(bite, "no bite")
 	at(bite + 0.05, "bite: startle")
@@ -411,8 +416,10 @@ else
 	at(caughtAt + 0.12, "caught: yank")
 	at(caughtAt + 0.5, "caught: look up")
 	at(caughtAt + LeapTime - 0.1, "caught: arms up")
-	at(caughtAt + LeapTime + 0.12, "landed: hop")
+	at(caughtAt + LeapTime + 0.12, "landed: squat")
+	at(caughtAt + LeapTime + 0.38, "landed: jump")
 	at(caughtAt + LeapTime + 0.9, "trophy")
+	at(caughtAt + LeapTime + poses.Timing.Trophy.FirstShow + 0.2, "trophy: show-off")
 	local holdTime = rules.HoldFishTime(def.Rarity)
 	at(caughtAt + LeapTime + holdTime + 0.5, "trophy gone: arms down")
 
@@ -424,7 +431,7 @@ else
 	local lostAt = sim:Time()
 	at(lostAt + 0.3, "lost: slump")
 	at(lostAt + 0.55, "lost: head shake")
-	at(lostAt + 1.6, "lost: recovered")
+	at(lostAt + 2, "lost: recovered")
 
 	-- 3) reeled in without a fish
 	sim:Advance(1.537)

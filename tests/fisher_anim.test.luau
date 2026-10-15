@@ -23,7 +23,13 @@
 	  • LOD: a fisher farther than 150 studs is not touched; nothing per frame (no PreSimulation
 	    connection) when nobody fishes nearby; joints restored exactly afterwards;
 	  • R6 and AnimationConstraint (Avatar Joint Upgrade) rigs; joints replaced mid-session;
-	  • own client: Cue("castPress") winds up at once, an unanswered cast is put down again.
+	  • own client: Cue("castPress") winds up at once, an unanswered cast is put down again;
+	  • v3 cartoon beats: the rod held right of the bobber, the 3/4 side-arm cast holding the
+	    throw until the landing, the Epic+ hop, the landing squat + jump (+ spin for
+	    Legendary / Mythic), the trophy show-off loop synced with a fish kick, the replay
+	    celebration, wait fidgets, predicted tap pulls / miss fumbles, the rod's sideways whip
+	    and bigger Epic+ bend; R6 never shifts the RootJoint; far fishers' layers / pulses stay
+	    bounded; a steady rod bend is not rewritten every frame.
 
 	Run: lune run tools/run_tests.luau fisher_anim
 ]]
@@ -220,6 +226,28 @@ local function rootLocal(player: any, point: any): any
 	return player.Character.HumanoidRootPart.CFrame:PointToObjectSpace(point)
 end
 
+-- Heading of a point seen from the fisher's root (degrees, + = to his right).
+local function heading(player: any, point: any): number
+	local p = rootLocal(player, point)
+	return math.deg(math.atan2(p.X, -p.Z))
+end
+
+-- The rod is held out over the water, to the RIGHT of the bobber (FisherPoses: the bend and the
+-- line read from the camera behind him).
+local function heldOut(t: any, player: any, tip: any, label: string)
+	local p = rootLocal(player, tip)
+	t.ok(
+		math.sqrt(p.X * p.X + p.Z * p.Z) > 3 and p.Z < 0 and p.Y > 2.5,
+		`{label}: rod held out over the water, tip at {p}`
+	)
+	local water = player:GetAttribute("BobberTarget")
+	local tipHeading, waterHeading = heading(player, tip), heading(player, water)
+	t.ok(
+		tipHeading > waterHeading + 10 and tipHeading < waterHeading + 70,
+		`{label}: the rod points right of the bobber ({tipHeading}° vs {waterHeading}°)`
+	)
+end
+
 local tests = {}
 
 --------------------------------------------------------------------------------
@@ -267,8 +295,7 @@ tests["waiting: the watcher poses the fisher locally, the server keeps the Anima
 	local tip = seen(sim, watcher, function()
 		return rod.Handle.TipAttachment.WorldPosition
 	end)
-	local tipLocal = rootLocal(fisher, tip)
-	t.ok(tipLocal.Z < -3 and tipLocal.Y > 2.5, `rod held out over the water, tip at {tipLocal}`)
+	heldOut(t, fisher, tip, "R15")
 	local anim = controller(sim, watcher, "FisherAnimController")
 	t.eq(anim.GetPhase(fisher), "Wait")
 	t.eq(anim.IsAnimating(fisher), true)
@@ -310,13 +337,14 @@ tests["cast: wind-up with the float at the tip, rod whips forward at CastTime, t
 	end
 	local head = fisher.Character.Head
 
-	-- cocked: the tip behind and above the head, the float hangs on it
+	-- cocked (3/4 side-arm): the tip high above the head and out to his right, not over the
+	-- water yet; the float hangs on it
 	sim:WaitFor(function()
 		return sim.workspace:GetServerTimeNow() >= castTime - 0.07
 	end, 1, FRAME)
 	local cocked = tipNow()
 	local cockedLocal = rootLocal(fisher, cocked)
-	t.ok(cockedLocal.Z > 1, `wind-up: the rod tip is behind the fisher ({cockedLocal})`)
+	t.ok(cockedLocal.X > 1 and cockedLocal.Z > -1.5, `wind-up: the rod tip is up and out to the right ({cockedLocal})`)
 	t.ok(cocked.Y > head.Position.Y + 2, "… and high above the head")
 	local bobber = fx.GetBobber(fisher)
 	t.ok(bobber, "the bobber exists during the wind-up")
@@ -325,8 +353,8 @@ tests["cast: wind-up with the float at the tip, rod whips forward at CastTime, t
 		return bobber:GetPivot().Position
 	end)
 	t.ok(
-		(hang - cocked).Magnitude < 2 and rootLocal(fisher, hang).Z > 0.5,
-		`the float hangs at the rod tip behind the fisher during the wind-up ({(hang - cocked).Magnitude})`
+		(hang - cocked).Magnitude < 2 and rootLocal(fisher, hang).Z > -1.5,
+		`the float hangs at the rod tip during the wind-up ({(hang - cocked).Magnitude})`
 	)
 	t.eq(bobber.Root.CastTrail.Enabled, false, "no trail before the float leaves the tip")
 
@@ -341,8 +369,12 @@ tests["cast: wind-up with the float at the tip, rod whips forward at CastTime, t
 	t.ok(table.find(phases, "Release") ~= nil, "PhaseChanged: Release")
 	sim:Advance(0.12)
 	t.ok(rootLocal(fisher, tipNow()).Y < released.Y, "follow-through: the rod goes down toward the water")
-	sim:Advance(0.6)
-	t.eq(anim.GetPhase(fisher), "Wait", "settled into waiting")
+	-- the rod stays low and forward while the float is in the air (until it lands)
+	sim:Advance(FishingConfig.CastFlightTime - 0.25)
+	t.eq(anim.GetPhase(fisher), "Cast", "still following the float in the air")
+	t.ok(rootLocal(fisher, tipNow()).Y < released.Y, "… the rod still low toward the water")
+	sim:Advance(Poses.Timing.Settle + 0.2)
+	t.eq(anim.GetPhase(fisher), "Wait", "settled into waiting after the landing")
 	t.ok(table.find(phases, "Cast") ~= nil and table.find(phases, "Wait") ~= nil)
 	sim:AssertNoErrors({ warnings = true })
 end
@@ -630,8 +662,7 @@ tests["R6 and AnimationConstraint rigs are posed the same way; the AJU frames st
 	local tip6 = seen(sim, watcher, function()
 		return oldRod.Handle.TipAttachment.WorldPosition
 	end)
-	local local6 = rootLocal(old, tip6)
-	t.ok(local6.Z < -3 and local6.Y > 2.5, `R6: rod held out over the water ({local6})`)
+	heldOut(t, old, tip6, "R6")
 	local rootJoint = joint(old, "RootJoint")
 	t.ok(seen(sim, watcher, function()
 		return rootJoint.Transform.Position.Magnitude
@@ -650,7 +681,318 @@ tests["R6 and AnimationConstraint rigs are posed the same way; the AJU frames st
 	local ajuTip = seen(sim, watcher, function()
 		return ajuRod.Handle.TipAttachment.WorldPosition
 	end)
-	t.ok(rootLocal(aju, ajuTip).Z < -3, "AJU: rod out over the water")
+	heldOut(t, aju, ajuTip, "AJU")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- v3 [anim-b]: big cartoon beats readable on a phone
+--------------------------------------------------------------------------------
+
+-- Samples fn() on the watcher's client every frame for `seconds`.
+local function sample(sim: any, who: any, seconds: number, fn: () -> ()): ()
+	local stop = sim:Time() + seconds
+	while sim:Time() < stop do
+		sim:Step(FRAME)
+		seen(sim, who, fn)
+	end
+end
+
+-- Yaw of a joint's Transform, degrees (+ = left).
+local function yawOf(cf: any): number
+	local look = cf.LookVector
+	return math.deg(math.atan2(-look.X, -look.Z))
+end
+
+tests["catch (Legendary): hop at the yank, squat and jump with a spin on landing; the trophy show-off pumps the arms with a fish kick and sweeps the body"] = function(
+	t
+)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1)
+	local watcher = addPlayer(sim, 2)
+	forceFish(sim, "SharkPup")
+	ready(sim, fisher)
+	standBeside(sim, watcher, fisher)
+	local fx = controller(sim, watcher, "FishingFxController")
+	local anim = controller(sim, watcher, "FisherAnimController")
+	local kicks, landedAt = {}, nil
+	sim:Run(function()
+		local real = fx.KickHeldFish
+		fx.KickHeldFish = function(player: any, power: number?): boolean
+			if player == fisher then
+				table.insert(kicks, sim:Time())
+			end
+			return real(player, power)
+		end
+		anim.PhaseChanged:Connect(function(player: any, phase: string)
+			if player == fisher and phase == "Landed" then
+				landedAt = sim:Time()
+			end
+		end)
+	end, watcher)
+
+	sim:FireServer(fisher, "FishingCast")
+	local mg, start = hookFish(t, sim, fisher)
+	t.eq(playMinigame(sim, fisher, mg, start), "Caught")
+	local root, waist = joint(fisher, "Root"), joint(fisher, "Waist")
+	local high, low, turn = -math.huge, math.huge, 0
+	sample(sim, watcher, 0.5, function()
+		high = math.max(high, root.Transform.Position.Y)
+	end)
+	t.ok(high > 0.3, `a hop at the yank (Epic+): the pelvis up {high} studs`)
+	high = -math.huge
+	sim:WaitFor(function()
+		return landedAt ~= nil
+	end, FishingConfig.LeapTime + 1, FRAME)
+	t.ok(landedAt, "the fish landed over the head")
+	sample(sim, watcher, Poses.Timing.Caught.Bounce + 0.3, function()
+		local p = root.Transform.Position
+		high, low = math.max(high, p.Y), math.min(low, p.Y)
+		turn = math.max(turn, math.abs(yawOf(root.Transform)))
+	end)
+	t.ok(low < -0.15, `squats under the fish's weight ({low})`)
+	t.ok(high > 0.4, `… and jumps for joy ({high})`)
+	t.ok(turn > 120, `Legendary: a spin on the spot with the fish ({turn}°)`)
+
+	-- the show-off loop: every ShowEvery s a kick of the fish (FishLife) with the arm pump and a sweep
+	local trophy = Poses.Timing.Trophy
+	local sweep = 0
+	sim:WaitFor(function()
+		return #kicks >= 1
+	end, trophy.FirstShow + 1, FRAME)
+	t.eq(#kicks, 1, "the first show-off after the landing beats")
+	t.near(kicks[1] - landedAt, trophy.FirstShow, 0.15, "… Trophy.FirstShow after the landing")
+	sample(sim, watcher, trophy.ShowSweep, function()
+		sweep = math.max(sweep, math.abs(yawOf(waist.Transform)))
+	end)
+	t.ok(sweep > 8, `the body sweeps the fish left and right ({sweep}°)`)
+	sim:WaitFor(function()
+		return #kicks >= 2
+	end, trophy.ShowEvery + 0.5, FRAME)
+	t.ok(#kicks >= 2 and math.abs(kicks[2] - kicks[1] - trophy.ShowEvery) < 0.1, "again every Trophy.ShowEvery s")
+	t.eq(anim.GetPhase(fisher), "Trophy")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["own replay (TrophyReplayed after the card): a real celebration — squat, jumps, pumps, a sweep"] = function(t)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1)
+	forceFish(sim, "Crucian")
+	ready(sim, fisher)
+	local fx = controller(sim, fisher, "FishingFxController")
+	sim:FireServer(fisher, "FishingCast")
+	local mg, start = hookFish(t, sim, fisher)
+	t.eq(playMinigame(sim, fisher, mg, start), "Caught")
+	sim:Advance(FishingConfig.LeapTime + Poses.Timing.Caught.Bounce + 0.4)
+	t.ok(fisher.Character:FindFirstChild("HeldFish"), "the fish over the head")
+	local root, waist = joint(fisher, "Root"), joint(fisher, "Waist")
+	t.eq(
+		seen(sim, fisher, function()
+			return fx.ReplayOwnTrophy()
+		end),
+		true,
+		"the own trophy replays"
+	)
+	local high, low, sweep = -math.huge, math.huge, 0
+	sample(sim, fisher, Poses.Timing.Celebrate + 0.1, function()
+		local p = root.Transform.Position
+		high, low = math.max(high, p.Y), math.min(low, p.Y)
+		sweep = math.max(sweep, math.abs(yawOf(waist.Transform)))
+	end)
+	t.ok(low < -0.15 and high > 0.4, `squats and jumps ({low} .. {high})`)
+	t.ok(sweep > 8, `sweeps the trophy left and right ({sweep}°)`)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["R6: hops, bounces and the bite startle never move the RootJoint (the legs cannot bend)"] = function(t)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1, "R6")
+	local watcher = addPlayer(sim, 2)
+	forceFish(sim, "SharkPup")
+	ready(sim, fisher)
+	standBeside(sim, watcher, fisher)
+	local rootJoint = joint(fisher, "RootJoint")
+	local worst = 0
+	local function track()
+		worst = math.max(worst, rootJoint.Transform.Position.Magnitude)
+	end
+	sim:FireServer(fisher, "FishingCast")
+	local bite = nextState(sim, fisher, #stateEvents(sim, fisher), 10)
+	t.eq(bite, "Bite")
+	sample(sim, watcher, 0.3, track) -- the startle
+	local count = #stateEvents(sim, fisher)
+	sim:FireServer(fisher, "FishingHook")
+	local name, mg, start = nextState(sim, fisher, count, 1)
+	t.eq(name, "Minigame")
+	t.eq(playMinigame(sim, fisher, mg, start :: number), "Caught")
+	sample(sim, watcher, FishingConfig.LeapTime + Poses.Timing.Caught.Bounce + 1, track)
+	t.ok(worst < 1e-6, `R6 RootJoint never shifted ({worst})`)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["far fishers: their phase layers and pulses never pile up (nobody prunes them per frame)"] = function(t)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1)
+	local watcher = addPlayer(sim, 2)
+	ready(sim, fisher)
+	sim:Teleport(watcher, baseOf(sim, fisher).FishingSpot.Position + Vector3.new(300, 3, 0))
+	local anim = controller(sim, watcher, "FisherAnimController")
+	for _ = 1, 4 do
+		sim:FireServer(fisher, "FishingCast")
+		sim:Advance(FishingConfig.CastWindUp + FishingConfig.CastFlightTime + 0.6)
+		sim:FireServer(fisher, "FishingHook") -- too early: lost
+		sim:Advance(Poses.Timing.Lost.Hold + Poses.Timing.Lost.Recover + FishingConfig.CastCooldown + 0.3)
+	end
+	local debug = seen(sim, watcher, function()
+		return anim.GetDebug(fisher)
+	end)
+	t.eq(anim.IsAnimating(fisher), false, "too far: not animated")
+	t.ok(debug.layers <= 1, `one phase layer at most ({debug.layers})`)
+	t.eq(debug.pulses, 0, "no pulses queued")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["waiting: every few seconds a fidget (shift, rod twitch, glance, foot tap) — the body never stands still"] = function(
+	t
+)
+	local sim = boot(t)
+	local config = sim:Require(sim:Find("ReplicatedStorage.Shared.Config.FishingConfig"))
+	config.BiteDelay.Min, config.BiteDelay.Max = 12, 12
+	local fisher = addPlayer(sim, 1)
+	local watcher = addPlayer(sim, 2)
+	ready(sim, fisher)
+	standBeside(sim, watcher, fisher)
+	local anim = controller(sim, watcher, "FisherAnimController")
+	sim:FireServer(fisher, "FishingCast")
+	sim:Advance(FishingConfig.CastWindUp + FishingConfig.CastFlightTime + Poses.Timing.Settle + 0.2)
+	t.eq(anim.GetPhase(fisher), "Wait")
+	local hip, root, neck = joint(fisher, "RightHip"), joint(fisher, "Root"), joint(fisher, "Neck")
+	local legs, shift, look = 0, 0, 0
+	local neck0 = seen(sim, watcher, function()
+		return neck.Transform
+	end)
+	sample(sim, watcher, 2 * Poses.Timing.Fidget.Max + 0.5, function()
+		legs = math.max(legs, angle(hip.Transform, CFrame.identity))
+		shift = math.max(shift, math.abs(root.Transform.Position.X))
+		look = math.max(look, angle(neck.Transform, neck0))
+	end)
+	local debug = seen(sim, watcher, function()
+		return anim.GetDebug(fisher)
+	end)
+	t.ok(debug.fidgets >= 2, `fidgets while waiting ({debug.fidgets})`)
+	t.ok(legs > 8 or shift > 0.08 or look > 15, `a visible fidget (hip {legs}°, shift {shift}, neck {look}°)`)
+	t.eq(fisher:GetAttribute("FishingState"), "Waiting", "(still waiting for the bite)")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["rod: a steady bend is not rewritten every frame; the fight whips it sideways and bends it further for Epic+"] = function(
+	t
+)
+	local sim = boot(t)
+	local config = sim:Require(sim:Find("ReplicatedStorage.Shared.Config.FishingConfig"))
+	config.BiteDelay.Min, config.BiteDelay.Max = 4, 4
+	local fisher = addPlayer(sim, 1)
+	local watcher = addPlayer(sim, 2)
+	forceFish(sim, "Swordfish") -- Epic
+	local rod = ready(sim, fisher)
+	standBeside(sim, watcher, fisher)
+	local anim = controller(sim, fisher, "FisherAnimController")
+	local weld = nil
+	for _, d in rod:GetDescendants() do
+		if d:IsA("Weld") and d.Name == "Weld" and (weld == nil or d.C0.Position.X > weld.C0.Position.X) then
+			weld = d
+		end
+	end
+	sim:FireServer(fisher, "FishingCast")
+	sim:Advance(FishingConfig.CastWindUp + FishingConfig.CastFlightTime + Poses.Timing.Settle + 0.8)
+	t.eq(anim.GetPhase(fisher), "Wait")
+	-- (on the watcher's client: no nibbles of the own bobber there)
+	local writes, last = 0, seen(sim, watcher, function()
+		return weld.C0
+	end)
+	for _ = 1, 45 do
+		sim:Step(FRAME)
+		local now = seen(sim, watcher, function()
+			return weld.C0
+		end)
+		if now ~= last then
+			writes += 1
+		end
+		last = now
+	end
+	t.ok(writes < 15, `the waiting rod's welds are not rewritten every frame ({writes} of 45)`)
+
+	local mg = hookFish(t, sim, fisher)
+	t.eq(mg.Rarity, "Epic")
+	sim:Advance(0.6)
+	t.eq(anim.GetPhase(fisher), "Reel")
+	local most, sideways = 0, {}
+	sample(sim, fisher, 1, function()
+		most = math.max(most, anim.GetRodBend(fisher))
+		table.insert(sideways, weld.C0.Position)
+	end)
+	t.ok(most > math.rad(36), `an Epic fish bends the rod past the usual limit ({math.deg(most)}°)`)
+	local lo, hi = math.huge, -math.huge
+	for _, p in sideways do
+		lo, hi = math.min(lo, p.Z), math.max(hi, p.Z)
+	end
+	t.ok(hi - lo > 0.15, `the rod whips sideways with the fish ({hi - lo} studs at the tip segment)`)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["own taps: a predicted hit pulls the rod at once (the server's Zone adds no second pull); a miss fumbles"] = function(
+	t
+)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1)
+	forceFish(sim, "SharkPup") -- two hits
+	ready(sim, fisher)
+	local anim = controller(sim, fisher, "FisherAnimController")
+	sim:FireServer(fisher, "FishingCast")
+	local mg, start = hookFish(t, sim, fisher)
+	sim:Advance(0.6)
+	t.eq(anim.GetPhase(fisher), "Reel")
+	local function pulses(): number
+		return seen(sim, fisher, function()
+			return anim.GetDebug(fisher).pulses
+		end)
+	end
+	local shoulder = joint(fisher, "RightShoulder")
+	local before = seen(sim, fisher, function()
+		return shoulder.Transform
+	end)
+	local n0 = pulses()
+	sim:Run(function()
+		anim.Cue("tapMiss")
+	end, fisher)
+	t.eq(pulses(), n0 + 1, "a miss: the fumble pulse")
+	sim:Advance(0.3)
+
+	-- a hit at the needle: the body pulls at the tap (predicted), the server's Zone adds nothing
+	local fr = rules(sim)
+	local moment = math.max(FishingConfig.TapInterval + 0.02, sim:Time() - start + 0.02)
+	while math.abs(fr.Needle(mg.U0, mg.Speed, moment) - mg.ZoneCenter) > mg.ZoneWidth * 0.3 do
+		moment += 0.005
+	end
+	sim:WaitFor(function()
+		return sim:Time() >= start + moment - 1e-9
+	end, 10, FRAME)
+	local n1 = pulses()
+	sim:Run(function()
+		anim.Cue("tapHit")
+	end, fisher)
+	t.eq(pulses(), n1 + 1, "the predicted hit: a rod pull right away")
+	local count = #stateEvents(sim, fisher)
+	sim:FireServer(fisher, "FishingTap", moment)
+	local name = nextState(sim, fisher, count, 0.2)
+	t.eq(name, "Zone", "the server counts the hit")
+	sim:Step(FRAME)
+	t.eq(pulses(), n1 + 1, "… and its Zone does not pull again")
+	sim:Advance(0.05)
+	local pulled = seen(sim, fisher, function()
+		return shoulder.Transform
+	end)
+	t.ok(angle(pulled, before) > 5, "the rod arm moved")
 	sim:AssertNoErrors({ warnings = true })
 end
 

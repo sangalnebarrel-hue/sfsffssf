@@ -17,8 +17,8 @@
 	    поплавка как раз на воде) за FishingConfig.CastFlightTime, кувыркаясь (2 оборота). Время —
 	    от CastTime по workspace:GetServerTimeNow(), поэтому у всех клиентов поплавок летит
 	    одинаково. CastTime — на FishingConfig.CastWindUp позже заброса: до него поплавок висит
-	    на живом кончике удочки и ходит с ней (замах рыбака — FisherAnimController), в CastTime
-	    срывается. Увидели заброс позже, чем за Fx.LaunchGuard до срыва (медленная сеть), —
+	    на живом кончике удочки и ходит с ней (замах рыбака — FisherAnimController; свой у самой
+	    камеры — полупрозрачный, иначе закрыл бы пол-экрана), в CastTime срывается. Увидели заброс позже, чем за Fx.LaunchGuard до срыва (медленная сеть), —
 	    срыв через LaunchGuard, полёт короче, приводнение в то же время. С прямого взмаха
 	    (FisherPoses.Timing.Swing до срыва) кончик удочки чертит белый хлёсткий след (Trail «Whip»
 	    на Handle, гаснет через FX.WhipAfter после срыва); с мига срыва за поплавком — искрящийся
@@ -34,7 +34,8 @@
 	    каждом рывке брызги, на каждом втором — круг; леска провисает и натягивается рывками; над поплавком прыгает и пульсирует «!» (жёлто-оранжевый значок). Свой «!» крупный,
 	    виден сквозь стены, вокруг кружат звёздочки, контур поплавка мигает жёлтым (2,5 Гц);
 	    чужой «!» меньше, без звёздочек, не сквозь стены и не дальше ALERT_OTHER_DISTANCE studs.
-	  • "Reeling" — мечется из стороны в сторону и медленно подтягивается к рыбаку, за ним
+	  • "Reeling" — мечется из стороны в сторону и подтягивается к рыбаку (свой — рывком на
+	    каждое попадание в мини-игре, "Zone"; чужой — медленно, попаданий не видно), за ним
 	    пенный след по воде (Trail «Wake»), брызги и круги; тень рыбы под ним (у своей —
 	    крупнее с редкостью, FX.ShadowScale) мечется в такт и сверкает боком; леска натянута,
 	    дрожит (FishingLine: ≈13 Гц вбок) и пульсирует толщиной и цветом. Подсекли — леска
@@ -47,7 +48,8 @@
 	в FX.CameraOffset (вправо и вверх): рыбак сдвигается левее центра экрана, а поплавок
 	(он падает правее, FishingConfig.CastSide) — правее его головы, не за ней. Когда над
 	головой своя рыба и открылась карточка улова (HUD.Fishing.CatchCard, она прячет сдвиг), —
-	ещё чуть выше (FX.TrophyCamera): после карточки рыба и табличка не задевают счётчик улова.
+	ещё чуть выше (FX.TrophyCamera, и ещё на FX.TrophyLift того, на сколько рыба выросла вверх,
+	атрибут Scale): после карточки рыба и табличка не задевают счётчик улова.
 	Потом камера плавно возвращается. FieldOfView не трогаем (это UiFx.fovPunch), UiFx.cameraShake
 	добавляется поверх.
 
@@ -58,7 +60,9 @@
 	    искрящимся следом цвета редкости летит за LeapTime дугой (выгнутой вбок от камеры,
 	    с зависанием на вершине, обороты кончаются к Fx.LeapSpinEnd — на вершине она боком)
 	    точно туда, где сервер повесит её над головой рыбака (FishingService.holdFish);
-	    поплавок на крючке летит с ней; в прыжке рыба гнётся и бьёт хвостом (FishLife.leapPose),
+	    поплавок на крючке летит с ней; в прыжке рыба гнётся и бьёт хвостом (FishLife.leapPose)
+	    и растёт — из воды уже крупнее настоящей, к концу прыжка как над головой (атрибут Scale
+	    у HeldFish, FishingConfig.HeldScale),
 	    с неё капает вода (≤ 12 капель-шариков, исчезают до передачи). Тень рыбы исчезает (она
 	    теперь в воздухе). В кадр, когда долетела СВОЯ рыба, срабатывает сигнал
 	    OwnFishLanded (карточка улова открывается по нему). Копия исчезает в тот кадр, когда
@@ -141,7 +145,11 @@
 	      rarity: string) — у ДРУГОГО рыбака встал столб света легендарной / мифической рыбы
 	      (basePosition — земля под ним; горит Fx.PillarTimeOther[rarity] с). Своему не приходит.
 	  FishingFxController.TrophyReplayed -- Signal: () — свой трофей «вспыхнул» ещё раз
-	      (ReplayOwnTrophy вернул true); FisherAnimController ещё раз «качает» рыбу руками.
+	      (ReplayOwnTrophy вернул true); FisherAnimController празднует: присел, подпрыгнул,
+	      качает рыбу руками, поворачивается с ней.
+	  FishingFxController.KickHeldFish(player, power?) -> boolean
+	      -- рыба над головой игрока шлёпает хвостом сейчас (FishLife.kick; FisherAnimController —
+	      -- «показ» трофея: рывок руками в тот же кадр). false — она сейчас не живёт.
 	  FishingFxController.GetBobberDip(player) -> number
 	      -- насколько поплавок сейчас притоплен рыбой, 0..1 (рывки поклёвки BiteDip, своя
 	      -- «примерка» Nibble); FisherAnimController дёргает кончик удочки вместе с ним.
@@ -204,6 +212,9 @@ local POP_SIZE, POP_GROW, POP_FADE = 2.4, 0.06, 0.16 -- вспышка-шар н
 -- соседнего пирса (≈240 studs) всё ещё читается (≈120 × 38 px).
 local NAMEPLATE_STUDS, NAMEPLATE_PIXELS = Vector2.new(4, 1.25), Vector2.new(110, 34)
 local TROPHY_PILLAR_TIME = 1.2 -- свой трофей «вспыхивает» после карточки: короткий столб света, с
+-- Прыжок пойманной рыбы: из воды она уже крупнее настоящей — на такую долю пути к размеру над
+-- головой (FishingConfig.HeldScale), и дорастает до него к такой доле прыжка.
+local LEAP_START, LEAP_GROWN = 0.4, 0.8
 -- … на невысоком экране (телефон: ниже стольких px) — без столба и с меньшим ореолом (HALO_TO ×
 -- TROPHY_SHORT_HALO): столб над рыбой вставал бы за счётчиком улова, ореол — его окружал.
 local TROPHY_SHORT_SCREEN, TROPHY_SHORT_HALO = 500, 0.7
@@ -242,8 +253,14 @@ local FX = {
 	CastSpins = 2, -- оборотов поплавка в полёте
 	ReelSwing = 0.9, -- метания при вытаскивании, studs
 	ReelSpeed = 7.5,
-	ReelPull = 0.05, -- доля пути к рыбаку за секунду
+	ReelPull = 0.05, -- доля пути к рыбаку за секунду (чужой поплавок)
 	ReelPullMax = 0.5,
+	-- Свой поплавок подтягивается рывками: каждое попадание в мини-игре ("Zone") — ещё
+	-- (ReelPullMax − ReelCreepMax) / HitsNeeded пути за PullTime с (с перелётом), плюс медленно
+	-- сам (ReelCreep в секунду, не больше ReelCreepMax) — видно, как идёт борьба.
+	ReelCreep = 0.03,
+	ReelCreepMax = 0.12,
+	PullTime = 0.25,
 	LineColor = Color3.fromRGB(245, 245, 235),
 	LineTip = 0.06, -- толщина лески у кончика удочки, studs …
 	LineFloat = 0.18, -- … и у поплавка (он дальше от камеры)
@@ -274,6 +291,9 @@ local FX = {
 	-- рыба и табличка опускаются на ≈13 px и не задевают счётчик улова после карточки.
 	CameraOffset = Vector3.new(2.2, 1, 0),
 	TrophyCamera = Vector3.new(2.2, 1.6, 0),
+	-- … и ещё выше на такую долю того, на сколько рыба над головой выросла вверх (атрибут Scale
+	-- у HeldFish: она растёт от макушки вверх) — крупная рыба и её табличка остаются в кадре.
+	TrophyLift = 0.5,
 	-- v3: удар приземления — «звезда» тонких лучей: сколько, за сколько секунд, во сколько раз
 	-- шире рыбы; свой столб света — позже удара и тоньше.
 	BurstRays = 10,
@@ -385,6 +405,11 @@ type Bobber = {
 	seed: number, -- своя фаза покачивания
 	whipped: boolean, -- след кончика этого заброса уже был
 	rarity: string?, -- своя рыба: редкость из мини-игры (тень крупнее у редкой)
+	hitsNeeded: number?, -- своя мини-игра: сколько попаданий нужно ("Minigame") …
+	hits: number, -- … сколько уже ("Zone")
+	hitAt: number, -- os.clock() последнего попадания
+	pullFrom: number, -- где был поплавок (доля пути) в миг попадания
+	hangFade: number, -- свой поплавок на кончике удочки при замахе у самой камеры — прозрачнее
 	shadow: FishShadow.Shadow?, -- тень рыбы под водой (своя и вблизи)
 	shadowGone: string?, -- тень уходит: "caught" | "lost" | "gone"
 }
@@ -801,7 +826,17 @@ updateCamera = function()
 		local card = fishing and fishing:FindFirstChild("CatchCard")
 		cameraState.trophy = card ~= nil and card:IsA("GuiObject") and card.Visible
 	end
-	local offset = if cameraState.trophy then FX.TrophyCamera else FX.CameraOffset
+	local offset = FX.CameraOffset
+	if cameraState.trophy then
+		local held = character and character:FindFirstChild("HeldFish")
+		local scale = held and held:GetAttribute("Scale")
+		local extra = 0
+		if held and held:IsA("Model") and typeof(scale) == "number" and scale > 1 then
+			local _, box = held:GetBoundingBox()
+			extra = FX.TrophyLift * box.Y * (1 - 1 / scale)
+		end
+		offset = FX.TrophyCamera + Vector3.new(0, extra, 0)
+	end
 	if humanoid ~= cameraHumanoid then
 		local old = cameraHumanoid
 		cameraHumanoid = humanoid
@@ -1455,6 +1490,11 @@ local function createBobber(tracker: Tracker): Bobber?
 		seed = (player.UserId % 97) * 0.37,
 		whipped = false,
 		rarity = nil,
+		hitsNeeded = nil,
+		hits = 0,
+		hitAt = 0,
+		pullFrom = 0,
+		hangFade = 0,
 		shadow = nil,
 		shadowGone = nil,
 	}
@@ -1522,6 +1562,22 @@ local function popPose(bobber: Bobber, now: number): (Vector3, CFrame)
 		CFrame.Angles(0, 0, math.sin(a * math.pi) * 0.6)
 end
 
+-- Сколько пути к рыбаку поплавок прошёл в борьбе (доля): свой — рывками с каждым попаданием
+-- в мини-игре (FX.PullTime с перелётом), чужой (попаданий не видно) — по времени.
+local function reelPull(bobber: Bobber, now: number): number
+	local since = now - bobber.stateSince
+	local needed = bobber.hitsNeeded
+	if not needed or needed <= 0 then
+		return math.min(FX.ReelPullMax, since * FX.ReelPull)
+	end
+	local creep = math.min(FX.ReelCreepMax, since * FX.ReelCreep)
+	local goal = (FX.ReelPullMax - FX.ReelCreepMax) * math.min(bobber.hits / needed, 1)
+	local k = math.clamp((now - bobber.hitAt) / FX.PullTime, 0, 1)
+	local c1 = 1.70158
+	local eased = 1 + (c1 + 1) * (k - 1) ^ 3 + c1 * (k - 1) ^ 2
+	return creep + bobber.pullFrom + (goal - bobber.pullFrom) * eased
+end
+
 -- На воде: покачивание (и «примерка»), поклёвка или вытаскивание. Возвращает позицию и наклон.
 local function waterPose(bobber: Bobber, from: Vector3, now: number): (Vector3, CFrame)
 	local t = now + bobber.seed
@@ -1534,7 +1590,7 @@ local function waterPose(bobber: Bobber, from: Vector3, now: number): (Vector3, 
 	elseif bobber.state == "Reeling" then
 		-- Поплавок развёрнут осью X к рыбаку (пенный след — поперёк метаний) и качается вбок.
 		local toFisher = Vector3.new(from.X, target.Y, from.Z) - target
-		local pull = math.min(FX.ReelPullMax, (now - bobber.stateSince) * FX.ReelPull)
+		local pull = reelPull(bobber, now)
 		local direction = if toFisher.Magnitude > 0.01 then toFisher.Unit else Vector3.xAxis
 		local side = direction:Cross(Vector3.yAxis)
 		local swing = math.sin(t * FX.ReelSpeed) * FX.ReelSwing
@@ -1566,6 +1622,32 @@ local function waterPose(bobber: Bobber, from: Vector3, now: number): (Vector3, 
 		end
 	end
 	return target + Vector3.new(0, bob, 0), tilt
+end
+
+-- Свой поплавок висит на кончике удочки (замах «сбоку», удочка над плечом): у самой камеры он
+-- вышел бы на пол-экрана — ближе HANG_NEAR studs к камере он полупрозрачный (до HANG_FADE у
+-- HANG_CLOSE); сорвался с кончика — снова обычный.
+local HANG_NEAR, HANG_CLOSE, HANG_FADE = 18, 10, 0.6
+local function fadeHanging(bobber: Bobber, hanging: boolean)
+	local fade = 0
+	local camera = Workspace.CurrentCamera
+	if hanging and bobber.own and camera then
+		local away = (camera.CFrame.Position - bobber.position).Magnitude
+		fade = HANG_FADE * math.clamp((HANG_NEAR - away) / (HANG_NEAR - HANG_CLOSE), 0, 1)
+	end
+	if fade == bobber.hangFade or (fade > 0 and math.abs(fade - bobber.hangFade) < 0.03) then
+		return
+	end
+	bobber.hangFade = fade
+	for _, part in bobber.model:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.LocalTransparencyModifier = fade
+		end
+	end
+	local glow = bobber.glow
+	if glow then
+		glow.OutlineTransparency = fade -- (белый контур тает вместе с ним)
+	end
 end
 
 -- Спокойные круги рисуем у своего поплавка и у рыбаков не дальше Fx.AmbientRange.
@@ -1782,6 +1864,7 @@ stepBobber = function(bobber: Bobber, now: number)
 			end
 			lineMode = if bobber.launched then "flight" else "hang"
 			lineAmount = progress
+			fadeHanging(bobber, not bobber.launched)
 		elseif popStart and now - popStart < POP_TIME then
 			bobber.position, tilt = popPose(bobber, now)
 			lineMode = "slack"
@@ -1940,15 +2023,29 @@ local function cloneFish(template: Model, name: string): Model
 	return model
 end
 
--- Где сервер повесит эту рыбу над головой (FishingService.holdFish): центр рамки модели над
--- макушкой с зазором HeldFishGap, оси модели — оси головы. Возвращает положение модели
--- относительно головы, центр рамки относительно pivot модели и размер рамки.
-local function heldPlacement(model: Model, head: BasePart): (CFrame, Vector3, Vector3)
-	local pivot = model:GetPivot()
+-- Где сервер повесит эту рыбу над головой (FishingService.holdFish): центр рамки модели (в scale
+-- раз крупнее — FishingConfig.HeldScale) над макушкой с зазором HeldFishGap, оси модели — оси
+-- головы. center / size — рамка модели в натуральную величину (center — от её pivot).
+local function heldPlacement(head: BasePart, center: Vector3, size: Vector3, scale: number): CFrame
+	local lift = head.Size.Y / 2 + FishingConfig.HeldFishGap + size.Y * scale / 2
+	return CFrame.new(0, lift, 0) * CFrame.new(-center * scale)
+end
+
+-- Рамка модели: центр относительно pivot и размер.
+local function fishBox(model: Model): (Vector3, Vector3)
 	local boxCFrame, boxSize = model:GetBoundingBox()
-	local center = pivot:PointToObjectSpace(boxCFrame.Position)
-	local lift = head.Size.Y / 2 + FishingConfig.HeldFishGap + boxSize.Y / 2
-	return CFrame.new(0, lift, 0) * CFrame.new(-center), center, boxSize
+	return model:GetPivot():PointToObjectSpace(boxCFrame.Position), boxSize
+end
+
+-- Во сколько раз рыба над головой крупнее модели (как FishingService.holdFish: по редкости, не
+-- длиннее HeldMaxLength; пришла HeldFish — её атрибут Scale).
+local function heldScale(rarity: string, size: Vector3): number
+	local scale = FishingConfig.HeldScale[rarity] or 1
+	local length = math.max(size.X, size.Z)
+	if length > 0 then
+		scale = math.min(scale, FishingConfig.HeldMaxLength / length)
+	end
+	return math.max(scale, 1)
 end
 
 -- Точка на воде, откуда выпрыгивает (куда ныряет) рыба: под поплавком, без поплавка — цель
@@ -2632,7 +2729,8 @@ local function hang(u: number): number
 	return u + 0.5 * math.sin(2 * math.pi * u) / (2 * math.pi)
 end
 
--- Рыба «плюхается» над головой: в последние 0,1 с прыжка раздувается до 1,15 и сжимается.
+-- Рыба «плюхается» над головой: в последние 0,1 с прыжка раздувается до 1,15 и сжимается
+-- (множитель к её размеру).
 local function landingSquash(u: number): number
 	if u >= 1 or u < 0.82 then
 		return 1
@@ -2710,7 +2808,12 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 	local model = cloneFish(template, "Leap")
 	local body = model.PrimaryPart :: BasePart
 	local flex = FishLife.leap(model) -- рыба гнётся в прыжке (хвост бьёт), к концу затихает
-	local modelInHead, center, size = heldPlacement(model, head)
+	local center, size = fishBox(model)
+	-- Рыба растёт в полёте: из воды — крупнее настоящей (LEAP_START доля пути к размеру над
+	-- головой), к LEAP_GROWN прыжка — как над головой (FishingConfig.HeldScale) и «плюхается»
+	-- (landingSquash).
+	local target = heldScale(rarity, size)
+	local modelInHead = heldPlacement(head, center, size, target)
 	local effect = newEffect(tracker, nil)
 	effect.priority = 3
 	effect.tag = "leap"
@@ -2727,7 +2830,7 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 	-- Дуга: центр рамки рыбы от воды (нос чуть над водой) до места над головой.
 	local mouth = center + Vector3.new(size.X / 2, 0, 0) -- голова рыбы (+X модели): тут крючок
 	local startCenter = water - Vector3.new(0, size.X * 0.3, 0)
-	local firstEnd = (head.CFrame * modelInHead) * center
+	local firstEnd = (head.CFrame * modelInHead) * (center * target)
 	local height = math.clamp((firstEnd - startCenter).Magnitude * Fx.LeapHeight, Fx.LeapMinHeight, Fx.LeapMaxHeight)
 	-- Дуга выгнута вправо от камеры смотрящего (насколько камера смотрит вдоль прыжка):
 	-- из-за спины рыбака прыжок читается кривой, а не точкой, летящей в объектив.
@@ -2747,6 +2850,11 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 	local hidden: Model? = nil
 	local landedAt: number? = nil
 	local scale = 1
+	local function leapScale(u: number): number
+		local from = 1 + (target - 1) * LEAP_START
+		local grow = math.clamp((u - 0.1) / (LEAP_GROWN - 0.1), 0, 1)
+		return (from + (target - from) * grow * grow * (3 - 2 * grow)) * landingSquash(u)
+	end
 	local lastCenter = startCenter
 	-- Капли воды с рыбы: пачка при выходе из воды, потом по паре, пока она поднимается.
 	local drips = FishLife.drips(folder :: Instance, water.Y)
@@ -2765,7 +2873,7 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 	local function pose(u: number): CFrame
 		local a = hang(u)
 		local endPivot = head.CFrame * modelInHead
-		local position = startCenter:Lerp(endPivot * center, a)
+		local position = startCenter:Lerp(endPivot * (center * target), a)
 			+ Vector3.new(0, height * 4 * a * (1 - a), 0)
 			+ bow * math.sin(math.pi * a)
 		local turn = spin * (1 - math.min(u / Fx.LeapSpinEnd, 1)) ^ 2
@@ -2803,6 +2911,10 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 		end
 	end
 
+	scale = leapScale(0)
+	pcall(function()
+		model:ScaleTo(scale)
+	end)
 	model:PivotTo(pose(0))
 	model.Parent = folder
 	play(whoosh, 1.15)
@@ -2812,9 +2924,17 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 			return false -- рыбак умер или ушёл: прыжок обрывается
 		end
 		local u = math.min((now - start) / FishingConfig.LeapTime, 1)
-		local squash = landingSquash(u)
-		if math.abs(squash - scale) > 1e-3 or (u >= 1 and scale ~= 1) then
-			scale = if u >= 1 then 1 else squash
+		local held = character:FindFirstChild("HeldFish")
+		local fresh: Model? = if held and held ~= oldHeld and held:IsA("Model") then held else nil
+		local exact = fresh and fresh:GetAttribute("Scale")
+		if typeof(exact) == "number" and exact > 0 and math.abs(exact - target) > 1e-3 then
+			target = exact -- сервер повесит рыбу такого размера: к нему и растём
+			modelInHead = heldPlacement(head, center, size, target)
+		end
+		local wanted = if u >= 1 then target else leapScale(u)
+		-- (в полёте — шагами по 2 %, «плюх» и приземление — точно)
+		if math.abs(wanted - scale) > (if u >= 0.8 then 1e-3 else 0.02) then
+			scale = wanted
 			pcall(function()
 				model:ScaleTo(scale)
 			end)
@@ -2837,8 +2957,6 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 			bobber.position = cframe * (mouth * scale)
 			bobber.model:PivotTo(CFrame.new(bobber.position))
 		end
-		local held = character:FindFirstChild("HeldFish")
-		local fresh: Model? = if held and held ~= oldHeld and held:IsA("Model") then held else nil
 		if u < 1 then
 			if fresh and not hidden then
 				hidden = fresh -- серверная рыба пришла раньше — прячем до конца прыжка
@@ -2848,7 +2966,7 @@ local function startLeap(tracker: Tracker, event: FxEvent)
 		end
 		if not landedAt then
 			landedAt = now
-			land(cframe * center) -- своя рыба долетела: в этот кадр — OwnFishLanded
+			land(cframe * (center * scale)) -- своя рыба долетела: в этот кадр — OwnFishLanded
 		end
 		if fresh or now - (landedAt :: number) >= Fx.HandoffWait then
 			endEffect(effect) -- копия исчезает, серверная рыба (если спрятана) показывается
@@ -3301,6 +3419,18 @@ function FishingFxController.ReplayOwnTrophy(): boolean
 	return true
 end
 
+-- Рыба над головой игрока шлёпает хвостом сейчас (FisherAnimController: «показ» трофея — рывок
+-- руками в тот же кадр). false — рыба над головой сейчас не живёт (нет её / далеко).
+function FishingFxController.KickHeldFish(player: Player, power: number?): boolean
+	local tracker = trackers[player]
+	local life = tracker and tracker.life
+	if not life or life.effect.done or life.held.Parent == nil then
+		return false
+	end
+	FishLife.kick(life.life, os.clock(), power)
+	return true
+end
+
 -- Насколько поплавок игрока сейчас притоплен рыбой, 0..1: рывки поклёвки (BiteDip) и своя
 -- «примерка» (Nibble). 0 — не на воде / не клюёт. Для FisherAnimController: кончик удочки
 -- дёргается вместе с поплавком.
@@ -3334,8 +3464,19 @@ function FishingFxController:Start(hud: ScreenGui)
 	Net.Event("FishingState").OnClientEvent:Connect(function(state: any, data: any)
 		local tracker = trackers[Players.LocalPlayer]
 		local bobber = tracker and tracker.bobber
-		if state == "Minigame" and bobber and type(data) == "table" and typeof(data.Rarity) == "string" then
-			bobber.rarity = data.Rarity
+		if not bobber or type(data) ~= "table" then
+			return
+		end
+		if state == "Minigame" then
+			bobber.rarity = if typeof(data.Rarity) == "string" then data.Rarity else bobber.rarity
+			bobber.hitsNeeded = if typeof(data.HitsNeeded) == "number" then data.HitsNeeded else nil
+		elseif state == "Zone" and typeof(data.Hits) == "number" then
+			-- попал: поплавок рывком подтягивается к рыбаку (reelPull)
+			local now = os.clock()
+			local creep = math.min(FX.ReelCreepMax, (now - bobber.stateSince) * FX.ReelCreep)
+			bobber.pullFrom = reelPull(bobber, now) - creep
+			bobber.hits = data.Hits
+			bobber.hitAt = now
 		end
 	end)
 	Players.PlayerAdded:Connect(trackPlayer)
