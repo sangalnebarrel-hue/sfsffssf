@@ -25,12 +25,22 @@
 
 	Scenario fields understood here (besides gui_scenarios.luau's name, desc, run, still, sheet,
 	fresh, settle, standard): burst = true | false | { from, to, fps, roi, margin } (default
-	0..0.8 s @ 30 fps), timeline = { from, to, fps } (full-screen frames for gui_render.py's
-	_timeline composite; always dumped), server = true (a second sim with the REAL
-	FishingService: use h:playCatch), world = true (record the world FX with
-	gui/world_capture.luau), beats / extraBeats (see DEFAULT_BEATS). Harness additions:
-	h:shown(path), h:stateEvents(), h:forceFish(fish), h:playCatch(fish, opts),
-	h:poseLikeBackdrop(), h.world (documented where they are defined).
+	0..0.8 s @ 30 fps), timeline = { from, to, fps, tail? } (full-screen frames for
+	gui_render.py's _timeline composite, always dumped; tail = seconds kept after the last beat,
+	default 0.7), worldView = true | { roi, margin, cell } (also a _world composite of the timeline
+	frames without the HUD: the avatar and the world behind the widgets), xray = false (no x-ray
+	boxes on the timeline), server = true (a second sim with the REAL
+	FishingService: use h:playCatch), world = true (record the whole 3D world with
+	gui/world_capture.luau; every other scenario records the own avatar only), ambient = false
+	(a world scenario without the ambient life), beats / extraBeats (see DEFAULT_BEATS), during
+	= function(h) (keeps playing while the frames are dumped: taps and waits after time 0 —
+	every harness step of it is a step of the frame loop). Harness additions: h:shown(path),
+	h:stateEvents(), h:stateAfter(count, state), h:forceFish(fish), h:playCatch(fish, opts) =
+	h:readyReal(fish) + h:castAndHook(opts) + h:playMinigame(mg, opts), h:fixBiteDelay(s),
+	h:clientModule(name), h:poseLikeBackdrop(), h.world (documented where they are defined).
+	Every player is an R15 rig (RbxSim `rig = "R15"`) on base 1 (BaseConfig.RandomAssignment is
+	switched off: the backdrop is base 1's pier); while a Tool is equipped the Animator stand-in
+	holds the "toolnone" pose (FisherPoses.Hold), like Roblox's Animate script.
 
 	Layout. RbxSim's AbsolutePosition/AbsoluteSize ignore UIScale, rotation and list-layout
 	alignment, so this script lays the GUI out itself, following Roblox rules: UDim2 Size and
@@ -51,11 +61,15 @@
 
 	JSON (one file per device and scenario, version 2):
 	  { version, scenario, desc, device, viewport = {W, H}, touch, inset, safe = {left, right,
-	    bottom}, sheet / burst / timeline = { from, to, fps, roi, margin } | null,
-	    camera = { eye, focus, fov } | null (world scenarios: spot frame, see world_capture),
+	    bottom}, sheet / burst / timeline = { from, to, fps, roi, margin, tail? } | null,
+	    world_view = { roi, margin } | null, xray = bool,
+	    camera = { eye, focus, fov } | null (the capture's base camera: spot frame),
+	    scene = { base, waterY, movers, exclude } | null (world_capture scene()),
 	    beats = { { name, t } } | null, events = { { name, kind, t } } | null,
 	    frames = { { t, still, sheet, burst, timeline, tools = { {name, equipped} },
-	                 objects = { <object>... }, world = { cam, items, marks }? } },
+	                 objects = { <object>... },
+	                 world = { cam, items, solids, movers, marks } (world scenarios)
+	                       | { solids } (the own avatar) } },
 	    errors = {...}, warnings = {...} }
 	  object (only effectively visible GuiObjects, in draw order; px = screen pixels):
 	    path, class, name, z, x, y, w, h (the box before rotation; centre = x + w/2, y + h/2),
@@ -929,11 +943,54 @@ local Harness = {}
 Harness.__index = Harness
 
 -- Every sim step of the harness goes through here (the world capture watches what appears).
+-- Inside a scenario's `during` coroutine the step is handed to the frame loop instead.
 function Harness:simStep(dt: number)
+	if self.yieldSteps and coroutine.running() == self.yieldSteps then
+		coroutine.yield(dt)
+		return
+	end
 	self.sim:Step(dt)
+	self:syncToolPose()
 	if self.world then
 		self.world:observe()
 	end
+end
+
+--[[
+	The Roblox Animate script plays "toolnone" (the right arm forward, the rod ≈35° up) while a
+	Tool is equipped; RbxSim's Animator stand-in plays nothing, so the rod would hang down
+	whenever FisherAnimController lets go of the arm (Hold → Linger → released). Here the
+	stand-in holds FisherPoses.Hold (= toolnone) while a Tool is in the character.
+]]
+function Harness:syncToolPose()
+	local character = self.player.Character
+	if not character then
+		return
+	end
+	local holding = character:FindFirstChildOfClass("Tool") ~= nil
+	if holding == self.toolPose and character == self.poseCharacter then
+		return
+	end
+	self.toolPose, self.poseCharacter = holding, character
+	local pose = nil
+	if holding then
+		local ok, result = pcall(function()
+			local controllers = "StarterPlayer.StarterPlayerScripts.Controllers"
+			local rigModule = self.sim:Require(self.sim:Find(`{controllers}.FisherRig`))
+			local poses = self.sim:Require(self.sim:Find(`{controllers}.FisherPoses`))
+			local rig = rigModule.build(character)
+			local out = {}
+			for channel, a in (poses.Poses.Hold or {}) do
+				local j = rig and rig.joints[channel]
+				if j then
+					out[j.instance.Name] = j.inv * rigModule.rot(a[1], a[2], a[3]) * j.rot
+				end
+			end
+			return out
+		end)
+		pose = if ok then result else nil
+	end
+	self.sim:SetAnimatorPose(self.player, pose)
 end
 
 function Harness:step(dt: number?)
@@ -1166,83 +1223,98 @@ function Harness:forceFish(fish: { [string]: any }): { [string]: any }
 	return data
 end
 
--- The character and the rod where the backdrop's stand-in is (world-FX scenarios), so the
--- line, the cast, the leap and the held fish line up with the drawn avatar.
+-- The character on the own FishingSpot facing the lagoon (world scenarios), where the capture's
+-- camera expects the fisher: the line, the cast, the leap and the held fish are in the frame.
 function Harness:poseLikeBackdrop()
 	if self.world then
 		self.world:pose()
 	end
 end
 
---[[
-	A whole catch with the real server, played like a person: onto the own FishingSpot (posed
-	like the backdrop's stand-in), rod in hand, tap «ЗАБРОСИТЬ», wait for the bite, tap
-	«ПОДСЕЧЬ!» after `opts.reaction` s (0.3), then win the minigame: before each hit wait for
-	the needle to cross the zone at `opts.aim` (-1..1 of the half-width, 0 = the centre) and
-	tap the action button. Returns right after the WINNING tap (make it the scenario's time 0)
-	with the FishData; a miss or a timeout is a warning.
-]]
-function Harness:playCatch(fish: { [string]: any }, opts: { [string]: any }?): { [string]: any }
-	local o = opts or {}
+local ACTION = "HUD.Fishing.ActionArea.ActionButton"
+
+-- The first FishingState `state` after the first `count` events, or nil.
+function Harness:stateAfter(count: number, state: string): any
+	for i, e in self:stateEvents() do
+		if i > count and e.state == state then
+			return e
+		end
+	end
+	return nil
+end
+
+-- Real-server play, step 1: every roll gives `fish`; onto the own FishingSpot (posed for the
+-- camera), rod in hand, 0.4 s to settle. Returns the FishData.
+function Harness:readyReal(fish: { [string]: any }): { [string]: any }
 	local data = self:forceFish(fish)
 	self:standAtSpot()
 	self:equipRod()
 	self:poseLikeBackdrop()
 	self:advance(0.4)
-	local action = "HUD.Fishing.ActionArea.ActionButton"
-	local function after(count: number, state: string): any
-		for i, e in self:stateEvents() do
-			if i > count and e.state == state then
-				return e
-			end
-		end
-		return nil
-	end
+	return data
+end
+
+-- Step 2: tap «ЗАБРОСИТЬ», wait for the bite, tap «ПОДСЕЧЬ!» after `opts.reaction` s (0.3).
+-- Returns the "Minigame" event { time, state, data } (nil + a warning if it did not come).
+function Harness:castAndHook(opts: { [string]: any }?): any
+	local o = opts or {}
 	local count = #self:stateEvents()
-	self:click(action)
+	self:click(ACTION)
 	local bite = self:waitFor(function()
-		return after(count, "Bite")
+		return self:stateAfter(count, "Bite")
 	end, 15)
 	if not bite then
 		self:warn("playCatch: no bite")
-		return data
+		return nil
 	end
 	self:advance(o.reaction or 0.3)
 	count = #self:stateEvents()
-	self:click(action)
+	self:click(ACTION)
 	local mg = self:waitFor(function()
-		return after(count, "Minigame")
+		return self:stateAfter(count, "Minigame")
 	end, 2)
 	if not mg then
 		self:warn("playCatch: the hook did not start the minigame")
-		return data
 	end
+	return mg
+end
+
+-- Step 3: win the minigame `mg` — before each hit wait for the needle to cross the zone at
+-- `opts.aim` (-1..1 of the half-width, 0 = the centre) and tap. With `opts.miss` the first tap
+-- is made where the needle is well OUTSIDE the zone (a lost fish), not before `opts.after` s
+-- of the minigame. Returns right after the winning (or missing) tap.
+function Harness:playMinigame(mg: any, opts: { [string]: any }?)
+	local o = opts or {}
 	local rules = self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.FishingRules"))
 	local cfg = mg.data
 	local center = cfg.ZoneCenter
 	local hits = cfg.Hits or 0
-	local earliest = mg.time + 0.4
+	local earliest = mg.time + math.max(0.4, o.after or 0)
 	while hits < cfg.HitsNeeded do
 		local from = math.max(self.sim:Time(), earliest) - mg.time
 		local goal = center + (o.aim or 0) * cfg.ZoneWidth / 2
 		local target = nil
 		for k = 0, 240 * 8 do
 			local t = from + k / 240
-			if math.abs(rules.Needle(cfg.U0, cfg.Speed, t) - goal) < 0.012 then
+			local needle = rules.Needle(cfg.U0, cfg.Speed, t)
+			local ok = if o.miss
+				then math.abs(needle - center) > cfg.ZoneWidth * 1.2
+				else math.abs(needle - goal) < 0.012
+			if ok then
 				target = t
 				break
 			end
 		end
 		if not target then
 			self:warn("playCatch: the needle never reaches the zone")
-			return data
+			return
 		end
 		self:advance(math.max(0, mg.time + target - self.sim:Time() - FRAME / 2))
 		hits += 1
-		count = #self:stateEvents()
-		self:click(action)
-		if hits >= cfg.HitsNeeded then
-			return data
+		local count = #self:stateEvents()
+		self:click(ACTION)
+		if hits >= cfg.HitsNeeded or o.miss then
+			return
 		end
 		local reply = self:waitFor(function()
 			local events = self:stateEvents()
@@ -1250,12 +1322,59 @@ function Harness:playCatch(fish: { [string]: any }, opts: { [string]: any }?): {
 		end, 1)
 		if not reply or reply.state ~= "Zone" then
 			self:warn(`playCatch: tap {hits} was not a hit ({reply and reply.state or "no answer"})`)
-			return data
+			return
 		end
 		center = reply.data.ZoneCenter
 		earliest = self.sim:Time() + 0.3
 	end
+end
+
+--[[
+	A whole catch with the real server, played like a person: readyReal (onto the own
+	FishingSpot, rod in hand), castAndHook (tap «ЗАБРОСИТЬ», wait for the bite, tap «ПОДСЕЧЬ!»
+	after `opts.reaction` s), playMinigame (`opts.aim`, `opts.miss`, `opts.after`). Returns right
+	after the WINNING tap (make it the scenario's time 0) with the FishData; a miss or a
+	timeout is a warning.
+]]
+function Harness:playCatch(fish: { [string]: any }, opts: { [string]: any }?): { [string]: any }
+	local data = self:readyReal(fish)
+	local mg = self:castAndHook(opts)
+	if mg then
+		self:playMinigame(mg, opts)
+	end
 	return data
+end
+
+-- The bite comes `seconds` after the bobber lands (FishingConfig.BiteDelay on the server, for
+-- timelines of a fixed length); gui_dump restores it after the scenario.
+function Harness:fixBiteDelay(seconds: number)
+	local cfg = self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.Config.FishingConfig"))
+	if not self.biteDelaySaved then
+		self.biteDelaySaved = { cfg.BiteDelay.Min, cfg.BiteDelay.Max }
+	end
+	cfg.BiteDelay.Min, cfg.BiteDelay.Max = seconds, seconds
+end
+
+function Harness:restoreBiteDelay()
+	local saved = self.biteDelaySaved
+	if saved then
+		local cfg = self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.Config.FishingConfig"))
+		cfg.BiteDelay.Min, cfg.BiteDelay.Max = saved[1], saved[2]
+		self.biteDelaySaved = nil
+	end
+end
+
+-- The local player's own client controller module (FishingFxController, AmbientController …).
+function Harness:clientModule(name: string): any?
+	local scripts = self.player:FindFirstChildOfClass("PlayerScripts")
+	local module = scripts and self.sim:Find(`Controllers.{name}`, scripts)
+	if not module then
+		return nil
+	end
+	local ok, result = pcall(function()
+		return self.sim:Require(module, self.player)
+	end)
+	return if ok then result else nil
 end
 
 -- The GuiObject at `path` is on screen: Visible up the chain, its ScreenGui enabled, not
@@ -1526,6 +1645,130 @@ local BUILTIN = {
 		{ Id = "DragonFish", Mutation = "Rainbow" },
 		9
 	),
+	-- v3 [preview]: what a player sees in the 3D world around the HUD — the real posed avatar,
+	-- the bent rod, the line from its tip, the held fish's flop, the shadow, ambient life.
+	{
+		name = "fishing_timeline",
+		desc = "A whole real catch with the avatar (Epic Рыба-меч), from the tap «ЗАБРОСИТЬ»: wind-up and throw, the wait, the bite, the strike, the fight with the bent rod and the taut line, the winning tap, the leap, both arms up with the fish, the card",
+		server = true,
+		world = true,
+		standard = false,
+		still = { 0.25, 4.6 },
+		timeline = { from = 0, to = 9.5, fps = 4 },
+		worldView = { roi = { { frac = { 0.17, 0.06, 0.87, 0.94 } } } }, -- the fisher, rod, line, bobber
+		burst = false,
+		extraBeats = {
+			{
+				-- the release: the bobber leaves the tip at CastTime (FisherAnimController "Release")
+				name = "throw",
+				fn = function(h: any): boolean
+					local castTime = h.player:GetAttribute("CastTime")
+					return typeof(castTime) == "number" and h.sim:Time() >= castTime - 1e-3
+				end,
+			},
+			{ name = "waiting", state = "Waiting" },
+			{ name = "minigame", state = "Minigame" },
+		},
+		run = function(h: any)
+			h:fixBiteDelay(2.6)
+			h:readyReal({ Id = "Swordfish" })
+		end,
+		during = function(h: any)
+			local mg = h:castAndHook()
+			if mg then
+				h:playMinigame(mg, { after = 0.9 })
+			end
+		end,
+	},
+	{
+		name = "trophy_hold",
+		desc = "After the card: the Legendary trophy over the head — it bobs and flops (FishLife), the nameplate beside it, both arms hold it up",
+		server = true,
+		world = true,
+		standard = false,
+		still = { 0.3, 1.5 },
+		timeline = { from = 0, to = 3.2, fps = 5, roi = { { frac = { 0.25, 0.1, 0.78, 0.82 } } } },
+		xray = false,
+		burst = false,
+		beats = { { name = "held gone", event = "HeldFish", kind = "disappear" } },
+		run = function(h: any)
+			h:playCatch({ Id = "SharkPup" })
+			h:waitVisible("HUD.Fishing.CatchCard", 4)
+			h:waitFor(function()
+				return not h:shown("HUD.Fishing.CatchCard")
+			end, 12)
+			h:advance(0.4)
+		end,
+	},
+	{
+		name = "lost_fish",
+		desc = "A lost fish: the Rare fight goes on, then a tap outside the zone — «МИМО!», the line flashes red and goes slack, the shadow flees, the fisher slumps and shakes his head",
+		server = true,
+		world = true,
+		standard = false,
+		still = { 0.5, 1.4 },
+		timeline = { from = 0, to = 3.4, fps = 8, tail = 2.2 }, -- (the slump and head shake after the miss)
+		worldView = { roi = { { frac = { 0.17, 0.1, 0.87, 0.94 } } } }, -- the panel hides the fisher
+		burst = false,
+		run = function(h: any)
+			h:readyReal({ Id = "Puffer" })
+			h.minigame = h:castAndHook()
+		end,
+		during = function(h: any)
+			if h.minigame then
+				h:playMinigame(h.minigame, { miss = true, after = 0.7 })
+			end
+		end,
+	},
+	{
+		name = "ambient_pier",
+		desc = "The living world from the pier tip, nothing else happening: a fish jumps, the pier gull swoops, schools under the surface, dragonflies, foam rings, swaying flags, the turning windmill",
+		world = true,
+		standard = false,
+		still = { 2.0 },
+		timeline = { from = 0, to = 6, fps = 4, tail = 6 },
+		worldView = { cell = 700 }, -- (the same frames without the HUD: all the water in view)
+		xray = false,
+		burst = false,
+		beats = {
+			{
+				name = "jump",
+				fn = function(h: any): boolean
+					local ambient = h:clientModule("AmbientController")
+					return ambient ~= nil and ambient.Water.jumping ~= nil and ambient.Water.jumping ~= false
+				end,
+			},
+			{
+				name = "swoop",
+				fn = function(h: any): boolean
+					local ambient = h:clientModule("AmbientController")
+					return ambient ~= nil and ambient.Critters.swooping == true
+				end,
+			},
+		},
+		run = function(h: any)
+			h:standAtSpot()
+			h:equipRod()
+			h:poseLikeBackdrop()
+			h:advance(2.5) -- the rod in hand, the Ready / Hold motion settled
+			local ambient = h:clientModule("AmbientController")
+			if ambient then
+				h.sim:Run(function()
+					ambient.SwoopSoon()
+				end, h.player)
+			end
+		end,
+		during = function(h: any)
+			h:advance(1.2)
+			local ambient = h:clientModule("AmbientController")
+			if ambient then
+				h.sim:Run(function()
+					ambient.JumpSoon()
+				end, h.player)
+			end
+			h:advance(6)
+		end,
+	},
 }
 
 --------------------------------------------------------------------------------
@@ -1749,6 +1992,13 @@ local function main()
 		if fishingService and not real then
 			fishingService.Source = "return {}"
 		end
+		-- Every scenario's player gets base 1 (one player at a time): the backdrop IS base 1's
+		-- pier, and the world capture's movers / exclusion list are base 1's surroundings.
+		local baseConfig = sim:Find("ReplicatedStorage.Shared.Config.BaseConfig")
+		if baseConfig then
+			baseConfig.Source =
+				string.gsub(baseConfig.Source, "RandomAssignment%s*=%s*true", "RandomAssignment = false")
+		end
 		if next(fishByTitle) == nil then
 			local fishRoot = sim:Find("ReplicatedStorage.Assets.Fish")
 			if fishRoot then
@@ -1784,6 +2034,7 @@ local function main()
 			DisplayName = "Рыбак",
 			device = device.sim,
 			viewport = roblox.Vector2.new(vw, vh),
+			rig = "R15", -- FisherAnimController poses it; the world capture draws it
 		})
 		previous[sim] = player
 		if insets then
@@ -1815,24 +2066,33 @@ local function main()
 			end, 5)
 		end
 
+		-- The world capture: everything for `world = true`, else only the own avatar (drawn on
+		-- the FishingSpot at the default camera; see gui/world_capture.luau).
 		local capture = nil
-		if s.world then
-			local spot, base = h:spot(), h:base()
-			if spot and base then
-				capture = WorldCapture.new({
-					sim = sim,
-					player = player,
-					W = vw,
-					H = vh,
-					spot = spot,
-					look = base:GetPivot().LookVector,
-					dumpTree = dumpTree,
-					fishByTitle = fishByTitle,
-				})
-				h.world = capture
+		local spot, base = h:spot(), h:base()
+		if spot and base then
+			local ok, made = pcall(WorldCapture.new, {
+				sim = sim,
+				player = player,
+				W = vw,
+				H = vh,
+				spot = spot,
+				look = base:GetPivot().LookVector,
+				dumpTree = dumpTree,
+				fishByTitle = fishByTitle,
+				mode = if s.world then "world" else "avatar",
+				ambient = s.ambient ~= false,
+			})
+			if ok then
+				capture = made
+				if s.world then
+					h.world = capture
+				end
 			else
-				h:warn("world = true, but the player has no base / FishingSpot: no world capture")
+				h:warn(`world capture failed to start: {made}`)
 			end
+		elseif s.world then
+			h:warn("world = true, but the player has no base / FishingSpot: no world capture")
 		end
 
 		local stills = if opts.stills then stillTimes(s, opts) else {}
@@ -1884,15 +2144,42 @@ local function main()
 		if capture then
 			pcall(capture.begin, capture)
 		end
+		-- `during`: the scenario keeps playing (taps, waits) while the frames are dumped — a
+		-- coroutine whose every harness step (h:advance, h:click, h:waitFor …) is a step of
+		-- this loop (see Harness:simStep).
+		local during = nil
+		if s.during then
+			during = coroutine.create(function()
+				s.during(h)
+			end)
+			h.yieldSteps = during
+		end
+		local pending = 0 -- seconds the `during` coroutine still waits for
 
 		local playerGui = sim:Unwrap(player:FindFirstChildOfClass("PlayerGui"))
 		local frames = {}
 		local now = 0
 		local function stepTo(target: number)
 			while now < target - 1e-6 do
+				if during and pending <= 1e-9 then
+					local ok, request = coroutine.resume(during)
+					if not ok then
+						h:warn(`during failed: {request}`)
+						during = nil
+					elseif coroutine.status(during) == "dead" then
+						during = nil
+					else
+						pending = tonumber(request) or FRAME
+					end
+				end
 				local dt = math.min(FRAME, target - now)
+				if pending > 1e-9 then
+					dt = math.min(dt, pending)
+				end
 				sim:Step(dt)
 				now += dt
+				pending = math.max(0, pending - dt)
+				h:syncToolPose()
 				if capture then
 					local ok, err = pcall(capture.step, capture, dt)
 					if not ok then
@@ -1920,6 +2207,24 @@ local function main()
 				tools = toolsOf(player),
 				objects = objects,
 			}
+			if not capture and not s.world then
+				-- (a fresh player gets the base during the scenario: the avatar from then on)
+				local spotNow, baseNow = h:spot(), h:base()
+				if spotNow and baseNow then
+					local ok, made = pcall(WorldCapture.new, {
+						sim = sim,
+						player = player,
+						W = vw,
+						H = vh,
+						spot = spotNow,
+						look = baseNow:GetPivot().LookVector,
+						dumpTree = dumpTree,
+						fishByTitle = fishByTitle,
+						mode = "avatar",
+					})
+					capture = if ok then made else nil
+				end
+			end
 			if capture then
 				local ok, world = pcall(capture.frame, capture)
 				if ok then
@@ -1927,6 +2232,8 @@ local function main()
 				else
 					h:warn(`world frame failed: {world}`)
 				end
+			elseif not s.world then
+				frame.world = { solids = {} } -- no avatar yet: the backdrop without the stand-in
 			end
 			table.insert(frames, frame)
 		end
@@ -1934,6 +2241,8 @@ local function main()
 			-- a little past the last frame, so a beat right at the end still lands
 			stepTo(now + 0.1)
 		end
+		h.yieldSteps = nil
+		h:restoreBiteDelay() -- (the real sim is shared by the next server scenarios)
 
 		local errors = {}
 		for _, e in sim.Errors do
@@ -1956,7 +2265,13 @@ local function main()
 				fps = spec.fps,
 				roi = spec.roi or {},
 				margin = spec.margin or 0.04,
+				tail = spec.tail,
 			}
+		end
+		local worldView = nil
+		if s.worldView then
+			local spec = if type(s.worldView) == "table" then s.worldView else {}
+			worldView = { roi = spec.roi or {}, margin = spec.margin or 0, cell = spec.cell }
 		end
 		writeJson(`{outDir}/{s.name}.json`, {
 			version = 2,
@@ -1970,7 +2285,10 @@ local function main()
 			sheet = window(sheet),
 			burst = window(burst),
 			timeline = window(timeline),
+			world_view = worldView,
+			xray = s.xray ~= false,
 			camera = if capture then capture:camera() else nil,
+			scene = if capture then capture:scene() else nil,
 			beats = if beats then beats:result() else nil,
 			events = if capture then capture:eventList() else nil,
 			frames = frames,

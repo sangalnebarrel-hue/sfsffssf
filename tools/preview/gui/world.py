@@ -1,17 +1,21 @@
-"""World FX of a dumped frame, drawn over the backdrop and under the HUD (RND-01).
+"""The 2D world items of a dumped frame, drawn over the backdrop and the solids and under the
+HUD (RND-01).
 
-gui/world_capture.luau records the client's FX in RbxSim and projects them with the
-backdrop's camera; every item is already in screen px of the device. Items (frame["world"]
-["items"]), drawn far to near by their view depth `d`:
+gui/world_capture.luau records the client's world in RbxSim; the parts (the avatar, the rod,
+fish, FX parts, ambient life) are solids drawn in 3D by gui/solids.py first. Everything else is
+an item here, already projected with the backdrop's camera into screen px of the device
+(frame["world"]["items"]), drawn far to near by their view depth `d` and hidden behind the
+scene and the solids (Occluder):
 
-  poly     {pts, c, a, neon}           a lit part face / cylinder hull; Neon glows
-  circle   {x, y, r, c, a, neon}       a Ball part
   ribbon   {l, r, c[], a[], e}         a Beam or a Trail: left / right edge per sample
   dots     {p: [x, y, size, r, g, b, a], shape, e}   simulated ParticleEmitter particles
-  fish     {fish, mutation, x, y, len, ang, box}     a fish model: docs/gear sprite
   gui      {objects}                   a BillboardGui laid out on screen (HUD objects)
   surface  {objects, size, quad}       a SurfaceGui: its canvas warped onto the face quad
   glow     {x, y, r, c, a}             a PointLight
+and, in dumps from before the solids (still drawn):
+  poly     {pts, c, a, neon}           a lit part face / cylinder hull; Neon glows
+  circle   {x, y, r, c, a, neon}       a Ball part
+  fish     {fish, mutation, x, y, len, ang, box}     a fish model: docs/gear sprite
 
 frame["world"]["marks"] = [{name, box, path?, hidden?}] are the x-ray annotations: drawn over
 the HUD (dashed boxes, the leap arc) on timeline frames, and measured against the HUD's
@@ -33,10 +37,10 @@ COVER_ALPHA = 0.6  # HUD opacity from which a world pixel counts as hidden
 
 
 class Occluder:
-    """The backdrop's opaque depth (gui/backdrop.py): an item pixel is hidden where the scene
-    (the stand-in avatar, the pier, the map) is nearer than the item's NEAREST point `dn` by a
-    margin — conservative, so rings on the deck and splashes on the water are never cut;
-    water itself does not occlude."""
+    """The opaque depth of the backdrop (gui/backdrop.py) merged with the frame's solids
+    (gui/solids.py: the avatar, the rod, fish, FX parts, movers): an item pixel is hidden where
+    the scene is nearer than the item's NEAREST point `dn` by a margin — conservative, so rings
+    on the deck and splashes on the water are never cut; water itself does not occlude."""
 
     def __init__(self, depth, ss, origin):
         self.depth, self.ss, self.origin = depth, ss, origin

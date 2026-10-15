@@ -2,11 +2,12 @@
 """GUI preview renderer: draws HUD dumps (tools/preview/gui_dump.luau) as a player sees them.
 
   # the whole standard set (phone + desktop stills and animation sheets, 30 fps bursts on the
-  # phone, overviews) plus the layout-safety / fill / text checks on 5 devices, ~6.5 min
+  # phone, overviews) plus the layout-safety / fill / text checks on 5 devices, ~10 min
   python3 tools/preview/gui_render.py --all --out /tmp/ui
   # some scenarios on some devices (dumps them first)
   python3 tools/preview/gui_render.py --scenario bite,catch_mythic --devices phone --sheets --out /tmp/ui
-  # the catch timelines: a real catch with the world FX under the HUD, a beat ruler per frame
+  # the timelines: real sessions with the 3D world (the posed avatar, FX, ambient life) under
+  # the HUD, a beat ruler per frame (catches, fishing_timeline, trophy_hold, lost_fish, ambient_pier)
   python3 tools/preview/gui_render.py --timeline --out /tmp/ui
   # existing dumps
   python3 tools/preview/gui_render.py /tmp/ui/json/phone/bite.json --out /tmp/ui
@@ -15,13 +16,15 @@
 
 Output (in --out): <device>/<scenario>.png (the still; several stills: <scenario>@<t>.png),
 <device>/<scenario>_sheet.png (animation contact sheet), <device>/<scenario>_burst.png (the
-first 0.8 s at 30 fps), <device>/<scenario>_timeline.png (catch timelines), <device>/
+first 0.8 s at 30 fps), <device>/<scenario>_timeline.png (timelines), <scenario>_world.png
+(the timeline without the HUD), <scenario>_motion.png (what moved, still camera), <device>/
 <scenario>_layout.png (a still with its layout-safety findings drawn), overview_<device>.png,
 checks.txt / checks.json (fill per frame, layout safety, text floor), json/<device>/
 <scenario>.json (the dumps). Full documentation: tools/preview/README.md, "GUI previews".
 """
 
 import argparse
+import copy
 import json
 import math
 import multiprocessing
@@ -34,11 +37,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 
-from PIL import Image, ImageDraw  # noqa: E402
+import numpy as np  # noqa: E402
+from PIL import Image, ImageDraw, ImageFilter  # noqa: E402
 
 from gui import backdrop as B  # noqa: E402
 from gui import checks as C  # noqa: E402
 from gui import paint as P  # noqa: E402
+from gui import solids as S  # noqa: E402
 from gui import text as T  # noqa: E402
 from gui import world as WD  # noqa: E402
 
@@ -85,6 +90,7 @@ def as_list(v):
 # ---------------------------------------------------------------------------------------
 
 _bg_cache = {}
+_ctx_cache = {}
 
 
 def frame_camera(dump, frame):
@@ -92,12 +98,35 @@ def frame_camera(dump, frame):
     return w.get("cam") or dump.get("camera")
 
 
-def get_backdrop(W, H, opts, cam=None):
-    """(image, depth or None) of the backdrop for a camera (see gui/backdrop.py)."""
-    key = (W, H, opts.bg, opts.place, B.camera_key(cam))
+def backdrop_variant(dump, frame):
+    """(avatar, exclude) of a frame's backdrop: a frame with solids draws the real avatar (and,
+    in world dumps, the movers) itself — the backdrop leaves them out; older dumps get the
+    blocky stand-in."""
+    w = frame.get("world")
+    if not w or "solids" not in w:
+        return True, None
+    scene = dump.get("scene") or {}
+    exclude = as_list(scene.get("exclude")) if isinstance(scene, dict) else []
+    return False, (exclude or None)
+
+
+def get_backdrop(W, H, opts, cam=None, avatar=True, exclude=None):
+    """(image, depth or None, depth_ss or None) of the backdrop for a camera and variant (see
+    gui/backdrop.py)."""
+    key = (W, H, opts.bg, opts.place, B.camera_key(cam), avatar, B.exclude_key(exclude))
     if key not in _bg_cache:
-        _bg_cache[key] = B.backdrop(W, H, opts.bg, opts.place, cam, with_depth=True)
+        _bg_cache[key] = B.backdrop(W, H, opts.bg, opts.place, cam, avatar=avatar, exclude=exclude, layers=True)
     return _bg_cache[key]
+
+
+def world_context(opts):
+    if opts.place not in _ctx_cache:
+        try:
+            _ctx_cache[opts.place] = B.world_context(opts.place)
+        except Exception as exc:  # no export: the solids cannot be placed
+            T.warn_once(f"world context failed ({exc}); solids not drawn")
+            _ctx_cache[opts.place] = None
+    return _ctx_cache[opts.place]
 
 
 def object_box(o):
@@ -118,10 +147,20 @@ def render_frame(dump, frame, opts, region=None, xray=False):
     x0, y0, x1, y1 = region or (0, 0, W, H)
     x0, y0 = int(math.floor(x0)), int(math.floor(y0))
     x1, y1 = int(math.ceil(x1)), int(math.ceil(y1))
-    bg, depth = get_backdrop(W, H, opts, frame_camera(dump, frame))
+    cam = frame_camera(dump, frame)
+    avatar, exclude = backdrop_variant(dump, frame)
+    bg, depth, depth_ss = get_backdrop(W, H, opts, cam, avatar, exclude)
     canvas = bg.crop((x0, y0, x1, y1)).resize(((x1 - x0) * ss, (y1 - y0) * ss), Image.BILINEAR).convert("RGBA")
     world = frame.get("world")
     if world and opts.world:
+        # the 3D part (avatar, rod, fish, FX parts, ambient life) with a z-buffer against the
+        # backdrop's depth, then the 2D items hidden behind both
+        ctx = world_context(opts) if world.get("solids") or world.get("movers") else None
+        if ctx is not None and opts.bg in ("pier", None):
+            layer, sdepth = S.render(world, dump.get("scene"), cam or B.default_camera(), ctx, W, H, ss, depth_ss)
+            if layer is not None:
+                canvas.alpha_composite(layer.crop((x0 * ss, y0 * ss, x1 * ss, y1 * ss)))
+                depth = sdepth if depth is None else np.minimum(depth, sdepth)
         WD.paint(canvas, world, ss, origin=(x0, y0), depth=depth)
     objects = frame["objects"]
     if region:
@@ -342,6 +381,31 @@ def grid_sheet(title, subtitle, cells, cell_w, ruler=None, max_w=2300):
     return out
 
 
+MOTION_THRESHOLD = 28  # colour difference (0..255, any channel) that counts as "moved"
+
+
+def motion_map(cells, title):
+    """The first cell with every pixel that changed in any later cell painted red (the world
+    view of a still camera: swaying flags, the turning windmill, a jumping fish, gulls…), with
+    the share of the frame that moved."""
+    base_im = cells[0][1].convert("RGB")
+    base = np.asarray(base_im, np.int16)
+    mask = np.zeros(base.shape[:2], bool)
+    for _, im, _ in cells[1:]:
+        mask |= np.abs(np.asarray(im.convert("RGB"), np.int16) - base).max(2) > MOTION_THRESHOLD
+    m = Image.fromarray((mask * 255).astype(np.uint8), "L").filter(ImageFilter.MaxFilter(3))
+    a = np.asarray(m, np.float32)[..., None] / 255.0 * 0.62
+    out = (base * (1 - a) + np.array([255, 40, 60], np.float32) * a).clip(0, 255).astype(np.uint8)
+    im = Image.fromarray(out, "RGB")
+    head = 34
+    sheet = Image.new("RGB", (im.width, im.height + head), INK)
+    sheet.paste(im, (0, head))
+    d = ImageDraw.Draw(sheet)
+    d.text((10, head / 2), f"{title} · {mask.mean() * 100:.1f}% of the frame moved", font=_font(15),
+           fill=(240, 242, 248), anchor="lm")
+    return sheet
+
+
 def cell_width(region, kind):
     rw, rh = region[2] - region[0], region[3] - region[1]
     if kind == "timeline":
@@ -398,18 +462,33 @@ def plan_dump(path, opts, report):
         if f.get("still") and render_stills:
             jobs.append((("still", i), path, i, None, False, opts))
             layout["stills"].append(i)
+    W, H = dump["viewport"]
     for kind in ("sheet", "burst", "timeline"):
         idx = [i for i, f in enumerate(frames) if f.get(kind)]
         if not idx or not render_stills:
             continue
         spec = dump.get(kind) or {}
-        region = roi_region(dump, [frames[i] for i in idx], spec) if kind != "timeline" else None
-        W, H = dump["viewport"]
+        if kind == "timeline" and not as_list(spec.get("roi")):
+            region = None  # timelines are full screen unless they name a region
+        else:
+            region = roi_region(dump, [frames[i] for i in idx], spec)
         full = region is None or (region[0] <= 0 and region[1] <= 0 and region[2] >= W and region[3] >= H)
-        xray = kind == "timeline" or (kind == "burst" and bool(dump.get("timeline")))
+        xray = (kind == "timeline" or (kind == "burst" and bool(dump.get("timeline")))) and dump.get("xray", True)
         for i in idx:
             jobs.append(((kind, i), path, i, None if full else region, xray and full, opts))
         layout["sheets"][kind] = {"frames": idx, "region": region or (0, 0, W, H)}
+    # world_view: the timeline's frames once more without the HUD and the chrome — the avatar and
+    # the world behind the widgets
+    wv = dump.get("world_view")
+    idx = [i for i, f in enumerate(frames) if f.get("timeline")] or [i for i, f in enumerate(frames) if f.get("still")]
+    if wv and idx and render_stills:
+        region = roi_region(dump, [frames[i] for i in idx], wv if isinstance(wv, dict) else {})
+        full = region[0] <= 0 and region[1] <= 0 and region[2] >= W and region[3] >= H
+        bare = copy.copy(opts)
+        bare.hud, bare.chrome = False, False
+        for i in idx:
+            jobs.append((("worldview", i), path, i, None if full else region, False, bare))
+        layout["sheets"]["worldview"] = {"frames": idx, "region": region}
     return jobs, layout
 
 
@@ -450,36 +529,50 @@ def assemble_dump(path, layout, images, opts, report):
         results.append(("still", dev, name, os.path.join(out_dir, sname)))
     beats = beat_list(dump)
     for kind, info in layout["sheets"].items():
-        spec = dump.get(kind) or {}
+        timed = kind in ("timeline", "worldview")
+        spec = dump.get("timeline" if kind == "worldview" else kind) or {}
         region = info["region"]
         cells = []
         idx = info["frames"]
-        if kind == "timeline" and beats:
-            # nothing happens after the last beat: keep TIMELINE_TAIL s of it
-            end = max(b["t"] for b in beats) + TIMELINE_TAIL
+        if timed and beats:
+            # nothing happens after the last beat: keep its `tail` (TIMELINE_TAIL s) of it
+            end = max(b["t"] for b in beats) + float(spec.get("tail") or TIMELINE_TAIL)
             idx = [i for i in idx if frames[i]["t"] <= end] or idx[:1]
         for i in idx:
             im, cover = images[(kind, i)]
             cells.append((frames[i]["t"], im, {"fill": report["frames"].get(i, {}).get("fill"), "cover": cover}))
         rw, rh = region[2] - region[0], region[3] - region[1]
-        what = {"sheet": "animation", "burst": "burst", "timeline": "timeline"}[kind]
+        what = {"sheet": "animation", "burst": "burst", "timeline": "timeline",
+                "worldview": "the world without the HUD"}[kind]
         title = (f"{name} — {what} — {dump.get('desc', '')}   ·   {dev} {W}×{H}   ·   "
                  f"{spec.get('from', 0):g}..{spec.get('to', 0):g} s @ {spec.get('fps', 0):g} fps")
         if region != (0, 0, W, H):
             title += f"   ·   region {int(region[0])},{int(region[1])} {int(rw)}×{int(rh)} px"
         ruler = None
         subtitle = None
-        if beats and kind in ("burst", "timeline"):
+        if beats and kind in ("burst", "timeline", "worldview"):
             ruler = (float(spec.get("from", 0)), float(spec.get("to", 1)), beats)
             subtitle = "beats: " + legend_text(beats)
-        sheet = grid_sheet(title, subtitle, cells, cell_width(region, kind), ruler)
-        sname = f"{name}_{kind}.png"
+        full = region == (0, 0, W, H) or (region[0] <= 0 and region[1] <= 0 and region[2] >= W and region[3] >= H)
+        width = cell_width(region, "timeline") if timed and full else cell_width(region, "sheet" if timed else kind)
+        own = dump.get("world_view") if kind == "worldview" else spec
+        if isinstance(own, dict) and own.get("cell"):
+            width = int(own["cell"])
+        sheet = grid_sheet(title, subtitle, cells, width, ruler)
+        sname = f"{name}_world.png" if kind == "worldview" else f"{name}_{kind}.png"
         sheet.save(os.path.join(out_dir, sname))
         results.append((kind, dev, name, os.path.join(out_dir, sname)))
-        if opts.gif and kind in ("burst", "timeline"):
+        if kind == "worldview" and len(cells) > 1:
+            cams = {B.camera_key(frame_camera(dump, frames[i])) for i in idx}
+            if len(cams) == 1:  # a still camera: what moved over the clip, in one image
+                mname = f"{name}_motion.png"
+                motion_map(cells, f"{name} — what moved in {cells[0][0]:.2f}..{cells[-1][0]:.2f} s (red), "
+                                  f"the world without the HUD · {dev} {W}×{H}").save(os.path.join(out_dir, mname))
+                results.append(("motion", dev, name, os.path.join(out_dir, mname)))
+        if opts.gif and kind in ("burst", "timeline", "worldview"):
             fps = float(spec.get("fps", 10))
             gif = [c[1].convert("P", palette=Image.ADAPTIVE) for c in cells]
-            gname = f"{name}_{kind}.gif"
+            gname = sname[:-4] + ".gif"
             gif[0].save(os.path.join(out_dir, gname), save_all=True, append_images=gif[1:],
                         duration=int(round(1000 / fps)), loop=0)
             results.append((kind + "_gif", dev, name, os.path.join(out_dir, gname)))
@@ -706,7 +799,8 @@ def main(argv=None):
     if opts.selftest:
         C.selftest()
         WD.selftest()
-        log("selftest ok (gui/checks.py, gui/world.py)")
+        S.selftest()
+        log("selftest ok (gui/checks.py, gui/world.py, gui/solids.py)")
         return
     if opts.list:
         print(list_scenarios()[3], end="")
@@ -762,10 +856,13 @@ def main(argv=None):
             continue
         for f in dump["frames"]:
             cam = frame_camera(dump, f)
-            key = B.camera_key(cam)
-            if (W, H, key) not in cams:
-                cams.add((W, H, key))
-                get_backdrop(W, H, opts, cam)
+            avatar, exclude = backdrop_variant(dump, f)
+            key = (W, H, B.camera_key(cam), avatar, B.exclude_key(exclude))
+            if key not in cams:
+                cams.add(key)
+                get_backdrop(W, H, opts, cam, avatar, exclude)
+            if f.get("world") and (f["world"].get("solids") or f["world"].get("movers")):
+                world_context(opts)
 
     t1 = time.time()
     reports = [dump_report(p, opts) for p in dumps]
