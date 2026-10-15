@@ -1,29 +1,31 @@
 --!strict
 --[[
-	UiFx — «сочные» анимации интерфейса на клиенте: нажатия, выскакивания, блики, кольца, лучи,
-	конфетти, искры, всплывающий текст, счётчики, радуга, вспышки, виньетка по краям экрана,
-	«толчок» поля зрения камеры, звуки (с высотой тона и арпеджио редкости), подгонка обводок и
-	шкалы текста под экран. Стиль и тайминги — tools/builder/gui/STYLE.md §2, список функций и
-	примеры — STYLE.md «API» (§6).
+	UiFx — «сочные» анимации интерфейса на клиенте: нажатия (сжатие, перелёт, «пинок» значка),
+	наведение мыши, выскакивания и «удары», блики, вспышки ободка, кольца, лучи, конфетти, искры,
+	всплывающий текст, счётчики и «слот-машина» чисел, «дыхание», подпрыгивания и покачивания,
+	кружок «!», кольцо-таймер, радуга, вспышки, виньетка по краям экрана, «толчок» поля зрения
+	камеры, звуки (с высотой тона и арпеджио редкости), подгонка обводок и шкалы текста под экран.
+	Стиль и тайминги — tools/builder/gui/STYLE.md («Симулятор», UI v5), числа — UIConfig.Motion.
 
 	Правила:
 	  • Один общий планировщик (RenderStepped на клиенте, Heartbeat в остальных случаях) ведёт все
-	    покадровые эффекты (конфетти, счётчики, радуга, полёт значка…) и ОТКЛЮЧАЕТСЯ, когда
-	    ничего не идёт. Короткие эффекты (нажатие, выскакивание, покачивание, тряска, блик, кольца,
-	    лучи, искры, всплывающий текст) — только TweenService и task.delay, без соединений.
+	    покадровые эффекты (конфетти, счётчики, радуга, полёт значков…) и ОТКЛЮЧАЕТСЯ, когда
+	    ничего не идёт. Короткие эффекты и вся «жизнь в покое» (дыхание, подпрыгивания, кружок «!»,
+	    блики) — только TweenService и цепочки task.delay, без соединений и покадровой работы.
 	  • Каждый эффект сам удаляет свои временные объекты; каждый бесконечный эффект возвращает
-	    функцию остановки (её можно положить в Trove: trove:Add(stop)).
-	  • Эффекты не перехватывают ввод (Active = false) и не меняют имена элементов.
-	  • «Конфета» (Theme.candy в сборщике): прозрачный корень → Lip (губа, обводка) + лицевая
-	    сторона (атрибут CandyFace, обычно "Face") с градиентом "Fill", бликом Gloss и Shine.
-	  • «Кирпичик» (Theme.brick / Theme.tile, UI v3, атрибут CandyStyle = "brick" | "tile") — то же
-	    устройство: Lip — боковина, на лицевой стороне светлая «крышка» в градиенте Fill и блик
-	    Spec вместо Gloss, сверху — пупырки (рамка Studs с Stud1..n, атрибут CandyStud = "front").
-	    setCandy перекрашивает и их; setStuds добавляет / убирает пупырки на лету, paintStuds
-	    красит их по одной (радуга). Размеры кирпичика — UIConfig.Brick (те же, что у сборщика).
-	  • Движение кирпичиков (UI v4): нажатый кирпичик «тонет» в боковину (press), появляясь —
-	    «защёлкивается» (snapIn), его пупырки выскакивают по очереди (studsPop), а кнопка на
-	    важной смене вида «превращается» белой вспышкой (morphFlash). Только твины и таймеры.
+	    функцию остановки (её можно положить в Trove: trove:Add(stop)); цепочка таймеров кончается
+	    сама, когда элемент спрятан или удалён.
+	  • Эффекты не перехватывают ввод (Active = false) и не меняют имена элементов (временные
+	    объекты и UIScale зовутся Fx*).
+	  • Кнопка «симулятора» (Theme.sim в сборщике, атрибут CandyStyle = "sim" | "glass"): прозрачный
+	    корень → Lip (только толстая обводка в тёмный оттенок цвета) + лицевая сторона (атрибут
+	    CandyFace, обычно "Face") с градиентом "Fill", светлым ободком Rim и спрятанным бликом
+	    Shine. setCandy перекрашивает её (и переводит в «стекло» и обратно). Пупырок в интерфейсе
+	    больше нет (они остались только на карте).
+	  • У надписи может быть тень-близнец «<Имя>Shadow» (соседний элемент, Theme.label Shadow):
+	    setText, popIn, bump, slam, punch и shake ведут её вместе с надписью.
+	  • «Меньше движения» (UiFx.reducedMotion: настройка Roblox или setReducedMotion) учитывается
+	    здесь, в одном месте: без перелётов, покачиваний и «жизни в покое», конфетти вдвое меньше.
 
 	Только для клиента (LocalScript-контроллеры); на сервере не используется.
 ]]
@@ -40,13 +42,21 @@ export type Stop = () -> ()
 
 type Swatch = { Top: Color3, Bottom: Color3, Lip: Color3 }
 
+-- Прозрачность «стекла» у цвета (UIConfig.Palette.Glass.Alpha); у обычных цветов — nil.
+local function alphaOf(swatch: Swatch): number?
+	local alpha = (swatch :: any).Alpha
+	return if type(alpha) == "number" then alpha else nil
+end
+
 local Fx = UIConfig.Fx
 local Palette = UIConfig.Palette
 local WHITE = Color3.new(1, 1, 1)
 local INK: Color3 = UIConfig.Ink
-local BRICK = UIConfig.Brick
--- Шрифт интерфейса (как Theme.FONT): Nunito Heavy — самый жирный, с кириллицей.
-local FONT = Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Heavy)
+local SIM = UIConfig.Sim
+local MOTION = UIConfig.Motion
+-- Шрифт интерфейса (как Theme.FONT): Montserrat Heavy и его наклонный вариант (числа, «+1»).
+local FONT = Font.new(UIConfig.Font.Family, Enum.FontWeight.Heavy)
+local FONT_ITALIC = Font.new(UIConfig.Font.Family, Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
 local BACK = Enum.EasingStyle.Back
 local QUAD = Enum.EasingStyle.Quad
 local SINE = Enum.EasingStyle.Sine
@@ -54,6 +64,7 @@ local LINEAR = Enum.EasingStyle.Linear
 local OUT = Enum.EasingDirection.Out
 local IN = Enum.EasingDirection.In
 local INOUT = Enum.EasingDirection.InOut
+local BOUNCE = Enum.EasingStyle.Bounce
 
 -- Полоса блика: прозрачно → белая полоса посередине → прозрачно (сдвигается Offset −1 → 1).
 local SHINE_BAND = NumberSequence.new({
@@ -262,55 +273,6 @@ local function copyCorner(from: GuiObject, to: GuiObject)
 	end
 end
 
--- Лицевая сторона кирпичика: светлая «крышка» сверху, потом Top → Bottom (как Theme.capSequence).
-local function capSequence(swatch: Swatch): ColorSequence
-	local cap = UiFx.lighten(swatch.Top, BRICK.CapLight)
-	return ColorSequence.new({
-		ColorSequenceKeypoint.new(0, cap),
-		ColorSequenceKeypoint.new(BRICK.CapStop * 0.5, cap),
-		ColorSequenceKeypoint.new(BRICK.CapStop, swatch.Top),
-		ColorSequenceKeypoint.new(1, swatch.Bottom),
-	})
-end
-
--- Пупырка спереди: свет слева → цвет пластика → тень справа (как Theme.studSequence).
-local function studSequence(body: Color3): ColorSequence
-	return ColorSequence.new({
-		ColorSequenceKeypoint.new(0, UiFx.lighten(body, BRICK.StudLight)),
-		ColorSequenceKeypoint.new(0.45, body),
-		ColorSequenceKeypoint.new(1, UiFx.darken(body, BRICK.StudShade)),
-	})
-end
-
--- Перекрасить одну пупырку (CandyStud = "front" | "top" | "raised") в цвета swatch.
-local function paintStud(stud: Instance, swatch: Swatch)
-	local kind = stud:GetAttribute("CandyStud")
-	if not stud:IsA("GuiObject") or typeof(kind) ~= "string" then
-		return
-	end
-	if kind == "front" then
-		local fill = stud:FindFirstChild("Fill")
-		if fill and fill:IsA("UIGradient") then
-			fill.Color = studSequence(swatch.Top:Lerp(swatch.Bottom, 0.3))
-		end
-		return
-	end
-	local cap = stud:FindFirstChild("Cap")
-	local fill = if cap then cap:FindFirstChild("Fill") else nil
-	if kind == "top" then
-		stud.BackgroundColor3 = UiFx.darken(swatch.Top, 0.35)
-		if fill and fill:IsA("UIGradient") then
-			fill.Color =
-				ColorSequence.new(UiFx.lighten(swatch.Top, BRICK.TopLight), UiFx.darken(swatch.Top, BRICK.TopShade))
-		end
-	elseif kind == "raised" then
-		stud.BackgroundColor3 = swatch.Lip:Lerp(swatch.Bottom, 0.4)
-		if fill and fill:IsA("UIGradient") then
-			fill.Color = ColorSequence.new(UiFx.lighten(swatch.Top, 0.2), swatch.Bottom)
-		end
-	end
-end
-
 local function swatchOf(look: string | Color3 | Swatch): Swatch?
 	if typeof(look) == "Color3" then
 		return UIConfig.swatchFor(look)
@@ -320,13 +282,22 @@ local function swatchOf(look: string | Color3 | Swatch): Swatch?
 	return look :: Swatch
 end
 
+-- Тёмный цвет (Night, Coal, Glass): плашка, собранная «стеклом», в нём стеклом и остаётся.
+local function isDark(swatch: Swatch): boolean
+	local _, _, v = swatch.Top:ToHSV()
+	return alphaOf(swatch) ~= nil or v < 0.42
+end
+
 --[[
-	Перекрасить «конфету» или «кирпичик»:
-	  токен палитры ("Leaf") или { Top, Bottom, Lip } — градиент верх → низ и губа (боковина);
-	  Color3 — произвольный цвет: чистая «конфета» из него (UIConfig.swatchFor), без серого налёта.
-	  Цвет базы лучше брать из UIConfig.BaseSwatches (так делает HudController).
-	У кирпичика (атрибут CandyStyle) градиент — со светлой «крышкой», и перекрашиваются все его
-	пупырки: спереди (Studs.StudN), сверху и выпуклые (атрибут CandyStud на детях корня и лица).
+	Перекрасить кнопку / плашку «симулятора» (Theme.sim):
+	  токен палитры ("Leaf") или { Top, Bottom, Lip } — градиент лица Top → Bottom, обводка (Lip) —
+	  тёмный оттенок того же цвета, лицо непрозрачно, светлый ободок виден;
+	  Glass (или любой цвет с Alpha) — «стекло»: лицо — чёрное на Alpha прозрачности, без обводки и
+	  ободка; плашка, собранная стеклом (атрибут CandyHome = "glass": подсказка, подпись кнопки),
+	  остаётся стеклом и в тёмных цветах (Night, Coal), а в ярких (Sun, Berry) становится плашкой;
+	  Color3 — произвольный цвет: чистая кнопка из него (UIConfig.swatchFor), без серого налёта.
+	Цвет базы лучше брать из UIConfig.BaseSwatches (так делает HudController). Лицо снова белое
+	(сбрасывает и затемнение нажатия).
 ]]
 function UiFx.setCandy(root: GuiObject, look: string | Color3 | Swatch)
 	local face = UiFx.faceOf(root)
@@ -336,127 +307,76 @@ function UiFx.setCandy(root: GuiObject, look: string | Color3 | Swatch)
 	if not swatch then
 		return
 	end
-	local brick = root:GetAttribute("CandyStyle") ~= nil
+	local glass = alphaOf(swatch) ~= nil or (root:GetAttribute("CandyHome") == "glass" and isDark(swatch))
+	if glass and alphaOf(swatch) == nil then
+		swatch = Palette.Glass
+	end
 	face.BackgroundColor3 = WHITE
 	if fill and fill:IsA("UIGradient") then
-		fill.Color = if brick then capSequence(swatch) else ColorSequence.new(swatch.Top, swatch.Bottom)
+		fill.Color = ColorSequence.new(swatch.Top, swatch.Bottom)
 	end
+	local edge: UIStroke? = nil
 	if lip and lip:IsA("GuiObject") then
 		lip.BackgroundColor3 = swatch.Lip
+		edge = lip:FindFirstChildOfClass("UIStroke")
 	end
-	if not brick then
-		return
+	if root:GetAttribute("CandyStyle") == nil then
+		return -- (не «симулятор»: только градиент и цвет Lip)
 	end
-	local holder = root:FindFirstChild("Studs")
-	if holder then
-		for _, stud in holder:GetChildren() do
-			paintStud(stud, swatch)
-		end
+	face.BackgroundTransparency = if glass then alphaOf(swatch) or SIM.GlassAlpha else 0
+	if edge then
+		edge.Color = swatch.Lip
+		edge.Transparency = if glass then 1 else 0
 	end
-	for _, parent in { root, face } do
-		for _, child in parent:GetChildren() do
-			if child:GetAttribute("CandyStud") ~= nil then
-				paintStud(child, swatch)
-			end
-		end
+	local rim = face:FindFirstChild("Rim")
+	local ring = if rim then rim:FindFirstChildOfClass("UIStroke") else nil
+	if ring then
+		ring.Transparency = if glass then 1 else SIM.RimAlpha
+	end
+	root:SetAttribute("CandyStyle", if glass then "glass" else "sim")
+end
+
+-- Тень-близнец надписи (Theme.label Shadow: соседний элемент «<Имя>Shadow»), если есть.
+local function twinOf(gui: Instance): GuiObject?
+	local parent = gui.Parent
+	local twin = if parent then parent:FindFirstChild(gui.Name .. "Shadow") else nil
+	if twin and twin:IsA("GuiObject") and twin:GetAttribute("ShadowOf") == gui.Name then
+		return twin
+	end
+	return nil
+end
+UiFx.twinOf = twinOf
+
+-- Текст надписи вместе с её тенью-близнецом.
+function UiFx.setText(label: TextLabel, text: string)
+	label.Text = text
+	local twin = twinOf(label)
+	if twin and twin:IsA("TextLabel") then
+		twin.Text = text
 	end
 end
 
 --[[
-	Пупырки спереди у кирпичика на лету (громкие уведомления становятся «кирпичом» с пупырками):
-	count штук (0 — убрать) вдоль верхнего края, в цвете look (иначе — по градиенту лица). opts:
-	  area  = { x0, x1 } — часть ширины (по умолчанию как у сборщика или {0, 1});
-	  scale = размер (доля высоты, как studScale в Theme.brick; по умолчанию 1).
-	Устройство — как у Theme.brick (UIConfig.Brick): рамка Studs позади Lip, Stud1..n.
+	«Меньше движения»: настройка Roblox (GuiService.ReducedMotionEnabled, если клиент её знает)
+	или явное setReducedMotion(true / false; nil — снова по настройке). Читается при каждом
+	вызове эффекта, без соединений. При ней: без перелётов, покачиваний, тряски и «жизни в покое»,
+	конфетти вдвое меньше, радуга медленнее, вспышки текста не мигают.
 ]]
-export type StudOptions = {
-	area: { number }?,
-	scale: number?,
-}
-function UiFx.setStuds(root: GuiObject, count: number, look: (string | Color3 | Swatch)?, opts: StudOptions?)
-	local o: StudOptions = opts or {}
-	local lip = root:FindFirstChild("Lip")
-	local lipZ = if lip and lip:IsA("GuiObject") then lip.ZIndex else 2
-	local holder = root:FindFirstChild("Studs")
-	if not holder then
-		local frame = Instance.new("Frame")
-		frame.Name = "Studs"
-		frame.BackgroundTransparency = 1
-		frame.Active = false
-		frame.Size = UDim2.fromScale(1, 1)
-		frame.ZIndex = math.max(lipZ - 1, 0)
-		frame.Parent = root
-		holder = frame
-	end
-	assert(holder)
-	for _, child in holder:GetChildren() do
-		child:Destroy()
-	end
-	local n = math.clamp(math.floor(count), 0, BRICK.MaxStuds)
-	if n == 0 then
-		return
-	end
-	local savedArea = holder:GetAttribute("StudArea")
-	local area = o.area or (if typeof(savedArea) == "Vector2" then { savedArea.X, savedArea.Y } else { 0, 1 })
-	local savedScale = holder:GetAttribute("StudScale")
-	local scale = o.scale or (if typeof(savedScale) == "number" then savedScale else 1)
-	holder:SetAttribute("StudArea", Vector2.new(area[1], area[2]))
-	holder:SetAttribute("StudScale", scale)
-	local swatch: Swatch? = if look then swatchOf(look) else nil
-	if not swatch then
-		local fill = UiFx.faceOf(root):FindFirstChild("Fill")
-		if fill and fill:IsA("UIGradient") then
-			local keys = fill.Color.Keypoints
-			swatch = { Top = keys[math.min(3, #keys)].Value, Bottom = keys[#keys].Value, Lip = INK }
-		else
-			swatch = Palette.Slate
-		end
-	end
-	local base = BRICK.StudStroke
-	for i = 1, n do
-		local stud = Instance.new("Frame")
-		stud.Name = `Stud{i}`
-		stud.BackgroundColor3 = WHITE
-		stud.BorderSizePixel = 0
-		stud.AnchorPoint = Vector2.new(0.5, BRICK.StudShow)
-		stud.Position = UDim2.fromScale(area[1] + (area[2] - area[1]) * (i - 0.5) / n, 0)
-		stud.Size = UDim2.fromScale(BRICK.StudW * scale, BRICK.StudH * scale)
-		stud.SizeConstraint = Enum.SizeConstraint.RelativeYY
-		stud.ZIndex = 1
-		stud:SetAttribute("CandyStud", "front")
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0.3, 0)
-		corner.Parent = stud
-		local outline = Instance.new("UIStroke")
-		outline.Color = INK
-		outline.Thickness = base
-		outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		outline.LineJoinMode = Enum.LineJoinMode.Round
-		outline:SetAttribute("BaseThickness", base)
-		outline.Parent = stud
-		local fill = Instance.new("UIGradient")
-		fill.Name = "Fill"
-		fill.Rotation = 0
-		fill.Parent = stud
-		paintStud(stud, swatch :: Swatch)
-		stud.Parent = holder
-	end
+local reducedOverride: boolean? = nil
+function UiFx.setReducedMotion(value: boolean?)
+	reducedOverride = value
 end
 
--- Покрасить пупырки спереди по одной: i-я — colors[(i - 1) % #colors + 1] (радуга мифической).
-function UiFx.paintStuds(root: GuiObject, colors: { Color3 })
-	local holder = root:FindFirstChild("Studs")
-	if not holder or #colors == 0 then
-		return
+function UiFx.reducedMotion(): boolean
+	if reducedOverride ~= nil then
+		return reducedOverride
 	end
-	for _, stud in holder:GetChildren() do
-		local index = tonumber(string.match(stud.Name, "^Stud(%d+)$"))
-		if index then
-			local color = colors[(index - 1) % #colors + 1]
-			paintStud(stud, { Top = color, Bottom = UiFx.darken(color, 0.15), Lip = INK })
-		end
-	end
+	local ok, value = pcall(function(): any
+		return (game:GetService("GuiService") :: any).ReducedMotionEnabled
+	end)
+	return ok and value == true
 end
+local reduced = UiFx.reducedMotion
 
 --[[
 	Короткий звук интерфейса: "click" | "tick" | "pop" | "ping" | "swoosh" | "splash" | "swim"
@@ -551,70 +471,56 @@ end
 --------------------------------------------------------------------------------
 
 export type PressOptions = {
-	scale: number?, -- насколько сжимать (кирпичик — 0.94: он ещё и «тонет»; остальное — 0.88)
-	sound: string?, -- звук нажатия ("click"; у кирпичика — чуть разной высоты)
-	sink: number?, -- кирпичик: на какую долю боковины «тонет» лицо (0.6; 0 — не тонет)
+	scale: number?, -- насколько сжимать при нажатии (UIConfig.Motion.Press.Scale, 0.9)
+	peak: number?, -- перелёт при отпускании (1.08)
+	shade: number?, -- яркость лица, пока нажато (0.8: лицо темнеет на шаг, обводка — нет)
+	sound: string?, -- звук нажатия ("click"; чуть разной высоты)
+	icon: (string | false)?, -- значок, который «пинается» при отпускании ("Icon"; false — никакой)
+	hover: boolean?, -- наведение мыши: чуть крупнее (по умолчанию — без тач-экрана)
+	sink: number?, -- (UI v4: «тонуть» в боковину; у «симулятора» боковины нет — не используется)
 }
 
+-- Поколение анимации масштаба кнопки: новое нажатие отменяет отложенный второй шаг прошлого.
+local pressGeneration: { [Instance]: number } = setmetatable({}, { __mode = "k" }) :: any
+
 --[[
-	Нажатие кирпичика (UI v4): лицо «тонет» в боковину — лицо, пупырки спереди и всё содержимое
-	(значок, подпись, вуаль) едут вниз на sink × глубину боковины, боковина стоит (её низ на месте),
-	потом всё пружинит обратно. Не едут: Lip, эффекты (Fx*) и дети с атрибутом NoSink (подпись
-	на своей плитке, клавиша, 👆 — и то, чьей позицией владеет другая анимация). Позиции «в покое»
-	запоминаются при нажатии (только таймеры).
+	Нажатие кнопки «симулятора» (UI v5): сжимается до scale (0.06 с) и лицо темнеет на шаг
+	(белый фон под градиентом → серый: темнеет весь градиент, обводка остаётся); при отпускании —
+	перелёт до peak (0.09 с; кнопка вырастает не больше чем на UIConfig.Motion.Press.MaxGrow px:
+	большая кнопка у кнопки прыжка её не задевает) и пружина к 1 (Back Out 0.22 с), лицо светлеет,
+	значок «пинается»
+	(UIScale 1.18 → 1 и поворот −8° → на место, Back Out) — если его поворотом не владеет «жизнь»
+	вида (атрибут IconBusy). Щелчок случайной высоты. Без тач-экрана — ещё и наведение: чуть
+	крупнее (1.05), пока мышь над кнопкой. Соединения: нажатие, отпускание, уход мыши (+ наведение
+	без тач-экрана) — один раз на кнопку; отпускание ловится и вне кнопки. Возвращает отвязку.
 ]]
-local sinkRest: { [Instance]: UDim2 } = setmetatable({}, { __mode = "k" }) :: any
-
-local function sinkParts(root: GuiObject): { GuiObject }
-	local parts: { GuiObject } = {}
-	for _, child in root:GetChildren() do
-		local name = child.Name
-		if
-			child:IsA("GuiObject")
-			and name ~= "Lip"
-			and name ~= "LipBand"
-			and string.sub(name, 1, 2) ~= "Fx"
-			and child:GetAttribute("NoSink") ~= true
-		then
-			table.insert(parts, child)
-		end
-	end
-	return parts
-end
-
--- Глубина «утопания» лица кирпичика root в пикселях (0 — не кирпичик).
-local function sinkDepth(root: GuiObject, share: number): number
-	if root:GetAttribute("CandyStyle") == nil then
-		return 0
-	end
-	local face = UiFx.faceOf(root)
-	if face == root then
-		return 0
-	end
-	local band = math.max(1 - face.Size.Y.Scale, 0)
-	return math.round(root.AbsoluteSize.Y * band * share)
-end
-
-local function sinkTo(root: GuiObject, depth: number, time: number, style: Enum.EasingStyle)
-	for _, part in sinkParts(root) do
-		local rest = sinkRest[part]
-		if not rest then
-			rest = part.Position
-			sinkRest[part] = rest
-		end
-		tween(part, time, { Position = rest + UDim2.fromOffset(0, depth) }, style, OUT)
-	end
-end
-
--- Кнопка «сжимается» при нажатии и пружинит обратно (кирпичик ещё и «тонет» в боковину).
--- Возвращает функцию отвязки.
 function UiFx.press(button: GuiButton, opts: PressOptions?): Stop
 	local o: PressOptions = opts or {}
+	local cfg = MOTION.Press
 	local scale = UiFx.scaleOf(button)
 	local pressed = false
-	local sunk = false
+	local hovered = false
 	local inputEnded: RBXScriptConnection? = nil
-	local isBrick = button:GetAttribute("CandyStyle") ~= nil
+	local face = UiFx.faceOf(button)
+	local shadeTo = o.shade or cfg.Shade
+	local iconName = if o.icon == false then nil else (o.icon or "Icon")
+	local withHover = if o.hover == nil then not UserInputService.TouchEnabled else o.hover
+
+	local function kickIcon()
+		local icon = if iconName then button:FindFirstChild(iconName) else nil
+		if not icon or not icon:IsA("GuiObject") or not icon.Visible or reduced() then
+			return
+		end
+		local iconScale = UiFx.scaleOf(icon)
+		iconScale.Scale = cfg.IconKick
+		tween(iconScale, 0.25, { Scale = 1 }, BACK, OUT)
+		if icon:GetAttribute("IconBusy") == true or rotations[icon] then
+			return -- поворотом значка сейчас владеет другое покачивание
+		end
+		local rest = icon.Rotation
+		icon.Rotation = rest - cfg.IconTilt
+		tween(icon, 0.25, { Rotation = rest }, BACK, OUT)
+	end
 
 	local function release()
 		if inputEnded then
@@ -625,21 +531,25 @@ function UiFx.press(button: GuiButton, opts: PressOptions?): Stop
 			return
 		end
 		pressed = false
-		tween(scale, 0.25, { Scale = 1 }, BACK, OUT)
-		if sunk then
-			sunk = false
-			sinkTo(button, 0, 0.22, BACK)
-			task.delay(0.26, function()
-				if pressed then
-					return
-				end
-				for _, part in sinkParts(button) do
-					if sinkRest[part] == part.Position then
-						sinkRest[part] = nil
-					end
-				end
-			end)
+		local generation = (pressGeneration[button] or 0) + 1
+		pressGeneration[button] = generation
+		if face ~= button then
+			tween(face, cfg.Unshade, { BackgroundColor3 = WHITE }, QUAD, OUT)
 		end
+		local rest = if hovered then MOTION.Hover.Scale else 1
+		if reduced() then
+			tween(scale, 0.12, { Scale = rest }, QUAD, OUT)
+			return
+		end
+		local height = math.max(button.AbsoluteSize.Y, 1)
+		local peak = math.min(o.peak or cfg.Peak, 1 + cfg.MaxGrow / height)
+		tween(scale, cfg.Up, { Scale = math.max(peak, rest) }, QUAD, OUT)
+		task.delay(cfg.Up, function()
+			if pressGeneration[button] == generation and not pressed then
+				tween(scale, cfg.Settle, { Scale = if hovered then MOTION.Hover.Scale else 1 }, BACK, OUT)
+			end
+		end)
+		kickIcon()
 	end
 
 	local down = button.MouseButton1Down:Connect(function()
@@ -647,14 +557,14 @@ function UiFx.press(button: GuiButton, opts: PressOptions?): Stop
 			return
 		end
 		pressed = true
-		tween(scale, 0.06, { Scale = o.scale or (if isBrick then 0.94 else 0.88) }, QUAD, OUT)
-		local depth = if isBrick then sinkDepth(button, o.sink or 0.6) else 0
-		if depth > 0 then
-			sunk = true
-			sinkTo(button, depth, 0.05, QUAD)
+		pressGeneration[button] = (pressGeneration[button] or 0) + 1
+		local squash = o.scale or cfg.Scale
+		tween(scale, cfg.Down, { Scale = if reduced() then math.max(squash, 0.95) else squash }, QUAD, OUT)
+		if face ~= button then
+			tween(face, cfg.Down, { BackgroundColor3 = Color3.new(shadeTo, shadeTo, shadeTo) }, QUAD, OUT)
 		end
 		if o.sound then
-			UiFx.sound(o.sound, nil, if isBrick then rng:NextNumber(0.95, 1.08) else nil)
+			UiFx.sound(o.sound, nil, rng:NextNumber(cfg.Pitch[1], cfg.Pitch[2]))
 		end
 		-- Палец мог уйти с кнопки: отпускание ловим и вне её.
 		inputEnded = UserInputService.InputEnded:Connect(function(input: InputObject)
@@ -665,14 +575,72 @@ function UiFx.press(button: GuiButton, opts: PressOptions?): Stop
 		end)
 	end)
 	local up = button.MouseButton1Up:Connect(release)
-	local leave = button.MouseLeave:Connect(release)
+	local leave = button.MouseLeave:Connect(function()
+		if hovered then
+			hovered = false
+			if not pressed then
+				tween(scale, MOTION.Hover.Time, { Scale = 1 }, QUAD, OUT)
+			end
+		end
+		release()
+	end)
+	local enter: RBXScriptConnection? = nil
+	if withHover then
+		enter = button.MouseEnter:Connect(function()
+			hovered = true
+			if not pressed and not reduced() and math.abs(scale.Scale - 1) < 0.02 then
+				tween(scale, MOTION.Hover.Time, { Scale = MOTION.Hover.Scale }, BACK, OUT)
+			end
+		end)
+	end
 	return function()
 		down:Disconnect()
 		up:Disconnect()
 		leave:Disconnect()
+		if enter then
+			enter:Disconnect()
+		end
 		release()
+		hovered = false
 		scale.Scale = 1
+		if face ~= button then
+			face.BackgroundColor3 = WHITE
+		end
 	end
+end
+
+-- UIScale "FxScale" элемента и его тени-близнеца (они двигаются вместе).
+local function scalesOf(gui: GuiObject): { UIScale }
+	local list = { UiFx.scaleOf(gui) }
+	local twin = twinOf(gui)
+	if twin then
+		table.insert(list, UiFx.scaleOf(twin))
+	end
+	return list
+end
+
+-- Масштаб всех: сразу value (если дан), потом твин к goal.
+local function scaleAll(
+	gui: GuiObject,
+	value: number?,
+	time: number,
+	goal: number,
+	style: Enum.EasingStyle,
+	direction: Enum.EasingDirection,
+	delay: number?
+)
+	for _, scale in scalesOf(gui) do
+		if value then
+			scale.Scale = value
+		end
+		tween(scale, time, { Scale = goal }, style, direction, delay)
+	end
+end
+
+-- «Меньше движения»: вместо перелёта — короткое Quad Out от 0.9 (или от from, если он ближе к 1).
+local function calmPop(gui: GuiObject, from: number?, delay: number?)
+	local start = math.max(from or 0.9, 0.9)
+	scaleAll(gui, if start < 1 then start else 1, MOTION.Reduced.PopTime, 1, QUAD, OUT, delay)
 end
 
 export type PopOptions = {
@@ -686,9 +654,11 @@ export type PopOptions = {
 function UiFx.popIn(gui: GuiObject, opts: PopOptions?)
 	local o: PopOptions = opts or {}
 	local time = o.time or 0.3
-	local scale = UiFx.scaleOf(gui)
-	scale.Scale = o.from or 0
-	tween(scale, time, { Scale = 1 }, BACK, OUT, o.delay)
+	if reduced() then
+		calmPop(gui, o.from, o.delay)
+		return
+	end
+	scaleAll(gui, o.from or 0, time, 1, BACK, OUT, o.delay)
 	if o.rotate and o.rotate ~= 0 then
 		local motion = beginMotion(rotations, gui, gui.Rotation)
 		gui.Rotation = motion.rest + o.rotate
@@ -707,46 +677,100 @@ export type PopOutOptions = {
 	to: number?, -- конечный масштаб (0)
 	destroy: boolean?, -- удалить элемент в конце
 	hide: boolean?, -- спрятать (Visible = false) и вернуть масштаб 1
+	swell: boolean?, -- сперва чуть «вдохнуть» (1.06), потом уйти (по умолчанию да)
 }
 
--- Исчезновение: масштаб → to (Back In), потом удалить или спрятать.
+-- Исчезновение: короткий «вдох» (1 → 1.06), потом масштаб → to (Back In), потом удалить или
+-- спрятать. Общее время — time.
 function UiFx.popOut(gui: GuiObject, opts: PopOutOptions?)
 	local o: PopOutOptions = opts or {}
 	local time = o.time or 0.2
-	local scale = UiFx.scaleOf(gui)
-	tween(scale, time, { Scale = o.to or 0 }, BACK, IN)
+	local cfg = MOTION.Out
+	local calm = reduced()
+	local pre = if o.swell == false or calm then 0 else math.min(cfg.Pre, time * 0.35)
+	if pre > 0 then
+		scaleAll(gui, nil, pre, cfg.Swell, QUAD, OUT)
+	end
+	scaleAll(gui, nil, time - pre, o.to or 0, if calm then QUAD else BACK, IN, pre)
 	task.delay(time, function()
 		if o.destroy then
 			gui:Destroy()
 		elseif o.hide then
 			gui.Visible = false
-			scale.Scale = 1
+			for _, scale in scalesOf(gui) do
+				scale.Scale = 1
+			end
 		end
 	end)
 end
 
+export type PunchOptions = {
+	from: number?, -- с какого масштаба (UIConfig.Motion.Punch.From, 0.84)
+	peak: number?, -- до какого перелёта (1.1)
+	up: number?, -- первый шаг, с (0.09, Quad Out)
+	settle: number?, -- второй шаг к 1, с (0.22, Back Out)
+	delay: number?, -- задержка
+}
+
+-- Поколение «удара»: новый удар отменяет отложенный второй шаг старого.
+local punchGeneration: { [Instance]: number } = setmetatable({}, { __mode = "k" }) :: any
+
+--[[
+	«Удар» с ощутимым перелётом в два шага (у Back Out он фиксированный и мал): from → peak
+	(Quad Out, up) → 1 (Back Out, settle). Смена вида кнопки, появление кружка «!», прилёт в
+	счётчик. Только твины и таймер; тень-близнец — вместе с надписью.
+]]
+function UiFx.punch(gui: GuiObject, opts: PunchOptions?)
+	local o: PunchOptions = opts or {}
+	local cfg = MOTION.Punch
+	if reduced() then
+		calmPop(gui, o.from or cfg.From, o.delay)
+		return
+	end
+	local up, settle = o.up or cfg.Up, o.settle or cfg.Settle
+	local generation = (punchGeneration[gui] or 0) + 1
+	punchGeneration[gui] = generation
+	local function start()
+		if punchGeneration[gui] ~= generation then
+			return
+		end
+		scaleAll(gui, o.from or cfg.From, up, o.peak or cfg.Peak, QUAD, OUT)
+		task.delay(up, function()
+			if punchGeneration[gui] == generation then
+				scaleAll(gui, nil, settle, 1, BACK, OUT)
+			end
+		end)
+	end
+	if o.delay and o.delay > 0 then
+		task.delay(o.delay, start)
+	else
+		start()
+	end
+end
+
 --------------------------------------------------------------------------------
--- Кирпичики: «защёлкнуть», пупырки по очереди, вспышка смены вида (UI v4)
+-- Кнопки «симулятора»: «приземление», вспышка ободка, смена вида, значок
 --------------------------------------------------------------------------------
 
 export type SnapOptions = {
 	drop: number?, -- с какой высоты падает, px (8)
 	delay: number?, -- задержка
-	squash: number?, -- насколько сплющивается на касании (0.06: 1.06 × 0.94)
+	squash: number?, -- насколько сплющивается на касании (0.08: 1.08 × 0.92)
 	sound: boolean?, -- щелчок на касании (по умолчанию да)
 }
 
 --[[
-	Кирпичик «защёлкивается» на место: падает сверху на drop px (0.12 с, Quad In), на касании
+	Панель «приземляется» на место: падает сверху на drop px (0.12 с, Quad In), на касании
 	сплющивается (шире и ниже на squash) и пружинит (Back Out, 0.18 с), щелчок. Позиция и размер
 	«в покое» — те, что были при вызове (в UIListLayout позиция не работает: только сплющивание).
 	Только твины и таймеры.
 ]]
 function UiFx.snapIn(gui: GuiObject, opts: SnapOptions?)
 	local o: SnapOptions = opts or {}
-	local drop = o.drop or 8
+	local calm = reduced()
+	local drop = if calm then 0 else (o.drop or 8)
 	local delay = o.delay or 0
-	local squash = o.squash or 0.06
+	local squash = if calm then 0 else (o.squash or 0.08)
 	local restPosition, restSize = gui.Position, gui.Size
 	gui.Position = restPosition - UDim2.fromOffset(0, drop)
 	tween(gui, 0.12, { Position = restPosition }, QUAD, IN, delay)
@@ -768,87 +792,119 @@ function UiFx.snapIn(gui: GuiObject, opts: SnapOptions?)
 	end)
 end
 
-export type StudsPopOptions = {
-	delay: number?, -- задержка первой пупырки
-	stagger: number?, -- между пупырками (0.03)
-	time: number?, -- выскакивание одной (0.22)
-	sound: boolean?, -- тихие «тики» (по умолчанию нет)
+export type RimFlashOptions = {
+	delay: number?, -- задержка
+	time: number?, -- UIConfig.Motion.RimFlash.Time (0.3)
+	bump: number?, -- лёгкий «вдох» (1.06; 1 — без него)
+	sound: boolean?, -- тихий «тик»
 }
 
 --[[
-	Пупырки кирпичика выскакивают по очереди слева направо (0 → ≈1.15 → 1, Back Out): все потомки
-	root с атрибутом CandyStud (спереди, сверху, выпуклая). Масштаб — UIScale "FxScale" пупырки.
-	Только твины.
+	Вспышка ободка (UI v5, вместо «пупырок по очереди» v3): светлый ободок Rim лица на миг
+	становится белым и сплошным и возвращается к UIConfig.Sim.RimAlpha (Quad Out), по лицу —
+	белая накладка FxMorph 0.6 → 1, кнопка чуть «вдыхает» (1 → 1.06 → 1). Только твины.
 ]]
-function UiFx.studsPop(root: GuiObject, opts: StudsPopOptions?)
-	local o: StudsPopOptions = opts or {}
-	local studs: { GuiObject } = {}
-	for _, item in root:GetDescendants() do
-		if item:IsA("GuiObject") and item:GetAttribute("CandyStud") ~= nil then
-			table.insert(studs, item)
+function UiFx.rimFlash(root: GuiObject, opts: RimFlashOptions?)
+	local o: RimFlashOptions = opts or {}
+	local cfg = MOTION.RimFlash
+	local time = o.time or cfg.Time
+	local delay = o.delay or 0
+	local function run()
+		if root.Parent == nil then
+			return
+		end
+		local calm = reduced()
+		local face = UiFx.faceOf(root)
+		local rim = face:FindFirstChild("Rim")
+		local ring = if rim then rim:FindFirstChildOfClass("UIStroke") else nil
+		if ring and ring.Transparency < 1 then
+			ring.Transparency = 0
+			tween(ring, time, { Transparency = SIM.RimAlpha }, QUAD, OUT)
+		end
+		if face ~= root and not calm then
+			local flash = Instance.new("Frame")
+			flash.Name = "FxMorph"
+			flash.Active = false
+			flash.BackgroundColor3 = WHITE
+			flash.BackgroundTransparency = 0.6
+			flash.BorderSizePixel = 0
+			flash.Size = UDim2.fromScale(1, 1)
+			flash.ZIndex = 4
+			copyCorner(root, flash)
+			flash.Parent = face
+			tween(flash, time, { BackgroundTransparency = 1 }, QUAD, OUT)
+			task.delay(time + 0.02, function()
+				flash:Destroy()
+			end)
+		end
+		local peak = o.bump or cfg.Bump
+		if peak > 1 and not calm then
+			scaleAll(root, nil, time * 0.35, peak, QUAD, OUT)
+			task.delay(time * 0.35, function()
+				scaleAll(root, nil, time * 0.65, 1, BACK, OUT)
+			end)
+		end
+		if o.sound then
+			UiFx.sound("tick", 0.15, 1.5)
 		end
 	end
-	table.sort(studs, function(a: GuiObject, b: GuiObject): boolean
-		local ax, bx = a.AbsolutePosition.X, b.AbsolutePosition.X
-		if math.abs(ax - bx) > 0.5 then
-			return ax < bx
-		end
-		return a.AbsolutePosition.Y < b.AbsolutePosition.Y
-	end)
-	local delay, stagger, time = o.delay or 0, o.stagger or 0.03, o.time or 0.22
-	for index, stud in studs do
-		local scale = UiFx.scaleOf(stud)
-		scale.Scale = 0
-		local at = delay + (index - 1) * stagger
-		tween(scale, time, { Scale = 1 }, BACK, OUT, at)
-		if o.sound and index % 2 == 1 then
-			task.delay(at, UiFx.sound, "tick", 0.12, 1.4 + 0.04 * index)
-		end
+	if delay > 0 then
+		task.delay(delay, run)
+	else
+		run()
+	end
+end
+
+-- Значок элемента (Icon у корня или у лица) «выскакивает»: UIScale from (0.7) → 1.15 → 1.
+function UiFx.iconPop(root: GuiObject, from: number?)
+	local icon = root:FindFirstChild("Icon") or UiFx.faceOf(root):FindFirstChild("Icon")
+	if icon and icon:IsA("GuiObject") then
+		UiFx.punch(icon, { from = from or 0.7, peak = 1.15, up = 0.12, settle = 0.2 })
 	end
 end
 
 --[[
-	Вспышка «превращения» кирпичика (кнопка действия меняет важный вид: «ПОДСЕЧЬ!», «ЛОВИ!»,
-	«ЗАБРАТЬ!»): белая накладка на лицо 0.35 → 1 за 0.18 с (значок и подпись — поверх неё) и
-	выпуклая пупырка круглой плиты чуть выскакивает. Только твины.
+	Вспышка «превращения» кнопки (важная смена вида: «ПОДСЕЧЬ!», «ЛОВИ!», «ЗАБРАТЬ!»): белая
+	накладка на лицо UIConfig.Motion.Morph.Flash → 1 за FlashTime (значок и подпись — поверх неё),
+	значок «выскакивает» (iconPop). Только твины. (Кольца от кнопки — у самих видов
+	FishingController: у кнопки рядом с кнопкой прыжка лишнее кольцо её задевало бы.)
 ]]
 function UiFx.morphFlash(root: GuiObject, color: Color3?)
+	local cfg = MOTION.Morph
 	local face = UiFx.faceOf(root)
 	local flash = Instance.new("Frame")
 	flash.Name = "FxMorph"
 	flash.Active = false
 	flash.BackgroundColor3 = color or WHITE
-	flash.BackgroundTransparency = 0.35
+	flash.BackgroundTransparency = cfg.Flash
 	flash.BorderSizePixel = 0
 	flash.Size = UDim2.fromScale(1, 1)
-	flash.ZIndex = 5
+	flash.ZIndex = 4
 	copyCorner(root, flash)
 	flash.Parent = face
-	tween(flash, 0.18, { BackgroundTransparency = 1 }, QUAD, OUT)
-	task.delay(0.2, function()
+	tween(flash, cfg.FlashTime, { BackgroundTransparency = 1 }, QUAD, OUT)
+	task.delay(cfg.FlashTime + 0.02, function()
 		flash:Destroy()
 	end)
-	local stud = face:FindFirstChild("Stud")
-	if stud and stud:IsA("GuiObject") then
-		local scale = UiFx.scaleOf(stud)
-		scale.Scale = 0.84
-		tween(scale, 0.32, { Scale = 1 }, BACK, OUT)
-	end
+	UiFx.iconPop(root, 0.6)
 end
 
 -- «Подпрыгнуть»: резко увеличиться и пружинисто вернуться (счётчики, награды).
 function UiFx.bump(gui: GuiObject, peak: number?, time: number?)
-	local scale = UiFx.scaleOf(gui)
-	scale.Scale = peak or 1.22
-	tween(scale, time or 0.3, { Scale = 1 }, BACK, OUT)
+	if reduced() then
+		return
+	end
+	scaleAll(gui, peak or 1.22, time or 0.3, 1, BACK, OUT)
 end
 
 -- «Удар»: влетает огромным (2.2) и с перелётом садится на место, потом лёгкая тряска.
 function UiFx.slam(gui: GuiObject, from: number?, time: number?)
+	if reduced() then
+		calmPop(gui, 0.9)
+		return
+	end
 	local duration = time or 0.35
-	local scale = UiFx.scaleOf(gui)
-	scale.Scale = from or 2.2
-	tween(scale, duration, { Scale = 1 }, BACK, OUT)
+	scaleAll(gui, from or 2.2, duration, 1, BACK, OUT)
 	task.delay(duration * 0.55, function()
 		UiFx.shake(gui, 0.012, 0.22)
 	end)
@@ -856,10 +912,12 @@ end
 
 -- «Печать»: падает сверху крупной и с поворотом (бейджи, «НОВАЯ!»).
 function UiFx.stamp(gui: GuiObject, rotate: number?, time: number?)
+	if reduced() then
+		calmPop(gui, 0.9)
+		return
+	end
 	local duration = time or 0.3
-	local scale = UiFx.scaleOf(gui)
-	scale.Scale = 3
-	tween(scale, duration, { Scale = 1 }, BACK, OUT)
+	scaleAll(gui, 3, duration, 1, BACK, OUT)
 	local motion = beginMotion(rotations, gui, gui.Rotation)
 	gui.Rotation = motion.rest + (rotate or -16)
 	tween(gui, duration, { Rotation = motion.rest }, BACK, OUT)
@@ -871,10 +929,13 @@ function UiFx.stamp(gui: GuiObject, rotate: number?, time: number?)
 	)
 end
 
--- Бесконечный «пульс» масштаба 1 ↔ peak. Возвращает stop.
+-- Бесконечный «пульс» масштаба 1 ↔ peak. Возвращает stop. («Меньше движения» — без пульса.)
 function UiFx.pulse(gui: GuiObject, peak: number?, period: number?): Stop
 	local scale = UiFx.scaleOf(gui)
 	scale.Scale = 1
+	if reduced() then
+		return noop
+	end
 	local info = TweenInfo.new((period or 0.8) / 2, SINE, INOUT, -1, true)
 	local looping = TweenService:Create(scale, info, { Scale = peak or 1.08 })
 	looping:Play()
@@ -886,6 +947,9 @@ end
 
 -- Покачивание ±angle° (по умолчанию 6°, 3 качания за 0.4 с), затухающее.
 function UiFx.wiggle(gui: GuiObject, angle: number?, swings: number?, time: number?)
+	if reduced() then
+		return
+	end
 	local amplitude = angle or 6
 	local halfSwings = (swings or 3) * 2
 	local stepTime = (time or 0.4) / (halfSwings + 1)
@@ -914,28 +978,43 @@ function UiFx.wiggle(gui: GuiObject, angle: number?, swings: number?, time: numb
 	)
 end
 
--- Тряска позиции ±amount (доля родителя, по умолчанию 1.5 %), затухающая за time (0.25 с).
+-- Тряска позиции ±amount (доля родителя, по умолчанию 1.5 %), затухающая за time (0.25 с); тень-
+-- близнец трясётся с теми же сдвигами.
 function UiFx.shake(gui: GuiObject, amount: number?, time: number?)
+	if reduced() then
+		return
+	end
 	local size = amount or 0.015
 	local steps = 6
 	local stepTime = (time or 0.25) / steps
-	local motion = beginMotion(positions, gui, gui.Position)
-	local rest: UDim2 = motion.rest
+	local targets: { GuiObject } = { gui }
+	local twin = twinOf(gui)
+	if twin then
+		table.insert(targets, twin)
+	end
+	local offsets: { UDim2 } = {}
 	for index = 1, steps do
 		local k = 1 - (index - 1) / steps
-		local target = if index == steps
-			then rest
-			else rest + UDim2.fromScale(rng:NextNumber(-size, size) * k, rng:NextNumber(-size, size) * k)
-		local function move()
-			tween(gui, stepTime, { Position = target }, SINE, OUT)
-			if index == steps then
-				positions[gui] = nil
+		offsets[index] = if index == steps
+			then UDim2.new()
+			else UDim2.fromScale(rng:NextNumber(-size, size) * k, rng:NextNumber(-size, size) * k)
+	end
+	for _, target in targets do
+		local motion = beginMotion(positions, target, target.Position)
+		local rest: UDim2 = motion.rest
+		for index = 1, steps do
+			local goal = rest + offsets[index]
+			local function move()
+				tween(target, stepTime, { Position = goal }, SINE, OUT)
+				if index == steps then
+					positions[target] = nil
+				end
 			end
-		end
-		if index == 1 then
-			move()
-		else
-			table.insert(motion.threads, task.delay(stepTime * (index - 1), move))
+			if index == 1 then
+				move()
+			else
+				table.insert(motion.threads, task.delay(stepTime * (index - 1), move))
+			end
 		end
 	end
 end
@@ -1008,7 +1087,7 @@ function UiFx.shine(gui: GuiObject, time: number?)
 end
 
 export type ShineLoopOptions = {
-	interval: number?, -- секунд между бликами (UIConfig.Fx.ShineInterval)
+	interval: number?, -- секунд между бликами (UIConfig.Motion.Shine.Interval)
 	time: number?, -- длительность блика
 	delay: number?, -- первый блик (по умолчанию — случайно в пределах интервала)
 	when: (() -> boolean)?, -- блестеть, только если вернёт true
@@ -1016,8 +1095,11 @@ export type ShineLoopOptions = {
 
 -- Блик раз в interval секунд, пока элемент виден. Таймеры, без соединений. Возвращает stop.
 function UiFx.shineLoop(gui: GuiObject, opts: ShineLoopOptions?): Stop
+	if reduced() then
+		return noop
+	end
 	local o: ShineLoopOptions = opts or {}
-	local interval = o.interval or Fx.ShineInterval
+	local interval = o.interval or MOTION.Shine.Interval
 	local running = true
 	local pending: thread? = nil
 	local function tick()
@@ -1116,7 +1198,7 @@ function UiFx.glowRing(gui: GuiObject, opts: RingOptions?): Stop
 	local running = true
 	local pending: thread? = nil
 	spawnRing()
-	if o.loop then
+	if o.loop and not reduced() then
 		local gap = o.interval or ((o.time or 0.6) + 0.25)
 		local function tick()
 			pending = nil
@@ -1441,7 +1523,8 @@ end
 ]]
 function UiFx.confetti(container: GuiBase2d, opts: ConfettiOptions?): Stop
 	local o: ConfettiOptions = opts or {}
-	local count = math.min(o.count or 40, UiFx.confettiCap() - liveConfetti)
+	local wanted = (o.count or 40) * (if reduced() then MOTION.Reduced.Confetti else 1)
+	local count = math.min(math.floor(wanted), UiFx.confettiCap() - liveConfetti)
 	if count <= 0 then
 		return noop
 	end
@@ -1543,7 +1626,8 @@ end
 ]]
 function UiFx.confettiPop(container: GuiBase2d, opts: ConfettiOptions?): Stop
 	local o: ConfettiOptions = opts or {}
-	local count = math.min(o.count or 20, UiFx.confettiCap() - liveConfetti)
+	local wanted = (o.count or 20) * (if reduced() then MOTION.Reduced.Confetti else 1)
+	local count = math.min(math.floor(wanted), UiFx.confettiCap() - liveConfetti)
 	if count <= 0 then
 		return noop
 	end
@@ -1702,6 +1786,9 @@ export type SparkleOptions = {
 	без соединений. Возвращает stop (живые звёздочки удаляются сразу).
 ]]
 function UiFx.sparkles(gui: GuiObject, opts: SparkleOptions?): Stop
+	if reduced() then
+		return noop
+	end
 	local o: SparkleOptions = opts or {}
 	local icons = o.icons or { "✨", "⭐" }
 	local rate = math.max(o.rate or 5, 0.5)
@@ -1808,8 +1895,9 @@ export type FloatOptions = {
 	travel: number?, -- 0.3 с
 }
 
--- «ОТЛИЧНО!», «+1 🐟»: выскакивает, поднимается и тает; с `to` — сперва вылетает из position
--- туда (растёт по пути: «+N 💰» из фишки цены). Возвращает надпись (удалится сама).
+-- «ОТЛИЧНО!», «+1 🐟»: жирный наклонный текст с толстой обводкой выскакивает (0.4 → 1, Back Out),
+-- поднимается и тает; с `to` — сперва вылетает из position туда (растёт по пути: «+N 💰» из
+-- фишки цены). Возвращает надпись (удалится сама).
 function UiFx.floatText(container: GuiBase2d, text: string, opts: FloatOptions?): TextLabel
 	local o: FloatOptions = opts or {}
 	local time = o.time or 0.8
@@ -1819,21 +1907,21 @@ function UiFx.floatText(container: GuiBase2d, text: string, opts: FloatOptions?)
 	label.BackgroundTransparency = 1
 	label.Text = text
 	label.TextScaled = true
-	label.FontFace = FONT
+	label.FontFace = FONT_ITALIC
 	label.TextColor3 = o.color or WHITE
 	label.TextStrokeTransparency = 1
 	label.AnchorPoint = Vector2.new(0.5, 0.5)
 	label.Position = start
 	label.Size = o.size or UDim2.fromScale(0.5, 0.2)
-	label.Rotation = o.rotate or rng:NextNumber(-6, 6)
+	label.Rotation = if reduced() then 0 else (o.rotate or rng:NextNumber(-6, 6))
 	label.ZIndex = o.z or 20
 	local outline = Instance.new("UIStroke")
 	outline.Name = "Outline"
 	outline.Color = INK
-	outline.Thickness = 2.5
+	outline.Thickness = 4
 	outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
 	outline.LineJoinMode = Enum.LineJoinMode.Round
-	outline:SetAttribute("BaseThickness", 2.5)
+	outline:SetAttribute("BaseThickness", 4)
 	outline.Parent = label
 	if o.colors and #o.colors > 0 then
 		local gradient = Instance.new("UIGradient")
@@ -1867,6 +1955,451 @@ function UiFx.floatText(container: GuiBase2d, text: string, opts: FloatOptions?)
 		label:Destroy()
 	end)
 	return label
+end
+
+--------------------------------------------------------------------------------
+-- Жизнь в покое (только таймеры и твины): дыхание, подпрыгивание, кружок «!», покачивание
+--------------------------------------------------------------------------------
+
+-- Цепочка task.delay, пока элемент виден: every() — пауза до следующего шага, step() — шаг.
+-- Возвращает stop. Удалённый элемент обрывает цепочку на следующем шаге.
+local function timerChain(gui: GuiObject, first: number, every: () -> number, step: () -> ()): Stop
+	local running = true
+	local pending: thread? = nil
+	local function tick()
+		pending = nil
+		if not running or gui.Parent == nil then
+			running = false
+			return
+		end
+		if gui.Visible then
+			step()
+		end
+		pending = task.delay(every(), tick)
+	end
+	pending = task.delay(first, tick)
+	return function()
+		running = false
+		local thread = pending
+		pending = nil
+		if thread and coroutine.status(thread) == "suspended" then
+			pcall(task.cancel, thread)
+		end
+	end
+end
+
+export type BreatheOptions = {
+	peak: number?, -- до какого масштаба «вдох» (UIConfig.Motion.Breath.Peak, 1.04)
+	period: number?, -- вдох-выдох, с (1.8)
+	when: (() -> boolean)?, -- дышать, только если вернёт true
+}
+
+--[[
+	«Дыхание» главной кнопки: раз в period секунд — один вдох-выдох (Sine InOut туда и обратно до
+	peak), только если элемент виден и сейчас не нажат и не «ударен» (масштаб ≈ 1). Один твин и
+	одна цепочка таймеров. Возвращает stop (масштаб возвращается к 1).
+]]
+function UiFx.breathe(gui: GuiObject, opts: BreatheOptions?): Stop
+	if reduced() then
+		return noop
+	end
+	local o: BreatheOptions = opts or {}
+	local cfg = MOTION.Breath
+	local period = o.period or cfg.Period
+	local scale = UiFx.scaleOf(gui)
+	local current: Tween? = nil
+	local stop = timerChain(gui, period * rng:NextNumber(0.3, 1), function()
+		return period
+	end, function()
+		if math.abs(scale.Scale - 1) < 0.01 and (o.when == nil or o.when()) then
+			local info = TweenInfo.new(period / 2, SINE, INOUT, 0, true)
+			local created = TweenService:Create(scale, info, { Scale = o.peak or cfg.Peak })
+			created:Play()
+			current = created
+		end
+	end)
+	return function()
+		stop()
+		if current then
+			current:Cancel()
+			current = nil
+			scale.Scale = 1
+		end
+	end
+end
+
+export type BobOptions = {
+	lift: number?, -- на какую долю своей высоты подпрыгнуть (UIConfig.Motion.Bob.Lift, 0.08)
+	every: { number }?, -- пауза между прыжками, с ({2.2, 3.0}: случайно)
+	hops: number?, -- сколько прыжков и стоп (по умолчанию — пока не остановят)
+	when: (() -> boolean)?, -- прыгать, только если вернёт true
+}
+
+--[[
+	Значок подпрыгивает: AnchorPoint.Y + lift за 0.18 с (Quad Out) и обратно за 0.32 с (Bounce
+	Out) — через AnchorPoint, так что позицией и масштабом владеют другие эффекты. Цепочка
+	таймеров, пока элемент виден. Возвращает stop (значок встаёт на место).
+]]
+function UiFx.bob(icon: GuiObject, opts: BobOptions?): Stop
+	if reduced() then
+		return noop
+	end
+	local o: BobOptions = opts or {}
+	local cfg = MOTION.Bob
+	local every = o.every or cfg.Every
+	local rest = icon.AnchorPoint
+	local hops = 0
+	local stop: Stop = noop
+	stop = timerChain(icon, rng:NextNumber(every[1], every[2]) * 0.5, function()
+		return rng:NextNumber(every[1], every[2])
+	end, function()
+		if o.when and not o.when() then
+			return
+		end
+		hops += 1
+		tween(icon, cfg.Up, { AnchorPoint = rest + Vector2.new(0, o.lift or cfg.Lift) }, QUAD, OUT)
+		task.delay(cfg.Up, function()
+			tween(icon, cfg.Down, { AnchorPoint = rest }, BOUNCE, OUT)
+		end)
+		if o.hops and hops >= o.hops then
+			task.defer(stop)
+		end
+	end)
+	return function()
+		stop()
+		icon.AnchorPoint = rest
+	end
+end
+
+export type WobbleOptions = {
+	angle: number?, -- ±градусов (UIConfig.Motion.Wobble.Angle, 12)
+	bump: number?, -- «вдох» на каждом покачивании (1.12)
+	every: { number }?, -- пауза, с ({2.8, 3.6}: случайно)
+}
+
+-- Покачивание «обратите внимание» (кружок «!»): раз в 2.8–3.6 с — качнуться ±12° и «вдохнуть».
+-- Цепочка таймеров, пока элемент виден. Возвращает stop.
+function UiFx.wobbleLoop(gui: GuiObject, opts: WobbleOptions?): Stop
+	if reduced() then
+		return noop
+	end
+	local o: WobbleOptions = opts or {}
+	local cfg = MOTION.Wobble
+	local every = o.every or cfg.Every
+	return timerChain(gui, rng:NextNumber(every[1], every[2]) * 0.6, function()
+		return rng:NextNumber(every[1], every[2])
+	end, function()
+		UiFx.wiggle(gui, o.angle or cfg.Angle, cfg.Swings, cfg.Time)
+		UiFx.bump(gui, o.bump or cfg.Bump, 0.25)
+	end)
+end
+
+export type SwayOptions = {
+	angle: number?, -- ±градусов (UIConfig.Motion.Sway.Angle, 1.5)
+	period: number?, -- туда-обратно, с (2.4)
+}
+
+-- Медленное покачивание поворотом (плашка ожидания): один бесконечный твин. stop — поворот на место.
+function UiFx.sway(gui: GuiObject, opts: SwayOptions?): Stop
+	if reduced() then
+		return noop
+	end
+	local o: SwayOptions = opts or {}
+	local cfg = MOTION.Sway
+	local rest = gui.Rotation
+	local angle = o.angle or cfg.Angle
+	gui.Rotation = rest - angle
+	local looping = TweenService:Create(gui, TweenInfo.new((o.period or cfg.Period) / 2, SINE, INOUT, -1, true), {
+		Rotation = rest + angle,
+	})
+	looping:Play()
+	return function()
+		looping:Cancel()
+		gui.Rotation = rest
+	end
+end
+
+-- Остановка «живущего» кружка «!» (badgeBob) — по самому кружку.
+local badgeLife: { [Instance]: Stop } = setmetatable({}, { __mode = "k" }) :: any
+
+--[[
+	Красный кружок «!» (Theme.badge) появляется: Visible, «удар» 0 → 1.25 → 1, белое кольцо и
+	высокий «тик»; потом качается раз в 2.8–3.6 с (wobbleLoop), пока виден. Возвращает stop
+	(то же делает badgeHide).
+]]
+function UiFx.badgeBob(badge: GuiObject): Stop
+	local old = badgeLife[badge]
+	if old then
+		old()
+	end
+	badge.Visible = true
+	UiFx.punch(badge, { from = 0, peak = 1.25, up = 0.12, settle = 0.25 })
+	if not reduced() then
+		UiFx.glowRing(badge, { color = WHITE, scale = 1.6, time = 0.45, thickness = 3 })
+	end
+	UiFx.sound("tick", 0.3, 1.6)
+	local stopWobble = UiFx.wobbleLoop(badge)
+	local function stop()
+		stopWobble()
+		if badgeLife[badge] == stop then
+			badgeLife[badge] = nil
+		end
+	end
+	badgeLife[badge] = stop
+	return stop
+end
+
+-- Кружок «!» уходит: «вдох» и сжатие (popOut 0.16 с), потом Visible = false.
+function UiFx.badgeHide(badge: GuiObject)
+	local stop = badgeLife[badge]
+	if stop then
+		stop()
+	end
+	if badge.Visible then
+		UiFx.popOut(badge, { time = MOTION.Out.Time, hide = true })
+	end
+end
+
+export type StaggerPopOptions = {
+	from: number?, -- начальный масштаб (UIConfig.Motion.Pop.ChildFrom, 0.3)
+	gap: number?, -- между элементами, с (UIConfig.Motion.Pop.ChildDelay, 0.05)
+	time: number?, -- выскакивание одного (UIConfig.Motion.Pop.Time)
+	delay: number?, -- первый
+}
+
+-- Элементы выскакивают «лесенкой» (Back Out, один за другим): вход в игру, звёзды, кружки.
+function UiFx.staggerPop(items: { GuiObject }, opts: StaggerPopOptions?)
+	local o: StaggerPopOptions = opts or {}
+	local cfg = MOTION.Pop
+	for index, item in items do
+		UiFx.popIn(item, {
+			from = o.from or cfg.ChildFrom,
+			time = o.time or cfg.Time,
+			delay = (o.delay or 0) + (index - 1) * (o.gap or cfg.ChildDelay),
+		})
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Числа и цвета: «слот-машина», вспышка текста, перекраска с переходом, кольцо-таймер
+--------------------------------------------------------------------------------
+
+-- Позиция надписи «в покое» (swapText запоминает её при первом вызове: повторы не сдвигают).
+local textRest: { [Instance]: UDim2 } = setmetatable({}, { __mode = "k" }) :: any
+
+export type SwapOptions = {
+	out: number?, -- старый текст уезжает, с (UIConfig.Motion.Roll.Out)
+	inTime: number?, -- новый поднимается, с (Roll.In)
+	lift: number?, -- на какую долю высоты (0.4)
+}
+
+--[[
+	«Слот-машина»: копия FxSwap со старым текстом уезжает вверх и тает, надпись получает новый
+	текст и поднимается снизу на место с пружинкой (Back Out). Позиция «в покое» запоминается.
+	Тень-близнец получает текст сразу. Только твины.
+]]
+function UiFx.swapText(label: TextLabel, text: string, opts: SwapOptions?)
+	local o: SwapOptions = opts or {}
+	local cfg = MOTION.Roll
+	if label.Text == text then
+		return
+	end
+	local rest = textRest[label]
+	if not rest then
+		rest = label.Position
+		textRest[label] = rest
+	end
+	local old = label.Text
+	UiFx.setText(label, text)
+	if reduced() or label.Parent == nil then
+		label.Position = rest
+		return
+	end
+	local lift =
+		UDim2.new(0, 0, label.Size.Y.Scale * (o.lift or 0.4), math.round(label.Size.Y.Offset * (o.lift or 0.4)))
+	local ghost = label:Clone()
+	ghost.Name = "FxSwap"
+	ghost.Text = old
+	for _, item in ghost:GetChildren() do
+		if string.sub(item.Name, 1, 2) == "Fx" then
+			item:Destroy()
+		end
+	end
+	ghost.Position = rest
+	ghost.Parent = label.Parent
+	local out = o.out or cfg.Out
+	tween(ghost, out, { Position = rest - lift, TextTransparency = 1 }, QUAD, IN)
+	local edge = ghost:FindFirstChildOfClass("UIStroke")
+	if edge then
+		tween(edge, out, { Transparency = 1 }, QUAD, IN)
+	end
+	task.delay(out + 0.02, function()
+		ghost:Destroy()
+	end)
+	label.Position = rest + lift
+	tween(label, o.inTime or cfg.In, { Position = rest }, BACK, OUT)
+end
+
+-- Цвет надписи «в покое» и время последней вспышки (flashText не чаще FlashMinInterval).
+local textColorRest: { [Instance]: Color3 } = setmetatable({}, { __mode = "k" }) :: any
+local textFlashAt: { [Instance]: number } = setmetatable({}, { __mode = "k" }) :: any
+
+--[[
+	Вспышка цвета надписи: TextColor3 → color сразу и обратно к цвету «в покое» за time (0.35 с,
+	Quad Out). С градиентом TextFill цвета перемножаются (белое → золото — золотая вспышка). Не
+	чаще раза в UIConfig.Fx.FlashMinInterval на надпись; «меньше движения» — без вспышки.
+]]
+function UiFx.flashText(label: TextLabel, color: Color3, time: number?)
+	if reduced() then
+		return
+	end
+	local now = os.clock()
+	if now - (textFlashAt[label] or -math.huge) < Fx.FlashMinInterval then
+		return
+	end
+	textFlashAt[label] = now
+	local rest = textColorRest[label]
+	if not rest then
+		rest = label.TextColor3
+		textColorRest[label] = rest
+	end
+	label.TextColor3 = color
+	tween(label, time or MOTION.Roll.Flash, { TextColor3 = rest }, QUAD, OUT)
+end
+
+--[[
+	Перекраска с переходом: копия градиента лица со СТАРЫМИ цветами накрывает лицо (FxRecolor) и
+	тает за time (0.16 с), под ней setCandy уже поставил новые; обводка плавно меняет цвет.
+	time = 0 — просто setCandy.
+]]
+function UiFx.recolor(root: GuiObject, look: string | Color3 | Swatch, time: number?)
+	local duration = time or MOTION.Morph.Fade
+	local face = UiFx.faceOf(root)
+	local fill = face:FindFirstChild("Fill")
+	local lip = root:FindFirstChild("Lip")
+	local edge = if lip then lip:FindFirstChildOfClass("UIStroke") else nil
+	local oldEdge = if edge then edge.Color else nil
+	local overlay: Frame? = nil
+	if duration > 0 and face ~= root and fill and fill:IsA("UIGradient") and face.BackgroundTransparency < 0.99 then
+		local frame = Instance.new("Frame")
+		frame.Name = "FxRecolor"
+		frame.Active = false
+		frame.BackgroundColor3 = WHITE
+		frame.BackgroundTransparency = face.BackgroundTransparency
+		frame.BorderSizePixel = 0
+		frame.Size = UDim2.fromScale(1, 1)
+		frame.ZIndex = 1
+		copyCorner(root, frame)
+		fill:Clone().Parent = frame
+		frame.Parent = face
+		overlay = frame
+	end
+	UiFx.setCandy(root, look)
+	if overlay then
+		local frame = overlay
+		tween(frame, duration, { BackgroundTransparency = 1 }, QUAD, OUT)
+		task.delay(duration + 0.02, function()
+			frame:Destroy()
+		end)
+	end
+	if edge and oldEdge and duration > 0 and edge.Color ~= oldEdge then
+		local target = edge.Color
+		edge.Color = oldEdge
+		tween(edge, duration, { Color = target }, QUAD, OUT)
+	end
+end
+
+export type RingTimerOptions = {
+	colors: { Color3 }?, -- полно → мало (UIConfig.Fishing.TimeBar)
+	thickness: number?, -- толщина кольца, px при 720 (UIConfig.Motion.Ring.Thickness)
+	pad: number?, -- отступ от элемента, px (UIConfig.Motion.Ring.Pad)
+}
+
+--[[
+	Кольцо-таймер вокруг элемента (круглого или квадратного): слой FxRingTimer (на pad px больше
+	элемента, под его содержимым) из двух половин Left / Right (ClipsDescendants) с кругом в
+	каждой; у круга обводка с градиентом прозрачности «половина видна». Убывает по часовой от
+	12 часов: правая половина поворачивает свой градиент 180 → 360 за duration / 2, левая — 0 →
+	180 следом; цвет идёт colors[1] → [2] → [3]. Только твины: ни одного покадрового эффекта.
+	Возвращает stop (всё удаляется).
+]]
+function UiFx.ringTimer(gui: GuiObject, duration: number, opts: RingTimerOptions?): Stop
+	local o: RingTimerOptions = opts or {}
+	local cfg = MOTION.Ring
+	local colors = o.colors or UIConfig.Fishing.TimeBar
+	local thickness = o.thickness or cfg.Thickness
+	local pad = o.pad or cfg.Pad
+	local half = math.max(duration, 0.02) / 2
+	local holder = Instance.new("Frame")
+	holder.Name = "FxRingTimer"
+	holder.Active = false
+	holder.BackgroundTransparency = 1
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Position = UDim2.fromScale(0.5, 0.5)
+	holder.Size = UDim2.new(1, pad * 2, 1, pad * 2)
+	holder.ZIndex = 0
+	local tweens: { Tween } = {}
+	local function sideOf(name: string, x: number, from: number, to: number, delay: number)
+		local side = Instance.new("Frame")
+		side.Name = name
+		side.BackgroundTransparency = 1
+		side.ClipsDescendants = true
+		side.Position = UDim2.fromScale(x, 0)
+		side.Size = UDim2.fromScale(0.5, 1)
+		side.ZIndex = 0
+		local circle = Instance.new("Frame")
+		circle.Name = "Circle"
+		circle.BackgroundTransparency = 1
+		circle.Position = UDim2.fromScale(if x > 0 then -1 else 0, 0)
+		circle.Size = UDim2.fromScale(2, 1)
+		circle.ZIndex = 0
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.5, 0)
+		corner.Parent = circle
+		local ring = Instance.new("UIStroke")
+		ring.Color = colors[1] or WHITE
+		ring.Thickness = thickness
+		ring.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		ring:SetAttribute("BaseThickness", thickness)
+		ring.Parent = circle
+		local mask = Instance.new("UIGradient")
+		mask.Name = "Drain"
+		mask.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(0.499, 0),
+			NumberSequenceKeypoint.new(0.5, 1),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		mask.Rotation = from
+		mask.Parent = ring
+		circle.Parent = side
+		side.Parent = holder
+		local info = TweenInfo.new(half, LINEAR, OUT, 0, false, delay)
+		local turn = TweenService:Create(mask, info, { Rotation = to })
+		turn:Play()
+		table.insert(tweens, turn)
+		if #colors >= 2 then
+			table.insert(tweens, tween(ring, half, { Color = colors[2] }, LINEAR, OUT))
+		end
+		if #colors >= 3 then
+			table.insert(tweens, tween(ring, half, { Color = colors[3] }, LINEAR, OUT, half))
+		end
+	end
+	sideOf("Right", 0.5, 180, 360, 0)
+	sideOf("Left", 0, 0, 180, half)
+	holder.Parent = gui
+	local thread = task.delay(duration + 0.05, function()
+		holder:Destroy()
+	end)
+	return function()
+		if coroutine.status(thread) == "suspended" then
+			pcall(task.cancel, thread)
+		end
+		for _, playing in tweens do
+			playing:Cancel()
+		end
+		holder:Destroy()
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -1931,7 +2464,7 @@ function UiFx.rainbow(gradient: UIGradient, opts: RainbowOptions?): Stop
 	local o: RainbowOptions = opts or {}
 	local colors = o.colors or UIConfig.Rainbow
 	local count = #colors
-	local speed = o.speed or 0.35
+	local speed = (o.speed or 0.35) * (if reduced() then MOTION.Reduced.Rainbow else 1)
 	local original = gradient.Color
 	local originalRotation = gradient.Rotation
 	local points = math.min(count * 2, 18)
@@ -2428,60 +2961,108 @@ end
 export type FlyOptions = {
 	text: string?, -- значок ("🐟")
 	color: Color3?, -- цвет значка-знака (не эмодзи: «★» и т. п.; с тёмной обводкой)
-	time: number?, -- 0.6 с
+	time: number?, -- 0.6 с (у каждого значка)
 	size: number?, -- размер в высотах слоя (0.09)
 	arc: number?, -- высота дуги (доля высоты слоя, 0.22)
-	onArrive: (() -> ())?, -- на месте (например, UiFx.bump(счётчика))
+	onArrive: (() -> ())?, -- на месте последний значок (например, UiFx.bump(счётчика))
+	count: number?, -- сколько значков летит (1; UIConfig.Motion.Fly.Count по редкости, до 6)
+	gap: number?, -- между вылетами значков, с (UIConfig.Motion.Fly.Gap)
+	onEach: ((index: number) -> ())?, -- на месте i-й значок (маленький «тик» счётчика)
+	texts: { string }?, -- значки по очереди вместо одного text (🐟, ★, …)
 }
 
--- Значок летит по дуге от одного элемента к другому (рыба из карточки в счётчик улова).
+--[[
+	Значки летят по дуге от одного элемента к другому (рыба из карточки в счётчик улова). С count
+	больше 1 они сперва разлетаются из центра from (Quad Out, UIConfig.Motion.Fly.Scatter, на
+	Spread px в случайные стороны), потом летят по очереди через gap; onEach(i) — на прилёте
+	каждого, onArrive — после последнего. Один покадровый эффект на все значки.
+]]
 function UiFx.flyTo(layer: GuiBase2d, from: GuiObject, to: GuiObject, opts: FlyOptions?): Stop
 	local o: FlyOptions = opts or {}
+	local cfg = MOTION.Fly
 	local base = layer.AbsolutePosition
 	local area = layer.AbsoluteSize
 	local width, height = math.max(area.X, 1), math.max(area.Y, 1)
 	local a = from.AbsolutePosition + from.AbsoluteSize / 2 - base
 	local b = to.AbsolutePosition + to.AbsoluteSize / 2 - base
-	local c = (a + b) / 2 - Vector2.new(0, height * (o.arc or 0.22))
 	local duration = o.time or 0.6
-	local icon = Instance.new("TextLabel")
-	icon.Name = "FxFly"
-	icon.BackgroundTransparency = 1
-	icon.Text = o.text or "🐟"
-	icon.TextScaled = true
-	icon.FontFace = FONT
-	if o.color then
-		icon.TextColor3 = o.color
-		icon.TextStrokeColor3 = INK
-		icon.TextStrokeTransparency = 0.4
-	end
-	icon.AnchorPoint = Vector2.new(0.5, 0.5)
-	icon.SizeConstraint = Enum.SizeConstraint.RelativeYY
+	local count = math.clamp(math.floor(o.count or 1), 1, 6)
+	local scatter = if count > 1 then cfg.Scatter else 0
+	local gap = if count > 1 then (o.gap or cfg.Gap) else 0
 	local size = o.size or 0.09
-	icon.Size = UDim2.fromScale(size, size)
-	icon.Position = UDim2.fromScale(a.X / width, a.Y / height)
-	icon.ZIndex = 60
-	icon.Parent = layer
+	type Flyer = { icon: TextLabel, start: Vector2, apex: Vector2, arrived: boolean }
+	local flyers: { Flyer } = {}
+	for index = 1, count do
+		local icon = Instance.new("TextLabel")
+		icon.Name = "FxFly"
+		icon.BackgroundTransparency = 1
+		icon.Text = if o.texts and #o.texts > 0 then o.texts[(index - 1) % #o.texts + 1] else (o.text or "🐟")
+		icon.TextScaled = true
+		icon.FontFace = FONT
+		if o.color then
+			icon.TextColor3 = o.color
+			icon.TextStrokeColor3 = INK
+			icon.TextStrokeTransparency = 0.4
+		end
+		icon.AnchorPoint = Vector2.new(0.5, 0.5)
+		icon.SizeConstraint = Enum.SizeConstraint.RelativeYY
+		icon.Size = UDim2.fromScale(size, size)
+		icon.Position = UDim2.fromScale(a.X / width, a.Y / height)
+		icon.ZIndex = 60
+		icon.Parent = layer
+		local start = a
+		if count > 1 then
+			local angle = rng:NextNumber(0, math.pi * 2)
+			local reach = rng:NextNumber(cfg.Spread[1], cfg.Spread[2])
+			start = a + Vector2.new(math.cos(angle), math.sin(angle)) * reach
+		end
+		local apex = (start + b) / 2 - Vector2.new(0, height * (o.arc or 0.22))
+		table.insert(flyers, { icon = icon, start = start, apex = apex, arrived = false })
+	end
 	local elapsed = 0
-	local arrived = false
+	local landed = 0
 	return UiFx.schedule(function(dt: number): boolean
 		elapsed += dt
-		local k = math.min(1, elapsed / duration)
-		local e = if k < 0.5 then 2 * k * k else 1 - (-2 * k + 2) ^ 2 / 2
-		local p = a:Lerp(c, e):Lerp(c:Lerp(b, e), e)
-		icon.Position = UDim2.fromScale(p.X / width, p.Y / height)
-		icon.Rotation = -20 + 40 * e
-		local s = size * (1 + 0.35 * math.sin(math.pi * e) - 0.35 * e)
-		icon.Size = UDim2.fromScale(s, s)
-		if k >= 1 and not arrived then
-			arrived = true
-			if o.onArrive then
-				task.spawn(o.onArrive)
+		for index, f in flyers do
+			if not f.arrived then
+				local icon = f.icon
+				local s = elapsed / math.max(scatter, 1e-3)
+				local t = elapsed - scatter - gap * (index - 1)
+				if scatter > 0 and elapsed < scatter then
+					-- Разлёт из центра (Quad Out), значок растёт.
+					local e = 1 - (1 - s) * (1 - s)
+					local p = a:Lerp(f.start, e)
+					icon.Position = UDim2.fromScale(p.X / width, p.Y / height)
+					local grow = size * (0.4 + 0.6 * e)
+					icon.Size = UDim2.fromScale(grow, grow)
+				elseif t > 0 then
+					local k = math.min(1, t / duration)
+					local e = if k < 0.5 then 2 * k * k else 1 - (-2 * k + 2) ^ 2 / 2
+					local p = f.start:Lerp(f.apex, e):Lerp(f.apex:Lerp(b, e), e)
+					icon.Position = UDim2.fromScale(p.X / width, p.Y / height)
+					icon.Rotation = -20 + 40 * e
+					local grown = size * (1 + 0.35 * math.sin(math.pi * e) - 0.35 * e)
+					icon.Size = UDim2.fromScale(grown, grown)
+					if k >= 1 then
+						f.arrived = true
+						icon.Visible = false
+						landed += 1
+						local onEach, onArrive = o.onEach, o.onArrive
+						if onEach then
+							task.spawn(onEach, index)
+						end
+						if landed == count and onArrive then
+							task.spawn(onArrive)
+						end
+					end
+				end
 			end
 		end
-		return k < 1
+		return landed < count
 	end, function()
-		icon:Destroy()
+		for _, f in flyers do
+			f.icon:Destroy()
+		end
 	end)
 end
 
@@ -2613,23 +3194,28 @@ local function isText(item: Instance?): boolean
 	return item ~= nil and (item:IsA("TextLabel") or item:IsA("TextButton") or item:IsA("TextBox"))
 end
 
--- Множитель толщины обводок под высоту экрана и толщина обводки base под него (fitStrokes).
-local function strokeFactor(): number
+-- Множитель толщины обводок под высоту экрана (fitStrokes): 0.65 на телефоне … до
+-- UIConfig.Fx.StrokeMax (обводки форм) / TextStrokeMax (обводки текста: текст перестаёт расти на
+-- 1.6 своей «телефонной» величины, обводка — тоже) на больших экранах.
+local function screenFactor(): number
 	local camera = Workspace.CurrentCamera
 	local height = if camera then camera.ViewportSize.Y else Fx.StrokeHeight
-	return if height > 1 then math.clamp(height / Fx.StrokeHeight, 0.65, 1.5) else 1
+	return if height > 1 then height / Fx.StrokeHeight else 1
 end
 
-local function fittedStroke(stroke: UIStroke, base: number, factor: number): number
-	local floor = if isText(stroke.Parent) then Fx.TextStrokeMin else 1
+local function fittedStroke(stroke: UIStroke, base: number, raw: number): number
+	local text = isText(stroke.Parent)
+	local factor = math.clamp(raw, 0.65, if text then Fx.TextStrokeMax else Fx.StrokeMax)
+	local floor = if text then Fx.TextStrokeMin else 1
 	return math.max(floor, math.floor(base * factor * 2 + 0.5) / 2)
 end
 
 --[[
 	Обводки (UIStroke с атрибутом BaseThickness — их ставит Theme) нарисованы для экрана высотой
-	720 px; здесь их толщина подгоняется под настоящий экран (телефон — тоньше, 4K — толще), в том
-	числе у элементов, добавленных позже. Обводка текста не тоньше UIConfig.Fx.TextStrokeMin (2 px):
-	белый текст на жёлтом и зелёном читается только благодаря ей. Возвращает функцию отвязки.
+	720 px; здесь их толщина подгоняется под настоящий экран (телефон — тоньше, большой экран —
+	толще, но не больше StrokeMax / TextStrokeMax), в том числе у элементов, добавленных позже.
+	Обводка текста не тоньше UIConfig.Fx.TextStrokeMin (2 px): белый текст на жёлтом и зелёном
+	читается только благодаря ей. Возвращает функцию отвязки.
 ]]
 function UiFx.fitStrokes(root: Instance): Stop
 	local camera = Workspace.CurrentCamera
@@ -2643,7 +3229,7 @@ function UiFx.fitStrokes(root: Instance): Stop
 		end
 	end
 	local function applyAll()
-		factor = strokeFactor()
+		factor = screenFactor()
 		for _, item in root:GetDescendants() do
 			apply(item)
 		end
@@ -2664,7 +3250,7 @@ end
 function UiFx.strokeThickness(stroke: UIStroke): number
 	local base = stroke:GetAttribute("BaseThickness")
 	if typeof(base) == "number" then
-		return fittedStroke(stroke, base, strokeFactor())
+		return fittedStroke(stroke, base, screenFactor())
 	end
 	return stroke.Thickness
 end
@@ -2685,6 +3271,57 @@ function UiFx.textSize(tier: string): number
 	local camera = Workspace.CurrentCamera
 	local base = UIConfig.Type[tier] or UIConfig.Type.Body
 	return math.floor(base * typeScale(if camera then camera.ViewportSize.Y else 0) + 0.5)
+end
+
+-- Ширина символов Montserrat Heavy в долях размера текста (TextSize = высота строки; замерено по
+-- шрифту превью, tools/preview/fonts): заглавные и строчные кириллицы и латиницы, цифры, знаки.
+local GLYPH_WIDTH: { [number]: number } = {
+	[32] = 0.25, -- пробел
+	[33] = 0.26, -- !
+	[34] = 0.4, -- "
+	[40] = 0.31, -- (
+	[41] = 0.31, -- )
+	[43] = 0.5, -- +
+	[44] = 0.25, -- ,
+	[45] = 0.32, -- -
+	[46] = 0.25, -- .
+	[58] = 0.25, -- :
+	[63] = 0.5, -- ?
+	[171] = 0.53, -- «
+	[187] = 0.53, -- »
+	[215] = 0.5, -- ×
+	[8212] = 0.82, -- —
+	[8230] = 0.76, -- …
+}
+
+--[[
+	Ширина строки text при размере текста px (Montserrat Heavy, как в Theme.label) — оценка по
+	символам: заглавная кириллица ≈ 0.68 размера, строчная ≈ 0.59, латиница и цифры уже, пробел и
+	знаки препинания ≈ 0.25, эмодзи ≈ 0.82. Для раскладки плашек под текст до того, как он нарисован
+	(уведомления); средняя «на букву» для смешанного текста ошибается на 20 % в обе стороны.
+]]
+function UiFx.textWidth(text: string, px: number): number
+	local units = 0
+	for _, code in utf8.codes(text) do
+		local w = GLYPH_WIDTH[code]
+		if w == nil then
+			if (code >= 0x410 and code <= 0x42F) or code == 0x401 then
+				w = 0.68 -- А…Я, Ё
+			elseif (code >= 0x430 and code <= 0x44F) or code == 0x451 then
+				w = 0.59 -- а…я, ё
+			elseif code >= 65 and code <= 90 then
+				w = 0.62 -- A…Z
+			elseif (code >= 97 and code <= 122) or (code >= 48 and code <= 57) then
+				w = 0.52 -- a…z, 0…9
+			elseif code >= 0x2000 then
+				w = if code == 0xFE0F or code == 0x200D then 0 else 0.82 -- эмодзи (селектор и ZWJ — без ширины)
+			else
+				w = 0.55
+			end
+		end
+		units += w
+	end
+	return units * px
 end
 
 --[[

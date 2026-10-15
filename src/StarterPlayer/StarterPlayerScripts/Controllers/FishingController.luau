@@ -2,18 +2,21 @@
 --[[
 	FishingController — рыбалка локального игрока: кнопка действия, поклёвка, мини-игра,
 	карточка улова и подсказки (Этап 2). Интерфейс — HUD.Fishing (tools/builder/gui/Fishing.luau),
-	стиль «Кирпичики» (UI v4: все виджеты — кирпичики с пупырками) и вся анимация —
-	tools/builder/gui/STYLE.md §3 и ReplicatedStorage.Shared.UiFx.
+	стиль «Симулятор» (UI v5: сочные плашки с толстой обводкой в тёмный оттенок своего цвета,
+	без пупырок; сборщик пока зовёт старые имена Theme — они строят тот же вид) и вся
+	анимация — tools/builder/gui/STYLE.md §3 и ReplicatedStorage.Shared.UiFx.
 
 	Сервер (FishingService) решает всё сам. Клиент только просит (FishingCast / FishingHook /
 	FishingTap / FishingStop) и показывает то, что сервер прислал в FishingState
 	(протокол — в шапке RemoteNames).
 
 	  • Кнопка действия (ActionArea.ActionButton) видна, пока удочка в руке персонажа. Это
-	    большая круглая «пластина» с выпуклой пупыркой (на ней значок, надпись — на чёрной
-	    плашке); цвет, значок и надпись — по состоянию: «ЗАБРОСИТЬ» (Sky 🎣,
-	    единственная «живая» кнопка в покое: блик и лёгкое дыхание) → «ЖДИ КЛЁВА…» (v3: Pond —
-	    приглушённая бирюза, кнопка меньше на 15 %: жать не нужно; поплавок покачивается, точки
+	    большая круглая кнопка (значок посередине, надпись — на тёмной полупрозрачной
+	    «таблетке»); цвет, значок и надпись — по состоянию: «ЗАБРОСИТЬ» (Sky 🎣,
+	    единственная «живая» кнопка в покое: дышит, блестит, раз в ≈ 3 с качает значком; пока за
+	    сессию не было заброса — на её левом плече качается красный кружок «!», как у кнопок
+	    образца) → «ЖДИ КЛЁВА…» (v3: Pond — приглушённая бирюза, кнопка меньше на 15 % и чуть
+	    покачивается: жать не нужно; поплавок покачивается, точки
 	    бегут, рыба 1–2 раза «пробует» наживку — кнопка вздрагивает, всплывает «?», поплавок в
 	    мире притапливается; в самое первое ожидание за игру — подсказка «Жди, пока клюнет —
 	    потом жми!») → «ПОДСЕЧЬ!» (Sun,
@@ -39,7 +42,7 @@
 	  • В мини-игре нажатие засчитывается в момент касания кнопки (MouseButton1Down), а не
 	    отпускания (двойной тап по «ПОДСЕЧЬ!» сервер не считает промахом — FishingConfig.HookTapGrace).
 	    На тач-экране так же считается касание самой панели мини-игры (Minigame.TapPad).
-	  • «СМОТАТЬ» (StopButton, красный кирпичик 1x3 с 🎣 — «смотать удочку») — пока леска в воде и рыбы на крючке нет:
+	  • «СМОТАТЬ» (StopButton, красная кнопка-плашка с 🎣 — «смотать удочку») — пока леска в воде и рыбы на крючке нет:
 	    в поклёвку и мини-игру её нет (тап мимо «ПОДСЕЧЬ!» / «ЛОВИ!» не стоит рыбы).
 	  • Поклёвка (BiteAlert): «КЛЮЁТ!» выпрыгивает из своего поплавка и летит на своё место
 	    (v3: не «удар» на весь экран поверх рыбака; если по пути заслонила бы рыбака — «выскакивает»
@@ -206,7 +209,7 @@ type Phase = "Idle" | "Pending" | "Waiting" | "Bite" | "Reeling"
 -- Вид кнопки действия: цвет — токен палитры UIConfig, Ring — белый ореол (прозрачность, цвет).
 -- Glyph — значок не эмодзи, а знак текстом (белый → золотой, с обводкой): «!» поклёвки;
 -- Bobber — вместо значка нарисованный поплавок (ожидание поклёвки); Flash — важная смена вида:
--- плита «превращается» (белая вспышка, выпуклая пупырка выскакивает — UiFx.morphFlash).
+-- кнопка «превращается» (белая вспышка, значок выскакивает — UiFx.morphFlash).
 type Look = {
 	Name: string,
 	Caption: string,
@@ -349,7 +352,7 @@ type Ui = {
 	dimBands: { Frame },
 	-- UI v2, игра (кнопка, поклёвка, мини-игра, подсказка):
 	actionArea: Frame,
-	actionOutline: UIStroke, -- обводка знака «!» на кнопке (у эмодзи выключена)
+	actionOutline: UIStroke, -- тёмный контур значка на кнопке (у знака «!» толще)
 	actionFill: UIGradient, -- его заливка белый → золотой
 	actionBobber: Frame, -- поплавок вместо значка, пока ждём поклёвку
 	keyChip: Frame,
@@ -364,7 +367,7 @@ type Ui = {
 	tapPad: GuiButton, -- касание панели мини-игры = нажатие (тач-экран)
 	biteTapPad: GuiButton, -- касание плашки «КЛЮЁТ!» = подсечка (тач-экран)
 	hintSocket: Frame,
-	pedestal: Frame, -- UI v4: подставка рыбы на карточке (кирпичик в цвет редкости)
+	pedestal: Frame, -- подиум рыбы на карточке (в цвет редкости)
 	window: Frame, -- v3: окошко рыбы на карточке (туда летит «+N 💰», когда карточка сбоку от рыбака)
 }
 
@@ -747,7 +750,7 @@ do
 		defaults.minigamePosition = place(ui.minigame, defaults.minigamePosition)
 
 		-- «СМОТАТЬ» над кнопкой действия: на большом тач-экране (планшет) кнопка прыжка выше —
-		-- тогда кирпичик поднимается, чтобы между ними было COLUMN_GAP; поднятая, она встаёт рядом
+		-- тогда кнопка поднимается, чтобы между ними было COLUMN_GAP; поднятая, она встаёт рядом
 		-- с колонкой кнопок справа («ДОМОЙ») — и сужается, если до неё ближе COLUMN_GAP (левый край
 		-- не двигается: слева от него — карточка улова).
 		local stop = ui.stopButton
@@ -789,7 +792,8 @@ do
 			columnLeft -= ribbonOut
 			local stopTop = stopBottom - lift - stopSize.Y
 			if stopTop < columnBottom + COLUMN_GAP then
-				narrow = math.max(math.ceil(stopRight + COLUMN_GAP - columnLeft), 0)
+				-- (+ толстая обводка «СМОТАТЬ»: она снаружи рамки.)
+				narrow = math.max(math.ceil(stopRight + COLUMN_GAP + lipStroke(stop) - columnLeft), 0)
 			end
 		end
 		assign(stop, "Position", UDim2.new(rest.X.Scale, rest.X.Offset, rest.Y.Scale, rest.Y.Offset - lift))
@@ -995,7 +999,6 @@ do
 
 	local BOBBER_CLEAR = 12
 	local OUTLINE = 6 -- обводка и «аура» редкости выступают за прямоугольник виджета, px
-	local STUD_RISE = 0.16 -- пупырки кирпичика торчат над ним на эту долю его высоты
 	local BITE_FLIGHT_SCALE = 0.35 -- «КЛЮЁТ!» вылетает из поплавка такой маленькой (enterBite)
 	local fishingFx: any = nil -- FishingFxController (берётся при первом вызове), false — нет
 
@@ -1058,8 +1061,6 @@ do
 			table.insert(keepouts, fisher)
 		end
 		local box = boxSize(gui, area.X, area.Y, restSize)
-		-- (Пупырки кирпичика над ним тоже не должны задевать рыбака.)
-		local rise = if gui:FindFirstChild("Studs") then math.ceil(box.Y * STUD_RISE) else 0
 		local cap = gui:FindFirstChildOfClass("UISizeConstraint")
 		local narrowest = if cap and cap.MinSize.X > 0 then math.min(cap.MinSize.X, box.X) else box.X
 		-- Место: внизу по центру (withDock — слева от рыбака), сдвинутое от поплавка и рыбака.
@@ -1082,10 +1083,7 @@ do
 					placed, left, right = slot, Layout.EDGE, fisher.x0
 				end
 			end
-			placed.y0 -= rise
-			local moved = Layout.avoid(placed, keepouts, { left, right }, minScale, narrowest)
-			moved.y0 += rise * (moved.y1 - moved.y0) / math.max(placed.y1 - placed.y0, 1)
-			return moved
+			return Layout.avoid(placed, keepouts, { left, right }, minScale, narrowest)
 		end
 		-- dock (мини-игра) — сразу слева; поклёвка и подсказка — слева, только если внизу рыбака
 		-- не обойти (камера рыбалки опускает его к низу кадра).
@@ -1215,7 +1213,7 @@ do
 		return LOOKS[phase]
 	end
 
-	local BREATHE_PEAK, BREATHE_PERIOD = 1.04, 1.6 -- «дыхание» главной кнопки в покое
+	local BREATHE_PEAK, BREATHE_PERIOD = 1.05, 1.4 -- «дыхание» главной кнопки в покое (≈ 2 px к краям)
 	local WATER_DOTS = { "ЖДИ КЛЁВА…", "ЖДИ КЛЁВА.", "ЖДИ КЛЁВА.." } -- бегущие точки ожидания (по 0.4 с)
 	local WATER_SMALL = 0.85 -- кнопка ожидания поклёвки меньше (её жать не нужно), доля размера
 	local WATER_DOTS_STEP = 0.4
@@ -1241,36 +1239,38 @@ do
 		local button = ui.actionButton
 		local icon = ui.actionIcon
 		icon.Rotation = defaults.iconRotation
+		-- Красный кружок «!» (как у «Магазина» образца) зовёт новичка: на «ВЗЯТЬ» и «ЗАБРОСИТЬ», пока
+		-- за сессию не было ни одного заброса (атрибут Casted: фаза уже была не Idle); качается
+		-- раз в 3 с (UiFx.badgeBob — таймеры). При смене «ВЗЯТЬ» → «ЗАБРОСИТЬ» не мигает; прячется,
+		-- когда вид уже другой.
+		if phase ~= "Idle" then
+			button:SetAttribute("Casted", true) -- леска уже была в воде (заброс принят)
+		end
+		local badge = button:FindFirstChild("Badge")
+		if badge and badge:IsA("GuiObject") then
+			if (look == CAST_LOOK or look == TAKE_LOOK) and not button:GetAttribute("Casted") then
+				if not badge.Visible then
+					UiFx.badgeBob(badge)
+				end
+			elseif badge.Visible then
+				UiFx.badgeHide(badge)
+			end
+		end
+		if look == CAST_LOOK or look == TAKE_LOOK then
+			-- Главная кнопка «дышит» (вдох-выдох — один твин за такт, только в покое: нажатие его
+			-- прерывает), блестит, а её значок раз в ≈ 3 с качается с «вдохом» — не в такт блику.
+			-- Больше в покое на экране ничего не шевелится.
+			-- (Кнопка растёт от левого нижнего угла — к кнопке прыжка: не больше чем на 5 px.)
+			local side = button.AbsoluteSize.X
+			local peak = if side > 1 then 1 + math.min(BREATHE_PEAK - 1, 5 / side) else BREATHE_PEAK
+			lookTrove:Add(UiFx.breathe(button, { peak = peak, period = BREATHE_PERIOD }))
+			lookTrove:Add(UiFx.wobbleLoop(icon, { angle = if look == TAKE_LOOK then 14 else 10, bump = 1.1 }))
+		end
 		if look == CAST_LOOK then
-			-- Главная кнопка «дышит» и блестит; больше в покое на экране ничего не шевелится.
-			lookTrove:Add(UiFx.shineLoop(button, { interval = UIConfig.Fx.ShineInterval }))
-			-- Вдох-выдох — один твин туда-обратно за такт; нажатие (свой твин масштаба) его прерывает,
-			-- а следующий такт начинается, только когда кнопка снова в покое.
-			local scale = UiFx.scaleOf(button)
-			local breathInfo =
-				TweenInfo.new(BREATHE_PERIOD / 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, true)
-			local breath: Tween? = nil
-			every(lookTrove, BREATHE_PERIOD, function()
-				if button.Visible and math.abs(scale.Scale - 1) < 0.01 then
-					local created = TweenService:Create(scale, breathInfo, { Scale = BREATHE_PEAK })
-					created:Play()
-					breath = created
-				end
-			end, 0.8)
-			lookTrove:Add(function()
-				if breath and breath.PlaybackState == Enum.PlaybackState.Playing then
-					breath:Cancel()
-					scale.Scale = 1
-				end
-			end)
+			lookTrove:Add(UiFx.shineLoop(button, { interval = UIConfig.Fx.ShineInterval, delay = 1.7 }))
 		elseif look == TAKE_LOOK then
 			lookTrove:Add(UiFx.shineLoop(button, { interval = 2.4, delay = 0.6 }))
 			lookTrove:Add(whiteRings(1.0))
-			every(lookTrove, 2.6, function()
-				if button.Visible then
-					UiFx.wiggle(icon, 14, 3, 0.5)
-				end
-			end, 1.2)
 		elseif look == WAIT_LOOK then
 			-- Песочные часы переворачиваются.
 			local turns = 0
@@ -1345,6 +1345,8 @@ do
 				step = step % #WATER_DOTS + 1
 				ui.actionCaption.Text = WATER_DOTS[step]
 			end)
+			-- Плашка ожидания чуть покачивается (поворот ±1.5°, один бесконечный твин): «на волне».
+			lookTrove:Add(UiFx.sway(button))
 		elseif look == REEL_LOOK or look == COLLECT_LOOK then
 			lookTrove:Add(whiteRings(1.1))
 		end
@@ -1357,8 +1359,10 @@ do
 		local button = ui.actionButton
 		UiFx.setCandy(button, look.Token)
 		ui.actionIcon.Text = look.Icon
-		-- «!» — знак текстом: белый → золотой с обводкой; эмодзи — как есть.
-		ui.actionOutline.Enabled = look.Glyph == true
+		-- Обводка у значка всегда (тёмный контур эмодзи, как в образце); у знака «!» (белый →
+		-- золотой) она толще. Выключать её нельзя: другой обводки у значка нет.
+		ui.actionOutline:SetAttribute("BaseThickness", if look.Glyph then 5 else 3.5)
+		ui.actionOutline.Thickness = UiFx.strokeThickness(ui.actionOutline)
 		ui.actionFill.Enabled = look.Glyph == true
 		ui.actionBobber.Visible = look.Bobber == true
 		ui.actionRing.Color = look.RingColor
@@ -1404,7 +1408,7 @@ do
 		if stopVisible and not stop.Visible then
 			stop.Visible = true
 			UiFx.popIn(stop, { from = 0.2, time = 0.35, delay = 0.05 })
-			UiFx.studsPop(stop, { delay = 0.22, stagger = 0.04 })
+			UiFx.rimFlash(stop, { delay = 0.22 })
 		elseif not stopVisible and stop.Visible then
 			if fishOn() and button.Visible then
 				UiFx.popOut(stop, { time = 0.14, to = 0.3, hide = true })
@@ -1852,7 +1856,8 @@ do
 		               Сверху — 16 px до панели Roblox; не влезает (огромная рыба на маленьком
 		               телефоне) — выше, но правее TopbarRight px (её кнопки меню и чата слева);
 		               и там тесно (трофей × HeldScale на телефоне упирается в верх) — сбоку от
-		               рыбака с рыбой, где просвет шире, на той же высоте (не мельче TitleSide px).
+		               рыбака с рыбой, где просвет шире, на той же высоте (не мельче TitleSide px;
+		               без тач-экрана — не на окне чата: ChatRight, ChatBottom).
 		  TitleRays    лучи сцены слова — тонкие спицы (Width доли диаметра) и на Fade прозрачнее
 		               лучей карточки: вокруг рыбы не встаёт жёлтая «заливка» (v3).
 		  TitleDim     сцена слова: через At после приземления (кольца удара уже ушли — заливка
@@ -1879,6 +1884,8 @@ do
 		TitleHeight = 0.18,
 		TitleMax = 110,
 		TopbarRight = 172,
+		ChatRight = 384, -- без тач-экрана слева вверху окно чата Roblox (до x 368 + 16 px зазора) …
+		ChatBottom = 186, -- … и до этой высоты HUD: слово сбоку от рыбака туда не встаёт
 		TitleSide = 24,
 		TitleDim = { At = 0.55, Add = 0.2 },
 		RaysHole = 0.3,
@@ -1999,18 +2006,15 @@ do
 
 	local CARD_WIDE: { [string]: { [string]: any } } = {
 		Banner = { Position = UDim2.fromScale(0.5, 0.025), Size = UDim2.fromScale(1.05, 0.19) },
-		-- UI v4, витрина-пластина: окно рыбы слева, ряд пупырок под баннером, столбик пупырок между
-		-- рыбой и столбцом справа (второй столбик не нужен — нулевой размер); рыба стоит на подставке.
-		-- (Дети лица — в долях лица: оно 0.965 высоты карточки.)
+		-- Витрина: окно рыбы слева, рыба стоит на подиуме (Pedestal). (Дети лица — в долях лица.)
 		["Face.Window"] = { Position = UDim2.fromScale(0.03, 0.296), Size = UDim2.fromScale(0.44, 0.676) },
-		["Face.StudsTop"] = { Position = UDim2.fromScale(0.04, 0.236), Size = UDim2.fromScale(0.92, 0.036) },
-		["Face.StudsLeft"] = { Position = UDim2.fromScale(0.479, 0.32), Size = UDim2.fromScale(0.032, 0.64) },
-		["Face.StudsRight"] = { Size = UDim2.fromScale(0, 0) },
 		FishGlow = { Position = UDim2.fromScale(0.25, 0.545), Size = UDim2.fromScale(0.6, 0.6) },
 		Pedestal = { Position = UDim2.fromScale(0.25, 0.925), Size = UDim2.fromScale(0.25, 0.115) },
 		Viewport = { Position = UDim2.fromScale(0.25, 0.545), Size = UDim2.fromScale(0.42, 0.68) },
 		NewStamp = { Position = UDim2.fromScale(0.14, 0.32), Size = UDim2.fromScale(0.26, 0.12) },
-		MutationLabel = { Position = UDim2.fromScale(0.25, 0.9), Size = UDim2.fromScale(0.42, 0.12), Rotation = -4 },
+		-- (UI v5: чуть выше — обведённый значок мутации у нижнего угла не подходит к джойстику
+		-- ближе 16 px на маленьком телефоне.)
+		MutationLabel = { Position = UDim2.fromScale(0.25, 0.88), Size = UDim2.fromScale(0.42, 0.12), Rotation = -4 },
 		NameLabel = { Position = UDim2.fromScale(0.75, 0.272), Size = UDim2.fromScale(0.46, 0.205) },
 		-- Цена — главное число карточки: её «фишка» выше веса (крупный текст, уровень Title).
 		InfoLabel = { Position = UDim2.fromScale(0.75, 0.485), Size = UDim2.fromScale(0.42, 0.355) },
@@ -2687,18 +2691,13 @@ do
 				else cream
 		)
 
-		-- Баннер редкости и подставка рыбы — кирпичики её цвета (пупырки тоже; мифическая — радуга:
-		-- бегущая по баннеру — её запускает openCard — и пупырки всех цветов).
+		-- Баннер редкости и подставка рыбы — плашки её цвета (мифическая — радуга, бегущая по
+		-- баннеру: её запускает openCard).
 		UiFx.setCandy(ui.banner, swatchOf(style))
 		UiFx.setCandy(ui.pedestal, swatchOf(style))
 		if style.Rainbow then
 			ui.bannerFill.Color = UiFx.sequence(UIConfig.Rainbow)
 			ui.bannerFill.Rotation = 0
-			UiFx.paintStuds(ui.banner, UIConfig.Rainbow)
-			UiFx.paintStuds(
-				ui.pedestal,
-				{ UIConfig.Rainbow[1], UIConfig.Rainbow[3], UIConfig.Rainbow[5], UIConfig.Rainbow[7] }
-			)
 		else
 			ui.bannerFill.Rotation = 90
 		end
@@ -3019,6 +3018,9 @@ do
 			-- же высоте (не выше 16 px от верха): слово рядом с рыбой, а не на ней.
 			middle = math.max(middle, Layout.EDGE + height / 2)
 			left, right = sideLimits(rootSize, middle - height / 2, middle + height / 2)
+			if not UserInputService.TouchEnabled and middle - height / 2 < CLIMAX.ChatBottom then
+				left = math.max(left, CLIMAX.ChatRight) -- (окно чата слева вверху)
+			end
 			local from, to = left, fisher.x0
 			if right - fisher.x1 > fisher.x0 - left then
 				from, to = fisher.x1, right
@@ -3936,8 +3938,8 @@ do
 		name.Position = rest.name + UDim2.fromOffset(math.round(box.size.X * CARD.Slide), 0)
 		UiFx.tween(name, 0.35, { Position = rest.name }, quint, out)
 		UiFx.sound("pop", 0.5, 0.9)
-		-- Подставка рыбы «защёлкивается» пупырками, пока карточка встаёт на место.
-		UiFx.studsPop(ui.pedestal, { delay = 0.2, stagger = 0.05 })
+		-- Ободок подставки рыбы вспыхивает, пока карточка встаёт на место.
+		UiFx.rimFlash(ui.pedestal, { delay = 0.2 })
 
 		-- Затемнение (у обычной — нет) и лучи растут вместе с карточкой.
 		local dim = ui.dim
@@ -4067,7 +4069,7 @@ do
 			local width = rest.banner.X.Scale * (if titleUp then 0.55 else 0.2)
 			banner.Size = UDim2.new(width, rest.banner.X.Offset, rest.banner.Y.Scale, rest.banner.Y.Offset)
 			UiFx.tween(banner, CARD.Grow, { Size = rest.banner }, quint, out)
-			UiFx.studsPop(banner, { delay = CARD.Grow * 0.45, stagger = 0.03 }) -- пупырки «защёлкиваются»
+			UiFx.rimFlash(banner, { delay = CARD.Grow * 0.45 }) -- ободок вспыхивает
 			later(cardTrove, CARD.Grow * 0.6, function()
 				UiFx.glowRing(banner, { color = style.Top, scale = 1.3, thickness = 3, time = 0.4 })
 			end)
@@ -4153,7 +4155,7 @@ do
 			end
 			if not instant then
 				UiFx.sound("tick", 0.3, 1.1)
-				UiFx.studsPop(ui.priceChip, { delay = CARD.Chips + 0.12, stagger = 0.04 })
+				UiFx.rimFlash(ui.priceChip, { delay = CARD.Chips + 0.12 })
 			end
 		end)
 
@@ -4843,7 +4845,7 @@ do
 		later(phaseTrove, 0.21, function()
 			UiFx.shake(alert, 0.006, 0.22)
 		end)
-		UiFx.studsPop(alert, { delay = 0.16, stagger = 0.035 }) -- пупырки «защёлкиваются» по очереди
+		UiFx.rimFlash(alert, { delay = 0.16 }) -- ободок вспыхивает
 		UiFx.flash(ui.hud, Palette.Sun.Top, 0.22)
 		UiFx.fovPunch(-4, 0.06, 0.25)
 		UiFx.sound("swoosh", 0.4, 1.4)
@@ -5363,10 +5365,10 @@ do
 		end
 		updateMinigameFrame()
 		ui.minigame.Visible = true
-		-- Плита «защёлкивается» на место (падает на несколько px и сплющивается), пупырки — по очереди.
+		-- Панель «приземляется» на место (падает на несколько px и сплющивается), ободок вспыхивает.
 		UiFx.popIn(ui.minigame, { from = 0.8, time = 0.25 })
 		UiFx.snapIn(ui.minigame, { drop = 10 })
-		UiFx.studsPop(ui.minigame, { delay = 0.12, stagger = 0.018, time = 0.18 })
+		UiFx.rimFlash(ui.minigame, { delay = 0.12 })
 		for index, pip in ui.pips do
 			if pip.Visible then
 				local star = pip:FindFirstChild("Star")

@@ -523,7 +523,7 @@ Jump, the thumbstick, the hotbar and between widgets), GPU fill per frame and th
 floor. Made for design critique: everything is a PNG (and a text report).
 
 ```sh
-# the standard set: 49 states x phone + desktop (stills, 26 animation sheets each, 13 bursts on
+# the standard set: 50 states x phone + desktop (stills, 27 animation sheets each, 13 bursts on
 # the phone, 2 overviews) + the checks on phone_notch, phone_small and tablet (~10 min on 4 cores)
 python3 tools/preview/gui_render.py --all --out /tmp/ui
 # the timelines (real server, the 3D world under the HUD, beat rulers), phone, ~2.5 min: the catch
@@ -640,7 +640,7 @@ safe area).
 | `take_rod` | tap «ВЗЯТЬ»: the rod in hand, the button pops into «ЗАБРОСИТЬ» | 0..0.8 s, action area |
 | `spot_ready` | at the spot with the rod: «ЗАБРОСИТЬ» | 0..4 s @ 6 fps (idle shine) |
 | `cast` | tap «ЗАБРОСИТЬ» → waiting | 0..1 s, action area |
-| `press_sink` | «ЗАБРОСИТЬ» held down (touch-down only): the round plate's face sinks into its side band, the caption tile stays (UI v4 brick press) | 0..0.3 s, action area |
+| `press_sink` | «ЗАБРОСИТЬ» held down (touch-down only): the UI v5 sim press — the button squashes to 0.9 and its face darkens a step, the outline and the caption pill stay (the name is kept from the v4 brick press) | 0..0.3 s, action area |
 | `waiting` | line in the water: the Water «ЖДЁМ…» (bobber, ripples, dots, 1–2 nibbles) + «СМОТАТЬ» | 0..2.4 s, action area |
 | `bite` | «КЛЮЁТ!» slam, «!» glyphs, Sun edges, one 0.45 s beat + «ПОДСЕЧЬ!» | 0..1.2 s |
 | `minigame_common` … `minigame_mythic` | the minigame for each rarity, needle mid-run (Epic 1/2, Mythic 2/3 hits done) | legendary: 0..1 s |
@@ -686,10 +686,11 @@ rendered by `--timeline` or by name):
 World + HUD scenarios in `gui_scenarios.luau` (`server = true`, `world = true`, not in `--all`; by
 name): `bite_world` (a real bite: the bobber dives above the «КЛЮЁТ!» plate), `minigame_world` (a
 real Legendary minigame: on a phone the panel stands beside the reeling bobber), `nibble_world`
-(the own bobber's nibble: the dip, ring, drops and «?»), `trophy_chip` (`world = true` only:
-someone else's Legendary pillar on the next pier, off-screen — the broadcast and the 🌟 chip at the
-screen edge on its side; `FishingFxController.OtherTrophy` is fired directly, with the player itself
-as the catcher).
+(the own bobber's nibble: the dip, ring, drops and «?»). `trophy_chip` (`world = true` only, IN
+`--all` since UI v5 so its gap to the Home column is checked on every device): someone else's
+Legendary pillar on the next pier, off-screen — the broadcast and the 🌟 chip at the screen edge on
+its side; `FishingFxController.OtherTrophy` is fired directly, with the player itself as the
+catcher.
 
 Fishing world FX (v3, `server = true`, `world = true`, not in `--all`; by name, with `--bursts`):
 `fx_cast` (wind-up, the tip's whip trail at the release, the flight on a curved line, the landing
@@ -1035,16 +1036,21 @@ home indicator.
   normalised box (Rotation 90 = top to bottom); Elliptical: 2 x the normalised distance from the
   centre; Radial: a circle fitted to the shorter side; Conical: the angle from Rotation,
   clockwise; TileMode Clamp/Repeat/Mirror.
-* Text: TextSize is the line height (Nunito's ascent + descent are scaled to it, so the em is
-  TextSize / 1.364); TextScaled picks the largest whole size <= MaxTextSize (100 without a
+* Text: TextSize is the line height (the font's ascent + descent are scaled to it, so the em is
+  TextSize / 1.219 for Montserrat and TextSize / 1.364 for Nunito); TextScaled picks the largest whole size <= MaxTextSize (100 without a
   UITextSizeConstraint) and >= MinTextSize whose text, wrapped at spaces, fits the box without
   splitting a word; if none fits, the min size is used, long words are split and the text may
   overflow (that is what MinTextSize 9 on «ДОМОЙ» avoids). Alignment X/Y, LineHeight,
   TextWrapped, TextTruncate AtEnd, MaxVisibleGraphemes (typewriter: the full layout, first N
   graphemes drawn), RichText tags stripped, UIPadding on the label.
-* Font: Nunito (variable, `FontFace.Weight` 200-1000 — the UI's Heavy is 900) from
-  `tools/preview/fonts/Nunito.ttf` (SIL OFL 1.1, `fonts/OFL.txt`) for every family (others warn
-  once); characters Nunito lacks (→, ★) use DejaVu Sans Bold. Colour emoji are **Twemoji Mozilla**,
+* Font: the family from `FontFace.Family` — **Montserrat** (the UI font since UI v5, Roblox's
+  rbxasset://fonts/families/Montserrat.json; variable, `FontFace.Weight` 100-900 — the UI's Heavy
+  is 900) from `tools/preview/fonts/Montserrat.ttf`, and `FontFace.Style = Italic` from
+  `Montserrat-Italic.ttf` (SIL OFL 1.1, `fonts/OFL-Montserrat.txt`; the Google Fonts variable
+  files), or Nunito (200-1000) from `Nunito.ttf` / `Nunito-Italic.ttf` (`fonts/OFL.txt`) — the
+  map's signs still use it; any other family is drawn with Montserrat (a one-time warning: Roblox
+  maps the retired Gotham onto it). Characters the family lacks (★, ⏱ in Montserrat; → in Nunito)
+  use DejaVu Sans Bold. Colour emoji are **Twemoji Mozilla**,
   the font Roblox itself ships (`content/fonts/TwemojiMozilla.ttf`; our copy:
   `tools/preview/fonts/TwemojiMozilla.ttf`, twemoji-colr 0.7.0, graphics CC-BY 4.0 — see
   `fonts/TWEMOJI-LICENSE.txt`): flat shapes, exactly what the game draws. Pillow cannot draw its

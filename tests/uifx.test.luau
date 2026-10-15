@@ -6,11 +6,13 @@
 	UI v2 foundation: rays (halo/breathe by device, signed speed, maxPx, the callable handle with
 	settle), pooled sounds with pitch and the rarity arpeggio, flash from/hold and flashBig,
 	fovPunch (one owner of Camera.FieldOfView, −8° cap; the eased-in wind-up), edgeVignette, fitText
-	and the 2.5 px text outline floor, fadeOut of a ViewportFrame, glowRing stop, the hidden Shine
+	and the 2 px text outline floor, fadeOut of a ViewportFrame, glowRing stop, the hidden Shine
 	overlay. UI v2.1: rays with an empty middle (hole, growFrom) and the shockwave rings of a landing.
-	UI v3 «Кирпичики»: setCandy on bricks (the light cap, front / top / raised studs), setStuds and
-	paintStuds (studs added at runtime, rainbow studs). UI v4: brick motion — a pressed brick sinks into
-	its side band (press), snapIn, studsPop, morphFlash, countUp with bumps.
+	UI v5 «Симулятор»: setCandy on sim plates (a Top → Bottom gradient, the outline in the hue's
+	dark shade, glass and back), the stud API gone, recolor / swapText / flashText / punch, the sim
+	press (squash 0.9 + a darker face + overshoot + icon kick, no sink; hover only without a touch
+	screen), snapIn, rimFlash, morphFlash with the icon pop, the idle life on timers (breathe, bob,
+	sway, the «!» badge), the ring timer (tweens only) and reduced motion.
 
 	Run: lune run tools/run_tests.luau uifx
 ]]
@@ -51,7 +53,7 @@ local function stage(sim: any, p: any, name: string?): any
 	}, p.PlayerGui.HUD)
 end
 
--- A candy pill (a clone of the toast template: Lip, Face/Fill/Gloss/Shine, IconSocket, Label).
+-- A sim plate (a clone of the toast template: Lip, Face/Fill/Rim/Shine, IconSocket, Label).
 local function candy(sim: any, p: any): any
 	local pill = p.PlayerGui.HUD.Toasts.ToastTemplate:Clone()
 	pill.Name = "CandyStage"
@@ -72,6 +74,11 @@ local function count(root: any, name: string): number
 		end
 	end
 	return n
+end
+
+local function colorNear(a: any, b: any, eps: number?): boolean
+	local e = eps or 0.01
+	return math.abs(a.R - b.R) <= e and math.abs(a.G - b.G) <= e and math.abs(a.B - b.B) <= e
 end
 
 local tests = {}
@@ -389,7 +396,7 @@ tests["press: squashes on press, springs back on release; the binding can be rem
 		return c == ctx
 	end, 0, 0)
 	sim:Advance(0.15)
-	t.near(button.FxScale.Scale, 0.88, 0.01, "squashed while held")
+	t.near(button.FxScale.Scale, 0.9, 0.01, "squashed while held")
 	t.eq(sim:CountConnections(p), base + 4, "listens for the release anywhere")
 	sim:FireInput(p, "InputEnded", {
 		UserInputType = roblox.Enum.UserInputType.Touch,
@@ -409,47 +416,62 @@ tests["press: squashes on press, springs back on release; the binding can be rem
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["setCandy recolours a candy by token, by swatch and by a runtime colour"] = function(t)
+tests["setCandy: a sim plate by token, swatch or runtime colour; glass and back; the outline follows"] = function(t)
 	local sim, p = boot(t)
 	local UiFx = fxOf(sim, p)
 	local pill = candy(sim, p)
 	local fill = pill.Face.Fill
 	local UIConfig = sim:Require(sim:Find("ReplicatedStorage.Shared.Config.UIConfig"), p)
-	-- (The toast template is a brick tile: its face has a light cap above Top — UIConfig.Brick.)
-	local brick = UIConfig.Brick
-	local function at(keys: { any }, time: number): any
-		for _, key in keys do
-			if math.abs(key.Time - time) < 1e-3 then
-				return key.Value
-			end
-		end
-		return nil
-	end
+	local edge = pill.Lip:FindFirstChildOfClass("UIStroke")
+	local rim = pill.Face.Rim:FindFirstChildOfClass("UIStroke")
 	client(sim, p, function()
 		UiFx.setCandy(pill, "Berry")
 	end)
 	local keys = fill.Color.Keypoints
-	t.eq(pill:GetAttribute("CandyStyle"), "tile")
-	t.eq(at(keys, brick.CapStop), UIConfig.Palette.Berry.Top, "Top under the cap")
-	t.eq(keys[1].Value, UIConfig.Palette.Berry.Top:Lerp(Color3.new(1, 1, 1), brick.CapLight), "a lighter cap")
-	t.eq(keys[#keys].Value, UIConfig.Palette.Berry.Bottom)
-	t.eq(pill.Lip.BackgroundColor3, UIConfig.Palette.Berry.Lip)
+	local berry = UIConfig.Palette.Berry
+	t.eq(pill:GetAttribute("CandyStyle"), "sim")
+	t.eq(#keys, 2, "a plain Top → Bottom gradient (no cap)")
+	t.eq(keys[1].Value, berry.Top)
+	t.eq(keys[#keys].Value, berry.Bottom)
+	t.eq(pill.Lip.BackgroundColor3, berry.Lip)
+	t.eq(edge.Color, berry.Lip, "the outline in the dark shade of the hue")
 	t.eq(pill.Face.BackgroundColor3, Color3.new(1, 1, 1))
+	-- Glass (the reference's timer pill): a translucent black face, no outline, no rim; and back.
+	client(sim, p, function()
+		UiFx.setCandy(pill, "Glass")
+	end)
+	t.eq(pill:GetAttribute("CandyStyle"), "glass")
+	t.near(pill.Face.BackgroundTransparency, UIConfig.Palette.Glass.Alpha, 1e-6, "translucent face")
+	t.eq(edge.Transparency, 1, "no outline")
+	t.eq(rim.Transparency, 1, "no rim")
+	client(sim, p, function()
+		UiFx.setCandy(pill, "Sun")
+	end)
+	t.eq(pill:GetAttribute("CandyStyle"), "sim")
+	t.eq(pill.Face.BackgroundTransparency, 0, "solid again")
+	t.eq(edge.Transparency, 0, "outlined again")
+	t.near(rim.Transparency, UIConfig.Sim.RimAlpha, 1e-6, "the rim is back")
+	-- A runtime colour becomes a clean swatch (UIConfig.swatchFor), not a grey-tinted face.
 	local base = Color3.fromRGB(62, 114, 200)
 	client(sim, p, function()
 		UiFx.setCandy(pill, base)
 	end)
-	-- A runtime colour becomes a clean swatch (UIConfig.swatchFor), not a grey-tinted face.
 	local swatch = UIConfig.swatchFor(base)
 	keys = fill.Color.Keypoints
-	t.eq(pill.Face.BackgroundColor3, Color3.new(1, 1, 1), "white face under the gradient")
-	t.ok(
-		at(keys, brick.CapStop) == swatch.Top and keys[#keys].Value == swatch.Bottom,
-		"swatch gradient from the colour"
-	)
-	local top = at(keys, brick.CapStop)
+	t.ok(keys[1].Value == swatch.Top and keys[#keys].Value == swatch.Bottom, "swatch gradient from the colour")
+	local top = keys[1].Value
 	t.ok(top.R > base.R and top.G > base.G and top.B > base.B, "lighter top")
-	-- A legacy candy (no CandyStyle: the fishing widgets until v4) keeps its two-stop gradient.
+	-- A glass-built widget (the hint) stays glass in a dark token; a bright one makes it solid.
+	pill:SetAttribute("CandyHome", "glass")
+	client(sim, p, function()
+		UiFx.setCandy(pill, "Night")
+	end)
+	t.eq(pill:GetAttribute("CandyStyle"), "glass", "Night on a glass pill: still glass")
+	client(sim, p, function()
+		UiFx.setCandy(pill, "Berry")
+	end)
+	t.eq(pill:GetAttribute("CandyStyle"), "sim", "Berry: a solid plate")
+	-- A legacy candy (no CandyStyle) keeps its two-stop gradient and lip colour.
 	pill:SetAttribute("CandyStyle", nil)
 	client(sim, p, function()
 		UiFx.setCandy(pill, "Leaf")
@@ -457,88 +479,183 @@ tests["setCandy recolours a candy by token, by swatch and by a runtime colour"] 
 	keys = fill.Color.Keypoints
 	t.eq(#keys, 2, "a candy: Top → Bottom")
 	t.eq(keys[1].Value, UIConfig.Palette.Leaf.Top)
-	local lip = pill.Lip.BackgroundColor3
-	t.ok(lip.R < base.R and lip.G < base.G and lip.B < base.B, "darker lip")
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["bricks: setCandy recolours the studs; setStuds / paintStuds add studs at runtime"] = function(t)
+tests["no studs: the stud API is gone; recolor cross-fades; swapText, flashText, punch leave nothing"] = function(t)
 	local sim, p = boot(t)
 	local UiFx = fxOf(sim, p)
 	local UIConfig = sim:Require(sim:Find("ReplicatedStorage.Shared.Config.UIConfig"), p)
-	local Palette = UIConfig.Palette
-	local function mid(stud: any): any
-		return stud.Fill.Color.Keypoints[2].Value
+	t.eq(UiFx.setStuds, nil, "setStuds is gone")
+	t.eq(UiFx.paintStuds, nil, "paintStuds is gone")
+	t.eq(UiFx.studsPop, nil, "studsPop is gone (rimFlash replaces it)")
+	-- recolor: the old colours fade out over the new ones, the outline tweens to the new shade.
+	local pill = candy(sim, p)
+	local edge = pill.Lip:FindFirstChildOfClass("UIStroke")
+	client(sim, p, function()
+		UiFx.setCandy(pill, "Sky")
+		UiFx.recolor(pill, "Berry", 0.16)
+	end)
+	local overlay = pill.Face:FindFirstChild("FxRecolor")
+	t.ok(overlay, "an overlay with the old colours")
+	t.eq(overlay.Fill.Color.Keypoints[1].Value, UIConfig.Palette.Sky.Top)
+	t.eq(pill.Face.Fill.Color.Keypoints[1].Value, UIConfig.Palette.Berry.Top, "the new colours underneath")
+	sim:Advance(0.3)
+	t.eq(pill.Face:FindFirstChild("FxRecolor"), nil, "the overlay is gone")
+	t.ok(colorNear(edge.Color, UIConfig.Palette.Berry.Lip), "the outline reached the new shade")
+	-- swapText: the old text rolls away as a copy, the new one rises into place; no drift.
+	local label = pill.Label
+	local rest = label.Position
+	client(sim, p, function()
+		UiFx.swapText(label, "Один")
+	end)
+	sim:Advance(0.5)
+	client(sim, p, function()
+		UiFx.swapText(label, "Два")
+	end)
+	t.eq(label.Text, "Два", "the new text at once")
+	t.ok(pill:FindFirstChild("FxSwap"), "the old text rolls away as a copy")
+	t.ok(label.Position.Y.Scale > rest.Y.Scale, "the new text rises from below")
+	sim:Advance(0.5)
+	t.eq(pill:FindFirstChild("FxSwap"), nil, "the copy is gone")
+	t.eq(label.Position, rest, "back at rest (no drift after repeated swaps)")
+	-- flashText: a colour flash back to rest, at most 3 per second.
+	local white = label.TextColor3
+	client(sim, p, function()
+		UiFx.flashText(label, UIConfig.Palette.Gold.Top)
+	end)
+	t.eq(label.TextColor3, UIConfig.Palette.Gold.Top, "flashes")
+	client(sim, p, function()
+		UiFx.flashText(label, UIConfig.Palette.Berry.Top)
+	end)
+	t.eq(label.TextColor3, UIConfig.Palette.Gold.Top, "a second flash right away is skipped")
+	sim:Advance(0.5)
+	t.eq(label.TextColor3, white, "back to its colour")
+	-- punch: from → peak → 1 in two steps.
+	local s = stage(sim, p)
+	client(sim, p, function()
+		UiFx.punch(s, { from = 0.8, peak = 1.15 })
+	end)
+	local peak = 0
+	for _ = 1, 10 do
+		sim:Advance(0.02)
+		peak = math.max(peak, s.FxScale.Scale)
 	end
-	-- A studded brick of the HUD (the counter: 3 front studs) follows setCandy, studs included.
-	local brick = p.PlayerGui.HUD.Status.CatchCounter:Clone()
-	brick.Name = "BrickStage"
-	brick.Visible = true
-	brick.Parent = p.PlayerGui.HUD
+	t.ok(peak > 1.1, `a real overshoot ({peak})`)
+	sim:Advance(0.4)
+	t.near(s.FxScale.Scale, 1, 1e-3, "settles at 1")
+	t.eq(UiFx.activeJobs(), 0)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["idle life on timers: breathe, bob, wobble, badgeBob, sway — no frame jobs, clean stops"] = function(t)
+	local sim, p = boot(t, "phone")
+	local UiFx = fxOf(sim, p)
+	local hud = p.PlayerGui.HUD
+	local s = stage(sim, p)
+	local icon = sim:Create("TextLabel", { Name = "IconStage", Size = UDim2.fromScale(0.1, 0.1), Text = "🎣" }, hud)
+	local badge = hud.RightButtons.HomeButton.Badge
+	local rest = icon.AnchorPoint
+	local base = sim:CountConnections(p)
+	local stops = {}
 	client(sim, p, function()
-		UiFx.setCandy(brick, "Berry")
+		stops.breathe = UiFx.breathe(s, { period = 0.6 })
+		stops.bob = UiFx.bob(icon, { every = { 0.5, 0.6 } })
+		stops.sway = UiFx.sway(s, { angle = 2 })
+		stops.badge = UiFx.badgeBob(badge)
 	end)
-	local berry = Palette.Berry
-	t.eq(#brick.Studs:GetChildren(), 3)
-	for _, stud in brick.Studs:GetChildren() do
-		t.ok(mid(stud) == berry.Top:Lerp(berry.Bottom, 0.3), `{stud.Name} recoloured`)
-		local light = stud.Fill.Color.Keypoints[1].Value
-		t.ok(light.R >= mid(stud).R and light.G >= mid(stud).G, `{stud.Name}: lit from the left`)
+	t.eq(badge.Visible, true, "the badge shows")
+	local breathed, hopped, swayed, wobbled = false, false, false, false
+	for _ = 1, 60 do
+		sim:Advance(0.1)
+		breathed = breathed or s.FxScale.Scale > 1.01
+		hopped = hopped or (icon.AnchorPoint - rest).Magnitude > 0.01
+		swayed = swayed or math.abs(s.Rotation) > 0.5
+		wobbled = wobbled or math.abs(badge.Rotation) > 1
+		t.eq(UiFx.activeJobs(), 0, "nothing per frame")
 	end
-	-- Top-down studs (plates) and a raised centre stud (round plate) follow too (CandyStud attribute).
-	local plate = sim:Create("Frame", { Name = "PlateStage", Size = UDim2.fromScale(0.2, 0.2) }, p.PlayerGui.HUD)
-	plate:SetAttribute("CandyStyle", "brick")
-	plate:SetAttribute("CandyFace", "Face")
-	local face = sim:Create("Frame", { Name = "Face", Size = UDim2.fromScale(1, 0.84) }, plate)
-	sim:Create("UIGradient", { Name = "Fill" }, face)
-	sim:Create("Frame", { Name = "Lip", Size = UDim2.fromScale(1, 1) }, plate)
-	local function stud(kind: string, parent: any): any
-		local frame = sim:Create("Frame", { Name = kind .. "Stud" }, parent)
-		frame:SetAttribute("CandyStud", kind)
-		local cap = sim:Create("Frame", { Name = "Cap" }, frame)
-		sim:Create("UIGradient", { Name = "Fill" }, cap)
-		return frame
+	t.ok(breathed, "breathes")
+	t.ok(hopped, "the icon hops")
+	t.ok(swayed, "sways")
+	t.ok(wobbled, "the «!» badge wobbles now and then")
+	t.eq(sim:CountConnections(p), base, "timers only: no connections")
+	client(sim, p, function()
+		for _, stop in stops do
+			stop()
+		end
+		UiFx.badgeHide(badge)
+	end)
+	sim:Advance(1)
+	t.eq(badge.Visible, false, "the badge leaves")
+	t.near(s.Rotation, 0, 1e-6, "sway restored the rotation")
+	t.eq(icon.AnchorPoint, rest, "the icon back at rest")
+	t.near(s.FxScale.Scale, 1, 1e-3)
+	local frozen = { s.FxScale.Scale, s.Rotation, badge.Rotation }
+	sim:Advance(3)
+	t.ok(
+		frozen[1] == s.FxScale.Scale and frozen[2] == s.Rotation and frozen[3] == badge.Rotation,
+		"nothing moves after stop"
+	)
+	-- Ring countdown: strokes only, no frame job; stop removes it.
+	local stopRing
+	client(sim, p, function()
+		stopRing = UiFx.ringTimer(s, 1)
+	end)
+	local ring = s:FindFirstChild("FxRingTimer")
+	t.ok(ring and ring:FindFirstChild("Left") and ring:FindFirstChild("Right"), "two clipped halves")
+	t.eq(UiFx.activeJobs(), 0, "a ring timer is tweens only")
+	local turn = ring.Right.Circle:FindFirstChildOfClass("UIStroke").Drain.Rotation
+	sim:Advance(0.3)
+	t.ok(ring.Right.Circle:FindFirstChildOfClass("UIStroke").Drain.Rotation > turn, "the right half drains first")
+	client(sim, p, function()
+		stopRing()
+	end)
+	t.eq(s:FindFirstChild("FxRingTimer"), nil, "stop removes it")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["reduced motion: no overshoot, no idle loops, half the confetti — set centrally in UiFx"] = function(t)
+	local sim, p = boot(t)
+	local UiFx = fxOf(sim, p)
+	local hud = p.PlayerGui.HUD
+	local s = stage(sim, p)
+	client(sim, p, function()
+		UiFx.setReducedMotion(true)
+	end)
+	t.eq(
+		client(sim, p, function()
+			return UiFx.reducedMotion()
+		end),
+		true
+	)
+	client(sim, p, function()
+		UiFx.popIn(s, { from = 0, rotate = -12 })
+	end)
+	local peak = 0
+	for _ = 1, 15 do
+		sim:Advance(0.02)
+		peak = math.max(peak, s.FxScale.Scale)
 	end
-	local top = stud("top", plate)
-	local raised = stud("raised", face)
+	t.ok(peak <= 1.001, `no overshoot ({peak})`)
+	t.eq(s.Rotation, 0, "no rotation")
+	local stopBreath, stopBob
 	client(sim, p, function()
-		UiFx.setCandy(plate, "Leaf")
+		stopBreath = UiFx.breathe(s, { period = 0.4 })
+		stopBob = UiFx.bob(s)
+		UiFx.wiggle(s, 10)
+		UiFx.confetti(hud, { count = 20 })
 	end)
-	local leaf = Palette.Leaf
-	t.ok(top.BackgroundColor3 == UiFx.darken(leaf.Top, 0.35), "a top stud's shadow disc")
-	t.ok(top.Cap.Fill.Color.Keypoints[1].Value == UiFx.lighten(leaf.Top, UIConfig.Brick.TopLight), "… its lit cap")
-	t.ok(raised.BackgroundColor3 == leaf.Lip:Lerp(leaf.Bottom, 0.4), "a raised stud's side")
-	t.ok(raised.Cap.Fill.Color.Keypoints[2].Value == leaf.Bottom, "… its cap")
-	-- setStuds turns a smooth tile into a studded brick at runtime (big broadcasts), behind its Lip.
-	local tile = candy(sim, p)
-	t.eq(tile:FindFirstChild("Studs"), nil, "a tile has no studs")
+	t.eq(UiFx.liveConfetti(), 10, "half the confetti")
+	sim:Advance(1)
+	t.near(s.FxScale.Scale, 1, 1e-6, "no breathing")
+	t.eq(s.Rotation, 0, "no wiggle")
 	client(sim, p, function()
-		UiFx.setStuds(tile, 5, "Gold", { scale = 0.5, area = { 0.2, 0.9 } })
+		stopBreath()
+		stopBob()
+		UiFx.setReducedMotion(nil)
 	end)
-	local holder = tile.Studs
-	t.eq(#holder:GetChildren(), 5, "five studs")
-	t.ok(holder.ZIndex < tile.Lip.ZIndex, "behind the side band")
-	local gold = Palette.Gold
-	for i = 1, 5 do
-		local s = holder[`Stud{i}`]
-		t.eq(s:GetAttribute("CandyStud"), "front")
-		t.ok(mid(s) == gold.Top:Lerp(gold.Bottom, 0.3), `Stud{i} in Gold`)
-		t.near(s.Position.X.Scale, 0.2 + 0.7 * (i - 0.5) / 5, 1e-6, `Stud{i} spread over the area`)
-		t.ok(s:FindFirstChildOfClass("UIStroke"):GetAttribute("BaseThickness") > 0, `Stud{i} outlined`)
-	end
-	client(sim, p, function()
-		UiFx.paintStuds(tile, { Color3.new(1, 0, 0), Color3.new(0, 1, 0) })
-	end)
-	t.ok(mid(holder.Stud1) ~= mid(holder.Stud2), "paintStuds: one colour per stud")
-	t.ok(mid(holder.Stud1) == mid(holder.Stud3), "… cycling through the list")
-	client(sim, p, function()
-		UiFx.setStuds(tile, 99)
-	end)
-	t.eq(#holder:GetChildren(), UIConfig.Brick.MaxStuds, "capped at MaxStuds")
-	client(sim, p, function()
-		UiFx.setStuds(tile, 0)
-	end)
-	t.eq(#holder:GetChildren(), 0, "0 removes them")
+	sim:Advance(3)
+	t.eq(UiFx.activeJobs(), 0)
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -868,7 +985,7 @@ tests["fitText, text outline floor, fadeOut of a ViewportFrame, glowRing stop, h
 		14,
 		"textSize tells the same size"
 	)
-	t.ok(outline.Thickness >= 2.5, "text outlines never thinner than 2.5 px (phone would give 1.5)")
+	t.ok(outline.Thickness >= 2, "text outlines never thinner than 2 px (phone would give 1.5)")
 	-- fadeOut also fades a 3D ViewportFrame (the fish on the card).
 	local vp = sim:Create("ViewportFrame", { Name = "Vp", Size = UDim2.fromScale(0.5, 0.5) }, s)
 	client(sim, p, function()
@@ -928,23 +1045,22 @@ tests["flash is rate-limited (never more than 3 per second)"] = function(t)
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["bricks in motion: a pressed brick sinks into its side band; snap-on, studs pop, morph flash, count-up bumps"] = function(
+tests["sim in motion: press squash + shade + overshoot + icon kick (no sink); snap-in, rim flash, morph, count-up"] = function(
 	t
 )
 	local sim, p = boot(t, "phone")
 	local UiFx = fxOf(sim, p)
 	local hud = p.PlayerGui.HUD
-	-- The real action button (a round plate: Face with the raised Stud, Icon on it, the caption
-	-- tile and the key chip marked NoSink), cloned into the HUD.
-	local button = hud.Fishing.ActionArea.ActionButton:Clone()
-	button.Name = "PlateStage"
+	-- The real Home button (a sim square: Face, Icon, Caption), cloned into the HUD.
+	local button = hud.RightButtons.HomeButton:Clone()
+	button.Name = "ButtonStage"
 	button.Visible = true
 	button.AnchorPoint = Vector2.new(0.5, 0.5)
 	button.Position = UDim2.fromScale(0.5, 0.5)
-	button.Size = UDim2.fromScale(0.3, 0.3)
+	button.Size = UDim2.fromScale(0.2, 0.2)
 	button.Parent = hud
 	sim:Advance(0.05)
-	local face, lip = button.Face, button.Lip
+	local face = button.Face
 	local rest = { face = face.Position, icon = button.Icon.Position, caption = button.Caption.Position }
 	local unbind
 	client(sim, p, function()
@@ -956,26 +1072,33 @@ tests["bricks in motion: a pressed brick sinks into its side band; snap-on, stud
 		return c == ctx
 	end, 0, 0)
 	sim:Advance(0.1)
-	t.near(button.FxScale.Scale, 0.94, 0.01, "a brick squashes a little …")
-	local sunk = face.Position.Y.Offset - rest.face.Y.Offset
-	t.ok(sunk >= 1, `… and its face sinks into the side band ({sunk} px)`)
-	t.ok(sunk <= math.ceil(button.AbsoluteSize.Y * 0.1), "… by less than the band")
-	t.eq(button.Icon.Position.Y.Offset - rest.icon.Y.Offset, sunk, "the icon rides the face")
-	t.eq(lip.Position, UDim2.new(), "the side band stays (its bottom is the brick's bottom)")
-	t.eq(button.Caption.Position, rest.caption, "NoSink: the caption tile stays put")
+	t.near(button.FxScale.Scale, 0.9, 0.01, "squashes to 0.9")
+	t.ok(face.BackgroundColor3.R < 0.9, "the face darkens a step while held")
+	t.eq(face.Position, rest.face, "no sink: the face stays (no side band any more)")
+	t.eq(button.Icon.Position, rest.icon)
 	sim:FireInput(p, "InputEnded", {
 		UserInputType = roblox.Enum.UserInputType.Touch,
 		UserInputState = roblox.Enum.UserInputState.End,
 	})
+	local peak = 0
+	local kicked = false
+	for _ = 1, 8 do
+		sim:Advance(0.02)
+		peak = math.max(peak, button.FxScale.Scale)
+		local iconScale = button.Icon:FindFirstChild("FxScale")
+		kicked = kicked or (iconScale ~= nil and iconScale.Scale > 1.02)
+	end
+	t.ok(peak > 1.04, `springs past 1 on release ({peak})`)
+	t.ok(kicked, "the icon kicks")
 	sim:Advance(0.5)
-	t.eq(face.Position, rest.face, "the face springs back")
-	t.eq(button.Icon.Position, rest.icon)
-	t.near(button.FxScale.Scale, 1, 0.01)
+	t.near(button.FxScale.Scale, 1, 0.01, "settles at 1")
+	t.eq(face.BackgroundColor3, Color3.new(1, 1, 1), "the face is bright again")
+	t.near(button.Icon.Rotation, 0, 0.01, "the icon back upright")
 	client(sim, p, function()
 		unbind()
 	end)
 
-	-- Snap-on: drops from above, squashes on contact, springs back to its rest box.
+	-- Snap-in: drops from above, squashes on contact, springs back to its rest box.
 	local frame = stage(sim, p, "SnapStage")
 	local restPos, restSize = frame.Position, frame.Size
 	client(sim, p, function()
@@ -989,35 +1112,33 @@ tests["bricks in motion: a pressed brick sinks into its side band; snap-on, stud
 	t.near(frame.Size.X.Scale, restSize.X.Scale, 1e-3)
 	t.near(frame.Size.Y.Scale, restSize.Y.Scale, 1e-3)
 
-	-- Studs pop one by one (the bite alert's six), then all sit at 1.
-	local alert = hud.Fishing.BiteAlert:Clone()
-	alert.Visible = true
-	alert.Parent = hud
-	sim:Advance(0.05)
+	-- Rim flash (replaces the v3 «studs pop»): the light rim flashes white, a white veil, a bump.
+	local ring = face.Rim:FindFirstChildOfClass("UIStroke")
+	local rimRest = ring.Transparency
 	client(sim, p, function()
-		UiFx.studsPop(alert, { stagger = 0.03 })
+		UiFx.rimFlash(button)
 	end)
-	local studs = alert.Studs:GetChildren()
-	t.eq(#studs, 6)
-	for _, stud in studs do
-		t.eq(stud.FxScale.Scale, 0, `{stud.Name} starts hidden`)
-	end
-	sim:Advance(0.1)
-	t.ok(alert.Studs.Stud1.FxScale.Scale > alert.Studs.Stud6.FxScale.Scale, "left to right")
+	t.ok(ring.Transparency < rimRest, "the rim flashes")
+	t.ok(face:FindFirstChild("FxMorph"), "a white veil over the face")
+	sim:Advance(0.08)
+	t.ok(button.FxScale.Scale > 1, "a little bump")
 	sim:Advance(0.5)
-	for _, stud in studs do
-		t.near(stud.FxScale.Scale, 1, 1e-3, `{stud.Name} popped`)
-	end
+	t.near(ring.Transparency, rimRest, 1e-3, "the rim settles")
+	t.eq(face:FindFirstChild("FxMorph"), nil, "the veil is gone")
+	t.near(button.FxScale.Scale, 1, 1e-3)
 
-	-- The «transform» flash: a white overlay on the face and the raised stud pops; all gone after.
+	-- The «transform» flash: a white overlay on the face and the icon pops. No ring of its own
+	-- (the fishing looks add theirs: next to the Jump button an extra ring would touch it).
 	client(sim, p, function()
 		UiFx.morphFlash(button)
 	end)
 	t.ok(face:FindFirstChild("FxMorph"), "a white flash over the face")
-	t.ok(face.Stud.FxScale.Scale < 0.9, "the raised stud pops")
-	sim:Advance(0.4)
+	t.ok(button.Icon.FxScale.Scale < 0.9, "the icon pops")
+	t.eq(button:FindFirstChild("FxRing"), nil, "no ring of its own")
+	t.eq(face:FindFirstChild("Stud"), nil, "no raised stud any more")
+	sim:Advance(0.6)
 	t.eq(face:FindFirstChild("FxMorph"), nil, "the flash is gone")
-	t.near(face.Stud.FxScale.Scale, 1, 1e-3)
+	t.near(button.Icon.FxScale.Scale, 1, 1e-3)
 
 	-- Count-up with bumps: the number grows and bumps, ends at 1 and the final value.
 	local label = sim:Create("TextLabel", { Name = "CountStage", Size = UDim2.fromScale(0.2, 0.1), Text = "" }, hud)

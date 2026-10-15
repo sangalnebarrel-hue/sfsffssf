@@ -1,13 +1,13 @@
-# UI & FX style guide — «Кирпичики» (UI v3 Brick; motion and FX from v1/v2)
+# UI & FX style guide — «Симулятор» (UI v5; world FX and the catch from v1–v4)
 
 The user's briefs: «мега красивый интерфейс и мега красивые пёстрые анимации, чтобы все были в
-шоке» (v1/v2) and «текстурки типа лего как в Steal a Brainrot … как-то улучши интерфейс» (v3). The
-world is a studded toy-brick world (tools/builder/Studs.luau, DESIGN.md); the **interface is made
-of the same toy bricks** — chunky studded bricks and smooth tiles in bright brick colours, heavy
-CAPS lettering with thick near-black outlines, flat emoji stickers. The colour explodes in the
-effects (§2), like the top Roblox simulators (Steal a Brainrot, Pet Simulator 99, Grow a Garden).
-Never write «LEGO» in the game or show its logo: in Russian copy the bricks are «кирпичики» /
-«блоки».
+шоке» (v1/v2), «текстурки типа лего» (v3 — for the MAP) and, for UI v5: «а зачем ты сделал
+интерфейс с шипами какими то, просто сделай интерфейс супер мега крутой с анимациями» with a
+screenshot of a popular Roblox simulator. So the **map keeps its LEGO studs, the interface has
+none**: it is the juicy simulator look of that screenshot — chunky saturated gradient buttons
+with a THICK outline in a dark shade of their own hue, bold white lettering with a dark outline,
+outlined emoji icons, big italic numbers and huge outlined titles with no panel at all,
+translucent dark "glass" pills, a red «!» badge on a corner — and a lot of motion (§2).
 
 Everything here is built from plain GUI instances (Frame, TextLabel/TextButton, UICorner, UIStroke,
 UIGradient, UIScale, ViewportFrame) and built-in particle/sound content — **no uploaded images or
@@ -15,217 +15,258 @@ asset ids** (we cannot upload). Emoji are our icons (in game they are flat Twemo
 
 ## 1. Look
 
-**Bricks.** A chrome widget is a toy brick seen from the front (`Theme.brick`, the anatomy in §6.2):
+**Sim buttons and plates** (`Theme.sim`, the anatomy in §6.2) — the reference's buttons:
 
-- a **side band** (`Lip`): the bottom 16 % of the height in the colour's `Lip` (≈ 0.6 of its value);
-- a **face** with a light **cap** on top (the brick's top surface: Top lightened 30 % in the top
-  12 %, then Top → Bottom) and a small white **glint** (`Spec`) at its top left — no glossy band;
-- **studs** on the top edge (front view: a rounded bump in the brick's colour, lit from the left,
-  Ink outline; the brick's own outline cuts their bottoms off): 1 per ≈ 1 brick height of width,
-  at most 8 (the badge 4, the counter 3, Home 2, the base banner 6, the flag tile 1);
-- a thick **Ink outline** around the whole shape: `Ink` #15171C (neutral near-black), 4 px at 720
-  (2.5 px on a phone), corners 0.16 of the short side.
+- a **face** filled with a vertical gradient of the colour, `Top` (lighter) → `Bottom` (juicier),
+  almost square corners (`UIConfig.Sim.Radius` 0.08 of the short side: the thick outline rounds
+  them) — plates that are not buttons (the base badge, toasts, chips) use `PlateRadius` 0.3;
+- a **thick outline** (`Lip`'s UIStroke) in the colour's `Lip` — a DARK SHADE OF THE SAME HUE
+  (value ≈ 0.29: dark green round green, navy round blue, maroon round red), never black:
+  `UIConfig.Sim.Stroke` 6 px at 720 (≈ 4 px on a 390 px phone); small parts `MinorStroke` 4;
+- a thin **light rim** just inside the outline (`Face.Rim`, white at `RimAlpha` 0.5, 2 px) —
+  the reference's bevel;
+- no side band, no studs, no glint; optional `gloss` (a soft white top half) and `shadow` (a soft
+  Ink copy a little lower) for hero widgets.
 
-**Tiles** (`Theme.tile`) are smooth bricks: no studs, a 12 % side band, corners 0.2 — toasts,
-hints, chips. **Rarer = a bigger brick**: Legendary / Mythic broadcast toasts grow studs (Mythic's
-in rainbow colours). Seen from above (plates: the minigame baseplate, the catch card's gaps,
-pips — UI v4), a stud is a round disc with a lit cap (`Theme.topStud` / `studRow`, no outline);
-the action button is a **round plate** with a raised centre stud carrying its icon
-(`Theme.roundPlate`). Round shapes only for that, studs, pips and sockets — **no pills** (UI v4:
-the fishing widgets are bricks too — no legacy candy is left on screen).
+Round buttons (`round = true`: the action button, the red badge, the trophy chip) use the same
+anatomy with a 0.5 corner. **Glass** (`Theme.glass`) is the reference's timer pill: the same tree
+with a black face at `Palette.Glass.Alpha` 0.5, no outline, no rim — hints, the action button's
+caption, grooves. `UiFx.setCandy` turns a root between the two looks at runtime (a bright token →
+a solid plate, `Glass` → glass; a root built as glass — attribute `CandyHome = "glass"` — stays
+glass in dark tokens, Night / Coal).
 
-**The fishing widgets (UI v4)** follow the mocks (v3research/ui/mock/A_lego_play.png,
-A_lego_catch.png): the action button a round plate in the state's colour (raised stud + icon) with
-its caption on a black `Coal` tile overlapping its bottom, the key chip a small white tile;
-«СМОТАТЬ» a red 1x3 brick; the bite alert an orange 1x6 brick; the hint a smooth dark stone tile;
-the minigame an opaque dark stone baseplate with a row of studs along its top edge, a black
-groove, the zone a green 1x3 brick the rider stands on, pips as round studs (grey → green with a
-⭐); the catch card a white display plate — the fish in a pale display window standing on a 2x4
-plate in the rarity's colour seen from 3/4 above (a lighter top face with three oval studs over a
-darker front face, v3 UIM-07: a display plate, not a bar or a button), studs in the gaps between
-its tiles, the rarity banner a long brick with 6 studs (Mythic: rainbow studs), the weight a grey
-tile in CAPS, the price a yellow brick with studs, «НОВИНКА!» a red tile tilted −8°, the mutation
-a tile in its colours.
+**Panel-less display.** Big numbers and words stand on the 3D world with no plate, like the
+reference's «👟 10» and «Украдите яйцо!»: the catch counter is an outlined 🐟 tilted −8° and a big
+**italic** white number (`Theme.stat`); the base banner's «ТВОЯ БАЗА / ЛАЗУРНАЯ!» is a huge title
+(`Theme.title`: white → base colour TextFill, an 8 px Ink outline at 720 and a drop-shadow twin
+`<Name>Shadow` a little lower). Nothing stud-like or brick-like is left on screen.
 
-**One stud module** (v3, UIM-05 — "all studs are equal" is what makes LEGO look like LEGO): on the
-390 px phone a front-view stud is `UIConfig.Brick.StudPx` (14) px wide (≈ 8.5 px tall), a stud seen
-from above (plates) ≈ `TopStudPx` (10) px; on bigger screens they grow like the bricks do (with
-the screen height). A brick gets its `studScale` from its height on the reference phone
-(`Theme.studScale(refHeight)`), how many fit from its width (`Theme.studCount`, pitch
-`StudPitch` × the stud). Exceptions: the base banner (a 100 px hero slab for two seconds) and the
-minigame zone (≈ 10 px, so a narrow Mythic zone still holds three).
+**Colours** (`UIConfig.Palette`, sampled from the reference; controllers recolour with
+`UiFx.setCandy(root, token)` — Top → Bottom gradient, Lip = the outline):
 
-**Colours.** Bright toy-brick colours under the old token names (controllers recolour with
-`UiFx.setCandy(root, token)`; Top → Bottom, Lip = side band):
-
-| token | brick colour | use | top | bottom | side band |
+| token | colour | use | top | bottom | outline |
 |---|---|---|---|---|---|
-| `Sky` | blue | cast / primary action, info | #4FA3FF | #0A6CD8 | #053E85 |
-| `Sun` | orange | bite / alert | #FFB347 | #FF7A00 | #A34A00 |
-| `Leaf` | green | reel / success | #7EDB5A | #2FA82F | #1A621C |
-| `Berry` | red | stop / danger / miss | #FF4A3D | #E3000B | #8E0008 |
-| `Grape` | purple | special / epic | #C08CF0 | #8E44C6 | #522577 |
-| `Gold` | yellow | money, the catch counter, legendary | #FFE45C | #FFC20E | #B07A00 |
-| `Night` | dark stone | panels, tracks, hints | #5B6168 | #3E4349 | #24282C |
-| `Cream` | white plate | cards, flag tiles, sockets | #FFFFFF | #E6E9EC | #A9AFB5 |
-| `Slate` | light grey | disabled / waiting, no base | #C9CED3 | #A0A5A9 | #6C7176 |
-| `Mint` | azure | Home (never confused with the green «ЛОВИ!») | #6FE0F5 | #1FA9D6 | #0E6585 |
-| `Water` | teal | water | #67D9E3 | #1593A6 | #0A5763 |
-| `Pond` | muted teal (Water 40 % towards Slate) | waiting for a bite («ЖДИ КЛЁВА…»: nothing to press) | #8ED5DD | #4D9AA7 | #31616B |
+| `Leaf` | lime green | «ЛОВИ!», «ЗАБРАТЬ!», success | #8BFA0C | #3FFF03 | #0A4800 |
+| `Sky` | cyan | «ЗАБРОСИТЬ», info | #25FCFF | #03C6FF | #180149 |
+| `Berry` | red | «СМОТАТЬ», danger, «НОВИНКА!» | #FF5357 | #F8060B | #490100 |
+| `Sun` | orange | «КЛЮЁТ!», «ПОДСЕЧЬ!», warning | #FDC073 | #F77718 | #490C00 |
+| `Gold` | yellow | «ВЗЯТЬ», price, Legendary | #FFF06A | #FECE08 | #4B2000 |
+| `Grape` | purple | «ДОМОЙ», Epic | #E08CFF | #A43BFF | #2C0057 |
+| `Pink` | pink | base colour | #FF9AD5 | #FF3FA8 | #4A0029 |
+| `Mint` | turquoise | base colour (Cyan) | #6CFFE0 | #12D6B0 | #003D33 |
+| `Slate` | light grey | disabled / waiting, no base | #EEF1F4 | #AEB6BF | #252B33 |
+| `Night` | dark navy | the minigame panel, Mythic toast | #4A4F6A | #23263A | #06070D |
+| `Cream` | white | the catch card, the key chip | #FFFFFF | #DDE6F0 | #141A26 |
+| `Pond` | muted teal | «ЖДИ КЛЁВА…» (nothing to press) | #A9E4EE | #58AFC4 | #0B3440 |
+| `Water` | aqua | water | #6FF2FF | #13B8D6 | #003A4D |
+| `Coal` | black chip | dark chips | #3C414D | #14171D | #000000 |
+| `Glass` | dark glass | hints, captions, grooves | #0B0D14 at Alpha 0.5 | — | none |
 
-Base colours are clean swatches too (`UIConfig.BaseSwatches`, by the BaseConfig colour Id): Red =
-Berry, Blue = Sky, Yellow = Gold, Purple = Grape, Orange = Sun, Cyan = Mint (azure), Pink
-#FF7EB6 → #E8448F, Green (emerald) #5FE3A0 → #12A05E; any other colour goes through
-`UIConfig.swatchFor(color)` (lighter top, saturated bottom, side band ≈ 0.62 of the bottom).
+Base colours: `UIConfig.BaseSwatches` (Red = Berry, Blue = Sky, Yellow = Gold, Purple = Grape,
+Orange = Sun, Cyan = Mint, Pink = Pink, Green = emerald #5FF5A8 → #14C76E); any other colour goes
+through `UIConfig.swatchFor(color)` (top = colour 30 % towards white, bottom = the hue at
+saturation × 1.1 and value ≥ 0.9, outline = the hue at value 0.29; greys get a dark grey).
+`UIConfig.BadgeRed` (#FF4A3D → #F00A00, outline #4A0000) is the «!» badge, `MoneyText` #1BFF00 the
+money digits of stage 3, `BillboardYellow` / `BillboardGreen` the world signs of the next pass.
 
-Rarity: Common light grey `#E2E6EA→#A0A5A9`, Rare blue `#4FA3FF→#0A6CD8`, Epic purple
-`#C08CF0→#8E44C6`, Legendary yellow → orange `#FFE45C→#FF9A00`, Mythic = an **animated rainbow**
-(UIGradient with 6+ hue keypoints whose Offset/Rotation moves; studs included). Mutation badges:
-Gold (gold gradient + sparkles), Neon (#4DFFF0→#19C2FF, glowing pulse), Rainbow (animated rainbow).
-The e2e bot's filled pip colour `UIConfig.Fishing.PipDone` rgb(64, 200, 96) never changes.
+Rarity: Common light grey `#F4F7FA→#B8C2CC`, Rare blue `#5FD0FF→#1E7BFF`, Epic purple
+`#E08CFF→#A43BFF`, Legendary yellow → orange `#FFF06A→#FF9A00`, Mythic = an **animated rainbow**
+(UIGradient with 7 hue keypoints whose Offset/Rotation moves). Mutation badges: Gold (gold
+gradient + sparkles), Neon (#6BFFF4→#00C8FF, glowing pulse), Rainbow (animated rainbow). The e2e
+bot's filled pip colour `UIConfig.Fishing.PipDone` rgb(64, 200, 96) never changes.
 
-**Text.** One family: Nunito **Heavy** (Black 900 — `Theme.FONT`, `UiFx` uses the same; Cyrillic;
-never FredokaOne / LuckiestGuy / Bangers / DenkOne / TitilliumWeb: no Cyrillic). White with a
-thick Ink outline (a UIStroke "Outline", Contextual). **CAPS voice** for badges, buttons, banners,
-chips and titles («ЛАЗУРНАЯ БАЗА», «ДОМОЙ», «ЗАБРОСИТЬ», «РЕДКАЯ»; Cyrillic capitals through
-`TextUtil.upper` — `string.upper` knows only Latin); sentence case for hints, plain toasts and
-«Тапни — забрать!». Outlines at 720 px (`UiFx.fitStrokes` scales them; never under
-`UIConfig.Fx.TextStrokeMin` = 2.5 px):
+**Text.** One family: **Montserrat Heavy** (900, `UIConfig.Font.Family` =
+rbxasset://fonts/families/Montserrat.json — the reference's heavy geometric sans, with Cyrillic;
+`Theme.FONT`, `UiFx` uses the same); **Montserrat Heavy Italic** (`Theme.FONT_ITALIC`,
+`Italic = true`) for numbers, floats («+1», «ОТЛИЧНО!»), cooldown digits and the counter. Never
+FredokaOne / LuckiestGuy / Bangers / DenkOne / TitilliumWeb: no Cyrillic. White with a dark Ink
+outline (UIStroke "Outline", Contextual, round joins). **CAPS voice** for badges, buttons,
+banners, chips and titles («ЛАЗУРНАЯ БАЗА», «ДОМОЙ», «ЗАБРОСИТЬ», «РЕДКАЯ»; Cyrillic capitals
+through `TextUtil.upper` — `string.upper` knows only Latin); sentence case for hints, plain toasts
+and «Тапни — забрать!». Outlines at 720 px (`UiFx.fitStrokes` scales them with the screen height:
+shapes ×0.65 … ×`Fx.StrokeMax` 1.2, text ×0.65 … ×`Fx.TextStrokeMax` 1.0, text never under
+`Fx.TextStrokeMin` = 2 px):
 
 | what | outline at 720 | on a 390-px phone |
 |---|---|---|
-| Small tier | 3 | 2.5 |
-| Body tier | 3.5 | 2.5 |
-| Button tier | 4 | 2.5 |
-| Title tier | 4.5 | 3 |
-| display text (the base banner name, cooldown digits, the counter) | 4.5–8 | 3–5 |
-| shapes (bricks, tiles, sockets) | 4 | 2.5 |
-| small brick parts (the minigame zone, needle and groove, the pedestal, the card's window) | 3 | 2 |
-| studs | 3 | 2 |
+| Small / Body tier | 2.5 | 2 |
+| Button tier | 3 | 2 |
+| Title tier | 3.5 | 2.3 |
+| display text (the counter, cooldown digits, the price, floats) | 4.5 | 2.9 |
+| huge titles (the base banner name, the rarity title) | 8 | 5.2 |
+| emoji icons (the Ink contour round the emoji's shape) | 3 | 2 |
+| shapes: buttons and plates | 6 | 3.9 |
+| small parts (the badge disc, chips, the trophy chip's tip) | 3–4 | 2–2.6 |
 
-A tiered label gets at least its tier's outline (`Theme.label`); dark text on a white tile (the
+A tiered label gets at least its tier's outline (`Theme.label`); dark text on a white chip (the
 key chip, the weight chip, «Тапни — забрать!») goes without (`Outline = false` /
 `TextStrokeTransparency = 1`). Never below 12 px on a phone (UITextSizeConstraint).
 
 **Type scale.** Text that means the same thing has the same size on one screen. Four tiers
-(`UIConfig.Type`, Roblox TextSize = line height in px on a 390 px tall screen):
+(`UIConfig.Type`, Roblox TextSize = line height in px on a 390 px tall screen; Montserrat is wider
+than the old Nunito, so the numbers are a little smaller for the same cap height):
 
 | tier | px | used for |
 |---|---|---|
-| `Title` | 22 | base badge, minigame title, rarity banner, fish name |
-| `Button` | 18 | action caption, «СМОТАТЬ», «ДОМОЙ», Legendary/Mythic broadcasts |
-| `Body` | 16 | hints, Help, toasts, «Тапни — забрать!» |
-| `Small` | 14 | chips (weight) |
+| `Title` | 20 | base badge, minigame title, rarity banner, fish name |
+| `Button` | 17 | action caption, «СМОТАТЬ», the base banner's caption, Legendary/Mythic broadcasts |
+| `Body` | 15 | hints, Help, toasts, «Тапни — забрать!» |
+| `Small` | 14 | «ДОМОЙ», chips (weight), the broadcast's «who» line |
 
 A label gets its tier with `Theme.label(…, { Tier = "Body" })` (attribute `TextTier`);
 `UiFx.fitText(hud)` (HudController) sets Max = tier × clamp(H / 390, 1, 1.6), Min = Max − 2 for
 every tiered label, also ones cloned later. Give the box at least that height; long copy is
 shortened (or the widget grows a line), never shrunk below its tier. Display text (the giant
 rarity title, the base banner name, cooldown digits, the catch counter's number, the catch card's
-price — up to 1.4 × Title, never under Button − 2) is box-driven, not tiered. CAPS Cyrillic is
-10–20 % wider: check «ФИОЛЕТОВАЯ БАЗА», «ЗАБРОСИТЬ», «МИФИЧЕСКАЯ» on `phone_small`.
+price) is box-driven, not tiered. CAPS Cyrillic is 10–20 % wider: check «ФИОЛЕТОВАЯ БАЗА»,
+«ЗАБРОСИТЬ», «МИФИЧЕСКАЯ» on `phone_small`.
 
-**Icons.** Emoji in their own TextLabel, **upright** (Rotation 0; only stamps — «НОВИНКА!», a
-mutation — and the base banner's flag tilt), no Ink outline (in game they are flat Twemoji, drawn
-with Roblox's content/fonts/TwemojiMozilla.ttf — the GUI previews draw the same font). A **sticker**:
-an icon in a white 1x1 round tile (`Theme.socket`: white disc, Ink outline, a thin inner rim), or
-a free-standing one with a white rim (`Theme.icon(…, { Sticker = true })`: a white Contextual
-UIStroke around the emoji's shape — the counter's 🐟, Home's 🏠). 🎣 🐟 🏠 💰 ⭐ ✨ ❗ 💪 🔥 🌈 👑.
+**Icons.** Emoji in their own TextLabel with a **dark Ink contour** round the emoji's shape
+(`Theme.icon`, `Outline` 3 px at 720 — the reference's black-outlined icons; a faint glyph gets
+none), upright (Rotation 0; only the counter's 🐟 −8°, the base flag ±8°, stamps — «НОВИНКА!», a
+mutation — tilt). An icon may **overhang** its plate's left end (`Theme.plate` → `Icon`, or
+`Socket = true` → a transparent holder "IconSocket" with the Icon in it: toasts, the base flag,
+hints). 🎣 🐟 🏠 💰 ⭐ ✨ ❗ 💪 🔥 🌈 👑 🚩. The red **«!» badge** (`Theme.badge`) sits on a button's
+top-right corner (Home has one, hidden until the shop of stage 3 lights it).
 
-**Hierarchy.** One idle accent per screen: only the action button shines or breathes; the chrome
-stays calm (the badge shines only when the base arrives, Home when its cooldown ends), and the
-badge is quieter than the counter (smaller text). **Chrome micro-life** (UI v4) at most once per
-8 s, one widget at a time and only in calm moments (not fishing, no catch, no toast, 6 s after the
-last HUD event): the badge's flag waves, the counter's 🐟 flips, Home's 🏠 hops — never two
-within 8 s (HudController: one task.delay chain, no connection, no frame work).
+**Hierarchy.** One idle accent per screen: only the action button idles (its shine sweep); the chrome
+stays calm (the badge flashes its rim only when the base arrives, Home when its cooldown ends);
+the counter's number is the biggest text of the chrome. **Chrome micro-life** at most once per
+8–12 s, one widget at a time and only in calm moments (not fishing, no catch, no toast, 6 s after
+the last HUD event): the badge's flag waves, the counter's 🐟 flips, Home's 🏠 hops (HudController:
+one task.delay chain, no connection, no frame work).
 
 ## 2. Motion (the "juice")
 
 All motion comes from the client library `ReplicatedStorage.Shared.UiFx` (one place, consistent
-timing). Every effect must clean itself up (Destroy temporary instances, cancel tweens) and accept a
-Trove or return a cleanup function.
+timing); the default numbers live in `UIConfig.Motion`. Every effect must clean itself up (Destroy
+temporary instances, cancel tweens) and accept a Trove or return a cleanup function.
 
 | effect | how | timing |
 |---|---|---|
-| press | UIScale 1→0.88 (Quad Out) on press, →1.0 Back Out on release; a **brick sinks**: UIScale 0.94 and its face, front studs and content slide down 0.6 × its side band (the band's bottom stays, children with `NoSink` stay put), springing back Back Out; the click at a random pitch 0.95–1.08 | 0.06 (sink 0.05) / 0.25 (sink 0.22) s |
-| snap-in | a brick drops from 8 px above (Quad In), squashes 1.06 × 0.94 on contact and springs back (Back Out), a tick (`UiFx.snapIn`; the minigame plate) | 0.12 + 0.18 s |
-| studs pop | a brick's studs (any `CandyStud`) pop 0 → ≈1.15 → 1 left to right, staggered (`UiFx.studsPop`; bite alert, «СМОТАТЬ», minigame plate, card banner / pedestal / price, the badge on arrival, the base banner, broadcast toasts) | 0.18–0.22 s each, 0.02–0.05 s apart |
-| morph flash | the action button changes to an important look (ПОДСЕЧЬ! / ЛОВИ! / ЗАБРАТЬ!): a white overlay on its face 0.35 → 1 and the raised stud pops 0.84 → 1 (`UiFx.morphFlash`), with the existing pop-in | 0.18 / 0.32 s |
-| pop-in | UIScale 0→1.08→1 (Back Out), optional rotation −6°→0 | 0.3 s |
-| slam | UIScale 2.2→1 (Back Out) + small shake | 0.35 s |
-| pulse | UIScale 1↔1.08 (Sine InOut, repeat) | 0.8 s period |
+| press | squash UIScale 1 → 0.9 and the face darkens a step (its white background under the gradient → 0.8 grey: the whole gradient darkens, the outline stays); on release an overshoot to 1.08 — capped at `Press.MaxGrow` 3 px of growth, so a big button never touches the Jump button — then a Back-Out spring to 1, the face brightens, the icon gets a **kick** (1.18 → 1 and −8° → rest, Back Out); a click at a random pitch 0.95–1.08; with a mouse also **hover** (1.05 while over) | 0.06 / 0.09 + 0.22 s |
+| pop-in | UIScale 0 → 1 (Back Out), optional rotation −6° → 0; `staggerPop` pops a list one after another | 0.3 s, 0.05 s apart |
+| pop-out | a short swell 1 → 1.06, then → 0 (Back In), hide or destroy | 0.16–0.2 s |
+| punch | a felt two-step overshoot from → 1.1 (Quad Out) → 1 (Back Out): look changes, the badge appearing, arrivals | 0.09 + 0.22 s |
+| snap-in | a panel drops from 8 px above (Quad In), squashes 1.08 × 0.92 on contact and springs back (Back Out), a tick (the minigame plate) | 0.12 + 0.18 s |
+| rim flash | the face's light rim flashes solid white and fades back to `RimAlpha`, a white overlay 0.6 → 1 on the face, a breath 1 → 1.06 → 1 (`rimFlash`: the bite alert, «СМОТАТЬ», the minigame plate, the card's pedestal / banner / price, the badge on arrival, broadcast toasts) | 0.3 s |
+| morph flash | an important look change (ПОДСЕЧЬ! / ЛОВИ! / ЗАБРАТЬ!): a white overlay on the face 0.4 → 1 and the icon pops 0.6 → 1.15 → 1 | 0.2 / 0.32 s |
+| recolour | a copy of the face's OLD gradient covers it and fades while the new colours are already under it; the outline tweens to its new colour | 0.16 s |
+| breathe | a primary button's idle life (ВЗЯТЬ / ЗАБРОСИТЬ: 1.05 every 1.4 s, at most 5 px of growth — it grows from its bottom-left corner towards Jump): one slow breath 1 → peak → 1 every period, only when visible, not pressed, not punched | 1.8 s period |
+| shine | a white diagonal band (Transparency 1 → 0.25 → 1) sweeping Offset −1 → 1 across a button / plate | 0.6 s, every 3.5 s on the idle primary button |
+| bob | an icon hops by 8 % of its height through its AnchorPoint (Quad Out up, Bounce Out down) — position and scale stay free for other effects | 0.18 + 0.32 s, every 2.2–3.0 s |
+| sway | a slow ±1.5° rotation loop (the waiting plate «ЖДИ КЛЁВА…») | 2.4 s period |
+| badge wobble | the red «!» pops in (punch 0 → 1.25 → 1, a white ring, a high tick), then every 2.8–3.6 s wiggles ±12° with a 1.12 bump; `badgeHide` swells and shrinks it away | 0.5 s per wobble |
+| number roll | the counter («slot machine»): the old number slides up and fades (Quad In), the new one rises from below (Back Out); the digits flash a colour (`flashText`, ≥ 0.34 s apart), the counter bumps (1.3; 1.45 for a fish from the card) and its 🐟 squashes (Elastic) | 0.16 / 0.24 s |
+| count-up | a number ticks from → to (Quad Out); each new number bumps 1.06 → 1 (≤ 12 Hz: the catch card's price) | 0.6–1.0 s |
+| ring timer | a ring round a button drains clockwise from 12 o'clock (two clipped halves, a rotating transparency gradient), colour full → empty (`UIConfig.Fishing.TimeBar`) | the duration, tweens only |
+| fly-up | icons fly on an arc from one widget into another (card → counter): with `count` > 1 they first scatter 40–70 px out of the source, then fly one by one 0.05 s apart (Common 1, Rare 2, Epic 3, Legendary 4, Mythic 6 — `Motion.Fly.Count`), `onEach` ticks the counter per icon | 0.18 + 0.45–0.6 s |
+| slam | UIScale 2.2 → 1 (Back Out) + small shake (the base banner's name) | 0.35 s |
+| stamp | 3 → 1 with a −16° turn («НОВИНКА!», a mutation) | 0.3 s |
+| pulse | UIScale 1 ↔ 1.08 (Sine InOut, repeat) | 0.8 s period |
 | wiggle | Rotation ±6° (Sine, 3 swings) | 0.4 s |
 | shake | Position jitter ±1.5 % decaying | 0.25 s |
-| shine | white diagonal gradient band (Transparency sequence 1→0.4→1) sweeping Offset −1→1 across a button/card | 0.6 s, every 3–4 s on idle main buttons |
-| glow ring | a copy of the round shape behind it, scale 1→1.5, transparency 0.3→1 | 0.6 s, repeat while important; stop fades live rings in 0.1 s |
-| rays | sunburst of 8–16 thin rotated bars in alternating rarity colours, growing from the centre (Quad Out, no overshoot), slowly rotating (≈20°/s; two rings turn opposite ways), behind titles and the catch card; on touch: no halo quads, no breathing, size capped (`maxPx`); `settle()` after the reveal (+0.25 transparency, half the spin); with a `hole` the middle stays empty (rays around the landed fish, not over it) | while shown |
-| confetti | 30–60 small Frames (squares/strips, random vivid colours, rotation), launched up/out then falling with gravity and spin, fading in the last 30 % | 1.6–2.2 s |
+| glow ring | a copy of the round shape behind it, scale 1 → 1.5, transparency 0.3 → 1 | 0.6 s, repeat while important; stop fades live rings in 0.1 s |
+| rays | sunburst of 8–16 thin rotated bars in alternating rarity colours, growing from the centre (Quad Out), slowly rotating (≈20°/s; two rings turn opposite ways), behind titles and the catch card; on touch: no halo quads, no breathing, size capped (`maxPx`); `settle()` after the reveal; with a `hole` the middle stays empty | while shown |
+| confetti | 30–60 small Frames (squares/strips, vivid colours, rotation), launched up/out then falling with gravity and spin, fading in the last 30 % | 1.6–2.2 s |
 | sparkles | ✨ / ⭐ labels popping in/out at random spots around an element | while shown |
-| float text | «ОТЛИЧНО!», «+1 🐟», «МИМО!» rise 8 % and fade, slight rotation | 0.8 s |
-| count-up | number ticks from 0 to the value (Quad Out); each new number bumps 1.06 → 1 (≤ 12 Hz: the catch card's price, `countUp(…, {bump = true})`) | 0.6–1.0 s |
-| odometer | the catch counter on arrival: the old number slides up and fades (Quad In), the new one rises from below (Back Out) | 0.18 / 0.25 s |
+| float text | «ОТЛИЧНО!», «+1 🐟», «МИМО!» in Montserrat Heavy **Italic** with a 4 px outline: pop, rise 8 % and fade, slight rotation | 0.8 s |
 | rainbow | UIGradient colour keypoints shifted every frame (hue cycle), or Rotation spin | continuous while shown |
-| flash | full-screen white/rarity-coloured Frame 0.6→1 transparency (`flashBig` 0.12 exists but is not used: never a near-solid screen on a catch landing — a phone player loses the fish) | 0.25 s; ≤ 3 per second |
-| shockwave | the landing hit at a point: a thick rarity ring + a thin white one expand from it, a soft disc fades faster; the middle stays clear, nothing covers the screen | 0.45 s |
+| flash | full-screen white / rarity-coloured Frame 0.6 → 1 transparency (`flashBig` exists but is not used: never a near-solid screen on a catch landing) | 0.25 s; ≤ 3 per second |
+| shockwave | the landing hit at a point: a thick rarity ring + a thin white one expand from it, a soft disc fades faster; the middle stays clear | 0.45 s |
 | edge vignette | 4 edge bands in a colour (or a gradient), fading towards the centre; static, pulsing (≥ 0.34 s period) or one-shot | tension, bite, perfect hit |
-| FOV punch | the camera zooms in a few degrees and back (all punches summed, capped at −8°); with `easeIn` a slow wind-up (Sine In) — e.g. a small zoom-out before a Legendary/Mythic landing | 0.08 s in, 0.35 s out |
+| FOV punch | the camera zooms in a few degrees and back (all punches summed, capped at −8°); with `easeIn` a slow wind-up | 0.08 s in, 0.35 s out |
 | sounds | pooled built-in sounds with a pitch; rarity arpeggio (Common 1 note … Legendary 4, Mythic 7) | events |
 
-Easing defaults: Back Out for appearing, Quad In for leaving, Sine for loops. Nothing linear except
-timers. Stagger groups by 0.03–0.06 s.
+Easing defaults: Back Out for appearing, Quad In for leaving, Sine for loops. Nothing linear
+except timers. Stagger groups by 0.03–0.06 s. A label's drop-shadow twin (`<Name>Shadow`) moves
+with it: `setText`, `popIn`, `bump`, `slam`, `punch` and `shake` drive both.
+
+**Idle budget.** Everything that lives while nothing happens — breathe, shine loops, bob, sway, the
+badge wobble, the chrome micro-life, glow-ring loops — runs on **tweens and `task.delay` chains
+only** (no RenderStepped / Heartbeat connection, no per-frame work); a chain ends by itself when
+its widget is hidden or destroyed. Frame effects (`UiFx.schedule`: confetti, burst, countUp,
+rainbow, timerBar, flyTo, trail) are for events and stop by themselves or through their stop
+function; with nothing running the shared frame connection is gone (`UiFx.activeJobs() == 0`).
+
+**Reduced motion** (`UiFx.reducedMotion()`: Roblox's ReducedMotionEnabled when the client has it,
+or `UiFx.setReducedMotion(true)`), handled in UiFx in one place: no overshoots (pops become a short
+Quad Out from 0.9), no wobble / bob / sway / breathe, no shake, no text flashes, half the confetti,
+a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times per second.
 
 ## 3. Where it is used
 
-- **HUD chrome** (tools/builder/gui/Hud.luau, HudController, NotifyController — all bricks, §1):
-  base badge (a brick in the base swatch with 4 studs, a white 1x1 flag tile with one stud over
-  its left end, «ЛАЗУРНАЯ БАЗА» in CAPS at the Title tier; «ИЩЕМ БАЗУ…» / «ЖДЁМ БАЗУ…» on light
-  grey; shines only when the base arrives); the base banner (first assignment: a big brick with 6
-  studs, «ТВОЯ БАЗА» / «ЛАЗУРНАЯ!» across the centre in the base swatch, the flag tile waving,
-  rays, confetti, a fanfare; after 2 s it shrinks into the badge, which bumps); catch counter (a
-  yellow 1x3 brick «🐟 12» like a coin display: the 🐟 sticker over its left end, the number big —
-  box-driven, about Title; bump + «+N» + a higher tick when the fish arrives — held while the HUD
-  has `CounterHold`); Home button (a square azure 2x2 brick with 2 studs, 🏠 sticker and «ДОМОЙ»
-  on its face, 🏠 wiggle on press; cooldown: draining veil, digits on the face, «ЖДИ» over the
-  veil, the house fades; one shine when ready); toasts (smooth tiles by kind with the icon in a
-  white round tile, slide-down + bounce, the icon spins in (−180° → 0, Back Out) once the tile has
-  landed (warning and big news: then the emoji itself wiggles in its round tile), shine; leaving: up 20 px, +4°, fading; the others slide to their slots with a little
-  overshoot (Back Out); a column right under the status stack — 3 on a PC (clear of the chat window), 1
-  on a tablet or a phone (above the avatar's head); none while the catch is on screen, 1 over
-  the bite / minigame (on phones none but danger), none but danger while a hit word or a minigame
-  ghost («МИМО!», «ПОЙМАНА!») rises into the column, the rest queue — a toast pushed off in the
-  first half of its life comes back; Legendary (a yellow brick, 🌟) and Mythic (a dark Night brick
-  in a spinning rainbow rim, 🌈) broadcasts are bricks with studs (rarer = bigger; Mythic's studs
-  and icon ring in rainbow colours — v3 UIM-06: the rainbow only on the rim, the studs and the
-  ring, never behind the letters) in two lines — who (Small, never under 14 px) over what (up to
-  Title, the rarity word in capitals; white letters with a 2.5 px Ink outline, light gold at the
-  bottom on the yellow brick), never wider than the column (the headline wraps); someone else's
-  catch never washes the screen (no edge pulse); on phones they wait while the own trophy is held
-  over the head; leaving: rise + fade, ≥ 0.7 s apart).
+- **HUD chrome** (tools/builder/gui/Hud.luau, HudController, NotifyController — the reference
+  implementation of §1): the base badge (a sim plate in the base swatch — gradient, thick outline
+  in the dark shade of the base colour — with an outlined 🚩 overhanging its left end, tilted 8°,
+  «ЛАЗУРНАЯ БАЗА» in CAPS at the Title tier; «ИЩЕМ БАЗУ…» / «ЖДЁМ БАЗУ…» on light grey; it bumps
+  and flashes its rim only when the base arrives); the base banner (first assignment: NO panel — a
+  huge outlined title like the reference's «Украдите яйцо!»: the caption «ТВОЯ БАЗА» over the name
+  «ЛАЗУРНАЯ!» in white → base colour with an 8 px Ink outline and a drop-shadow twin, the 🚩
+  waving beside it; the name slams in and flashes, rays, confetti, a fanfare; after 2 s it shrinks
+  into the badge, which bumps and flashes its rim); the catch counter (NO panel: an outlined 🐟
+  tilted −8° and a big italic white number «12», like the reference's «👟 10»; on arrival the
+  number rolls like a slot machine and flashes, the counter bumps, the 🐟 squashes and wiggles,
+  sparks, «+N» floats out at the right, a higher tick — in the rarity colours with a glow ring
+  round the 🐟 for a fish from the card; held while the HUD has `CounterHold`); the Home button (a
+  square purple Grape sim button, a big outlined 🏠 and «ДОМОЙ» ON its bottom edge, the red «!»
+  badge on its top-right corner — hidden until the shop of stage 3; the press squashes it, kicks
+  the 🏠; cooldown: a dark veil drains down, big italic digits in the middle — the last 3 s
+  flash orange —, the house fades, «ЖДИ» punches in over the veil; ready: a punch, a rim flash, a
+  purple ring, one shine, «ДОМОЙ» punches back in its clipped caption band; a press during the
+  cooldown shakes it «no»; the first base pops the button in on its own spot (scale 0.3 → 1, Back
+  Out — never the column's Position: the fishing layout reads it) and spins the 🏠 in); toasts
+  (sim plates by kind — Sky info, Leaf success, Sun warning, Berry danger, the base colour for the
+  base — with the outlined icon overhanging the left end; slide-down + bounce and a 0.5 → 1 pop,
+  the icon spins in (−180° → 0, Back Out) once the plate has landed — warning and big news: then
+  the emoji wiggles —, a shine; leaving: up 20 px, +4°, fading; the others slide to their slots
+  with a little overshoot (Back Out); a column right under the status stack — 3 on a PC (clear of
+  the chat window), 1 on a tablet or a phone (above the avatar's head); none while the catch is on
+  screen, 1 over the bite / minigame (on phones none but danger), none but danger while a hit word
+  or a minigame ghost («МИМО!», «ПОЙМАНА!») rises into the column, the rest queue — a toast pushed
+  off in the first half of its life comes back); Legendary (a yellow Gold plate, 🌟) and Mythic (a
+  dark Night plate in a spinning rainbow OUTLINE, 🌈 — the rainbow only on the outline, never
+  behind the letters) broadcasts are bigger plates that punch in (0.3 → 1.12 → 1) and land with a
+  ring in the rarity colour, a rim flash and a gold flash of the headline, in two lines — who
+  (Small, never under 14 px) over what (up to Title, the rarity word in capitals), never wider than
+  the column — 1.25 columns on a touch screen, centred, clear of Home — (measured per glyph,
+  `UiFx.textWidth`; on a touch screen a long headline first shrinks, down to 12 px, and wraps into
+  two Body lines only when even that does not fit: on the smallest phone the plate stays one line
+  tall, over the avatar's head, not on it); someone else's
+  catch never washes the screen (no edge pulse); on
+  phones they wait while the own trophy is held over the head; leaving: rise + fade, ≥ 0.7 s
+  apart).
   Someone else's Legendary / Mythic pillar off-screen (behind the camera or past the frame's
   edge): a small chip at that screen edge (HUD.TrophyPointer → «TrophyChip», ≈ 46 px, y 0.38 of
-  the HUD, ≥ 16 px from the edge) — 🌟 / 🌈 in a white tile on a round yellow / rainbow brick ringed in the catcher's
-  base colour, its tip nudging 6 px towards the edge — for the pillar's life; gone while the
-  pillar is on screen; on phones hidden during the own bite / minigame / catch (the toast rule).
-  Only the primary CTA idles (shine + breathing); the chrome stays calm.
-- **Fishing UI** (tools/builder/gui/Fishing.luau, FishingController): the action button is the star —
-  a big round plate with a raised centre stud (ActionArea, 0.66 of the HUD height, max 320 x 240) whose
-  colour (the stud follows), icon (on the stud) and caption (on a black tile) change by state (ЗАБРОСИТЬ 🎣 → ЖДИ КЛЁВА… — v3 UIM-09: a muted Pond plate 15 % smaller (its caption tile keeps its width, the caption may drop to the Small tier to stay on one line), no rings (nothing to press), a bobbing float and 1–2 nibbles «?», the first wait of the session explains itself with a hint «Жди, пока клюнет — потом жми!» →
+  the HUD, ≥ 16 px from the edge) — an outlined 🌟 / 🌈 on a round yellow / rainbow sim disc ringed
+  in the catcher's base colour, its tip nudging 6 px towards the edge — for the pillar's life;
+  gone while the pillar is on screen; on phones hidden during the own bite / minigame / catch (the
+  toast rule). Only the primary CTA idles (breath, shine, icon wiggle, the newcomer's «!»); the chrome stays calm.
+- **Fishing UI** (tools/builder/gui/Fishing.luau, FishingController; UI v5: Fishing.luau still calls
+  the v3/v4 builder names, which the compat shims of §6.3 now build in the sim look — no studs,
+  side bands or raised studs, no empty stud holders; the fishing waves move it to the sim API and
+  re-tune its looks): the action button is the star — a big round sim disc with the chunky outline
+  and a gloss and an outlined emoji (ActionArea, 0.66 of the HUD height, max 320 x 240); at rest
+  ВЗЯТЬ / ЗАБРОСИТЬ breathe (1.05 every 1.4 s, ≤ 5 px), shine and wiggle their icon with a little bump every
+  2.8–3.6 s, and until the session's first cast a red «!» badge wobbles on the disc's upper left
+  shoulder (the key chip has the right one); the waiting plate sways ±1.5°; the disc's
+  colour, icon and caption (on a glass pill overlapping its bottom) change by state (ЗАБРОСИТЬ 🎣 → ЖДИ КЛЁВА… — v3 UIM-09: a muted Pond plate 15 % smaller (its caption pill keeps its width, the caption may drop to the Small tier to stay on one line), no rings (nothing to press), a bobbing float and 1–2 nibbles «?», the first wait of the session explains itself with a hint «Жди, пока клюнет — потом жми!» →
   ПОДСЕЧЬ! «!» → ЛОВИ! 🎯; Slate ⏳ while waiting on the server, КУДА ИДТИ? 🧭 far from the spot — it
   shows the way, never scolds: a calm 💡 hint, the compass turns, the guide beam flares; ВЗЯТЬ
   in gold at the spot; a dim frozen ЖДЁМ… during the catch until the card is fully shown, then
   ЗАБРАТЬ! 👍 in Leaf with white rings — it closes the card), glow rings while it matters, shine on idle, a
-  press that sinks the plate into its side band, ripple on tap, a white «transform» flash on ПОДСЕЧЬ! /
-  ЛОВИ! / ЗАБРАТЬ!; a key tile («F» / «R2») on its shoulder without touch. «СМОТАТЬ» (≥ 44 px, ≥ 22 px above the circle)
-  only while waiting (a red 1x3 brick with 🎣 — «reel the rod in», its studs pop in): it pops out once a fish bites. Bite alert (an
-  orange 1x6 brick, its studs snap on one by one): «КЛЮЁТ!» jumps out of the own bobber (0.35 → 1,
+  sim press (squash, a darker face, an overshoot, the icon kicks), ripple on tap, a white «transform» flash on ПОДСЕЧЬ! /
+  ЛОВИ! / ЗАБРАТЬ!; a white key chip («F» / «R2») on its shoulder without touch. «СМОТАТЬ» (≥ 44 px, ≥ 22 px above the circle)
+  only while waiting (a red plate with 🎣 — «reel the rod in», its rim flashes): it pops out once a fish bites. Bite alert (an
+  orange plate, its rim flashes as it lands): «КЛЮЁТ!» jumps out of the own bobber (0.35 → 1,
   flying to its slot; where that path would cross the fisher it pops up in place — v3: never a
   screen-wide slam over the fisher) with a sun flash and a
   FOV punch, sun edge glow, one BITE_BEAT for the plate, the button and the swinging «!» glyphs, a
   gradient countdown bar (green→yellow→red); on touch the plate is a tap pad, a 👆 helps the first
   two bites, and the plate gets a little lower (or moves aside) when it would hide the own diving
   bobber or the own fisher (on a phone it stands under his feet; when the fishing camera lowers him
-  to the very bottom of the frame — left of him, where the minigame comes next). Minigame (a dark stone baseplate; it snaps on and its studs pop in left to right): a black
-  groove, the zone a green 1x3 brick with a rider by rarity standing on its studs (🐟 🐠 🐡 🦈 🐉; Legendary+
+  to the very bottom of the frame — left of him, where the minigame comes next). Minigame (a dark navy Night panel; it snaps on and its rim flashes): a dark
+  groove, the zone a green bar with a rider by rarity standing on it (🐟 🐠 🐡 🦈 🐉; Legendary+
   bigger and glowing) and a glow pulse, needle ▼ with two fading ghost copies (under the zone), a
   light Rare rim, Epic+ outline/aura in the rarity colours, Legendary/Mythic slam the giant rarity
   word over the panel once (the first hit / miss / win word knocks it away: it swells and fades in
@@ -236,7 +277,7 @@ timers. Stagger groups by 0.03–0.06 s.
   «ОТЛИЧНО!» → «СУПЕР!» → «МЕГА!» or «ИДЕАЛЬНО!» (within 25 % of the zone centre), pip turns into a
   ⭐; on touch the panel itself is a tap pad and a 👆 cue helps the first games; on miss / timeout a
   copy (FxMinigameMiss) blushes, shakes and says «МИМО!» / «ВРЕМЯ!», and is gone before the reason
-  hint springs up. Hint: a smooth tile in the kind colour (💡 / ⚠️ / 🚨 upright in a white round tile), up to two lines,
+  hint springs up. Hint: a glass pill with italic text, like the reference's timer pill (a warning / danger: an orange / red plate) with the outlined 💡 / ⚠️ / 🚨 overhanging it, up to two lines,
   as wide as its text (`FishingLayout.hintWidth`; at least 5 × its height), at the bottom centre
   under the fisher's feet (on a phone left of him when it would lie on his feet; v3: no Roblox hotbar — the Backpack CoreGui is off, a custom hotbar
   comes with the shop stage), pops up from a few px below. Info hints (💡) leave after 4 s; «where
@@ -280,10 +321,9 @@ timers. Stagger groups by 0.03–0.06 s.
   next to it; there the card may be down to `CARD.DockMin` 128 px tall — smaller beside him beats
   bigger over him on the smallest phone; if a huge trophy leaves no room even for that — centred as
   before), the 380 x 384
-  square elsewhere — a white toy display plate (§1: the fish in its window on a
-  2x4 display plate in the rarity's colour whose studs pop in as the card settles, studs in the gaps,
-  the banner's studs pop in as it unrolls, the price brick's when it rises; the price bumps with
-  every number); Legendary 1.05x and Mythic 1.1x
+  square elsewhere — a white display card (the fish in its window on a
+  podium in the rarity's colour — a sim stadium with a lighter top face — whose rim flashes as the card settles, the banner's rim
+  flashes as it unrolls, the price chip's when it rises; the price bumps with every number); Legendary 1.05x and Mythic 1.1x
   the size (on phones the free space is the Mythic's), a dim around it (on phones one side band on
   the card's side of the screen that melts away towards the fisher — its UIGradient "Fade"; the
   card's rays never reach him; none for Common). The rarity shows on the card itself: small rays behind the fish; Epic+ a live
@@ -436,129 +476,102 @@ Sounds (client content; harmless if a file is missing): `rbxasset://sounds/swoos
 `rbxasset://sounds/electronicpingshort.wav`, `rbxasset://sounds/impact_water.mp3`,
 `rbxasset://sounds/action_swim.mp3`, `rbxasset://sounds/button.wav`, `rbxasset://sounds/clickfast.wav`.
 
-## 6. API (UI v1 foundation, v2 additions, v3 bricks)
+## 6. API (UI v5 «Симулятор»; motion and FX from v1–v4)
 
 Where things live:
 
 | what | file | side |
 |---|---|---|
-| colours: palette tokens, rarity/mutation styles, toast kinds, confetti mixes, FX limits | `src/ReplicatedStorage/Shared/Config/UIConfig.luau` (pure: Color3 only) | both |
-| the brick's proportions (`UIConfig.Brick`) | same file — builder and client read the same numbers | both |
-| builder helpers (bricks, tiles, studs, candies, labels, icons, gradients) | `tools/builder/gui/Theme.luau` (reads UIConfig via `U.loadPure`) | Lune |
-| motion library (+ brick recolouring, runtime studs) | `src/ReplicatedStorage/Shared/UiFx.luau` | client |
+| colours: palette tokens, rarity/mutation styles, toast kinds, confetti mixes, the font, the sim shape numbers, motion defaults, FX limits | `src/ReplicatedStorage/Shared/Config/UIConfig.luau` (pure: Color3 only) | both |
+| builder helpers (sim buttons and plates, glass, badge, stat, title, labels, icons, gradients; the v3/v4 compat shims) | `tools/builder/gui/Theme.luau` (reads UIConfig via `U.loadPure`) | Lune |
+| motion library (+ recolouring) | `src/ReplicatedStorage/Shared/UiFx.luau` | client |
 | CAPS for Cyrillic | `src/ReplicatedStorage/Shared/TextUtil.luau` (`TextUtil.upper`) | both |
 | reference implementation | `gui/Hud.luau` + `HudController` + `NotifyController` | both |
-| tests | `tests/ui_bricks.test.luau` (Theme kit, no sim), `tests/uifx.test.luau`, `tests/hud_style.test.luau` | Lune / sim |
+| tests | `tests/ui_sim.test.luau` (Theme kit, no sim), `tests/uifx.test.luau`, `tests/hud_style.test.luau`, `tests/fishing_ui_style.test.luau` | Lune / sim |
+| GUI previews (fonts: Montserrat + italic, Twemoji) | `tools/preview/gui_render.py`, `tools/preview/README.md` | Python |
 
-### 6.1 UIConfig (one source of colours)
+### 6.1 UIConfig (one source of colours and numbers)
 
-`Ink`, `White`; `Palette.<Sky|Sun|Leaf|Berry|Grape|Gold|Night|Cream|Slate|Mint|Water>` =
-`{ Top, Bottom, Lip }` (toy-brick colours, §1; Slate = disabled / waiting; Lip = the side band);
-`Rarity.<Common|Rare|Epic|Legendary|Mythic>` = `{ Top, Bottom, Lip, Rainbow, Rays = {…},
-Confetti = {…}, ConfettiCount, Flash }`; `Mutations.<Gold|Neon|Rainbow>` = `{ Top, Bottom, Lip, Icon,
-Effect = "sparkles"|"pulse"|"rainbow" }`; `Rainbow` (7 hues), `Confetti` (vivid mix);
+`Ink`, `White`; `Palette.<Leaf|Sky|Berry|Sun|Gold|Grape|Pink|Mint|Slate|Night|Cream|Pond|Water|Coal>` =
+`{ Top, Bottom, Lip }` (§1; Lip = the outline colour, the dark shade of the hue) and
+`Palette.Glass = { Top, Bottom, Lip, Alpha = 0.5 }` (glass: a black face at Alpha transparency,
+no outline); `Rarity.<Common|Rare|Epic|Legendary|Mythic>` = `{ Top, Bottom, Lip, Rainbow, Rays =
+{…}, Confetti = {…}, ConfettiCount, Flash }`; `Mutations.<Gold|Neon|Rainbow>` = `{ Top, Bottom, Lip,
+Icon, Effect = "sparkles"|"pulse"|"rainbow" }`; `Rainbow` (7 hues), `Confetti` (vivid mix);
+`BadgeRed` (the «!» badge), `MoneyText`, `BillboardYellow` / `BillboardGreen` (the next passes);
 `ToastKinds.<info|success|warning|danger|base|Legendary|Mythic>` = `{ Token, Icon, Rainbow?, Big?,
 Life?, Priority? }` (danger icon 🚨; unknown kinds render as info); `KindColors` (flat colour per
 kind = palette Bottom); `NoBaseColor`; `BaseSwatches.<Id>` and `swatchFor(color) -> swatch` (base
-colours, §1); `Type = { Title = 22, Button = 18, Body = 16, Small = 14 }`, `TypeHeight = 390`,
-`TypeMaxScale = 1.6` (§1); `CatchCardTime.<rarity>` = 2.2 / 2.8 / 3.4 / 4.2 / 5.1 s (client-only
-auto-close of the catch card; Legendary/Mythic trimmed by their longer title stage); `ToastDuration`,
-`MaxToasts = 3`, `MaxToastsTouch = 2` (tablet), `MaxToastsPhone = 1`, `ToastGap = 0.7`;
-`Fishing = { PipDone (64,200,96 — the e2e bot looks for it), TrackBottom,
+colours, §1); `Font = { Family = Montserrat }`; `Type = { Title = 20, Button = 17, Body = 15,
+Small = 14 }`, `TypeHeight = 390`, `TypeMaxScale = 1.6` (§1); `CatchCardTime.<rarity>` = 2.2 /
+2.8 / 3.4 / 4.2 / 5.1 s (client-only auto-close of the catch card); `ToastDuration`, `MaxToasts =
+3`, `MaxToastsTouch = 1`, `MaxToastsPhone = 1`, `ToastGap = 0.7`; `Sim = { Radius 0.08,
+PlateRadius 0.3, Stroke 6, MinorStroke 4, Rim 2, RimAlpha 0.5, GlassAlpha 0.5, Gloss 0.8, ShadowY
+0.08, ShadowAlpha 0.55 }` (§6.2; tune the look here, both sides follow); `Motion = { Press, Hover,
+Pop, Punch, Out, Morph, Breath, Shine, Bob, Sway, Wobble, Roll, Fly, Ring, RimFlash, Reduced }`
+(§2: UiFx's defaults); `Fishing = { PipDone (64,200,96 — the e2e bot looks for it), TrackBottom,
 PipShade, NeedleShade, Muted, Guide, ZoneGlow, TimeBar = {cool, Sun, Berry} }` (fishing colours
 outside the palette); `Fx = { ConfettiMaxTouch = 40, ConfettiMax = 60, ShineInterval,
-FlashMinInterval = 0.34, StrokeHeight = 720, TextStrokeMin = 2.5, FovPunchMax = 8, SoundPool = 4 }`;
-`Brick = { Lip 0.16, TileLip 0.12, Radius 0.16, TileRadius 0.2, CapLight 0.3, CapStop 0.12, StudW 0.56,
-StudH 0.34, StudShow 0.74, StudLight 0.45, StudShade 0.25, TopLight 0.4, TopShade 0.12, Spec*,
-StudStroke 3, MaxStuds 8 }` (§6.2; tune the look here, both sides follow).
-FishConfig's rarity/mutation `Color`s stay the flat colours the stage-2 tests check; use
-`UIConfig.Rarity` / `Mutations` for gradients and FX.
+FlashMinInterval = 0.34, StrokeHeight = 720, StrokeMax = 1.2, TextStrokeMax = 1.0, TextStrokeMin =
+2, FovPunchMax = 8, SoundPool = 4 }`; `Brick = { CapStop = 0 }` (compat: where Top sits in a
+face's Fill — tests/stage1_bases reads it). FishConfig's rarity/mutation `Color`s stay the flat
+colours the stage-2 tests check; use `UIConfig.Rarity` / `Mutations` for gradients and FX.
 
-### 6.2 The brick and the candy (structure contract shared by Theme and UiFx)
-
-A **brick** (`Theme.brick` / `Theme.tile` / `Theme.roundPlate`; UI v3):
+### 6.2 The sim surface (structure contract shared by Theme and UiFx)
 
 ```
-<Root>       any GuiObject, BackgroundTransparency 1, attributes CandyFace = "<face name>",
-             CandyRadius, CandyStyle = "brick" | "tile"
-  Studs      Frame holder, full size, ZIndex z − 1 (BZ.Studs 1: BEHIND the side band), attributes
-             StudArea (Vector2 x0, x1), StudScale
-    StudN    front-view stud: AnchorPoint (0.5, StudShow) at the top edge, x spread over StudArea,
-             SizeConstraint RelativeYY, Size StudW × StudH × StudScale of the brick's height,
-             UICorner 0.3, UIStroke Ink (StudStroke), UIGradient "Fill" (Rotation 0: light → body →
-             shade), attribute CandyStud = "front"
-  Lip        the side band: Frame, full size, ZIndex z (BZ.Lip 2), Palette.X.Lip, UICorner,
-             UIStroke Ink 4 px (BaseThickness = 4) — the outline of the whole brick
-  <Face>     Frame "Face" (BaseBadge: "Swatch"), top 84 % (tile 88 %), ZIndex z+1,
-             white + UIGradient "Fill" {0: Top + CapLight, CapStop/2: same, CapStop: Top, 1: Bottom}
-             (Rotation 90), UICorner
-    Spec     the glint: a white rounded dash at the top left (SpecAlpha transparency)
+<Root>       any GuiObject, BackgroundTransparency 1; attributes CandyFace = "<face name>"
+             ("Face"; the base badge: "Swatch"), CandyRadius, CandyStyle = "sim" | "glass",
+             CandyHome = "glass" (built by Theme.glass: dark tokens keep it glass)
+  Shadow     (opts.shadow) a soft Ink copy of the shape ShadowY lower, ZIndex z − 1
+  Lip        the OUTLINE carrier: a full-size Frame with no fill (BackgroundTransparency 1;
+             BackgroundColor3 = the swatch's Lip, kept for readers), UICorner, UIStroke (Border,
+             Round joins, colour = Lip, BaseThickness = Sim.Stroke 6 — compat tiles and chips 4), ZIndex z
+             (SZ.Lip 1)
+  <Face>     Frame, FULL size, ZIndex z + 1, white + UIGradient "Fill" Top → Bottom (Rotation 90),
+             UICorner; glass: BackgroundTransparency Alpha, the outline and the rim transparent
+    Gloss    (opts.gloss) a white band in the top half, UIGradient "Fade" Gloss → 1
+    Rim      a full-size Frame with a UIStroke (white, BorderStrokePosition Inner, RimAlpha,
+             BaseThickness Sim.Rim 2) — the light rim just inside the outline
     Shine    full-size white overlay, Visible = false until UiFx.shine sweeps it; UIGradient
-             "Band" (Rotation 20, Offset (-1, 0) = hidden)
-    Stud     (round plate only) the raised centre stud: attribute CandyStud = "raised", Ink outline,
-             a lit "Cap" (UIGradient "Fill")
-  …content   Icon / Caption / Label at ZIndex z+2 (Theme.BZ.Content 4); overlays at BZ.Overlay (6),
-             text over overlays at BZ.Top (7)
+             "Band" (Rotation 20, Offset (−1, 0) = hidden)
+  …content   Icon / Caption / Label at SZ.Content (3); overlays at SZ.Overlay (5), text over
+             overlays at SZ.Top (6); the badge at SZ.Top + 1
 ```
 
-Studs seen from above (`Theme.topStud` / `studRow`): the Frame itself is the shadow disc (attribute
-CandyStud = "top"), its child "Cap" the lit disc (UIGradient "Fill", 45°), no outline — 2 Frames +
-2 UICorners + 1 gradient each. `UiFx.setCandy` recolours a brick's cap gradient, side band and
-every stud (the Studs holder's children and any child of the root or the face with a CandyStud
-attribute); `UiFx.setStuds(root, n, look?, {area?, scale?})` builds front studs at runtime with the
-same geometry, `UiFx.paintStuds(root, colors)` gives each its own colour (Mythic).
-
-A **candy** (v1/v2; no widget uses it any more — kept for `Theme.panel` and old tests) is the same contract without
-studs, glint or cap:
-
-```
-<Root>       any GuiObject, BackgroundTransparency 1, attributes CandyFace = "<face name>", CandyRadius
-  Lip        Frame, full size, ZIndex z, Palette.X.Lip, UICorner, UIStroke Ink 3 px (BaseThickness = 3;
-             a candy keeps 3 until v4 rebuilds it — its layout gaps were tuned with it)
-  <Face>     Frame "Face", top 92 % (LIP = 0.08), ZIndex z+1,
-             white + UIGradient "Fill" Top → Bottom (Rotation 90), UICorner
-    Gloss    white band in the top 44 %, UIGradient "Fade" 0.42 → 1 (Night: thin 0.94 × 0.3, faint)
-    Shine    as on a brick
-  …content   Icon / Caption / Label at ZIndex z+2 (Theme.Z.Content 3); overlays at Z.Overlay (5)
-```
-
-Runtime colours (built with `color`, `UiFx.setCandy(root, Color3)`) become the swatch
-`UIConfig.swatchFor(colour)`; the base badge uses `BaseSwatches`. Children render above their parent (ZIndexBehavior
-Sibling), so anything that must appear *behind* a brick (glow, rays) is a child with ZIndex 0.
-Outlines are drawn for a 720 px tall screen: every UIStroke made by Theme/UiFx carries a
-`BaseThickness` attribute and `UiFx.fitStrokes(hud)` (HudController) scales them to the real screen
-height (×0.65 … ×1.5; text outlines at least 2.5 px), including widgets cloned later. Text tiers are
-fitted the same way by `UiFx.fitText(hud)` (§1 "Type scale"). Note: Lune stores `UICorner.CornerRadius` as
-the four per-corner radii, so in RbxSim read `TopLeftRadius` (or `CandyRadius`), not `CornerRadius`.
+A drop-shadow twin of a label (`Shadow = true`) is a SIBLING named `<Name>Shadow` (attribute
+`ShadowOf = <Name>`, Ink text at 0.35, 7 % of the height lower, ZIndex − 1): with ZIndexBehavior
+Sibling a child would draw over its parent. Runtime colours (built with `color`,
+`UiFx.setCandy(root, Color3)`) become the swatch `UIConfig.swatchFor(colour)`; the base badge
+uses `BaseSwatches`. Anything that must appear *behind* a widget (glow, rays, the ring timer) is a
+child with ZIndex 0. Outlines are drawn for a 720 px tall screen: every UIStroke made by
+Theme/UiFx carries a `BaseThickness` attribute and `UiFx.fitStrokes(hud)` (HudController) scales
+them to the real screen height (§1), including widgets cloned later. Text tiers are fitted the
+same way by `UiFx.fitText(hud)`. Note: Lune stores `UICorner.CornerRadius` as the four per-corner
+radii, so in RbxSim read `TopLeftRadius` (or `CandyRadius`), not `CornerRadius`.
 
 ### 6.3 Theme (builder, `tools/builder/gui/Theme.luau`)
 
 | function | what |
 |---|---|
 | `Theme.UI`, `Theme.P`, `Theme.TYPE`, `Theme.INK`, `Theme.WHITE` | UIConfig, its palette, the type scale, Ink, white |
-| `Theme.Z` | ZIndex layers inside a candy: `Behind 0, Lip 1, Face 2, Content 3, Overlay 5, Top 6` |
-| `Theme.BZ` | … inside a brick: `Behind 0, Studs 1, Lip 2, Face 3, Content 4, Overlay 6, Top 7` |
-| `Theme.LIP`, `Theme.STROKE`, `Theme.CANDY_STROKE`, `Theme.FONT`, `Theme.MIN_TEXT`, `Theme.HOTBAR` | 0.08 (candy), 4 px (bricks, sockets), 3 px (legacy candies), Nunito Heavy, 12 px, 0 px (v3: the Roblox hotbar is off) |
-| `Theme.BRICK`, `Theme.TIER_OUTLINE` | `UIConfig.Brick`; text outline per tier `{Title 4.5, Button 4, Body 3.5, Small 3}` |
-| `Theme.brick(root, token, opts?)` → face | makes `root` a brick (§6.2); opts: `studs` (count), `studArea` ({x0, x1}), `studScale` (1; a tall 2x2 brick ~0.55), `tile`, `lip`, `radius`, `stroke` (4), `color`, `faceName`, `spec` (false or {x, y, w, h}), `shine` (false to omit), `z` (BZ.Lip) |
-| `Theme.tile(root, token, opts?)` → face | a smooth tile: `brick` with `tile = true` (no studs, TileLip, TileRadius) |
-| `Theme.topStud(parent, name, props?)` → Frame | a round stud from above (plates, pips); props: Frame props + `Token` / `Color` |
-| `Theme.studRow(parent, {Area = {x0, y0, x1, y1}, Count, Rows?, Size?, Token? / Color?, ZIndex?, Name?})` → holder | rows of top studs over a plate (the minigame baseplate, the card's gaps); `Size = 1` = the holder's height |
-| `Theme.studScale(refHeight)`, `Theme.studCount(refWidth, px?)` | v3, the one stud module (§1): the `studScale` that makes a brick of `refHeight` px (on the 844 x 390 phone) carry `UIConfig.Brick.StudPx`-wide front studs; how many studs of that module fit `refWidth` px |
-| `Theme.roundPlate(button, token, opts?)` → face | a round brick with a raised centre "Stud" (opts `stud` = diameter share 0.66, `studY` = its centre on the face 0.52, `lip` 0.1) — the action button |
-| `Theme.capSequence(look)`, `Theme.studSequence(look)`, `Theme.lighten`, `Theme.darken` | the brick gradients (UiFx builds the same) |
-| `Theme.gradient(parent, top, bottom, rotation?, name?)` | UIGradient "Fill" (vertical by default) |
-| `Theme.multiGradient(parent, colors, rotation?, name?)`, `Theme.sequence(colors)`, `Theme.numbers({{t, v}…})` | multi-stop gradients, sequences |
-| `Theme.candy(root, token, opts?)` → face | makes `root` a (legacy) candy; opts: `radius` (0.5), `lip`, `stroke` (3 = `Theme.CANDY_STROKE`; 0 = none), `color` (runtime colour → `swatchFor`), `transparency`, `faceName`, `gloss` / `shine` (false to omit), `z` |
-| `Theme.candyButton(parent, name, token, props)` → TextButton | candy or brick button with `Icon` / `Caption` children; props: any TextButton props + `Icon`, `Caption`, `Layout` ("stack": icon over caption, "row"), `Radius` (0.3), `Square`, `Tier`, `MaxTextSize`, `MinTextSize` (default 12), `CandyOpts`, `Brick` (true or `Theme.brick` opts: a brick button, content at BZ.Content — Home) |
-| `Theme.pill(parent, name, token, props)` → Frame | candy pill (or, with `Brick`, a brick / tile — the toasts) with an overhanging emoji `Icon` (or a white `IconSocket` with `Socket = true`) and a centred `Label`; props: `Icon`, `IconScale` (1.35), `Text`, `Tier`, `MaxTextSize`, `Color`, `CandyOpts`, `LabelProps`, `Brick` |
-| `Theme.panel(parent, name, props)` → Frame | Night glass panel (or `Token = "Cream"` card), radius 0.16, thin gloss |
-| `Theme.socket(parent, name, emoji, props?)` → Frame | a white 1x1 round tile (white → light grey, Ink outline, inner "Rim") with an upright emoji child (`IconName`, default "Icon"); emoji "" = empty socket |
-| `Theme.label(parent, name, props)` → TextLabel | white Nunito Heavy text, Ink TextStroke; extra keys `Tier` (type scale: attribute `TextTier` + constraint TYPE[tier] / −2, and at least `TIER_OUTLINE[tier]` unless `Outline = false` or `TextStrokeTransparency = 1`), `MaxTextSize`, `MinTextSize`, `Outline = px` (UIStroke "Outline" on the text), `OutlineColor`, `TextGradient = {top, bottom}` (UIGradient "TextFill") |
-| `Theme.icon(parent, name, emoji, props?)` → TextLabel | emoji label, no Ink outline, Rotation 0, ZIndex Content; `Sticker = true` (or px) adds a white Contextual UIStroke "Sticker" (3 px at 720) |
-| `Theme.gloss(face, radius, props?)`, `Theme.spec(face, opts?)`, `Theme.shine(face, radius)` | the face layers on their own |
+| `Theme.SZ` | ZIndex layers inside a sim root: `Behind 0, Lip 1, Face 2, Content 3, Overlay 5, Top 6` |
+| `Theme.FONT`, `Theme.FONT_ITALIC`, `Theme.MIN_TEXT`, `Theme.HOTBAR` | Montserrat Heavy and Heavy Italic, 12 px, 0 px (v3: the Roblox hotbar is off) |
+| `Theme.STROKE`, `Theme.MINOR`, `Theme.TIER_OUTLINE`, `Theme.DISPLAY_OUTLINE`, `Theme.TITLE_OUTLINE`, `Theme.ICON_OUTLINE` | 6 (shapes), 4 (small parts), text outline per tier `{Title 3.5, Button 3, Body 2.5, Small 2.5}`, 4.5 (display numbers and words), 8 (huge titles), 3 (emoji contour) — px at 720 |
+| `Theme.sim(root, token, opts?)` → face | makes `root` a sim surface (§6.2); opts: `radius` (Sim.Radius), `round`, `stroke` (Sim.Stroke; 0 = none), `rim` (false / px), `color` (runtime colour → `swatchFor`), `faceName`, `shine` (false to omit), `gloss`, `shadow`, `transparency`, `z` (SZ.Lip) |
+| `Theme.glass(root, opts?)` → face | the reference's timer pill: `sim` in the Glass look (black face at `alpha`, no outline, no rim; radius 0.5); `edge` = px of a faint Ink outline (grooves), `edgeAlpha` |
+| `Theme.simButton(parent, name, token, props)` → TextButton | a sim button with `Icon` / `Caption`; props: TextButton props + `Layout` ("row": icon left, caption right; "square": a big icon, the caption ON the bottom edge — Home; "round": a round button; "stack": icon over caption), `Icon`, `Caption`, `Tier`, `Radius`, `Square`, `MaxTextSize`, `MinTextSize`, `SimOpts` |
+| `Theme.plate(parent, name, token, props)` → Frame | a sim plate with an outlined emoji overhanging its left end and a `Label`: props `Icon`, `IconScale` (1.15), `Socket` (the icon in a transparent "IconSocket"), `Text`, `Tier`, `Italic`, `MaxTextSize`, `LabelProps`, `Radius` (PlateRadius), `Glass`, `Color`, `SimOpts` |
+| `Theme.badge(parent, name?, props?)` → Frame | the red «!» disc (BadgeRed, outline 3, rim 1.5, "Mark" «!»), hidden, centred on the host's top-right corner, half its height, ≥ 22 px — show it with `UiFx.badgeBob` |
+| `Theme.stat(parent, name, emoji, props)` → Frame | a panel-less stat: an outlined `Icon` (−8°, round corner for glow rings) and a big italic white `Label` (display outline, TextFill white → white so a controller can tint it); props `Text`, `IconScale` (1.2), `MaxTextSize` (48), `MinTextSize` (16), `Color` |
+| `Theme.title(parent, name, props)` → TextLabel | a huge outlined title with no panel: `label` with `Outline` 8, `Shadow = true`, `MaxTextSize` 72; `TextGradient` for a coloured fill |
+| `Theme.label(parent, name, props)` → TextLabel | white Montserrat Heavy text, Ink outline; extra keys `Tier` (type scale: attribute `TextTier` + constraint TYPE[tier] / −2, and at least `TIER_OUTLINE[tier]` unless `Outline = false` or `TextStrokeTransparency = 1`), `MaxTextSize`, `MinTextSize`, `Outline = px` (UIStroke "Outline" on the text), `OutlineColor`, `TextGradient = {top, …}` (UIGradient "TextFill"), `Italic`, `Shadow` (the `<Name>Shadow` twin) |
+| `Theme.icon(parent, name, emoji, props?)` → TextLabel | emoji label with the Ink contour (`Outline` px, default 3; false = none; a faint glyph gets none), Rotation 0, ZIndex Content (`Sticker` = the v3 key, read as `Outline`) |
+| `Theme.socket(parent, name, emoji, props?)` → Frame | a transparent holder (RelativeYY) with the outlined emoji (`IconName`, default "Icon"; `IconOutline`); emoji "" = empty |
+| `Theme.shine(face, radius)` | the hidden Shine overlay on its own |
 | `Theme.rarityGradient(parent, rarityId, rotation?)` | rarity gradient; Mythic gets rainbow stops + attribute `Rainbow = true` (animate with `UiFx.rainbow`) |
-| `Theme.corner`, `Theme.stroke(parent, px, transparency?, color?)` | small helpers; `stroke` is Ink + BaseThickness (the legacy flat-colour table `Theme.C` is gone: colours come from UIConfig) |
+| `Theme.gradient`, `Theme.multiGradient`, `Theme.sequence`, `Theme.numbers`, `Theme.lighten`, `Theme.darken`, `Theme.swatch`, `Theme.corner`, `Theme.stroke(parent, px, transparency?, color?)`, `Theme.outline(parent, px, color?, transparency?)` | small helpers; `stroke` / `outline` carry `BaseThickness` |
+| **compat** (until the fishing waves restyle `gui/Fishing.luau`): `Theme.brick`, `tile`, `roundPlate`, `candyButton`, `pill`, `topStud`, `studRow`, `studScale`, `BZ`, `BRICK` | build the sim look: `brick` (panels: the bite alert, the minigame, the rarity banner), `roundPlate` (the action disc, + gloss) and `candyButton` (→ `simButton`: «СМОТАТЬ») get the chunky `Sim.Stroke` 6 — the most important button is the chunkiest, as in the reference; `tile` and `pill` (→ `plate`: chips, the key chip, «НОВИНКА!») the minor 4; `opts.stroke` wins (the zone 3, the catch card 4: its thumbstick gap on the smallest phone); a dark `tile` becomes glass; `topStud` / `studRow` draw NOTHING (a detached empty Frame), `studScale` = 1; `BZ` = `SZ`, `BRICK = { Lip 0, TileLip 0, Radius, TileRadius, CapStop 0 }` |
 
 ### 6.4 UiFx (client, `require(ReplicatedStorage.Shared.UiFx)`)
 
@@ -567,66 +580,82 @@ RenderStepped connection for all running frame effects, disconnected when none r
 
 | function | kind | notes |
 |---|---|---|
-| `press(button, {scale?, sound?, sink?})` → unbind | 3 conns | squash 0.88 on press, Back-Out spring on release (also when the finger leaves the button); a brick (`CandyStyle`) squashes to 0.94 and SINKS: its face, front studs and content (not `Lip`, `Fx*` or children with the attribute `NoSink`) slide down `sink` (0.6) × its side band and spring back |
-| `snapIn(gui, {drop?, delay?, squash?, sound?})` | timers | drop from `drop` (8) px above, squash 1 + `squash` × 1 − `squash` on contact, Back-Out spring, tick |
-| `studsPop(root, {delay?, stagger?, time?, sound?})` | timers | every `CandyStud` descendant pops 0 → 1 (Back Out, FxScale), left to right, `stagger` (0.03) apart |
-| `morphFlash(root, color?)` | timers | a white "FxMorph" overlay on the face 0.35 → 1 (0.18 s) and the round plate's raised stud pops |
-| `popIn(gui, {from?, time?, delay?, rotate?})` | timers | UIScale from → 1, Back Out (0.3 s), optional −6° → 0 |
-| `popOut(gui, {time?, to?, destroy?, hide?})` | timers | Back In to `to`, then destroy / hide |
+| `press(button, {scale?, peak?, shade?, sound?, icon?, hover?})` → unbind | 3–4 conns | §2 press: squash `scale` (0.9) + the face darkens to `shade` (0.8); release → overshoot `peak` (1.08, ≤ `Press.MaxGrow` px) → Back-Out 1, the `icon` child ("Icon"; false = none) kicks unless it has `IconBusy`; `hover` (default: no touch screen) 1.05 while the mouse is over; release is caught outside the button too |
+| `popIn(gui, {from?, time?, delay?, rotate?})` | timers | UIScale from → 1, Back Out (0.3 s), optional rotation → rest; drives a `<Name>Shadow` twin too |
+| `popOut(gui, {time?, to?, destroy?, hide?, swell?})` | timers | swell 1.06, then Back In to `to`, then destroy / hide |
+| `punch(gui, {from?, peak?, up?, settle?, delay?})` | timers | from (0.84) → peak (1.1, Quad Out) → 1 (Back Out); a new punch cancels the old second step |
+| `snapIn(gui, {drop?, delay?, squash?, sound?})` | timers | drop from `drop` (8) px above, squash 1 + `squash` (0.08) on contact, Back-Out spring, tick |
+| `rimFlash(root, {delay?, time?, bump?, sound?})` | timers | §2 rim flash (replaces v3's `studsPop`) |
+| `iconPop(root, from?)` | timers | the root's (or its face's) `Icon` punches from (0.7) → 1.15 → 1 |
+| `morphFlash(root, color?)` | timers | a white "FxMorph" overlay on the face 0.4 → 1 (0.2 s) + `iconPop` |
+| `recolor(root, look, time?)` | timers | `setCandy` with a cross-fade of the old gradient (0.16 s) and an outline colour tween |
+| `setCandy(root, token \| swatch \| Color3)` | — | recolour a sim surface (gradient, outline, rim) and switch glass ↔ solid (§1); resets the press shade |
+| `setText(label, text)`, `twinOf(label)` | — | text for a label and its shadow twin; the twin or nil |
 | `bump(gui, peak?, time?)` | timers | 1.22 → 1 spring (counters, rewards) |
 | `slam(gui, from?, time?)` / `stamp(gui, rotate?, time?)` | timers | 2.2 → 1 + small shake / 3 → 1 with a −16° turn |
 | `pulse(gui, peak?, period?)` → stop | timers | 1 ↔ 1.08, Sine, 0.8 s |
+| `breathe(gui, {peak?, period?, when?})` → stop | timers | one breath 1 → 1.04 → 1 every 1.8 s while visible and at rest (the action disc: 1.05 every 1.4 s, ≤ 5 px of growth) |
+| `bob(icon, {lift?, every?, hops?, when?})` → stop | timers | the icon hops through its AnchorPoint every 2.2–3.0 s (or `hops` times) |
+| `sway(gui, {angle?, period?})` → stop | timers | ±1.5° rotation loop (one tween) |
+| `wobbleLoop(gui, {angle?, bump?, every?})` → stop | timers | wiggle ±12° + bump 1.12 every 2.8–3.6 s |
+| `badgeBob(badge)` → stop / `badgeHide(badge)` | timers | the «!» badge in (punch, ring, tick) and wobbling / out |
+| `staggerPop(items, {from?, gap?, time?, delay?})` | timers | pop a list one after another |
+| `swapText(label, text, {out?, inTime?, lift?})` | timers | the slot-machine roll (a "FxSwap" ghost of the old text) |
+| `flashText(label, color, time?)` | timers | TextColor3 → colour → rest (≥ 0.34 s apart per label) |
+| `textWidth(text, px)` | — | estimated width of Montserrat Heavy text at TextSize `px`, per glyph (capitals ≈ 0.68, small letters ≈ 0.59, digits and Latin narrower, spaces and punctuation ≈ 0.25, emoji ≈ 0.82 of the size): plates sized to their text before it is drawn (toasts) |
+| `ringTimer(gui, duration, {colors?, thickness?, pad?})` → stop | timers | §2 ring timer ("FxRingTimer" with Left / Right halves) |
 | `wiggle(gui, angle?, swings?, time?)` | timers | ±6°, 3 swings, 0.4 s; restarts cleanly, returns to the rest rotation |
 | `shake(gui, amount?, time?)` | timers | Position jitter ±1.5 %; **no effect inside a UIListLayout** (use wiggle there) |
-| `shine(gui, time?)` | timers | sweeps the candy's `Shine.Band`; non-candies get a temporary overlay with the same UICorner |
+| `shine(gui, time?)` | timers | sweeps the surface's `Shine.Band`; others get a temporary overlay with the same UICorner |
 | `shineLoop(gui, {interval?, time?, delay?, when?})` → stop | timers | idle shine every 3.5 s while visible (and `when()`) |
-| `glowRing(gui, {color?, time?, scale?, thickness?, filled?, loop?, interval?, z?})` → stop | timers | expanding ring (or a filled copy behind a candy) 1 → 1.5, fading; stop also fades this call's live rings in 0.1 s |
+| `glowRing(gui, {color?, time?, scale?, thickness?, filled?, loop?, interval?, z?})` → stop | timers | expanding ring (or a filled copy behind) 1 → 1.5, fading; stop also fades this call's live rings in 0.1 s |
 | `ripple(gui, color?)` | timers | small one-shot ring for taps |
-| `rays(gui, {colors?, count?, speed?, size?, maxPx?, width?, transparency?, glow?, halo?, breathe?, grow?, z?})` → `Rays` | timers | sunburst behind `gui` (ZIndex 0): core rays (+ halo quads and breathing 1↔1.06 by default on PC, off on touch), glow discs; grows 0→1 in `grow` (0.4 s, Quad Out); `speed` °/s with a sign (negative = counter-rotate); `maxPx` caps the diameter; `hole` (0…0.9, share of the radius) leaves the middle empty (no glow discs then) and `growFrom` (0) starts the growth at that size. The handle: `rays()` or `rays.stop()` removes, `rays:Destroy()` for Trove, `rays:settle({alphaAdd = 0.25, spinMul = 0.5, time = 0.6})` calms it after the reveal (also stops breathing), `rays.holder` = the FxRays frame |
-| `confetti(container, {count?, colors?, origin?, spread?, power?, duration?, z?})` → stop | frame | squares/strips, gravity, flutter, fade in the last 30 %; ≤ 40 alive on touch devices, ≤ 60 otherwise (all bursts together; `confettiCap()`, `liveConfetti()`) |
-| `confettiPop(container, {same options})` → stop | timers | the same pieces on tweens only (arc up Quad Out, down Quad In, spin, fade): no frame job — for moments when the rest is idle (joining, the base banner) and cheap bursts; shares the confetti cap |
-| `burst(container, {count?, colors?, origin?, power?, time?, z?, size?})` → stop | frame | round sparks flying out of `origin` (hit in the zone, reward); `size` multiplies the spark size |
+| `rays(gui, {colors?, count?, speed?, size?, maxPx?, width?, transparency?, glow?, halo?, breathe?, grow?, hole?, growFrom?, z?})` → `Rays` | timers | sunburst behind `gui` (ZIndex 0); `rays()` / `rays.stop()` removes, `rays:Destroy()` for Trove, `rays:settle({alphaAdd, spinMul, time})` calms it, `rays.holder` = the FxRays frame |
+| `confetti(container, {count?, colors?, origin?, spread?, power?, duration?, z?})` → stop | frame | ≤ 40 alive on touch devices, ≤ 60 otherwise (`confettiCap()`, `liveConfetti()`) |
+| `confettiPop(container, {same options})` → stop | timers | the same pieces on tweens only — for moments when the rest is idle (joining, the base banner) |
+| `burst(container, {count?, colors?, origin?, power?, time?, z?, size?})` → stop | frame | round sparks flying out of `origin` |
 | `sparkles(gui, {icons?, rate?, size?, area?, duration?, z?})` → stop | timers | ✨/⭐ popping around the edges |
-| `floatText(container, text, {position?, size?, color?, colors?, rise?, time?, rotate?, z?, to?, travel?})` → label | timers | «ОТЛИЧНО!», «+1»: pop, rise 8 %, fade (0.8 s); with `to` it first flies out of `position` to `to` (Back Out, `travel` 0.3 s, growing on the way), then rises — «+N 💰» out of the price chip |
-| `countUp(label, from, to, time?, format?, {bump?})` → stop | frame | Quad Out; `format` is a function or `"%d"`; `bump`: each new number bumps 1.06 → 1 (≤ 12 Hz); stop jumps to the final value |
+| `floatText(container, text, {position?, size?, color?, colors?, rise?, time?, rotate?, z?, to?, travel?})` → label | timers | italic «ОТЛИЧНО!», «+1»: pop, rise 8 %, fade (0.8 s); with `to` it first flies out of `position` to `to` |
+| `countUp(label, from, to, time?, format?, {bump?})` → stop | frame | Quad Out; `bump`: each new number bumps 1.06 → 1 (≤ 12 Hz) |
+| `flyTo(layer, from, to, {text?, texts?, color?, time?, size?, arc?, count?, gap?, onEach?, onArrive?})` → stop | frame | §2 fly-up: one frame job for all icons |
 | `rainbow(gradient, {speed?, colors?, spin?})` → stop | frame | hue cycle (30 Hz); stop restores the colours |
 | `timerBar(fill, duration, colors?)` → stop | frame | width 1 → 0, green → yellow → red |
-| `flash(layer, color?, time?, from?, hold?)` | timers | full-screen `from` (0.6) → 1 over `time` (0.25 s) after `hold` (0); at most 3 per second (extra calls are dropped) |
-| `flashBig(layer, color?)` | timers | the big-moment preset: from 0.12, hold 0.05 s, fade 0.45 s (unused: not for catch landings, see `shockwave`) |
-| `shockwave(layer, origin, {color?, colors?, size?, time?, thickness?, glow?, z?})` | timers | the landing hit at `origin` (shares of the layer): "FxShock" ring (`color` or a `colors` gradient) from 0.3 to `size` (1.3) layer heights over `time` (0.45 s), a thin white "FxShockInner" ring 0.06 s later, a soft "FxShockGlow" disc (`glow` = start transparency, 0.55); `thickness` 14 px at 720 (thinner on phones), ZIndex 60; everything destroyed after `time` |
-| `fovPunch(deg, tIn?, tOut?, easeIn?)` → stop | frame | the ONLY writer of `Camera.FieldOfView`: base + deg (negative = zoom in) over `tIn` (0.08 s, Quad Out; `easeIn` = Sine In wind-up), back over `tOut` (0.35 s, Sine); punches add up, the sum is clamped to ±8°; the base is restored at the end (an outside change of the FOV becomes the new base). Never set FieldOfView yourself while punches may run |
-| `edgeVignette(layer, color \| {colors}, alpha, period?, opts?)` → stop(fade?) | timers | 4 edge bands ("FxVignette", ZIndex 90): transparency `alpha` at the edge → clear inside; `colors` run edge → inward. `period` = full pulse cycle between alpha and `opts.pulseTo` (alpha + 0.2), clamped to ≥ 0.34 s. opts: `fadeIn` (0.35 s), `from` (start transparency, 1), `build` (the fade-in eases in — Quad In — so it builds up to its end), `cycle` ({colors}: each side its own colour, running round the frame; one frame job while it lives), `pulseTo`, `hold` (auto-stop after N s), `fadeOut` (0.25 s), `size` (band, 0.24 of the screen height), `z`; `stop(0)` cuts it at once. E.g. Epic+ tension `edgeVignette(hud, {Bottom, Top}, 0.5, nil, {from = 0.85, fadeIn = LeapTime − 0.3, build = true, size = 0.13})` cut with `stop(0)` on the landing, bite `edgeVignette(hud, {Sun.Top, Sun.Bottom}, 0.55, 0.45)`, perfect hit `edgeVignette(hud, Gold.Top, 0.8, nil, {fadeIn = 0, hold = 0})` |
-| `flyTo(layer, from, to, {text?, color?, time?, size?, arc?, onArrive?})` → stop | frame | an emoji (or a glyph like «★» in `color`, Ink-stroked) flies on an arc between two widgets (card → counter) |
+| `flash(layer, color?, time?, from?, hold?)`, `flashBig(layer, color?)` | timers | full-screen flash, at most 3 per second |
+| `shockwave(layer, origin, {color?, colors?, size?, time?, thickness?, glow?, z?})` | timers | the landing hit at `origin` |
+| `fovPunch(deg, tIn?, tOut?, easeIn?)` → stop | frame | the ONLY writer of `Camera.FieldOfView` (sum clamped to ±8°) |
+| `edgeVignette(layer, color \| {colors}, alpha, period?, opts?)` → stop(fade?) | timers | 4 edge bands ("FxVignette"); opts `fadeIn`, `from`, `build`, `cycle`, `pulseTo`, `hold`, `fadeOut`, `size`, `z` |
 | `trail(gui, {count?, lag?, transparency?})` → stop | frame | ghost copies following a moving widget (minigame needle) |
 | `cameraShake(amplitude?, time?)` → stop | render step | gentle translation-only shake (Legendary/Mythic) |
 | `fadeOut(gui, time?)` | timers | every background/text/stroke/ViewportFrame under `gui` to transparent |
-| `setCandy(root, token \| swatch \| Color3)` | — | recolour a candy or a brick (states, toast kinds, base swatch; a Color3 becomes `swatchFor`); a brick's cap gradient and all its studs follow (§6.2) |
-| `setStuds(root, count, look?, {area?, scale?})` | — | front studs on a brick at runtime (0 removes; ≤ `Brick.MaxStuds`); `look` defaults to the face's colours, area / scale to the holder's attributes — big broadcast toasts |
-| `paintStuds(root, colors)` | — | one colour per front stud, cycling (the Mythic rainbow) |
-| `fitStrokes(root)` → unbind | 2 conns | see 6.2 (text outlines ≥ 2.5 px) |
-| `strokeThickness(stroke)` → px | — | the stroke's rest thickness on this screen (what fitStrokes sets from `BaseThickness`): restore to it, never to a live value another tween may have changed |
-| `fitText(root)` → unbind | 2 conns | the type scale for every `TextTier` label, also ones added later (§1); HudController runs it on the HUD |
-| `textSize(tier)` → px | — | the tier's size on this screen (what fitText sets) — for width maths |
-| `sound(name, volume?, pitch?)` | — | "click", "tick", "pop"/"ping", "swoosh", "splash" (pitch 0.5 = heartbeat), "swim" or an rbxasset id; 4 pooled copies per sound (round robin), `pitch` = PlaybackSpeed |
-| `arpeggio(rarityId, volume?)` → stop | timers | rising major arpeggio of "ping" (1, 1.26, 1.5, 2 …), 0.07 s apart: Common 1 note, Rare 2, Epic 3, Legendary 4, Mythic 7 (+ an octave up); stop cancels the notes not yet played |
+| `fitStrokes(root)` → unbind, `strokeThickness(stroke)` → px | 2 conns | §6.2 (restore a stroke to `strokeThickness`, never to a live value) |
+| `fitText(root)` → unbind, `textSize(tier)` → px | 2 conns | the type scale for every `TextTier` label, also ones added later |
+| `reducedMotion()`, `setReducedMotion(bool?)` | — | §2 reduced motion |
+| `sound(name, volume?, pitch?)`, `arpeggio(rarityId, volume?)` → stop | — / timers | "click", "tick", "pop"/"ping", "swoosh", "splash", "swim" or an rbxasset id, 4 pooled copies; the rarity arpeggio |
 | `scaleOf(gui)`, `faceOf(root)`, `tween(…)`, `stagger(items, gap?, fn)`, `sequence(colors)`, `sampleColors(colors, k)`, `lighten`, `darken`, `schedule(step, cleanup?)` → stop, `activeJobs()` | — | helpers; `scaleOf` returns the shared UIScale "FxScale" (FishingController uses the same one) |
 
-### 6.5 HUD contracts (v2)
+Gone with UI v5 (no studs in the GUI): `setStuds`, `paintStuds`, `studsPop`, `sink` and the
+brick gradients (`capSequence`, `studSequence`).
 
-- **Catch counter** (`HUD.Status.CatchCounter`): HudController owns its `Label.Text` (the number
-  only, «12» — the 🐟 `Icon` says what it counts) and
-  `Visible` from the Player attribute `FishCaught`. While the HUD ScreenGui has a number attribute
-  `CounterHold`, the counter shows that number and plays nothing; set it (e.g. to `Total − 1`
-  from the Caught data) synchronously when the catch starts (FishingController: on "Caught",
-  before the leap and the card) — HudController reacts to
-  `FishCaught` one frame later, so the same frame is enough. Clear it (`nil`) when the flying 🐟
-  arrives: the counter shows `FishCaught` and plays the arrival (bump 1.3, 🐟 wiggle, «+N»,
-  tick at pitch 1.3). `flyTo(hud, from, counter, {onArrive = …})` stays the way to fly the fish.
-  While the 🐟 is on its way, set the string attribute `CounterIncoming` = its rarity id: a
-  counter that is not shown yet (held at 0 — the first catch) pops in with «🐟 0», so the fish
-  has a target, and the arrival plays in the rarity colours (bump 1.45, a glow ring, «+N» at the
-  Button tier in the rarity gradient). Clear it together with `CounterHold` (HudController keeps
-  the rarity until the arrival).
+### 6.5 HUD contracts (v2–v5)
+
+- **Catch counter** (`HUD.Status.CatchCounter`, children `Icon` and `Label`): HudController owns
+  its `Label.Text` (the number only, «12» — the 🐟 `Icon` says what it counts) and `Visible` from
+  the Player attribute `FishCaught`. While the HUD ScreenGui has a number attribute `CounterHold`,
+  the counter shows that number and plays nothing; set it (e.g. to `Total − 1` from the Caught
+  data) synchronously when the catch starts (FishingController: on "Caught", before the leap and
+  the card) — HudController reacts to `FishCaught` one frame later, so the same frame is enough.
+  Clear it (`nil`) when the flying 🐟 arrives: the counter shows `FishCaught` and plays the
+  arrival. `flyTo(hud, from, counter, {onArrive = …})` stays the way to fly the fish. While the 🐟
+  is on its way, set the string attribute `CounterIncoming` = its rarity id: a counter that is
+  not shown yet (held at 0 — the first catch) pops in with «🐟 0», so the fish has a target, and
+  the arrival plays in the rarity colours (bump 1.45, a glow ring round the 🐟, the number tinted,
+  «+N» at the Button tier in the rarity gradient). Clear it together with `CounterHold`.
+- **Base badge / banner**: `HUD.Status.BaseBadge` (face "Swatch", `FlagSocket.Flag`, `Label`;
+  `Lip.BackgroundColor3` = the base swatch's Lip) and `HUD.BaseBanner` (`Caption`, `NameLabel` +
+  `NameLabelShadow`, `FlagSocket.Flag`): HudController only; never shown by other modules.
+- **Home** (`HUD.RightButtons.HomeButton`: `Icon`, `Caption`, `Cooldown` veil with
+  `CooldownText`, `Badge` — the hidden red «!» for the shop of stage 3: show it with
+  `UiFx.badgeBob(HomeButton.Badge)`, hide with `UiFx.badgeHide`).
 - **Toasts**: `NotifyController.Show(text, kind?, look?)` from any client module; kinds as in
   `UIConfig.ToastKinds` (`"Legendary"` / `"Mythic"` for server-wide rare-catch broadcasts; the
   server sends them as the Notify kind, one string «Who: what» that the client splits at the
@@ -646,47 +675,57 @@ RenderStepped connection for all running frame effects, disconnected when none r
   feet for the hint and «КЛЮЁТ!».
 - **Off-screen trophy chip**: `FishingFxController.OtherTrophy` (Signal: `player, basePosition,
   rarity`) fires on every client but the catcher's when a Legendary / Mythic pillar goes up;
-  NotifyController clones `HUD.TrophyPointer` (children `Body` — a candy with `Icon` —, `Tip`,
-  `BaseRing.Stroke`) as «TrophyChip» for `FishingConfig.Fx.PillarTimeOther[rarity]` s. Stage 3
-  can reuse the signal (e.g. a theft alarm pointer) and the template.
-- **Base banner** (`HUD.BaseBanner`): HudController only; never shown by other modules.
+  NotifyController clones `HUD.TrophyPointer` (children `Body` — a round sim disc with an
+  `IconSocket.Icon` —, `Tip`, `BaseRing.Stroke`) as «TrophyChip» for
+  `FishingConfig.Fx.PillarTimeOther[rarity]` s. Stage 3 can reuse the signal (e.g. a theft alarm
+  pointer) and the template.
 - **Catch card time**: `UIConfig.CatchCardTime[rarity]` (seconds of auto-close).
 
 ### 6.6 Rules for the next agents
 
-- Build new widgets as bricks with Theme (brick / tile / topStud / studRow / roundPlate /
-  candyButton or pill with `Brick` / label / icon / socket) and animate with UiFx — no hand-rolled
-  colours or tweens; new colours go into UIConfig, the brick's proportions into `UIConfig.Brick`.
-  Brick content goes at `Theme.BZ.Content` (the studs need the layer behind the side band); keep
-  the candy names (Lip / Face / Fill / Shine) so `setCandy` and the tests keep working.
+- Build new widgets with Theme (`sim` / `glass` / `simButton` / `plate` / `badge` / `stat` /
+  `title` / `label` / `icon` / `socket`) and animate with UiFx — no hand-rolled colours or tweens;
+  new colours go into UIConfig, the shape numbers into `UIConfig.Sim`, timings into
+  `UIConfig.Motion`. Keep the surface names (Lip / Face / Fill / Rim / Shine) so `setCandy`,
+  `press`, `rimFlash` and the tests keep working. **No studs, side bands or bricks in the GUI**:
+  the LEGO look belongs to the map. The compat names (`brick`, `tile`, `roundPlate`,
+  `candyButton`, `pill`, `topStud`, `studRow`) are only for `gui/Fishing.luau` until the fishing
+  waves move it to the sim API — never call them in new code.
+- Buttons: a saturated gradient, the thick outline in the dark shade of the SAME hue (never black,
+  never a random colour), the light rim; panels that are not buttons use `PlateRadius`; secondary
+  info goes on glass. Big numbers and titles go WITHOUT a panel (`stat`, `title`).
 - CAPS for badges, buttons, banners, chips and titles through `TextUtil.upper` (Cyrillic);
-  sentence case for hints and plain toasts. Icons upright; stickers in a white socket or with
-  `Sticker = true`. No pills in new widgets.
+  sentence case for hints and plain toasts. Numbers in italic. Icons outlined; overhanging a
+  plate's left end is the default for plates.
 - Give every label a text tier (`Tier = …`) and a box at least that tall; no `MinTextSize` below 12.
 - Effects that run right after joining (the base banner, the badge) are timer-only (`confettiPop`,
   no sparkles left behind after ~2.5 s): client tests take their idle baselines soon after a
   player joins.
 - The camera's FieldOfView belongs to `UiFx.fovPunch`; screen edges to `edgeVignette`; on touch
   devices rays come without halo quads and capped (`maxPx`) — mind the fill rate on phones.
-- Bind `UiFx.press` once per button at Start (its connections live as long as the HUD).
-- **Idle and ambient effects must be timer-based** (shineLoop, pulse, glowRing loop, rays,
-  sparkles): client tests compare connection counts at two moments (stage2_client "unequip and
-  respawn…", "leaks…", hud_style "idle HUD"). Frame effects (confetti, burst, countUp, rainbow,
-  timerBar, flyTo, trail) are for events and must be stopped — keep their stop function in the
-  widget's Trove; a rainbow left running on a hidden card is a leak.
+- Bind `UiFx.press` once per button at Start (its connections live as long as the HUD); a press
+  grows a button by at most `Motion.Press.MaxGrow` px — keep ≥ 16 px from the Jump button and
+  other CoreGui buttons at rest anyway.
+- **Idle and ambient effects must be timer-based** (breathe, bob, sway, wobbleLoop / badgeBob,
+  shineLoop, pulse, glowRing loop, rays, sparkles): client tests compare connection counts at two
+  moments (stage2_client "unequip and respawn…", "leaks…", hud_style "idle HUD") and check
+  `UiFx.activeJobs() == 0` when idle. Frame effects (confetti, burst, countUp, rainbow, timerBar,
+  flyTo, trail) are for events and must be stopped — keep their stop function in the widget's
+  Trove; a rainbow left running on a hidden card is a leak.
 - Inside a UIListLayout, Position is ignored and a UIScale re-flows the siblings (the scale origin
-  is the AnchorPoint): prefer wiggle / bump there, never shake.
-- Keep names: animate by adding children (FxScale, FxRing, FxRays, FxFloat… are created and removed
-  by UiFx), never by renaming or re-parenting contract widgets.
+  is the AnchorPoint): prefer wiggle / bump there, never shake; `bob` moves the AnchorPoint and is
+  safe there.
+- Keep names: animate by adding children (FxScale, FxRing, FxRays, FxFloat, FxMorph, FxSwap,
+  FxRingTimer… are created and removed by UiFx), never by renaming or re-parenting contract
+  widgets.
 - Recipes. Catch card (FishingController): `rays(raysHolder, {colors = UIConfig.Rarity[r].Rays,
   maxPx = …})` in a transparent holder behind the card and `rays:settle()` after the last beat,
   `popIn(card, {rotate = -6})`, `confetti(hud, {count = …, origin = the held fish on screen})`,
   a count-up with `FishingRules.FormatCoins`, `stamp(mutationBadge)`, Legendary/Mythic:
   `shockwave(hud, origin)` + `cameraShake()` + `fovPunch()` at the landing (never a full-screen
   flash); on close `flyTo(hud, start, counter, {onArrive = clear CounterHold and CounterIncoming})`
-  from a fixed start point (an invisible `FxFlyFrom` frame placed once — `flyTo` reads `from`
-  when each icon starts, so never a widget that is destroyed meanwhile). Mind the phone fill: the
-  card's big plate draws its side band as a band (no full-size lip quad), the dim is bands around
-  the card. Action button: `Theme.roundPlate(button, "Sky")`, `setCandy` per state (the raised stud
-  follows), `morphFlash` on important looks,
-  `glowRing(button, {loop = true})` while it matters, `shineLoop` when idle, `ripple` on tap.
+  from a fixed start point (an invisible `FxFlyFrom` frame placed once). Action button: a round
+  sim button, `setCandy` / `recolor` per state, `morphFlash` on important looks,
+  `glowRing(button, {loop = true})` while it matters, `breathe` + `shineLoop` when idle, `ripple`
+  on tap, `ringTimer` for a timed choice. A new notification on a button: `Theme.badge` +
+  `UiFx.badgeBob`.
