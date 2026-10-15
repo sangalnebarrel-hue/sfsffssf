@@ -71,10 +71,13 @@
 	    маленький белый шар, «звезда» тонких лучей цвета редкости (BillboardGui «Burst») и
 	    тонкое кольцо-ореол лицом к камере — никакой заливки кадра. Рыба над головой ЖИВЁТ на
 	    каждом клиенте (FishLife): покачивается, виляет хвостом и время от времени бьётся
-	    (сварки HoldWeld и хвоста — только у себя, сервер не трогаем; табличка не трясётся); у редкой рыбы и выше — табличка (редкость, название, мутация,
-	    цена; размер — studs + пиксели NAMEPLATE_STUDS / NAMEPLATE_PIXELS: вблизи растёт с
-	    миром, издали не меньше пикселей) и искры цвета редкости, у рыбы с мутацией — искры
-	    цветов мутации (неоновая ещё светится), пока рыба над головой (FishingRules.HoldFishTime —
+	    (сварки HoldWeld и хвоста — только у себя, сервер не трогаем; табличка не трясётся); над
+	    любой рыбой — табличка (у редкой и выше — редкость, у всех — название, мутация, цена;
+	    буквы Nunito Heavy с толстой круглой обводкой Ink; размер — studs + пиксели
+	    NAMEPLATE_STUDS / NAMEPLATE_PIXELS: вблизи растёт с миром, издали не меньше пикселей),
+	    у редкой рыбы и выше — искры цвета редкости, у рыбы с мутацией — искры
+	    цветов мутации (свет PointLight — только у своей рыбы, v3 fix F9: подвижный свет
+	    дорого пересчитывать), пока рыба над головой (FishingRules.HoldFishTime —
 	    на ≈3 с дольше карточки улова: после неё свой трофей ещё виден). Чужая табличка — над
 	    рыбой, выскакивает сразу; своя — сбоку, справа от рыбы (над ней — заголовок и карточка
 	    улова своего экрана) и ждёт, пока улов на экране (у HUD атрибут CounterHold): под
@@ -98,7 +101,11 @@
 	ParticleEmitter'ов на одного рыбака (лишний уступает место: сначала искры над рыбой, потом
 	конфетти); дальше Fx.Range studs от своего персонажа — ничего, кроме столба света.
 	Круги — SurfaceGui на детали сразу конечного размера (растут рамки внутри, а не холст), не
-	больше Fx.MaxRings спокойных кругов на рыбака. Покадрово (одно соединение RenderStepped на
+	больше Fx.MaxRings спокойных кругов на рыбака; «оснастка» круга (деталь + SurfaceGui + рамки)
+	берётся из пула рыбака и возвращается в него, когда круг погас (не больше RING_POOL штук, v3
+	fix F5: не 9 новых Instance на каждый круг). Далёкие поплавки (дальше Fx.Range) — без лески
+	(Beam выключен), и переставляются не каждый кадр, а раз в FAR_PIVOT с (или сразу при смене
+	состояния) — v3 fix F7. Покадрово (одно соединение RenderStepped на
 	всё, отключается, когда ничего не идёт) — поплавки, прыжки, ныряния, столбы воды и света;
 	круги, искры, ореол, табличка и конфетти — TweenService, task.delay и ParticleEmitter,
 	без соединений.
@@ -116,8 +123,11 @@
 	ReplicatedStorage. Детали с атрибутами RainbowU / RainbowV переливаются:
 	Color3.fromHSV((U·0.85 + t·0.35) % 1, 0.72, 0.55 + 0.45·V), около 20 раз в секунду — пока
 	модель видна: в мире не дальше Fx.Range от персонажа или камеры (в том числе рыба в прыжке)
-	или в своём интерфейсе (ViewportFrame карточки улова). Соединение Heartbeat есть, только
-	пока такие модели есть.
+	или в своём интерфейсе (ViewportFrame карточки улова). Рыба в руках персонажа (HeldFish —
+	внутри модели с Humanoid) перекрашивается реже: не чаще RAINBOW_HELD_RATE раз в секунду,
+	тон — ступенями (RAINBOW_STEPS на круг; ступень не сменилась — не пишем) и только ближе
+	FX.LifeNear: смена Color у детали персонажа пересобирает его общий меш (v3 fix F3).
+	Соединение Heartbeat есть, только пока такие модели есть.
 
 	Вышедший игрок убирается целиком (его поплавок, леска, все эффекты и подписки).
 
@@ -184,6 +194,10 @@ local FisherPoses = require(script.Parent:WaitForChild("FisherPoses"))
 local FOLDER_NAME = "FishingFx"
 local RAINBOW_TAG = "RainbowFish"
 local RAINBOW_RATE = 20 -- перекрасок в секунду
+local RAINBOW_HELD_RATE = 5 -- … рыбы в руках персонажа (её Color пересобирает меш персонажа)
+local RAINBOW_STEPS = 12 -- … ступеней тона на круг (ступень не сменилась — не пишем)
+local RING_POOL = 8 -- столько погасших «оснасток» кругов рыбак держит про запас
+local FAR_PIVOT = 0.25 -- далёкий поплавок (дальше Fx.Range) переставляется не чаще, с
 local RETRACT_TIME = 0.45 -- поплавок сматывается к удочке, с
 local DEFAULT_FLOAT_DEPTH = 0.6
 local FALLBACK_FISH = "Crucian" -- рыба ушла до подсечки (вид неизвестен) — уплывает карасик
@@ -208,9 +222,11 @@ local SPOUT_FADE = 0.4 -- … и тает, с
 -- через FX.OwnPillarDelay, когда удар уже прошёл, и с тонкой сердцевиной (FX.OwnPillarCore).
 local HALO_FROM, HALO_TO, HALO_TIME = 1.5, 5.2, 0.38 -- ореол над рыбой: диаметр, studs; время, с
 local POP_SIZE, POP_GROW, POP_FADE = 2.4, 0.06, 0.16 -- вспышка-шар над рыбой: studs; с; с
--- Табличка над рыбой: studs + пиксели (как «!» поклёвки) — вблизи около 8 × 2.5 studs, а с
--- соседнего пирса (≈240 studs) всё ещё читается (≈120 × 38 px).
-local NAMEPLATE_STUDS, NAMEPLATE_PIXELS = Vector2.new(4, 1.25), Vector2.new(110, 34)
+-- Табличка над рыбой: studs + пиксели (как «!» поклёвки) — вблизи около 9 × 3 studs, а с
+-- соседнего пирса (≈240 studs) всё ещё читается (≈160 × 52 px); буквы — Nunito Heavy с
+-- толстой круглой обводкой Ink, как надписи интерфейса «Кирпичики» (v3 fix WOW-5).
+local NAMEPLATE_STUDS, NAMEPLATE_PIXELS = Vector2.new(4, 1.25), Vector2.new(150, 48)
+local PLATE_FONT = Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Heavy)
 local TROPHY_PILLAR_TIME = 1.2 -- свой трофей «вспыхивает» после карточки: короткий столб света, с
 -- Прыжок пойманной рыбы: из воды она уже крупнее настоящей — на такую долю пути к размеру над
 -- головой (FishingConfig.HeldScale), и дорастает до него к такой доле прыжка.
@@ -412,6 +428,8 @@ type Bobber = {
 	hangFade: number, -- свой поплавок на кончике удочки при замахе у самой камеры — прозрачнее
 	shadow: FishShadow.Shadow?, -- тень рыбы под водой (своя и вблизи)
 	shadowGone: string?, -- тень уходит: "caught" | "lost" | "gone"
+	pivotAt: number, -- os.clock() последней перестановки (далёкий — раз в FAR_PIVOT)
+	pivotKey: string, -- состояние на ней (сменилось — переставляем сразу)
 }
 
 -- Эффект в мире: его детали (instances) удаляются, когда он кончился — сам (по таймеру или
@@ -438,11 +456,25 @@ type Tracker = {
 	-- Рыба над головой (FishLife): чья жизнь сейчас идёт (её эффект), ожидание «подойдём ближе».
 	life: { held: Model, life: FishLife.Life, effect: Effect }?,
 	lifePoll: thread?,
+	ringPool: { RingRig }, -- погасшие круги про запас (не больше RING_POOL)
+}
+
+-- «Оснастка» круга на воде: невидимая деталь Ripple с SurfaceGui, две рамки-кольца и белый
+-- «пятак» пены; tweens — анимации её текущего круга (гасятся, когда круг вернулся в пул).
+type RingRig = {
+	part: Part,
+	gui: SurfaceGui,
+	outer: Frame,
+	outerStroke: UIStroke,
+	inner: Frame,
+	innerStroke: UIStroke,
+	foam: Frame,
+	tweens: { Tween },
 }
 
 type FxEvent = { kind: string, id: string?, mutation: string?, rarity: string }
 
-type RainbowModel = { parts: { BasePart }, u: { number }, v: { number } }
+type RainbowModel = { parts: { BasePart }, u: { number }, v: { number }, step: number?, nextPaint: number }
 
 local FishingFxController = {
 	-- (rarity: string, worldPosition: Vector3) — своя рыба долетела (см. шапку).
@@ -463,6 +495,7 @@ local frameEffects: { [Effect]: true } = {}
 local frameConnection: RBXScriptConnection? = nil
 local rainbow: { [Instance]: RainbowModel } = {}
 local rainbowConnection: RBXScriptConnection? = nil
+local rigOf: { [Instance]: RingRig } = {} -- деталь круга -> её оснастка (возвращается в пул)
 local playerGui: PlayerGui? = nil
 local hudGui: ScreenGui? = nil -- свой HUD (атрибут CounterHold — улов на экране)
 local rng = Random.new()
@@ -654,6 +687,22 @@ end
 -- Эффекты: учёт, покадровый цикл, лимит ParticleEmitter'ов
 --------------------------------------------------------------------------------
 
+-- Погасший круг: анимации стоп, деталь из мира, оснастка — в пул рыбака (пул полон или рыбака
+-- уже нет — удаляется).
+local function releaseRig(tracker: Tracker, rig: RingRig)
+	for _, t in rig.tweens do
+		t:Cancel()
+	end
+	table.clear(rig.tweens)
+	rig.part.Parent = nil
+	if trackers[tracker.player] == tracker and #tracker.ringPool < RING_POOL then
+		table.insert(tracker.ringPool, rig)
+	else
+		rigOf[rig.part] = nil
+		rig.part:Destroy()
+	end
+end
+
 local function endEffect(effect: Effect)
 	if effect.done then
 		return
@@ -669,7 +718,12 @@ local function endEffect(effect: Effect)
 		onEnd()
 	end
 	for _, instance in effect.instances do
-		instance:Destroy()
+		local rig = rigOf[instance]
+		if rig then
+			releaseRig(effect.tracker, rig)
+		else
+			instance:Destroy()
+		end
 	end
 	table.clear(effect.instances)
 	effect.emitter = nil
@@ -889,9 +943,42 @@ local function ringStroke(frame: Frame, color: Color3, thickness: number): UIStr
 	return stroke
 end
 
+-- Новая оснастка круга (берётся, когда пул рыбака пуст).
+local function newRig(): RingRig
+	local part = quietPart("Ripple", Vector3.new(1, 0.05, 1), CFrame.identity)
+	part.Transparency = 1
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Ring"
+	gui.Face = Enum.NormalId.Top
+	gui.LightInfluence = 0
+	gui.Brightness = 1.4
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.MaxDistance = Fx.Range
+	gui.Parent = part
+	local outer = roundFrame(gui, "Outer", 1, WHITE, 1)
+	local inner = roundFrame(gui, "Inner", 1, WHITE, 1)
+	local foam = roundFrame(gui, "Foam", 1, WHITE, 0.45)
+	local rig: RingRig = {
+		part = part,
+		gui = gui,
+		outer = outer,
+		outerStroke = ringStroke(outer, WHITE, 1),
+		inner = inner,
+		innerStroke = ringStroke(inner, WHITE, 1),
+		foam = foam,
+		tweens = {},
+	}
+	rigOf[part] = rig
+	return rig
+end
+
+local function rigTween(rig: RingRig, instance: Instance, info: TweenInfo, goal: { [string]: any })
+	table.insert(rig.tweens, tween(instance, info, goal))
+end
+
 -- Одно расходящееся кольцо (внешнее белое + внутреннее цветное), гаснет за look.time.
 -- Деталь и холст SurfaceGui сразу конечного размера (≤ 256 пикселей), растут только рамки
--- внутри: холст не пересоздаётся каждый кадр.
+-- внутри: холст не пересоздаётся каждый кадр. Оснастка — из пула рыбака (endEffect вернёт её).
 local function spawnRing(effect: Effect, position: Vector3, look: RingLook, foam: boolean)
 	local parent = folder
 	if not parent then
@@ -900,35 +987,37 @@ local function spawnRing(effect: Effect, position: Vector3, look: RingLook, foam
 	local size = look.to
 	local pixels = math.clamp(256 / size, 8, 24)
 	local start = math.clamp(look.from / size, 0.05, 1)
-	local part = quietPart("Ripple", Vector3.new(size, 0.05, size), CFrame.new(position))
-	part.Transparency = 1
-	local gui = Instance.new("SurfaceGui")
-	gui.Name = "Ring"
-	gui.Face = Enum.NormalId.Top
-	gui.LightInfluence = 0
-	gui.Brightness = 1.4
-	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = pixels
-	gui.MaxDistance = Fx.Range
-	gui.Parent = part
-	local outer = roundFrame(gui, "Outer", 0.92 * start, look.color, 1)
-	local outerStroke = ringStroke(outer, look.color, look.width * pixels)
-	local inner = roundFrame(gui, "Inner", 0.8 * start, look.inner, 1)
-	local innerStroke = ringStroke(inner, look.inner, look.width * 0.6 * pixels)
-	local foamDisc = if foam then roundFrame(gui, "Foam", 0.7 * start, WHITE, 0.45) else nil
-	part.Parent = parent
-	table.insert(effect.instances, part)
+	local rig = table.remove(effect.tracker.ringPool) or newRig()
+	rig.part.Size = Vector3.new(size, 0.05, size)
+	rig.part.CFrame = CFrame.new(position)
+	rig.gui.PixelsPerStud = pixels
+	rig.outer.Size = UDim2.fromScale(0.92 * start, 0.92 * start)
+	rig.outer.BackgroundColor3 = look.color
+	rig.outerStroke.Color = look.color
+	rig.outerStroke.Thickness = look.width * pixels
+	rig.outerStroke.Transparency = 0
+	rig.inner.Size = UDim2.fromScale(0.8 * start, 0.8 * start)
+	rig.inner.BackgroundColor3 = look.inner
+	rig.innerStroke.Color = look.inner
+	rig.innerStroke.Thickness = look.width * 0.6 * pixels
+	rig.innerStroke.Transparency = 0
+	rig.foam.Visible = foam
+	rig.foam.Size = UDim2.fromScale(0.7 * start, 0.7 * start)
+	rig.foam.BackgroundTransparency = 0.45
+	rig.part.Parent = parent
+	table.insert(effect.instances, rig.part)
 
 	local grow = TweenInfo.new(look.time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	local fade = TweenInfo.new(look.time, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
-	tween(outer, grow, { Size = UDim2.fromScale(0.92, 0.92) })
-	tween(inner, grow, { Size = UDim2.fromScale(0.8, 0.8) })
-	tween(outerStroke, fade, { Transparency = 1, Thickness = outerStroke.Thickness * 0.4 })
-	tween(innerStroke, fade, { Transparency = 1, Thickness = innerStroke.Thickness * 0.4 })
-	if foamDisc then
+	rigTween(rig, rig.outer, grow, { Size = UDim2.fromScale(0.92, 0.92) })
+	rigTween(rig, rig.inner, grow, { Size = UDim2.fromScale(0.8, 0.8) })
+	rigTween(rig, rig.outerStroke, fade, { Transparency = 1, Thickness = rig.outerStroke.Thickness * 0.4 })
+	rigTween(rig, rig.innerStroke, fade, { Transparency = 1, Thickness = rig.innerStroke.Thickness * 0.4 })
+	if foam then
 		local foamTo = 0.5 * (start + 0.7 * (1 - start))
-		tween(
-			foamDisc,
+		rigTween(
+			rig,
+			rig.foam,
 			TweenInfo.new(look.time * 0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 			{ BackgroundTransparency = 1, Size = UDim2.fromScale(foamTo, foamTo) }
 		)
@@ -1020,11 +1109,16 @@ local function fadeOwned(tracker: Tracker, bobber: Bobber)
 	for effect in tracker.effects do
 		if effect.owner == bobber then
 			for _, instance in effect.instances do
+				local rig = rigOf[instance]
 				for _, item in instance:GetDescendants() do
-					if item:IsA("UIStroke") then
-						tween(item, info, { Transparency = 1 })
-					elseif item:IsA("Frame") then
-						tween(item, info, { BackgroundTransparency = 1 })
+					local goal = if item:IsA("UIStroke")
+						then { Transparency = 1 }
+						elseif item:IsA("Frame") then { BackgroundTransparency = 1 }
+						else nil
+					if goal and rig then
+						rigTween(rig, item, info, goal)
+					elseif goal then
+						tween(item, info, goal)
 					end
 				end
 			end
@@ -1489,6 +1583,8 @@ local function createBobber(tracker: Tracker): Bobber?
 		nextTipSearch = 0,
 		seed = (player.UserId % 97) * 0.37,
 		whipped = false,
+		pivotAt = -math.huge,
+		pivotKey = "",
 		rarity = nil,
 		hitsNeeded = nil,
 		hits = 0,
@@ -1805,13 +1901,14 @@ end
 
 stepBobber = function(bobber: Bobber, now: number)
 	local tip = resolveTip(bobber, now)
-	bobber.beam.Enabled = tip ~= nil
+	local near = isNear(bobber.position)
+	-- (далёкий — дальше Fx.Range — без лески: её там не видно, а Beam рисуется через всю лагуну)
+	bobber.beam.Enabled = tip ~= nil and near
 	if bobber.hooked then
 		return -- на крючке рыба в прыжке: поплавок ведёт она (startLeap)
 	end
 	local from = anchorPosition(bobber, tip)
 	local tilt = CFrame.identity
-	local near = isNear(bobber.position)
 	local lineMode, lineAmount = "retract", 0
 
 	local retractFrom = bobber.retractFrom
@@ -1888,7 +1985,14 @@ stepBobber = function(bobber: Bobber, now: number)
 			setGlowFill(bobber, now)
 		end
 	end
-	bobber.model:PivotTo(CFrame.new(bobber.position) * tilt)
+	-- Далёкий поплавок переставляем раз в FAR_PIVOT с (или сразу, когда сменилось состояние):
+	-- PivotTo — это запись CFrame каждой его детали.
+	local key = `{bobber.state}{if retractFrom then "r" else ""}`
+	if near or key ~= bobber.pivotKey or now - bobber.pivotAt >= FAR_PIVOT then
+		bobber.pivotKey = key
+		bobber.pivotAt = now
+		bobber.model:PivotTo(CFrame.new(bobber.position) * tilt)
+	end
 	if near then
 		FishingLine.step(bobber.line, now, lineMode, from, bobber.root.Position, lineAmount)
 		stepShadow(bobber, now, from)
@@ -2088,7 +2192,9 @@ end
 
 -- Искры вокруг рыбы над головой, пока она там (FishingRules.HoldFishTime): у редкой и выше —
 -- цвета редкости, у рыбы с мутацией — цвета мутации (и не реже Fx.MutationAuraRate);
--- неоновая ещё светится голубым.
+-- неоновая ещё светится голубым. Свет (PointLight) — только у своей рыбы: он ходит с рыбаком,
+-- а подвижный свет пересчитывает свою долю освещения каждый кадр (v3 fix F9); чужая
+-- светится одним неоном.
 local function aura(tracker: Tracker, held: Model, rarity: string, mutation: string?)
 	local body = held.PrimaryPart
 	local mutationStyle = if mutation then UIConfig.Mutations[mutation] else nil
@@ -2123,6 +2229,10 @@ local function aura(tracker: Tracker, held: Model, rarity: string, mutation: str
 		light.Color = style.Top
 		light.Range = 9
 		light.Brightness = 1.6
+	end
+	if light and not isOwn(tracker) then
+		light:Destroy()
+		light = nil
 	end
 	if light then
 		light.Name = "RarityGlow"
@@ -2248,16 +2358,17 @@ local function plateLabel(parent: Instance, name: string, text: string, box: { n
 	label.Position = UDim2.fromScale(box[1], box[2])
 	label.Size = UDim2.fromScale(box[3], box[4])
 	label.BackgroundTransparency = 1
-	label.FontFace = FONT
+	label.FontFace = PLATE_FONT
 	label.Text = text
 	label.TextColor3 = WHITE
 	label.TextScaled = true
 	label.TextStrokeColor3 = INK
-	label.TextStrokeTransparency = 0
+	label.TextStrokeTransparency = 1 -- (the UIStroke outlines it)
 	local stroke = Instance.new("UIStroke")
 	stroke.Name = "Outline"
 	stroke.Color = INK
 	stroke.Thickness = outline
+	stroke.LineJoinMode = Enum.LineJoinMode.Round
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
 	stroke.Parent = label
 	label.Parent = parent
@@ -2284,8 +2395,9 @@ local function revealPlate(gui: BillboardGui, delay: number): boolean
 	return true
 end
 
--- Табличка над рыбой редкости Rare+ (видят все, пока рыба над головой): редкость (легендарная —
--- золотом, мифическая — переливающейся радугой), название, мутация и цена. Всё берётся из
+-- Табличка над рыбой (видят все, пока рыба над головой): редкость (с редкой и выше; легендарная —
+-- золотом, мифическая — переливающейся радугой), название, мутация и цена; у обычной — только
+-- название и цена, крупнее (v3 fix WOW-5: соседи видят, что за рыба). Всё берётся из
 -- атрибутов модели (FishId, Rarity, Mutation, Value — их ставит FishingService), поэтому
 -- годится и для рыб на витринах базы (Этап 3). Размер — studs + пиксели (издалека читается).
 -- У самого рыбака табличка не над рыбой, а справа от неё: сверху экрана — плашки статуса и
@@ -2294,9 +2406,10 @@ local function nameplate(tracker: Tracker, held: Model, rarity: string, event: F
 	local style = UIConfig.Rarity[rarity]
 	local body = held.PrimaryPart
 	local parent = folder
-	if not style or rarity == "Common" or not body or not parent then
+	if not style or not body or not parent then
 		return
 	end
+	local common = rarity == "Common"
 	local box, size = held:GetBoundingBox()
 	local fishId = held:GetAttribute("FishId")
 	local def = FishingRules.GetFish(if typeof(fishId) == "string" then fishId else event.id or "")
@@ -2337,29 +2450,37 @@ local function nameplate(tracker: Tracker, held: Model, rarity: string, event: F
 	scale.Parent = plate
 	plate.Parent = gui
 
-	local title =
-		plateLabel(plate, "Rarity", upper(if rarityDef then rarityDef.Name else rarity), { 0, 0, 1, 0.42 }, 2.5)
-	local fill = Instance.new("UIGradient")
-	fill.Name = "Fill"
-	fill.Rotation = if style.Rainbow then 0 else 90
-	fill.Color = if style.Rainbow then gradient(UIConfig.Rainbow) else gradient({ style.Top, style.Bottom })
-	fill.Parent = title
-	plateLabel(plate, "FishName", if def then def.Name else "", { 0.05, 0.4, 0.9, 0.3 }, 2)
+	-- (обычная рыба: без строки редкости — название и цена на её месте, крупнее)
+	local fill: UIGradient? = nil
+	if not common then
+		local title =
+			plateLabel(plate, "Rarity", upper(if rarityDef then rarityDef.Name else rarity), { 0, 0, 1, 0.42 }, 3.5)
+		local gradientFill = Instance.new("UIGradient")
+		gradientFill.Name = "Fill"
+		gradientFill.Rotation = if style.Rainbow then 0 else 90
+		gradientFill.Color = if style.Rainbow then gradient(UIConfig.Rainbow) else gradient({ style.Top, style.Bottom })
+		gradientFill.Parent = title
+		fill = gradientFill
+	end
+	local nameBox = if common then { 0.03, 0.18, 0.94, 0.44 } else { 0.05, 0.4, 0.9, 0.3 }
+	plateLabel(plate, "FishName", if def then def.Name else "", nameBox, 3)
 	local mutationDef = if mutation then FishingRules.GetMutation(mutation) else nil
 	local mutationStyle = if mutation then UIConfig.Mutations[mutation] else nil
-	local priceBox = if mutationDef then { 0.5, 0.7, 0.48, 0.3 } else { 0.2, 0.7, 0.6, 0.3 }
+	local row = if common then 0.62 else 0.7
+	local rowH = if common then 0.36 else 0.3
+	local priceBox = if mutationDef then { 0.5, row, 0.48, rowH } else { 0.2, row, 0.6, rowH }
 	if mutationDef and mutationStyle then
 		local tag = plateLabel(
 			plate,
 			"Mutation",
 			`{mutationStyle.Icon} {mutationDef.Name} ×{mutationDef.Multiplier}`,
-			{ 0.02, 0.7, 0.48, 0.3 },
-			1.5
+			{ 0.02, row, 0.48, rowH },
+			2.5
 		)
 		tag.TextColor3 = mutationStyle.Top
 	end
 	if value then
-		local price = plateLabel(plate, "Price", `💰 {FishingRules.FormatCoins(value)}`, priceBox, 1.5)
+		local price = plateLabel(plate, "Price", `💰 {FishingRules.FormatCoins(value)}`, priceBox, 2.5)
 		price.TextColor3 = Palette.Gold.Top
 	end
 	gui.Parent = parent
@@ -2398,7 +2519,7 @@ local function nameplate(tracker: Tracker, held: Model, rarity: string, event: F
 	else
 		tween(scale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out, 0, false, 0.12), { Scale = 1 })
 	end
-	if style.Rainbow then
+	if style.Rainbow and fill then
 		-- Радуга переливается: градиент ездит туда-обратно (твин, без соединений; гасится с табличкой).
 		fill.Offset = Vector2.new(-0.35, 0)
 		local shimmer = tween(
@@ -3110,6 +3231,7 @@ local function trackPlayer(player: Player)
 		fxEvent = player:GetAttribute("FishFx"),
 		life = nil,
 		lifePoll = nil,
+		ringPool = {},
 	}
 	trackers[player] = tracker
 	tracker.trove:Add(function()
@@ -3119,6 +3241,11 @@ local function trackPlayer(player: Player)
 		for effect in table.clone(tracker.effects) do
 			endEffect(effect)
 		end
+		for _, rig in tracker.ringPool do
+			rigOf[rig.part] = nil
+			rig.part:Destroy()
+		end
+		table.clear(tracker.ringPool)
 	end)
 	-- Рыба над головой появилась не из прыжка на наших глазах (вошли в игру позже, рыба пришла
 	-- после передачи): она тоже живая. Свой прыжок ещё летит — жизнь начнёт celebrate.
@@ -3199,13 +3326,44 @@ local function isShown(instance: Instance): boolean
 	return playerGui ~= nil and instance:IsDescendantOf(playerGui)
 end
 
+-- Рыба в руках персонажа (внутри модели с Humanoid — HeldFish у головы).
+local function heldByCharacter(instance: Instance): boolean
+	local parent = instance.Parent
+	while parent and parent ~= Workspace do
+		if parent:IsA("Model") and parent:FindFirstChildOfClass("Humanoid") then
+			return true
+		end
+		parent = parent.Parent
+	end
+	return false
+end
+
+local function paint(entry: RainbowModel, shift: number)
+	for index, part in entry.parts do
+		local hue = (entry.u[index] * 0.85 + shift) % 1
+		part.Color = Color3.fromHSV(hue, 0.72, 0.55 + 0.45 * entry.v[index])
+	end
+end
+
 local function paintRainbows(t: number)
 	for instance, entry in rainbow do
-		if isShown(instance) then
-			for index, part in entry.parts do
-				local hue = (entry.u[index] * 0.85 + t * 0.35) % 1
-				part.Color = Color3.fromHSV(hue, 0.72, 0.55 + 0.45 * entry.v[index])
+		if heldByCharacter(instance) then
+			-- реже, ступенями и только вблизи: Color детали персонажа пересобирает его меш
+			local at = if instance:IsA("Model") then instance:GetPivot().Position else nil
+			local viewer = viewerPosition()
+			if at and viewer and (viewer - at).Magnitude > FX.LifeNear then
+				continue
 			end
+			local step = math.floor(t * 0.35 * RAINBOW_STEPS)
+			if t < entry.nextPaint or step == entry.step then
+				continue
+			end
+			entry.step = step
+			entry.nextPaint = t + 1 / RAINBOW_HELD_RATE
+			paint(entry, step / RAINBOW_STEPS)
+		elseif isShown(instance) then
+			entry.step = nil
+			paint(entry, t * 0.35)
 		end
 	end
 end
@@ -3233,7 +3391,7 @@ local function addRainbow(instance: Instance)
 	if rainbow[instance] or instance:IsDescendantOf(ReplicatedStorage) then
 		return -- шаблоны в ReplicatedStorage не трогаем
 	end
-	local entry: RainbowModel = { parts = {}, u = {}, v = {} }
+	local entry: RainbowModel = { parts = {}, u = {}, v = {}, step = nil, nextPaint = 0 }
 	for _, item in instance:GetDescendants() do
 		local u, v = item:GetAttribute("RainbowU"), item:GetAttribute("RainbowV")
 		if item:IsA("BasePart") and typeof(u) == "number" and typeof(v) == "number" then

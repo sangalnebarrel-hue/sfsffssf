@@ -50,15 +50,16 @@ local Nature = require("./Nature")
 local Shore = require("./Shore")
 local HubDetails = require("./HubDetails")
 local Props = require("./Props")
+local Movers = require("./Movers")
 
 local Vector3 = U.Vector3
 
-local DRESSING_BUDGET = 8100 -- parts (base slots, bridges, promenade, gateways, landmarks, water, sky, nature, walls, shore)
+local DRESSING_BUDGET = 8180 -- parts (base slots, bridges, promenade, gateways, landmarks, water, sky, nature, walls, shore)
 local LIGHT_BUDGET = 40 -- PointLights of the dressing
 local NATURE_MIN = 2050 -- parts Nature is guaranteed (the hills must look lush)
 -- parts kept for the late kits built after Nature (they keep off everything already there): the
 -- promenade's details (Promenade.buildDetails) and the shore (Shore.luau)
-local LATE_BUDGET = 1200
+local LATE_BUDGET = 1290
 local HUB_BUDGET = 3000 -- the hub (Hub.luau keeps its own build under 2900) with its details
 
 --------------------------------------------------------------------------------
@@ -193,6 +194,10 @@ return function(game: any, cfg: any, world: any)
 	if natureParts < NATURE_MIN then
 		error(`Nature got only {natureParts} parts (< {NATURE_MIN})`)
 	end
+
+	-- Everything the client moves (Bob / Sway / Spin / Pulse / Drift) neither collides nor takes
+	-- raycasts or touches (Movers.luau; the palms' trunks excepted).
+	Movers.quiet(map)
 
 	-- The generator owns every part of the map: lock them all, so a stray click-drag in Studio
 	-- cannot move one (the client's Spin / Bob animation is unaffected).

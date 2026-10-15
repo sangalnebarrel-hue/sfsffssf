@@ -824,6 +824,7 @@ local function addSignText(part: any, face: any, text: string, color: any, strok
 		SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud,
 		PixelsPerStud = 40,
 		LightInfluence = 0.2,
+		MaxDistance = 250, -- (v3 fix F4: not laid out and drawn from across the map)
 	}, part)
 	local label = U.new("TextLabel", {
 		Name = "Text",

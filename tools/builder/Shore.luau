@@ -4,19 +4,23 @@
 	dressing module, so it keeps off all of them: each footprint is tested against the parts
 	already in the map (MapKit.obstacles).
 
-	  Map.Shore.Foam       a strip of surf along every edge where the beach sand meets the water,
-	                       on the ring's beach and round the hub island (one part per straight run
-	                       of the voxel edge; none under the piers and bridges); attribute Pulse on
-	                       the model (the ambient wave breathes its transparency)
+	  Map.Shore.Foam       surf along every edge where the beach sand meets the water, on the
+	                       ring's beach and round the hub island: a row of white LEGO plates per
+	                       straight run of the voxel edge (dashes ~7 studs long, 2.5-stud gaps, 1.6 /
+	                       1.0 wide by turns, some 0.5 further out, the top 0.27 over the water:
+	                       above the wave crests; none under the piers and bridges); attribute
+	                       Pulse on the model (the ambient wave breathes its transparency)
 	  Map.Shore.Beach      little beach stories on the ring beach either side of every pier — a
 	                       sandcastle with a pail and spade, a towel under a parasol with a beach
 	                       ball, driftwood with shells, a toy pinwheel (Spin) by an upturned pail, a
 	                       bottle washed up among shells — different on every stretch, with a
 	                       small find near the pier steps (shells, a pail, a ball) and rocks or
 	                       reeds (Sway) at the waterline
-	  Map.Shore.Lagoon     a line of red and white floats either side of every base's fishing water
-	                       (|base-local x| 34, out to z -84; each float bobs: Bob), a drifting crate
-	                       or barrel (Bob) and a lily cluster per stretch
+	  Map.Shore.Lagoon     a line of LEGO round floats (red / white, a band in the other colour)
+	                       either side of every base's cast lane (base-local x -27 / +28.5, z -84..
+	                       -112: in the waiting view, big enough for the client's foam rings; each
+	                       float bobs: Bob), a drifting crate or barrel (Bob) and a lily cluster per
+	                       stretch
 	  Map.Shore.Underwater kelp on the sandy slope (Sway; the tops 2+ studs under the surface, dark
 	                       shapes through the water), a sunken chest per stretch for kids to spot
 
@@ -47,12 +51,25 @@ local BALL = { Shape = Enum.PartType.Ball, CanCollide = false, CastShadow = fals
 local CYL = { Shape = Enum.PartType.Cylinder, CanCollide = false, CastShadow = false, CanQuery = false }
 
 local SAND_TOP = 2 -- the beaches (ring and hub) stand at y 2
-local FOAM_W = 1.8 -- surf strip width (out from the sand face)
-local FOAM_Y0, FOAM_Y1 = -0.15, 0.2 -- (the water plane is y 0)
+local FOAM_W = 1.8 -- surf band (out from the sand face; corners are trimmed / lengthened by it)
+-- The surf is a row of LEGO plates, not one slab per run: dashes of about FOAM_DASH studs with
+-- FOAM_GAP gaps (FOAM_GAP / 2 at each end of a run: no L-shaped kerbs at the voxel corners),
+-- FOAM_WIDTHS wide by turns, every third one FOAM_OUT further out; the top FOAM_Y1 is ~0.1 over
+-- the wave crests (WaterWaveSize 0.15).
+local FOAM_DASH, FOAM_GAP = 7, 2.5
+local FOAM_WIDTHS = { 1.6, 1.0 }
+local FOAM_OUT = 0.5
+local FOAM_Y0, FOAM_Y1 = -0.13, 0.27 -- (the water plane is y 0)
 local FOAM = lerp(C.Foam, C.WaterLight, 0.12)
 local WET_W = 2 -- wet sand band along the sand's edge (whole studs: its studs line up with the sand's)
 local WET_RISE = 0.1 -- (its top over the sand top)
 local WET = lerp(C.SandDark, C.Dirt, 0.3) -- (a clear step darker than the dry sand: it reads at a distance)
+
+-- Float lines either side of every pier's cast lane (base-local x, z; whole floats FLOAT_D across,
+-- FLOAT_H tall, 0.35 of it under the water plane).
+local FLOAT_X = { -27, 28.5 }
+local FLOAT_Z = { -84, -98, -112 }
+local FLOAT_D, FLOAT_H = 1.6, 1.3
 
 local SHELL = { C.Cream, lerp(C.Pink, C.Cream, 0.55), lerp(C.Orange, C.Cream, 0.6) }
 local DRIFT = lerp(C.WoodLight, C.StoneLight, 0.45)
@@ -213,15 +230,37 @@ local function buildEdge(parent: any, cfg: any, world: any, blocked: any, outsid
 					end
 				end
 				if outside then
-					U.part(
-						parent,
-						"Foam",
-						Vector3.new(x1 - x0, y1 - y0, z1 - z0),
-						CFrame.new((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2),
-						FOAM,
-						nil,
-						{ Transparency = 0.3, CanCollide = false, CanQuery = false, CastShadow = false }
-					)
+					-- the run (along z for x-facing edges, along x otherwise), the sand face and
+					-- the seaward sign, then the dashes along it
+					local sgn = if dx + dz > 0 then 1 else -1
+					local r0, r1 = if dx ~= 0 then z0 else x0, if dx ~= 0 then z1 else x1
+					local face = if dx ~= 0 then (if sgn > 0 then x0 else x1) else (if sgn > 0 then z0 else z1)
+					local inner = r1 - r0 - FOAM_GAP
+					-- (a stub left between two trimmed corners gets none)
+					local dashes = if inner < 1.5 then 0 else max(1, floor((r1 - r0) / (FOAM_DASH + FOAM_GAP) + 0.5))
+					local len = (inner - (dashes - 1) * FOAM_GAP) / dashes
+					for k = 0, dashes - 1 do
+						local a = r0 + FOAM_GAP / 2 + k * (len + FOAM_GAP)
+						local key = s * 7 + t * 3 + k
+						local w = FOAM_WIDTHS[key % #FOAM_WIDTHS + 1]
+						local off = if key % 3 == 0 then FOAM_OUT else 0
+						local f0, f1 = face + sgn * off, face + sgn * (off + w)
+						f0, f1 = min(f0, f1), max(f0, f1)
+						local bx0, bx1, bz0, bz1 = a, a + len, f0, f1
+						if dx ~= 0 then
+							bx0, bx1, bz0, bz1 = f0, f1, a, a + len
+						end
+						U.part(
+							parent,
+							"Foam",
+							Vector3.new(bx1 - bx0, y1 - y0, bz1 - bz0),
+							CFrame.new((bx0 + bx1) / 2, (y0 + y1) / 2, (bz0 + bz1) / 2),
+							FOAM,
+							nil,
+							{ Transparency = 0.3, CanCollide = false, CanQuery = false, CastShadow = false }
+						)
+					end
+					count += dashes - 1
 				else
 					-- (a thin plate on the sand: its top WET_RISE over the sand's studs)
 					U.part(
@@ -613,29 +652,45 @@ local function buildLagoon(shore: any, cfg: any, world: any, blocked: any): numb
 		local p = slot * Vector3.new(lx, 0, lz)
 		return p.X, p.Z
 	end
-	local function openWater(x: number, z: number, pad: number): boolean
+	-- (bottom: how deep a part may not be; a float rides over the reefs, whose tops stay at y -4)
+	local function openWater(x: number, z: number, pad: number, bottom: number?): boolean
 		for _, d in { { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
 			if not world:isWater(x + d[1] * pad, z + d[2] * pad) then
 				return false
 			end
 		end
-		return not blocked(CFrame.new(x, 0, z), 2 * pad, 2 * pad, -16, 6)
+		return not blocked(CFrame.new(x, 0, z), 2 * pad, 2 * pad, bottom or -16, 6)
 	end
 	for i = 1, cfg.BaseCount do
-		-- the base's fishing water marked by a line of floats on both sides (red and white)
-		for _, side in { -1, 1 } do
-			for f, lz in { -46, -58, -70, -82 } do
-				local x, z = at(i, side * 34, lz)
-				if openWater(x, z, 1.5) and not inCastZone(cfg, world, x, z, 2) then
+		-- the base's fishing water framed by a line of floats on both sides of the cast lane, out
+		-- where the player looks while waiting (z FLOAT_Z; x FLOAT_X: outside the pier corridor
+		-- and the cast clear zone, ~47° off the follow camera's axis — inside a phone's frame).
+		-- LEGO round floats (FLOAT_D studs: big enough for the client's foam ring), red and white
+		-- by turns, each with a band in the other colour; each bobs (Bob).
+		for _, x in FLOAT_X do
+			for f, lz in FLOAT_Z do
+				local px, pz = at(i, x, lz)
+				if openWater(px, pz, 1.5, -3) and not inCastZone(cfg, world, px, pz, 2) then
 					local m = bobbing(U.model(lagoon, "Float"), 0.15, 2.2 + 0.25 * ((f + i) % 3))
+					local red = (f + (if x < 0 then 0 else 1)) % 2 == 1
+					local up = CFrame.new(px, 0, pz) * CFrame.Angles(0, 0, rad(90)) -- (cylinder axis up)
 					local p = U.part(
 						m,
 						"Float",
-						Vector3.new(1.1, 1.1, 1.1),
-						CFrame.new(x, 0.2, z),
-						if f % 2 == 1 then C.Red else C.White,
+						Vector3.new(FLOAT_H, FLOAT_D, FLOAT_D),
+						up * CFrame.new(FLOAT_H / 2 - 0.35, 0, 0),
+						if red then C.Red else C.White,
 						nil,
-						BALL
+						CYL
+					)
+					U.part(
+						m,
+						"FloatBand",
+						Vector3.new(0.4, FLOAT_D + 0.12, FLOAT_D + 0.12),
+						up * CFrame.new(FLOAT_H / 2 - 0.15, 0, 0),
+						if red then C.White else C.Red,
+						nil,
+						CYL
 					)
 					m.PrimaryPart = p
 				end

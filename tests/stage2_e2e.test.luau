@@ -881,8 +881,14 @@ tests["(5) two players fish at once: each sees the other's bobber and line, both
 			`{viewerName}: {fisher.Name}'s bobber is on the water at the cast target ({flat(position - target).Magnitude})`
 		)
 		t.ok(math.abs(position.Y - (target.Y + bobber:GetAttribute("FloatDepth"))) < 0.5, "floating on the water")
+		-- the line is drawn within Fx.Range of the viewer; beyond it (a base across the lagoon) the
+		-- Beam is off — it would be sub-pixel there (v3 fix F7)
 		local line = bobber:FindFirstChild("Line")
-		t.ok(line and line:IsA("Beam") and line.Enabled, "with a fishing line")
+		local viewer = if viewerName == "A" then a else b
+		local root = viewer.Character and viewer.Character:FindFirstChild("HumanoidRootPart")
+		local near = root == nil or (root.Position - position).Magnitude <= FishingConfig.Fx.Range
+		t.ok(line and line:IsA("Beam"), "with a fishing line")
+		t.eq(line.Enabled, near, `{viewerName}: the line is drawn only within Fx.Range (near = {near})`)
 		t.ok(line.Attachment0 == rod.Handle.TipAttachment, `the line starts at {fisher.Name}'s rod tip`)
 	end
 	seesBobber(fxA, "A", b, rodB)

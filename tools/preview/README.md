@@ -257,6 +257,9 @@ $LUNE run tools/preview/export_terrain.luau Place1.rbxl $OUT/smoothgrid.bin
 # beach either side of the pier, the promenade, the hub): "name eye,target,fov" lines
 ARGS=$(python3 tools/preview/views.py 1 spot_default pier_walk beach | awk '{print "--persp " $2}')
 python3 tools/preview/render.py $OUT/parts.json --terrain $OUT/smoothgrid.bin --out-dir $OUT $ARGS
+# (views.py ... --parts $OUT/parts.json: an eye inside or within 1 stud of a part steps along its
+# view direction until free and stands on the surface below — render.py's ring-preset rule; the
+# presets are kept out of the current geometry, so it only prints a note when one needs a move)
 # share of featureless 40-px tiles (whole frame / lower half): the "flat" look
 python3 tools/preview/flatness.py $OUT/persp_*.png
 # per zone: parts, small parts per 1 000 studs², empty 8x8-stud cells; --heatmap draws them

@@ -8,8 +8,10 @@
 	     Красятся детали шаблона с атрибутом Accent = true (флаг, крыши, навесы и т.д.), а детали
 	     с WallTone = true получают тон стен базы (BaseConfig.WallTones, оттенок — WallShade);
 	     числовой атрибут AccentShade (от -1 до 1) даёт оттенок: > 0 — светлее (к белому),
-	     < 0 — темнее (к чёрному). Все TextLabel с именами OwnerLabel / BaseLabel (табличка над
-	     флагом, вывеска на воротах и т.д.) показывают владельца и название базы.
+	     < 0 — темнее (к чёрному). То же для элементов интерфейса (GuiObject) с Accent = true:
+	     их фон (BackgroundColor3) — цвет базы с оттенком (кирпичик таблички над флагом).
+	     Все TextLabel с именами OwnerLabel / BaseLabel (табличка над флагом, вывеска на воротах
+	     и т.д.) показывают владельца и название базы.
 	     Сценки с атрибутами Variant / VariantOf (например, крабовые ловушки или якорь на пирсе)
 	     остаются только на «своих» базах — так 8 баз не одинаковые.
 	  2. Выдаёт игроку свободную базу при входе и освобождает её при выходе.
@@ -215,6 +217,8 @@ local function createBase(template: Model, slot: BasePart, index: number, parent
 				shade *= colorDef.RoofShadeScale or 1
 			end
 			descendant.Color = shadeColor(colorDef.Color, shade)
+		elseif descendant:IsA("GuiObject") and descendant:GetAttribute("Accent") == true then
+			descendant.BackgroundColor3 = shadeColor(colorDef.Color, descendant:GetAttribute("AccentShade"))
 		elseif descendant:IsA("BasePart") and descendant:GetAttribute("WallTone") == true then
 			descendant.Color = shadeColor(wallTone, descendant:GetAttribute("WallShade"))
 		elseif descendant:IsA("TextLabel") then

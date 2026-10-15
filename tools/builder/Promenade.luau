@@ -157,6 +157,7 @@ local PATH_SIGNS = {
 local FLAT = { CastShadow = false }
 
 local DECK_TOP = 0.64 -- above GroundTop: a hair above the bridge and pier decks (0.6)
+local TILE_STEP = 0.1 -- every other paving flag stands this much higher (no shared plane at the joints)
 
 -- Props.bunting hangs its flags in the rope's plane (0.2 thick flags on a 0.18 rope: faces 0.01
 -- apart); each flag moves 0.06 off it, so no flag face shimmers against the rope's.
@@ -605,7 +606,8 @@ end
 --------------------------------------------------------------------------------------------
 
 -- Ring piece between angles a0..a1 (degrees) and radii r0..r1, top at y, as one block along
--- the chord (wide enough to cover the outer arc).
+-- the chord (wide enough to cover the outer arc; its length rounded up to whole studs and the
+-- callers' widths r1 - r0 whole too: no cut studs along the ring's edges, v3 fix W4).
 local function ringPiece(
 	parent: any,
 	name: string,
@@ -620,7 +622,7 @@ local function ringPiece(
 ): any
 	local am = (a0 + a1) / 2
 	local half = rad(a1 - a0) / 2
-	local length = 2 * r1 * tan(half) + 0.1
+	local length = math.ceil(2 * r1 * tan(half) + 0.1)
 	local rm = (r0 + r1) / 2 * cos(half) -- chord midpoint of the band
 	local cf = U.polarCFrame(am, rm, (y0 + y1) / 2)
 	return U.part(parent, name, Vector3.new(length, y1 - y0, r1 - r0), cf, color, nil, extra)
@@ -629,6 +631,7 @@ end
 -- The sea wall: its lagoon face (r = WALL_IN) hides the beach/grass step under the promenade's
 -- lagoon edge; open only where a pier or bridge deck meets the promenade (± DECK_HALF studs).
 local WALL_IN = 308.2
+local COPING_OUT = WALL_IN + 5 -- the coping's walk-side edge (5 studs wide: whole studs)
 local DECK_HALF = 10
 
 -- Railing gaps: piers (base angle ± PIER_GAP: the pier deck plus a broad flight of sand steps
@@ -1319,6 +1322,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	local inner = cfg.PromenadeRadius
 	local outer = inner + cfg.PromenadeWidth
 	local top = G + DECK_TOP
+	local ptop = top + TILE_STEP -- the high flags' top: the runner, medallions and plazas sit on it
 
 	-- Paving: 48 big sandstone flags (7.5°, ~42 studs at the middle of the walk) right across the
 	-- walk in two tones by turns, all at one height (the chord rectangles overlap near the inner
@@ -1343,15 +1347,19 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	local medDeg = math.deg(2.9 / mid) -- (the runner ends tuck under the medallions)
 	for k = 0, 47 do
 		local a0 = k * 2 * step
+		-- (every other flag stands TILE_STEP higher: the chord rectangles overlap in thin wedges at
+		-- the joints, and two flag colours / stud grids must not share a plane there; the low
+		-- flags keep the old height where the pier and bridge decks run in under them)
+		local flagTop = top + (1 - k % 2) * TILE_STEP
 		ringPiece(
 			paving,
 			"Tile",
 			a0,
 			a0 + 2 * step,
-			inner + 0.2,
+			inner,
 			outer,
 			G - 1,
-			top,
+			flagTop,
 			if k % 12 == 5 then WALK_ODD else ({ WALK, WALK2, WALK3 })[k % 3 + 1],
 			FLAT
 		)
@@ -1364,7 +1372,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 			mid - 2.0,
 			mid + 2.0,
 			top,
-			top + 0.2,
+			ptop + 0.2,
 			brick,
 			FLAT
 		)
@@ -1385,19 +1393,21 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 			end
 		end
 		local big = base ~= nil or bridge ~= nil
-		local w, n = if big then 8.0 else 6.4, if big then 5.0 else 4.0
+		local w, n = if big then 8 else 6, if big then 5 else 4 -- (whole studs)
 		local centre = if base
 			then lerp(BASE_COLORS[(base - 1) % #BASE_COLORS + 1], C.Limestone, 0.4)
 			elseif bridge then lerp(quarterColor(a), C.Limestone, 0.4)
 			else RUNNER2
-		U.part(paving, "Medallion", Vector3.new(w, 0.36, n), CFrame.new(p.X, top + 0.07, p.Z) * turn, BAND, nil, FLAT)
-		U.part(paving, "Medallion", Vector3.new(n, 0.4, w), CFrame.new(p.X, top + 0.07, p.Z) * turn, BAND, nil, FLAT)
+		-- (a "plus" of two cream plates whose tops are 0.07 apart over the runner's ends, the
+		-- centre stone over both)
+		U.part(paving, "Medallion", Vector3.new(w, 0.4, n), CFrame.new(p.X, ptop + 0.07, p.Z) * turn, BAND, nil, FLAT)
+		U.part(paving, "Medallion", Vector3.new(n, 0.54, w), CFrame.new(p.X, ptop + 0.07, p.Z) * turn, BAND, nil, FLAT)
 		local c = if big then 3.0 else 2.2
 		U.part(
 			paving,
 			"MedallionCentre",
-			Vector3.new(c, 0.4, c),
-			CFrame.new(p.X, top + 0.12, p.Z) * turn,
+			Vector3.new(c, 0.62, c),
+			CFrame.new(p.X, ptop + 0.12, p.Z) * turn,
 			centre,
 			nil,
 			FLAT
@@ -1407,13 +1417,13 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	for _, sa in stopAngles do
 		local p = U.polar(sa, mid + 1.2, 0)
 		local turn = CFrame.new(p.X, 0, p.Z) * CFrame.Angles(0, rad(sa), 0)
-		U.part(paving, "Plaza", Vector3.new(11.2, 0.36, 11.2), turn * CFrame.new(0, top + 0.07, 0), BAND, nil, FLAT)
+		U.part(paving, "Plaza", Vector3.new(11, 0.36, 11), turn * CFrame.new(0, ptop + 0.07, 0), BAND, nil, FLAT)
 		for i, q in { { -1, -1 }, { 1, 1 } } do
 			U.part(
 				paving,
 				`PlazaChecker{i}`,
 				Vector3.new(4.8, 0.4, 4.8),
-				turn * CFrame.new(q[1] * 2.5, top + 0.1, q[2] * 2.5),
+				turn * CFrame.new(q[1] * 2.5, ptop + 0.13, q[2] * 2.5),
 				if i == 1 then RUNNER else RUNNER2,
 				nil,
 				FLAT
@@ -1447,7 +1457,7 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 	do
 		if run[3] == "kerb" then
 			for _, pc in pieces(run[1], run[2], 7.5) do
-				ringPiece(paving, "KerbOuter", pc[1], pc[2], outer - 1.4, outer + 0.2, top, top + 0.5, KERB, FLAT)
+				ringPiece(paving, "KerbOuter", pc[1], pc[2], outer - 1.8, outer + 0.2, top, top + 0.5, KERB, FLAT)
 			end
 		end
 	end
@@ -1488,15 +1498,15 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 			nWall += 1
 			local stone = WALL[nWall % 2 + 1]
 			if run[3] == "rail" then
-				ringPiece(seaWall, "Wall", pc[1], pc[2], WALL_IN + 0.2, inner + 0.3, 1.5, top - 0.2, stone, FLAT)
-				ringPiece(seaWall, "Coping", pc[1], pc[2], WALL_IN, inner + 1.6, top - 0.2, top + 0.6, COPING, FLAT)
+				ringPiece(seaWall, "Wall", pc[1], pc[2], WALL_IN + 0.2, WALL_IN + 4.2, 1.5, top - 0.2, stone, FLAT)
+				ringPiece(seaWall, "Coping", pc[1], pc[2], WALL_IN, COPING_OUT, top - 0.2, top + 0.6, COPING, FLAT)
 				table.insert(copings, pc)
 			else
-				ringPiece(seaWall, "Wall", pc[1], pc[2], WALL_IN, inner + 0.3, 1.5, top - 0.12, stone, FLAT)
+				ringPiece(seaWall, "Wall", pc[1], pc[2], WALL_IN, WALL_IN + 4, 1.5, top - 0.12, stone, FLAT)
 				-- two steps down to the beach along the whole opening (beside the piers and at the
 				-- step gaps between two plots): no ledge to jump back up
-				ringPiece(seaWall, "Step1", pc[1], pc[2], WALL_IN - 2.8, WALL_IN + 0.1, 1.5, 3.85, COPING, FLAT)
-				ringPiece(seaWall, "Step2", pc[1], pc[2], WALL_IN - 5.6, WALL_IN - 2.8, 1.5, 2.95, C.SandDark, FLAT)
+				ringPiece(seaWall, "Step1", pc[1], pc[2], WALL_IN - 2.9, WALL_IN + 0.1, 1.5, 3.85, COPING, FLAT)
+				ringPiece(seaWall, "Step2", pc[1], pc[2], WALL_IN - 5.9, WALL_IN - 2.9, 1.5, 2.95, C.SandDark, FLAT)
 			end
 		end
 	end
@@ -1604,8 +1614,8 @@ function Promenade.buildPromenade(map: any, cfg: any, world: any): number
 			if a >= pc[1] and a <= pc[2] then
 				local am = (pc[1] + pc[2]) / 2
 				local half = rad(pc[2] - pc[1]) / 2
-				local rm = (WALL_IN + inner + 1.6) / 2 * cos(half)
-				return (rm - (inner + 1.6 - WALL_IN) / 2) / cos(rad(a - am))
+				local rm = (WALL_IN + COPING_OUT) / 2 * cos(half)
+				return (rm - (COPING_OUT - WALL_IN) / 2) / cos(rad(a - am))
 			end
 		end
 		return nil

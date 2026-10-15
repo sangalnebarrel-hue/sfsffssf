@@ -50,9 +50,12 @@ Rules:
 * **LEGO studs (art direction v5, like *Steal a Brainrot*).** One build post-pass,
   `tools/builder/Studs.luau` (run by `tools/build.luau` on `Workspace.Map` and
   `ServerStorage.BaseTemplate`, not on `Assets`), turns block parts into LEGO bricks with the
-  engine's own surfaces: **Plastic + `Studs` on the face pointing world-up, `Inlet` on the face
-  pointing down**, the four sides `Smooth` (surfaces render only on Plastic). No textures, no
-  extra parts or draw calls.
+  engine's own surfaces: **Plastic + `Studs` on the face pointing world-up**, the other five
+  `Smooth` (surfaces render only on Plastic); **`Inlet`** (LEGO's hollow underside) on the face
+  pointing down **only where a builder asks** — attribute `StudsBottom = true` on the part or an
+  ancestor (the market arcades' ceilings, the windmill room's ceiling) — and never on foliage:
+  canopies, roofs and decks seen from below show no rows of dark holes (v3 fix W7). No textures,
+  no extra parts or draw calls.
   * **Studded:** opaque (Transparency ≤ 0.02) SmoothPlastic/Plastic `Part`s (Block shape, also
     `SpawnLocation`) with an axis pointing straight up and an up face of at least 2 × 2 studs —
     ground caps, lawns, sand, decks, floors, paths and paving (variant A), flat roof tops and
@@ -66,11 +69,24 @@ Rules:
     `Studs = true` = studded even with a water-like name (geometry rules still apply). Knobs in
     Studs.luau: `PATHS_AS_TILES` (variant B: paving, avenues, plaza, bridges, walks stay smooth
     LEGO tiles) and `FOLIAGE`.
-  * **Coplanar tops:** two overlapping up faces at one height with different stud grids (or studs
-    on flat) shimmer, so the post-pass moves one top 0.02 (the smaller up first; never a
-    gameplay part, never onto or past another layer; ~180 parts, 0.02–0.04) or, when there is
-    no room, makes that paving piece a flat SmoothPlastic tile. Builders keep layered decor
-    ≥ 0.02 apart as before; same-colour aligned grids may stay level.
+  * **Coplanar tops:** two overlapping up faces closer than 0.05 (`Studs.COPLANAR_EPS`: a phone's
+    depth buffer cannot tell them apart from 150+ studs) with different stud grids (or studs on
+    flat) shimmer, so the post-pass moves one top 0.06 (`Studs.RAISE`; the smaller up first;
+    never a gameplay part, never onto or past another layer; ~245 parts, 0.06–0.12) or, when
+    there is no room, makes that paving piece a flat SmoothPlastic tile (none today). Builders
+    keep layered decor ≥ 0.06 apart (v3 fix W3: the hub star's square turned 45° is a flat tile
+    0.06 under the other one; every other promenade flag stands 0.1 higher; the gateway plazas'
+    rings, walks, medallions and compass, the pond rims and the hub's side walks step 0.06; a
+    `disc` of overlapping rects has whole-stud half extents, so its pieces' grids line up);
+    same-colour aligned grids may stay level.
+  * **Hero faces on whole studs (v3 fix W4):** the surfaces players stand on and look at — the
+    base's lawn (135 × 149) and stripes, decks (platform 40 × 21) and full-length plank strips,
+    the ring round the fishing spot (7 × 7 round the 5 × 5 mat: one ring of whole studs; the mat
+    itself is a smooth tile, `Studs = false`), the display rims (7 × 7), the promenade's flags,
+    runner, medallions, coping and sea wall (ring pieces rounded up per segment), the hub's star,
+    rays, ring and avenue runners — have whole-stud sides: no cut half-studs along an edge. The
+    build fails on a hero face off whole studs (`Studs.fractionalFaces`, build.luau) and reports
+    how many other big faces (trees, props) are not.
   * **Stud pitch is the engine's (1 stud)**; the grid is assumed to start at a face corner (the
     previews do; to verify in Studio): whole-stud sizes and offsets keep neighbouring grids in
     line, ring segments and fractional parts show a seam.
@@ -98,7 +114,8 @@ unchanged, 78–104); pale caps stay below white (snow cap 222,230,242) so lit s
 
 Lighting (build.luau): sunny 14:30 but NOT overexposed (user feedback «пересвеченная»):
 Brightness 1.7, ExposureCompensation -0.3, sun ColorShift_Top (236,220,196), soft fill (Ambient
-96,94,100, OutdoorAmbient 112,116,130, EnvironmentDiffuseScale 0.3, specular 0.08), light
+96,94,100, OutdoorAmbient 112,116,130, EnvironmentDiffuseScale 0.35, specular 0.2 — a little
+sky gloss on the plastic studs, v3 WOW-7; Studio check vs 0.08 / 0.45 at Graphics 1 and 3), light
 atmosphere (Density 0.16, Haze 0.05), ColorCorrection saturation +0.12 / contrast +0.12 /
 brightness -0.04, Bloom 0.15 (threshold 2.6, only Neon). Pale materials (sand, plaster,
 limestone, flagstone, cream, snow) stay at value <= ~0.88. Terrain water (36,156,186), T 0.55.
@@ -207,7 +224,19 @@ lays its own floor/paths/borders on top (slab tops at y ≈ 0.2; nothing coplana
   CanTouch, CastShadow all false); nothing in the walkway's middle lane (|x| ≤ 4.5); nothing above
   local y 7 within 13 studs of `FishingSpot`; nothing over 1.5 tall in the follow camera's sector
   behind the player (|x| ≤ 7, z −67 … −55); nothing above y −4.6 (the water) in the cast clear
-  zone (x −6 … 16, z −72 … −115); layered decor ≥ 0.02 above the face below (studs).
+  zone (x −6 … 16, z −72 … −115); layered decor ≥ 0.06 above the face below (studs).
+* **The shelter (`Pavilion`)** stands at the platform's back-left corner (posts x −18.8 / −12.5,
+  z −60.5 / −51 base-local): from the default follow camera behind the spot (12.5 studs back, 18°
+  down) its posts are out of a phone's frame (tests/stage1_bases.test.luau), only the roof's
+  corner shows top-left; the rod rack stands under it behind the bench (v3 fix W1).
+* **Signs:** every SurfaceGui of a base has a `MaxDistance` (120; the 12 pedestal labels 60, at
+  30 px per stud); the map's signs 250 (`Kit.sign` 600 for the big boards). The owner sign over
+  the flag is a LEGO brick in the «Кирпичики» UI style: a plate in the base colour (GUI objects
+  with `Accent = true` / `AccentShade` — BaseService paints their `BackgroundColor3`) with a thick
+  Ink outline, a darker lip and three studs, the owner's name in Nunito Heavy with a round Ink
+  outline and a white → cream gradient, the base's name in its colour on a cream tile; 10 × 3.2
+  studs + 150 × 52 px, `MaxDistance` 500 (readable across the lagoon). The gate's labels use the
+  same letters (v3 fix WOW-5, F4).
 
 ## 3. Builder modules and who owns what
 
@@ -257,15 +286,19 @@ above); Map.luau fails the build when a cap is exceeded or Nature falls short.
 
 Builders only **mark** what moves; the client animates it (AmbientController + AmbientEngine /
 AmbientWind / AmbientWorld / AmbientWater / AmbientCritters),
-locally: everything that moves is CanCollide/CanQuery false, except the palm trees (their trunks
-collide; they sway only 1.2° about the foot, which stays put). "Pivot" = a Model's
+locally: everything that moves is CanCollide/CanQuery/CanTouch false — enforced by one post-pass,
+`tools/builder/Movers.luau` (`Movers.quiet`, run at the end of Map.luau and BaseTemplate.luau),
+except the palm trees' trunks (they collide; they sway only 1.2° about the foot, which stays put).
+Floats you can stand on (the swim platform, the raft, the fish farms, the houseboats) carry no `Bob`:
+still and solid (a bob seen only on one client would carry a child up and down on it while everyone
+else sees it still); the base's moored boat bobs and does not collide (v3 fix F2). "Pivot" = a Model's
 pivot (its PrimaryPart's CFrame × PivotOffset) or a BasePart's CFrame × PivotOffset. Moving things
 are never nested inside another moving model (an inner one is ignored).
 
 | attribute (number unless noted) | on | motion |
 |---|---|---|
 | `Spin` (°/s) | Model under Workspace.Map | turns about its pivot's LookVector; child Models with `KeepUpright = true` stay level (windmills, Ferris wheel, golden fish, the beach pinwheels) |
-| `Bob` (studs), `BobPeriod` (s, default 3) | Model in Workspace.Map or Workspace.Bases | rises and falls and rolls a little about its pivot (boats, buoys, rafts, the float lines, drifting crates, lily clusters) |
+| `Bob` (studs), `BobPeriod` (s, default 3) | Model in Workspace.Map or Workspace.Bases | rises and falls and rolls a little about its pivot (boats, buoys, the float lines, drifting crates, lily clusters; never something to stand on) |
 | `Sway` (° amplitude), `SwayAxis` (string "X" / "Y" / "Z": the pivot's local axis, default "X"), `SwayPeriod` (s, default 3) | Model or BasePart (parts parented under a swaying part ride on it), in Workspace.Map or Workspace.Bases | swings to and fro about the pivot (the hang point), phase hashed from the pivot position, amplitude × the wind gust (0.6–1.4, gusts travel across the map along the wind): flags and pennants (`Y` about the pole: `Flag.Cloth`, Props.flagPole's `Cloth`, gateway/landmark/nature flags), bunting and festoons (`Z` along the rope), lamp banners and hanging baskets, the pier's pennant string, net, drying fish, hung buoys, wind chime, windsock (`Y`), weathervanes (`Y`, 25°), palm trees (1.2° about the foot), reeds and kelp (about the bed) |
 | `Pulse` (transparency amplitude), `PulsePeriod` (s) | Model (every part in it) | transparency breathes around the parts' own value, phase travelling with position (`Map.Shore.Foam`) |
 | `Drift` (studs/s) | Model under Map.Sky | circles slowly round the island centre (the clouds) |
@@ -276,7 +309,7 @@ Without an attribute (found by name, so builders keep them that way):
 |---|---|---|
 | chase lights | `Neon` parts named `…Bulb<n>` / `…Bulbs<n>` (≥ 2 under one parent; inside Spin / Sway models too) | marquee: 2 on / 2 off marching 6 steps a second (2-bulb sets blink in turn), off = Transparency 0.55 (Ferris wheel rim, fair festoon, fair arch) |
 | wind | ParticleEmitters named `Smoke`, `Mist`, `Petals`, `Steam`, `Leaves` | `WindAffectsDrag` on (Drag raised to 0.3–0.5 if lower); the client sets `Workspace.GlobalWind` from the gust |
-| foam rings | every `Bob` model on the water (pivot within 4 studs of WaterTop) | an oval ring (SurfaceGui) round the hull = parts crossing the waterline, thin ropes / moorings (< 0.35 × > 2.5 studs) and masts left out; pier `Post`s crossing the water get a round one |
+| foam rings | every `Bob` model on the water (pivot within 4 studs of WaterTop) | an oval ring (SurfaceGui) round the hull = parts crossing the waterline (all 8 corners: an upright cylinder float counts), thin ropes / moorings (< 0.35 × > 2.5 studs) and masts left out, hulls under 1.4 studs none; pier `Post`s crossing the water get a round one; the breathing (stroke only) is written only when it changed by 0.05+ (checked 2× a second) |
 | waterfall flow | parts `Curtain<i>_<j>` in `Landmarks.Waterfall.Waterfall` | a Beam down the front face (texture streaming down) |
 | butterflies | parts named `…Bloom…` (not `…Eye`), ≥ 3 in a 16-stud cell = a flower bed | up to 6 butterflies flutter round the beds nearest the camera |
 
@@ -348,8 +381,11 @@ waterfall pond and the peak's foot.
 * **Nature** — voxel forests on the hills (pine/oak/cherry/autumn groves by noise), palms
   near the outer beaches, bushes, flowers, rocks, mushrooms. Never on reserved ground.
 * **Lagoon** — sailboats, rowboats, buoys, lily pads near shores; surf and wet sand along every
-  sand edge, beach stories on the ring and hub beaches, a line of red and white floats either
-  side of every base's fishing water (base-local |x| 34), kelp and sunken chests on the slope.
+  sand edge (the surf a row of white LEGO plates — dashes ~7 studs, 2.5-stud gaps, two widths,
+  the top 0.27 over the water, above the wave crests), beach stories on the ring and hub beaches,
+  three big LEGO round floats (1.6 studs, red / white with a band) either side of every base's
+  cast lane where the player looks while waiting (base-local x −27 / +28.5, z −84 … −112; v3 fix
+  W2, W5), kelp and sunken chests on the slope.
   The **cast clear zone** of every pier (base-local x −6 … 16, z −72 … −115) has nothing above the
   water; nothing of the shore kit within 26 studs of a pier's axis out to z −92 (pier, boat,
   cast).

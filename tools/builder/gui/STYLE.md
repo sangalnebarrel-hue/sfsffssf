@@ -344,7 +344,8 @@ timers. Stagger groups by 0.03–0.06 s.
   rarity-coloured sparkle trail; it flexes and beats its tail, water drips off it) to above the
   fisher's head — `OwnFishLanded` fires the frame it lands — then the crisp burst (white pop, star
   of thin rays, halo), a nameplate
-  (rarity, name, mutation, price; sized in studs + pixels; above the fish for others, popping in
+  (rarity — Rare and up —, name, mutation, price; a Common fish: name and price, bigger; Nunito
+  Heavy with a thick round Ink outline; sized in studs + pixels; above the fish for others, popping in
   at the landing; beside it — to the right — for your own, hidden while the catch is on screen:
   under the title it would repeat the word, by the card show the final price early) and the
   rarity aura around the held fish for `FishingRules.HoldFishTime(rarity)` s (≈ 3 s longer than the
@@ -402,7 +403,14 @@ timers. Stagger groups by 0.03–0.06 s.
 - At most ~60 temporary GUI objects alive at once from effects (confetti 40 max on phones, 60 on PC);
   everything destroyed when done. No RenderStepped/Heartbeat connection while nothing animates.
 - World: at most 2 ParticleEmitters active per player at a time; parts for ripples/pillars are
-  client-side, CanCollide/CanQuery/CanTouch false, CastShadow false, destroyed after use.
+  client-side, CanCollide/CanQuery/CanTouch false, CastShadow false, destroyed after use (ripple
+  rigs — part + SurfaceGui + frames — go back to a pool of ≤ 8 per fisher and are reused).
+- World perf (v3 fixes F3/F5/F7/F9): bobbers beyond `Fx.Range` draw no line and are moved every
+  0.25 s (or on a state change), not every frame; a rainbow fish held by a character is
+  repainted ≤ 5 times a second in 12 hue steps (a step that did not change is not written) and
+  only within 60 studs — its Color rebuilds the character's merged mesh; the trophy's moving
+  PointLight (rarity / Neon glow) exists only on its fisher's own client; the shore foam rings'
+  breathing (the stroke only) is checked twice a second and written only when it changed by 0.05+.
 - Fishing world FX v3 (measured in tests/fishing_fx.test.luau): everything rides the one shared
   RenderStepped of FishingFxController (gone when nothing animates). Fish shadow: 2 parts + 1
   BulkMoveTo per bobber per frame (own always, others within `Fx.AmbientRange`); line: ≤ 6 Beam /

@@ -1174,7 +1174,9 @@ tests["nameplate and mutation aura: Rare+ fish get a nameplate; a mutation recol
 	t.eq(held:GetAttribute("Value"), fish.Value, "the server stamps the price on the held fish…")
 	t.eq(held:GetAttribute("FishId"), "Puffer", "…and what it is")
 	t.eq(plate.Adornee, held.PrimaryPart, "it follows the held fish")
-	t.eq(plate.Size, UDim2.new(4, 110, 1.25, 34), "studs + pixels: still readable from the next pier")
+	t.eq(plate.Size, UDim2.new(4, 150, 1.25, 48), "studs + pixels: still readable from the next pier")
+	t.eq(plate.Plate.FishName.FontFace.Weight, roblox.Enum.FontWeight.Heavy, "the brick UI's Heavy letters")
+	t.ok(plate.Plate.FishName.Outline.Thickness >= 3, "a thick Ink outline")
 	t.eq(plate.AlwaysOnTop, false, "not through walls")
 	t.eq(plate.MaxDistance, Fx.Range)
 	t.eq(plate.LightInfluence, 0)
@@ -1198,7 +1200,10 @@ tests["nameplate and mutation aura: Rare+ fish get a nameplate; a mutation recol
 	sim:Advance(FishingConfig.HoldFishTime.Rare, COARSE)
 	t.eq(plate.Parent, nil, "the nameplate goes with the held fish (HoldFishTime.Rare)")
 
-	-- A Common fish with a Neon mutation: no nameplate, but an aura and a cyan glow.
+	-- A Common fish with a Neon mutation: a nameplate with its name and price (no rarity line),
+	-- an aura; the cyan glow (a PointLight that walks with the fisher) only on the fisher's own
+	-- client (v3 fix F9).
+	local own = clientFx(sim, fisher)
 	forceFish(sim, "Perch", "Neon")
 	sim:Advance(FishingConfig.CastCooldown)
 	mg, startTime = startMinigame(t, sim, fisher)
@@ -1207,11 +1212,20 @@ tests["nameplate and mutation aura: Rare+ fish get a nameplate; a mutation recol
 		return findEffect(fx, fisher, "RarityAura")
 	end, FishingConfig.LeapTime + 0.5, FRAME)
 	t.ok(neon, "a mutated Common fish sparkles too")
-	local light = findEffect(fx, fisher, "RarityGlow")
-	t.ok(light and light:IsA("PointLight"), "Neon glows")
+	t.eq(findEffect(fx, fisher, "RarityGlow"), nil, "no moving light for another player's trophy")
+	local light = sim:WaitFor(function()
+		return findEffect(own, fisher, "RarityGlow")
+	end, 0.5, FRAME)
+	t.ok(light and light:IsA("PointLight"), "Neon glows (own client)")
 	t.eq(light.Brightness, 3)
 	t.ok(colorNear(light.Color, UIConfig.Mutations.Neon.Top), "cyan")
-	t.eq(findEffect(fx, fisher, "Nameplate"), nil, "Common: no nameplate")
+	local commonPlate = sim:WaitFor(function()
+		return findEffect(fx, fisher, "Nameplate")
+	end, 0.5, FRAME)
+	t.ok(commonPlate ~= nil, "Common: a nameplate too (v3 fix WOW-5)")
+	t.eq(commonPlate.Plate:FindFirstChild("Rarity"), nil, "Common: no rarity line")
+	t.eq(commonPlate.Plate.FishName.Text, "Окунь-полосатик")
+	t.ok(commonPlate.Plate:FindFirstChild("Price") ~= nil, "…and its price")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -1255,10 +1269,76 @@ tests["rainbow painter: Heartbeat only while a rainbow fish is out; far fish are
 	local n1, f1 = color(nearPart), color(farPart)
 	t.ok(math.abs(n0.R - n1.R) + math.abs(n0.G - n1.G) + math.abs(n0.B - n1.B) > 0.03, "a near one shimmers")
 	t.ok(colorNear(f0, f1), "one beyond Fx.Range is left alone")
+	-- v3 fix F3: a rainbow fish in a character's hands (HeldFish) is repainted at most
+	-- RAINBOW_HELD_RATE (5) times a second, in hue steps, and only within FX.LifeNear
+	local held = template:Clone()
+	held.Name = "RainbowHeld" -- (not "HeldFish": FishLife would try to animate it)
+	held:PivotTo(viewer.Character.HumanoidRootPart.CFrame + Vector3.new(0, 4, 0))
+	held.Parent = viewer.Character
+	local heldPart = part(held)
+	local changes, last = 0, color(heldPart)
+	for _ = 1, 60 do -- 1 s of frames
+		sim:Advance(1 / 60)
+		local c = color(heldPart)
+		if not colorNear(c, last) then
+			changes += 1
+			last = c
+		end
+	end
+	t.ok(changes >= 2 and changes <= 6, `held: repainted {changes} times in 1 s (≤ 5 Hz, stepped)`)
+	held:Destroy()
 	near:Destroy()
 	far:Destroy()
 	sim:Advance(0.1)
 	t.eq(heartbeats(), idle, "no rainbow fish out: no Heartbeat (the templates do not count)")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["far bobbers (beyond Fx.Range): no line, moved a few times a second; ripples reuse their rigs"] = function(t)
+	local sim = boot(t)
+	local fisher = addPlayer(sim, 1)
+	local far = addPlayer(sim, 2)
+	ready(sim, fisher)
+	-- the far watcher across the lagoon (the opposite base, ~ 500 studs)
+	local spot = spotOf(sim, fisher).Position
+	sim:Teleport(far, Vector3.new(-spot.X, spot.Y + 3, -spot.Z))
+	local own, other = clientFx(sim, fisher), clientFx(sim, far)
+	sim:FireServer(fisher, "FishingCast")
+	sim:Advance(FishingConfig.CastWindUp + FishingConfig.CastFlightTime + 0.6)
+	local mine, theirs = own.GetBobber(fisher), other.GetBobber(fisher)
+	t.ok(mine and theirs, "both clients have the bobber")
+	local function beamOf(model: any): any
+		return model:FindFirstChildWhichIsA("Beam", true)
+	end
+	t.eq(beamOf(mine).Enabled, true, "near: the line is drawn")
+	t.eq(beamOf(theirs).Enabled, false, "far: no line across the lagoon")
+	-- far: PivotTo at most every FAR_PIVOT (0.25 s) — count the moves over one second
+	local root = theirs.PrimaryPart or theirs:FindFirstChildWhichIsA("BasePart")
+	local moves, last = 0, root.Position
+	for _ = 1, 60 do
+		sim:Advance(1 / 60)
+		local p = root.Position
+		if (p - last).Magnitude > 1e-4 then
+			moves += 1
+			last = p
+		end
+	end
+	t.ok(moves <= 5, `far bobber moved {moves} times in 1 s (≤ 4–5)`)
+	-- ripples: the rigs go back to the fisher's pool and come out again (no new Instances)
+	local seen = {}
+	for _ = 1, 10 do
+		sim:Advance(Fx.RippleEvery)
+		for _, instance in own.GetEffects(fisher) do
+			if instance.Name == "Ripple" then
+				seen[instance] = true
+			end
+		end
+	end
+	local distinct = 0
+	for _ in seen do
+		distinct += 1
+	end
+	t.ok(distinct >= 1 and distinct <= 8, `ripple rigs reused: {distinct} distinct parts over 10 ripples`)
 	sim:AssertNoErrors({ warnings = true })
 end
 

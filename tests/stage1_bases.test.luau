@@ -216,6 +216,127 @@ tests["accent parts are painted in the base colour, AccentShade gives lighter/da
 	sim:AssertNoErrors()
 end
 
+tests["owner sign: a LEGO brick in the base colour, Heavy sticker letters, read across the lagoon"] = function(t)
+	local sim = boot(t)
+	for i = 1, 8 do
+		local model = bases(sim):FindFirstChild(`Base_{i}`)
+		local color = BaseConfig.Colors[i].Color
+		local sign = model.Flag.Pole.SignAttachment.OwnerSign
+		t.eq(sign.MaxDistance, 500, "readable across the lagoon")
+		t.ok(sign.Size.X.Scale > 0 and sign.Size.X.Offset > 0, "studs + pixels")
+		-- the brick plate and its studs in the base colour (Accent GUI objects: BaseService), the lip darker
+		t.eq(sign.Plate.BackgroundColor3, color, `Base_{i}: plate in the base colour`)
+		t.eq(sign.Stud1.BackgroundColor3.R >= color.R - 1e-3, true, `Base_{i}: studs in a light shade`)
+		t.ok(luminance(sign.Plate.Lip.BackgroundColor3) < luminance(color), `Base_{i}: a darker lip`)
+		t.ok(sign.Plate:FindFirstChild("Outline") and sign.Plate.Outline.Thickness >= 3, "a thick Ink outline")
+		-- the owner's name: Heavy, a thick round Ink outline, white to cream
+		local owner = sign.OwnerLabel
+		t.eq(owner.FontFace.Weight, roblox.Enum.FontWeight.Heavy, "Heavy letters")
+		t.ok(owner.Outline.Thickness >= 3.5, "a thick outline")
+		t.eq(owner.Outline.LineJoinMode, roblox.Enum.LineJoinMode.Round, "round joins")
+		t.ok(owner:FindFirstChild("Cream") and owner.Cream:IsA("UIGradient"), "white to cream")
+		-- the gate's labels in the same style
+		local gate = model.Gate.Board.SignFront.OwnerLabel
+		t.eq(gate.FontFace.Weight, roblox.Enum.FontWeight.Heavy, "gate: Heavy letters")
+		t.ok(gate:FindFirstChild("Outline") ~= nil, "gate: an Ink outline")
+	end
+	sim:AssertNoErrors()
+end
+
+tests["sign GUIs: every SurfaceGui of a base has a MaxDistance; pedestal labels 30 px/stud within 60"] = function(t)
+	local sim = boot(t)
+	local model = bases(sim):FindFirstChild("Base_1")
+	local count = 0
+	for _, d in model:GetDescendants() do
+		if d:IsA("SurfaceGui") then
+			count += 1
+			t.ok(d.MaxDistance > 0 and d.MaxDistance <= 250, `{d:GetFullName()}: MaxDistance {d.MaxDistance}`)
+			if d.Name == "LabelGui" then
+				t.eq(d.PixelsPerStud, 30, `{d:GetFullName()}: 30 px per stud`)
+				t.eq(d.MaxDistance, 60, `{d:GetFullName()}: drawn within 60 studs`)
+			end
+		end
+	end
+	t.ok(count >= 15, `SurfaceGuis on a base: {count}`)
+	sim:AssertNoErrors()
+end
+
+tests["movers: the base's boat and every swinging detail never collide, take rays or touches"] = function(t)
+	local sim = boot(t)
+	local model = bases(sim):FindFirstChild("Base_1")
+	local movers = 0
+	for _, d in model:GetDescendants() do
+		local moving = false
+		for _, kind in { "Bob", "Sway", "Spin", "Pulse", "Drift" } do
+			local v = d:GetAttribute(kind)
+			moving = moving or (typeof(v) == "number" and v ~= 0)
+		end
+		if moving then
+			movers += 1
+			for _, p in (if d:IsA("BasePart") then { d } else d:GetDescendants()) do
+				if p:IsA("BasePart") then
+					t.ok(
+						not p.CanCollide and not p.CanQuery and not p.CanTouch,
+						`{p:GetFullName()}: moved by the client, so no collisions / rays / touches`
+					)
+				end
+			end
+		end
+	end
+	t.ok(movers >= 10, `movers on a base: {movers}`)
+	t.ok(model:FindFirstChild("Boat") and model.Boat:GetAttribute("Bob") ~= nil, "the moored boat bobs")
+	sim:AssertNoErrors()
+end
+
+tests["pavilion: out of the fishing view (phone frame from the default follow camera)"] = function(t)
+	local sim = boot(t)
+	-- the Roblox default camera 12.5 studs behind the head over the spot, 18° down, vertical FOV 70,
+	-- on a 844 x 390 phone: tan of the half angles 0.70 (vertical) and 0.70 × 844 / 390 across
+	local tanV = math.tan(math.rad(35))
+	local tanH = tanV * 844 / 390
+	local pitch = math.rad(18)
+	for i = 1, 8 do
+		local model = bases(sim):FindFirstChild(`Base_{i}`)
+		local root = model.PrimaryPart.CFrame
+		local spot = root:PointToObjectSpace(model.FishingSpot.Position)
+		local focus = roblox.Vector3.new(spot.X, spot.Y + 4.6, spot.Z)
+		local eye = focus + roblox.Vector3.new(0, 12.5 * math.sin(pitch), 12.5 * math.cos(pitch))
+		local fwd = roblox.Vector3.new(0, -math.sin(pitch), -math.cos(pitch))
+		local up = roblox.Vector3.new(0, math.cos(pitch), -math.sin(pitch))
+		for _, post in model.Pavilion:GetChildren() do
+			if post:IsA("BasePart") and post.Name == "Post" then
+				local cf = root:ToObjectSpace(post.CFrame)
+				local h = post.Size / 2
+				local inside = 0
+				-- points over the post's box (corners, edges and faces at 1/10 steps)
+				for a = 0, 10 do
+					for b = 0, 10 do
+						for _, c in { 0, 10 } do
+							for _, perm in { { a, b, c }, { a, c, b }, { c, a, b } } do
+								local q = cf
+									* roblox.Vector3.new(
+										(perm[1] / 5 - 1) * h.X,
+										(perm[2] / 5 - 1) * h.Y,
+										(perm[3] / 5 - 1) * h.Z
+									)
+								local r = q - eye
+								local depth = r:Dot(fwd)
+								local x = r.X
+								local y = r:Dot(up)
+								if depth > 0.3 and math.abs(x) <= tanH * depth and math.abs(y) <= tanV * depth then
+									inside += 1
+								end
+							end
+						end
+					end
+				end
+				t.eq(inside, 0, `Base_{i}: {post:GetFullName()} in the phone's fishing view`)
+			end
+		end
+	end
+	sim:AssertNoErrors()
+end
+
 tests["gate sign: every OwnerLabel/BaseLabel shows the owner and the base name"] = function(t)
 	local sim = boot(t)
 	for i = 1, 8 do
@@ -391,7 +512,7 @@ tests["moving details: Sway marks carry a valid axis, period and a hang point on
 			end
 		end
 		for _, p in parts do
-			t.ok(not p.CanCollide, `{p:GetFullName()}: a swinging part never collides`)
+			t.ok(not p.CanCollide and not p.CanQuery, `{p:GetFullName()}: a swinging part never collides or takes rays`)
 		end
 	end
 	t.ok(count >= 10, `swinging details on a base: {count}`)

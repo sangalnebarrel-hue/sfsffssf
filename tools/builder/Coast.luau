@@ -204,14 +204,16 @@ local function buildLagoon(map: any, cfg: any, world: any)
 		end
 	end
 	-- a floating raft, a swim platform with a slide off the hub beach, a sandbar island with a
-	-- palm and a towel and two small sandbars with a palm and a towel
+	-- palm and a towel and two small sandbars with a palm and a towel (the raft and the platform
+	-- can be stood on: they stay still and solid — a bob seen only on one client would carry a
+	-- child up and down on it while everybody else sees it still)
 	local rp = U.polar(100, 238, 0)
 	if lagoonClear(cfg, world, rp.X, rp.Z, 8, true) then
-		bob(raft(lagoon, CFrame.new(rp.X, 0, rp.Z) * CFrame.Angles(0, rad(30), 0)), 0.25, 3.6)
+		raft(lagoon, CFrame.new(rp.X, 0, rp.Z) * CFrame.Angles(0, rad(30), 0))
 	end
 	local wp = U.polar(55, cfg.HubRadius + 24, 0)
 	if lagoonClear(cfg, world, wp.X, wp.Z, 18) then
-		bob(swimPlatform(lagoon, CFrame.new(wp.X, 0, wp.Z) * CFrame.Angles(0, rad(55), 0)), 0.2, 4.0)
+		swimPlatform(lagoon, CFrame.new(wp.X, 0, wp.Z) * CFrame.Angles(0, rad(55), 0))
 	end
 	local sp = U.polar(138, 236, 0)
 	if lagoonClear(cfg, world, sp.X, sp.Z, 14) then
