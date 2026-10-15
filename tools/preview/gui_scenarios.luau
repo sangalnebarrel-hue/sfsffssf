@@ -524,7 +524,7 @@ local scenarios = {
 	},
 	{
 		name = "press_sink",
-		desc = "UI v4: «ЗАБРОСИТЬ» held down — the plate's face sinks into its side band (the caption tile stays)",
+		desc = "UI v5: «ЗАБРОСИТЬ» held down — the sim press: squashed to 0.9, the face a step darker (the caption pill stays)",
 		still = 0.1,
 		sheet = { from = 0, to = 0.3, fps = 20, roi = { "HUD.Fishing.ActionArea" }, margin = 0.04 },
 		burst = false,
