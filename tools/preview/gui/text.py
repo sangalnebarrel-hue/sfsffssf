@@ -1,14 +1,18 @@
 """Text for the GUI preview renderer: fonts, colour emoji, Roblox-like layout and TextScaled fitting.
 
 Metrics model (an approximation of Roblox's text engine, see tools/preview/README.md):
+  * Families: Montserrat (the UI font since UI v5) and Nunito, each with its italic file
+    (FontFace.Style = Italic picks it); any other family is drawn with Montserrat (Roblox maps
+    the retired Gotham onto it) and a one-time warning.
   * TextSize S is the height of one line in pixels: the font's ascent + descent (hhea) are
-    scaled to S, so the em is S / 1.364 for Nunito; the baseline sits ascent * em below the
-    line top; lines are S * LineHeight apart.
+    scaled to S, so the em is S / 1.219 for Montserrat and S / 1.364 for Nunito; the baseline
+    sits ascent * em below the line top; lines are S * LineHeight apart.
   * TextScaled picks the largest whole size <= max (UITextSizeConstraint.MaxTextSize, else 100)
     and >= min (MinTextSize, else 1) whose text, wrapped at spaces, fits the box without
     splitting a word; when nothing fits, the min size is used, words longer than the line are
     split and the text may overflow the box. TextScaled implies wrapping (as in Roblox).
-  * Characters Nunito lacks (→, ★ ...) are drawn with a fallback font (DejaVu Sans Bold).
+  * Characters the family lacks (★, ⏱ … in Montserrat; → in Nunito) are drawn with a fallback
+    font (DejaVu Sans Bold).
   * Colour emoji are Twemoji Mozilla, the font Roblox ships (content/fonts/TwemojiMozilla.ttf):
     flat shapes, rasterised by gui/twemoji.py at the text's em (1 em advance, on the baseline),
     not tinted by TextColor3. Without that font Noto Color Emoji (a 109 px bitmap strike,
@@ -27,6 +31,13 @@ from . import twemoji
 HERE = os.path.dirname(os.path.abspath(__file__))
 FONT_DIR = os.path.join(os.path.dirname(HERE), "fonts")
 NUNITO = os.path.join(FONT_DIR, "Nunito.ttf")
+MONTSERRAT = os.path.join(FONT_DIR, "Montserrat.ttf")
+# Family → (upright file, italic file); both are variable fonts (wght 200/100 … 1000/900).
+FAMILIES = {
+    "Montserrat": (MONTSERRAT, os.path.join(FONT_DIR, "Montserrat-Italic.ttf")),
+    "Nunito": (NUNITO, os.path.join(FONT_DIR, "Nunito-Italic.ttf")),
+}
+DEFAULT_FAMILY = "Montserrat"
 EMOJI_CANDIDATES = [
     os.environ.get("GUI_PREVIEW_EMOJI_FONT", ""),
     "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
@@ -124,9 +135,24 @@ def fallback_font_path():
     return None
 
 
+def family_of(family):
+    """The family actually drawn for a Roblox family name."""
+    if family in FAMILIES:
+        return family
+    warn_once(f"font family {family!r} is drawn with {DEFAULT_FAMILY}")
+    return DEFAULT_FAMILY
+
+
+def font_file(family, italic=False):
+    upright, slanted = FAMILIES[family_of(family)]
+    if italic and os.path.isfile(slanted):
+        return slanted
+    return upright
+
+
 @lru_cache(maxsize=None)
-def coverage():
-    text = _cmap_codepoints(NUNITO)
+def coverage(family=DEFAULT_FAMILY):
+    text = _cmap_codepoints(font_file(family))
     ep = emoji_font_path()
     emoji = twemoji.codepoints() if twemoji.available() else (_cmap_codepoints(ep) if ep else set())
     fp = fallback_font_path()
@@ -141,8 +167,8 @@ def _is_modifier(cp):
     return 0x1F3FB <= cp <= 0x1F3FF or 0xE0020 <= cp <= 0xE007F
 
 
-def _wants_emoji(cp, nxt):
-    text_cps, emoji_cps, _ = coverage()
+def _wants_emoji(cp, nxt, family=DEFAULT_FAMILY):
+    text_cps, emoji_cps, _ = coverage(family)
     if cp not in emoji_cps:
         return False
     if nxt == 0xFE0F:
@@ -152,16 +178,17 @@ def _wants_emoji(cp, nxt):
     return True
 
 
-def _kind(cp):
-    text_cps, _, fb = coverage()
+def _kind(cp, family=DEFAULT_FAMILY):
+    text_cps, _, fb = coverage(family)
     if cp in text_cps or cp < 0x20 or chr(cp).isspace() or cp not in fb:
         return "text"
-    return "fb"  # missing in Nunito: drawn with a fallback font (DejaVu Sans Bold), like Roblox does
+    return "fb"  # missing in the family: drawn with a fallback font (DejaVu Sans Bold), like Roblox does
 
 
-def clusters(s):
+def clusters(s, family=DEFAULT_FAMILY):
     """Split text into [(kind, text)] with kind 'text' | 'fb' (fallback font) | 'emoji';
     emoji are whole graphemes."""
+    family = family_of(family)
     cps = [ord(c) for c in s]
     out = []
     i = 0
@@ -169,7 +196,7 @@ def clusters(s):
     while i < n:
         cp = cps[i]
         nxt = cps[i + 1] if i + 1 < n else None
-        if _wants_emoji(cp, nxt):
+        if _wants_emoji(cp, nxt, family):
             j = i + 1
             if 0x1F1E6 <= cp <= 0x1F1FF and j < n and 0x1F1E6 <= cps[j] <= 0x1F1FF:
                 j += 1  # flag
@@ -184,7 +211,7 @@ def clusters(s):
             out.append(("emoji", s[i:j]))
             i = j
         else:
-            kind = _kind(cp)
+            kind = _kind(cp, family)
             if out and out[-1][0] == kind:
                 out[-1] = (kind, out[-1][1] + s[i])
             else:
@@ -199,13 +226,12 @@ def clusters(s):
 
 
 @lru_cache(maxsize=256)
-def text_font(family, weight, px):
-    """ImageFont for a Roblox family/weight at `px` em pixels (Nunito for every family)."""
-    if family not in ("Nunito",):
-        warn_once(f"font family {family!r} is drawn with Nunito")
-    f = ImageFont.truetype(NUNITO, max(1.0, round(px * 4) / 4))
+def text_font(family, weight, px, italic=False):
+    """ImageFont for a Roblox family/weight/style at `px` em pixels (Montserrat or Nunito)."""
+    f = ImageFont.truetype(font_file(family, italic), max(1.0, round(px * 4) / 4))
     try:
-        f.set_variation_by_axes([max(200, min(1000, weight))])
+        axis = f.get_variation_axes()[0]
+        f.set_variation_by_axes([max(axis["minimum"], min(axis["maximum"], weight))])
     except Exception:  # not a variable font
         pass
     return f
@@ -214,13 +240,14 @@ def text_font(family, weight, px):
 @lru_cache(maxsize=64)
 def fallback_font(px):
     p = fallback_font_path()
-    return ImageFont.truetype(p, max(1.0, round(px * 4) / 4)) if p else text_font("Nunito", 700, px)
+    return ImageFont.truetype(p, max(1.0, round(px * 4) / 4)) if p else text_font(DEFAULT_FAMILY, 700, px)
 
 
 @lru_cache(maxsize=None)
-def line_metrics():
-    """(ascent, descent) of Nunito per em."""
-    f = ImageFont.truetype(NUNITO, 1000)
+def line_metrics(family="Nunito"):
+    """(ascent, descent) per em of the family's upright font (hhea: Montserrat 0.968 / 0.251,
+    Nunito 1.011 / 0.353)."""
+    f = ImageFont.truetype(font_file(family), 1000)
     a, d = f.getmetrics()
     return a / 1000.0, d / 1000.0
 
@@ -260,8 +287,8 @@ def emoji_bitmap(cluster):
 
 
 @lru_cache(maxsize=4096)
-def _ref_width(family, weight, s):
-    return text_font(family, weight, REF).getlength(s)
+def _ref_width(family, weight, s, italic=False):
+    return text_font(family, weight, REF, italic).getlength(s)
 
 
 @lru_cache(maxsize=1024)
@@ -312,7 +339,7 @@ class Token:
         self.space = space  # a whitespace token
 
 
-def tokenize(s, family, weight):
+def tokenize(s, family, weight, italic=False):
     """Paragraphs of tokens (words and spaces), widths in em."""
     eadv = _emoji_adv_per_em()
     paras = []
@@ -322,13 +349,13 @@ def tokenize(s, family, weight):
         for piece in re.findall(r"[^\S ]+|(?:\S| )+", para):
             parts = []
             total = 0.0
-            for kind, txt in clusters(piece):
+            for kind, txt in clusters(piece, family):
                 if kind == "emoji":
                     w = eadv
                 elif kind == "fb":
                     w = _ref_width_fb(txt) / REF
                 else:
-                    w = _ref_width(family, weight, txt) / REF
+                    w = _ref_width(family, weight, txt, italic) / REF
                 parts.append((kind, txt, w))
                 total += w
             toks.append(Token(parts, total, piece.isspace() and " " not in piece))
@@ -397,7 +424,7 @@ def line_width(line):
 
 
 class Layout:
-    def __init__(self, size, em, lines, block_w, block_h, x0, y0, lh, xa, family, weight):
+    def __init__(self, size, em, lines, block_w, block_h, x0, y0, lh, xa, family, weight, italic=False):
         self.size = size  # TextSize (line height, px)
         self.em = em
         self.lines = lines
@@ -409,6 +436,7 @@ class Layout:
         self.xa = xa
         self.family = family
         self.weight = weight
+        self.italic = italic
 
 
 def layout(rec, box_w, box_h, k=1.0):
@@ -417,11 +445,12 @@ def layout(rec, box_w, box_h, k=1.0):
     s = plain_text(rec)
     if not s:
         return None
-    asc, desc = line_metrics()
+    family, weight = family_of(rec.get("font", DEFAULT_FAMILY)), int(rec.get("weight", 400))
+    italic = rec.get("style") == "Italic"
+    asc, desc = line_metrics(family)
     per_line = asc + desc
-    family, weight = rec.get("font", "Nunito"), int(rec.get("weight", 400))
     lh = float(rec.get("lh", 1) or 1)
-    paras = tokenize(s, family, weight)
+    paras = tokenize(s, family, weight, italic)
     nat_w, nat_h = box_w / max(k, 1e-6), box_h / max(k, 1e-6)
 
     def measure(size, wrap_on, info=None):
@@ -468,7 +497,7 @@ def layout(rec, box_w, box_h, k=1.0):
         if len(lines) > max_lines or width > nat_w + 0.5:
             lines = lines[:max_lines]
             last = lines[-1]
-            ell = _ref_width(family, weight, "…") / REF
+            ell = _ref_width(family, weight, "…", italic) / REF
             while last and line_width(last) + ell > nat_w / em:
                 last = last[:-1]
             last.append(Token([("text", "…", ell)], ell, False))
@@ -486,12 +515,14 @@ def layout(rec, box_w, box_h, k=1.0):
         y0 = box_h - block_h
     else:
         y0 = (box_h - block_h) / 2
-    return Layout(size_px, em_px, lines, block_w, block_h, 0.0, y0, lh, rec.get("xa", "Center"), family, weight)
+    return Layout(
+        size_px, em_px, lines, block_w, block_h, 0.0, y0, lh, rec.get("xa", "Center"), family, weight, italic
+    )
 
 
 def line_positions(lay, box_w):
     """[(x_left, baseline_y, line)] relative to the text box."""
-    asc, _ = line_metrics()
+    asc, _ = line_metrics(lay.family)
     out = []
     for i, line in enumerate(lay.lines):
         w = line_width(line) * lay.em
@@ -508,7 +539,7 @@ def line_positions(lay, box_w):
 
 def extents(lay, box_w):
     """Bounding box (x0, y0, x1, y1) of the laid-out text relative to the text box."""
-    asc, desc = line_metrics()
+    asc, desc = line_metrics(lay.family)
     xs0, xs1 = [], []
     for x, _, line in line_positions(lay, box_w):
         xs0.append(x)
@@ -525,7 +556,7 @@ def draw(lay, box_w, mask, emoji_layer, ox, oy, graphemes=-1):
     with the text box's top-left at (ox, oy) in those images. `graphemes` >= 0 limits the
     number of visible graphemes (MaxVisibleGraphemes)."""
     d = ImageDraw.Draw(mask)
-    font = text_font(lay.family, lay.weight, lay.em)
+    font = text_font(lay.family, lay.weight, lay.em, lay.italic)
     fb = fallback_font(lay.em)
     eadv = _emoji_adv_per_em()
     left = graphemes if graphemes is not None and graphemes >= 0 else None
