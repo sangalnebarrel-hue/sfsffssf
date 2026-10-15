@@ -993,6 +993,43 @@ tests["toasts: Legendary is a gold plate, Mythic a dark plate in a spinning rain
 	sim:AssertNoErrors({ warnings = true })
 end
 
+tests["toasts: on the smallest phone a long broadcast stays one line (≥ 12 px), not over the avatar's head"] = function(
+	t
+)
+	-- SIM-C1-02: on 667 x 375 the two-line (or three-line) broadcast covered the player's own head
+	-- for 4.5 s. A touch screen shrinks a long headline (down to 12 px) before it wraps.
+	local sim = boot(t)
+	local p = sim:AddPlayer({ UserId = 1, Name = "Hud1", device = "phone", viewport = roblox.Vector2.new(667, 375) })
+	sim:Advance(6)
+	for _, case in
+		{
+			{
+				"Legendary",
+				"КапитанКрюк (Лазурная база): легендарная рыба «Акулёнок»!",
+			},
+			{
+				"Mythic",
+				"КапитанКрюк (Лазурная база): мифическая радужная рыба «Рыба-дракон» ×5!",
+			},
+		}
+	do
+		local kind, text = case[1], case[2]
+		notify(sim, p, text, kind)
+		sim:Advance(1)
+		local toast = liveToasts(p)[1]
+		t.ok(toast and toast:GetAttribute("Kind") == kind, `{kind}: shown`)
+		t.eq(toast.Label.TextWrapped, false, `{kind}: the headline is one line`)
+		local fit = toast.Label:FindFirstChildOfClass("UITextSizeConstraint")
+		t.ok(fit.MinTextSize >= 12 and fit.MaxTextSize >= fit.MinTextSize, `{kind}: text ≥ 12 px`)
+		-- One headline line under the byline: the plate stays about as low as two plain lines.
+		local height = toast.AbsoluteSize.Y
+		t.ok(height <= 48, `{kind}: a one-line broadcast ({height} px)`)
+		t.ok(toast.AbsoluteSize.X <= 667 - 2 * 16, `{kind}: on screen`)
+		sim:Advance(6)
+	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
 tests["trophy chip: someone else's Legendary pillar off-screen — a small chip on that side while it burns"] = function(
 	t
 )

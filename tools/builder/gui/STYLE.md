@@ -152,7 +152,7 @@ temporary instances, cancel tweens) and accept a Trove or return a cleanup funct
 | rim flash | the face's light rim flashes solid white and fades back to `RimAlpha`, a white overlay 0.6 → 1 on the face, a breath 1 → 1.06 → 1 (`rimFlash`: the bite alert, «СМОТАТЬ», the minigame plate, the card's pedestal / banner / price, the badge on arrival, broadcast toasts) | 0.3 s |
 | morph flash | an important look change (ПОДСЕЧЬ! / ЛОВИ! / ЗАБРАТЬ!): a white overlay on the face 0.4 → 1 and the icon pops 0.6 → 1.15 → 1 | 0.2 / 0.32 s |
 | recolour | a copy of the face's OLD gradient covers it and fades while the new colours are already under it; the outline tweens to its new colour | 0.16 s |
-| breathe | a primary button's idle life (ВЗЯТЬ / ЗАБРОСИТЬ: 1.05 every 1.4 s): one slow breath 1 → peak → 1 every period, only when visible, not pressed, not punched | 1.8 s period |
+| breathe | a primary button's idle life (ВЗЯТЬ / ЗАБРОСИТЬ: 1.05 every 1.4 s, at most 5 px of growth — it grows from its bottom-left corner towards Jump): one slow breath 1 → peak → 1 every period, only when visible, not pressed, not punched | 1.8 s period |
 | shine | a white diagonal band (Transparency 1 → 0.25 → 1) sweeping Offset −1 → 1 across a button / plate | 0.6 s, every 3.5 s on the idle primary button |
 | bob | an icon hops by 8 % of its height through its AnchorPoint (Quad Out up, Bounce Out down) — position and scale stay free for other effects | 0.18 + 0.32 s, every 2.2–3.0 s |
 | sway | a slow ±1.5° rotation loop (the waiting plate «ЖДИ КЛЁВА…») | 2.4 s period |
@@ -229,9 +229,10 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   behind the letters) broadcasts are bigger plates that punch in (0.3 → 1.12 → 1) and land with a
   ring in the rarity colour, a rim flash and a gold flash of the headline, in two lines — who
   (Small, never under 14 px) over what (up to Title, the rarity word in capitals), never wider than
-  the column — 1.25 columns on a touch screen, centred, clear of Home — (the headline wraps only
-  when one line does not fit even at Body — measured per glyph, `UiFx.textWidth`: on the smallest
-  phone the plate stays low, over the avatar's head, not on it); someone else's
+  the column — 1.25 columns on a touch screen, centred, clear of Home — (measured per glyph,
+  `UiFx.textWidth`; on a touch screen a long headline first shrinks, down to 12 px, and wraps into
+  two Body lines only when even that does not fit: on the smallest phone the plate stays one line
+  tall, over the avatar's head, not on it); someone else's
   catch never washes the screen (no edge pulse); on
   phones they wait while the own trophy is held over the head; leaving: rise + fade, ≥ 0.7 s
   apart).
@@ -246,7 +247,7 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   side bands or raised studs, no empty stud holders; the fishing waves move it to the sim API and
   re-tune its looks): the action button is the star — a big round sim disc with the chunky outline
   and a gloss and an outlined emoji (ActionArea, 0.66 of the HUD height, max 320 x 240); at rest
-  ВЗЯТЬ / ЗАБРОСИТЬ breathe (1.05 every 1.4 s), shine and wiggle their icon with a little bump every
+  ВЗЯТЬ / ЗАБРОСИТЬ breathe (1.05 every 1.4 s, ≤ 5 px), shine and wiggle their icon with a little bump every
   2.8–3.6 s, and until the session's first cast a red «!» badge wobbles on the disc's upper left
   shoulder (the key chip has the right one); the waiting plate sways ±1.5°; the disc's
   colour, icon and caption (on a glass pill overlapping its bottom) change by state (ЗАБРОСИТЬ 🎣 → ЖДИ КЛЁВА… — v3 UIM-09: a muted Pond plate 15 % smaller (its caption pill keeps its width, the caption may drop to the Small tier to stay on one line), no rings (nothing to press), a bobbing float and 1–2 nibbles «?», the first wait of the session explains itself with a hint «Жди, пока клюнет — потом жми!» →
@@ -585,7 +586,7 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `bump(gui, peak?, time?)` | timers | 1.22 → 1 spring (counters, rewards) |
 | `slam(gui, from?, time?)` / `stamp(gui, rotate?, time?)` | timers | 2.2 → 1 + small shake / 3 → 1 with a −16° turn |
 | `pulse(gui, peak?, period?)` → stop | timers | 1 ↔ 1.08, Sine, 0.8 s |
-| `breathe(gui, {peak?, period?, when?})` → stop | timers | one breath 1 → 1.04 → 1 every 1.8 s while visible and at rest (the action disc: 1.05 every 1.4 s) |
+| `breathe(gui, {peak?, period?, when?})` → stop | timers | one breath 1 → 1.04 → 1 every 1.8 s while visible and at rest (the action disc: 1.05 every 1.4 s, ≤ 5 px of growth) |
 | `bob(icon, {lift?, every?, hops?, when?})` → stop | timers | the icon hops through its AnchorPoint every 2.2–3.0 s (or `hops` times) |
 | `sway(gui, {angle?, period?})` → stop | timers | ±1.5° rotation loop (one tween) |
 | `wobbleLoop(gui, {angle?, bump?, every?})` → stop | timers | wiggle ±12° + bump 1.12 every 2.8–3.6 s |

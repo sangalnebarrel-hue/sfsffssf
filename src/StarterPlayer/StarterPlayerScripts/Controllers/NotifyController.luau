@@ -17,7 +17,8 @@
 	(Label: первое слово — редкость — заглавными; белые буквы с толстой обводкой, у легендарной
 	снизу в золото). Радуга мифической — только по обводке (она вращается): на тёмной плашке
 	белые буквы читаются; уведомление не шире колонки (на тач-экране — 1.25 колонки), длинная
-	строка «что» переносится, только если не влезает и так (ширина — по буквам, UiFx.textWidth). Чужой
+	строка «что» на тач-экране сначала мельчает (до 12 px), переносится, только если не влезает и
+	так (ширина — по буквам, UiFx.textWidth): плашка не ложится на голову персонажа. Чужой
 	улов не красит экран (никаких радужных краёв: новичок не подумает, что это он поймал).
 	Неизвестный вид — как "info".
 	look = { swatch = {Top, Bottom, Lip}?, icon = "🚩"? } заменяет цвет и значок вида.
@@ -121,6 +122,7 @@ local COLUMN_MIN = 320
 -- уровня Body, и плашка ниже — не ложится на голову персонажа (SIM-C1-02).
 local BIG_WIDE_TOUCH = 1.25
 local BYLINE_MIN = 14 -- «кто» не мельче стольких px (v3, UIM-06)
+local BIG_ONE_LINE = 12 -- «что» на тач-экране сжимается до стольких px, прежде чем переноситься
 local BIG_OUTLINE = 4 -- обводка букв громкого уведомления (при 720 px; на телефоне ≈ 2.6 px)
 local RIM_THICK = 1.4 -- радужная обводка мифической толще обычной во столько раз
 local BIG_PAD = 0.9 -- доля высоты плашки под строки (остальное — поля)
@@ -216,7 +218,7 @@ local function reflow()
 		local quad, out = Enum.EasingStyle.Quad, Enum.EasingDirection.Out
 		UiFx.tween(toast.frame, 0.28, { Size = UDim2.fromScale(width, toast.height) }, quad, out)
 		if not toast.entering and toast.frame.Position ~= slotPosition(index) then
-			-- Соседи съезжают на новое место с лёгким перелётом (Back Out): «кирпичики» пружинят.
+			-- Соседи съезжают на новое место с лёгким перелётом (Back Out): плашки пружинят.
 			UiFx.tween(toast.frame, 0.3, { Position = slotPosition(index) }, Enum.EasingStyle.Back, out)
 		end
 	end
@@ -356,20 +358,29 @@ local function bigLayout(text: string): BigLayout
 	local function width(line: string?, px: number): number
 		return if line then UiFx.textWidth(line, px) else 0
 	end
-	-- «Что» в одну строку (на тач-экране — мельче, но не мельче Body), иначе в две. Ширина — по
-	-- буквам (UiFx.textWidth): «ЛЕГЕНДАРНАЯ рыба «Акулёнок»!» — заглавные только в первом слове;
-	-- оценка «все заглавные» переносила её на маленьком телефоне в три строки на голову персонажа.
-	local lines = if width(headline, if touch then body else title) > room then 2 else 1
-	local need = math.max(width(byline, small), width(headline, title) / lines)
+	-- «Что» в одну строку; на тач-экране — мельче (до BIG_ONE_LINE px), но в одну: плашка в две
+	-- строки на коротком экране ложится на голову персонажа (SIM-C1-02); не влезает и так — две
+	-- строки уровня Body. Ширина — по буквам (UiFx.textWidth): «ЛЕГЕНДАРНАЯ рыба «Акулёнок»!» —
+	-- заглавные только в первом слове (оценка «все заглавные» переносила её в три строки).
+	local head, lines = title, 1
+	if width(headline, title) > room then
+		local fits = math.floor(room / math.max(width(headline, 1), 1))
+		if touch and fits >= BIG_ONE_LINE then
+			head = math.min(fits, title)
+		else
+			head, lines = if touch then body else title, 2
+		end
+	end
+	local need = math.max(width(byline, small), width(headline, head) / lines)
 	local natural = math.clamp(need / (LABEL_SHARE * 0.94) / area.X, MIN_WIDTH, widest)
-	local px = ((if byline then small else 0) + title * lines) * BIG_LINE / BIG_PAD
+	local px = ((if byline then small else 0) + head * lines) * BIG_LINE / BIG_PAD
 	return {
 		natural = natural,
 		height = px / area.Y,
 		byline = byline,
 		headline = headline,
 		lines = lines,
-		head = title,
+		head = head,
 	}
 end
 
@@ -407,7 +418,9 @@ local function dressBig(frame: Frame, label: TextLabel, style: ToastKind, layout
 	label:SetAttribute("TextTier", nil) -- размер — по месту (Title … Body), не по шкале
 	local fit = label:FindFirstChildOfClass("UITextSizeConstraint") or Instance.new("UITextSizeConstraint")
 	fit.MaxTextSize = title
-	fit.MinTextSize = math.min(body, title)
+	-- Не мельче Body; «что», сжатое в одну строку мельче Body, — с запасом на ошибку оценки ширины
+	-- по буквам, но не мельче BIG_ONE_LINE px.
+	fit.MinTextSize = if title < body then math.max(title - 2, BIG_ONE_LINE) else body
 	fit.Parent = label
 	local outline = label:FindFirstChild("Outline")
 	if outline and outline:IsA("UIStroke") then

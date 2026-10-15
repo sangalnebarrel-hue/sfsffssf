@@ -160,7 +160,10 @@ local function buildActionArea(root: any)
 		AutoButtonColor = false,
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.fromScale(0, 0.9),
+		-- (2 px left of the area's edge: with the chunky outline the disc keeps 16 px to Jump on a
+		-- 4:3 tablet and still does not slip under the square catch card; the centre column keeps
+		-- COLUMN_GAP to the area, so ≥ 20 px to the disc.)
+		Position = UDim2.new(0, -2, 0.9, 0),
 		Size = UDim2.fromScale(0.43, 0.56),
 		Visible = false,
 	}, area)

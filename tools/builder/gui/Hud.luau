@@ -55,7 +55,8 @@ local function buildBaseBanner(hud: any)
 		Active = false,
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.45), -- clear of the chat window and the status stack
+		-- (Clear of the chat window, and ≥ 16 px under the status stack on a notched phone.)
+		Position = UDim2.fromScale(0.5, 0.46),
 		Size = UDim2.fromScale(1.05, 0.3),
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 		ZIndex = 20,

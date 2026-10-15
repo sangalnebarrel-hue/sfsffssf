@@ -42,7 +42,7 @@
 	  • В мини-игре нажатие засчитывается в момент касания кнопки (MouseButton1Down), а не
 	    отпускания (двойной тап по «ПОДСЕЧЬ!» сервер не считает промахом — FishingConfig.HookTapGrace).
 	    На тач-экране так же считается касание самой панели мини-игры (Minigame.TapPad).
-	  • «СМОТАТЬ» (StopButton, красный кирпичик 1x3 с 🎣 — «смотать удочку») — пока леска в воде и рыбы на крючке нет:
+	  • «СМОТАТЬ» (StopButton, красная кнопка-плашка с 🎣 — «смотать удочку») — пока леска в воде и рыбы на крючке нет:
 	    в поклёвку и мини-игру её нет (тап мимо «ПОДСЕЧЬ!» / «ЛОВИ!» не стоит рыбы).
 	  • Поклёвка (BiteAlert): «КЛЮЁТ!» выпрыгивает из своего поплавка и летит на своё место
 	    (v3: не «удар» на весь экран поверх рыбака; если по пути заслонила бы рыбака — «выскакивает»
@@ -750,7 +750,7 @@ do
 		defaults.minigamePosition = place(ui.minigame, defaults.minigamePosition)
 
 		-- «СМОТАТЬ» над кнопкой действия: на большом тач-экране (планшет) кнопка прыжка выше —
-		-- тогда кирпичик поднимается, чтобы между ними было COLUMN_GAP; поднятая, она встаёт рядом
+		-- тогда кнопка поднимается, чтобы между ними было COLUMN_GAP; поднятая, она встаёт рядом
 		-- с колонкой кнопок справа («ДОМОЙ») — и сужается, если до неё ближе COLUMN_GAP (левый край
 		-- не двигается: слева от него — карточка улова).
 		local stop = ui.stopButton
@@ -792,7 +792,8 @@ do
 			columnLeft -= ribbonOut
 			local stopTop = stopBottom - lift - stopSize.Y
 			if stopTop < columnBottom + COLUMN_GAP then
-				narrow = math.max(math.ceil(stopRight + COLUMN_GAP - columnLeft), 0)
+				-- (+ толстая обводка «СМОТАТЬ»: она снаружи рамки.)
+				narrow = math.max(math.ceil(stopRight + COLUMN_GAP + lipStroke(stop) - columnLeft), 0)
 			end
 		end
 		assign(stop, "Position", UDim2.new(rest.X.Scale, rest.X.Offset, rest.Y.Scale, rest.Y.Offset - lift))
@@ -998,7 +999,6 @@ do
 
 	local BOBBER_CLEAR = 12
 	local OUTLINE = 6 -- обводка и «аура» редкости выступают за прямоугольник виджета, px
-	local STUD_RISE = 0.16 -- пупырки кирпичика торчат над ним на эту долю его высоты
 	local BITE_FLIGHT_SCALE = 0.35 -- «КЛЮЁТ!» вылетает из поплавка такой маленькой (enterBite)
 	local fishingFx: any = nil -- FishingFxController (берётся при первом вызове), false — нет
 
@@ -1061,8 +1061,6 @@ do
 			table.insert(keepouts, fisher)
 		end
 		local box = boxSize(gui, area.X, area.Y, restSize)
-		-- (Пупырки кирпичика над ним тоже не должны задевать рыбака.)
-		local rise = if gui:FindFirstChild("Studs") then math.ceil(box.Y * STUD_RISE) else 0
 		local cap = gui:FindFirstChildOfClass("UISizeConstraint")
 		local narrowest = if cap and cap.MinSize.X > 0 then math.min(cap.MinSize.X, box.X) else box.X
 		-- Место: внизу по центру (withDock — слева от рыбака), сдвинутое от поплавка и рыбака.
@@ -1085,10 +1083,7 @@ do
 					placed, left, right = slot, Layout.EDGE, fisher.x0
 				end
 			end
-			placed.y0 -= rise
-			local moved = Layout.avoid(placed, keepouts, { left, right }, minScale, narrowest)
-			moved.y0 += rise * (moved.y1 - moved.y0) / math.max(placed.y1 - placed.y0, 1)
-			return moved
+			return Layout.avoid(placed, keepouts, { left, right }, minScale, narrowest)
 		end
 		-- dock (мини-игра) — сразу слева; поклёвка и подсказка — слева, только если внизу рыбака
 		-- не обойти (камера рыбалки опускает его к низу кадра).
@@ -1265,7 +1260,10 @@ do
 			-- Главная кнопка «дышит» (вдох-выдох — один твин за такт, только в покое: нажатие его
 			-- прерывает), блестит, а её значок раз в ≈ 3 с качается с «вдохом» — не в такт блику.
 			-- Больше в покое на экране ничего не шевелится.
-			lookTrove:Add(UiFx.breathe(button, { peak = BREATHE_PEAK, period = BREATHE_PERIOD }))
+			-- (Кнопка растёт от левого нижнего угла — к кнопке прыжка: не больше чем на 5 px.)
+			local side = button.AbsoluteSize.X
+			local peak = if side > 1 then 1 + math.min(BREATHE_PEAK - 1, 5 / side) else BREATHE_PEAK
+			lookTrove:Add(UiFx.breathe(button, { peak = peak, period = BREATHE_PERIOD }))
 			lookTrove:Add(UiFx.wobbleLoop(icon, { angle = if look == TAKE_LOOK then 14 else 10, bump = 1.1 }))
 		end
 		if look == CAST_LOOK then

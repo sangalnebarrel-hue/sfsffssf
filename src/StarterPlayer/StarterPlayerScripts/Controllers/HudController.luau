@@ -153,7 +153,7 @@ function HudController:Start(hud: ScreenGui)
 	-- "none" — ещё не знаем (только вошли), "waiting" — в очереди, "assigned" — база есть.
 	local baseState = "none"
 	local bannerTrove = Trove.new()
-	local bannerRest = if banner then banner.Position else UDim2.fromScale(0.5, 0.45)
+	local bannerRest = if banner then banner.Position else UDim2.fromScale(0.5, 0.46)
 
 	-- Плашка «приняла» базу: подпрыгивает, ободок вспыхивает, флажок «вкручивается» и качается,
 	-- блик (только твины — момент уже отыграл баннер).
@@ -355,7 +355,7 @@ function HudController:Start(hud: ScreenGui)
 	end
 
 	-- Пока рыба летит, счётчик виден и с нулём («🐟 0» — первой рыбе есть куда лететь). На
-	-- кирпичике только число (как монеты): значок 🐟 говорит, что это улов.
+	-- счётчике только число без плашки (как монеты): значок 🐟 говорит, что это улов.
 	local function render(total: number)
 		if total > 0 or incoming ~= nil then
 			counter.Visible = true
