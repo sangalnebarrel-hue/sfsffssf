@@ -39,13 +39,22 @@ local UIConfig = loadConfig("UIConfig")
 local RETRACT_TIME = 0.45 -- FishingFxController: the bobber reels back to the rod tip
 local HINT_TIME = 3.5 -- FishingController: event hints hide after this
 
--- The look of a candy (Theme.candy / UiFx.setCandy): the face's "Fill" gradient, top and bottom,
--- and the lip colour. The fishing widgets are candies since the Candy Splash restyle
--- (tools/builder/gui/STYLE.md), so their colour is the gradient, not BackgroundColor3.
+-- The look of a candy / brick (Theme.candy / Theme.brick / UiFx.setCandy): the face's "Fill"
+-- gradient, top and bottom, and the lip (side band) colour. The fishing widgets are toy bricks
+-- (UI v4, tools/builder/gui/STYLE.md), so their colour is the gradient, not BackgroundColor3; a
+-- brick's face starts with a light cap — its Top sits at UIConfig.Brick.CapStop.
 local function candyLook(root: any): (any, any, any)
 	local face = root:FindFirstChild(root:GetAttribute("CandyFace") or "Face")
 	local keys = face.Fill.Color.Keypoints
-	return keys[1].Value, keys[#keys].Value, root.Lip.BackgroundColor3
+	local top = keys[1].Value
+	if root:GetAttribute("CandyStyle") ~= nil then
+		for _, key in keys do
+			if math.abs(key.Time - UIConfig.Brick.CapStop) < 1e-3 then
+				top = key.Value
+			end
+		end
+	end
+	return top, keys[#keys].Value, root.Lip.BackgroundColor3
 end
 
 --------------------------------------------------------------------------------

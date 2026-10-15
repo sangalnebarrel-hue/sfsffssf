@@ -12,7 +12,8 @@
 	    toasts by kind (colour, icon, width, slots, queue while fishing widgets are up — and while
 	    a hit word or a minigame ghost rises into the column, Legendary / Mythic broadcasts), the
 	    chip pointing at someone else's off-screen light pillar, the type scale (UiFx.fitText), no
-	    frame connection at idle.
+	    frame connection at idle; UI v4: the counter rolls like an odometer, the chrome stirs now and
+	    then (one widget at a time, only when calm, timers only).
 
 	The sim ignores UIListLayout alignment, so this file computes rectangles itself (rectOf).
 
@@ -1002,6 +1003,100 @@ tests["trophy chip: someone else's Legendary pillar off-screen — a small chip 
 	sim:Advance(FishingConfig.Fx.PillarTimeOther.Mythic + 0.3)
 	t.eq(#chips(), 0, "the chips go with the pillars")
 	t.eq(UiFx.activeJobs(), 0, "no frame job without chips")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["catch counter: the number rolls like an odometer on arrival"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	sim:Advance(5)
+	local counter = p.PlayerGui.HUD.Status.CatchCounter
+	p:SetAttribute("FishCaught", 2)
+	sim:Advance(1)
+	local rest = counter.Label.Position
+	p:SetAttribute("FishCaught", 3)
+	sim:Advance(0.05)
+	t.eq(counter.Label.Text, "3", "the label holds the new number at once (the contract)")
+	local ghost = counter:FindFirstChild("FxOdometer")
+	t.ok(ghost and ghost.Text == "2", "the old number rolls away as a copy")
+	t.ok(ghost and ghost.Position.Y.Scale < rest.Y.Scale, "… upwards")
+	t.ok(counter.Label.Position.Y.Scale > rest.Y.Scale, "the new number rises from below")
+	sim:Advance(0.5)
+	t.eq(counter:FindFirstChild("FxOdometer"), nil, "the copy is gone")
+	t.eq(counter.Label.Position, rest, "the number is back at rest")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["chrome micro-life: rare, one widget at a time, only when calm; timers only"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	p:SetAttribute("FishCaught", 1) -- the counter is on screen
+	sim:Advance(6) -- the base banner has flown into the badge, the welcome toast is gone
+	local hud = p.PlayerGui.HUD
+	local UiFx = sim:Require(sim:Find("ReplicatedStorage.Shared.UiFx"), p)
+	local flag = hud.Status.BaseBadge.FlagSocket
+	local fish = hud.Status.CatchCounter.Icon
+	local home = hud.RightButtons.HomeButton.Icon
+	local rest = { flag = flag.Rotation, fish = fish.Rotation, home = home.AnchorPoint }
+	local function moving(): { string }
+		local list = {}
+		if math.abs(flag.Rotation - rest.flag) > 0.5 then
+			table.insert(list, "flag")
+		end
+		if math.abs(fish.Rotation - rest.fish) > 0.5 then
+			table.insert(list, "fish")
+		end
+		if (home.AnchorPoint - rest.home).Magnitude > 0.01 then
+			table.insert(list, "home")
+		end
+		return list
+	end
+	local idle = sim:CountConnections(p)
+	-- While fishing nothing stirs.
+	p:SetAttribute("FishingState", "Waiting")
+	local stirred = false
+	for _ = 1, 200 do
+		sim:Advance(0.1)
+		if #moving() > 0 then
+			stirred = true
+		end
+	end
+	t.eq(stirred, false, "the chrome keeps still while fishing")
+	-- Calm: one widget at a time, rarely, a different one each time.
+	p:SetAttribute("FishingState", "Idle")
+	local starts: { { at: number, what: string } } = {}
+	local lastSeen: { [string]: number } = {} -- (a wiggle passes its rest between swings: one move)
+	local now = 0
+	for _ = 1, 400 do
+		sim:Advance(0.1)
+		now += 0.1
+		local list = moving()
+		t.ok(#list <= 1, `one widget at a time ({table.concat(list, ", ")})`)
+		for _, what in list do
+			if now - (lastSeen[what] or -math.huge) > 1.5 then
+				table.insert(starts, { at = now, what = what })
+			end
+			lastSeen[what] = now
+		end
+	end
+	t.ok(#starts >= 2, `the chrome comes alive now and then ({#starts} times in 40 s)`)
+	t.ok(#starts <= 6, "… but rarely")
+	local kinds = {}
+	for index, start in starts do
+		kinds[start.what] = true
+		if index > 1 then
+			t.ok(start.at - starts[index - 1].at >= 7.5, `≥ 8 s apart ({start.at - starts[index - 1].at})`)
+		end
+	end
+	local distinct = 0
+	for _ in kinds do
+		distinct += 1
+	end
+	t.ok(distinct >= 2, "different widgets take turns")
+	t.eq(UiFx.activeJobs(), 0, "no frame work")
+	t.eq(sim:CountConnections(p), idle, "no connections added")
+	t.near(flag.Rotation, rest.flag, 0.5, "the flag back at rest")
+	t.near(fish.Rotation, rest.fish, 0.5, "the fish back at rest")
 	sim:AssertNoErrors({ warnings = true })
 end
 

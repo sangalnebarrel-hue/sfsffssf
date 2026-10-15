@@ -32,6 +32,10 @@
 	    (на телефонах низ справа занят кнопкой прыжка).
 	  • Ничего не блестит «просто так»: блик у плашки — только при назначении базы, у «Домой» —
 	    когда кончился кулдаун (внимание остаётся у главной кнопки рыбалки).
+	  • UI v4: «прилёт» в счётчик — ещё и «одометр» (прошлое число уезжает вверх и тает, новое
+	    поднимается снизу с пружинкой). Плашки изредка «живут» (раз в 8–12 с, по одной, только в
+	    покое — не рыбачим, нет улова, уведомлений, и 6 с после последнего события): флажок базы
+	    качнётся, 🐟 кувыркнётся, 🏠 подпрыгнет. Одна цепочка таймеров, без покадровой работы.
 
 	Все эффекты здесь — на твинах и таймерах (кроме коротких конфетти и «+N»), HUD живёт всю
 	сессию (ResetOnSpawn = false), поэтому соединения создаются один раз.
@@ -123,6 +127,9 @@ function HudController:Start(hud: ScreenGui)
 	UiFx.fitStrokes(hud)
 	UiFx.fitText(hud)
 	UiFx.press(homeButton, { sound = "click" })
+	-- Когда в HUD что-то происходило (прилёт рыбы, база, «Домой», рыбалка): «жизнь» плашек
+	-- (в конце Start) ждёт после этого MICRO_QUIET секунд.
+	local lastActivity = os.clock()
 
 	-- Плашка базы и баннер ------------------------------------------------------------
 	-- "none" — ещё не знаем (только вошли), "waiting" — в очереди, "assigned" — база есть.
@@ -134,6 +141,7 @@ function HudController:Start(hud: ScreenGui)
 	-- объектов: момент уже отыграл баннер).
 	local function celebrateBadge()
 		UiFx.bump(badge, 1.3, 0.4)
+		UiFx.studsPop(badge, { delay = 0.12, stagger = 0.05 }) -- пупырки «защёлкиваются» по очереди
 		local socket = flagSocket
 		if socket then
 			UiFx.popIn(socket, { from = 0.4, time = 0.4, rotate = -30 })
@@ -201,6 +209,7 @@ function HudController:Start(hud: ScreenGui)
 			nameLabel.Text = `{TextUtil.upper(colorName)}!`
 		end
 		UiFx.popIn(live, { from = 0.3, time = 0.45, rotate = -6 })
+		UiFx.studsPop(live, { delay = 0.3, stagger = 0.05 })
 		bannerTrove:Add(UiFx.rays(live, {
 			colors = { WHITE, swatch.Top },
 			count = 10,
@@ -252,6 +261,7 @@ function HudController:Start(hud: ScreenGui)
 	end
 
 	local function refreshBadge()
+		lastActivity = os.clock()
 		local index = player:GetAttribute("BaseIndex")
 		local colorName = player:GetAttribute("BaseColorName")
 
@@ -318,9 +328,39 @@ function HudController:Start(hud: ScreenGui)
 		end
 	end
 
+	-- «Одометр» (UI v4): прошлое число уезжает вверх и тает, новое поднимается снизу с пружинкой
+	-- (Back Out). Label.Text — уже новое число (договор), прошлое едет копией FxOdometer.
+	local counterRest = counterLabel.Position
+	local function rollCounter(old: string)
+		local ghost = counterLabel:Clone()
+		ghost.Name = "FxOdometer"
+		ghost.Text = old
+		for _, item in ghost:GetChildren() do
+			if string.sub(item.Name, 1, 2) == "Fx" then
+				item:Destroy()
+			end
+		end
+		ghost.Position = counterRest
+		ghost.Parent = counter
+		local lift = UDim2.fromScale(0, counterLabel.Size.Y.Scale * 0.6)
+		local quad = Enum.EasingStyle.Quad
+		UiFx.tween(ghost, 0.18, { Position = counterRest - lift, TextTransparency = 1 }, quad, Enum.EasingDirection.In)
+		local outline = ghost:FindFirstChildOfClass("UIStroke")
+		if outline then
+			UiFx.tween(outline, 0.18, { Transparency = 1 }, quad, Enum.EasingDirection.In)
+		end
+		task.delay(0.2, function()
+			ghost:Destroy()
+		end)
+		counterLabel.Position = counterRest + lift
+		UiFx.tween(counterLabel, 0.25, { Position = counterRest }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+	end
+
 	-- Рыба «прилетела» в счётчик: подпрыгнуть, качнуть рыбку, «+N», тик повыше; рыба с карточки
 	-- (CounterIncoming) — в цветах своей редкости: кольцо от плашки и «+N» крупнее (уровень Button).
 	local function arrival(gained: number, rarity: string?)
+		lastActivity = os.clock()
+		rollCounter(tostring(math.max(math.floor(shown - gained), 0)))
 		local style = if rarity then UIConfig.Rarity[rarity] else nil
 		UiFx.bump(counter, if style then 1.45 else 1.3, if style then 0.45 else 0.35)
 		UiFx.wiggle(counterIcon, 14, 3, 0.5)
@@ -438,6 +478,7 @@ function HudController:Start(hud: ScreenGui)
 	end
 
 	homeButton.Activated:Connect(function()
+		lastActivity = os.clock()
 		if not ready then
 			-- Кнопка стоит в UIListLayout (позицию двигать нельзя) — «нет» покачиванием.
 			UiFx.wiggle(homeButton, 7, 2, 0.3)
@@ -483,6 +524,69 @@ function HudController:Start(hud: ScreenGui)
 			end
 		end)
 	end)
+
+	-- «Жизнь» плашек между событиями (UI v4): раз в MICRO_MIN…MICRO_MAX секунд — и только в покое
+	-- (не рыбачим, нет улова, уведомлений и баннера, MICRO_QUIET секунд после последнего события) —
+	-- оживает ОДНА плашка, по кругу: флажок базы качнётся, 🐟 счётчика кувыркнётся, 🏠 подпрыгнет.
+	-- Тихо и редко: «дышит» и блестит только главная кнопка рыбалки. Одна цепочка task.delay на
+	-- всю сессию — ни одного соединения и покадрового эффекта.
+	local MICRO_FIRST, MICRO_MIN, MICRO_MAX, MICRO_QUIET = 14, 8, 12, 6
+	local microRandom = Random.new()
+	local microTurn = 0
+	local homeAnchor = homeIcon.AnchorPoint
+	player:GetAttributeChangedSignal("FishingState"):Connect(function()
+		lastActivity = os.clock()
+	end)
+	local function calm(): boolean
+		local state = player:GetAttribute("FishingState")
+		if (state ~= nil and state ~= "Idle") or heldValue() ~= nil or os.clock() - lastActivity < MICRO_QUIET then
+			return false
+		end
+		if (banner and banner.Visible) or hud:GetAttribute("CounterIncoming") ~= nil then
+			return false
+		end
+		local toasts = hud:FindFirstChild("Toasts")
+		for _, item in if toasts then toasts:GetChildren() else {} do
+			if item:IsA("GuiObject") and item.Visible and item.Name ~= "ToastTemplate" then
+				return false
+			end
+		end
+		local fishing = hud:FindFirstChild("Fishing")
+		local card = if fishing then fishing:FindFirstChild("CatchCard") else nil
+		return not (card and card:IsA("GuiObject") and card.Visible)
+	end
+	local function microLife()
+		task.delay(microRandom:NextNumber(MICRO_MIN, MICRO_MAX), microLife)
+		if not calm() then
+			return
+		end
+		local picks: { () -> () } = {}
+		local socket = flagSocket
+		if socket and baseState == "assigned" then
+			table.insert(picks, function()
+				UiFx.wiggle(socket, 10, 3, 0.6) -- флажок «машет»
+			end)
+		end
+		if counter.Visible then
+			table.insert(picks, function()
+				UiFx.wiggle(counterIcon, 9, 2, 0.55) -- 🐟 кувыркается туда-обратно
+			end)
+		end
+		if homeButton.Visible and ready then
+			table.insert(picks, function()
+				-- 🏠 подпрыгивает (через AnchorPoint: позицию значка «топит» нажатие кнопки).
+				UiFx.tween(homeIcon, 0.18, { AnchorPoint = homeAnchor + Vector2.new(0, 0.1) })
+				task.delay(0.18, function()
+					UiFx.tween(homeIcon, 0.32, { AnchorPoint = homeAnchor }, Enum.EasingStyle.Bounce)
+				end)
+			end)
+		end
+		if #picks > 0 then
+			microTurn += 1
+			picks[(microTurn - 1) % #picks + 1]()
+		end
+	end
+	task.delay(MICRO_FIRST, microLife)
 end
 
 return HudController

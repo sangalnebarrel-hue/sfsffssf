@@ -2,14 +2,16 @@
 --[[
 	FishingController — рыбалка локального игрока: кнопка действия, поклёвка, мини-игра,
 	карточка улова и подсказки (Этап 2). Интерфейс — HUD.Fishing (tools/builder/gui/Fishing.luau),
-	стиль «Candy Splash» и вся анимация — tools/builder/gui/STYLE.md §3 и ReplicatedStorage.Shared.UiFx.
+	стиль «Кирпичики» (UI v4: все виджеты — кирпичики с пупырками) и вся анимация —
+	tools/builder/gui/STYLE.md §3 и ReplicatedStorage.Shared.UiFx.
 
 	Сервер (FishingService) решает всё сам. Клиент только просит (FishingCast / FishingHook /
 	FishingTap / FishingStop) и показывает то, что сервер прислал в FishingState
 	(протокол — в шапке RemoteNames).
 
 	  • Кнопка действия (ActionArea.ActionButton) видна, пока удочка в руке персонажа. Это
-	    большая круглая «конфета»; цвет, значок и надпись — по состоянию: «ЗАБРОСИТЬ» (Sky 🎣,
+	    большая круглая «пластина» с выпуклой пупыркой (на ней значок, надпись — на чёрной
+	    плашке); цвет, значок и надпись — по состоянию: «ЗАБРОСИТЬ» (Sky 🎣,
 	    единственная «живая» кнопка в покое: блик и лёгкое дыхание) → «ЖДЁМ…» (Water: поплавок
 	    покачивается, по кнопке расходятся круги, точки бегут, рыба 1–2 раза «пробует» наживку —
 	    кнопка вздрагивает, всплывает «?», поплавок в мире притапливается) → «ПОДСЕЧЬ!» (Sun,
@@ -24,7 +26,9 @@
 	    по карточке), а когда карточка показана целиком — «ЗАБРАТЬ!» (Leaf 👍, белые кольца:
 	    нажатие закрывает карточку, как и «Тапни — забрать!»; но не «по инерции» — не раньше
 	    CARD.Mash секунд после прошлого нажатия). Смена
-	    состояния — кнопка выскакивает; нажатие — сжимается (UiFx.press), от касания — рябь.
+	    состояния — кнопка выскакивает (на «ПОДСЕЧЬ!», «ЛОВИ!», «ЗАБРАТЬ!» ещё и белая вспышка
+	    «превращения» — UiFx.morphFlash); нажатие — пластина «тонет» в свою боковину и пружинит
+	    (UiFx.press), от касания — рябь.
 	    То же действие — тап/клик удочкой по миру (Tool.Activated; на тач-экране — не в
 	    мини-игре, не на экране улова и не с «КУДА ИДТИ?»: туда попадают и движения камеры и
 	    джойстика) и клавиша F / R2 на геймпаде
@@ -33,7 +37,7 @@
 	  • В мини-игре нажатие засчитывается в момент касания кнопки (MouseButton1Down), а не
 	    отпускания (двойной тап по «ПОДСЕЧЬ!» сервер не считает промахом — FishingConfig.HookTapGrace).
 	    На тач-экране так же считается касание самой панели мини-игры (Minigame.TapPad).
-	  • «СМОТАТЬ» (StopButton, ягодная «пилюля» с 🧵) — пока леска в воде и рыбы на крючке нет:
+	  • «СМОТАТЬ» (StopButton, красный кирпичик 1x3 с 🧵) — пока леска в воде и рыбы на крючке нет:
 	    в поклёвку и мини-игру её нет (тап мимо «ПОДСЕЧЬ!» / «ЛОВИ!» не стоит рыбы).
 	  • Поклёвка (BiteAlert): «КЛЮЁТ!» влетает «ударом», солнечная вспышка, камера на миг
 	    «приближается» (UiFx.fovPunch), края экрана светятся солнцем; всё дальше — в одном такте
@@ -116,7 +120,7 @@
 	    первый улов — счётчик появляется с «Улов: 0», прилёт — в цвете редкости).
 	  • Подстраховка: сервер ставит атрибут FishingState = "Idle" раньше события; если события
 	    ("Caught" / "Lost" / "Idle") за полсекунды так и не было — рыбалка кончается сама.
-	  • Подсказка (Hint, «пилюля» в цвет вида — тёмная 💡 / солнечная ⚠️ / ягодная 🚨, значок в
+	  • Подсказка (Hint, гладкая плитка в цвет вида — тёмная 💡 / солнечная ⚠️ / ягодная 🚨, значок в
 	    белом кружке, выскакивает, въезжая снизу на несколько px — под ней панель предметов
 	    Roblox; до двух строк): почему заброс не принят, почему
 	    рыба ушла, куда идти. Тексты причин — общие с сервером (FishingConfig.Texts). Если игрок с
@@ -179,7 +183,8 @@ type Phase = "Idle" | "Pending" | "Waiting" | "Bite" | "Reeling"
 
 -- Вид кнопки действия: цвет — токен палитры UIConfig, Ring — белый ореол (прозрачность, цвет).
 -- Glyph — значок не эмодзи, а знак текстом (белый → золотой, с обводкой): «!» поклёвки;
--- Bobber — вместо значка нарисованный поплавок (ожидание поклёвки).
+-- Bobber — вместо значка нарисованный поплавок (ожидание поклёвки); Flash — важная смена вида:
+-- плита «превращается» (белая вспышка, выпуклая пупырка выскакивает — UiFx.morphFlash).
 type Look = {
 	Name: string,
 	Caption: string,
@@ -190,6 +195,7 @@ type Look = {
 	RingColor: Color3,
 	Glyph: boolean?,
 	Bobber: boolean?,
+	Flash: boolean?,
 }
 
 local CAST_LOOK: Look = {
@@ -230,6 +236,7 @@ local BITE_LOOK: Look = {
 	Ring = 0,
 	RingColor = WHITE,
 	Glyph = true,
+	Flash = true,
 }
 local REEL_LOOK: Look = {
 	Name = "Reel",
@@ -239,6 +246,7 @@ local REEL_LOOK: Look = {
 	Key = true,
 	Ring = 0.35,
 	RingColor = WHITE,
+	Flash = true,
 }
 
 -- Надписи и цвета попаданий: от попадания к попаданию всё громче (третье и дальше — радуга),
@@ -332,6 +340,7 @@ type Ui = {
 	tapPad: GuiButton, -- касание панели мини-игры = нажатие (тач-экран)
 	biteTapPad: GuiButton, -- касание плашки «КЛЮЁТ!» = подсечка (тач-экран)
 	hintSocket: Frame,
+	pedestal: Frame, -- UI v4: подставка рыбы на карточке (кирпичик в цвет редкости)
 }
 
 -- Исходные значения из шаблона HUD (возвращаются после анимаций).
@@ -558,7 +567,7 @@ local layoutColumn, showHint, clearEventHint, setContextHint, destroyGuide, setG
 do
 	local HINT_TIME = 3.5 -- сколько висит подсказка о событии, с
 
-	-- Значок подсказки по её виду (в белом кружке) и цвет «пилюли» (палитра UIConfig).
+	-- Значок подсказки по её виду (в белом кружке) и цвет плитки (палитра UIConfig).
 	local HINT_ICONS: { [string]: string } = {
 		info = "💡",
 		warning = "⚠️",
@@ -634,11 +643,14 @@ do
 			then button * math.max(ribbon.Size.X.Scale - 1, 0) / 2
 			else 0
 		local right = width - area.X - overhang - COLUMN_GAP
-		-- Слева — джойстик; значок подсказки в кружке выступает за её левый край (а выскакивая —
-		-- с перелётом, ещё на несколько px: запас 4 px на тач-экране).
+		-- Слева — джойстик; значок подсказки в кружке выступает за её левый край вместе с обводкой
+		-- (а выскакивая — с перелётом, ещё на несколько px: запас 4 px на тач-экране).
 		local socket = ui.hintSocket
 		local hintHeight = boxSize(ui.hint, width, height).Y
-		local socketOut = socket.Size.X.Scale * hintHeight * socket.AnchorPoint.X + (if touch then 4 else 0)
+		local ring = socket:FindFirstChildOfClass("UIStroke")
+		local socketOut = socket.Size.X.Scale * hintHeight * socket.AnchorPoint.X
+			+ (if ring then ring.Thickness else 0)
+			+ (if touch then 4 else 0)
 		local left = (if touch then (if small then STICK_SMALL else STICK_BIG) else 0) + COLUMN_GAP + socketOut
 		spanLeft, spanRight = left - socketOut, right
 		-- Подсказка и мини-игра сужаются до просвета (планшет 4:3, маленький телефон); их
@@ -681,7 +693,7 @@ do
 		defaults.minigamePosition = place(ui.minigame, defaults.minigamePosition)
 
 		-- «СМОТАТЬ» над кнопкой действия: на большом тач-экране (планшет) кнопка прыжка выше —
-		-- тогда «пилюля» поднимается, чтобы между ними было COLUMN_GAP; поднятая, она встаёт рядом
+		-- тогда кирпичик поднимается, чтобы между ними было COLUMN_GAP; поднятая, она встаёт рядом
 		-- с колонкой кнопок справа («ДОМОЙ») — и сужается, если до неё ближе COLUMN_GAP (левый край
 		-- не двигается: слева от него — карточка улова).
 		local stop = ui.stopButton
@@ -757,7 +769,7 @@ do
 	-- Пока на месте подсказки доигрывает копия мини-игры (промах), подсказка ждёт (os.clock()).
 
 	-- Подсказка о событии (eventHint) важнее постоянной подсказки по месту (contextHint).
-	-- Цвет «пилюли» — по виду: предупреждение — солнечная, опасность — ягодная, остальное — тёмная.
+	-- Цвет плитки — по виду: предупреждение — солнечная, опасность — ягодная, остальное — тёмная.
 	local function renderHint(force: boolean?)
 		local hint = ui.hint
 		local text: string? = nil
@@ -1036,6 +1048,7 @@ do
 		Key = true,
 		Ring = 0.15,
 		RingColor = WHITE,
+		Flash = true,
 	}
 
 	local cooldownThread: thread? = nil -- вернёт кнопке вид «ЗАБРОСИТЬ», когда кулдаун пройдёт
@@ -1199,6 +1212,9 @@ do
 				if look.Bobber then ui.actionBobber else ui.actionIcon,
 				{ from = 0.2, time = 0.34, delay = 0.04 }
 			)
+			if look.Flash then
+				UiFx.morphFlash(button)
+			end
 		end
 	end
 
@@ -1230,6 +1246,7 @@ do
 		if stopVisible and not stop.Visible then
 			stop.Visible = true
 			UiFx.popIn(stop, { from = 0.2, time = 0.35, delay = 0.05 })
+			UiFx.studsPop(stop, { delay = 0.22, stagger = 0.04 })
 		elseif not stopVisible and stop.Visible then
 			if fishOn() and button.Visible then
 				UiFx.popOut(stop, { time = 0.14, to = 0.3, hide = true })
@@ -1655,6 +1672,9 @@ do
 		               лучи и буквы ярче.
 		  Shine        сложившееся слово один раз пробегает белый блик, с.
 		  GrowAt       баннер карточки вырастает из летящего слова на этой доле полёта (CARD.Morph).
+		  Lead, Aim    слово трогается к баннеру за Lead до карточки и долетает за Aim (v4: к её
+		               рождению оно уже у места баннера — карточка растёт под ним, не «наезжает» на
+		               слово посреди экрана; дальше это эффект FxTitleMorph, см. morphTitle).
 		  Trophy       трофей над головой «вспыхивает» через столько после «+1» в счётчике.
 	]]
 	local CLIMAX = {
@@ -1674,6 +1694,8 @@ do
 		RaysHole = 0.3,
 		Shine = 0.4,
 		GrowAt = 0.7,
+		Lead = 0.18,
+		Aim = 0.22,
 		Trophy = 0.15,
 	}
 
@@ -1691,7 +1713,7 @@ do
 	local WIDE_BELOW = 500
 	local CARD_ASPECT = 1.55 -- широкая карточка: ширина / высота
 	local CARD_TOP_GAP = 4 -- от верха HUD, px (статус под карточкой гаснет)
-	local CARD_BOTTOM_CLEAR = 92 -- от низа HUD: хотбар Roblox (65 px), 16 px и «живая» обводка, px
+	local CARD_BOTTOM_CLEAR = 95 -- от низа HUD: хотбар (65 px), 16 px и «живая» обводка (4 px × Rim), px
 	local CARD_SIDE_GAP = 16 -- до кнопок, джойстика и края экрана, px
 	local THUMBSTICK_CLEAR = 111 -- джойстик Roblox на телефоне (до 95 px слева) + зазор, px
 	local THUMBSTICK_CLEAR_BIG = 196 -- … на планшете (до 180 px слева)
@@ -1782,14 +1804,22 @@ do
 	}
 
 	local CARD_WIDE: { [string]: { [string]: any } } = {
-		Banner = { Position = UDim2.fromScale(0.5, 0.025), Size = UDim2.fromScale(1.05, 0.2) },
-		FishGlow = { Position = UDim2.fromScale(0.25, 0.6), Size = UDim2.fromScale(0.68, 0.68) },
-		Viewport = { Position = UDim2.fromScale(0.25, 0.6), Size = UDim2.fromScale(0.46, 0.72) },
-		NewStamp = { Position = UDim2.fromScale(0.15, 0.31), Size = UDim2.fromScale(0.3, 0.14) },
+		Banner = { Position = UDim2.fromScale(0.5, 0.025), Size = UDim2.fromScale(1.05, 0.19) },
+		-- UI v4, витрина-пластина: окно рыбы слева, ряд пупырок под баннером, столбик пупырок между
+		-- рыбой и столбцом справа (второй столбик не нужен — нулевой размер); рыба стоит на подставке.
+		-- (Дети лица — в долях лица: оно 0.965 высоты карточки.)
+		["Face.Window"] = { Position = UDim2.fromScale(0.03, 0.296), Size = UDim2.fromScale(0.44, 0.676) },
+		["Face.StudsTop"] = { Position = UDim2.fromScale(0.04, 0.236), Size = UDim2.fromScale(0.92, 0.036) },
+		["Face.StudsLeft"] = { Position = UDim2.fromScale(0.479, 0.32), Size = UDim2.fromScale(0.032, 0.64) },
+		["Face.StudsRight"] = { Size = UDim2.fromScale(0, 0) },
+		FishGlow = { Position = UDim2.fromScale(0.25, 0.545), Size = UDim2.fromScale(0.6, 0.6) },
+		Pedestal = { Position = UDim2.fromScale(0.25, 0.925), Size = UDim2.fromScale(0.25, 0.115) },
+		Viewport = { Position = UDim2.fromScale(0.25, 0.545), Size = UDim2.fromScale(0.42, 0.68) },
+		NewStamp = { Position = UDim2.fromScale(0.14, 0.32), Size = UDim2.fromScale(0.26, 0.12) },
 		MutationLabel = { Position = UDim2.fromScale(0.25, 0.9), Size = UDim2.fromScale(0.42, 0.12), Rotation = -4 },
-		NameLabel = { Position = UDim2.fromScale(0.73, 0.25), Size = UDim2.fromScale(0.45, 0.2) },
+		NameLabel = { Position = UDim2.fromScale(0.75, 0.272), Size = UDim2.fromScale(0.46, 0.205) },
 		-- Цена — главное число карточки: её «фишка» выше веса (крупный текст, уровень Title).
-		InfoLabel = { Position = UDim2.fromScale(0.73, 0.47), Size = UDim2.fromScale(0.42, 0.37) },
+		InfoLabel = { Position = UDim2.fromScale(0.75, 0.485), Size = UDim2.fromScale(0.42, 0.355) },
 		["InfoLabel.Weight"] = {
 			AnchorPoint = Vector2.new(0, 0),
 			Position = UDim2.fromScale(0.08, 0),
@@ -1801,7 +1831,7 @@ do
 			Size = UDim2.fromScale(0.92, 0.54),
 		},
 		-- «Тапни — забрать!» уровнем Body (≥ 14 px): чуть шире столбика (длинная строка).
-		TapHint = { Position = UDim2.fromScale(0.73, 0.96), Size = UDim2.fromScale(0.5, 0.1) },
+		TapHint = { Position = UDim2.fromScale(0.75, 0.96), Size = UDim2.fromScale(0.48, 0.1) },
 	}
 
 	-- Карточка, её лучи и заготовка «как в сборщике» (квадратная): возвращаются при смене экрана.
@@ -2363,11 +2393,18 @@ do
 				else cream
 		)
 
-		-- Баннер редкости (мифическая — радуга, её запускает openCard).
+		-- Баннер редкости и подставка рыбы — кирпичики её цвета (пупырки тоже; мифическая — радуга:
+		-- бегущая по баннеру — её запускает openCard — и пупырки всех цветов).
 		UiFx.setCandy(ui.banner, swatchOf(style))
+		UiFx.setCandy(ui.pedestal, swatchOf(style))
 		if style.Rainbow then
 			ui.bannerFill.Color = UiFx.sequence(UIConfig.Rainbow)
 			ui.bannerFill.Rotation = 0
+			UiFx.paintStuds(ui.banner, UIConfig.Rainbow)
+			UiFx.paintStuds(
+				ui.pedestal,
+				{ UIConfig.Rainbow[1], UIConfig.Rainbow[3], UIConfig.Rainbow[5], UIConfig.Rainbow[7] }
+			)
 		else
 			ui.bannerFill.Rotation = 90
 		end
@@ -2404,7 +2441,7 @@ do
 		local kg = FishingRules.FormatKg(fish.Kg)
 		local value = math.round(fish.Value)
 		ui.infoLabel.Text = `{kg} · цена {value} 💰`
-		ui.weightLabel.Text = kg
+		ui.weightLabel.Text = upper(kg) -- «2,1 КГ»: фишки — заглавными
 		ui.priceLabel.Text = "0"
 		-- Цена — главное число карточки: «витринное», по своей коробке (≈ 0.8 лица фишки) — до
 		-- CARD.PriceText × Title, не меньше Button − 2 (не уровень шкалы: fitText её не трогает).
@@ -2550,6 +2587,10 @@ do
 	-- Спрятать огромное слово: буквы, их волна и блик — прочь.
 	local function clearTitle()
 		ui.titleSlam.Visible = false
+		local ghost = ui.fishing:FindFirstChild("FxTitleMorph") -- слово, тающее в баннер (morphTitle)
+		if ghost then
+			ghost:Destroy()
+		end
 		stopTitleWave()
 		for _, old in ui.titleLetters:GetChildren() do
 			old:Destroy()
@@ -2762,12 +2803,12 @@ do
 	-- (слово почти на месте) баннер вырастает из него (onGrow; надпись баннера проявляется
 	-- следом), а слово тает за 0.08 с — оно «стало» баннером, двух слов сразу не видно. Волна
 	-- букв стихает сразу.
-	local function morphTitle(time: number, onGrow: () -> ())
-		local title = ui.titleSlam
-		if not title.Visible then
-			onGrow()
-			return
-		end
+	-- Слово летит к месту надписи баннера (Cubic Out: сразу трогается — видно, куда летит, — и
+	-- мягко садится). v4: вылетает ещё до карточки (CLIMAX.Lead, полёт CLIMAX.Aim) — к рождению
+	-- карточки оно уже у места баннера, карточка растёт под ним снизу (без «наезда» посреди
+	-- экрана). title — что двигать (по умолчанию само слово; при передаче — его копия).
+	local function aimTitle(time: number, gui: GuiObject?)
+		local title = gui or ui.titleSlam
 		stopTitleWave()
 		local rootSize = ui.fishing.AbsoluteSize
 		local pos, size = cardRect(ui.rarityLabel)
@@ -2776,17 +2817,40 @@ do
 		local w = math.min(total * h, size.X * 1.15)
 		h = math.min(h, w / total)
 		local center = pos + size / 2
-		-- Cubic Out: слово сразу трогается к баннеру (видно, куда летит) и мягко в него садится.
 		UiFx.tween(title, time, {
 			Position = UDim2.fromScale(center.X / math.max(rootSize.X, 1), center.Y / math.max(rootSize.Y, 1)),
 			Size = UDim2.fromScale(w / math.max(rootSize.X, 1), h / math.max(rootSize.Y, 1)),
 		}, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out)
+	end
+
+	-- v4: с рождением карточки слово — уже переход, эффект: виджет слова убран, его копия
+	-- FxTitleMorph (как призрак FxCardOut у закрытия) досаживается в баннер за долю GrowAt и
+	-- тает в нём. Пропуск (clearTitle) убирает и копию — баннер тогда встаёт сам.
+	local function morphTitle(time: number, onGrow: () -> ())
+		local title = ui.titleSlam
+		if not title.Visible then
+			onGrow()
+			return
+		end
+		stopTitleWave()
+		local ghost = title:Clone()
+		ghost.Name = "FxTitleMorph"
+		for _, item in ghost:GetDescendants() do
+			if item.Name == "FxShine" then
+				item:Destroy()
+			end
+		end
+		UiFx.tween(title, 0, { Position = title.Position, Size = title.Size }) -- полёт виджета — прочь
+		clearTitle()
+		ghost.Parent = title.Parent
+		catchTrove:Add(ghost)
 		local growAt = time * CLIMAX.GrowAt
+		aimTitle(growAt, ghost)
 		later(catchTrove, growAt, function()
-			if not ui.card.Visible then
+			if not ui.card.Visible or ghost.Parent == nil then
 				return
 			end
-			for _, item in title:GetDescendants() do
+			for _, item in ghost:GetDescendants() do
 				if item:IsA("TextLabel") then
 					UiFx.tween(item, 0.08, { TextTransparency = 1 })
 				elseif item:IsA("UIStroke") then
@@ -2795,7 +2859,9 @@ do
 			end
 			onGrow()
 		end)
-		later(catchTrove, growAt + 0.1, clearTitle)
+		later(catchTrove, growAt + 0.1, function()
+			ghost:Destroy()
+		end)
 	end
 
 	--------------------------------------------------------------------------------
@@ -3252,9 +3318,11 @@ do
 			if value ~= shown then
 				shown = value
 				label.Text = FishingRules.FormatCoins(value)
-				if elapsed - lastTick >= 0.05 then
+				if elapsed - lastTick >= 1 / 12 then
+					-- Тик и «подскок» числа (1.06 → 1) — не чаще 12 раз в секунду: «число растёт».
 					lastTick = elapsed
 					UiFx.sound("tick", 0.18, pitchFrom + (pitchTo - pitchFrom) * k)
+					UiFx.bump(label, 1.06, 0.1)
 				end
 			end
 			return k < 1
@@ -3527,6 +3595,8 @@ do
 		name.Position = rest.name + UDim2.fromOffset(math.round(box.size.X * CARD.Slide), 0)
 		UiFx.tween(name, 0.35, { Position = rest.name }, quint, out)
 		UiFx.sound("pop", 0.5, 0.9)
+		-- Подставка рыбы «защёлкивается» пупырками, пока карточка встаёт на место.
+		UiFx.studsPop(ui.pedestal, { delay = 0.2, stagger = 0.05 })
 
 		-- Затемнение (у обычной — нет) и лучи растут вместе с карточкой.
 		local dim = ui.dim
@@ -3656,6 +3726,7 @@ do
 			local width = rest.banner.X.Scale * (if titleUp then 0.55 else 0.2)
 			banner.Size = UDim2.new(width, rest.banner.X.Offset, rest.banner.Y.Scale, rest.banner.Y.Offset)
 			UiFx.tween(banner, CARD.Grow, { Size = rest.banner }, quint, out)
+			UiFx.studsPop(banner, { delay = CARD.Grow * 0.45, stagger = 0.03 }) -- пупырки «защёлкиваются»
 			later(cardTrove, CARD.Grow * 0.6, function()
 				UiFx.glowRing(banner, { color = style.Top, scale = 1.3, thickness = 3, time = 0.4 })
 			end)
@@ -3741,6 +3812,7 @@ do
 			end
 			if not instant then
 				UiFx.sound("tick", 0.3, 1.1)
+				UiFx.studsPop(ui.priceChip, { delay = CARD.Chips + 0.12, stagger = 0.04 })
 			end
 		end)
 
@@ -4131,6 +4203,13 @@ do
 				startRays(fish, CLIMAX.RaysHole)
 				slamTitle(fish.Rarity, reveal, style)
 			end)
+			-- Слово вылетает к месту баннера за CLIMAX.Lead до карточки: она рождается под уже
+			-- улетевшим словом (не «наезжает» на него посреди экрана); баннер вырастает из него.
+			later(catchTrove, math.max(reveal.Hold - CLIMAX.Lead, CLIMAX.TitleDelay), function()
+				if ui.titleSlam.Visible and not ui.card.Visible then
+					aimTitle(CLIMAX.Aim)
+				end
+			end)
 			-- Экран чуть темнеет целиком (CLIMAX.TitleDim): лучи и буквы ярче; карточка (если она
 			-- уже не открылась) потом темнит до своего.
 			later(catchTrove, CLIMAX.TitleDim.At, function()
@@ -4370,6 +4449,7 @@ do
 		later(phaseTrove, 0.21, function()
 			UiFx.shake(alert, 0.006, 0.22)
 		end)
+		UiFx.studsPop(alert, { delay = 0.16, stagger = 0.035 }) -- пупырки «защёлкиваются» по очереди
 		UiFx.flash(ui.hud, Palette.Sun.Top, 0.22)
 		UiFx.fovPunch(-4, 0.06, 0.25)
 		UiFx.sound("swoosh", 0.4, 1.4)
@@ -4867,7 +4947,10 @@ do
 		end
 		updateMinigameFrame()
 		ui.minigame.Visible = true
-		UiFx.popIn(ui.minigame, { from = 0.6, time = 0.3 })
+		-- Плита «защёлкивается» на место (падает на несколько px и сплющивается), пупырки — по очереди.
+		UiFx.popIn(ui.minigame, { from = 0.8, time = 0.25 })
+		UiFx.snapIn(ui.minigame, { drop = 10 })
+		UiFx.studsPop(ui.minigame, { delay = 0.12, stagger = 0.018, time = 0.18 })
 		for index, pip in ui.pips do
 			if pip.Visible then
 				local star = pip:FindFirstChild("Star")
@@ -5752,6 +5835,7 @@ local function collectUi(hud: ScreenGui): Ui
 		tapPad = child(mini, "TapPad"),
 		biteTapPad = child(alert, "TapPad"),
 		hintSocket = child(hint, "IconSocket"),
+		pedestal = child(card, "Pedestal"),
 	}
 end
 

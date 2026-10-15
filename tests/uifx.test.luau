@@ -9,7 +9,8 @@
 	and the 2.5 px text outline floor, fadeOut of a ViewportFrame, glowRing stop, the hidden Shine
 	overlay. UI v2.1: rays with an empty middle (hole, growFrom) and the shockwave rings of a landing.
 	UI v3 «Кирпичики»: setCandy on bricks (the light cap, front / top / raised studs), setStuds and
-	paintStuds (studs added at runtime, rainbow studs).
+	paintStuds (studs added at runtime, rainbow studs). UI v4: brick motion — a pressed brick sinks into
+	its side band (press), snapIn, studsPop, morphFlash, countUp with bumps.
 
 	Run: lune run tools/run_tests.luau uifx
 ]]
@@ -924,6 +925,118 @@ tests["flash is rate-limited (never more than 3 per second)"] = function(t)
 		UiFx.flash(hud)
 	end)
 	t.eq(count(hud, "FxFlash"), 1, "allowed again later")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["bricks in motion: a pressed brick sinks into its side band; snap-on, studs pop, morph flash, count-up bumps"] = function(
+	t
+)
+	local sim, p = boot(t, "phone")
+	local UiFx = fxOf(sim, p)
+	local hud = p.PlayerGui.HUD
+	-- The real action button (a round plate: Face with the raised Stud, Icon on it, the caption
+	-- tile and the key chip marked NoSink), cloned into the HUD.
+	local button = hud.Fishing.ActionArea.ActionButton:Clone()
+	button.Name = "PlateStage"
+	button.Visible = true
+	button.AnchorPoint = Vector2.new(0.5, 0.5)
+	button.Position = UDim2.fromScale(0.5, 0.5)
+	button.Size = UDim2.fromScale(0.3, 0.3)
+	button.Parent = hud
+	sim:Advance(0.05)
+	local face, lip = button.Face, button.Lip
+	local rest = { face = face.Position, icon = button.Icon.Position, caption = button.Caption.Position }
+	local unbind
+	client(sim, p, function()
+		unbind = UiFx.press(button)
+	end)
+	local real = sim:Unwrap(button)
+	local ctx = sim.players.state[sim:Unwrap(p)].ctx
+	sim.proxy:fireFiltered(real, "MouseButton1Down", function(c)
+		return c == ctx
+	end, 0, 0)
+	sim:Advance(0.1)
+	t.near(button.FxScale.Scale, 0.94, 0.01, "a brick squashes a little …")
+	local sunk = face.Position.Y.Offset - rest.face.Y.Offset
+	t.ok(sunk >= 1, `… and its face sinks into the side band ({sunk} px)`)
+	t.ok(sunk <= math.ceil(button.AbsoluteSize.Y * 0.1), "… by less than the band")
+	t.eq(button.Icon.Position.Y.Offset - rest.icon.Y.Offset, sunk, "the icon rides the face")
+	t.eq(lip.Position, UDim2.new(), "the side band stays (its bottom is the brick's bottom)")
+	t.eq(button.Caption.Position, rest.caption, "NoSink: the caption tile stays put")
+	sim:FireInput(p, "InputEnded", {
+		UserInputType = roblox.Enum.UserInputType.Touch,
+		UserInputState = roblox.Enum.UserInputState.End,
+	})
+	sim:Advance(0.5)
+	t.eq(face.Position, rest.face, "the face springs back")
+	t.eq(button.Icon.Position, rest.icon)
+	t.near(button.FxScale.Scale, 1, 0.01)
+	client(sim, p, function()
+		unbind()
+	end)
+
+	-- Snap-on: drops from above, squashes on contact, springs back to its rest box.
+	local frame = stage(sim, p, "SnapStage")
+	local restPos, restSize = frame.Position, frame.Size
+	client(sim, p, function()
+		UiFx.snapIn(frame, { drop = 8 })
+	end)
+	t.eq(frame.Position, restPos - UDim2.fromOffset(0, 8), "starts 8 px above")
+	sim:Advance(0.14)
+	t.ok(frame.Size.X.Scale > restSize.X.Scale and frame.Size.Y.Scale < restSize.Y.Scale, "squashed on contact")
+	sim:Advance(0.3)
+	t.eq(frame.Position, restPos, "at rest")
+	t.near(frame.Size.X.Scale, restSize.X.Scale, 1e-3)
+	t.near(frame.Size.Y.Scale, restSize.Y.Scale, 1e-3)
+
+	-- Studs pop one by one (the bite alert's six), then all sit at 1.
+	local alert = hud.Fishing.BiteAlert:Clone()
+	alert.Visible = true
+	alert.Parent = hud
+	sim:Advance(0.05)
+	client(sim, p, function()
+		UiFx.studsPop(alert, { stagger = 0.03 })
+	end)
+	local studs = alert.Studs:GetChildren()
+	t.eq(#studs, 6)
+	for _, stud in studs do
+		t.eq(stud.FxScale.Scale, 0, `{stud.Name} starts hidden`)
+	end
+	sim:Advance(0.1)
+	t.ok(alert.Studs.Stud1.FxScale.Scale > alert.Studs.Stud6.FxScale.Scale, "left to right")
+	sim:Advance(0.5)
+	for _, stud in studs do
+		t.near(stud.FxScale.Scale, 1, 1e-3, `{stud.Name} popped`)
+	end
+
+	-- The «transform» flash: a white overlay on the face and the raised stud pops; all gone after.
+	client(sim, p, function()
+		UiFx.morphFlash(button)
+	end)
+	t.ok(face:FindFirstChild("FxMorph"), "a white flash over the face")
+	t.ok(face.Stud.FxScale.Scale < 0.9, "the raised stud pops")
+	sim:Advance(0.4)
+	t.eq(face:FindFirstChild("FxMorph"), nil, "the flash is gone")
+	t.near(face.Stud.FxScale.Scale, 1, 1e-3)
+
+	-- Count-up with bumps: the number grows and bumps, ends at 1 and the final value.
+	local label = sim:Create("TextLabel", { Name = "CountStage", Size = UDim2.fromScale(0.2, 0.1), Text = "" }, hud)
+	client(sim, p, function()
+		UiFx.countUp(label, 0, 500, 0.6, nil, { bump = true })
+	end)
+	local bumped = false
+	for _ = 1, 12 do
+		sim:Advance(0.04)
+		local scale = label:FindFirstChild("FxScale")
+		if scale and scale.Scale > 1.01 then
+			bumped = true
+		end
+	end
+	t.ok(bumped, "each new number bumps")
+	sim:Advance(0.5)
+	t.eq(label.Text, "500")
+	t.near(label.FxScale.Scale, 1, 1e-3)
+	t.eq(UiFx.activeJobs(), 0, "nothing left running")
 	sim:AssertNoErrors({ warnings = true })
 end
 

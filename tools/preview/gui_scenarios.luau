@@ -523,6 +523,24 @@ local scenarios = {
 		end,
 	},
 	{
+		name = "press_sink",
+		desc = "UI v4: «ЗАБРОСИТЬ» held down — the plate's face sinks into its side band (the caption tile stays)",
+		still = 0.1,
+		sheet = { from = 0, to = 0.3, fps = 20, roi = { "HUD.Fishing.ActionArea" }, margin = 0.04 },
+		burst = false,
+		run = function(h: any)
+			readyAtSpot(h)
+			h:advance(1)
+			-- Only the touch-down (a click would also release in the same frame).
+			local sim = h.sim
+			local button = h:gui("HUD.Fishing.ActionArea.ActionButton")
+			local ctx = sim.players.state[sim:Unwrap(h.player)].ctx
+			sim.proxy:fireFiltered(sim:Unwrap(button), "MouseButton1Down", function(c: any): boolean
+				return c == ctx
+			end, 0, 0)
+		end,
+	},
+	{
 		name = "waiting",
 		desc = "Line in the water: Water «ЖДЁМ…» with the bobbing bobber, ripples, dots, nibbles; «СМОТАТЬ»",
 		still = 1.5,

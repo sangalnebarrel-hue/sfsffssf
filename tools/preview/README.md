@@ -516,7 +516,7 @@ hotbar and between widgets), GPU fill per frame and the 12 px text floor. Made f
 critique: everything is a PNG (and a text report).
 
 ```sh
-# the standard set: 37 states x phone + desktop (stills, 17 animation sheets each, 12 bursts on
+# the standard set: 49 states x phone + desktop (stills, 26 animation sheets each, 13 bursts on
 # the phone, 2 overviews) + the checks on phone_notch, phone_small and tablet (~6.5 min on 4 cores)
 python3 tools/preview/gui_render.py --all --out /tmp/ui
 # the catch timelines (real server, world FX under the HUD, beat rulers), phone, ~1.5 min
@@ -618,6 +618,7 @@ safe area).
 | `take_rod` | tap «ВЗЯТЬ»: the rod in hand, the button pops into «ЗАБРОСИТЬ» | 0..0.8 s, action area |
 | `spot_ready` | at the spot with the rod: «ЗАБРОСИТЬ» | 0..4 s @ 6 fps (idle shine) |
 | `cast` | tap «ЗАБРОСИТЬ» → waiting | 0..1 s, action area |
+| `press_sink` | «ЗАБРОСИТЬ» held down (touch-down only): the round plate's face sinks into its side band, the caption tile stays (UI v4 brick press) | 0..0.3 s, action area |
 | `waiting` | line in the water: the Water «ЖДЁМ…» (bobber, ripples, dots, 1–2 nibbles) + «СМОТАТЬ» | 0..2.4 s, action area |
 | `bite` | «КЛЮЁТ!» slam, «!» glyphs, Sun edges, one 0.45 s beat + «ПОДСЕЧЬ!» | 0..1.2 s |
 | `minigame_common` … `minigame_mythic` | the minigame for each rarity, needle mid-run (Epic 1/2, Mythic 2/3 hits done) | legendary: 0..1 s |

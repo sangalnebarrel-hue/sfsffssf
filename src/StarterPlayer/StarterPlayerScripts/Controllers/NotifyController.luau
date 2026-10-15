@@ -23,8 +23,10 @@
 	(текст по шкале UiFx.fitText: Body); длинный текст — в две строки. Если уведомлений
 	несколько, все тянутся до ширины самого широкого (значки встают в столбик). Колонку
 	раскладывает этот модуль (без UIListLayout): новое уведомление съезжает сверху в свой слот с
-	пружинкой, значок выскакивает и качается, по «конфете» пробегает блик; «успех» и громкие —
-	со звёздочками, «опасность» — встряхивается. Без тач-экрана колонка (по центру) сужается так,
+	пружинкой, значок в белом кружке «вкручивается» (−180° → 0), когда плитка села (у
+	предупреждения и громких — потом ещё качается), по плитке пробегает блик, у громких пупырки
+	«защёлкиваются» по очереди; «успех» и громкие — со звёздочками, «опасность» — встряхивается.
+	Соседи съезжают на новые места с лёгким перелётом (Back Out). Без тач-экрана колонка (по центру) сужается так,
 	чтобы не задевать окно чата Roblox слева вверху (CHAT_RIGHT, CHAT_GAP), и при смене размера окна.
 
 	Сколько видно сразу: UIConfig.MaxToasts на компьютере, MaxToastsTouch на планшете,
@@ -39,8 +41,8 @@
 	виджет согнал с экрана в первой половине срока, встаёт в начало очереди. Когда места нет,
 	уходит самое старое из самых неважных (Priority вида; «опасность» вытесняет обычные); если
 	все на экране важнее нового — новое ждёт в очереди.
-	Уход: через Life (или UIConfig.ToastDuration) секунд уведомление чуть поднимается и тает
-	(имя "ToastLeaving"), остальные через 0.12 с съезжают вверх; уходят не чаще, чем раз в
+	Уход: через Life (или UIConfig.ToastDuration) секунд уведомление поднимается на 20 px, чуть
+	поворачивается (+4°) и тает (имя "ToastLeaving"), остальные через 0.12 с съезжают вверх; уходят не чаще, чем раз в
 	UIConfig.ToastGap секунд.
 
 	Только твины и таймеры: ни одного покадрового соединения на уведомление.
@@ -203,8 +205,9 @@ local function reflow()
 		local width = if #active >= 2 then widest else toast.natural
 		local quad, out = Enum.EasingStyle.Quad, Enum.EasingDirection.Out
 		UiFx.tween(toast.frame, 0.28, { Size = UDim2.fromScale(width, toast.height) }, quad, out)
-		if not toast.entering then
-			UiFx.tween(toast.frame, 0.28, { Position = slotPosition(index) }, quad, out)
+		if not toast.entering and toast.frame.Position ~= slotPosition(index) then
+			-- Соседи съезжают на новое место с лёгким перелётом (Back Out): «кирпичики» пружинят.
+			UiFx.tween(toast.frame, 0.3, { Position = slotPosition(index) }, Enum.EasingStyle.Back, out)
 		end
 	end
 end
@@ -247,14 +250,10 @@ local function dismiss(toast: Toast, quick: boolean?)
 	frame.Name = "ToastLeaving"
 	frame.ZIndex = math.max(frame.ZIndex - 1, 0) -- остальные проезжают поверх
 	local time = if quick then 0.15 else LEAVE_TIME
-	UiFx.tween(
-		frame,
-		time,
-		{ Position = frame.Position - UDim2.fromScale(0, toast.height * 0.15) },
-		Enum.EasingStyle.Quad,
-		Enum.EasingDirection.In
-	)
-	UiFx.tween(UiFx.scaleOf(frame), time, { Scale = 0.9 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	-- Уходит вверх на 20 px с лёгким поворотом (+4°), сжимается и тает (Quad In).
+	local quad, inDir = Enum.EasingStyle.Quad, Enum.EasingDirection.In
+	UiFx.tween(frame, time, { Position = frame.Position - UDim2.fromOffset(0, 20), Rotation = 4 }, quad, inDir)
+	UiFx.tween(UiFx.scaleOf(frame), time, { Scale = 0.92 }, quad, inDir)
 	UiFx.fadeOut(frame, time)
 	task.delay(time + 0.02, function()
 		frame:Destroy()
@@ -512,13 +511,22 @@ present = function(item: Pending)
 	-- Въезд: сверху в слот с пружиной, значок выскакивает следом, потом блик.
 	UiFx.tween(frame, ENTER_TIME, { Position = slotPosition(slot) }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 	UiFx.popIn(frame, { from = if big then 0.3 else 0.5, time = ENTER_TIME })
+	if big then
+		UiFx.studsPop(frame, { delay = ENTER_TIME * 0.7, stagger = 0.04 }) -- пупырки «защёлкиваются»
+	end
 	if socket and socket:IsA("GuiObject") then
-		UiFx.popIn(socket, { from = 0, time = 0.4, delay = 0.12, rotate = -25 })
-		trove:Add(task.delay(0.5, function()
-			if socket.Parent then
-				UiFx.wiggle(socket, if item.kind == "warning" or big then 16 else 9, 3, 0.45)
-			end
-		end))
+		-- Значок в белом кружке «вкручивается» (−180° → 0, Back Out), когда плитка села; у
+		-- предупреждения и громких новостей потом ещё и качается — сам значок в кружке (кружок
+		-- круглый: качать его незачем, а его рамка не «распухает» у края колонки).
+		UiFx.popIn(socket, { from = 0, time = 0.35, delay = 0.22, rotate = -180 })
+		if item.kind == "warning" or big then
+			trove:Add(task.delay(0.62, function()
+				local glyph = socket:FindFirstChild("Icon")
+				if glyph and glyph:IsA("GuiObject") then
+					UiFx.wiggle(glyph, 16, 3, 0.45)
+				end
+			end))
+		end
 	end
 	trove:Add(task.delay(0.3, function()
 		UiFx.shine(frame, if big then 0.8 else 0.6)

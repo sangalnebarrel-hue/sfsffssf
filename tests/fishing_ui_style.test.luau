@@ -144,18 +144,30 @@ local function colorNear(a: any, b: any, eps: number?): boolean
 	return math.abs(a.R - b.R) <= e and math.abs(a.G - b.G) <= e and math.abs(a.B - b.B) <= e
 end
 
--- The candy shows a style (palette token / rarity / mutation): face gradient and lip.
+-- The candy / brick shows a style (palette token / rarity / mutation): face gradient and lip. A
+-- brick's face starts with its light cap: its Top sits at UIConfig.Brick.CapStop.
 local function isCandy(root: any, style: any): boolean
 	local face = root:FindFirstChild(root:GetAttribute("CandyFace") or "Face")
 	local keys = face.Fill.Color.Keypoints
-	return colorNear(keys[1].Value, style.Top)
+	local top = keys[1].Value
+	if root:GetAttribute("CandyStyle") ~= nil then
+		for _, key in keys do
+			if math.abs(key.Time - UIConfig.Brick.CapStop) < 1e-3 then
+				top = key.Value
+			end
+		end
+	end
+	return colorNear(top, style.Top)
 		and colorNear(keys[#keys].Value, style.Bottom)
 		and colorNear(root.Lip.BackgroundColor3, style.Lip)
 end
 
+-- UI v4: every fishing widget is a toy brick (Theme.brick / tile / roundPlate): Lip (the side
+-- band, Ink outline designed at 4 px) behind a capped face, no glossy band.
 local function checkCandy(t: any, root: any, what: string)
 	local faceName = root:GetAttribute("CandyFace")
 	t.ok(type(faceName) == "string", `{what}: CandyFace attribute`)
+	t.ok(root:GetAttribute("CandyStyle") == "brick" or root:GetAttribute("CandyStyle") == "tile", `{what}: a brick`)
 	t.eq(root.BackgroundTransparency, 1, `{what}: transparent root`)
 	local lip, face = root:FindFirstChild("Lip"), root:FindFirstChild(faceName)
 	t.ok(lip and face, `{what}: Lip and {faceName}`)
@@ -163,9 +175,19 @@ local function checkCandy(t: any, root: any, what: string)
 	local outline = lip:FindFirstChildOfClass("UIStroke")
 	t.ok(outline and colorNear(outline.Color, UIConfig.Ink), `{what}: Ink outline on the lip`)
 	t.ok(type(outline:GetAttribute("BaseThickness")) == "number", `{what}: outline fitted to the screen`)
+	t.ok(
+		outline:GetAttribute("BaseThickness") >= 3,
+		`{what}: a thick outline ({outline:GetAttribute("BaseThickness")})`
+	)
 	local fill = face:FindFirstChild("Fill")
 	t.ok(fill and fill:IsA("UIGradient"), `{what}: Fill gradient`)
-	t.ok(face:FindFirstChild("Gloss"), `{what}: Gloss`)
+	t.eq(face:FindFirstChild("Gloss"), nil, `{what}: no glossy band (a brick)`)
+end
+
+-- Front-view studs on a brick (Theme.brick studs): how many.
+local function studCount(root: any): number
+	local holder = root:FindFirstChild("Studs")
+	return if holder then #holder:GetChildren() else 0
 end
 
 -- Every effect instance (Fx*) under the player's GUI, except the persistent FxScale UIScales.
@@ -204,26 +226,39 @@ local tests = {}
 -- Parts
 --------------------------------------------------------------------------------
 
-tests["parts: the fishing widgets are candies with their decorations; text never too small"] = function(t)
+tests["parts: the fishing widgets are toy bricks with their decorations; text never too small"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	local f = fishing(p)
 	local area = f.ActionArea
 
-	checkCandy(t, area.ActionButton, "ActionButton")
-	t.ok(isCandy(area.ActionButton, Palette.Gold), "ActionButton: painted with the «ВЗЯТЬ» look (no rod)")
-	t.ok(area.ActionButton.Ring:IsA("UIStroke"), "ActionButton.Ring halo")
-	t.eq(area.ActionButton:GetAttribute("CandyRadius"), 0.5, "a round button")
-	checkCandy(t, area.ActionButton.CaptionRibbon, "CaptionRibbon")
-	t.ok(area.ActionButton.Caption.ZIndex > area.ActionButton.CaptionRibbon.ZIndex, "caption over its ribbon")
-	t.ok(area.ActionButton.Caption:FindFirstChild("Outline"), "outlined caption")
+	-- UI v4: the action button is a round plate (a round brick with a raised centre stud that
+	-- carries the icon), its caption on a black tile; «СМОТАТЬ» a red 1x3 brick; the key chip a tile.
+	local action = area.ActionButton
+	checkCandy(t, action, "ActionButton")
+	t.ok(isCandy(action, Palette.Gold), "ActionButton: painted with the «ВЗЯТЬ» look (no rod)")
+	t.ok(action.Ring:IsA("UIStroke"), "ActionButton.Ring halo")
+	t.eq(action:GetAttribute("CandyRadius"), 0.5, "a round plate")
+	local raised = action.Face:FindFirstChild("Stud")
+	t.ok(raised and raised:GetAttribute("CandyStud") == "raised", "a raised centre stud")
+	t.ok(raised and raised.Cap:FindFirstChild("Fill"), "…with a lit cap (recoloured with the plate)")
+	checkCandy(t, action.CaptionRibbon, "CaptionRibbon")
+	t.ok(isCandy(action.CaptionRibbon, Palette.Coal), "a black caption tile")
+	t.ok(action.Caption.ZIndex > action.CaptionRibbon.ZIndex, "caption over its tile")
+	t.ok(action.Caption:FindFirstChild("Outline"), "outlined caption")
+	for _, name in { "CaptionRibbon", "Caption", "KeyChip", "TapCue", "Bobber" } do
+		t.eq(action[name]:GetAttribute("NoSink"), true, `{name} stays put when the plate sinks (press)`)
+	end
+	checkCandy(t, action.KeyChip, "KeyChip")
 	checkCandy(t, area.StopButton, "StopButton")
-	t.ok(isCandy(area.StopButton, Palette.Berry), "StopButton: a Berry pill")
+	t.ok(isCandy(area.StopButton, Palette.Berry), "StopButton: a red brick")
+	t.eq(studCount(area.StopButton), 3, "…1x3: three studs")
 	t.eq(area.StopButton.Icon.Text, "🧵")
 
 	local alert = f.BiteAlert
 	checkCandy(t, alert, "BiteAlert")
-	t.ok(isCandy(alert, Palette.Sun), "BiteAlert: Sun")
+	t.ok(isCandy(alert, Palette.Sun), "BiteAlert: an orange brick")
+	t.eq(studCount(alert), 6, "…1x6: six studs")
 	t.eq(alert.Label.Text, "КЛЮЁТ!")
 	t.ok(alert.Label:FindFirstChild("TextFill") and alert.Label:FindFirstChild("Outline"), "gradient, outlined title")
 	-- UI v2 (FUI-08): «!» glyphs — white → gold text with an Ink outline, not the ❗ emoji.
@@ -233,40 +268,67 @@ tests["parts: the fishing widgets are candies with their decorations; text never
 			side:FindFirstChild("TextFill") and side:FindFirstChild("Outline"),
 			`{side.Name}: gradient, outlined glyph`
 		)
+		t.ok(side.Outline:GetAttribute("BaseThickness") >= 5, "a thick glyph outline")
 	end
 	t.ok(alert.TimerTrack.ZIndex < alert.Timer.ZIndex, "the timer bar sits on its track")
 
+	-- The minigame: a dark stone baseplate with a row of studs seen from above along its top edge.
 	local mini = f.Minigame
 	checkCandy(t, mini, "Minigame")
-	t.ok(isCandy(mini, Palette.Night), "Minigame: a Night panel")
+	t.ok(isCandy(mini, Palette.Night), "Minigame: a dark stone plate")
+	t.eq(mini.Face.BackgroundTransparency, 0, "…opaque")
+	local row = mini.Face:FindFirstChild("StudRow")
+	t.ok(row and #row:GetChildren() >= 12, "a row of studs along its top edge")
+	t.eq(row.Stud1:GetAttribute("CandyStud"), "top", "…seen from above")
+	t.ok(row.Position.Y.Scale + row.Size.Y.Scale <= mini.Title.Position.Y.Scale, "…above the title")
 	t.ok(mini.Title:FindFirstChild("TextFill") and mini.Title:FindFirstChild("Outline"), "rarity-gradient title")
 	for i = 1, 5 do
-		t.eq(mini.Pips[`Pip{i}`].Star.Text, "★", `Pip{i} has a white star glyph (⭐ when stamped)`)
+		local pip = mini.Pips[`Pip{i}`]
+		t.eq(pip.Star.Text, "★", `Pip{i} has a white star glyph (⭐ when stamped)`)
+		t.ok(pip:FindFirstChild("Cap"), `Pip{i}: a round stud seen from above (its lit cap)`)
 	end
 	local track, zone, needle = mini.Track, mini.Track.Zone, mini.Track.Needle
 	checkCandy(t, zone, "Zone")
-	t.ok(isCandy(zone, Palette.Leaf), "Zone: a glossy Leaf candy")
+	t.ok(isCandy(zone, Palette.Leaf), "Zone: a green brick")
+	t.eq(studCount(zone), 3, "…1x3: three studs (the rider stands on them)")
 	t.ok(zone.Glow.ZIndex < zone.Lip.ZIndex, "the zone's glow is behind it")
 	t.ok(zone.Flash.ZIndex > zone.Face.ZIndex, "hit flash over the zone")
 	t.ok(needle.ZIndex > zone.ZIndex, "the needle is drawn over the zone")
-	t.ok(needle:FindFirstChildOfClass("UICorner") and needle:FindFirstChildOfClass("UIStroke"), "a candy capsule")
+	t.ok(needle:FindFirstChildOfClass("UICorner") and needle:FindFirstChildOfClass("UIStroke"), "an outlined bar")
 	t.ok(needle.Size.X.Scale <= 0.03, "the needle stays thin (the e2e bot aims with its width)")
 	t.ok(track:FindFirstChildOfClass("UIStroke"), "outlined track")
 	t.ok(mini.TimeBar.Fill:FindFirstChild("Gloss"), "glossy time bar")
 
 	checkCandy(t, f.Hint, "Hint")
-	t.ok(isCandy(f.Hint, Palette.Night), "Hint: a Night pill")
+	t.eq(f.Hint:GetAttribute("CandyStyle"), "tile", "Hint: a smooth tile")
+	t.ok(isCandy(f.Hint, Palette.Night), "Hint: dark stone")
 	t.eq(f.Hint.TextTransparency, 1, "Hint.Text is the value, Hint.Label shows it")
+	t.eq(f.Hint.IconSocket.Rotation, 0, "an upright icon in its white round tile")
 
+	-- The catch card: a white display plate — the fish in a window on a studded pedestal, studs in
+	-- the gaps, the rarity banner a long studded brick, the price a yellow studded brick.
 	local card = f.CatchCard
 	checkCandy(t, card, "CatchCard")
-	t.ok(isCandy(card, Palette.Cream), "CatchCard: a Cream card")
+	t.ok(isCandy(card, Palette.Cream), "CatchCard: a white plate")
+	t.ok(card.Face:FindFirstChild("Window"), "a display window behind the fish")
+	for _, name in { "StudsTop", "StudsLeft", "StudsRight" } do
+		local holder = card.Face:FindFirstChild(name)
+		t.ok(holder and #holder:GetChildren() >= 4, `{name}: studs in the gaps`)
+		t.eq(holder.Stud1:GetAttribute("CandyStud"), "top")
+	end
 	checkCandy(t, card.Banner, "Banner")
+	t.eq(studCount(card.Banner), 8, "a long studded banner")
+	checkCandy(t, card.Pedestal, "Pedestal")
+	t.ok(studCount(card.Pedestal) >= 3, "a studded pedestal")
+	t.ok(card.Pedestal.ZIndex < card.Viewport.ZIndex, "the fish stands in front of its pedestal")
+	t.ok(card.Pedestal.ZIndex > card.FishGlow.ZIndex, "…which stands in front of the glow")
 	checkCandy(t, card.MutationLabel, "MutationLabel")
 	checkCandy(t, card.NewStamp, "NewStamp")
 	checkCandy(t, card.InfoLabel.Weight, "Weight chip")
+	t.eq(card.InfoLabel.Weight:GetAttribute("CandyStyle"), "tile", "the weight on a grey tile")
 	checkCandy(t, card.InfoLabel.Price, "Price chip")
-	t.ok(isCandy(card.InfoLabel.Price, Palette.Gold), "price on a Gold chip")
+	t.ok(isCandy(card.InfoLabel.Price, Palette.Gold), "price on a yellow brick")
+	t.ok(studCount(card.InfoLabel.Price) >= 3, "…with studs")
 	t.ok(card.FishGlow.ZIndex < card.Viewport.ZIndex, "the glow is behind the fish")
 	t.ok(card.NameLabel:FindFirstChild("Outline") and card.NameLabel:FindFirstChild("TextFill"), "big outlined name")
 
@@ -307,7 +369,7 @@ tests["action button: a look per state (Take, Cast, Wait, Bite, Reel), pop on ch
 	-- ring every 1 s, 0.6 s long — sampled over a second).
 	t.eq(button.Visible, true)
 	t.eq(button.Caption.Text, "ВЗЯТЬ")
-	t.ok(isCandy(button, Palette.Gold), "«ВЗЯТЬ» is a Gold candy")
+	t.ok(isCandy(button, Palette.Gold), "«ВЗЯТЬ» is a yellow plate")
 	t.ok(button.Ring.Transparency < 0.5, "the ring is lit")
 	local sawRing = false
 	for _ = 1, 12 do
@@ -539,7 +601,7 @@ tests["miss: the minigame closes at once, its ghost flashes red with «МИМО!
 	t.eq(f.Hint.Visible, true, "… and the hint springs up")
 	t.eq(f.Hint.Label.Text, "Мимо! Рыба сорвалась", "the hint shows the reason")
 	t.eq(f.Hint.IconSocket.Icon.Text, "⚠️", "a warning hint")
-	t.ok(isCandy(f.Hint, Palette.Sun), "a warning is a Sun pill")
+	t.ok(isCandy(f.Hint, Palette.Sun), "a warning is an orange tile")
 
 	sim:Advance(0.4)
 	t.eq(f:FindFirstChild("FxMinigameMiss"), nil, "the ghost is gone")
@@ -641,7 +703,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 	t.ok(card.Rotation < 0, "…with a little turn")
 	t.ok(isCandy(card.Banner, UIConfig.Rarity.Common), "the banner in the rarity gradient")
 	t.eq(card.InfoLabel.Text, "840 г · цена 11 💰", "InfoLabel holds the summary at once")
-	t.eq(card.InfoLabel.Weight.Label.Text, "840 г")
+	t.eq(card.InfoLabel.Weight.Label.Text, "840 Г", "the weight chip in CAPS")
 	t.eq(price.Text, "0", "the price starts at 0")
 	t.eq(card.Banner.FxScale.Scale, 0, "the rarity waits for its beat")
 	t.eq(card.NameLabel.FxScale.Scale, 1, "the name is born with the card (no blank right half)")
@@ -764,14 +826,20 @@ tests["catch: Legendary and Mythic are louder — tension, a crisp burst at the 
 	t.eq(count(f.CatchRays, "FxRays"), 2, "Legendary: an extra ring of rays")
 	t.ok(isCandy(card.Banner, UIConfig.Rarity.Legendary), "Legendary banner")
 	sim:Advance(0.1)
-	local titleY = f.TitleSlam.Position.Y.Scale
-	t.ok(f.TitleSlam.Visible and titleY < 0.55, `the title flies up into the banner with the card (y {titleY})`)
+	-- v4: the word left for the banner before the card (CLIMAX.Lead); once the card is born the
+	-- word is a transient effect (FxTitleMorph), the title widget is gone — never under the card.
+	t.eq(f.TitleSlam.Visible, false, "the title widget is handed off when the card is born")
+	local morph = f:FindFirstChild("FxTitleMorph")
+	local titleY = if morph then morph.Position.Y.Scale else 1
+	t.ok(morph and morph.Visible and titleY < 0.55, `…its copy settles into the banner slot (y {titleY})`)
+	t.ok(morph and #morph.Letters:GetChildren() == 12, "…the same word, letter by letter")
 	t.eq(card.Banner.FxScale.Scale, 0, "the banner waits for the title")
 	sim:Advance(0.2)
 	t.near(card.Banner.FxScale.Scale, 1, 1e-3, "the banner grows out of the arriving title (c+0.26)…")
 	t.ok(card.Banner.Size.X.Scale < 1.04, `…from narrow ({card.Banner.Size.X.Scale})`)
 	sim:Advance(0.2)
 	t.eq(f.TitleSlam.Visible, false, "the title became the banner (c+0.4)")
+	t.eq(f:FindFirstChild("FxTitleMorph"), nil, "…the melting copy is gone")
 	t.eq(#f.TitleSlam.Letters:GetChildren(), 0, "…its letters are gone")
 	t.eq(f.TitleSlam.Label.TextTransparency, 0, "…and the faded title label is reset for the next one")
 	t.ok(
@@ -1125,7 +1193,7 @@ tests["closing: skip, then close — the card itself flies into the counter, �
 	t.eq(card.InfoLabel.Price.Label.Text, "58")
 	local button = f.ActionArea.ActionButton
 	t.eq(button.Caption.Text, "ЗАБРАТЬ!", "the settled card: the button says «ЗАБРАТЬ!»")
-	t.ok(isCandy(button, Palette.Leaf), "…a Leaf candy, awake")
+	t.ok(isCandy(button, Palette.Leaf), "…a green plate, awake")
 	t.eq(counter.Visible, false, "the first catch: no counter yet")
 	sim:Advance(0.2)
 	sim:Click(p, card)
@@ -1388,7 +1456,7 @@ end
 -- Hint, idle
 --------------------------------------------------------------------------------
 
-tests["hint: a Night pill with an icon by kind, slides up with a bounce"] = function(t)
+tests["hint: a dark stone tile with an icon by kind, slides up with a bounce"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	ready(sim, p)
@@ -1398,13 +1466,13 @@ tests["hint: a Night pill with an icon by kind, slides up with a bounce"] = func
 	t.eq(hint.Text, "Жми «Забросить»")
 	t.eq(hint.Label.Text, hint.Text, "the label shows the value")
 	t.eq(hint.IconSocket.Icon.Text, "💡", "info: 💡 (in a white socket, like the toasts)")
-	t.ok(isCandy(hint, Palette.Night), "info: a Night pill")
+	t.ok(isCandy(hint, Palette.Night), "info: a dark stone tile")
 	local rest = hint.Position
 
 	serverSays(sim, p, "Denied", { Reason = "far", Text = "Подойди к краю своего пирса" })
 	t.eq(hint.Label.Text, "Подойди к краю своего пирса")
 	t.eq(hint.IconSocket.Icon.Text, "⚠️", "warning: ⚠️")
-	t.ok(isCandy(hint, Palette.Sun), "warning: a Sun pill")
+	t.ok(isCandy(hint, Palette.Sun), "warning: an orange tile")
 	-- UI v2 (M6): it slides up by a few px only (the hotbar is right under it) and pops.
 	t.near(hint.Position.Y.Scale, rest.Y.Scale, 1e-6, "slides by pixels, not by a share of the screen")
 	t.ok(hint.Position.Y.Offset > rest.Y.Offset, "slides up from below")
@@ -1417,7 +1485,7 @@ tests["hint: a Night pill with an icon by kind, slides up with a bounce"] = func
 	serverSays(sim, p, "Idle", { Reason = "stop" })
 	t.eq(hint.Label.Text, "Леска смотана")
 	t.eq(hint.IconSocket.Icon.Text, "💡", "info again")
-	t.ok(isCandy(hint, Palette.Night), "a Night pill again")
+	t.ok(isCandy(hint, Palette.Night), "a dark stone tile again")
 	sim:AssertNoErrors({ warnings = true })
 end
 

@@ -21,6 +21,9 @@
 	    Spec вместо Gloss, сверху — пупырки (рамка Studs с Stud1..n, атрибут CandyStud = "front").
 	    setCandy перекрашивает и их; setStuds добавляет / убирает пупырки на лету, paintStuds
 	    красит их по одной (радуга). Размеры кирпичика — UIConfig.Brick (те же, что у сборщика).
+	  • Движение кирпичиков (UI v4): нажатый кирпичик «тонет» в боковину (press), появляясь —
+	    «защёлкивается» (snapIn), его пупырки выскакивают по очереди (studsPop), а кнопка на
+	    важной смене вида «превращается» белой вспышкой (morphFlash). Только твины и таймеры.
 
 	Только для клиента (LocalScript-контроллеры); на сервере не используется.
 ]]
@@ -548,16 +551,70 @@ end
 --------------------------------------------------------------------------------
 
 export type PressOptions = {
-	scale: number?, -- насколько сжимать (0.88)
-	sound: string?, -- звук нажатия ("click")
+	scale: number?, -- насколько сжимать (кирпичик — 0.94: он ещё и «тонет»; остальное — 0.88)
+	sound: string?, -- звук нажатия ("click"; у кирпичика — чуть разной высоты)
+	sink: number?, -- кирпичик: на какую долю боковины «тонет» лицо (0.6; 0 — не тонет)
 }
 
--- Кнопка «сжимается» при нажатии и пружинит обратно. Возвращает функцию отвязки.
+--[[
+	Нажатие кирпичика (UI v4): лицо «тонет» в боковину — лицо, пупырки спереди и всё содержимое
+	(значок, подпись, вуаль) едут вниз на sink × глубину боковины, боковина стоит (её низ на месте),
+	потом всё пружинит обратно. Не едут: Lip, эффекты (Fx*) и дети с атрибутом NoSink (подпись
+	на своей плитке, клавиша, 👆 — и то, чьей позицией владеет другая анимация). Позиции «в покое»
+	запоминаются при нажатии (только таймеры).
+]]
+local sinkRest: { [Instance]: UDim2 } = setmetatable({}, { __mode = "k" }) :: any
+
+local function sinkParts(root: GuiObject): { GuiObject }
+	local parts: { GuiObject } = {}
+	for _, child in root:GetChildren() do
+		local name = child.Name
+		if
+			child:IsA("GuiObject")
+			and name ~= "Lip"
+			and name ~= "LipBand"
+			and string.sub(name, 1, 2) ~= "Fx"
+			and child:GetAttribute("NoSink") ~= true
+		then
+			table.insert(parts, child)
+		end
+	end
+	return parts
+end
+
+-- Глубина «утопания» лица кирпичика root в пикселях (0 — не кирпичик).
+local function sinkDepth(root: GuiObject, share: number): number
+	if root:GetAttribute("CandyStyle") == nil then
+		return 0
+	end
+	local face = UiFx.faceOf(root)
+	if face == root then
+		return 0
+	end
+	local band = math.max(1 - face.Size.Y.Scale, 0)
+	return math.round(root.AbsoluteSize.Y * band * share)
+end
+
+local function sinkTo(root: GuiObject, depth: number, time: number, style: Enum.EasingStyle)
+	for _, part in sinkParts(root) do
+		local rest = sinkRest[part]
+		if not rest then
+			rest = part.Position
+			sinkRest[part] = rest
+		end
+		tween(part, time, { Position = rest + UDim2.fromOffset(0, depth) }, style, OUT)
+	end
+end
+
+-- Кнопка «сжимается» при нажатии и пружинит обратно (кирпичик ещё и «тонет» в боковину).
+-- Возвращает функцию отвязки.
 function UiFx.press(button: GuiButton, opts: PressOptions?): Stop
 	local o: PressOptions = opts or {}
 	local scale = UiFx.scaleOf(button)
 	local pressed = false
+	local sunk = false
 	local inputEnded: RBXScriptConnection? = nil
+	local isBrick = button:GetAttribute("CandyStyle") ~= nil
 
 	local function release()
 		if inputEnded then
@@ -569,6 +626,20 @@ function UiFx.press(button: GuiButton, opts: PressOptions?): Stop
 		end
 		pressed = false
 		tween(scale, 0.25, { Scale = 1 }, BACK, OUT)
+		if sunk then
+			sunk = false
+			sinkTo(button, 0, 0.22, BACK)
+			task.delay(0.26, function()
+				if pressed then
+					return
+				end
+				for _, part in sinkParts(button) do
+					if sinkRest[part] == part.Position then
+						sinkRest[part] = nil
+					end
+				end
+			end)
+		end
 	end
 
 	local down = button.MouseButton1Down:Connect(function()
@@ -576,9 +647,14 @@ function UiFx.press(button: GuiButton, opts: PressOptions?): Stop
 			return
 		end
 		pressed = true
-		tween(scale, 0.06, { Scale = o.scale or 0.88 }, QUAD, OUT)
+		tween(scale, 0.06, { Scale = o.scale or (if isBrick then 0.94 else 0.88) }, QUAD, OUT)
+		local depth = if isBrick then sinkDepth(button, o.sink or 0.6) else 0
+		if depth > 0 then
+			sunk = true
+			sinkTo(button, depth, 0.05, QUAD)
+		end
 		if o.sound then
-			UiFx.sound(o.sound)
+			UiFx.sound(o.sound, nil, if isBrick then rng:NextNumber(0.95, 1.08) else nil)
 		end
 		-- Палец мог уйти с кнопки: отпускание ловим и вне её.
 		inputEnded = UserInputService.InputEnded:Connect(function(input: InputObject)
@@ -647,6 +723,117 @@ function UiFx.popOut(gui: GuiObject, opts: PopOutOptions?)
 			scale.Scale = 1
 		end
 	end)
+end
+
+--------------------------------------------------------------------------------
+-- Кирпичики: «защёлкнуть», пупырки по очереди, вспышка смены вида (UI v4)
+--------------------------------------------------------------------------------
+
+export type SnapOptions = {
+	drop: number?, -- с какой высоты падает, px (8)
+	delay: number?, -- задержка
+	squash: number?, -- насколько сплющивается на касании (0.06: 1.06 × 0.94)
+	sound: boolean?, -- щелчок на касании (по умолчанию да)
+}
+
+--[[
+	Кирпичик «защёлкивается» на место: падает сверху на drop px (0.12 с, Quad In), на касании
+	сплющивается (шире и ниже на squash) и пружинит (Back Out, 0.18 с), щелчок. Позиция и размер
+	«в покое» — те, что были при вызове (в UIListLayout позиция не работает: только сплющивание).
+	Только твины и таймеры.
+]]
+function UiFx.snapIn(gui: GuiObject, opts: SnapOptions?)
+	local o: SnapOptions = opts or {}
+	local drop = o.drop or 8
+	local delay = o.delay or 0
+	local squash = o.squash or 0.06
+	local restPosition, restSize = gui.Position, gui.Size
+	gui.Position = restPosition - UDim2.fromOffset(0, drop)
+	tween(gui, 0.12, { Position = restPosition }, QUAD, IN, delay)
+	task.delay(delay + 0.12, function()
+		if gui.Parent == nil then
+			return
+		end
+		local x, y = restSize.X, restSize.Y
+		gui.Size = UDim2.new(
+			x.Scale * (1 + squash),
+			math.round(x.Offset * (1 + squash)),
+			y.Scale * (1 - squash),
+			math.round(y.Offset * (1 - squash))
+		)
+		tween(gui, 0.18, { Size = restSize }, BACK, OUT)
+		if o.sound ~= false then
+			UiFx.sound("tick", 0.3, 1.3)
+		end
+	end)
+end
+
+export type StudsPopOptions = {
+	delay: number?, -- задержка первой пупырки
+	stagger: number?, -- между пупырками (0.03)
+	time: number?, -- выскакивание одной (0.22)
+	sound: boolean?, -- тихие «тики» (по умолчанию нет)
+}
+
+--[[
+	Пупырки кирпичика выскакивают по очереди слева направо (0 → ≈1.15 → 1, Back Out): все потомки
+	root с атрибутом CandyStud (спереди, сверху, выпуклая). Масштаб — UIScale "FxScale" пупырки.
+	Только твины.
+]]
+function UiFx.studsPop(root: GuiObject, opts: StudsPopOptions?)
+	local o: StudsPopOptions = opts or {}
+	local studs: { GuiObject } = {}
+	for _, item in root:GetDescendants() do
+		if item:IsA("GuiObject") and item:GetAttribute("CandyStud") ~= nil then
+			table.insert(studs, item)
+		end
+	end
+	table.sort(studs, function(a: GuiObject, b: GuiObject): boolean
+		local ax, bx = a.AbsolutePosition.X, b.AbsolutePosition.X
+		if math.abs(ax - bx) > 0.5 then
+			return ax < bx
+		end
+		return a.AbsolutePosition.Y < b.AbsolutePosition.Y
+	end)
+	local delay, stagger, time = o.delay or 0, o.stagger or 0.03, o.time or 0.22
+	for index, stud in studs do
+		local scale = UiFx.scaleOf(stud)
+		scale.Scale = 0
+		local at = delay + (index - 1) * stagger
+		tween(scale, time, { Scale = 1 }, BACK, OUT, at)
+		if o.sound and index % 2 == 1 then
+			task.delay(at, UiFx.sound, "tick", 0.12, 1.4 + 0.04 * index)
+		end
+	end
+end
+
+--[[
+	Вспышка «превращения» кирпичика (кнопка действия меняет важный вид: «ПОДСЕЧЬ!», «ЛОВИ!»,
+	«ЗАБРАТЬ!»): белая накладка на лицо 0.35 → 1 за 0.18 с (значок и подпись — поверх неё) и
+	выпуклая пупырка круглой плиты чуть выскакивает. Только твины.
+]]
+function UiFx.morphFlash(root: GuiObject, color: Color3?)
+	local face = UiFx.faceOf(root)
+	local flash = Instance.new("Frame")
+	flash.Name = "FxMorph"
+	flash.Active = false
+	flash.BackgroundColor3 = color or WHITE
+	flash.BackgroundTransparency = 0.35
+	flash.BorderSizePixel = 0
+	flash.Size = UDim2.fromScale(1, 1)
+	flash.ZIndex = 5
+	copyCorner(root, flash)
+	flash.Parent = face
+	tween(flash, 0.18, { BackgroundTransparency = 1 }, QUAD, OUT)
+	task.delay(0.2, function()
+		flash:Destroy()
+	end)
+	local stud = face:FindFirstChild("Stud")
+	if stud and stud:IsA("GuiObject") then
+		local scale = UiFx.scaleOf(stud)
+		scale.Scale = 0.84
+		tween(scale, 0.32, { Scale = 1 }, BACK, OUT)
+	end
 end
 
 -- «Подпрыгнуть»: резко увеличиться и пружинисто вернуться (счётчики, награды).
@@ -1686,14 +1873,22 @@ end
 -- Счётчики, радуга, полоски, вспышка, полёт значка, шлейф, тряска камеры
 --------------------------------------------------------------------------------
 
+export type CountOptions = {
+	bump: boolean?, -- каждое новое число чуть «подпрыгивает» (1.06 → 1 за 0.1 с), не чаще 12 раз в секунду
+}
+
 -- Число «набегает» от from до to за time (0.8 с, Quad Out). format — функция или "%d" и т.п.
 function UiFx.countUp(
 	label: GuiObject,
 	from: number,
 	to: number,
 	time: number?,
-	format: ((value: number) -> string) | string | nil
+	format: ((value: number) -> string) | string | nil,
+	opts: CountOptions?
 ): Stop
+	local bump = opts ~= nil and opts.bump == true
+	local lastBump = -math.huge
+	local shown = math.floor(from + 0.5)
 	local duration = math.max(time or 0.8, 0.01)
 	local function render(value: number): string
 		local whole = math.floor(value + 0.5)
@@ -1711,7 +1906,14 @@ function UiFx.countUp(
 		elapsed += dt
 		local k = math.min(1, elapsed / duration)
 		local eased = 1 - (1 - k) * (1 - k)
-		target.Text = render(from + (to - from) * eased)
+		local value = from + (to - from) * eased
+		target.Text = render(value)
+		local whole = math.floor(value + 0.5)
+		if bump and whole ~= shown and elapsed - lastBump >= 1 / 12 then
+			lastBump = elapsed
+			UiFx.bump(label, 1.06, 0.1)
+		end
+		shown = whole
 		return k < 1
 	end, function()
 		target.Text = render(to)

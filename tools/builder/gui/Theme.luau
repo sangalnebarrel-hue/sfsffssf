@@ -7,8 +7,8 @@
 	styles, toast kinds and UIConfig.Brick are read from src/ReplicatedStorage/Shared/Config/
 	UIConfig.luau (a pure module), the same table the client (UiFx, controllers) uses at runtime.
 
-	A "candy" (legacy, still used by the fishing widgets until they become bricks) is a
-	transparent root (UiFx relies on this structure):
+	A "candy" (legacy v1/v2: no widget uses it any more since the fishing widgets became bricks in
+	UI v4; Theme.panel still builds one) is a transparent root (UiFx relies on this structure):
 	  <Root>        BackgroundTransparency 1; attributes CandyFace (name of the face), CandyRadius
 	    Lip         Frame, full size, the dark bottom colour, UICorner, UIStroke (Ink) — the outline
 	                of the whole shape; its bottom LIP fraction shows under the face (3D look)
@@ -637,9 +637,11 @@ end
 --[[
 	A round plate seen from above (the action button, v4): `button` becomes a round brick
 	(CandyStyle "brick", radius 0.5, its side band 0.1 deep) with a raised centre stud "Stud" on
-	the face (opts.stud = diameter share, default 0.66): a darker side disc (attribute CandyStud =
-	"raised") holding its lit "Cap" (UIGradient "Fill", Top → Bottom) a little higher, Ink outline.
-	Put the icon at BZ.Content on the button (it sits on the stud). Returns the face.
+	the face (opts.stud = diameter share, default 0.66; opts.studY = its centre, a share of the
+	face's height, default 0.52): a darker side disc (attribute CandyStud = "raised") holding its
+	lit "Cap" (UIGradient "Fill", Top → Bottom) a little higher, Ink outline. Put the icon at
+	BZ.Content on the button (it sits on the stud: centre y = (1 − lip) × studY of the button).
+	Returns the face.
 ]]
 local function roundPlate(button: any, token: any, opts: { [string]: any }?): any
 	local o = opts or {}
@@ -658,7 +660,7 @@ local function roundPlate(button: any, token: any, opts: { [string]: any }?): an
 		BackgroundColor3 = look.Lip:Lerp(look.Bottom, 0.4),
 		BorderSizePixel = 0,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.52),
+		Position = UDim2.fromScale(0.5, o.studY or 0.52),
 		Size = UDim2.fromScale(d, d),
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 		ZIndex = 1,
