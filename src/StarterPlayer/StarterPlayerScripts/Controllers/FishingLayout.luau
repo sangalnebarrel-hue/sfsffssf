@@ -21,7 +21,9 @@
 	  • cardDock — карточка улова сбоку от рыбака с трофеем на любом экране, где сбоку хватает
 	    места (из нескольких свободных полос — где она крупнее).
 	  • leastCover — сбоку не помещается (огромный трофей на маленьком телефоне): место в полосах,
-	    где карточка закрывает рыбака с трофеем меньше всего (overlapArea — площадь пересечения).
+	    где карточка закрывает рыбака с трофеем меньше всего (overlapArea — площадь пересечения);
+	    leastCoverScaled — то же для нескольких размеров по очереди (чуть меньше, но рядом с
+	    рыбой, а не на ней).
 	  • topBand — полоса НАД рыбаком (и рыбой над головой): огромное слово редкости.
 	  • flightHits — заденет ли виджет прямоугольник, вылетая из точки на своё место.
 	  • hintWidth — ширина плитки подсказки под её текст.
@@ -454,6 +456,39 @@ function FishingLayout.leastCover(
 	local rect = { x0 = best.x0 + inset, y0 = best.y0, x1 = best.x1 - inset, y1 = best.y1 }
 	local side = if (rect.x0 + rect.x1) / 2 < (keepout.x0 + keepout.x1) / 2 then -1 else 1
 	return rect, side, bestCover
+end
+
+--[[
+	leastCover для нескольких размеров по очереди (UI v5, SIMC-C1-02: огромный мифический трофей
+	на маленьком телефоне): scales — доли w × h от крупной к мелкой; берётся первая, где карточка
+	закрывает keepout не больше tolerance px² (чуть меньше, но рядом с рыбой, а не на ней), иначе —
+	та, где закрывает меньше всего (при равенстве — крупнее). Возвращает то же, что leastCover, и
+	выбранную долю.
+]]
+function FishingLayout.leastCoverScaled(
+	keepout: Rect,
+	bands: { DockBand },
+	w: number,
+	h: number,
+	span: number,
+	scales: { number },
+	tolerance: number
+): (Rect?, number?, number?, number?)
+	local best: Rect?, bestSide, bestCover, bestScale = nil, nil, math.huge, nil
+	for _, scale in scales do
+		local rect, side, cover = FishingLayout.leastCover(keepout, bands, w * scale, h * scale, span)
+		if rect and cover then
+			if cover <= tolerance then
+				return rect, side, cover, scale
+			elseif cover < bestCover - 0.5 then
+				best, bestSide, bestCover, bestScale = rect, side, cover, scale
+			end
+		end
+	end
+	if not best then
+		return nil, nil, nil, nil
+	end
+	return best, bestSide, bestCover, bestScale
 end
 
 return FishingLayout

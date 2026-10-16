@@ -713,9 +713,10 @@ end
 	screens (HUD under 500 px tall: phones) FishingController re-lays the same instances out as
 	a landscape trophy card (CARD_WIDE in the controller): the fish on the left, name / chips /
 	tap hint in a right column, the same child names (also the display window under its Face:
-	Face.Window). The controller also places the card (and its CatchRays) itself every time it
-	opens: beside the own fisher and his trophy where a side gap fits it (FishingLayout.cardDock /
-	dockSide), else centred in its slot.
+	Face.Window). The controller also places the card itself every time it opens: beside the own
+	fisher and his trophy where a side gap fits it (FishingLayout.cardDock / dockSide), else
+	centred in its slot; CatchRays is the layer of its sunburst (CatchFx.raysFrame: the whole
+	screen, or up to the fisher's edge when the card is docked — the rays never reach him).
 ]]
 local CARD_RADIUS = 0.07
 -- The share of the card the v4 plate's face covered (it had a side band): the window and the
@@ -818,20 +819,19 @@ local function buildCatch(root: any)
 		end
 	end
 
-	-- Same box as the card: UiFx.rays sizes its sunburst by this holder's height.
+	-- The layer of the card's sunburst: the whole screen here; FishingController
+	-- (CatchFx.raysFrame) makes it end at the fisher's edge when the card docks beside him (it
+	-- then clips its rays: big, but never over him and his trophy) and puts the rays' centre and
+	-- size in pixels (behind the card, or at the fish over his head for the rarity title).
 	local cardSize = UDim2.fromScale(0.58, 0.58)
 	local cardPosition = UDim2.new(0.5, 0, 1, -HOTBAR - 16) -- 16 px above the screen bottom
-	local rays = U.new("Frame", {
+	U.new("Frame", {
 		Name = "CatchRays",
 		Visible = false,
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = cardPosition,
-		Size = cardSize,
-		SizeConstraint = Enum.SizeConstraint.RelativeYY,
+		Size = UDim2.fromScale(1, 1),
 		ZIndex = 7,
 	}, root)
-	U.new("UISizeConstraint", { MaxSize = Vector2.new(380, 400) }, rays)
 
 	-- The card: a modal (tap anywhere on it: skip the reveal / close). A white sim display plate
 	-- (Cream: the white → cool white gradient, the chunky outline in its dark ink-blue shade, the
@@ -1144,12 +1144,14 @@ end
 	                          Glow, Flash; Rider 🐟 on it; Needle: Head ▼), Clock ⏱ + TimeBar
 	                          (Fill), Pips (Pip1..Pip5: round chips with a Cap and a Star), Help, TapPad
 	  Hint                    dark glass pill: IconSocket.Icon + Label (italic; Hint.Text = the value)
-	  CatchDim, CatchRays     the reveal's dim and the holder of its sunburst, behind the card
+	  CatchDim, CatchRays     the reveal's dim and the layer of its sunburst (FxRays), behind the
+	                          card; docked beside the fisher the layer clips the rays at his edge
 	  CatchCard               TextButton (tap: skip the reveal / close) — a white sim display plate
 	                          with the chunky outline: Face.Window (sky panel), Banner (the rarity
 	                          ribbon: RarityLabel, StarLeft / StarRight), FishGlow, Pedestal (the
-	                          podium: a round sim stand, Face.Top — its lighter top with the fish's
-	                          Shadow), Viewport (the fish model), NewStamp «НОВИНКА!» (red sticker),
+	                          trophy stand: Cap — the light oval top with the fish's Shadow, the
+	                          rarity column with an outlined Star, Base slab), Viewport (the fish
+	                          model), NewStamp «НОВИНКА!» (red sticker),
 	                          NameLabel, MutationLabel (corner stamp: Icon, Caption), InfoLabel
 	                          (Weight — grey round chip, Price — gold round chip with italic digits;
 	                          Price.Multiplier «×N»), TapHint (italic).

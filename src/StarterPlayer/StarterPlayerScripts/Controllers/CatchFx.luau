@@ -16,7 +16,8 @@
 	  • birth — рождение: летит из этой точки на место (Quint Out), растёт с лёгким перелётом
 	    (0.4 → 1.04 → 1) и доворачивается.
 	  • slap — «наклейка» «НОВИНКА!» шлёпается на угол окна: падает крупной с доворотом, на касании
-	    вздрагивает, белое кольцо и горсть искр.
+	    вздрагивает, белое кольцо и горсть искр; fitStamp — на карточке сбоку от рыбака наклейка и
+	    в покое, и в шлепке не вылезает за карточку (ни на рыбака, ни на слово баннера).
 	  • popStars — звёзды баннера выскакивают по очереди и качаются.
 	  • punchChips — фишки веса и цены поднимаются по очереди с «ударом» (0.85 → 1.1 → 1), «тик»
 	    всё выше.
@@ -28,6 +29,13 @@
 	  • stampText / tapHint — надписи штампа мутации и подсказки «закрыть» под размер карточки: на
 	    узкой широкой карточке длинные не влезают в строку не мельче 12–13 px (TextScaled тогда
 	    рвёт слово посередине) — короче.
+	  • raysFrame / raysSize / aimRays / ghostRays — лучи за карточкой: крупные (не меньше
+	    RAYS_MIN её высот), но слой CatchRays у карточки сбоку от рыбака обрезает их у его края
+	    (ClipsDescendants): до рыбака с трофеем они не достают; спицы сцены слова уходят копией в
+	    середину карточки, а за ней вырастают её собственные лучи.
+	  • fitChip — подпись фишки начинается правее её значка (узкие фишки маленькой квадратной
+	    карточки); floatSpot — куда вылетает «+N 💰» у карточки сбоку от рыбака: над баннером или у
+	    внешнего края, а не на окно с рыбой.
 	Всё, что живёт дольше вызова, отменяется уборкой trove (карточка закрылась — хвостов нет).
 ]]
 
@@ -127,16 +135,19 @@ function CatchFx.birth(card: GuiObject, start: Vector2, rest: UDim2)
 end
 
 --[[
-	«НОВИНКА!» шлёпается, как наклейка: падает крупной (2.4) с доворотом −18° и садится (Back
-	Out), на касании вздрагивает (лёгкая тряска), от неё — белое кольцо и горсть искр (в слое
-	layer, точка at — её середина в долях слоя). Возвращает stop искр (в уборку карточки).
+	«НОВИНКА!» шлёпается, как наклейка: падает крупной (peak, по умолчанию 2.4; на карточке сбоку
+	от рыбака — fitStamp: не крупнее SLAP_DOCKED) с доворотом (−18°; с меньшего размера — −10°) и
+	садится (Back Out), на касании вздрагивает (лёгкая тряска), от неё — белое кольцо и горсть
+	искр (в слое layer, точка at — её середина в долях слоя). Возвращает stop искр (в уборку
+	карточки).
 ]]
-function CatchFx.slap(stamp: GuiObject, layer: GuiBase2d, at: Vector2, trove: Trove.Trove): () -> ()
+function CatchFx.slap(stamp: GuiObject, layer: GuiBase2d, at: Vector2, trove: Trove.Trove, peak: number?): () -> ()
 	local scale = UiFx.scaleOf(stamp)
-	scale.Scale = 2.4
+	local from = peak or 2.4
+	scale.Scale = from
 	UiFx.tween(scale, 0.26, { Scale = 1 }, BACK, OUT)
 	local rest = stamp.Rotation
-	stamp.Rotation = rest - 18
+	stamp.Rotation = rest - (if from < 2 then 10 else 18)
 	UiFx.tween(stamp, 0.26, { Rotation = rest }, BACK, OUT)
 	local sparks: () -> () = function() end
 	after(trove, 0.16, function()
@@ -223,6 +234,209 @@ function CatchFx.outline(gui: Instance?, factor: number?): number
 	local lip = gui and gui:FindFirstChild("Lip")
 	local stroke = lip and lip:FindFirstChildOfClass("UIStroke")
 	return if stroke then UiFx.strokeThickness(stroke) * (factor or 1) else 0
+end
+
+--------------------------------------------------------------------------------
+-- Лучи за карточкой (UI v5, SIMC-C1-01): крупные, но у рыбака обрезаны
+--------------------------------------------------------------------------------
+
+-- Лучи за карточкой — не меньше стольких её высот в поперечнике (видны вокруг неё и у
+-- карточки сбоку от рыбака).
+CatchFx.RAYS_MIN = 1.6
+
+local function whole(v: number): number
+	return if v == v and math.abs(v) < 1e6 then math.round(v) else 0
+end
+
+--[[
+	Слой лучей (CatchRays) — «окно», где их видно (px HUD.Fishing размера root): у карточки сбоку
+	от рыбака (side −1 — она слева, 1 — справа; edge — его край с её стороны) — от края экрана (и
+	далеко за ним) до его края во всю высоту: лучи крупные, но до рыбака с трофеем не достают;
+	side = nil — без обрезки (втрое больше экрана: лучи слова у рыбы над головой).
+]]
+function CatchFx.raysFrame(rays: GuiObject, root: Vector2, side: number?, edge: number?)
+	local x0, y0, x1, y1 = -root.X, -root.Y, 2 * root.X, 2 * root.Y
+	local clip = side ~= nil and edge ~= nil
+	if clip and side and edge then
+		if side < 0 then
+			x1 = math.clamp(edge, x0, x1)
+		else
+			x0 = math.clamp(edge, x0, x1)
+		end
+	end
+	rays.AnchorPoint = Vector2.zero
+	rays.SizeConstraint = Enum.SizeConstraint.RelativeXY
+	rays.Rotation = 0
+	rays.Position = UDim2.fromOffset(whole(x0), whole(y0))
+	rays.Size = UDim2.fromOffset(whole(x1 - x0), whole(y1 - y0))
+	rays.ClipsDescendants = clip
+end
+
+-- Поперечник лучей, px: size высот карточки height, не больше maxPx; за карточкой (не сцена
+-- слова, hole = false) — не меньше RAYS_MIN её высот.
+function CatchFx.raysSize(size: number, height: number, maxPx: number, hole: boolean): number
+	local across = math.min(size * height, maxPx)
+	return if hole then across else math.max(across, CatchFx.RAYS_MIN * height)
+end
+
+-- Кольцо лучей (UiFx.rays(…).holder в слое rays) — с центром center (px HUD.Fishing) и
+-- поперечником across px.
+function CatchFx.aimRays(holder: GuiObject, rays: GuiObject, center: Vector2, across: number)
+	local origin = Vector2.new(rays.Position.X.Offset, rays.Position.Y.Offset)
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.SizeConstraint = Enum.SizeConstraint.RelativeXY
+	holder.Position = UDim2.fromOffset(whole(center.X - origin.X), whole(center.Y - origin.Y))
+	holder.Size = UDim2.fromOffset(whole(across), whole(across))
+end
+
+--[[
+	Спицы сцены слова уходят за карточку: их копии (в слое layer, над затемнением; без обрезки)
+	летят в её середину to (px слоя), докручиваясь, и сжимаются за 0.3 с — а за карточкой
+	вырастают её собственные лучи (обрезанные у рыбака).
+]]
+function CatchFx.ghostRays(rays: GuiObject, layer: GuiObject, to: Vector2, trove: Trove.Trove)
+	local origin = UDim2.fromOffset(rays.Position.X.Offset, rays.Position.Y.Offset)
+	for _, holder in rays:GetChildren() do
+		if holder.Name == "FxRays" and holder:IsA("GuiObject") then
+			local ghost = holder:Clone()
+			ghost.Name = "FxRaysGhost"
+			ghost.Position = holder.Position + origin
+			ghost.ZIndex = rays.ZIndex
+			ghost.Parent = layer
+			trove:Add(ghost)
+			UiFx.tween(ghost, 0.3, {
+				Position = UDim2.fromOffset(whole(to.X), whole(to.Y)),
+				Rotation = ghost.Rotation + 25,
+			}, QUAD, OUT)
+			UiFx.tween(UiFx.scaleOf(ghost), 0.3, { Scale = 0 }, QUAD, Enum.EasingDirection.In)
+			after(trove, 0.32, function()
+				ghost:Destroy()
+			end)
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Наклейка, фишки, «+N 💰» у карточки сбоку от рыбака (UI v5, SIMC-C1-02 / 03 / 05)
+--------------------------------------------------------------------------------
+
+-- Наклейка «НОВИНКА!» на карточке сбоку от рыбака шлёпается не крупнее стольких своих размеров.
+CatchFx.SLAP_DOCKED = 1.6
+
+--[[
+	Наклейка «НОВИНКА!» на карточке сбоку от рыбака (её прямоугольник «в покое» pos / size и
+	карточка ниже баннера area — px одного слоя): в покое не вылезает за карточку по ширине (на
+	маленькой карточке наклейка не уже 96 px и свисала бы к рыбаку), а шлёпается не крупнее
+	SLAP_DOCKED (и не шире карточки), растя туда, где у неё есть место (точка опоры UIScale —
+	AnchorPoint — по свободному месту с каждой стороны): ни на рыбака, ни на слово баннера.
+	Ставит наклейку (AnchorPoint и Position; её прямоугольник «в покое» не меняется, кроме сдвига
+	внутрь) и возвращает, с какого размера шлёпаться.
+]]
+function CatchFx.fitStamp(
+	stamp: GuiObject,
+	pos: Vector2,
+	size: Vector2,
+	area: { x0: number, y0: number, x1: number, y1: number }
+): number
+	local dx = 0
+	if size.X <= area.x1 - area.x0 then
+		dx = math.max(area.x0 - pos.X, 0) - math.max(pos.X + size.X - area.x1, 0)
+	end
+	local x0, y0 = pos.X + dx, pos.Y
+	local x1, y1 = x0 + size.X, y0 + size.Y
+	local peak =
+		math.clamp(math.min(CatchFx.SLAP_DOCKED, (area.x1 - area.x0) / math.max(size.X, 1)), 1, CatchFx.SLAP_DOCKED)
+	local function anchor(before: number, after: number): number
+		before, after = math.max(before, 0), math.max(after, 0)
+		return if before + after > 0 then before / (before + after) else 0.5
+	end
+	local new = Vector2.new(anchor(x0 - area.x0, area.x1 - x1), anchor(y0 - area.y0, area.y1 - y1))
+	local old = stamp.AnchorPoint
+	stamp.AnchorPoint = new
+	stamp.Position = stamp.Position
+		+ UDim2.fromOffset(whole(dx + (new.X - old.X) * size.X), whole((new.Y - old.Y) * size.Y))
+	return peak
+end
+
+--[[
+	Подпись фишки (вес, цена) начинается правее её выступающего значка (+3 px; правый край — на
+	месте): на узкой фишке квадратной карточки сбоку от рыбака крупный значок иначе наезжает на
+	цифры. size — фишка «в покое», px. Ширина подписи из сборщика запоминается (RestSize).
+]]
+function CatchFx.fitChip(chip: GuiObject, size: Vector2)
+	local icon = chip:FindFirstChild("Icon")
+	local label = chip:FindFirstChild("Label")
+	if not (icon and label and icon:IsA("GuiObject") and label:IsA("GuiObject")) or size.X <= 0 then
+		return
+	end
+	local rest = label:GetAttribute("RestSize")
+	if typeof(rest) ~= "UDim2" then
+		rest = label.Size
+		label:SetAttribute("RestSize", rest)
+	end
+	local restSize = rest :: UDim2
+	local iconPx = icon.Size.X.Scale * size.Y + icon.Size.X.Offset -- (RelativeYY)
+	local iconRight = icon.Position.X.Scale * size.X + icon.Position.X.Offset + (1 - icon.AnchorPoint.X) * iconPx
+	local width = restSize.X.Scale * size.X + restSize.X.Offset
+	local right = label.Position.X.Scale * size.X + label.Position.X.Offset + (1 - label.AnchorPoint.X) * width
+	local fit = math.min(width, right - (iconRight + 3))
+	label.Size = UDim2.new(math.max(fit, width * 0.5) / size.X, 0, restSize.Y.Scale, restSize.Y.Offset)
+end
+
+export type FloatSpot = {
+	root: Vector2, -- HUD.Fishing, px
+	card: { x0: number, y0: number, x1: number, y1: number }, -- «отпечаток» карточки (с баннером)
+	side: number, -- карточка слева (−1) или справа (1) от рыбака
+	edge: number, -- его край с её стороны
+	window: { x0: number, y0: number, x1: number, y1: number }, -- окно рыбы на карточке
+	source: Vector2, -- откуда вылетает (фишка цены)
+	perHeight: number, -- ширина надписи в её высотах
+	want: number, -- высота надписи, px
+	least: number, -- … не меньше (иначе — следующее место)
+	gap: number, -- зазор до карточки, px
+	limits: (top: number, bottom: number) -> (number, number), -- свободно по X в полосе (sideLimits)
+}
+
+--[[
+	Куда вылетает «+N 💰» у карточки сбоку от рыбака (SIMC-C1-03: не на окно с рыбой — ребёнок как
+	раз смотрит на свою рыбу): над баннером, если там помещается надпись не ниже least (по X — над
+	карточкой, не за край рыбака); иначе — у внешнего края карточки (от рыбака) на высоте цены;
+	нет и там — на верхнюю полоску окна (центр — 0.18 его высоты, высота — не больше 0.3 окна) и
+	тает раньше (третье — true). Возвращает центр и высоту надписи.
+]]
+function CatchFx.floatSpot(o: FloatSpot): (Vector2, number, boolean)
+	-- Над баннером.
+	local h = math.min(o.want, o.card.y0 - o.gap - 4)
+	if h >= o.least then
+		local cy = o.card.y0 - o.gap - h / 2
+		local left, right = o.limits(cy - h / 2, cy + h / 2)
+		if o.side < 0 then
+			right = math.min(right, o.edge - o.gap)
+		else
+			left = math.max(left, o.edge + o.gap)
+		end
+		h = math.min(h, (right - left) / o.perHeight)
+		if h >= o.least then
+			local half = h * o.perHeight / 2
+			local cx = math.clamp((o.card.x0 + o.card.x1) / 2, left + half, math.max(left + half, right - half))
+			return Vector2.new(cx, cy), h, false
+		end
+	end
+	-- У внешнего края карточки, на высоте цены.
+	local y = o.source.Y
+	local left, right = o.limits(y - o.want / 2, y + o.want / 2)
+	local room = if o.side < 0 then o.card.x0 - o.gap - left else right - (o.card.x1 + o.gap)
+	h = math.min(o.want, room / o.perHeight)
+	if h >= o.least then
+		local w = h * o.perHeight
+		local cx = if o.side < 0 then o.card.x0 - o.gap - w / 2 else o.card.x1 + o.gap + w / 2
+		return Vector2.new(cx, math.clamp(y, h / 2 + 4, o.root.Y - h / 2 - 4)), h, false
+	end
+	-- Верхняя полоска окна — и тает раньше.
+	local window = o.window
+	local ww, wh = window.x1 - window.x0, window.y1 - window.y0
+	h = math.min(o.want, wh * 0.3, ww * 0.96 / o.perHeight)
+	return Vector2.new((window.x0 + window.x1) / 2, window.y0 + wh * 0.18), h, true
 end
 
 return CatchFx
