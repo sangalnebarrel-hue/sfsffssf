@@ -1189,11 +1189,13 @@ local function buildFlag(template: any): any
 			ZIndex = 2,
 		}, sign)
 	end
-	local yours = words("YoursLabel", "ТВОЯ БАЗА!", -0.06, 0.7, 0.3)
+	-- (Три строки целиком в рамке таблички, с запасом под обводку: за рамкой BillboardGui
+	-- может обрезать.)
+	local yours = words("YoursLabel", "ТВОЯ БАЗА!", 0.02, 0.7, 0.26)
 	billboardText(yours, UI.BillboardGreen, 3)
 	yours.Visible = false
-	billboardText(words("OwnerLabel", "СВОБОДНО!", 0.24, 0.96, 0.44), UI.BillboardGreen, 3.5)
-	billboardText(words("BaseLabel", "БАЗА", 0.68, 0.84, 0.32), SIGN_WHITE, 3)
+	billboardText(words("OwnerLabel", "СВОБОДНО!", 0.28, 0.96, 0.41), UI.BillboardGreen, 3.5)
+	billboardText(words("BaseLabel", "БАЗА", 0.69, 0.84, 0.28), SIGN_WHITE, 3)
 	return signOffset
 end
 

@@ -20,6 +20,8 @@
 	    bottom.
 	  • cardDock — карточка улова сбоку от рыбака с трофеем на любом экране, где сбоку хватает
 	    места (из нескольких свободных полос — где она крупнее).
+	  • leastCover — сбоку не помещается (огромный трофей на маленьком телефоне): место в полосах,
+	    где карточка закрывает рыбака с трофеем меньше всего (overlapArea — площадь пересечения).
 	  • topBand — полоса НАД рыбаком (и рыбой над головой): огромное слово редкости.
 	  • flightHits — заденет ли виджет прямоугольник, вылетая из точки на своё место.
 	  • hintWidth — ширина плитки подсказки под её текст.
@@ -208,7 +210,7 @@ function FishingLayout.avoid(box: Rect, keepouts: { Rect }, span: { number }, mi
 			continue
 		end
 		local width = math.min(w, gap[2] - gap[1])
-		local middle = math.clamp(cx, gap[1] + width / 2, gap[2] - width / 2)
+		local middle = math.clamp(cx, gap[1] + width / 2, math.max(gap[1] + width / 2, gap[2] - width / 2))
 		local better = width > bestWidth or (width == bestWidth and math.abs(middle - cx) < math.abs(bestCenter - cx))
 		if width >= math.min(minWidth, w) and better then
 			bestWidth, bestCenter = width, middle
@@ -253,7 +255,10 @@ function FishingLayout.dockSide(
 	elseif bottom - top < h then
 		return nil
 	end
-	local cy = math.clamp((fisher.y0 + fisher.y1) / 2, top + h / 2, bottom - h / 2)
+	-- (Слот ровно во всю полосу: top + h/2 и bottom − h/2 могут разойтись на погрешность float —
+	-- math.clamp не терпит max < min.)
+	local lo = top + h / 2
+	local cy = math.clamp((fisher.y0 + fisher.y1) / 2, lo, math.max(lo, bottom - h / 2))
 	local x0 = from + (to - from - w) / 2
 	return { x0 = x0, y0 = cy - h / 2, x1 = x0 + w, y1 = cy + h / 2 }
 end
@@ -288,7 +293,7 @@ function FishingLayout.topBand(
 	if h < minH then
 		return nil, nil
 	end
-	local cy = math.clamp(wantY, top + h / 2, limit - h / 2)
+	local cy = math.clamp(wantY, top + h / 2, math.max(top + h / 2, limit - h / 2))
 	return cy, h
 end
 
@@ -394,6 +399,61 @@ function FishingLayout.cardDock(
 	return { x0 = cx - w / 2, y0 = best.y0, x1 = cx + w / 2, y1 = best.y1 },
 		bestSide,
 		if bestSide < 0 then keepout.x0 else keepout.x1
+end
+
+-- Площадь пересечения двух прямоугольников (0 — не пересекаются).
+local function overlapArea(a: Rect, b: Rect): number
+	return math.max(0, math.min(a.x1, b.x1) - math.max(a.x0, b.x0))
+		* math.max(0, math.min(a.y1, b.y1) - math.max(a.y0, b.y0))
+end
+FishingLayout.overlapArea = overlapArea
+
+--[[
+	Запасное место карточки, когда сбоку от рыбака с трофеем не помещается ни одна (UI v5, D1/D2:
+	огромный мифический трофей на маленьком телефоне): карточка размером w × h (её «отпечаток» шире
+	на span — баннер выступает) в одной из полос bands там, где она закрывает keepout (рыбака с
+	трофеем) МЕНЬШЕ всего — прижатая к краю полосы, к краю рыбака или напротив его середины; при
+	равенстве — ближе к его середине по высоте. Возвращает прямоугольник самой карточки (без span),
+	сторону (−1 — левее середины рыбака, 1 — правее) и сколько px² рыбака закрывает «отпечаток»;
+	ни одна полоса не вмещает карточку — nil.
+]]
+function FishingLayout.leastCover(
+	keepout: Rect,
+	bands: { DockBand },
+	w: number,
+	h: number,
+	span: number
+): (Rect?, number?, number?)
+	local fw = w * span
+	local mid = (keepout.y0 + keepout.y1) / 2
+	local best: Rect? = nil
+	local bestCover, bestOff = math.huge, math.huge
+	for _, band in bands do
+		if band.right - band.left < fw or band.bottom - band.top < h then
+			continue
+		end
+		local xs = { band.left, band.right - fw, keepout.x0 - fw, keepout.x1 }
+		local ys = { band.top, band.bottom - h, keepout.y0 - h, keepout.y1, mid - h / 2 }
+		for _, x in xs do
+			x = math.clamp(x, band.left, band.right - fw)
+			for _, y in ys do
+				y = math.clamp(y, band.top, band.bottom - h)
+				local foot = { x0 = x, y0 = y, x1 = x + fw, y1 = y + h }
+				local cover = overlapArea(foot, keepout)
+				local off = math.abs(y + h / 2 - mid)
+				if cover < bestCover - 0.5 or (cover < bestCover + 0.5 and off < bestOff) then
+					best, bestCover, bestOff = foot, cover, off
+				end
+			end
+		end
+	end
+	if not best then
+		return nil, nil, nil
+	end
+	local inset = (fw - w) / 2
+	local rect = { x0 = best.x0 + inset, y0 = best.y0, x1 = best.x1 - inset, y1 = best.y1 }
+	local side = if (rect.x0 + rect.x1) / 2 < (keepout.x0 + keepout.x1) / 2 then -1 else 1
+	return rect, side, bestCover
 end
 
 return FishingLayout

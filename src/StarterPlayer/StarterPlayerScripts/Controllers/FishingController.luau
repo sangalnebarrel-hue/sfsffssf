@@ -1857,7 +1857,10 @@ do
 		               телефоне) — выше, но правее TopbarRight px (её кнопки меню и чата слева);
 		               и там тесно (трофей × HeldScale на телефоне упирается в верх) — сбоку от
 		               рыбака с рыбой, где просвет шире, на той же высоте (не мельче TitleSide px;
-		               без тач-экрана — не на окне чата: ChatRight, ChatBottom).
+		               без тач-экрана — не на окне чата: ChatRight, ChatBottom, и не на списке
+		               игроков справа вверху: ListLeft, ListBottom — и карточка); v5 (D5): сбоку и
+		               тогда, когда над рыбой лишь узкая полоса, а сбоку буквы в TitleBeside раз
+		               крупнее (планшет, компьютер: слово над трофеем выходило мелким).
 		  TitleRays    лучи сцены слова — тонкие спицы (Width доли диаметра) и на Fade прозрачнее
 		               лучей карточки: вокруг рыбы не встаёт жёлтая «заливка» (v3).
 		  TitleDim     сцена слова: через At после приземления (кольца удара уже ушли — заливка
@@ -1885,8 +1888,11 @@ do
 		TitleMax = 110,
 		TopbarRight = 172,
 		ChatRight = 384, -- без тач-экрана слева вверху окно чата Roblox (до x 368 + 16 px зазора) …
-		ChatBottom = 186, -- … и до этой высоты HUD: слово сбоку от рыбака туда не встаёт
+		ChatBottom = 200, -- … и до этой высоты HUD (низ окна — y 184 HUD + 16 px): слово и карточка ниже
+		ListLeft = 202, -- без тач-экрана справа вверху список игроков (от края 8…186 px + 16 px) …
+		ListBottom = 32, -- … и до этой высоты HUD (низ списка — y 16 HUD + 16 px)
 		TitleSide = 24,
+		TitleBeside = 1.25,
 		TitleDim = { At = 0.55, Add = 0.2 },
 		RaysHole = 0.3,
 		Shine = 0.4,
@@ -2364,15 +2370,28 @@ do
 		CARD.DockMin. Рыбака не знаем или сбоку тесно (огромная рыба над головой) — как раньше: от
 		верха HUD до низа экрана или — если так выйдет крупнее и ближе к середине — над кнопкой
 		действия; посередине экрана, если там хватает места, иначе сдвиг от препятствий.
-		Возвращает центр, размер и сторону (−1 / 1; nil — не сбоку) с краем рыбака с этой стороны.
+		Возвращает центр, размер и сторону (−1 / 1; nil — не сбоку) с краем рыбака с этой стороны;
+		пятое — запасное место (UI v5, D1/D2), если сбоку тесно: в тех же полосах, где карточка
+		CARD.DockMin закрывает рыбака с трофеем меньше всего (FishingLayout.leastCover), — когда это
+		заметно меньше, чем «посередине» (placeCard берёт его, если не встала и квадратная).
 	]]
-	local function wideSlot(rootSize: Vector2, fisher: Layout.Rect?, rim: number): (Vector2, Vector2, number?, number?)
+	local function wideSlot(
+		rootSize: Vector2,
+		fisher: Layout.Rect?,
+		rim: number
+	): (Vector2, Vector2, number?, number?, {
+		center: Vector2,
+		size: Vector2,
+		side: number,
+		edge: number,
+	}?)
 		local top = CARD_TOP_GAP
 		local floor = rootSize.Y - CARD_BOTTOM_CLEAR
 		local mid = rootSize.X / 2
 		local button = ui.actionButton
 		-- (rim — «живая» обводка карточки, см. placeCard; у кнопки — своя, EdgeRoom)
 		local lifted = button.AbsolutePosition.Y - ui.fishing.AbsolutePosition.Y - CARD_SIDE_GAP - rim - CARD.EdgeRoom
+		local bands: { Layout.DockBand }? = nil -- (полосы сбоку: для запасного места)
 		if fisher then
 			local aspect = CARD_ASPECT * CARD.Span
 			local small = math.min(rootSize.X, rootSize.Y) <= WIDE_BELOW
@@ -2385,9 +2404,17 @@ do
 			-- (Сверху — на CARD_SIDE_GAP ниже: над карточкой у края экрана — кнопки Roblox, у
 			-- карточки — «живая» обводка (UI v5: толще — ещё 4 px) и «дыхание».)
 			local high = CARD_TOP_GAP + rim + 12
+			bands = {}
 			for _, side in { -1, 1 } do
 				local bottom = if side < 0 then leftFloor else rightFloor
 				local left, right = sideLimits(rootSize, high, bottom)
+				table.insert(bands, {
+					side = side,
+					top = high,
+					bottom = bottom,
+					left = left + CARD.RimRoom / 2,
+					right = right - CARD.RimRoom / 2,
+				})
 				local slot = Layout.dockSide(
 					side,
 					fisher,
@@ -2437,7 +2464,30 @@ do
 				bestSize = Vector2.new(w, h)
 			end
 		end
-		return bestCenter, bestSize, nil, nil
+		if fisher and bands then
+			-- Запасное место: там, где карточка CARD.DockMin закрывает рыбака с трофеем меньше всего
+			-- (огромный мифический трофей на маленьком телефоне) — если заметно меньше, чем здесь.
+			local rect, side, cover =
+				Layout.leastCover(fisher, bands, CARD.DockMin * CARD_ASPECT, CARD.DockMin, CARD.Span)
+			local foot = bestSize * Vector2.new(CARD.Span, 1) / 2
+			local here = Layout.overlapArea(
+				Layout.rect(bestCenter.X - foot.X, bestCenter.Y - foot.Y, bestCenter.X + foot.X, bestCenter.Y + foot.Y),
+				fisher
+			)
+			if rect and side and cover and cover < here * 0.7 then
+				return bestCenter,
+					bestSize,
+					nil,
+					nil,
+					{
+						center = Vector2.new((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2),
+						size = Vector2.new(rect.x1 - rect.x0, rect.y1 - rect.y0),
+						side = side,
+						edge = if side < 0 then rect.x1 else rect.x0,
+					}
+			end
+		end
+		return bestCenter, bestSize, nil, nil, nil
 	end
 
 	-- Затемнение — четыре полосы ВОКРУГ карточки (заходят под её скруглённые края на r px и далеко
@@ -2532,7 +2582,7 @@ do
 	-- Поставить карточку (и её лучи) на место: центр и размер в пикселях; внутри — широкая или
 	-- квадратная раскладка. scale — меньше для обычной рыбы. trophy — где на экране (будет) рыба
 	-- над головой (fishBox: сервер ставит её чуть позже): карточка не встаёт на неё.
-	function placeCard(scale: number, trophy: Layout.Rect?, slack: number?, rimScale: number?)
+	function placeCard(scale: number, trophy: Layout.Rect?, slack: number?, look: Reveal?)
 		--[[
 			Квадратная карточка (планшет, компьютер) СБОКУ от рыбака с трофеем (UI v5, D1: посередине
 			она закрывала больше половины рыбы над головой): полосы слева и справа от него — во всю
@@ -2542,11 +2592,15 @@ do
 			иначе текст не помещается в свои строки). keepout — рыбак с трофеем (с запасом); want —
 			размер «посередине»; aspect — её ширина / высота; least — не меньше стольких px (по
 			умолчанию — см. выше), минус slack (CARD.DockSlack). nil — сбоку не помещается.
-			rimScale — во сколько раз толще обводка карточки («живая», reveal.Rim): зазоры до кнопок
+			look.Rim — во сколько раз толще обводка карточки («живая», reveal.Rim): зазоры до кнопок
 			и края — по ней.
 		]]
 		-- (UI v5: «живая» обводка толще RimRoom на крупном экране; с мутацией — в 4/3)
-		local rim = math.max(CARD.RimRoom, CatchFx.outline(ui.card, math.max(rimScale or 1, 4 / 3)))
+		local rim = math.max(CARD.RimRoom, CatchFx.outline(ui.card, math.max(look and look.Rim or 1, 4 / 3)))
+		if look and (UIConfig.Rarity[look.Id] or UIConfig.Rarity.Common).Rainbow then
+			-- (мифическая потом «дышит» — CARD.Breath: шире и выше на столько px)
+			rim += math.ceil((CARD.Breath - 1) * CARD.RefHeight)
+		end
 		local function squareDock(
 			rootSize: Vector2,
 			keepout: Layout.Rect,
@@ -2590,14 +2644,19 @@ do
 			for _, side in { -1, 1 } do
 				for _, bottom in floors do
 					local tops = { high }
-					if not touch and side < 0 then
-						table.insert(tops, CLIMAX.ChatBottom) -- (окно чата слева вверху: ниже него)
+					if not touch then
+						-- (без тач-экрана: окно чата слева вверху и список игроков справа вверху —
+						-- ниже них, с обводкой карточки rim)
+						table.insert(tops, (if side < 0 then CLIMAX.ChatBottom else CLIMAX.ListBottom) + rim)
 					end
 					for _, top in tops do
 						if bottom - top > 0 then
 							local left, right = sideLimits(rootSize, top, bottom, true, reach)
 							if not touch and top < CLIMAX.ChatBottom then
-								left = math.max(left, CLIMAX.ChatRight)
+								left = math.max(left, CLIMAX.ChatRight + rim)
+							end
+							if not touch and top < CLIMAX.ListBottom then
+								right = math.min(right, rootSize.X - CLIMAX.ListLeft - rim)
 							end
 							-- (ползапаса RimRoom: толстая «живая» обводка выступает за карточку)
 							table.insert(bands, {
@@ -2636,12 +2695,14 @@ do
 				fisher.y1
 			)
 		end
+		local spare = nil -- (запасное место широкой карточки, см. wideSlot)
 		if wide then
-			center, size, dock, edge = wideSlot(rootSize, fisher, rim)
+			center, size, dock, edge, spare = wideSlot(rootSize, fisher, rim)
 		end
 		-- (v5: на маленьком телефоне огромный трофей не оставляет места широкой карточке сбоку —
 		-- тогда сбоку встаёт квадратная, она уже: не меньше CARD.DockSquarePhone px; не встала и
-		-- она — широкая, как раньше.)
+		-- она — широкая CARD.DockMin там, где меньше всего закрывает трофей (запасное место
+		-- wideSlot), а нет и его — как раньше.)
 		if not wide or (fisher and not dock) then
 			local pos, box = restRect(ui.card, defaults[ui.card], rootSize)
 			local capPlace = nil
@@ -2677,6 +2738,9 @@ do
 				wide = false
 			elseif not wide then
 				center, size = pos + box / 2, box
+			elseif spare then
+				-- (v5: и квадратная не встала — там, где широкая меньше всего закрывает трофей)
+				center, size, dock, edge, fixed = spare.center, spare.size, spare.side, spare.edge, true
 			end
 		end
 		-- Размер по редкости, низ остаётся на месте (над хотбаром). Широкая карточка: место — под
@@ -2887,7 +2951,11 @@ do
 		local mutationStyle = if fish.Mutation then UIConfig.Mutations[fish.Mutation] else nil
 		ui.mutationLabel.Visible = mutationText ~= nil
 		ui.mutationLabel.Text = mutationText or ""
-		ui.mutationCaption.Text = if mutation then `{upper(mutation.Name)} ×{mutation.Multiplier}!` else ""
+		local wideBox = if cardBox and cardBox.wide then cardBox.size.X else nil
+		ui.mutationCaption.Text = if mutation
+			then CatchFx.stampText(mutation.Name, mutation.Multiplier, wideBox ~= nil)
+			else ""
+		ui.tapHint.Text = CatchFx.tapHint(UserInputService.TouchEnabled, wideBox)
 		ui.priceMult.Text = if mutation then `×{mutation.Multiplier}` else ""
 		ui.priceMult.Visible = false
 		if mutationStyle then
@@ -3175,20 +3243,23 @@ do
 			clearLeft = CLIMAX.TopbarRight
 		end
 		local centerX = rootSize.X / 2
-		local room: number
+		local wantY, wantH = middle, height -- (желанные: для места сбоку)
 		if bandY and bandH then
 			middle, height = bandY, bandH
 		end
 		local left, right = sideLimits(rootSize, middle - height / 2, middle + height / 2)
 		left = math.max(left, clearLeft)
 		-- (Ещё 10 px с каждой стороны: обводка букв и их «выскок» Back Out выходят за рамку.)
-		room = 2 * math.max(math.min(centerX - left, right - centerX) - 10, 40)
-		if not bandY and fisher then
+		local room = 2 * math.max(math.min(centerX - left, right - centerX) - 10, 40)
+		if fisher then
 			-- v3: над рыбой с трофеем места нет (телефон) — сбоку от них, где просвет шире, на той
-			-- же высоте (не выше 16 px от верха): слово рядом с рыбой, а не на ней.
-			middle = math.max(middle, Layout.EDGE + height / 2)
-			left, right = sideLimits(rootSize, middle - height / 2, middle + height / 2)
-			if not UserInputService.TouchEnabled and middle - height / 2 < CLIMAX.ChatBottom then
+			-- же высоте (не выше 16 px от верха): слово рядом с рыбой, а не на ней. v5 (D5): и когда
+			-- над ней лишь узкая полоса (планшет, компьютер: слово там мелкое) — сбоку, если там
+			-- буквы в CLIMAX.TitleBeside раз крупнее.
+			local sideY = math.max(wantY, Layout.EDGE + wantH / 2)
+			-- (у колонки справа мешают только показанные кнопки: её пустой верх свободен)
+			left, right = sideLimits(rootSize, sideY - wantH / 2, sideY + wantH / 2, true)
+			if not UserInputService.TouchEnabled and sideY - wantH / 2 < CLIMAX.ChatBottom then
 				left = math.max(left, CLIMAX.ChatRight) -- (окно чата слева вверху)
 			end
 			local from, to = left, fisher.x0
@@ -3196,8 +3267,9 @@ do
 				from, to = fisher.x1, right
 			end
 			local side = to - from - 20
-			if side >= total * CLIMAX.TitleSide then
-				centerX, room = (from + to) / 2, side
+			local above = if bandY then math.min(height, room / total) else 0
+			if side >= total * CLIMAX.TitleSide and math.min(wantH, side / total) > above * CLIMAX.TitleBeside then
+				centerX, room, middle, height = (from + to) / 2, side, sideY, wantH
 			end
 		end
 		local width = math.min(total * height, room)
@@ -3952,7 +4024,8 @@ do
 		fish: FishingRules.FishData,
 		hole: number?,
 		look: Reveal?,
-		colors: { Color3 }?
+		colors: { Color3 }?,
+		clear: number?
 	): { serial: number, main: UiFx.Rays, extra: UiFx.Rays? }
 		raysTrove:Clean()
 		local style = UIConfig.Rarity[fish.Rarity] or UIConfig.Rarity.Common
@@ -3965,6 +4038,11 @@ do
 		if box and box.edge and not hole then
 			-- Карточка сбоку от рыбака: лучи за ней до него не дотягиваются (рыбак с трофеем — яркий).
 			maxPx = math.min(maxPx, math.max(2 * math.abs(box.edge - box.center.X), box.size.X * CARD.Span))
+		end
+		if hole and clear and box then
+			-- (v5: пустая середина — не меньше трофея, clear px от центра лучей: огромную рыбу на
+			-- маленьком телефоне спицы не перечёркивают)
+			hole = math.max(hole, clear / math.max(math.min(reveal.Size * box.size.Y, maxPx) / 2, 1))
 		end
 		ui.rays.Visible = true
 		local main = raysTrove:Add(UiFx.rays(ui.rays, {
@@ -4066,7 +4144,7 @@ do
 
 		local raysAt = ui.rays.Position -- лучи слова редкости (если уже есть) — у рыбы
 		-- (у слова место уже выбрано на приземлении — порог «сбоку» тот же, CARD.DockSlack)
-		placeCard(reveal.Scale, fishBox(fish), if reveal.Title then CARD.DockSlack else nil, reveal.Rim)
+		placeCard(reveal.Scale, fishBox(fish), if reveal.Title then CARD.DockSlack else nil, reveal)
 		fillCard(fish, style)
 		showFishModel(fish)
 		card.Visible = true
@@ -4734,11 +4812,11 @@ do
 			-- лучах; карточка — когда оно сложилось и постояло (Hold): лучи переезжают за ней, слово
 			-- летит в её баннер.
 			local trophy = fishBox(fish)
-			placeCard(reveal.Scale, trophy, CARD.DockSlack, reveal.Rim)
+			placeCard(reveal.Scale, trophy, CARD.DockSlack, reveal)
 			local at = point or Vector2.new(origin.X * rootSize.X, origin.Y * rootSize.Y)
 			ui.rays.Position = offset(at.X, at.Y)
 			later(catchTrove, CLIMAX.TitleDelay, function()
-				startRays(fish, CLIMAX.RaysHole)
+				startRays(fish, CLIMAX.RaysHole, nil, nil, CatchFx.clearRadius(trophy, at))
 				slamTitle(fish.Rarity, reveal, style, trophy)
 			end)
 			-- Слово вылетает к месту баннера за CLIMAX.Lead до карточки: она рождается под уже
@@ -6569,7 +6647,7 @@ function FishingController:Start(hud: ScreenGui)
 	end)
 	ui.fishing:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		if ui.card.Visible then
-			placeCard(cardReveal.Scale, nil, nil, cardReveal.Rim)
+			placeCard(cardReveal.Scale, nil, nil, cardReveal)
 		end
 	end)
 

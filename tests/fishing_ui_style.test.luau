@@ -2369,6 +2369,20 @@ tests["card dock: FishingLayout.cardDock puts the card beside the fisher and his
 	local tight = Layout.rect(150, 40, 870, 600)
 	local none = Layout.cardDock(tight, bands({ -1, 1 }), want, least, aspect, span)
 	t.eq(none, nil, "a fisher filling the screen: no dock")
+	-- A slot exactly as tall as its band: top + h/2 and bottom − h/2 differ by a float's last
+	-- bit (these two numbers do) — that must not break math.clamp (it did: the Mythic card on
+	-- the tablet threw "max must be greater than or equal to min" and stayed in the middle).
+	local top, bottom = 28.15787603227047, 90.9142404671733
+	local ok, slot =
+		pcall(Layout.dockSide, -1, Layout.rect(600, 0, 700, 400), roblox.Vector2.new(2000, 2000), 10, top, bottom, 1)
+	t.ok(ok, `dockSide survives a band-tall slot ({slot})`)
+	t.ok(ok and slot and slot.y0 >= top - 1e-6 and slot.y1 <= bottom + 1e-6, "…and keeps it inside the band")
+	local fit = pcall(Layout.cardDock, Layout.rect(600, 0, 700, 400), {
+		{ side = -1, top = top, bottom = bottom, left = 16, right = 1008 },
+	}, 2000, 10, 1, 1)
+	t.ok(fit, "cardDock too")
+	local band = pcall(Layout.topBand, Layout.rect(0, bottom, 10, 400), 0, 2000, top, 10)
+	t.ok(band, "topBand too")
 end
 
 tests["card dock on a tablet: the square card stands beside the projected fisher and trophy, never on them"] = function(

@@ -1000,11 +1000,12 @@ local function buildCatch(root: any)
 		Outline = 3,
 		ZIndex = Theme.SZ.Content,
 		MaxTextSize = 30,
-		MinTextSize = 14,
+		MinTextSize = 12, -- (one line: on the landscape card the stamp is small)
 	})
 
 	-- The name: the hero of the card (display text, box-driven like the banner), white → the
-	-- rarity's colours with an Ink outline; two lines on the landscape card.
+	-- rarity's colours with an Ink outline. MinTextSize 12, not more: TextScaled wraps a word
+	-- that does not fit at the minimum size mid-word («Рыба-драк / он» on the smallest card).
 	label(card, "NameLabel", {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.5, 0.608),
@@ -1015,7 +1016,7 @@ local function buildCatch(root: any)
 		TextGradient = NAME_COMMON,
 		ZIndex = 6,
 		MaxTextSize = 44,
-		MinTextSize = 18,
+		MinTextSize = 12,
 	})
 
 	-- Weight and price chips; InfoLabel.Text is the summary «1,2 кг · цена 35 💰» (the value),

@@ -23,6 +23,11 @@
 	  • outline — толщина обводки плашки «Симулятора» (Lip) на этом экране, px, × factor («живая»
 	    обводка карточки толще): на сколько она рисуется за своим прямоугольником
 	    (FishingController держит карточку на 16 px от кнопок по рисунку).
+	  • clearRadius — радиус пустой середины лучей сцены слова, чтобы спицы не перечёркивали трофей
+	    (огромная мифическая рыба на маленьком телефоне).
+	  • stampText / tapHint — надписи штампа мутации и подсказки «закрыть» под размер карточки: на
+	    узкой широкой карточке длинные не влезают в строку не мельче 12–13 px (TextScaled тогда
+	    рвёт слово посередине) — короче.
 	Всё, что живёт дольше вызова, отменяется уборкой trove (карточка закрылась — хвостов нет).
 ]]
 
@@ -32,8 +37,13 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local UIConfig = require(Shared:WaitForChild("Config"):WaitForChild("UIConfig"))
 local UiFx = require(Shared:WaitForChild("UiFx"))
 local Trove = require(Shared:WaitForChild("Util"):WaitForChild("Trove"))
+local TextUtil = require(Shared:WaitForChild("TextUtil"))
 
 local CatchFx = {}
+
+-- Широкая карточка уже стольких px — подсказка «закрыть» короткая («Тапни — забрать!» в Body
+-- не мельче 13 px — ≈ 114 px строки, это 0.48 ширины карточки).
+CatchFx.SHORT_HINT = 238
 
 local WHITE = UIConfig.White
 local QUINT, QUAD, BACK = Enum.EasingStyle.Quint, Enum.EasingStyle.Quad, Enum.EasingStyle.Back
@@ -175,6 +185,33 @@ function CatchFx.punchChips(chips: { GuiObject }, homes: { UDim2 }, rise: number
 			UiFx.sound("tick", 0.3, 1.1 + 0.15 * (index - 1) / math.max(#chips - 1, 1))
 		end)
 	end
+end
+
+--[[
+	Сколько px от центра лучей at (точка рыбы) до самого дальнего края трофея trophy по осям —
+	радиус пустой середины, при котором спицы начинаются за рыбой (по диагонали они могут чуть
+	задеть её углы — так лучи не сжимаются в огрызки). nil — трофея не видно.
+]]
+function CatchFx.clearRadius(trophy: { x0: number, y0: number, x1: number, y1: number }?, at: Vector2): number?
+	if not trophy then
+		return nil
+	end
+	return math.max(at.X - trophy.x0, trophy.x1 - at.X, at.Y - trophy.y0, trophy.y1 - at.Y, 0)
+end
+
+-- Штамп мутации: «ЗОЛОТАЯ ×2!»; на широкой карточке (телефон: штамп маленький) — без «×N»
+-- («×N» и так впечатывается в угол фишки цены).
+function CatchFx.stampText(name: string, multiplier: number, wide: boolean): string
+	local upper = TextUtil.upper(name)
+	return if wide then `{upper}!` else `{upper} ×{multiplier}!`
+end
+
+-- Подсказка «закрыть» по устройству; на узкой широкой карточке (width — её ширина, px) — короткая.
+function CatchFx.tapHint(touch: boolean, width: number?): string
+	if width and width < CatchFx.SHORT_HINT then
+		return if touch then "Тапни!" else "Жми!"
+	end
+	return if touch then "Тапни — забрать!" else "Жми — забрать!"
 end
 
 -- Толщина обводки плашки «Симулятора» (её Lip, см. STYLE.md §6.2) на этом экране (как её
