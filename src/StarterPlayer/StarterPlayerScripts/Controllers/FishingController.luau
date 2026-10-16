@@ -2,9 +2,9 @@
 --[[
 	FishingController — рыбалка локального игрока: кнопка действия, поклёвка, мини-игра,
 	карточка улова и подсказки (Этап 2). Интерфейс — HUD.Fishing (tools/builder/gui/Fishing.luau),
-	стиль «Симулятор» (UI v5: сочные плашки с толстой обводкой в тёмный оттенок своего цвета,
-	без пупырок; сборщик пока зовёт старые имена Theme — они строят тот же вид) и вся
-	анимация — tools/builder/gui/STYLE.md §3 и ReplicatedStorage.Shared.UiFx.
+	стиль «Симулятор» (UI v5: сочные кнопки и плашки с толстой обводкой в тёмный оттенок своего
+	цвета, светлым ободком, обведёнными значками и «стеклянными» таблетками) и вся анимация —
+	tools/builder/gui/STYLE.md §3 и ReplicatedStorage.Shared.UiFx.
 
 	Сервер (FishingService) решает всё сам. Клиент только просит (FishingCast / FishingHook /
 	FishingTap / FishingStop) и показывает то, что сервер прислал в FishingState
@@ -12,7 +12,8 @@
 
 	  • Кнопка действия (ActionArea.ActionButton) видна, пока удочка в руке персонажа. Это
 	    большая круглая кнопка (значок посередине, надпись — на тёмной полупрозрачной
-	    «таблетке»); цвет, значок и надпись — по состоянию: «ЗАБРОСИТЬ» (Sky 🎣,
+	    «таблетке»; якорь — в её середине, раздувается она вокруг себя и не ближе 16 px к кнопке
+	    прыжка: атрибут GrowMax, layoutColumn); цвет, значок и надпись — по состоянию: «ЗАБРОСИТЬ» (Sky 🎣,
 	    единственная «живая» кнопка в покое: дышит, блестит, раз в ≈ 3 с качает значком; пока за
 	    сессию не было заброса — на её левом плече качается красный кружок «!», как у кнопок
 	    образца) → «ЖДИ КЛЁВА…» (v3: Pond — приглушённая бирюза, кнопка меньше на 15 % и чуть
@@ -31,9 +32,10 @@
 	    по карточке), а когда карточка показана целиком — «ЗАБРАТЬ!» (Leaf 👍, белые кольца:
 	    нажатие закрывает карточку, как и «Тапни — забрать!»; но не «по инерции» — не раньше
 	    CARD.Mash секунд после прошлого нажатия). Смена
-	    состояния — кнопка выскакивает (на «ПОДСЕЧЬ!», «ЛОВИ!», «ЗАБРАТЬ!» ещё и белая вспышка
-	    «превращения» — UiFx.morphFlash); нажатие — пластина «тонет» в свою боковину и пружинит
-	    (UiFx.press), от касания — рябь.
+	    состояния — цвета и обводка перетекают (UiFx.recolor), кнопка «ударяет», значок влетает с
+	    оборотом, надпись «ударяет» (на «ПОДСЕЧЬ!», «ЛОВИ!», «ЗАБРАТЬ!» ещё и белая вспышка
+	    «превращения» — UiFx.morphFlash); нажатие — кнопка сжимается, темнеет и с перелётом
+	    пружинит, значок «пинается» (UiFx.press), от касания — рябь.
 	    То же действие — тап/клик удочкой по миру (Tool.Activated; на тач-экране — не в
 	    мини-игре, не на экране улова и не с «КУДА ИДТИ?»: туда попадают и движения камеры и
 	    джойстика) и клавиша F / R2 на геймпаде
@@ -42,15 +44,18 @@
 	  • В мини-игре нажатие засчитывается в момент касания кнопки (MouseButton1Down), а не
 	    отпускания (двойной тап по «ПОДСЕЧЬ!» сервер не считает промахом — FishingConfig.HookTapGrace).
 	    На тач-экране так же считается касание самой панели мини-игры (Minigame.TapPad).
-	  • «СМОТАТЬ» (StopButton, красная кнопка-плашка с 🎣 — «смотать удочку») — пока леска в воде и рыбы на крючке нет:
-	    в поклёвку и мини-игру её нет (тап мимо «ПОДСЕЧЬ!» / «ЛОВИ!» не стоит рыбы).
+	  • «СМОТАТЬ» (StopButton, красная кнопка с 🎣 слева — «смотать удочку») — пока леска в воде и
+	    рыбы на крючке нет: в поклёвку и мини-игру её нет (тап мимо «ПОДСЕЧЬ!» / «ЛОВИ!» не стоит
+	    рыбы). Выскакивает из своего правого нижнего угла (якорь там): к «ДОМОЙ» не растёт.
 	  • Поклёвка (BiteAlert): «КЛЮЁТ!» выпрыгивает из своего поплавка и летит на своё место
 	    (v3: не «удар» на весь экран поверх рыбака; если по пути заслонила бы рыбака — «выскакивает»
 	    на месте), солнечная вспышка, камера на миг
 	    «приближается» (UiFx.fovPunch), края экрана светятся солнцем; всё дальше — в одном такте
 	    BITE_BEAT: плашка и кнопка пульсируют вместе, кольцо от кнопки на каждый такт, знаки «!»
-	    по краям качаются по очереди; к концу окна такт ускоряется. Полоска времени тает за
-	    Window секунд (зелёная → жёлтая → красная), за плашкой — спокойные лучи. На тач-экране
+	    по краям качаются по очереди, «КЛЮЁТ!» вспыхивает золотом; к концу окна такт ускоряется и
+	    плашку потряхивает. Полоска времени тает за Window секунд (зелёная → жёлтая → красная), то
+	    же время убывает кольцом-таймером вокруг кнопки, за плашкой — спокойные лучи. Плашка
+	    уходит копией: подсекли — «вдох» и белое кольцо, не успели — сползает вниз и тает. На тач-экране
 	    тап по самой плашке — подсечка (BiteAlert.TapPad); новичку (первые поклёвки за игру) 👆
 	    показывает на кнопку. Ни свой поплавок, ни свой рыбак не прячутся под плашкой: если нырок
 	    поплавка или рыбак (FishingLayout.fisherBox) попадает на неё, плашка становится чуть ниже
@@ -138,9 +143,10 @@
 	    первый улов — счётчик появляется с «Улов: 0», прилёт — в цвете редкости).
 	  • Подстраховка: сервер ставит атрибут FishingState = "Idle" раньше события; если события
 	    ("Caught" / "Lost" / "Idle") за полсекунды так и не было — рыбалка кончается сама.
-	  • Подсказка (Hint, гладкая плитка в цвет вида — тёмная 💡 / солнечная ⚠️ / ягодная 🚨, значок в
-	    белом кружке, выскакивает, въезжая снизу на несколько px; шириной по своему тексту —
-	    FishingLayout.hintWidth; до двух строк): почему заброс не принят, почему
+	  • Подсказка (Hint — «таблетка» таймера из образца: тёмное стекло 💡 с курсивом / солнечная ⚠️ /
+	    ягодная 🚨 плашка; значок в тёмной обводке выступает слева; выскакивает, въезжая снизу на
+	    несколько px — туда, где её поставил renderHint; уходя, «вдыхает» и сжимается; шириной по
+	    своему тексту — FishingLayout.hintWidth; до двух строк): почему заброс не принят, почему
 	    рыба ушла, куда идти. Тексты причин — общие с сервером (FishingConfig.Texts). Если игрок с
 	    удочкой далеко от точки рыбалки своей базы — к ней тянется дорожка-луч (Beam, только у
 	    него). v3 (WOW-6): подсказка по месту (💡) уходит через HINT_INFO_TIME с; «куда идти»
@@ -878,7 +884,7 @@ do
 			if not hint.Visible or (calm and leaving) then
 				return
 			end
-			local gen = (hint:GetAttribute("HintGen") or 0) + 1
+			local gen = ((hint:GetAttribute("HintGen") :: number?) or 0) + 1
 			hint:SetAttribute("HintGen", gen)
 			hint:SetAttribute("HintLeaving", calm or nil)
 			if not calm then
@@ -896,7 +902,7 @@ do
 			return
 		end
 		if leaving then
-			hint:SetAttribute("HintGen", (hint:GetAttribute("HintGen") or 0) + 1) -- снова на виду: не прятать
+			hint:SetAttribute("HintGen", ((hint:GetAttribute("HintGen") :: number?) or 0) + 1) -- снова на виду: не прятать
 			hint:SetAttribute("HintLeaving", nil)
 		end
 		local changed = force == true or not hint.Visible or leaving or hint.Text ~= text
@@ -1286,10 +1292,11 @@ do
 	-- Белые кольца от кнопки (ВЗЯТЬ, ЛОВИ!, такт поклёвки): тонкий чёткий контур, 1 → 1.3 —
 	-- читается на дереве, воде и небе. На тач-экране кольца растут вместе с пульсом кнопки (они —
 	-- её дети) и не дотягиваются до кнопки прыжка: на планшете (большая кнопка прыжка выше) — до
-	-- 1.18, так что и на пике пульса поклёвки (1.14) до неё остаётся RING_CLEAR px.
-	function whiteRings(interval: number): UiFx.Stop
+	-- ≈ 1.2, так что и на пике пульса (GrowMax) до неё остаются clear px. once — одно кольцо
+	-- (рябь от касания, кнопка вернулась после улова).
+	function whiteRings(interval: number, once: boolean?): UiFx.Stop
 		local grow, clear, thickness = 1.3, 4, 5 -- рост кольца; зазор, px; толщина
-		local peak = math.min(1.14, ui.actionButton:GetAttribute("GrowMax") or 1.14) -- пик пульса поклёвки
+		local peak = math.min(1.14, (ui.actionButton:GetAttribute("GrowMax") :: number?) or 1.14) -- пик пульса поклёвки
 		if UserInputService.TouchEnabled then
 			local Layout = require(script.Parent:WaitForChild("FishingLayout")) :: any
 			local area = ui.actionArea.AbsoluteSize
@@ -1305,11 +1312,11 @@ do
 			grow = math.clamp((room / peak - px) / radius, 1.1, grow)
 		end
 		return UiFx.glowRing(ui.actionButton, {
-			loop = true,
+			loop = not once,
 			color = WHITE,
-			scale = grow,
-			thickness = thickness,
-			time = 0.6,
+			scale = if once then math.min(grow, 1.35) else grow,
+			thickness = if once then 3 else thickness,
+			time = if once then 0.45 else 0.6,
 			interval = interval,
 		})
 	end
@@ -1438,7 +1445,7 @@ do
 
 	-- Перекрасить кнопку под вид; animate — смена состояния на виду: цвета и обводка перетекают
 	-- (UiFx.recolor), кнопка «ударяет» (0.86 → 1.08 → 1, вокруг своей середины), значок влетает с
-	-- оборотом, надпись прокручивается «слот-машиной» (refreshButtons); у важных видов («ПОДСЕЧЬ!»,
+	-- оборотом, надпись «ударяет» (refreshButtons); у важных видов («ПОДСЕЧЬ!»,
 	-- «ЛОВИ!», «ЗАБРАТЬ!») — ещё белая вспышка «превращения» и свист.
 	local function applyLook(look: Look, animate: boolean)
 		local button = ui.actionButton
@@ -1458,7 +1465,7 @@ do
 		ui.actionRing.Transparency = look.Ring
 		startLookFx(look)
 		if animate then
-			UiFx.punch(button, { from = 0.86, peak = math.min(1.08, button:GetAttribute("GrowMax") or 2) })
+			UiFx.punch(button, { from = 0.86, peak = math.min(1.08, (button:GetAttribute("GrowMax") :: number?) or 2) })
 			if look.Bobber then
 				UiFx.popIn(ui.actionBobber, { from = 0.2, time = 0.34, delay = 0.04 })
 			else
@@ -1490,10 +1497,12 @@ do
 			local first = shownLook == nil
 			local animate = visible and wasVisible and not first and look ~= CATCH_LOOK
 			shownLook = look
+			-- (Новая надпись «ударяет» на своём месте: прокрутка двух надписей на узкой «таблетке»
+			-- читалась бы кашей. Следом за кнопкой, когда та уже почти на месте: оба перелёта разом
+			-- дотянули бы конец надписи до кнопки прыжка.)
+			ui.actionCaption.Text = look.Caption
 			if animate then
-				UiFx.swapText(ui.actionCaption, look.Caption)
-			else
-				ui.actionCaption.Text = look.Caption
+				UiFx.punch(ui.actionCaption, { from = 0.7, peak = 1.1, delay = 0.12 })
 			end
 			applyLook(look, animate)
 		elseif look ~= WATER_LOOK then
@@ -3629,7 +3638,7 @@ do
 		local button = ui.actionButton
 		if animate and button.Visible then
 			UiFx.popIn(button, { from = 0.3, time = 0.35 })
-			UiFx.glowRing(button, { color = WHITE, scale = 1.3, thickness = 5, time = 0.6 })
+			whiteRings(0, true) -- (кольцо не дотягивается до кнопки прыжка: D4)
 		end
 		refreshContextHint()
 	end
@@ -5027,7 +5036,7 @@ do
 				stopAlertPulse()
 			end
 			stopAlertPulse = UiFx.pulse(alert, peak, period)
-			local most = ui.actionButton:GetAttribute("GrowMax") -- (16 px до кнопки прыжка — layoutColumn)
+			local most = ui.actionButton:GetAttribute("GrowMax") :: number? -- (16 px до кнопки прыжка — layoutColumn)
 			actionPulseTrove:Add(UiFx.pulse(ui.actionButton, math.min(peak + 0.04, most or 2), period))
 			actionPulseTrove:Add(whiteRings(BITE_BEAT))
 		end
@@ -5719,7 +5728,7 @@ do
 		}))
 		hitWord(word, origin.X, perfect)
 		UiFx.sound("pop", if perfect then 0.6 else 0.5, if perfect then 1.25 else 1 + 0.15 * index)
-		UiFx.bump(ui.actionButton, math.min(1.12, ui.actionButton:GetAttribute("GrowMax") or 2), 0.3)
+		UiFx.bump(ui.actionButton, math.min(1.12, (ui.actionButton:GetAttribute("GrowMax") :: number?) or 2), 0.3)
 		if perfect then
 			perfectBurst(origin)
 			UiFx.flashText(ui.title, Palette.Gold.Top, 0.4) -- заголовок вспыхивает золотом
@@ -5968,7 +5977,7 @@ local function doAction(fromButton: boolean?)
 	local button = ui.actionButton
 	if not fromButton and button.Visible then
 		UiFx.bump(button, 0.88, 0.25)
-		UiFx.ripple(button, WHITE)
+		whiteRings(0, true) -- рябь (не дотягивается до кнопки прыжка)
 	end
 	if catchScreen then
 		-- Доли не пропускает (это делает тап по карточке); показанную целиком карточку закрывает,
@@ -6512,7 +6521,7 @@ function FishingController:Start(hud: ScreenGui)
 	-- В мини-игре нажатие считается в момент касания (MouseButton1Down приходит и от касания
 	-- пальцем), а не отпускания (Activated): стрелка за время касания успевает уехать.
 	ui.actionButton.MouseButton1Down:Connect(function()
-		UiFx.ripple(ui.actionButton, WHITE) -- рябь от каждого касания
+		whiteRings(0, true) -- рябь от каждого касания (не дотягивается до кнопки прыжка)
 		if phase == "Reeling" then
 			doAction(true)
 		end

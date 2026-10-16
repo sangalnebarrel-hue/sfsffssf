@@ -277,7 +277,9 @@ def object_shapes(o):
         return []
     out = []
     radius = float(o.get("radius") or 0)
-    rot = _rotated(o)
+    # A rotated object is measured by its axis-aligned box — except a circle (a round button, a
+    # pip swaying with its plate): turning it changes nothing, its corners must not count.
+    rot = _rotated(o) and not (abs(o["w"] - o["h"]) < 0.5 and radius >= min(o["w"], o["h"]) / 2 - 0.5)
 
     def add(grow, r):
         if rot:
@@ -474,6 +476,11 @@ def selftest():
                "strokes": [{"target": "border", "t": 2, "tr": 0, "pos": "Outer"}]}
     near(fill_metric([stroked], 100, 50), 14 * 14 / 5000)
     # widgets: Fx subtrees, containers and full-screen layers
+    # a rotated circle is still a circle (no square corners); a rotated square grows to its box
+    disc = {"x": 0, "y": 0, "w": 20, "h": 20, "radius": 10, "rot": 30, "bgT": 0}
+    assert object_shapes(disc) == [(0, 0, 20, 20, 10.0)], object_shapes(disc)
+    square = dict(disc, radius=0, rot=45)
+    near(object_shapes(square)[0][2] - object_shapes(square)[0][0], 20 * math.sqrt(2), 1e-6)
     assert widget_of("HUD.Fishing.ActionArea.ActionButton.Face") == ("HUD.Fishing.ActionArea", "solid")
     assert widget_of("HUD.Fishing.ActionArea.ActionButton.FxRing") == ("HUD.Fishing.ActionArea", "fx")
     assert widget_of("HUD.Fishing.BiteAlert.FxRays.Ray1") == ("HUD.Fishing.BiteAlert", None)

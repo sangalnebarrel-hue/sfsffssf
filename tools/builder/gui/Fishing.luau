@@ -280,15 +280,15 @@ local function buildActionArea(root: any)
 		ZIndex = SZ.Content + 3,
 	})
 	-- First-timer cue: a 👆 tapping the button while the needle is in the zone (the player's
-	-- first minigames of the session; FishingController shows it and bounces it). On the
-	-- disc's lower right, above the caption pill and inside the button's right edge (the
-	-- bounce never comes near the Jump button on its right).
+	-- first minigames and bites of the session; FishingController shows it and bounces it). On
+	-- the disc's lower right, its fingertip at the icon's foot — the «!» of the bite stays in
+	-- view — and inside the button's right edge (the bounce never comes near the Jump button).
 	Theme.icon(action, "TapCue", "👆", {
 		Visible = false,
 		MaxTextSize = 64,
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.66, 0.28),
-		Size = UDim2.fromScale(0.48, 0.48),
+		Position = UDim2.fromScale(0.72, 0.46),
+		Size = UDim2.fromScale(0.42, 0.42),
 		Rotation = -16,
 		ZIndex = SZ.Content + 4,
 	})

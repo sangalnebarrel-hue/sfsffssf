@@ -435,17 +435,22 @@ tests["action button: a look per state (Take, Cast, Wait, Bite, Reel), pop on ch
 	t.ok(isCandy(button, Palette.Sky), "Sky while ready to cast")
 	t.eq(button.Icon.Text, "🎣")
 	-- [sim-b] A look change on screen punches the disc (from 0.86 over 1.04 back to 1), cross-fades
-	-- its colours (FxRecolor), spins the icon in and rolls the caption («slot machine»: FxSwap).
+	-- its colours (FxRecolor), spins the icon in and punches the new caption in place.
 	t.ok(math.abs(button.FxScale.Scale - 1) > 0.01, "punches")
 	local lowest, highest = button.FxScale.Scale, button.FxScale.Scale
 	t.ok(button.Face:FindFirstChild("FxRecolor") ~= nil, "the colours cross-fade")
-	t.ok(button:FindFirstChild("FxSwap") ~= nil, "the caption rolls")
+	local captionPunched = false
 	for _ = 1, 30 do
 		sim:Advance(1 / 60)
 		lowest = math.min(lowest, button.FxScale.Scale)
 		highest = math.max(highest, button.FxScale.Scale)
+		local captionScale = button.Caption:FindFirstChild("FxScale")
+		if captionScale and math.abs(captionScale.Scale - 1) > 0.02 then
+			captionPunched = true
+		end
 	end
 	t.ok(highest > 1.03, `… overshoots ({highest})`)
+	t.ok(captionPunched, "the new caption punches in place (after the disc)")
 	sim:Advance(0.6)
 	t.near(button.FxScale.Scale, 1, 0.02, "settles (a breath may have started)")
 	t.eq(button.Face:FindFirstChild("FxRecolor"), nil, "the cross-fade is gone")
