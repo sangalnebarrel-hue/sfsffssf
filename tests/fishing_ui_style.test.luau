@@ -325,7 +325,7 @@ tests["parts: the fishing widgets are sim plates with their decorations, no stud
 	checkCandy(t, card.MutationLabel, "MutationLabel")
 	checkCandy(t, card.NewStamp, "NewStamp")
 	checkCandy(t, card.InfoLabel.Weight, "Weight chip")
-	t.eq(card.InfoLabel.Weight:GetAttribute("CandyRadius"), UIConfig.Sim.PlateRadius, "the weight on a grey chip")
+	t.eq(card.InfoLabel.Weight:GetAttribute("CandyRadius"), 0.5, "the weight on a grey round chip")
 	checkCandy(t, card.InfoLabel.Price, "Price chip")
 	t.ok(isCandy(card.InfoLabel.Price, Palette.Gold), "price on a yellow chip")
 	local studs = studsUnder(f)

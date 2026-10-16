@@ -18,6 +18,8 @@
 	  • dockSide / dockLeft — слот СБОКУ от рыбака (короткий экран: мини-игра — слева, карточка
 	    улова — где шире): от края до рыбака, по высоте — напротив его середины, между top и
 	    bottom.
+	  • cardDock — карточка улова сбоку от рыбака с трофеем на любом экране, где сбоку хватает
+	    места (из нескольких свободных полос — где она крупнее).
 	  • topBand — полоса НАД рыбаком (и рыбой над головой): огромное слово редкости.
 	  • flightHits — заденет ли виджет прямоугольник, вылетая из точки на своё место.
 	  • hintWidth — ширина плитки подсказки под её текст.
@@ -335,6 +337,63 @@ function FishingLayout.placeOf(rect: Rect, anchor: Vector2): (UDim2, UDim2)
 	local w, h = rect.x1 - rect.x0, rect.y1 - rect.y0
 	return UDim2.fromOffset(math.round(rect.x0 + anchor.X * w), math.round(rect.y0 + anchor.Y * h)),
 		UDim2.fromOffset(math.round(w), math.round(h))
+end
+
+-- Свободная полоса сбоку от рыбака для карточки улова (cardDock): сторона (−1 слева, 1 справа),
+-- верх и низ полосы и её края по X (от края экрана, джойстика, кнопок — их считает контроллер).
+export type DockBand = { side: number, top: number, bottom: number, left: number, right: number }
+
+--[[
+	Карточка улова СБОКУ от рыбака с трофеем над головой (UI v5, D1: и на планшете и компьютере,
+	не только на телефоне): keepout — рыбак вместе с трофеем (с запасом), bands — свободные
+	полосы рядом с ним (у каждой стороны их может быть несколько: во всю высоту, над джойстиком,
+	над кнопкой действия, над колонкой кнопок). Карточка — с пропорцией aspect (ширина / высота),
+	её «отпечаток» шире на span (баннер выступает за края), хотим размер want (ширина, без span),
+	не уже minWidth — иначе этой полосы нет. Из всех полос — та, где карточка крупнее (слева —
+	охотнее, × leftBias: рыбак с трофеем между карточкой и кнопкой «ЗАБРАТЬ!»); по высоте —
+	напротив середины рыбака с трофеем, в пределах полосы (dockSide). Возвращает прямоугольник
+	самой карточки (без span), сторону и край keepout с этой стороны; места нигде нет — nil.
+]]
+function FishingLayout.cardDock(
+	keepout: Rect,
+	bands: { DockBand },
+	want: number,
+	minWidth: number,
+	aspect: number,
+	span: number,
+	leftBias: number?
+): (Rect?, number?, number?)
+	local best: Rect? = nil
+	local bestSide, bestArea = 0, 0
+	local foot = aspect * span -- пропорция «отпечатка»
+	for _, band in bands do
+		-- Ближний к рыбаку край полосы: его край или, если препятствие ещё ближе, край полосы.
+		local near = if band.side < 0 then math.min(keepout.x0, band.right) else math.max(keepout.x1, band.left)
+		local slot = FishingLayout.dockSide(
+			band.side,
+			{ x0 = near, y0 = keepout.y0, x1 = near, y1 = keepout.y1 },
+			Vector2.new(want * span, want / aspect),
+			minWidth * span,
+			band.top,
+			band.bottom,
+			foot,
+			if band.side < 0 then band.left else band.right
+		)
+		if slot then
+			local area = (slot.x1 - slot.x0) * (slot.y1 - slot.y0) * (if band.side < 0 then leftBias or 1.1 else 1)
+			if area > bestArea then
+				best, bestSide, bestArea = slot, band.side, area
+			end
+		end
+	end
+	if not best then
+		return nil, nil, nil
+	end
+	local w = (best.x1 - best.x0) / span
+	local cx = (best.x0 + best.x1) / 2
+	return { x0 = cx - w / 2, y0 = best.y0, x1 = cx + w / 2, y1 = best.y1 },
+		bestSide,
+		if bestSide < 0 then keepout.x0 else keepout.x1
 end
 
 return FishingLayout
