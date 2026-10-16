@@ -5785,11 +5785,11 @@ do
 			local style = UIConfig.Rarity[mg.Rarity] or UIConfig.Rarity.Common
 			local glowColor = if style.Rainbow then WHITE else style.Top
 			rider.BackgroundColor3 = glowColor
-			rider.BackgroundTransparency = 0.1
+			rider.BackgroundTransparency = 0
 			local glow = TweenService:Create(
 				rider,
 				TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-				{ BackgroundTransparency = 0.35 }
+				{ BackgroundTransparency = 0.2 }
 			)
 			glow:Play()
 			phaseTrove:Add(function()

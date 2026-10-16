@@ -1871,7 +1871,7 @@ tests["minigame rarity: the rider by rarity rides the zone and hops; Rare light 
 		rider.AbsolutePosition.Y >= title.AbsolutePosition.Y + title.AbsoluteSize.Y - 1,
 		`… under the title ({rider.AbsolutePosition.Y} / {title.AbsolutePosition.Y + title.AbsoluteSize.Y})`
 	)
-	t.ok(rider.BackgroundTransparency <= 0.35 + 1e-3, "… on a light disc")
+	t.ok(rider.BackgroundTransparency <= 0.2 + 1e-3, "… on a light, nearly solid disc")
 	t.eq(mini.AuraStroke.Enabled, true, "Legendary: a gold rim")
 	t.ok(mini:FindFirstChild("FxRays"), "rays behind the panel")
 	t.eq(mini.FxRays.ZIndex, 0, "…behind the candy")
