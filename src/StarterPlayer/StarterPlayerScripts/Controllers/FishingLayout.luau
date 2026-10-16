@@ -23,7 +23,8 @@
 	  • hintWidth — ширина «таблетки» подсказки под её текст.
 	  • JUMP_SMALL / JUMP_BIG, jumpCircle, growRoom — кнопка прыжка Roblox на тач-экране и во
 	    сколько раз может вырасти круглая кнопка действия (пульс, кольца), не подходя к ней ближе
-	    заданного зазора.
+	    заданного зазора; RING, discFit — во сколько раз уменьшить её, чтобы и её белые кольца на
+	    пике пульса держали 16 px (D4: на планшете большая кнопка прыжка выше).
 	  • rectOf / placeOf — прямоугольник виджета «в покое» по Position/Size/AnchorPoint и обратно.
 	Ничего не создаёт и не подключает: вызывается в событиях (поклёвка, мини-игра, подсказка,
 	карточка), не каждый кадр.
@@ -359,6 +360,40 @@ end
 function FishingLayout.growRoom(center: Vector2, rootSize: Vector2, small: boolean, clear: number): number
 	local jump, r = FishingLayout.jumpCircle(rootSize, small)
 	return math.max((center - jump).Magnitude - r - clear, 0)
+end
+
+-- Белые кольца круглой кнопки действия (такт поклёвки, «ВЗЯТЬ», «ЛОВИ!», рябь): растут хотя бы до
+-- grow её радиуса (дальше её обводки), толщиной thickness px (на экране высотой 720 px), вместе с
+-- её пульсом (до peak) — и держат clear px до кнопки прыжка (FishingController.whiteRings).
+FishingLayout.RING = { grow = 1.15, peak = 1.14, thickness = 5, clear = 16 }
+
+--[[
+	Во сколько раз уменьшить круг радиуса radius (его левый край left и низ bottom, px корня, —
+	на месте), чтобы его кольца (RING, обводка ringPx px) и на пике пульса держали RING.clear px
+	до кнопки прыжка; не меньше least. Сдвинуть круг влево нельзя: там колонка подсказки и карточка
+	улова. На телефонах — 1 или почти 1, на планшете (большая кнопка прыжка выше) — ≈ 0.9.
+]]
+function FishingLayout.discFit(
+	left: number,
+	bottom: number,
+	radius: number,
+	rootSize: Vector2,
+	small: boolean,
+	ringPx: number,
+	least: number
+): number
+	local jump, r = FishingLayout.jumpCircle(rootSize, small)
+	local ring = FishingLayout.RING
+	local fit = 1
+	while fit > least do
+		local reach = radius * fit
+		local center = Vector2.new(left + reach, bottom - reach)
+		if (center - jump).Magnitude - r - ring.clear >= (reach * ring.grow + ringPx) * ring.peak then
+			return fit
+		end
+		fit -= 0.01
+	end
+	return least
 end
 
 -- Прямоугольник (px корня rootSize) элемента с такими Position, размером в px и AnchorPoint.

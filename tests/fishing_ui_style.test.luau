@@ -45,6 +45,16 @@ local function loadConfig(name: string): any
 end
 
 local UIConfig = loadConfig("UIConfig")
+-- The layout maths of the fishing widgets (pure: no instances, no services).
+local FishingLayout = (function()
+	local path = "src/StarterPlayer/StarterPlayerScripts/Controllers/FishingLayout.luau"
+	local chunk = luau.load(fs.readFile(path), {
+		debugName = path,
+		environment = { Vector2 = roblox.Vector2, Vector3 = roblox.Vector3, CFrame = roblox.CFrame },
+		injectGlobals = true,
+	})
+	return chunk()
+end)()
 local FishingConfig = loadConfig("FishingConfig")
 local Palette = UIConfig.Palette
 
@@ -2157,6 +2167,14 @@ tests["layout: the fishing UI fits on phone, tablet and desktop without overlaps
 				local gap = (jumpCenter - discCenter).Magnitude - jump.w / 2 - (button.w / 2 + edge) * k
 				t.ok(gap >= 15.5, `{device}: the disc keeps 16 px to Jump at scale {k} ({gap})`)
 			end
+			-- … and so do its white rings (they grow with its pulse): the disc steps left of Jump
+			-- until rings of FishingLayout.RING.grow fit at the pulse's peak (≈ 20 px on a tablet).
+			local ring = FishingLayout.RING
+			local px = ring.thickness * math.clamp(vp.Y / 720, 0.65, UIConfig.Fx.StrokeMax)
+			local ringGap = (jumpCenter - discCenter).Magnitude
+				- jump.w / 2
+				- (button.w / 2 * ring.grow + px) * math.min(ring.peak, grow)
+			t.ok(ringGap >= 15.5, `{device}: its white rings keep 16 px to Jump ({ringGap})`)
 			-- D3: «СМОТАТЬ» keeps 16 px to the Home column (both outlines included); it is
 			-- anchored at its bottom-right corner, so its pop-in never grows towards Home.
 			local dx = math.max(home.x - (stop.x + stop.w), stop.x - (home.x + home.w), 0)

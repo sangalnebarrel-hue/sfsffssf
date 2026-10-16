@@ -251,8 +251,10 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   its CENTRE (placed in px by FishingController: its left edge 2 px left of the area), so every
   scale effect grows it evenly round its middle; how far it may grow on this screen and still keep
   16 px (its outline included) to the Roblox Jump button is its attribute `GrowMax` (the bite's
-  pulse and a hit's bump are capped by it — on a 4:3 tablet ≈ 1.09), and its white glow rings stop
-  ≥ 4 px before Jump. At rest ВЗЯТЬ / ЗАБРОСИТЬ breathe (1.05 every 1.4 s, ≤ 4 px a side), shine and
+  pulse and a hit's bump are capped by it), and its white glow rings (a tap's ripple included) keep
+  16 px to Jump at that peak too (`FishingLayout.RING`): where they would not fit — a 4:3 tablet,
+  whose Jump button is bigger and higher — the disc is drawn smaller (`FishingLayout.discFit`,
+  ≈ 0.9, its left edge and bottom kept: the hint column and the catch card are on its left). At rest ВЗЯТЬ / ЗАБРОСИТЬ breathe (1.05 every 1.4 s, ≤ 4 px a side), shine and
   wiggle their icon with a little bump every 2.8–3.6 s, and until the session's first cast a red «!»
   badge wobbles on the disc's upper left shoulder (the key chip has the right one); ЗАБРАТЬ! breathes
   with its rings; the waiting plate sways ±1.5°. Every look change on screen: the colours and the
@@ -765,7 +767,7 @@ brick gradients (`capSequence`, `studSequence`).
   from a fixed start point (an invisible `FxFlyFrom` frame placed once). Action button: a round
   `simButton` anchored at its centre, `recolor` + `punch` per state (capped by its `GrowMax`),
   `morphFlash` on important looks, `glowRing(button, {loop = true})` while it matters (its scale
-  capped so it never reaches Jump), `breathe` + `shineLoop` + `wobbleLoop(icon)` when idle, `ripple`
-  on tap, `ringTimer` for a timed choice (the bite). A widget that leaves while its state is torn
+  capped so it keeps 16 px to Jump), `breathe` + `shineLoop` + `wobbleLoop(icon)` when idle, one
+  capped ring on tap, `ringTimer` for a timed choice (the bite). A widget that leaves while its state is torn
   down (the bite alert) leaves as a ghost (`ghostOf` + `popOut` / drift + `fadeOut`). A new notification on a button: `Theme.badge` +
   `UiFx.badgeBob`.

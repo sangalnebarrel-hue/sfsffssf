@@ -12,8 +12,9 @@
 
 	  • Кнопка действия (ActionArea.ActionButton) видна, пока удочка в руке персонажа. Это
 	    большая круглая кнопка (значок посередине, надпись — на тёмной полупрозрачной
-	    «таблетке»; якорь — в её середине, раздувается она вокруг себя и не ближе 16 px к кнопке
-	    прыжка: атрибут GrowMax, layoutColumn); цвет, значок и надпись — по состоянию: «ЗАБРОСИТЬ» (Sky 🎣,
+	    «таблетке»; якорь — в её середине, раздувается она вокруг себя и вместе с белыми кольцами
+	    не ближе 16 px к кнопке прыжка: атрибут GrowMax, layoutColumn — на планшете она для этого
+	    чуть меньше); цвет, значок и надпись — по состоянию: «ЗАБРОСИТЬ» (Sky 🎣,
 	    единственная «живая» кнопка в покое: дышит, блестит, раз в ≈ 3 с качает значком; пока за
 	    сессию не было заброса — на её левом плече качается красный кружок «!», как у кнопок
 	    образца) → «ЖДИ КЛЁВА…» (v3: Pond — приглушённая бирюза, кнопка меньше на 15 % и чуть
@@ -405,6 +406,7 @@ type Defaults = {
 	stopSize: UDim2,
 	minigameSize: UDim2,
 	actionSize: UDim2, -- v3: кнопка действия «в покое» (ожидание поклёвки её уменьшает)
+	actionBuilt: UDim2, -- … её размер из сборщика (на планшете в покое она меньше: layoutColumn)
 	actionPosition: UDim2,
 	captionSize: UDim2, -- … её надпись и плашка подписи (при ожидании — прежней ширины в px)
 	ribbonSize: UDim2,
@@ -681,12 +683,26 @@ do
 		local small = smallTouchScreen()
 		-- Кнопка действия — у левого края своей области: круг с якорем в центре, его левый край в
 		-- 2 px левее края области (точно, в px: у области с потолком 320 x 240 доля ширины сдвинула
-		-- бы его); лента подписи шире круга.
+		-- бы его); лента подписи шире круга. На тач-экране круг меньше, если иначе его белые кольца
+		-- на пике пульса подошли бы к кнопке прыжка ближе 16 px (FishingLayout.discFit: на планшете
+		-- ≈ 0.9, левый край и низ на месте — левее колонка подсказки и карточка улова).
 		local area = boxSize(ui.actionArea, width, height)
-		local button = defaults.actionSize.Y.Scale * area.Y -- (в покое: ожидание её уменьшает)
+		local built = defaults.actionBuilt.Y.Scale * area.Y -- (размер из сборщика)
 		local rest = defaults.actionPosition
 		local discLeft = -2
-		rest = UDim2.new(0, math.ceil(discLeft + button / 2), rest.Y.Scale, rest.Y.Offset)
+		local shrink = 1
+		if touch then
+			local ringPx = Layout.RING.thickness * math.clamp(height / 720, 0.65, UIConfig.Fx.StrokeMax)
+			local bottom = height - area.Y + rest.Y.Scale * area.Y + built / 2
+			shrink = Layout.discFit(width - area.X + discLeft, bottom, built / 2, size, small, ringPx, 0.8)
+		end
+		local sized = UDim2.fromScale(defaults.actionBuilt.X.Scale * shrink, defaults.actionBuilt.Y.Scale * shrink)
+		if sized ~= defaults.actionSize then -- (новый экран; ожидание поклёвки уменьшит её снова)
+			defaults.actionSize = sized
+			assign(ui.actionButton, "Size", sized)
+		end
+		local button = sized.Y.Scale * area.Y -- (в покое: ожидание её уменьшает)
+		rest = UDim2.new(0, math.ceil(discLeft + button / 2), rest.Y.Scale, math.floor((built - button) / 2))
 		assign(ui.actionButton, "Position", rest)
 		defaults.actionPosition = rest
 		local ribbon = ui.actionButton:FindFirstChild("CaptionRibbon")
@@ -1291,14 +1307,15 @@ do
 
 	-- Белые кольца от кнопки (ВЗЯТЬ, ЛОВИ!, такт поклёвки): тонкий чёткий контур, 1 → 1.3 —
 	-- читается на дереве, воде и небе. На тач-экране кольца растут вместе с пульсом кнопки (они —
-	-- её дети) и не дотягиваются до кнопки прыжка: на планшете (большая кнопка прыжка выше) — до
-	-- ≈ 1.2, так что и на пике пульса (GrowMax) до неё остаются clear px. once — одно кольцо
-	-- (рябь от касания, кнопка вернулась после улова).
+	-- её дети) и не дотягиваются до кнопки прыжка: и на пике пульса (GrowMax) до неё остаются
+	-- 16 px (FishingLayout.RING; круг для этого отодвинут — layoutColumn: на планшете кольцо
+	-- вырастает до ≈ 1.2). once — одно кольцо (рябь от касания, кнопка вернулась после улова).
 	function whiteRings(interval: number, once: boolean?): UiFx.Stop
-		local grow, clear, thickness = 1.3, 4, 5 -- рост кольца; зазор, px; толщина
+		local grow, thickness = 1.3, 5 -- рост кольца; толщина, px (как FishingLayout.RING)
 		local peak = math.min(1.14, (ui.actionButton:GetAttribute("GrowMax") :: number?) or 1.14) -- пик пульса поклёвки
 		if UserInputService.TouchEnabled then
 			local Layout = require(script.Parent:WaitForChild("FishingLayout")) :: any
+			local clear = Layout.RING.clear
 			local area = ui.actionArea.AbsoluteSize
 			local rest = defaults.actionPosition
 			local center = ui.actionArea.AbsolutePosition
@@ -1309,7 +1326,7 @@ do
 			local room = Layout.growRoom(center, ui.fishing.AbsoluteSize, math.min(view.X, view.Y) <= 500, clear)
 			local px = thickness * math.clamp(view.Y / 720, 0.65, UIConfig.Fx.StrokeMax) -- (как fitStrokes)
 			local radius = math.max(defaults.actionSize.Y.Scale * area.Y / 2, 1)
-			grow = math.clamp((room / peak - px) / radius, 1.1, grow)
+			grow = math.clamp((room / peak - px) / radius, 1, grow) -- (места нет — кольцо под обводкой)
 		end
 		return UiFx.glowRing(ui.actionButton, {
 			loop = not once,
@@ -1391,7 +1408,7 @@ do
 				Size = UDim2.fromScale(restSize.X.Scale * WATER_SMALL, restSize.Y.Scale * WATER_SMALL),
 			}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 			lookTrove:Add(function()
-				UiFx.tween(button, 0.2, { Size = restSize })
+				UiFx.tween(button, 0.2, { Size = defaults.actionSize }) -- (экран мог смениться)
 			end)
 			-- Надпись длиннее «ЗАБРОСИТЬ», а кнопка меньше: надпись и плашка подписи остаются
 			-- прежней ширины в px, а надпись может стать мельче — до уровня Small (в одну строку).
@@ -6466,6 +6483,7 @@ local function readDefaults(): Defaults
 		stopSize = ui.stopButton.Size,
 		minigameSize = ui.minigame.Size,
 		actionSize = ui.actionButton.Size,
+		actionBuilt = ui.actionButton.Size,
 		actionPosition = ui.actionButton.Position,
 		captionSize = ui.actionCaption.Size,
 		ribbonSize = (ui.actionButton:FindFirstChild("CaptionRibbon") :: GuiObject).Size,
