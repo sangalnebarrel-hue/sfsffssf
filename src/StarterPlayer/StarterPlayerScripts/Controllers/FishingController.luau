@@ -1161,18 +1161,19 @@ do
 	local fishingFx: any = nil -- FishingFxController (берётся при первом вызове), false — нет
 
 	-- Верх полосы слева (px корня) для виджета, прижатого слева до x1: под видимыми плашками
-	-- статуса над ним (с зазором COLUMN_GAP); низ — над джойстиком (тач-экран).
-	local function dockBand(origin: Vector2, height: number, x1: number): (number, number)
-		local top = 8 + OUTLINE
+	-- статуса над ним (с зазором COLUMN_GAP); низ — над джойстиком (тач-экран). edge — сколько
+	-- его обводка и «аура» выступают за него (не меньше OUTLINE; на планшете толще).
+	local function dockBand(origin: Vector2, height: number, x1: number, edge: number): (number, number)
+		local top = 8 + edge
 		for _, item in ui.status:GetChildren() do
 			if item:IsA("GuiObject") and item.Visible then
 				local at = item.AbsolutePosition - origin
 				if at.X < x1 and at.X + item.AbsoluteSize.X > Layout.EDGE then
-					top = math.max(top, at.Y + item.AbsoluteSize.Y + Layout.EDGE + OUTLINE)
+					top = math.max(top, at.Y + item.AbsoluteSize.Y + Layout.EDGE + edge)
 				end
 			end
 		end
-		local bottom = height - Layout.EDGE - OUTLINE
+		local bottom = height - Layout.EDGE - edge
 		if UserInputService.TouchEnabled then
 			local stick = if smallTouchScreen() then Layout.JUMP_SMALL else Layout.JUMP_BIG -- джойстик — зеркало прыжка
 			bottom -= stick.bottom + stick.size
@@ -1226,7 +1227,9 @@ do
 			local placed = Layout.rectOf(rest, box, gui.AnchorPoint, area)
 			local left, right = spanLeft, spanRight
 			if withDock and fisher then
-				local top, bottom = dockBand(origin, area.Y, math.min(Layout.EDGE + box.X, fisher.x0))
+				local aura = gui:FindFirstChild("AuraStroke")
+				local edge = math.max(OUTLINE, if aura and aura:IsA("UIStroke") then UiFx.strokeThickness(aura) else 0)
+				local top, bottom = dockBand(origin, area.Y, math.min(Layout.EDGE + box.X, fisher.x0), edge)
 				-- (Виджет, которому можно стать меньше, — меньше целиком, не сплющенный.)
 				local shrinks = minScale < 1
 				local slot = Layout.dockLeft(
@@ -5765,7 +5768,7 @@ do
 			return x, y
 		end
 		local at = host.AbsolutePosition - ui.fishing.AbsolutePosition
-		local half = w * peak / 2
+		local half = w * peak / 2 + 8 / size.X -- (и 8 px до рыбака: он шевелится)
 		local fisher = fisherRect()
 		if fisher then
 			local lo, hi = (fisher.x0 - at.X) / size.X, (fisher.x1 - at.X) / size.X
@@ -6005,9 +6008,9 @@ do
 		if fisher and fisher.y0 < top.Y + height * 0.3 and fisher.y1 > top.Y - height - 0.06 * area.Y then
 			local lo, hi = 8, area.X - 8
 			if (fisher.x0 + fisher.x1) / 2 >= cx then
-				hi = math.min(hi, fisher.x0)
+				hi = math.min(hi, fisher.x0 - 8)
 			else
-				lo = math.max(lo, fisher.x1)
+				lo = math.max(lo, fisher.x1 + 8)
 			end
 			if hi - lo < width and hi > lo then
 				height *= (hi - lo) / width
