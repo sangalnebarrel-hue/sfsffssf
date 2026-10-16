@@ -1779,14 +1779,15 @@ export type SparkleOptions = {
 	area: number?, -- насколько выходить за края (0.18)
 	duration: number?, -- сами остановятся через столько секунд
 	z: number?, -- ZIndex (8)
-	outside: boolean?, -- только СНАРУЖИ элемента (плашка с текстом: ни одной звёздочки на буквах)
+	outside: boolean?, -- только СБОКУ от элемента, слева и справа (плашка с текстом: ни на буквах,
+	-- ни над и под ней — там соседи и голова персонажа)
 }
 
 --[[
 	✨ / ⭐ то тут, то там по краям элемента: выскакивают, поворачиваются и гаснут. outside —
-	только вокруг него (с запасом на поворот и перелёт звёздочки): на плашках с текстом (тосты,
-	штамп мутации, баннер) они не ложатся на буквы. Таймеры и твины, без соединений. Возвращает
-	stop (живые звёздочки удаляются сразу).
+	только слева и справа от него (с запасом на поворот и перелёт звёздочки): на плашках с текстом
+	(тосты, штамп мутации, баннер) они не ложатся на буквы, а под тостом — на голову персонажа.
+	Таймеры и твины, без соединений. Возвращает stop (живые звёздочки удаляются сразу).
 ]]
 function UiFx.sparkles(gui: GuiObject, opts: SparkleOptions?): Stop
 	if reduced() then
@@ -1820,18 +1821,10 @@ function UiFx.sparkles(gui: GuiObject, opts: SparkleOptions?): Stop
 		local box = gui.AbsoluteSize
 		if o.outside and box.X > 0 and box.Y > 0 then
 			-- Половина звёздочки (в долях высоты элемента; повёрнутая на 45° и с перелётом
-			-- Back Out — до 0.75 её стороны) за краем, и ещё до area дальше.
-			local edge = 0.75 * s
-			local side = rng:NextNumber() < 0.5
-			local far = rng:NextNumber(0, area)
-			if side then
-				local dx = (edge + far * 0.6) * box.Y / box.X
-				x = if rng:NextNumber() < 0.5 then -dx else 1 + dx
-				y = rng:NextNumber(0.15, 0.85)
-			else
-				x = rng:NextNumber(0, 1)
-				y = if rng:NextNumber() < 0.5 then -edge - far else 1 + edge + far
-			end
+			-- Back Out — до 0.75 её стороны) за боковым краем, и ещё до area дальше.
+			local dx = (0.75 * s + rng:NextNumber(0, area) * 0.6) * box.Y / box.X
+			x = if rng:NextNumber() < 0.5 then -dx else 1 + dx
+			y = rng:NextNumber(0.15, 0.85)
 		elseif rng:NextNumber() < 0.5 then
 			x = rng:NextNumber(-area, 1 + area)
 			y = if rng:NextNumber() < 0.5 then rng:NextNumber(-area, 0.12) else rng:NextNumber(0.88, 1 + area)

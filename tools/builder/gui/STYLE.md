@@ -171,7 +171,7 @@ temporary instances, cancel tweens) and accept a Trove or return a cleanup funct
 | glow ring | a copy of the round shape behind it, scale 1 → 1.5, transparency 0.3 → 1 | 0.6 s, repeat while important; stop fades live rings in 0.1 s |
 | rays | sunburst of 8–16 thin rotated bars in alternating rarity colours, growing from the centre (Quad Out), slowly rotating (≈20°/s; two rings turn opposite ways), behind titles and the catch card; on touch: no halo quads, no breathing, size capped (`maxPx`); `settle()` after the reveal; with a `hole` the middle stays empty | while shown |
 | confetti | 30–60 small Frames (squares/strips, vivid colours, rotation), launched up/out then falling with gravity and spin, fading in the last 30 % | 1.6–2.2 s |
-| sparkles | ✨ / ⭐ labels popping in/out at random spots around an element (on a text plate only outside it, never on its letters) | while shown |
+| sparkles | ✨ / ⭐ labels popping in/out at random spots around an element (on a text plate only beside it, never on its letters) | while shown |
 | float text | «ОТЛИЧНО!», «+1 🐟», «МИМО!» in Montserrat Heavy **Italic** with a 4 px outline: pop, rise 8 % and fade, slight rotation | 0.8 s |
 | rainbow | UIGradient colour keypoints shifted every frame (hue cycle), or Rotation spin | continuous while shown |
 | flash | full-screen white / rarity-coloured Frame 0.6 → 1 transparency (`flashBig` exists but is not used: never a near-solid screen on a catch landing) | 0.25 s; ≤ 3 per second |
@@ -230,7 +230,7 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   dark Night plate in a spinning rainbow OUTLINE, 🌈 — the rainbow only on the outline, never
   behind the letters) broadcasts are bigger plates that punch in (0.3 → 1.12 → 1) and land with a
   ring in the rarity colour, a rim flash and a gold flash of the headline (sparkles 0.3 of its
-  height pop only around the plate — none on «×5!», r4 ART-02), in two lines — who
+  height pop only beside the plate — none on «×5!», r4 ART-02), in two lines — who
   (Small, never under 14 px) over what (up to Title, the rarity word in capitals), never wider than
   the column — 1.25 columns on a touch screen, centred, clear of Home — (measured per glyph,
   `UiFx.textWidth`; on a touch screen a long headline first shrinks, down to 12 px, and wraps into
@@ -783,7 +783,7 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `confetti(container, {count?, colors?, origin?, spread?, power?, duration?, z?})` → stop | frame | ≤ 40 alive on touch devices, ≤ 60 otherwise (`confettiCap()`, `liveConfetti()`) |
 | `confettiPop(container, {same options})` → stop | timers | the same pieces on tweens only — for moments when the rest is idle (joining, the base banner) |
 | `burst(container, {count?, colors?, origin?, power?, time?, z?, size?})` → stop | frame | round sparks flying out of `origin` |
-| `sparkles(gui, {icons?, rate?, size?, area?, duration?, z?, outside?})` → stop | timers | ✨/⭐ popping around the edges; `outside` — only around the element, never over it (text plates: toasts, the mutation stamp, banners — r4 ART-02) |
+| `sparkles(gui, {icons?, rate?, size?, area?, duration?, z?, outside?})` → stop | timers | ✨/⭐ popping around the edges; `outside` — only beside the element, left and right, never over it (text plates: toasts, the mutation stamp, banners — r4 ART-02; not under a toast either: the avatar's head is there) |
 | `floatText(container, text, {position?, size?, color?, colors?, rise?, time?, rotate?, z?, to?, travel?, anchor?})` → label | timers | italic «ОТЛИЧНО!», «+1»: pop, rise 8 %, fade (0.8 s); with `to` it first flies out of `position` to `to`; `anchor` — the point `position` names and its UIScale grows about (a slam from its far edge) |
 | `countUp(label, from, to, time?, format?, {bump?})` → stop | frame | Quad Out; `bump`: each new number bumps 1.06 → 1 (≤ 12 Hz) |
 | `flyTo(layer, from, to, {text?, texts?, color?, time?, size?, arc?, count?, gap?, onEach?, onArrive?})` → stop | frame | §2 fly-up: one frame job for all icons |

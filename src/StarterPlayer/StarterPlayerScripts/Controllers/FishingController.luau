@@ -3349,7 +3349,7 @@ do
 	--------------------------------------------------------------------------------
 
 	-- Эффект штампа мутации по её стилю: золото — звёздочки, неон — светится, радуга — бежит.
-	-- (Звёздочки — вокруг штампа, не на его буквах: outside, ART-02.)
+	-- (Звёздочки — по бокам штампа, не на его буквах: outside, ART-02.)
 	local function mutationFx(style: UIConfig.MutationStyle)
 		local badge = ui.mutationLabel
 		if style.Effect == "sparkles" then

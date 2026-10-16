@@ -13,7 +13,7 @@
 	press (squash 0.9 + a darker face + overshoot + icon kick, no sink; hover only without a touch
 	screen), snapIn, rimFlash, morphFlash with the icon pop, the idle life on timers (breathe, bob,
 	sway, the «!» badge), the ring timer (tweens only) and reduced motion; a partial rainbow that
-	bounces (no grey blend of its last colour into the first) and sparkles only outside a text plate.
+	bounces (no grey blend of its last colour into the first) and sparkles only beside a text plate.
 
 	Run: lune run tools/run_tests.luau uifx
 ]]
@@ -1230,14 +1230,14 @@ tests["rainbow bounce: a partial rainbow never blends through grey; outside spar
 		end
 	end)
 
-	-- ART-02: sparkles «outside» pop only around a text plate, never over it (a wide toast: the
-	-- side bands would have landed on its last letters, «×5!»).
+	-- ART-02: sparkles «outside» pop only beside a text plate, left and right, never over it (a
+	-- wide toast: the side bands would have landed on its last letters, «×5!») nor under it.
 	local plate = stage(sim, p, "SparkleStage")
 	local stop
 	client(sim, p, function()
 		stop = UiFx.sparkles(plate, { rate = 20, size = 0.3, outside = true })
 	end)
-	local seen, onPlate = 0, 0
+	local seen, onPlate, offSide = 0, 0, 0
 	local box = plate.AbsolutePosition
 	local size = plate.AbsoluteSize
 	for _ = 1, 30 do
@@ -1251,11 +1251,16 @@ tests["rainbow bounce: a partial rainbow never blends through grey; outside spar
 				if dx > 0 and dy > 0 then
 					onPlate += 1
 				end
+				local middle = at.Y + wh.Y / 2
+				if middle < box.Y or middle > box.Y + size.Y then
+					offSide += 1
+				end
 			end
 		end
 	end
 	t.ok(seen >= 10, `sparkles keep coming ({seen})`)
 	t.eq(onPlate, 0, "none of them over the plate")
+	t.eq(offSide, 0, "all of them beside it (none above or under it)")
 	client(sim, p, function()
 		stop()
 	end)
