@@ -336,7 +336,8 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   fight (the brace, the crank, the bent rod) and the bobber stay in view; the words over the
   panel (the rarity word, the hit words even at their 1.3 pop, «МИМО!» / «ВРЕМЯ!») keep 8 px off
   the own fisher — moved aside, the rarity word narrower if it must — and off the status plates
-  and the flag (`FishingLayout.clearOf`: aside, else lower), and a slam from big (the rarity word
+  and the flag (`FishingLayout.clearOf`: they rise less; touching even at rest — a step aside of
+  at most half the word, else lower), and a slam from big (the rarity word
   2.2, «ИДЕАЛЬНО!» 2) grows from its far edge when from its middle it would cross him
   (`FishingLayout.slamPivot`, r4 ART-03); the hit is shown at once (the needle freezes gold, sparks, rising pitch) with
   «ОТЛИЧНО!» → «СУПЕР!» → «МЕГА!» or «ИДЕАЛЬНО!» (within 25 % of the zone centre; the title flashes
@@ -836,7 +837,8 @@ RenderStepped connection for all running frame effects, disconnected when none r
   projected through the camera, padded 12 px, or `fallbackFisher` where it stands at the default
   camera; `avoid` — lower / slide aside; `dockSide` — a slot beside him; `topBand` — above him;
   `slamPivot` — where a slam from big grows from so even its first frame misses him;
-  `clearOf` — a word over the panel shifted off the status plates and the base flag). On a tablet
+  `clearOf` — a word over the panel kept off the status plates and the base flag: less rise, a
+  small step aside or lower). On a tablet
   or a PC the minigame docks beside him too when at the bottom it would lie on him (r4).
   No Roblox hotbar (HudController: `SetCoreGuiEnabled(Backpack, false)`): the rod is taken with
   «ВЗЯТЬ»; a custom hotbar comes with the shop stage — keep the bottom band under the fisher's
