@@ -2686,15 +2686,17 @@ tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticke
 	t.eq(chip.Label.Size, chip.Label:GetAttribute("RestSize"), "…and label")
 
 	-- «+N 💰» beside a docked card: above the banner when there is room, else at the outer
-	-- edge, else the window's top strip (fading early) — never on the fish in the window.
-	local function spot(cardTop: number, outer: number): any
-		local c, h, early = CatchFx.floatSpot({
+	-- edge, else under the card, else the window's top strip (fading early) — never on the fish
+	-- in the window.
+	local function spot(cardTop: number, outer: number, tall: number?): any
+		local h = tall or 300
+		local c, size, early = CatchFx.floatSpot({
 			root = V2(1024, 710),
-			card = { x0 = 600, y0 = cardTop, x1 = 900, y1 = cardTop + 300 },
+			card = { x0 = 600, y0 = cardTop, x1 = 900, y1 = cardTop + h },
 			side = 1,
 			edge = 580,
 			window = { x0 = 630, y0 = cardTop + 60, x1 = 870, y1 = cardTop + 160 },
-			source = V2(800, cardTop + 230),
+			source = V2(800, cardTop + h - 70),
 			perHeight = 5.4,
 			want = 80,
 			least = 36,
@@ -2703,17 +2705,21 @@ tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticke
 				return 16, outer
 			end,
 		})
-		return { c = c, h = h, early = early }
+		return { c = c, h = size, early = early }
 	end
 	local above = spot(200, 1008)
 	t.ok(above.c.Y + above.h / 2 <= 190 + 1e-6 and not above.early, "room above: over the banner")
 	t.ok(above.c.X - above.h * 5.4 / 2 >= 590 - 1e-6, "…not over the fisher")
 	local beside = spot(30, 1300)
 	t.ok(beside.c.X - beside.h * 5.4 / 2 >= 910 - 1e-6 and not beside.early, "no room above: at the outer edge")
-	local strip = spot(30, 950)
+	local under = spot(30, 1008)
+	t.ok(under.c.Y - under.h / 2 >= 340 - 1e-6 and not under.early, "…else under the card")
+	t.ok(under.c.X - under.h * 5.4 / 2 >= 590 - 1e-6, "…not over the fisher")
+	local strip = spot(30, 950, 660)
 	t.ok(strip.early, "no room at all: the window's top strip, fading early")
 	t.ok(strip.c.Y + strip.h / 2 <= 30 + 60 + 0.5 * 100, "…in its top half")
 	t.ok(strip.h <= 30 + 1e-6, "…at most 0.3 of the window tall")
+	t.ok(strip.c.X + strip.h * 5.4 / 2 <= 870 + 1e-6, "…inside the window, by its right end")
 	sim:AssertNoErrors({ warnings = true })
 end
 
