@@ -315,7 +315,7 @@ tests["parts: the fishing widgets are sim plates with their decorations, no stud
 	end
 	t.ok(alert.TimerTrack.ZIndex < alert.Timer.ZIndex, "the timer bar sits on its track")
 
-	-- The minigame: a dark navy sim panel (no studs along its top edge any more).
+	-- The minigame: a dark navy sim panel with a smooth face.
 	local mini = f.Minigame
 	checkCandy(t, mini, "Minigame")
 	t.ok(isCandy(mini, Palette.Night), "Minigame: a dark navy panel")

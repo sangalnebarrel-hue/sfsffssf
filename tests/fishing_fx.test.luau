@@ -1203,8 +1203,16 @@ tests["nameplate and mutation aura: Rare+ fish get a nameplate; a mutation recol
 	t.ok(colorNear(aura.Color.Keypoints[2].Value, gold.Top), "in the mutation's colours (Gold)")
 	t.ok(aura.Rate >= Fx.MutationAuraRate, "at least MutationAuraRate sparkles a second")
 	t.near(aura.Size.Keypoints[2].Value, 0.7, 1e-3, "Gold sparkles peak bigger")
-	sim:Advance(FishingConfig.HoldFishTime.Rare, COARSE)
-	t.eq(plate.Parent, nil, "the nameplate goes with the held fish (HoldFishTime.Rare)")
+	-- SIMC-C2-06: the plate never hangs in the air without its fish — the moment the trophy is put
+	-- away it breathes out where the fish was and is gone within a fraction of a second.
+	local putAway = sim:WaitFor(function()
+		return held.Parent == nil
+	end, FishingConfig.HoldFishTime.Rare + 1, FRAME)
+	t.ok(putAway, "the held fish is put away (HoldFishTime.Rare)")
+	sim:Advance(0.05)
+	t.ok(plate.Parent == nil or plate.Adornee ~= held.PrimaryPart, "the plate lets go of the gone fish at once")
+	sim:Advance(0.15)
+	t.eq(plate.Parent, nil, "…and is gone with it (≤ 0.2 s)")
 
 	-- A Common fish with a Neon mutation: a nameplate with its name and price (no rarity line),
 	-- an aura; the cyan glow (a PointLight that walks with the fisher) only on the fisher's own

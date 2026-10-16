@@ -361,7 +361,9 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   cycling around the frame —, Legendary/Mythic an accelerating heartbeat (sound only) and a slight
   FOV wind-up while the fish leaps. On the landing (`FishingFxController.OwnFishLanded`) **a crisp
   burst at the fish, never a wash** (v3): a thin shockwave ring (`UiFx.shockwave`, `CLIMAX.Shock`:
-  no glowing middle, ≈ 0.34 s) and sparks from the fish's point — no edge flash —, in the world a
+  no glowing middle, ≈ 0.34 s; it starts outside the trophy — `from`, `CatchFx.clearRadius` —, so
+  a giant fish on the smallest phone is not crossed by it) and sparks from the fish's point — no
+  edge flash —, in the world a
   small white pop, a star of thin rarity rays and a thin halo at the fish (the own Legendary/Mythic
   pillar only rises 0.3 s later, with a thin core), shake and FOV punch, confetti; for Epic+ the
   rarity rays start around the fish (empty middle; during the title stage thin spokes, more
@@ -767,7 +769,7 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `rainbow(gradient, {speed?, colors?, spin?})` → stop | frame | hue cycle (30 Hz); stop restores the colours |
 | `timerBar(fill, duration, colors?)` → stop | frame | width 1 → 0, green → yellow → red |
 | `flash(layer, color?, time?, from?, hold?)`, `flashBig(layer, color?)` | timers | full-screen flash, at most 3 per second |
-| `shockwave(layer, origin, {color?, colors?, size?, time?, thickness?, glow?, z?})` | timers | the landing hit at `origin` |
+| `shockwave(layer, origin, {color?, colors?, size?, time?, thickness?, glow?, z?, from?})` | timers | the landing hit at `origin`; the rings start at `from` layer heights (≥ 0.3: outside what landed) |
 | `fovPunch(deg, tIn?, tOut?, easeIn?)` → stop | frame | the ONLY writer of `Camera.FieldOfView` (sum clamped to ±8°) |
 | `edgeVignette(layer, color \| {colors}, alpha, period?, opts?)` → stop(fade?) | timers | 4 edge bands ("FxVignette"); opts `fadeIn`, `from`, `build`, `cycle`, `pulseTo`, `hold`, `fadeOut`, `size`, `z` |
 | `trail(gui, {count?, lag?, transparency?, last?, color?, width?, taper?, height?, z?})` → stop | frame | ghost copies following a moving widget (the minigame needle): each `lag` s behind the one before, transparency `transparency` → `last`, width `width` → `taper` of the widget's, `height` of it, in `color`, at ZIndex `z` |

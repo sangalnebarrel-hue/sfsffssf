@@ -1138,7 +1138,7 @@ tests["sim in motion: press squash + shade + overshoot + icon kick (no sink); sn
 	t.near(frame.Size.X.Scale, restSize.X.Scale, 1e-3)
 	t.near(frame.Size.Y.Scale, restSize.Y.Scale, 1e-3)
 
-	-- Rim flash (replaces the v3 «studs pop»): the light rim flashes white, a white veil, a bump.
+	-- Rim flash: the light rim flashes white, a white veil, a bump.
 	local ring = face.Rim:FindFirstChildOfClass("UIStroke")
 	local rimRest = ring.Transparency
 	client(sim, p, function()

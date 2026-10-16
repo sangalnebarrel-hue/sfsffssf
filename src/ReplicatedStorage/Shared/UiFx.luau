@@ -2609,6 +2609,8 @@ export type ShockwaveOptions = {
 	thickness: number?, -- толщина кольца на экране 720 px (14; на телефоне тоньше)
 	glow: number?, -- мягкий диск в центре: прозрачность в начале (0.55; 1 — без диска)
 	z: number?, -- ZIndex (60: над виджетами, под вспышкой и краями экрана)
+	from: number?, -- с какого диаметра начинаются кольца, в высотах слоя (0.3, не меньше): шире
+	-- того, что приземлилось (огромный трофей на маленьком телефоне)
 }
 
 --[[
@@ -2620,7 +2622,8 @@ export type ShockwaveOptions = {
 function UiFx.shockwave(layer: GuiBase2d, origin: Vector2, opts: ShockwaveOptions?)
 	local o: ShockwaveOptions = opts or {}
 	local time = o.time or 0.45
-	local size = o.size or 1.3
+	local start = math.max(o.from or 0.3, 0.3)
+	local size = math.max(o.size or 1.3, start * 1.3)
 	local z = o.z or 60
 	local k = math.clamp(screenUnit(layer) / Fx.StrokeHeight, 0.65, 1.5)
 	local made: { Instance } = {}
@@ -2642,9 +2645,10 @@ function UiFx.shockwave(layer: GuiBase2d, origin: Vector2, opts: ShockwaveOption
 		table.insert(made, frame)
 		return frame
 	end
-	-- Кольцо начинается чуть шире того, что приземлилось (0.3 высоты слоя: снаружи ореола рыбы), и расходится.
+	-- Кольцо начинается чуть шире того, что приземлилось (from, не меньше 0.3 высоты слоя: снаружи
+	-- ореола рыбы), и расходится.
 	local function ring(name: string, color: Color3, px: number, to: number, ringTime: number)
-		local frame = circle(name, math.min(0.3, to))
+		local frame = circle(name, math.min(start, to))
 		local stroke = Instance.new("UIStroke")
 		stroke.Color = color
 		stroke.Thickness = px
@@ -2665,7 +2669,7 @@ function UiFx.shockwave(layer: GuiBase2d, origin: Vector2, opts: ShockwaveOption
 	ring("FxShock", o.color or WHITE, thick, size, time)
 	task.delay(0.06, function()
 		if layer.Parent then
-			ring("FxShockInner", WHITE, math.max(thick * 0.4, 2), size * 0.72, time * 0.9)
+			ring("FxShockInner", WHITE, math.max(thick * 0.4, 2), math.max(size * 0.72, start * 1.15), time * 0.9)
 		end
 	end)
 	local glow = o.glow or 0.55

@@ -5160,6 +5160,10 @@ do
 		-- краёв экрана: чёткий удар в точке рыбы, а не заливка кадра (v3; белый шар и «звезда»
 		-- тонких лучей — в мире, FishingFxController).
 		local shock = CLIMAX.Shock
+		-- (кольца начинаются снаружи трофея — CatchFx.clearRadius: огромная рыба на маленьком
+		-- телефоне шире 0.3 высоты экрана, и кольцо иначе проходило бы по ней)
+		local clear =
+			CatchFx.clearRadius(fishBox(fish), point or Vector2.new(origin.X * rootSize.X, origin.Y * rootSize.Y))
 		UiFx.shockwave(ui.hud, origin, {
 			color = style.Top,
 			colors = if style.Rainbow then UIConfig.Rainbow else nil,
@@ -5167,6 +5171,7 @@ do
 			thickness = shock.Thickness,
 			time = shock.Time,
 			glow = 1,
+			from = if clear then 2 * clear / math.max(rootSize.Y, 1) else nil,
 		})
 		-- Искры — следом за кольцом (в кадр приземления рыбу ничто не закрывает).
 		later(celebrationTrove, 0.05, function()
