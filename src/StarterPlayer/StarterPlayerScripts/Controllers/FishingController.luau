@@ -5752,8 +5752,9 @@ do
 	--[[
 		Слово над панелью (в долях host: середина x, y, ширина w, высота h; поднимается на rise
 		высоты host, наклон tilt°, «раздувается» до peak): не на своём рыбаке — по X в сторону от
-		него (ART-03), и не на плашках статуса и флажке базы — вбок или ниже (FishingLayout.clearOf,
-		ART-04). Возвращает середину (доли host).
+		него (ART-03), и не на плашках статуса и флажке базы — поднимается меньше, а тесно и на
+		месте — чуть вбок или ниже (FishingLayout.clearOf, ART-04). Возвращает середину и подъём
+		(доли host).
 	]]
 	local function wordSpot(
 		host: GuiObject,
@@ -5764,10 +5765,10 @@ do
 		rise: number,
 		tilt: number,
 		peak: number
-	): (number, number)
+	): (number, number, number)
 		local size = host.AbsoluteSize
 		if size.X < 1 or size.Y < 1 then
-			return x, y
+			return x, y, rise
 		end
 		local at = host.AbsolutePosition - ui.fishing.AbsolutePosition
 		local half = w * peak / 2 + 8 / size.X -- (и 8 px до рыбака: он шевелится)
@@ -5781,14 +5782,15 @@ do
 		end
 		local cx, cy = at.X + x * size.X, at.Y + y * size.Y
 		local hw, hh = w * size.X / 2, h * size.Y / 2
-		local dx, dy = Layout.clearOf(
-			Layout.rect(cx - hw, cy - hh, cx + hw, cy + hh),
-			rise * size.Y + math.sin(math.rad(math.abs(tilt))) * hw,
+		local lift = math.sin(math.rad(math.abs(tilt))) * hw -- (наклон задирает край)
+		local dx, dy, up = Layout.clearOf(
+			Layout.rect(cx - hw, cy - hh * peak - lift, cx + hw, cy + hh),
+			rise * size.Y,
 			statusBoxes(),
 			8,
 			ui.fishing.AbsoluteSize.X
 		)
-		return x + dx / size.X, y + dy / size.Y
+		return x + dx / size.X, y + dy / size.Y, up / size.Y
 	end
 
 	function refreshPips(mg: Minigame)
@@ -6298,7 +6300,8 @@ do
 		local h = if perfect then 0.62 else 0.55
 		-- (Не на рыбаке и на пике выскакивания 1.3, не на статусе — wordSpot; «ИДЕАЛЬНО!» — «удар»
 		-- от края, дальнего от рыбака, если от середины он лёг бы на него.)
-		local px, py = wordSpot(panel, math.clamp(x, 0.36, 0.64), -0.14, 0.7, h, 0.35, 4, if perfect then 1 else 1.3)
+		local px, py, rise =
+			wordSpot(panel, math.clamp(x, 0.36, 0.64), -0.14, 0.7, h, 0.35, 4, if perfect then 1 else 1.3)
 		local pivot, from = Vector2.new(0.5, 0.5), 2
 		local fisher = fisherRect()
 		if perfect and fisher then
@@ -6313,7 +6316,7 @@ do
 			anchor = pivot,
 			size = UDim2.fromScale(0.7, h),
 			colors = word.colors,
-			rise = 0.35,
+			rise = rise,
 			time = 0.85,
 			rotate = if perfect then -4 else nil,
 			z = 8,
@@ -6574,12 +6577,12 @@ do
 			end
 		end
 		UiFx.wiggle(ghost, 4, 3, 0.4)
-		local wx, wy = wordSpot(ghost, 0.5, -0.14, 0.62, 0.5, 0.2, 6, 1) -- (не на флажке базы, ART-04)
+		local wx, wy, rise = wordSpot(ghost, 0.5, -0.14, 0.62, 0.5, 0.2, 6, 1) -- (не на флажке базы, ART-04)
 		UiFx.floatText(ghost, text, {
 			position = UDim2.fromScale(wx, wy),
 			size = UDim2.fromScale(0.62, 0.5),
 			colors = { Palette.Berry.Top, Palette.Berry.Bottom },
-			rise = 0.2,
+			rise = rise,
 			time = MISS_HOLD,
 			rotate = -6,
 			z = 8,

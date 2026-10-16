@@ -8,8 +8,9 @@
 	    grows away from him (ART-03);
 	  • «ПОЙМАНА!» rests off the thumbstick (≥ 16 px) and off the fisher, and its slam from 2.4
 	    grows from the edge away from them (UX-02, UX-03);
-	  • on a phone the words over the docked minigame («ЛЕГЕНДАРНАЯ!», «МИМО!») stay off the base
-	    badge and the flag hanging over its left end (ART-04).
+	  • on a phone the words over the docked minigame («ЛЕГЕНДАРНАЯ!», «ИДЕАЛЬНО!», «МИМО!») stay off
+	    the base badge and the flag hanging over its left end (ART-04): they rise less, and stay
+	    over their panel.
 	The server's FishingService is switched off (like tests/fishing_ui_style.test.luau): the harness
 	plays the server and fires FishingState itself.
 
@@ -307,6 +308,41 @@ tests["phone: the words over the docked minigame stay off the base badge and its
 				not hits(box, block),
 				`the rarity word {fmt(box)} stays off {if i == 1 then "the badge" else "the flag"} {fmt(block)}`
 			)
+		end
+	end
+	-- «ИДЕАЛЬНО!» (the zone centre: a perfect hit) rises from the panel's top edge, but only as far
+	-- as the badge lets it — it stays over its panel, never pushed across the screen.
+	p:SetAttribute("FishingState", "Idle")
+	serverSays(sim, p, "Lost", { Reason = "timeout", Text = "" })
+	sim:Advance(1.5)
+	p:SetAttribute("FishingState", "Reeling")
+	serverSays(sim, p, "Minigame", minigame("Epic", { U0 = 0.5, Speed = 0.05, ZoneCenter = 0.5, HitsNeeded = 3 }))
+	sim:Advance(0.3)
+	sim:PressKey(p, Enum.KeyCode.F)
+	sim:Advance(0.02)
+	local perfect = floatNamed(f.Minigame, "ИДЕАЛЬНО!")
+	t.ok(perfect ~= nil, "«ИДЕАЛЬНО!»")
+	if perfect then
+		local panel = seenOf(f.Minigame)
+		local born = boxOf(perfect)
+		local middle = (born.x0 + born.x1) / 2
+		t.ok(
+			middle > panel.x0 and middle < panel.x1,
+			`«ИДЕАЛЬНО!» {fmt(born)} stays over its panel {fmt(panel)}`
+		)
+		sim:Advance(0.75) -- (nearly the end of its rise)
+		if perfect.Parent then
+			local risen = boxOf(perfect)
+			local lift = math.sin(math.rad(math.abs(perfect.Rotation))) * (risen.x1 - risen.x0) / 2
+			risen.y0 -= lift
+			for i, block in blocks do
+				t.ok(
+					not hits(risen, block),
+					`«ИДЕАЛЬНО!» {fmt(risen)} rises no higher than {if i == 1 then "the badge" else "the flag"} {fmt(
+						block
+					)}`
+				)
+			end
 		end
 	end
 	-- A miss: the ghost's «МИМО!» rises over the panel's top edge, right under the badge.

@@ -28,8 +28,8 @@
 	  • flightHits — заденет ли виджет прямоугольник, вылетая из точки на своё место.
 	  • slamPivot — откуда растить «удар» огромной надписи (от середины или от края), чтобы и в
 	    начале она не легла на своего рыбака и джойстик.
-	  • clearOf — на сколько сдвинуть слово над панелью, чтобы оно не заходило на плашки статуса
-	    и флажок базы.
+	  • clearOf — насколько меньше поднимать слово над панелью (или куда его сдвинуть), чтобы оно
+	    не заходило на плашки статуса и флажок базы.
 	  • hintWidth — ширина «таблетки» подсказки под её текст (не влезает — две ровные строки).
 	  • JUMP_SMALL / JUMP_BIG, jumpCircle, growRoom — кнопка прыжка Roblox на тач-экране и во
 	    сколько раз может вырасти круглая кнопка действия (пульс, кольца), не подходя к ней ближе
@@ -364,12 +364,20 @@ end
 	Слово над панелью мини-игры («МИМО!», «ВРЕМЯ!», слова попаданий) не заходит на плашки статуса и
 	флажок базы над плашкой (blocks, px корня шириной width; ART-04): word — его прямоугольник в
 	покое, up — на сколько px оно за жизнь поднимается (и задирает край поворотом), gap — зазор.
-	Сначала — вбок (влево, потом вправо), пока не станет свободно (не ближе EDGE / 2 к краю
-	экрана), иначе — ниже: верх под самой нижней задетой помехой. Возвращает сдвиг (dx, dy).
+	Сначала — на месте, но поднимается меньше (только до помехи над ним); на месте тесно — вбок,
+	не дальше половины своей ширины (влево, потом вправо; не ближе EDGE / 2 к краю экрана), и там
+	поднимается сколько можно; иначе — ниже, без подъёма: верх под самой нижней задетой помехой.
+	Возвращает сдвиг (dx, dy) и подъём (px).
 ]]
-function FishingLayout.clearOf(word: Rect, up: number, blocks: { Rect }, gap: number, width: number): (number, number)
-	local function blocker(dx: number, dy: number): Rect?
-		local r = { x0 = word.x0 + dx, y0 = word.y0 + dy - up, x1 = word.x1 + dx, y1 = word.y1 + dy }
+function FishingLayout.clearOf(
+	word: Rect,
+	up: number,
+	blocks: { Rect },
+	gap: number,
+	width: number
+): (number, number, number)
+	local function blocker(dx: number, dy: number, rise: number): Rect?
+		local r = { x0 = word.x0 + dx, y0 = word.y0 + dy - rise, x1 = word.x1 + dx, y1 = word.y1 + dy }
 		for _, b in blocks do
 			if hits(r, { x0 = b.x0 - gap, y0 = b.y0 - gap, x1 = b.x1 + gap, y1 = b.y1 + gap }) then
 				return b
@@ -377,31 +385,50 @@ function FishingLayout.clearOf(word: Rect, up: number, blocks: { Rect }, gap: nu
 		end
 		return nil
 	end
-	if not blocker(0, 0) then
-		return 0, 0
+	-- Сколько можно подняться со сдвигом dx: до низа самой нижней помехи над словом.
+	local function room(dx: number): number
+		local rise = up
+		for _, b in blocks do
+			if b.x0 - gap < word.x1 + dx and word.x0 + dx < b.x1 + gap and b.y0 - gap < word.y1 then
+				rise = math.min(rise, word.y0 - (b.y1 + gap))
+			end
+		end
+		return math.max(rise, 0)
 	end
+	if not blocker(0, 0, up) then
+		return 0, 0, up
+	end
+	if not blocker(0, 0, 0) then
+		return 0, 0, room(0)
+	end
+	local half = (word.x1 - word.x0) / 2
 	for _, side in { -1, 1 } do
 		local dx = 0
 		for _ = 1, #blocks + 1 do
-			local b = blocker(dx, 0)
+			local b = blocker(dx, 0, 0)
 			if not b then
 				break
 			end
 			dx = if side < 0 then math.min(dx, b.x0 - gap - word.x1) else math.max(dx, b.x1 + gap - word.x0)
 		end
-		if word.x0 + dx >= EDGE / 2 and word.x1 + dx <= width - EDGE / 2 and not blocker(dx, 0) then
-			return dx, 0
+		if
+			math.abs(dx) <= half
+			and word.x0 + dx >= EDGE / 2
+			and word.x1 + dx <= width - EDGE / 2
+			and not blocker(dx, 0, 0)
+		then
+			return dx, 0, room(dx)
 		end
 	end
 	local dy = 0
 	for _ = 1, #blocks + 1 do
-		local b = blocker(0, dy)
+		local b = blocker(0, dy, 0)
 		if not b then
 			break
 		end
-		dy = math.max(dy, b.y1 + gap - (word.y0 - up))
+		dy = math.max(dy, b.y1 + gap - word.y0)
 	end
-	return 0, dy
+	return 0, dy, 0
 end
 
 --[[
