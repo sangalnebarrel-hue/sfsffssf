@@ -2441,7 +2441,8 @@ do
 				return Vector2.new((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2),
 					Vector2.new(w, w / CARD_ASPECT),
 					bestSide,
-					bestEdge
+					bestEdge,
+					nil
 			end
 		end
 		local bottoms = { floor }

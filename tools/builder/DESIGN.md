@@ -237,8 +237,9 @@ lays its own floor/paths/borders on top (slab tops at y ≈ 0.2; nothing coplana
   Heavy, a white → colour `Fill` UIGradient and a thick round `Outline` UIStroke in the look's
   dark shade — the owner's name in white or «СВОБОДНО!» in `UIConfig.BillboardGreen` (a free
   base), under it the base's name in CAPS in its own swatch (`UIConfig.BaseSwatches`, painted by
-  BaseService), over them «ТВОЯ БАЗА!» in green on the owner's own client; 10 × 3.2 studs + 150 ×
-  52 px, `MaxDistance` 500 (readable across the lagoon). The gate's name board uses the same
+  BaseService), over them «ТВОЯ БАЗА!» in green on the owner's own client (the three rows stay
+  inside the billboard's frame, room left for the outline); 10 × 3.2 studs + 150 × 52 px,
+  `MaxDistance` 500 (readable across the lagoon; the GUI previews' world scenes draw them). The gate's name board uses the same
   letters (v3 fix WOW-5, F4; UI v5; tools/builder/gui/STYLE.md §3 «Words in the world»).
 
 ## 3. Builder modules and who owns what

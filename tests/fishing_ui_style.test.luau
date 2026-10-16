@@ -2385,6 +2385,123 @@ tests["card dock: FishingLayout.cardDock puts the card beside the fisher and his
 	t.ok(band, "topBand too")
 end
 
+tests["title on a PC: beside the fisher and his trophy when the band above is thin — big, clear of him and the chat"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1) -- desktop 1280 x 720 (the chat window top-left, no touch)
+	ready(sim, p)
+	p:SetAttribute("FishCaught", 2)
+	sim:Advance(0.2)
+	local f = fishing(p)
+	-- The default follow camera (as in the tablet dock test): over a trophy that big only a thin
+	-- band is left (the word there was 34 px tall).
+	local base = sim.workspace.Bases:FindFirstChild(`Base_{p:GetAttribute("BaseIndex")}`)
+	local look = base:GetPivot().LookVector
+	local focus = p.Character.HumanoidRootPart.Position + Vector3.new(0, 1.5, 0)
+	local eye = focus - look * (12.5 * math.cos(math.rad(18))) + Vector3.new(0, 12.5 * math.sin(math.rad(18)), 0)
+	sim:Run(function()
+		sim.workspace.CurrentCamera.CFrame = CFrame.lookAt(eye, focus)
+	end, p)
+	catch(sim, p, { Id = "Swordfish", Rarity = "Epic", Kg = 58.2, Value = 161, Income = 14 }, 3)
+	local title = f.TitleSlam
+	t.ok(
+		waitFor(sim, function()
+			return title.Visible
+		end, CARD_OPENS),
+		"the giant title slams in"
+	)
+	sim:Advance(0.45) -- (the slam has settled)
+	local box = rectOf(sim, p, title)
+	t.ok(box.h >= 60, `big letters beside him {fmt(box)} (over the trophy they were 34 px)`)
+	local scripts = p:FindFirstChildOfClass("PlayerScripts")
+	local Layout = sim:Require(sim:Find("Controllers.FishingLayout", scripts), p)
+	local origin = f.AbsolutePosition
+	local fisher = sim:Run(function()
+		return Layout.fisherBox(p.Character, sim.workspace.CurrentCamera, origin)
+	end, p)
+	t.ok(fisher ~= nil, "the own fisher is on screen")
+	if fisher then
+		local him: Rect = {
+			x = fisher.x0 + origin.X,
+			y = fisher.y0 + origin.Y,
+			w = fisher.x1 - fisher.x0,
+			h = fisher.y1 - fisher.y0,
+		}
+		t.eq(overlap(box, him), 0, `the title {fmt(box)} is beside the fisher {fmt(him)}, not on him`)
+	end
+	-- Roblox's chat window (top-left, 8..368 x, INSET + 4..INSET + 184 y): 16 px from it.
+	local chat: Rect = { x = 8 - 16, y = INSET + 4 - 16, w = 360 + 32, h = 180 + 32 }
+	t.eq(overlap(box, chat), 0, `16 px from the chat window {fmt(box)}`)
+	t.ok(box.y >= INSET + 16 - 1, `16 px under the top bar {fmt(box)}`)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["card spare slot: FishingLayout.leastCover puts a card where it hides the least of a giant trophy (small phone)"] = function(
+	t
+)
+	local Layout = loadLayout()
+	-- A 667 x 375 phone (HUD.Fishing 667 x 317): a Mythic trophy over the fisher fills the middle
+	-- (x 148..398); left of it the band over the thumbstick, right of it the band over the action
+	-- button up to «ДОМОЙ» — neither fits a 128 px landscape card beside him (213 px with the
+	-- banner), so the old fallback centred it right over the fish.
+	local keepout = Layout.rect(148, 0, 398, 290)
+	local bands = {
+		{ side = -1, top = 26, bottom = 200, left = 20, right = 600 },
+		{ side = 1, top = 26, bottom = 166, left = 20, right = 584 },
+	}
+	local w, h, span = 128 * 1.55, 128, 1.05 * 1.025
+	local rect, side, cover = Layout.leastCover(keepout, bands, w, h, span)
+	t.ok(rect, "a spare slot")
+	t.near(rect.x1 - rect.x0, w, 0.01, "the card keeps its size")
+	t.near(rect.y1 - rect.y0, h, 0.01)
+	local foot = (w * span - w) / 2
+	local centred = Layout.overlapArea(Layout.rect(333.5 - w * span / 2, 26, 333.5 + w * span / 2, 26 + h), keepout)
+	t.ok(cover < centred * 0.5, `it hides far less of him ({math.floor(cover)} vs {math.floor(centred)} px²)`)
+	t.eq(cover, Layout.overlapArea(Layout.rect(rect.x0 - foot, rect.y0, rect.x1 + foot, rect.y1), keepout))
+	t.eq(side, 1, "…right of his middle: there a band reaches past his edge farther")
+	local inside = false
+	for _, band in bands do
+		inside = inside
+			or (
+				rect.x0 - foot >= band.left - 1e-6
+				and rect.x1 + foot <= band.right + 1e-6
+				and rect.y0 >= band.top - 1e-6
+				and rect.y1 <= band.bottom + 1e-6
+			)
+	end
+	t.ok(inside, "inside one of the bands")
+	-- A band too small for the card: nil.
+	local none =
+		Layout.leastCover(keepout, { { side = 1, top = 26, bottom = 100, left = 400, right = 584 } }, w, h, span)
+	t.eq(none, nil, "no band holds it")
+	-- Room beside him after all: no overlap at all.
+	local _, _, free =
+		Layout.leastCover(keepout, { { side = 1, top = 26, bottom = 300, left = 400, right = 660 } }, w, h, span)
+	t.eq(free, 0, "a free band: nothing hidden")
+end
+
+tests["card helpers: rays clear the trophy, the stamp and the close hint fit a small landscape card"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	local scripts = p:FindFirstChildOfClass("PlayerScripts")
+	local CatchFx = sim:Require(sim:Find("Controllers.CatchFx", scripts), p)
+	local trophy = { x0 = 150, y0 = 50, x1 = 390, y1 = 200 }
+	t.eq(CatchFx.clearRadius(trophy, roblox.Vector2.new(270, 140)), 120, "the farthest edge of the fish by the axes")
+	t.eq(CatchFx.clearRadius(nil, roblox.Vector2.new(0, 0)), nil, "no trophy: the default hole")
+	t.eq(CatchFx.stampText("Радужная", 5, false), "РАДУЖНАЯ ×5!", "the square card: name and ×N")
+	t.eq(
+		CatchFx.stampText("Радужная", 5, true),
+		"РАДУЖНАЯ!",
+		"the landscape card: the name (×N is on the price chip)"
+	)
+	t.eq(CatchFx.tapHint(true, nil), "Тапни — забрать!")
+	t.eq(CatchFx.tapHint(false, nil), "Жми — забрать!")
+	t.eq(CatchFx.tapHint(true, 300), "Тапни — забрать!", "a roomy landscape card: the full hint")
+	t.eq(CatchFx.tapHint(true, 198), "Тапни!", "a narrow one: short (the long one would wrap under 13 px)")
+	sim:AssertNoErrors({ warnings = true })
+end
+
 tests["card dock on a tablet: the square card stands beside the projected fisher and trophy, never on them"] = function(
 	t
 )

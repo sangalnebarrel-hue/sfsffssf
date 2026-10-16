@@ -302,9 +302,15 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   pillar only rises 0.3 s later, with a thin core), shake and FOV punch, confetti; for Epic+ the
   rarity rays start around the fish (empty middle; during the title stage thin spokes, more
   transparent than the card's — `CLIMAX.TitleRays` — so no yellow/white glow piles up around the
-  fish) with the giant rarity title (TitleSlam, v3: in the top band OVER the fish over the head —
-  `CLIMAX.TitleY` 0.15, 0.18 of the HUD height within the side limits, `FishingLayout.topBand`
-  keeps it above the fish (its top is computed from the model before the server places it);
+  fish — v5: the empty middle is at least the trophy, `CatchFx.clearRadius`, so the spokes never
+  cross a giant Mythic fish on the smallest phone) with the giant rarity title (TitleSlam, v3: in
+  the top band OVER the fish over the head — `CLIMAX.TitleY` 0.15, 0.18 of the HUD height within
+  the side limits, `FishingLayout.topBand` keeps it above the fish (its top is computed from the
+  model before the server places it); v5 (D5): BESIDE the fisher and his trophy, on the wider
+  side, when no band is left above them or when the letters would be 1.25× bigger there
+  (`CLIMAX.TitleBeside`: on a tablet or a PC the band over a big trophy is thin — the word beside
+  him is 2× taller), never smaller than `CLIMAX.TitleSide` 24 px, 16 px from the Roblox buttons
+  and, without touch, from the chat window and the player list;
   white → rarity → shade fill, a thick outline; Legendary/Mythic letter by letter, each letter
   starts its wave as it lands; a white shine sweeps the word right behind the letters) and, once
   the shockwave is gone (+0.55 s), a light full-screen dim (the card's dim + 0.2; not on phones:
@@ -322,15 +328,23 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   right) docked BESIDE the own fisher (v3, UIM-04: `FishingLayout.dockSide` — the wider side: left
   over the thumbstick or right over the action button; the fisher holding the trophy stays in view
   next to it; there the card may be down to `CARD.DockMin` 128 px tall — smaller beside him beats
-  bigger over him on the smallest phone; if a huge trophy leaves no room even for that — centred as
-  before), the 380 x 384
+  bigger over him on the smallest phone; if a huge trophy leaves no room even for that — the square
+  card beside him, at least `CARD.DockSquarePhone` 168 px; and if a giant Mythic trophy leaves no
+  room for that either — v5: the landscape card at `CARD.DockMin` where it hides the least of him and
+  his trophy, `FishingLayout.leastCover`: pressed to a band's edge, to his edge or level with his
+  middle, taken when it hides clearly less than centred — on phone_small HeldFish 89 % → ≤ 14 %
+  hidden; centred only when nothing is better), the 380 x 384
   square elsewhere — v5 (D1): on a tablet and a PC docked beside the fisher and his trophy too
   (`FishingLayout.cardDock` over the free bands on either side: full height, above the thumbstick,
-  the action button or the shown «ДОМОЙ» stack, below the chat window without touch; the left
-  side a little preferred), no smaller than `CARD.DockSquare` 65 % of its centred size and 250 px
+  the action button or the shown «ДОМОЙ» stack, without touch below the chat window and clear of
+  the player list — `CLIMAX.ChatBottom` / `ListLeft` / `ListBottom`; the left side a little
+  preferred), no smaller than `CARD.DockSquare` 65 % of its centred size and 250 px
   — else centred at the bottom as before. Its gaps are measured by the drawing: 16 px plus its own
-  outline (`CatchFx.outline`, thicker than `RimRoom` on big screens) plus `CARD.EdgeRoom` for the
-  outlines and key chip of the action button and the «ДОМОЙ» column; with a rarity title the
+  outline (`CatchFx.outline`, thicker than `RimRoom` on big screens; a Mythic card's breath too)
+  plus `CARD.EdgeRoom` for the outlines and key chip of the action button and the «ДОМОЙ» column;
+  the texts fit the smallest card on one line ≥ 12 px (the name's MinTextSize 12 — never broken
+  mid-word —, the landscape card's mutation stamp without «×N», which is on the price chip anyway,
+  and a short «Тапни!» on a landscape card under `CatchFx.SHORT_HINT` 238 px); with a rarity title the
   place is chosen twice (on the landing, where the title flies to, and at the card's birth), both
   times `CARD.DockSlack` px more lenient, so the title never heads for the middle while the card
   is born beside the fisher. The UI v5 card: a Cream sim plate with the chunky
