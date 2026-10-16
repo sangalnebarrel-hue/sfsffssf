@@ -25,6 +25,10 @@ end
 
 local BaseConfig = loadConfig("BaseConfig")
 local UIConfig = loadConfig("UIConfig")
+local TextUtil = luau.load(fs.readFile("src/ReplicatedStorage/Shared/TextUtil.luau"))()
+local upper = TextUtil.upper
+-- A free base's sign (UI v5 billboard words, BaseService).
+local FREE = "СВОБОДНО!"
 
 -- Toast texts on a player's own screen (HUD.Toasts.Toast.Label).
 local function toastTexts(player: any): { string }
@@ -167,8 +171,8 @@ tests["server boots: 8 coloured bases placed on their slots"] = function(t)
 		t.eq(model.Flag.Cloth.Color, BaseConfig.Colors[i].Color, `Base_{i} flag colour`)
 		t.eq(model.SpawnPad.Color, BaseConfig.Colors[i].Color, `Base_{i} pad colour`)
 		local sign = model.Flag.Pole.SignAttachment.OwnerSign
-		t.eq(sign.OwnerLabel.Text, "Свободно")
-		t.eq(sign.BaseLabel.Text, `{BaseConfig.Colors[i].Name} база`)
+		t.eq(sign.OwnerLabel.Text, FREE)
+		t.eq(sign.BaseLabel.Text, upper(`{BaseConfig.Colors[i].Name} база`))
 	end
 	-- Terrain is baked into the place (tests/worldgen.test.luau covers it); no water stand-ins.
 	t.ok(ws.Map:FindFirstChild("Water") == nil, "no water stand-in parts")
@@ -216,30 +220,88 @@ tests["accent parts are painted in the base colour, AccentShade gives lighter/da
 	sim:AssertNoErrors()
 end
 
-tests["owner sign: a LEGO brick in the base colour, Heavy sticker letters, read across the lagoon"] = function(t)
+-- The fill gradient "Fill" of a sign's words (UI v5 billboard text): its top and bottom colours.
+local function fillOf(label: any): (any, any)
+	local keys = label.Fill.Color.Keypoints
+	return keys[1].Value, keys[#keys].Value
+end
+
+local function near(a: any, b: any): boolean
+	return math.abs(a.R - b.R) < 0.01 and math.abs(a.G - b.G) < 0.01 and math.abs(a.B - b.B) < 0.01
+end
+
+-- UI v5 «Симулятор»: the owner sign is the reference's billboard text — no plate, no studs.
+tests["owner sign: billboard words over the flag — «СВОБОДНО!» green, the base name in its colour, no plate or studs"] = function(
+	t
+)
 	local sim = boot(t)
 	for i = 1, 8 do
 		local model = bases(sim):FindFirstChild(`Base_{i}`)
-		local color = BaseConfig.Colors[i].Color
+		local swatch = UIConfig.BaseSwatches[BaseConfig.Colors[i].Id]
 		local sign = model.Flag.Pole.SignAttachment.OwnerSign
 		t.eq(sign.MaxDistance, 500, "readable across the lagoon")
 		t.ok(sign.Size.X.Scale > 0 and sign.Size.X.Offset > 0, "studs + pixels")
-		-- the brick plate and its studs in the base colour (Accent GUI objects: BaseService), the lip darker
-		t.eq(sign.Plate.BackgroundColor3, color, `Base_{i}: plate in the base colour`)
-		t.eq(sign.Stud1.BackgroundColor3.R >= color.R - 1e-3, true, `Base_{i}: studs in a light shade`)
-		t.ok(luminance(sign.Plate.Lip.BackgroundColor3) < luminance(color), `Base_{i}: a darker lip`)
-		t.ok(sign.Plate:FindFirstChild("Outline") and sign.Plate.Outline.Thickness >= 3, "a thick Ink outline")
-		-- the owner's name: Heavy, a thick round Ink outline, white to cream
+		for _, d in sign:GetDescendants() do
+			t.ok(not d:IsA("Frame"), `Base_{i}: no plate or stud ({d:GetFullName()})`)
+		end
+		-- the words: Montserrat Heavy, a round dark outline, white under a fill gradient
 		local owner = sign.OwnerLabel
 		t.eq(owner.FontFace.Weight, roblox.Enum.FontWeight.Heavy, "Heavy letters")
-		t.ok(owner.Outline.Thickness >= 3.5, "a thick outline")
+		t.ok(string.find(owner.FontFace.Family, "Montserrat", 1, true) ~= nil, "the UI font (Montserrat)")
+		t.ok(owner.Outline.Thickness >= 3, "an outline")
 		t.eq(owner.Outline.LineJoinMode, roblox.Enum.LineJoinMode.Round, "round joins")
-		t.ok(owner:FindFirstChild("Cream") and owner.Cream:IsA("UIGradient"), "white to cream")
+		local top, bottom = fillOf(owner)
+		t.ok(
+			near(top, UIConfig.BillboardGreen.Top) and near(bottom, UIConfig.BillboardGreen.Bottom),
+			`Base_{i}: «СВОБОДНО!» in billboard green`
+		)
+		t.eq(owner.Outline.Color, UIConfig.BillboardGreen.Lip, "…outlined in its dark shade")
+		local baseName = sign.BaseLabel
+		top, bottom = fillOf(baseName)
+		t.ok(near(top, swatch.Top) and near(bottom, swatch.Bottom), `Base_{i}: the base name in its colour`)
+		t.eq(baseName.Outline.Color, swatch.Lip, "…outlined in its dark shade")
+		t.eq(baseName.TextColor3, roblox.Color3.new(1, 1, 1), "white letters under the fill")
+		-- «ТВОЯ БАЗА!»: there, hidden — only the owner's own client shows it
+		t.eq(sign.YoursLabel.Text, "ТВОЯ БАЗА!")
+		top = fillOf(sign.YoursLabel)
+		t.ok(near(top, UIConfig.BillboardGreen.Top), "…in billboard green")
 		-- the gate's labels in the same style
 		local gate = model.Gate.Board.SignFront.OwnerLabel
 		t.eq(gate.FontFace.Weight, roblox.Enum.FontWeight.Heavy, "gate: Heavy letters")
-		t.ok(gate:FindFirstChild("Outline") ~= nil, "gate: an Ink outline")
+		t.ok(
+			gate:FindFirstChild("Outline") ~= nil and gate:FindFirstChild("Fill") ~= nil,
+			"gate: outlined billboard words"
+		)
 	end
+	sim:AssertNoErrors()
+end
+
+tests["owner sign: the owner's name in white; «ТВОЯ БАЗА!» shows on the owner's own client"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	local base = baseOf(sim, p)
+	local sign = base.Flag.Pole.SignAttachment.OwnerSign
+	t.eq(sign.OwnerLabel.Text, "Игрок1")
+	local top = fillOf(sign.OwnerLabel)
+	t.ok(near(top, roblox.Color3.new(1, 1, 1)), "the owner's name in white")
+	-- (the owner's client shows it: a client-local write, so read it as that client sees it)
+	local function seen(who: any): boolean
+		return sim:Run(function()
+			return sign.YoursLabel.Visible
+		end, who)
+	end
+	t.ok(
+		sim:WaitFor(function()
+			return seen(p)
+		end, 2),
+		"«ТВОЯ БАЗА!» over the own base (HudController)"
+	)
+	t.eq(seen(nil), false, "…only on the owner's client (others see the name and the base)")
+	sim:RemovePlayer(p)
+	sim:Advance(0.5)
+	t.eq(sign.OwnerLabel.Text, FREE, "released")
+	top = fillOf(sign.OwnerLabel)
+	t.ok(near(top, UIConfig.BillboardGreen.Top), "…green again")
 	sim:AssertNoErrors()
 end
 
@@ -344,13 +406,18 @@ tests["gate sign: every OwnerLabel/BaseLabel shows the owner and the base name"]
 		local owners = labelsNamed(model, "OwnerLabel")
 		t.ok(#owners >= 3, `Base_{i}: flag + both gate faces carry OwnerLabel ({#owners})`)
 		for _, label in owners do
-			t.eq(label.Text, "Свободно", `Base_{i}: {label:GetFullName()}`)
+			t.eq(label.Text, FREE, `Base_{i}: {label:GetFullName()}`)
 		end
+		local swatch = UIConfig.BaseSwatches[BaseConfig.Colors[i].Id]
 		for _, label in labelsNamed(model, "BaseLabel") do
-			t.eq(label.Text, `{BaseConfig.Colors[i].Name} база`, `Base_{i}: {label:GetFullName()}`)
-			t.eq(label.TextColor3, BaseConfig.Colors[i].Color, `Base_{i}: {label:GetFullName()} colour`)
+			t.eq(label.Text, upper(`{BaseConfig.Colors[i].Name} база`), `Base_{i}: {label:GetFullName()}`)
+			local fill = label.Fill.Color.Keypoints[1].Value
+			t.ok(
+				math.abs(fill.R - swatch.Top.R) < 0.01 and math.abs(fill.B - swatch.Top.B) < 0.01,
+				`Base_{i}: {label:GetFullName()} colour`
+			)
 		end
-		t.eq(model.Gate.Board.SignFront.OwnerLabel.Text, "Свободно", `Base_{i}: gate sign`)
+		t.eq(model.Gate.Board.SignFront.OwnerLabel.Text, FREE, `Base_{i}: gate sign`)
 	end
 
 	local p = addPlayer(sim, 1)
@@ -364,7 +431,7 @@ tests["gate sign: every OwnerLabel/BaseLabel shows the owner and the base name"]
 	sim:RemovePlayer(p)
 	sim:Advance(0.5)
 	for _, label in labelsNamed(base, "OwnerLabel") do
-		t.eq(label.Text, "Свободно", `released: {label:GetFullName()}`)
+		t.eq(label.Text, FREE, `released: {label:GetFullName()}`)
 	end
 	sim:AssertNoErrors()
 end
@@ -642,7 +709,7 @@ tests["leave: base is released and can be taken again"] = function(t)
 	sim:Advance(0.5)
 	t.eq(base:GetAttribute("OwnerUserId"), 0)
 	t.eq(base:GetAttribute("OwnerName"), "")
-	t.eq(base.Flag.Pole.SignAttachment.OwnerSign.OwnerLabel.Text, "Свободно")
+	t.eq(base.Flag.Pole.SignAttachment.OwnerSign.OwnerLabel.Text, FREE)
 	-- Fill all 8 bases: the released one must be reusable.
 	local seen = {}
 	for id = 10, 17 do

@@ -13,7 +13,9 @@
 	    плашки): имя «влетает» (slam) и вспыхивает, флажок машет, лучи, конфетти и «фанфара»;
 	    через 2 с надпись сжимается и влетает в плашку, плашка подпрыгивает, её ободок
 	    вспыхивает, блик. Если база досталась после ожидания в очереди — уведомление «Тебе
-	    досталась Лазурная база!» в цветах базы с 🚩.
+	    досталась Лазурная база!» в цветах базы с 🚩. Над табличкой своей базы в мире (надпись над
+	    флагом: имя владельца и название базы) этот клиент показывает зелёное «ТВОЯ БАЗА!»
+	    (OwnerSign.YoursLabel — его видит только владелец; BaseService его не трогает).
 	  • Счётчик улова (HUD.Status.CatchCounter — крупное наклонное число без плашки, как «10»
 	    образца, и 🐟): число N (Label.Text — только цифры) и видимость ведёт ЭТОТ контроллер
 	    по атрибуту игрока FishCaught. Договор с карточкой улова: пока у HUD (ScreenGui) есть
@@ -56,6 +58,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local BaseConfig = require(Shared:WaitForChild("Config"):WaitForChild("BaseConfig"))
@@ -293,10 +296,35 @@ function HudController:Start(hud: ScreenGui)
 		bannerTrove:Add(task.delay(BANNER_HOLD, flyBannerToBadge))
 	end
 
+	-- «ТВОЯ БАЗА!» над табличкой своей базы (Workspace.Bases.Base_N, надпись над флагом): видна
+	-- только здесь, у владельца; база сменилась — прошлая гаснет.
+	local yoursLabel: GuiObject? = nil
+	local function markOwnSign(index: any)
+		if yoursLabel then
+			yoursLabel.Visible = false
+			yoursLabel = nil
+		end
+		local bases = Workspace:FindFirstChild("Bases")
+		local base = if bases
+				and typeof(index) == "number"
+				and index > 0
+			then bases:FindFirstChild(`Base_{index}`)
+			else nil
+		local node: Instance? = base
+		for _, name in { "Flag", "Pole", "SignAttachment", "OwnerSign", "YoursLabel" } do
+			node = if node then node:FindFirstChild(name) else nil
+		end
+		if node and node:IsA("GuiObject") then
+			node.Visible = true
+			yoursLabel = node
+		end
+	end
+
 	local function refreshBadge()
 		lastActivity = os.clock()
 		local index = player:GetAttribute("BaseIndex")
 		local colorName = player:GetAttribute("BaseColorName")
+		markOwnSign(index)
 
 		if typeof(index) == "number" and index > 0 and typeof(colorName) == "string" then
 			local swatch = baseSwatch()

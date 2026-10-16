@@ -87,7 +87,7 @@
 	Names the server code relies on (BaseService, DESIGN.md §2) — keep in sync:
 	  Root, SpawnPad, FishingSpot, Tank.Glass.PromptAttachment, Alarm.Lamp, Dog (PrimaryPart),
 	  Tank.Slots.Slot_N.{Pedestal.PromptAttachment, Pedestal.LabelGui.Label, Display.FishPoint}
-	  (attribute SlotIndex), Flag.Pole.SignAttachment.OwnerSign.{OwnerLabel, BaseLabel},
+	  (attribute SlotIndex), Flag.Pole.SignAttachment.OwnerSign.{OwnerLabel, BaseLabel, YoursLabel},
 	  Flag.Cloth (tests), Gate.Board.SignFront/SignBack.{OwnerLabel, BaseLabel}.
 
 	Budget: <= BUDGET parts per base at runtime (its own variant scenes only), <= TEMPLATE_BUDGET with
@@ -508,37 +508,31 @@ local function surfaceGui(part: any, name: string, face: any, pixelsPerStud: num
 	}, part)
 end
 
--- The owner's name in the LEGO-brick UI style («Кирпичики», tools/builder/gui/STYLE.md): Nunito
--- Heavy, white fading to cream, a thick round Ink outline (sticker letters that read on any base
--- colour and across the lagoon).
-local SIGN_FONT = U.Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Heavy)
-local SIGN_INK = Color3.fromRGB(21, 23, 28) -- UIConfig.Ink
-local SIGN_CREAM = Color3.fromRGB(255, 241, 201)
-local function stickerText(label: any, outline: number)
+--[[
+	The base's words in the world in the reference's billboard style (UI v5 «Симулятор», like its
+	«МАГАЗИН СЛЕДОВ» / «БЕСПЛАТНО!»; tools/builder/gui/STYLE.md): Montserrat Heavy (UIConfig.Font),
+	no plate and no studs (those belong to the map), white letters under a vertical fill gradient
+	"Fill" and a dark round outline "Outline" in the dark shade of the fill's hue. BaseService
+	repaints them: a free base — «СВОБОДНО!» in UIConfig.BillboardGreen, the owner's name white,
+	the base's name in CAPS in its colour (UIConfig.BaseSwatches).
+]]
+local UI = U.loadPure("src/ReplicatedStorage/Shared/Config/UIConfig.luau")
+local SIGN_FONT = U.Font.new(UI.Font.Family, Enum.FontWeight.Heavy)
+local SIGN_WHITE = { Top = C.White, Bottom = Color3.fromRGB(221, 230, 240), Lip = UI.Ink }
+local function billboardText(label: any, look: any, outline: number)
 	label.FontFace = SIGN_FONT
 	label.TextColor3 = C.White
 	label.TextStrokeTransparency = 1
 	U.new("UIStroke", {
 		Name = "Outline",
-		Color = SIGN_INK,
+		Color = look.Lip,
 		Thickness = outline,
 		LineJoinMode = Enum.LineJoinMode.Round,
 	}, label)
 	U.new("UIGradient", {
-		Name = "Cream",
+		Name = "Fill",
 		Rotation = 90,
-		Color = U.roblox.ColorSequence.new(C.White, SIGN_CREAM),
-	}, label)
-end
--- The base's name in its colour (BaseService sets TextColor3) with an Ink outline.
-local function baseNameText(label: any, outline: number)
-	label.FontFace = SIGN_FONT
-	label.TextStrokeTransparency = 1
-	U.new("UIStroke", {
-		Name = "Outline",
-		Color = SIGN_INK,
-		Thickness = outline,
-		LineJoinMode = Enum.LineJoinMode.Round,
+		Color = U.roblox.ColorSequence.new(look.Top, look.Bottom),
 	}, label)
 end
 
@@ -1066,9 +1060,9 @@ end
 
 local function signFace(board: any, face: any)
 	local gui = surfaceGui(board, "Sign" .. face.Name, face, 32)
-	-- (v3 fix WOW-5: the brick UI's sticker letters, like the owner sign over the flag)
-	stickerText(textBand(gui, "OwnerLabel", "Свободно", C.White, 0.08, 0.54, false), 4)
-	baseNameText(textBand(gui, "BaseLabel", "База", C.White, 0.64, 0.3, false), 3)
+	-- (UI v5: the billboard letters of the owner sign over the flag, on the cream board)
+	billboardText(textBand(gui, "OwnerLabel", "СВОБОДНО!", C.White, 0.08, 0.54, false), UI.BillboardGreen, 4)
+	billboardText(textBand(gui, "BaseLabel", "БАЗА", C.White, 0.64, 0.3, false), SIGN_WHITE, 3)
 end
 
 local function buildGate(template: any, plot: any)
@@ -1165,13 +1159,14 @@ local function buildFlag(template: any): any
 		{ CanCollide = false }
 	)
 
-	-- Owner sign above the mast (BaseService writes the owner name / base name), a LEGO brick in
-	-- the «Кирпичики» UI style (v3 fix WOW-5): a plate in the base colour (Accent GUI objects:
-	-- BaseService paints their BackgroundColor3) with a thick Ink outline, a darker lip and three
-	-- studs on top; the owner's name in white sticker letters, the base's name in its colour on a
-	-- cream tile. Studs + pixels (10 x 3.2 studs + 150 x 52 px): readable across the lagoon
-	-- (MaxDistance 500), the labels stay direct children of OwnerSign (BaseService finds them).
-	-- The pole is a cylinder (local X = up), so the offset is along local X.
+	-- Owner sign above the mast (BaseService writes the owner name / base name): the reference's
+	-- billboard words floating over the flag, no plate (UI v5; the v3 «Кирпичики» brick plate with
+	-- its studs is gone): «СВОБОДНО!» in billboard green (a free base) or the owner's name in white,
+	-- under it the base's name in CAPS in its colour, and over them «ТВОЯ БАЗА!» in green — hidden,
+	-- only the owner's own client shows it (HudController). Studs + pixels (10 x 3.2 studs + 150 x
+	-- 52 px): readable across the lagoon (MaxDistance 500); the labels stay direct children of
+	-- OwnerSign (BaseService finds them). The pole is a cylinder (local X = up), so the offset is
+	-- along local X.
 	local signOffset = Vector3.new(poleH / 2 + 6.5, 0, 0)
 	local attachment = U.new("Attachment", { Name = "SignAttachment", CFrame = CFrame.new(signOffset) }, pole)
 	local sign = U.new("BillboardGui", {
@@ -1182,96 +1177,23 @@ local function buildFlag(template: any): any
 		AlwaysOnTop = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, attachment)
-	local function accent(frame: any, shade: number?): any
-		frame:SetAttribute("Accent", true)
-		if shade then
-			frame:SetAttribute("AccentShade", shade)
-		end
-		return frame
+	local function words(name: string, text: string, y: number, w: number, h: number): any
+		return U.new("TextLabel", {
+			Name = name,
+			AnchorPoint = U.Vector2.new(0.5, 0),
+			Position = UDim2.fromScale(0.5, y),
+			Size = UDim2.fromScale(w, h),
+			BackgroundTransparency = 1,
+			Text = text,
+			TextScaled = true,
+			ZIndex = 2,
+		}, sign)
 	end
-	local function corner(frame: any, scale: number)
-		U.new("UICorner", { CornerRadius = U.UDim.new(scale, 0) }, frame)
-	end
-	local function ink(frame: any, thickness: number)
-		U.new("UIStroke", {
-			Name = "Outline",
-			Color = SIGN_INK,
-			Thickness = thickness,
-			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-			LineJoinMode = Enum.LineJoinMode.Round,
-		}, frame)
-	end
-	-- studs on top (behind the plate: only their round tops show)
-	for i, x in { 0.2, 0.5, 0.8 } do
-		local stud = accent(
-			U.new("Frame", {
-				Name = `Stud{i}`,
-				AnchorPoint = U.Vector2.new(0.5, 0),
-				Position = UDim2.fromScale(x, 0),
-				Size = UDim2.fromScale(0.13, 0.3),
-				BackgroundColor3 = C.Cream,
-				BorderSizePixel = 0,
-				ZIndex = 1,
-			}, sign),
-			0.12
-		)
-		corner(stud, 0.35)
-		ink(stud, 2.5)
-	end
-	local plate = accent(U.new("Frame", {
-		Name = "Plate",
-		Position = UDim2.fromScale(0, 0.14),
-		Size = UDim2.fromScale(1, 0.86),
-		BackgroundColor3 = C.Cream,
-		BorderSizePixel = 0,
-		ZIndex = 2,
-	}, sign))
-	corner(plate, 0.22)
-	ink(plate, 3)
-	local lip = accent(
-		U.new("Frame", {
-			Name = "Lip",
-			AnchorPoint = U.Vector2.new(0, 1),
-			Position = UDim2.fromScale(0, 1),
-			Size = UDim2.fromScale(1, 0.2),
-			BackgroundColor3 = C.Cream,
-			BorderSizePixel = 0,
-			ZIndex = 3,
-		}, plate),
-		-0.35
-	)
-	corner(lip, 0.5)
-	local tile = U.new("Frame", {
-		Name = "Tile",
-		Position = UDim2.fromScale(0.08, 0.56),
-		Size = UDim2.fromScale(0.84, 0.31),
-		BackgroundColor3 = SIGN_CREAM:Lerp(C.White, 0.5),
-		BorderSizePixel = 0,
-		ZIndex = 4,
-	}, sign)
-	corner(tile, 0.5)
-	ink(tile, 2)
-	local owner = U.new("TextLabel", {
-		Name = "OwnerLabel",
-		Position = UDim2.fromScale(0.06, 0.17),
-		Size = UDim2.fromScale(0.88, 0.38),
-		BackgroundTransparency = 1,
-		Text = "Свободно",
-		TextScaled = true,
-		ZIndex = 5,
-	}, sign)
-	stickerText(owner, 3.5)
-	local baseName = U.new("TextLabel", {
-		Name = "BaseLabel",
-		Position = UDim2.fromScale(0.11, 0.575),
-		Size = UDim2.fromScale(0.78, 0.27),
-		BackgroundTransparency = 1,
-		Text = "База",
-		TextScaled = true,
-		TextColor3 = C.White,
-		ZIndex = 5,
-	}, sign)
-	baseNameText(baseName, 2)
+	local yours = words("YoursLabel", "ТВОЯ БАЗА!", -0.06, 0.7, 0.3)
+	billboardText(yours, UI.BillboardGreen, 3)
+	yours.Visible = false
+	billboardText(words("OwnerLabel", "СВОБОДНО!", 0.24, 0.96, 0.44), UI.BillboardGreen, 3.5)
+	billboardText(words("BaseLabel", "БАЗА", 0.68, 0.84, 0.32), SIGN_WHITE, 3)
 	return signOffset
 end
 

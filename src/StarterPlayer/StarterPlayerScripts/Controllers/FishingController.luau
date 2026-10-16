@@ -2536,15 +2536,18 @@ do
 			end
 			local column = ui.hud:FindFirstChild("RightButtons")
 			if column and column:IsA("GuiObject") and column.Visible then
-				-- над показанными кнопками колонки (она растёт снизу вверх)
-				local top = math.huge
+				-- над показанными кнопками колонки (она растёт снизу вверх; как в sideLimits)
+				local list = column:FindFirstChildOfClass("UIListLayout")
+				local gap = if list then list.Padding.Scale * column.AbsoluteSize.Y + list.Padding.Offset else 0
+				local stack = 0
 				for _, item in column:GetChildren() do
 					if item:IsA("GuiObject") and item.Visible then
-						top = math.min(top, item.AbsolutePosition.Y - origin.Y)
+						stack += item.AbsoluteSize.Y + (if stack > 0 then gap else 0)
 					end
 				end
-				if top < math.huge then
-					table.insert(floors, top - CARD_SIDE_GAP - CARD.RimRoom)
+				if stack > 0 then
+					local bottomY = column.AbsolutePosition.Y - origin.Y + column.AbsoluteSize.Y
+					table.insert(floors, bottomY - stack - CARD_SIDE_GAP - CARD.RimRoom)
 				end
 			end
 			local bands: { Layout.DockBand } = {}
@@ -4328,11 +4331,16 @@ do
 				end
 			end
 			if box.dock then
-				-- Карточка сбоку от рыбака (v3): по сторонам — он сам и край экрана; «+N 💰» летит влево,
-				-- на окошко с рыбой на высоте цены (рыба на карточке — та же, что у него над головой).
+				-- Карточка сбоку от рыбака (v3): по сторонам — он сам и край экрана; «+N 💰» летит на
+				-- окошко с рыбой (рыба на карточке — та же, что у него над головой): у широкой — влево,
+				-- на высоте цены; у квадратной (v5, планшет и компьютер) — вверх, в середину окошка
+				-- (не на имя под ним).
 				local windowPos, windowSize = cardRect(ui.window)
-				height = math.min(root.Y * share, windowSize.X * 0.96 / perHeight)
-				spot = Vector2.new(windowPos.X + windowSize.X / 2, source.Y - height * 0.2)
+				height = math.min(root.Y * share, windowSize.X * 0.96 / perHeight, windowSize.Y * 0.5)
+				spot = Vector2.new(
+					windowPos.X + windowSize.X / 2,
+					if box.wide then source.Y - height * 0.2 else windowPos.Y + windowSize.Y * 0.45
+				)
 			elseif height < math.min(root.Y * share, UiFx.textSize("Title") * spec.MinTitle) then
 				-- Справа места нет: вверх, над строкой веса (её верх — над фишкой цены).
 				height = root.Y * share
