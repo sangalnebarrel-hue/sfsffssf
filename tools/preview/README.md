@@ -634,6 +634,7 @@ safe area).
 |---|---|---|
 | `spawn_base` | the base arrives: the «ТВОЯ БАЗА» banner, then it flies into the badge (stills 0.6 / 2.25 / 2.9 s) | 0..3.2 s @ 8 fps, status + banner |
 | `no_base` | all bases taken: «Ждём базу…» | |
+| `spawn_rod` | just joined (`fresh`), rod in the backpack: «ВЗЯТЬ» at once; «where to go» waits for the «ТВОЯ БАЗА» banner (still 0.8 s) and pops once it has landed in the badge (3.2 s) for a full 4 s look (6 s) | |
 | `start` | just spawned at the base, far from the circle, rod in the backpack: «ВЗЯТЬ» (white rings, the newcomer «!», the F chip on a PC) + «where to go» (the guide beam is in the world, not drawn); stills 0.8 / 6 (the hint rests, «ВЗЯТЬ» stays) / 14.6 s (the hint is back) | |
 | `rod_far` | rod in hand, far from the fishing spot: «КУДА ИДТИ?» 🧭, hint, guide beam | |
 | `spot_take` | at the spot, rod in the backpack: «ВЗЯТЬ» + «Возьми удочку — кнопка справа» | |
@@ -657,7 +658,8 @@ safe area).
 | `catch_close` | tap closes the settled card: the card itself flies into the counter shrinking to a speck (the first catch: «Улов: 0» pops in), 🐟 ★ beside it, +1 in the rarity colour ≈ 0.33 s after the tap (stills 0.2 / 0.36 s) | 0..1 s, whole screen |
 | `toast_info`, `toast_success`, `toast_warning`, `toast_danger` | one toast of each kind | success 0..0.8 s |
 | `toast_stack` | three toasts (the cap), then the oldest leaves | 3..4.4 s |
-| `home_cooldown` | «ДОМОЙ» pressed, cooldown draining | 0..0.8 s |
+| `home_cooldown` | «ДОМОЙ» pressed with the rod in the backpack: the cooldown drains, «ВЗЯТЬ» stays + «where to go» (never only «ДОМОЙ» on screen) | 0..0.8 s |
+| `home_rod` | «ДОМОЙ» pressed with the rod in hand: the cooldown drains, «КУДА ИДТИ?» 🧭 + «where to go» | |
 | `far_tap` | tap «КУДА ИДТИ?» far from the spot: no cast, the hint pops again, the guide beam flares | 0..0.8 s, action area + hint |
 | `minigame_cue` | a first-timer's minigame: the needle in the zone, 👆 taps «ЛОВИ!» | |
 | `hit_mega` | the third hit before the last one (a 4-hit payload): «МЕГА!» in rainbow | |

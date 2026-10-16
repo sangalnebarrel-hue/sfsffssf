@@ -462,6 +462,20 @@ local scenarios = {
 		end,
 	},
 	{
+		name = "spawn_rod",
+		desc = "Just joined, rod in the backpack: «ВЗЯТЬ» at once; «where to go» waits for the «ТВОЯ БАЗА» "
+			.. "banner (0.8 s) and pops once it has landed in the badge (3.2 s), a full 4 s look (6 s)",
+		fresh = true,
+		still = { 0.8, 3.2, 6 },
+		run = function(h: any)
+			h:waitFor(function()
+				local index = h.player:GetAttribute("BaseIndex")
+				return typeof(index) == "number" and index > 0
+			end, 5)
+			h:giveRod()
+		end,
+	},
+	{
 		name = "start",
 		desc = "Just spawned at the base, far from the circle, rod in the backpack (no Roblox hotbar): «ВЗЯТЬ» "
 			.. "(rings, the newcomer «!», F on a PC) + «where to go» (+ the guide beam); 6 s: the hint rests, "
@@ -890,11 +904,23 @@ local scenarios = {
 	},
 	{
 		name = "home_cooldown",
-		desc = "«ДОМОЙ» pressed: the cooldown drains",
+		desc = "«ДОМОЙ» pressed (rod in the backpack): the cooldown drains; «ВЗЯТЬ» stays, «where to go» (+ the beam)",
 		still = 1.5,
 		sheet = { from = 0, to = 0.8, fps = 15, roi = { "HUD.RightButtons" }, margin = 0.05 },
 		run = function(h: any)
+			h:giveRod()
 			h:standFar()
+			h:click("HUD.RightButtons.HomeButton")
+		end,
+	},
+	{
+		name = "home_rod",
+		desc = "«ДОМОЙ» pressed with the rod in hand: the cooldown drains; «КУДА ИДТИ?» 🧭 + «where to go» (+ the beam)",
+		still = 1.5,
+		run = function(h: any)
+			h:standFar()
+			h:equipRod()
+			h:advance(0.3)
 			h:click("HUD.RightButtons.HomeButton")
 		end,
 	},
