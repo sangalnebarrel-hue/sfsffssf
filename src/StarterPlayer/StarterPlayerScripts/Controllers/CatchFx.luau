@@ -28,11 +28,13 @@
 	    (огромная мифическая рыба на маленьком телефоне).
 	  • stampText / tapHint — надписи штампа мутации и подсказки «закрыть» под размер карточки: на
 	    узкой широкой карточке длинные не влезают в строку не мельче 12–13 px (TextScaled тогда
-	    рвёт слово посередине) — короче.
-	  • raysFrame / raysSize / aimRays / ghostRays — лучи за карточкой: крупные (не меньше
-	    RAYS_MIN её высот), но слой CatchRays у карточки сбоку от рыбака обрезает их у его края
-	    (ClipsDescendants): до рыбака с трофеем они не достают; спицы сцены слова уходят копией в
-	    середину карточки, а за ней вырастают её собственные лучи.
+	    рвёт слово посередине) — короче; stampMin — наклейка «НОВИНКА!» на узкой карточке уже
+	    (не на имя).
+	  • raysClip / raysFrame / raysSize / aimRays / ghostRays — лучи за карточкой: крупные (не
+	    меньше RAYS_MIN её высот), но слой CatchRays у карточки рядом с рыбаком обрезает их у его
+	    края (ClipsDescendants; полуплоскость по одну сторону от него): до рыбака с трофеем они не
+	    достают; спицы сцены слова уходят копией в середину карточки, а за ней вырастают её
+	    собственные лучи.
 	  • fitChip — подпись фишки начинается правее её значка (узкие фишки маленькой квадратной
 	    карточки); floatSpot — куда вылетает «+N 💰» у карточки сбоку от рыбака: над баннером или у
 	    внешнего края, а не на окно с рыбой.
@@ -54,6 +56,13 @@ local CatchFx = {}
 CatchFx.SHORT_HINT = 238
 -- Квадратная карточка уже стольких px — штамп мутации без «×N» (не влезает в строку).
 CatchFx.FULL_STAMP = 340
+-- Широкая карточка уже стольких px (запасное место у огромного трофея, 0.85–0.95 DockMin) —
+-- штамп мутации и без «!» («РАДУЖНАЯ!» не влезает в строку не мельче 12 px).
+CatchFx.SHORT_STAMP = 190
+-- Наклейка «НОВИНКА!» не шире такой доли карточки (но и не уже STAMP_MIN px; не шире, чем в
+-- сборщике): на узкой карточке она иначе наезжает на имя.
+CatchFx.STAMP_SHARE = 0.5
+CatchFx.STAMP_MIN = 84
 
 local WHITE = UIConfig.White
 local QUINT, QUAD, BACK = Enum.EasingStyle.Quint, Enum.EasingStyle.Quad, Enum.EasingStyle.Back
@@ -216,7 +225,30 @@ end
 -- (сбоку от рыбака) штамп маленький — без «×N» («×N» и так впечатывается в угол фишки цены).
 function CatchFx.stampText(name: string, multiplier: number, wide: boolean, width: number?): string
 	local upper = TextUtil.upper(name)
+	if wide and width and width < CatchFx.SHORT_STAMP then
+		return upper
+	end
 	return if wide or (width and width < CatchFx.FULL_STAMP) then `{upper}!` else `{upper} ×{multiplier}!`
+end
+
+--[[
+	Наименьший размер наклейки «НОВИНКА!» (её UISizeConstraint) под ширину карточки width: не
+	шире STAMP_SHARE карточки (на узкой карточке у огромного трофея она иначе закрывает начало
+	имени), но не уже STAMP_MIN (текст не мельче 12 px) и не шире, чем в сборщике (RestMin).
+]]
+function CatchFx.stampMin(stamp: GuiObject, width: number)
+	local cap = stamp:FindFirstChildOfClass("UISizeConstraint")
+	if not cap then
+		return
+	end
+	local rest = cap:GetAttribute("RestMin")
+	if typeof(rest) ~= "Vector2" then
+		rest = cap.MinSize
+		cap:SetAttribute("RestMin", rest)
+	end
+	local full = rest :: Vector2
+	local w = math.clamp(width * CatchFx.STAMP_SHARE, math.min(CatchFx.STAMP_MIN, full.X), full.X)
+	cap.MinSize = Vector2.new(math.round(w), math.round(w * full.Y / math.max(full.X, 1)))
 end
 
 -- Подсказка «закрыть» по устройству; на узкой широкой карточке (width — её ширина, px) — короткая.
@@ -248,28 +280,56 @@ local function whole(v: number): number
 	return if v == v and math.abs(v) < 1e6 then math.round(v) else 0
 end
 
+type Rect = { x0: number, y0: number, x1: number, y1: number }
+
 --[[
-	Слой лучей (CatchRays) — «окно», где их видно (px HUD.Fishing размера root): у карточки сбоку
-	от рыбака (side −1 — она слева, 1 — справа; edge — его край с её стороны) — от края экрана (и
-	далеко за ним) до его края во всю высоту: лучи крупные, но до рыбака с трофеем не достают;
-	side = nil — без обрезки (втрое больше экрана: лучи слова у рыбы над головой).
+	Где лучи карточки видны (UI v5, SIMC-C1-01), px HUD.Fishing размера root: карточка center /
+	size стоит рядом с рыбаком с трофеем keepout (сбоку или запасное место у огромного трофея) —
+	полуплоскость по одну сторону от него (слева, справа, над или под ним), где карточки больше
+	всего (при равенстве — сбоку); лучи в ней крупные, но до рыбака с трофеем не достают.
 ]]
-function CatchFx.raysFrame(rays: GuiObject, root: Vector2, side: number?, edge: number?)
-	local x0, y0, x1, y1 = -root.X, -root.Y, 2 * root.X, 2 * root.Y
-	local clip = side ~= nil and edge ~= nil
-	if clip and side and edge then
-		if side < 0 then
-			x1 = math.clamp(edge, x0, x1)
-		else
-			x0 = math.clamp(edge, x0, x1)
+function CatchFx.raysClip(keepout: Rect, center: Vector2, size: Vector2, root: Vector2): Rect
+	local far = 3 * math.max(root.X, root.Y, 1)
+	local card = {
+		x0 = center.X - size.X / 2,
+		y0 = center.Y - size.Y / 2,
+		x1 = center.X + size.X / 2,
+		y1 = center.Y + size.Y / 2,
+	}
+	local candidates: { Rect } = {
+		{ x0 = -far, y0 = -far, x1 = keepout.x0, y1 = far },
+		{ x0 = keepout.x1, y0 = -far, x1 = far, y1 = far },
+		{ x0 = -far, y0 = -far, x1 = far, y1 = keepout.y0 },
+		{ x0 = -far, y0 = keepout.y1, x1 = far, y1 = far },
+	}
+	local best, bestArea = candidates[1], -1
+	for _, clip in candidates do
+		local area = math.max(0, math.min(card.x1, clip.x1) - math.max(card.x0, clip.x0))
+			* math.max(0, math.min(card.y1, clip.y1) - math.max(card.y0, clip.y0))
+		if area > bestArea + 0.5 then
+			best, bestArea = clip, area
 		end
 	end
+	return best
+end
+
+--[[
+	Слой лучей (CatchRays) — «окно», где их видно (px HUD.Fishing размера root): clip (raysClip:
+	карточка рядом с рыбаком — по одну сторону от него, ClipsDescendants) или nil — без обрезки
+	(втрое больше экрана: лучи слова у рыбы над головой, карточка посередине).
+]]
+function CatchFx.raysFrame(rays: GuiObject, root: Vector2, clip: Rect?)
+	local left, top, right, bottom = -root.X, -root.Y, 2 * root.X, 2 * root.Y
+	local x0: number = if clip then math.clamp(clip.x0, left, right) else left
+	local x1: number = if clip then math.clamp(clip.x1, left, right) else right
+	local y0: number = if clip then math.clamp(clip.y0, top, bottom) else top
+	local y1: number = if clip then math.clamp(clip.y1, top, bottom) else bottom
 	rays.AnchorPoint = Vector2.zero
 	rays.SizeConstraint = Enum.SizeConstraint.RelativeXY
 	rays.Rotation = 0
 	rays.Position = UDim2.fromOffset(whole(x0), whole(y0))
-	rays.Size = UDim2.fromOffset(whole(x1 - x0), whole(y1 - y0))
-	rays.ClipsDescendants = clip
+	rays.Size = UDim2.fromOffset(whole(math.max(x1 - x0, 0)), whole(math.max(y1 - y0, 0)))
+	rays.ClipsDescendants = clip ~= nil
 end
 
 -- Поперечник лучей, px: size высот карточки height, не больше maxPx; за карточкой (не сцена
@@ -358,10 +418,24 @@ function CatchFx.fitStamp(
 	return peak
 end
 
+-- Значок фишки, чтобы не наезжать на её подпись, уменьшается до стольких своих размеров.
+CatchFx.CHIP_ICON_MIN = 0.86
+
+-- Размер элемента из сборщика (запоминается в атрибут RestSize при первой подгонке).
+local function restSize(gui: GuiObject): UDim2
+	local rest = gui:GetAttribute("RestSize")
+	if typeof(rest) ~= "UDim2" then
+		gui:SetAttribute("RestSize", gui.Size)
+		return gui.Size
+	end
+	return rest
+end
+
 --[[
-	Подпись фишки (вес, цена) начинается правее её выступающего значка (+3 px; правый край — на
-	месте): на узкой фишке квадратной карточки сбоку от рыбака крупный значок иначе наезжает на
-	цифры. size — фишка «в покое», px. Ширина подписи из сборщика запоминается (RestSize).
+	Подпись фишки (вес, цена) не заходит под её выступающий значок (+3 px; правый край подписи —
+	на месте; SIMC-C1-05): на узкой фишке квадратной карточки сбоку от рыбака значок сначала
+	становится меньше (до CHIP_ICON_MIN своего размера), потом подпись начинается правее него.
+	size — фишка «в покое», px. На широкой фишке всё как в сборщике.
 ]]
 function CatchFx.fitChip(chip: GuiObject, size: Vector2)
 	local icon = chip:FindFirstChild("Icon")
@@ -369,18 +443,41 @@ function CatchFx.fitChip(chip: GuiObject, size: Vector2)
 	if not (icon and label and icon:IsA("GuiObject") and label:IsA("GuiObject")) or size.X <= 0 then
 		return
 	end
-	local rest = label:GetAttribute("RestSize")
-	if typeof(rest) ~= "UDim2" then
-		rest = label.Size
-		label:SetAttribute("RestSize", rest)
-	end
-	local restSize = rest :: UDim2
-	local iconPx = icon.Size.X.Scale * size.Y + icon.Size.X.Offset -- (RelativeYY)
-	local iconRight = icon.Position.X.Scale * size.X + icon.Position.X.Offset + (1 - icon.AnchorPoint.X) * iconPx
-	local width = restSize.X.Scale * size.X + restSize.X.Offset
+	local iconRest, labelRest = restSize(icon), restSize(label)
+	local width = labelRest.X.Scale * size.X + labelRest.X.Offset
 	local right = label.Position.X.Scale * size.X + label.Position.X.Offset + (1 - label.AnchorPoint.X) * width
-	local fit = math.min(width, right - (iconRight + 3))
-	label.Size = UDim2.new(math.max(fit, width * 0.5) / size.X, 0, restSize.Y.Scale, restSize.Y.Offset)
+	local left = right - width
+	-- Значок (RelativeYY): его правый край — at + (1 − AnchorPoint.X) × scale × высота фишки.
+	local at = icon.Position.X.Scale * size.X + icon.Position.X.Offset
+	local reach = (1 - icon.AnchorPoint.X) * size.Y
+	local scale = iconRest.X.Scale
+	if reach > 0 then
+		scale = math.clamp((left - 3 - at) / reach, iconRest.X.Scale * CatchFx.CHIP_ICON_MIN, iconRest.X.Scale)
+	end
+	icon.Size = if scale >= iconRest.X.Scale
+		then iconRest
+		else UDim2.new(
+			scale,
+			iconRest.X.Offset,
+			scale * iconRest.Y.Scale / math.max(iconRest.X.Scale, 1e-6),
+			iconRest.Y.Offset
+		)
+	local fit = math.min(width, right - (at + reach * scale + 3))
+	label.Size = if fit >= width
+		then labelRest
+		else UDim2.new(math.max(fit, width * 0.5) / size.X, 0, labelRest.Y.Scale, labelRest.Y.Offset)
+	-- Нижний предел текста — не выше 0.8 высоты подписи (не меньше 12 px): иначе на маленькой
+	-- фишке «2 400» не влезает в строку не мельче Button − 2 и TextScaled рвёт число.
+	local limits = label:FindFirstChildOfClass("UITextSizeConstraint")
+	if limits then
+		local restMin = label:GetAttribute("RestMin")
+		if type(restMin) ~= "number" then
+			restMin = limits.MinTextSize
+			label:SetAttribute("RestMin", restMin)
+		end
+		local boxHeight = labelRest.Y.Scale * size.Y + labelRest.Y.Offset
+		limits.MinTextSize = math.max(12, math.min(restMin :: number, math.floor(boxHeight * 0.8)))
+	end
 end
 
 export type FloatSpot = {
@@ -401,8 +498,9 @@ export type FloatSpot = {
 	Куда вылетает «+N 💰» у карточки сбоку от рыбака (SIMC-C1-03: не на окно с рыбой — ребёнок как
 	раз смотрит на свою рыбу): над баннером, если там помещается надпись не ниже least (по X — над
 	карточкой, не за край рыбака); иначе — у внешнего края карточки (от рыбака) на высоте цены;
-	нет и там — на верхнюю полоску окна (центр — 0.18 его высоты, высота — не больше 0.3 окна) и
-	тает раньше (третье — true). Возвращает центр и высоту надписи.
+	нет и там — на верхнюю полоску окна у его правого края (центр — 0.18 его высоты, высота — не
+	больше 0.3 окна; слева наверху — наклейка) и тает раньше (третье — true). Возвращает центр и
+	высоту надписи.
 ]]
 function CatchFx.floatSpot(o: FloatSpot): (Vector2, number, boolean)
 	-- Над баннером.
@@ -432,11 +530,12 @@ function CatchFx.floatSpot(o: FloatSpot): (Vector2, number, boolean)
 		local cx = if o.side < 0 then o.card.x0 - o.gap - w / 2 else o.card.x1 + o.gap + w / 2
 		return Vector2.new(cx, math.clamp(y, h / 2 + 4, o.root.Y - h / 2 - 4)), h, false
 	end
-	-- Верхняя полоска окна — и тает раньше.
+	-- Верхняя полоска окна (у его правого края: слева наверху — наклейка «НОВИНКА!») — и тает
+	-- раньше.
 	local window = o.window
 	local ww, wh = window.x1 - window.x0, window.y1 - window.y0
 	h = math.min(o.want, wh * 0.3, ww * 0.96 / o.perHeight)
-	return Vector2.new((window.x0 + window.x1) / 2, window.y0 + wh * 0.18), h, true
+	return Vector2.new(window.x1 - ww * 0.02 - h * o.perHeight / 2, window.y0 + wh * 0.18), h, true
 end
 
 return CatchFx

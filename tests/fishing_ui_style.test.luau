@@ -2512,57 +2512,208 @@ tests["card helpers: rays clear the trophy, the stamp and the close hint fit a s
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["card dock on a tablet: the square card stands beside the projected fisher and trophy, never on them"] = function(
+tests["card dock on a tablet: the square card stands beside the projected fisher and trophy, never on them; its rays big, clipped at him"] = function(
 	t
 )
-	local sim = boot(t)
-	local p = addPlayer(sim, 1, "tablet")
-	ready(sim, p)
-	p:SetAttribute("FishCaught", 2)
-	sim:Advance(0.2)
-	local f = fishing(p)
-	-- The default follow camera behind the fisher (12.5 studs back, 18° down; RbxSim has no
-	-- camera scripts): the controller projects him and his trophy from it.
-	local base = sim.workspace.Bases:FindFirstChild(`Base_{p:GetAttribute("BaseIndex")}`)
-	local look = base:GetPivot().LookVector
-	local focus = p.Character.HumanoidRootPart.Position + Vector3.new(0, 1.5, 0)
-	local eye = focus - look * (12.5 * math.cos(math.rad(18))) + Vector3.new(0, 12.5 * math.sin(math.rad(18)), 0)
-	local camera = sim.workspace.CurrentCamera
-	sim:Run(function()
-		camera.CFrame = CFrame.lookAt(eye, focus)
-	end, p)
-	catch(sim, p, CATCHES.Legendary, 3)
-	t.ok(openCard(sim, p), "the card opens")
-	sim:Advance(0.8)
-	local scripts = p:FindFirstChildOfClass("PlayerScripts")
-	local Layout = sim:Require(sim:Find("Controllers.FishingLayout", scripts), p)
-	local origin = f.AbsolutePosition
-	local fisher = sim:Run(function()
-		return Layout.fisherBox(p.Character, sim.workspace.CurrentCamera, origin)
-	end, p)
-	local card = rectOf(sim, p, f.CatchCard)
-	local vp = sim.players.state[sim:Unwrap(p)].viewport
-	t.near(card.w / card.h, 380 / 384, 0.05, `still the square card {fmt(card)}`)
-	t.ok(fisher ~= nil, "the own fisher is on screen (the tablet has no fallback box)")
-	if fisher then
-		local box: Rect = {
-			x = fisher.x0 + origin.X,
-			y = fisher.y0 + origin.Y,
-			w = fisher.x1 - fisher.x0,
-			h = fisher.y1 - fisher.y0,
-		}
-		t.eq(overlap(card, box), 0, `the card {fmt(card)} is beside the fisher {fmt(box)}`)
-		local fades = 0
-		for _, side in { "Left", "Right" } do
-			local fade = f.CatchDim[side]:FindFirstChild("Fade")
-			if fade and fade.Enabled then
-				fades += 1
+	for _, fish in { CATCHES.Legendary, CATCHES.Mythic } do
+		local what = fish.Rarity
+		local sim = boot(t)
+		local p = addPlayer(sim, 1, "tablet")
+		ready(sim, p)
+		p:SetAttribute("FishCaught", 2)
+		sim:Advance(0.2)
+		local f = fishing(p)
+		-- The default follow camera behind the fisher (12.5 studs back, 18° down; RbxSim has no
+		-- camera scripts): the controller projects him and his trophy from it.
+		local base = sim.workspace.Bases:FindFirstChild(`Base_{p:GetAttribute("BaseIndex")}`)
+		local look = base:GetPivot().LookVector
+		local focus = p.Character.HumanoidRootPart.Position + Vector3.new(0, 1.5, 0)
+		local eye = focus - look * (12.5 * math.cos(math.rad(18))) + Vector3.new(0, 12.5 * math.sin(math.rad(18)), 0)
+		local camera = sim.workspace.CurrentCamera
+		sim:Run(function()
+			camera.CFrame = CFrame.lookAt(eye, focus)
+		end, p)
+		catch(sim, p, fish, 3)
+		t.ok(openCard(sim, p), `{what}: the card opens`)
+		sim:Advance(0.8)
+		local scripts = p:FindFirstChildOfClass("PlayerScripts")
+		local Layout = sim:Require(sim:Find("Controllers.FishingLayout", scripts), p)
+		local origin = f.AbsolutePosition
+		local fisher = sim:Run(function()
+			return Layout.fisherBox(p.Character, sim.workspace.CurrentCamera, origin)
+		end, p)
+		local card = rectOf(sim, p, f.CatchCard)
+		local vp = sim.players.state[sim:Unwrap(p)].viewport
+		t.near(card.w / card.h, 380 / 384, 0.05, `{what}: still the square card {fmt(card)}`)
+		t.ok(fisher ~= nil, `{what}: the own fisher is on screen (the tablet has no fallback box)`)
+		local layer = f.CatchRays
+		if fisher then
+			local box: Rect = {
+				x = fisher.x0 + origin.X,
+				y = fisher.y0 + origin.Y,
+				w = fisher.x1 - fisher.x0,
+				h = fisher.y1 - fisher.y0,
+			}
+			t.eq(overlap(card, box), 0, `{what}: the card {fmt(card)} is beside the fisher {fmt(box)}`)
+			local fades = 0
+			for _, side in { "Left", "Right" } do
+				local fade = f.CatchDim[side]:FindFirstChild("Fade")
+				if fade and fade.Enabled then
+					fades += 1
+				end
+			end
+			t.eq(fades, 1, `{what}: the dim: one side band that melts towards him (he stays bright)`)
+			-- SIMC-C1-01: the sunburst behind a docked card is not shortened to the card any more —
+			-- its layer clips it at the fisher's edge on the card's side (he and his trophy stay
+			-- clear), so the rays stay big around the card.
+			t.ok(layer.ClipsDescendants, `{what}: the rays' layer clips them`)
+			local clip = rectOf(sim, p, layer)
+			-- (≤ 1.5 px: his box now and at the card's birth differ by a fraction of a pixel)
+			t.ok(
+				overlap(clip, box) <= 1.5 * math.max(box.w, box.h),
+				`{what}: the rays' window {fmt(clip)} stops at him {fmt(box)}`
+			)
+			t.ok(overlap(clip, card) >= card.w * card.h * 0.99, `{what}: …and holds the card {fmt(card)}`)
+		end
+		local longest, rings = 0, 0
+		for _, holder in layer:GetChildren() do
+			if holder.Name == "FxRays" then
+				rings += 1
+				for _, ray in holder:GetChildren() do
+					if string.sub(ray.Name, 1, 3) == "Ray" then
+						longest = math.max(longest, ray.Size.Y.Scale * holder.Size.Y.Offset)
+					end
+				end
 			end
 		end
-		t.eq(fades, 1, "the dim: one side band that melts towards him (he stays bright)")
+		t.eq(rings, 2, `{what}: two rings of rays`)
+		t.ok(longest >= 0.6 * card.h, `{what}: long rays ({math.floor(longest)} px for a {card.h} px card)`)
+		t.ok(card.y + card.h <= vp.Y - BOTTOM_GAP, `{what}: ≥ 16 px above the bottom {fmt(card)}`)
+		t.ok(card.y >= INSET, `{what}: below the top bar {fmt(card)}`)
+		-- SIMC-C1-05: the chips' labels start right of their icons.
+		for _, name in { "Weight", "Price" } do
+			local chip = f.CatchCard.InfoLabel[name]
+			local icon, label = rectOf(sim, p, chip.Icon), rectOf(sim, p, chip.Label)
+			t.ok(
+				label.x >= icon.x + icon.w + 2,
+				`{what}: {name}: the label {fmt(label)} starts right of its icon {fmt(icon)}`
+			)
+		end
+		sim:AssertNoErrors({ warnings = true })
 	end
-	t.ok(card.y + card.h <= vp.Y - BOTTOM_GAP, `≥ 16 px above the bottom {fmt(card)}`)
-	t.ok(card.y >= INSET, `below the top bar {fmt(card)}`)
+end
+
+tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticker, chips, rays and «+N 💰» keep clear"] = function(
+	t
+)
+	-- SIMC-C1-02: a 667 x 375 phone, a giant Mythic trophy (x 148..396): the 128 px landscape
+	-- card overlaps it on either side; a 0.9 one fits right of it, between it and «ДОМОЙ».
+	local Layout = loadLayout()
+	local keepout = Layout.rect(148, 30, 396, 300)
+	local bands = {
+		{ side = -1, top = 30, bottom = 197, left = 20, right = 584 },
+		{ side = 1, top = 30, bottom = 160, left = 20, right = 584 },
+	}
+	local aspect, span = 1.54, 1.05 * 1.025
+	local scales = { 1, 0.95, 0.9, 0.85 }
+	local tolerance = 0.03 * (396 - 148) * (300 - 30)
+	local _, _, full = Layout.leastCover(keepout, bands, 128 * aspect, 128, span)
+	local rect, side, cover, scale = Layout.leastCoverScaled(keepout, bands, 128 * aspect, 128, span, scales, tolerance)
+	t.ok(full > tolerance, `the full card hides {math.floor(full)} px² of him`)
+	t.ok(rect and cover <= tolerance, `a smaller one stays off him ({cover} px² at {scale})`)
+	t.ok(scale < 1 and scale >= 0.85, `…not smaller than 0.85 ({scale})`)
+	t.eq(side, 1, "…right of him")
+	t.near((rect.y1 - rect.y0) / 128, scale, 1e-6, "the card keeps its proportions at that scale")
+	local none, _, least = Layout.leastCoverScaled(keepout, bands, 128 * aspect, 128, span, { 1 }, 0)
+	t.ok(none and least == full, "no scale fits: the one that hides the least")
+
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	local f = fishing(p)
+	local scripts = p:FindFirstChildOfClass("PlayerScripts")
+	local CatchFx = sim:Require(sim:Find("Controllers.CatchFx", scripts), p)
+	local V2 = roblox.Vector2.new
+	-- The rays behind a card: at least RAYS_MIN card heights across (the scene of the title keeps
+	-- its own size).
+	t.eq(CatchFx.raysSize(2.55, 251, 470, false), 470, "capped by MaxPx")
+	t.eq(CatchFx.raysSize(2.55, 390, 600, false), CatchFx.RAYS_MIN * 390, "never under RAYS_MIN card heights")
+	t.eq(CatchFx.raysSize(2.55, 390, 600, true), 600, "the title's spokes: MaxPx")
+	-- The rays' layer: on the card's side of the fisher with his trophy (beside him, or under him
+	-- for a spare slot below the giant trophy), or the whole screen.
+	local keepout = { x0 = 300, y0 = 50, x1 = 500, y1 = 300 }
+	local root = V2(844, 332)
+	local left = CatchFx.raysClip(keepout, V2(150, 150), V2(200, 200), root)
+	t.eq(left.x1, 300, "a card left of him: the rays end at his left edge")
+	t.ok(left.y0 < -332 and left.y1 > 664, "…all the way up and down")
+	local right = CatchFx.raysClip(keepout, V2(650, 150), V2(200, 200), root)
+	t.eq(right.x0, 500, "right of him: they start at his right edge")
+	local under = CatchFx.raysClip(keepout, V2(390, 380), V2(200, 150), root)
+	t.eq(under.y0, 300, "a spare slot under the trophy: they start below him")
+	local layer = f.CatchRays
+	CatchFx.raysFrame(layer, root, left)
+	t.ok(layer.ClipsDescendants, "a docked card: clipped")
+	t.eq(layer.Position.X.Offset + layer.Size.X.Offset, 300, "…up to his edge")
+	t.ok(layer.Position.X.Offset <= -844, "…from beyond the screen")
+	CatchFx.raysFrame(layer, root, nil)
+	t.eq(layer.ClipsDescendants, false, "no dock: not clipped")
+	t.ok(layer.Position.X.Offset <= -844 and layer.Size.X.Offset >= 3 * 844, "…three screens wide")
+
+	-- «НОВИНКА!» on a small docked card: inside at rest, its slap from ≤ SLAP_DOCKED, anchored
+	-- where it has room (the scaled sticker stays on the card, under the banner).
+	local stamp = f.CatchCard.NewStamp
+	stamp.AnchorPoint = roblox.Vector2.new(0.5, 0.5)
+	stamp.Position = roblox.UDim2.fromOffset(28, 41)
+	local area = { x0 = 0, y0 = 28, x1 = 197, y1 = 129 }
+	local peak = CatchFx.fitStamp(stamp, V2(-20, 27), V2(96, 28), area)
+	t.ok(peak <= CatchFx.SLAP_DOCKED and peak >= 1, `a modest slap ({peak})`)
+	t.near(stamp.Position.X.Offset - stamp.AnchorPoint.X * 96, 0, 0.5, "moved inside the card at rest")
+	t.near(stamp.Position.Y.Offset - stamp.AnchorPoint.Y * 28, 27, 0.5, "…not up or down")
+	local a = stamp.AnchorPoint
+	local x0 = stamp.Position.X.Offset - a.X * 96 * peak
+	local y0 = stamp.Position.Y.Offset - a.Y * 28 * peak
+	t.ok(x0 >= area.x0 - 0.5 and x0 + 96 * peak <= area.x1 + 0.5, `its slap stays on the card ({x0})`)
+	t.ok(y0 >= area.y0 - 1.5, `…and off the banner ({y0})`)
+
+	-- A narrow chip: the icon shrinks a little and the label starts right of it.
+	local chip = f.CatchCard.InfoLabel.Price
+	CatchFx.fitChip(chip, V2(93, 29))
+	local iconRight = chip.Icon.Position.X.Scale * 93 + (1 - chip.Icon.AnchorPoint.X) * chip.Icon.Size.X.Scale * 29
+	local labelLeft = chip.Label.Position.X.Scale * 93 - chip.Label.AnchorPoint.X * chip.Label.Size.X.Scale * 93
+	t.ok(labelLeft >= iconRight + 2.9, `the price starts right of 💰 ({labelLeft} / {iconRight})`)
+	t.ok(chip.Label.UITextSizeConstraint.MinTextSize <= math.floor(0.8 * 0.8 * 29), "its text may fit the small chip")
+	CatchFx.fitChip(chip, V2(300, 29))
+	t.eq(chip.Icon.Size, chip.Icon:GetAttribute("RestSize"), "a wide chip: the builder's icon")
+	t.eq(chip.Label.Size, chip.Label:GetAttribute("RestSize"), "…and label")
+
+	-- «+N 💰» beside a docked card: above the banner when there is room, else at the outer
+	-- edge, else the window's top strip (fading early) — never on the fish in the window.
+	local function spot(cardTop: number, outer: number): any
+		local c, h, early = CatchFx.floatSpot({
+			root = V2(1024, 710),
+			card = { x0 = 600, y0 = cardTop, x1 = 900, y1 = cardTop + 300 },
+			side = 1,
+			edge = 580,
+			window = { x0 = 630, y0 = cardTop + 60, x1 = 870, y1 = cardTop + 160 },
+			source = V2(800, cardTop + 230),
+			perHeight = 5.4,
+			want = 80,
+			least = 36,
+			gap = 10,
+			limits = function()
+				return 16, outer
+			end,
+		})
+		return { c = c, h = h, early = early }
+	end
+	local above = spot(200, 1008)
+	t.ok(above.c.Y + above.h / 2 <= 190 + 1e-6 and not above.early, "room above: over the banner")
+	t.ok(above.c.X - above.h * 5.4 / 2 >= 590 - 1e-6, "…not over the fisher")
+	local beside = spot(30, 1300)
+	t.ok(beside.c.X - beside.h * 5.4 / 2 >= 910 - 1e-6 and not beside.early, "no room above: at the outer edge")
+	local strip = spot(30, 950)
+	t.ok(strip.early, "no room at all: the window's top strip, fading early")
+	t.ok(strip.c.Y + strip.h / 2 <= 30 + 60 + 0.5 * 100, "…in its top half")
+	t.ok(strip.h <= 30 + 1e-6, "…at most 0.3 of the window tall")
 	sim:AssertNoErrors({ warnings = true })
 end
 

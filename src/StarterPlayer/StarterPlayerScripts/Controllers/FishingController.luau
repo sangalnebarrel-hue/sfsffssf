@@ -2009,7 +2009,7 @@ do
 		DockCover = 0.03,
 		DockSquare = 0.6,
 		DockSquareMin = 250,
-		DockSquarePhone = 168,
+		DockSquarePhone = 166,
 		DockSlack = 12,
 		PriceText = 1.4,
 		PriceFloat = { Delay = 0.12, Fly = 0.35, Time = 0.95, Early = 0.8, Lift = 0.1, Gap = 10, MinTitle = 1.2 },
@@ -2074,7 +2074,17 @@ do
 	local cardDefaults: { [Instance]: Place }? = nil
 	-- dock — карточка сбоку от своего рыбака (−1 слева, 1 справа; v3, телефон), edge — его край
 	-- (px HUD.Fishing) с этой стороны: лучи и затемнение до него не достают.
-	local cardBox: { center: Vector2, size: Vector2, wide: boolean, slot: number, dock: number?, edge: number? }? = nil
+	-- clip — где видны её лучи (CatchFx.raysClip: по одну сторону от рыбака с трофеем; nil — везде).
+	local cardBox: {
+		center: Vector2,
+		size: Vector2,
+		wide: boolean,
+		slot: number,
+		dock: number?,
+		edge: number?,
+		clip: Layout.Rect?,
+	}? =
+		nil
 
 	local catchTrove = Trove.new() -- от "Caught" до карточки: ожидание приземления, слово редкости
 	local raysTrove = Trove.new() -- лучи за карточкой (на закрытии сжимаются, потом удаляются)
@@ -2089,7 +2099,7 @@ do
 	local faded: { [Instance]: { [string]: number } } = {} -- погашенное (плашки статуса, кнопка)
 	local fadeTweens: { [Instance]: Tween } = {} -- … и его идущие твины (возврат их отменяет)
 	-- Лучи улова: у слова редкости — с приземления (за словом), иначе — с карточки.
-	local cardRays: { serial: number, main: UiFx.Rays, extra: UiFx.Rays? }? = nil
+	local cardRays: { serial: number, main: UiFx.Rays, extra: UiFx.Rays?, card: boolean }? = nil
 
 	-- Буква «по ширине» для огромного слова.
 	local function letterWidth(ch: string): number
@@ -2848,8 +2858,27 @@ do
 			end
 			applyPlace(gui, place)
 		end
-		cardBox = { center = center, size = size, wide = wide, slot = slot, dock = dock, edge = edge }
+		CatchFx.stampMin(ui.newStamp, size.X) -- (UI v5: на узкой карточке наклейка уже)
+		cardBox = {
+			center = center,
+			size = size,
+			wide = wide,
+			slot = slot,
+			dock = dock,
+			edge = edge,
+			clip = if dock and fisher then CatchFx.raysClip(fisher, center, size, rootSize) else nil,
+		}
 		placeDim(center, size, wide, dock, edge)
+		local rays = cardRays
+		if rays and rays.card then
+			-- (экран поменял размер: лучи — за карточкой на новом месте, обрезка — по нему)
+			CatchFx.raysFrame(ui.rays, rootSize, cardBox and cardBox.clip)
+			for _, ring in { rays.main, rays.extra } do
+				if ring then
+					CatchFx.aimRays(ring.holder, ui.rays, center, ring.holder.Size.X.Offset)
+				end
+			end
+		end
 	end
 
 	-- Прямоугольник элемента карточки «в покое» (пиксели HUD.Fishing) — куда влетает слово
@@ -4090,7 +4119,7 @@ do
 		colors: { Color3 }?,
 		clear: number?,
 		at: Vector2?
-	): { serial: number, main: UiFx.Rays, extra: UiFx.Rays? }
+	): { serial: number, main: UiFx.Rays, extra: UiFx.Rays?, card: boolean }
 		raysTrove:Clean()
 		local style = UIConfig.Rarity[fish.Rarity] or UIConfig.Rarity.Common
 		local reveal = look or REVEAL[fish.Rarity] or REVEAL.Common
@@ -4106,13 +4135,8 @@ do
 			-- маленьком телефоне спицы не перечёркивают)
 			hole = math.max(hole, clear / math.max(across / 2, 1))
 		end
-		-- Слой лучей: у карточки сбоку от рыбака — до его края (лучи у него обрезаны), у слова — весь.
-		CatchFx.raysFrame(
-			ui.rays,
-			ui.fishing.AbsoluteSize,
-			if box and not hole then box.dock else nil,
-			if box then box.edge else nil
-		)
+		-- Слой лучей: у карточки рядом с рыбаком — до его края (лучи у него обрезаны), у слова — весь.
+		CatchFx.raysFrame(ui.rays, ui.fishing.AbsoluteSize, if box and not hole then box.clip else nil)
 		local center = at or (if box then box.center else ui.fishing.AbsoluteSize / 2)
 		ui.rays.Visible = true
 		local main = raysTrove:Add(UiFx.rays(ui.rays, {
@@ -4158,7 +4182,7 @@ do
 			CatchFx.aimRays(ring.holder, ui.rays, center, wider)
 			extra = ring
 		end
-		local current = { serial = catchSerial, main = main, extra = extra }
+		local current = { serial = catchSerial, main = main, extra = extra, card = hole == nil }
 		cardRays = current
 		raysTrove:Add(function()
 			ui.rays.Visible = false
@@ -4222,8 +4246,15 @@ do
 		showFishModel(fish)
 		card.Visible = true
 		ui.rays.Visible = true
-		local box =
-			cardBox :: { center: Vector2, size: Vector2, wide: boolean, slot: number, dock: number?, edge: number? }
+		local box = cardBox :: {
+			center: Vector2,
+			size: Vector2,
+			wide: boolean,
+			slot: number,
+			dock: number?,
+			edge: number?,
+			clip: Layout.Rect?,
+		}
 		-- Где доли стоят «в покое» (после раскладки): к этому они едут и пружинят.
 		local rest = {
 			banner = ui.banner.Size,
