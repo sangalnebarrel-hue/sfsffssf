@@ -190,6 +190,13 @@ local function join(t: any, sim: any, id: number, device: string): any
 	end, 10)
 	t.ok(ready, `{player.Name}: a base, a character, the rod in the Backpack and the HUD`)
 	sim:Advance(0.5) -- client controllers are running
+	-- Spawned at the base, far from the fishing spot, the rod in the Backpack: the screen offers
+	-- «ВЗЯТЬ» at once (not only «ДОМОЙ»).
+	local action = sim:Gui(player, "HUD.Fishing.ActionArea.ActionButton")
+	t.ok(
+		action.Visible and action.Caption.Text == "ВЗЯТЬ",
+		`{player.Name}: «ВЗЯТЬ» right after the spawn ({action.Visible}, «{action.Caption.Text}»)`
+	)
 	return player
 end
 
