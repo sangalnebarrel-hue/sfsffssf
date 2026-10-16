@@ -67,7 +67,9 @@ Orange = Sun, Cyan = Mint, Pink = Pink, Green = emerald #5FF5A8 → #14C76E); an
 through `UIConfig.swatchFor(color)` (top = colour 30 % towards white, bottom = the hue at
 saturation × 1.1 and value ≥ 0.9, outline = the hue at value 0.29; greys get a dark grey).
 `UIConfig.BadgeRed` (#FF4A3D → #F00A00, outline #4A0000) is the «!» badge, `MoneyText` #1BFF00 the
-money digits of stage 3, `BillboardYellow` / `BillboardGreen` the world signs of the next pass.
+money digits of stage 3, `BillboardYellow` / `BillboardGreen` the words over the world (UI v5,
+like the reference's «МАГАЗИН СЛЕДОВ» / «БЕСПЛАТНО!»: the base signs' «СВОБОДНО!» and «ТВОЯ
+БАЗА!» in green, the held fish's price in yellow; §3 «Words in the world»).
 
 Rarity: Common light grey `#F4F7FA→#B8C2CC`, Rare blue `#5FD0FF→#1E7BFF`, Epic purple
 `#E08CFF→#A43BFF`, Legendary yellow → orange `#FFF06A→#FF9A00`, Mythic = an **animated rainbow**
@@ -313,20 +315,38 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   the word already sits at the banner's place and the card grows up under it, never over it in the
   middle of the screen; from the card's birth the word is a transient effect (the title widget
   hides, its copy `FxTitleMorph` settles into the banner and melts as the banner grows out of it) —
-  then the card is born at the fish
-  and settles (position Quint Out,
-  no overshoot; the rays follow it): a landscape trophy card on phones (fish left, name and chips
+  then the card is born at the fish — a card beside the fisher at its own edge on the fish's side,
+  growing towards its middle (v5, D2: `CatchFx.birthPoint`), so it never crosses the trophy — and
+  settles (position and turn Quint Out, its scale 0.4 → 1.04 → 1 — `CatchFx.birth`; the rays
+  follow it): a landscape trophy card on phones (fish left, name and chips
   right) docked BESIDE the own fisher (v3, UIM-04: `FishingLayout.dockSide` — the wider side: left
   over the thumbstick or right over the action button; the fisher holding the trophy stays in view
   next to it; there the card may be down to `CARD.DockMin` 128 px tall — smaller beside him beats
   bigger over him on the smallest phone; if a huge trophy leaves no room even for that — centred as
   before), the 380 x 384
-  square elsewhere — a white display card (the fish in its window on a
-  podium in the rarity's colour — a sim stadium with a lighter top face — whose rim flashes as the card settles, the banner's rim
-  flashes as it unrolls, the price chip's when it rises; the price bumps with every number); Legendary 1.05x and Mythic 1.1x
-  the size (on phones the free space is the Mythic's), a dim around it (on phones one side band on
-  the card's side of the screen that melts away towards the fisher — its UIGradient "Fade"; the
-  card's rays never reach him; none for Common). The rarity shows on the card itself: small rays behind the fish; Epic+ a live
+  square elsewhere — v5 (D1): on a tablet and a PC docked beside the fisher and his trophy too
+  (`FishingLayout.cardDock` over the free bands on either side: full height, above the thumbstick,
+  the action button or the shown «ДОМОЙ» stack, below the chat window without touch; the left
+  side a little preferred), no smaller than `CARD.DockSquare` 65 % of its centred size and 250 px
+  — else centred at the bottom as before. Its gaps are measured by the drawing: 16 px plus its own
+  outline (`CatchFx.outline`, thicker than `RimRoom` on big screens) plus `CARD.EdgeRoom` for the
+  outlines and key chip of the action button and the «ДОМОЙ» column; with a rarity title the
+  place is chosen twice (on the landing, where the title flies to, and at the card's birth), both
+  times `CARD.DockSlack` px more lenient, so the title never heads for the middle while the card
+  is born beside the fisher. The UI v5 card: a Cream sim plate with the chunky
+  outline and the light rim, a sky window framed in slate blue, the rarity ribbon (label radius,
+  overhanging both sides, the rarity word in outlined white CAPS between two outlined ⭐ tilted
+  outwards), the fish on a trophy stand in the rarity's colours (SIM-C1-05: a light cap with the
+  fish's soft shadow, the column with an outlined ⭐, a darker base — it punches in under the fish
+  0.5 → 1.12 → 1 while its rim flashes), the name white → rarity colours with an Ink outline
+  (Mythic a rainbow along the letters), round chips — the weight grey with Ink CAPS, the price gold
+  with an overhanging outlined 💰 and italic display digits (they flash gold on the landing) —, an
+  italic tap hint; the banner's rim flashes as it unrolls and its stars pop in one by one, the
+  price chip's rim when it rises; the price bumps with every number. Legendary 1.05x and Mythic
+  1.1x the size (on phones the free space is the Mythic's), a dim around it (a card beside the
+  fisher: one side band on its side of the screen that melts away towards him — its UIGradient
+  "Fade"; the card's rays never reach him, and no full-screen title dim — he stays bright; none
+  for Common). The rarity shows on the card itself: small rays behind the fish; Epic+ a live
   rim (Epic Grape pulse, Legendary gold sweep, Mythic spinning rainbow — with a mutation it moves
   to the banner's outline and the mutation keeps the card's), Legendary/Mythic a face tinted
   towards the rarity (Mythic: a slow pastel rainbow). The name is born with the card (it slides
@@ -334,8 +354,10 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   at a time — Common/Rare (fished dozens of times) ≥ 0.2 s apart, Epic+ ≥ 0.27 s —, each with its
   own motion: rarity (the title flies into the banner and the banner grows out of it at 70 % of the
   flight while the title fades out in 0.08 s and the banner's label fades in — never two readable
-  words; without a title the banner unrolls from the middle, Quint Out) → «НОВИНКА!» (a stamp — only stamps use
-  Back Out) → chips (rise, Quad Out, the price 0.08 s later) → price count-up (a soft ease-out
+  words; without a title the banner unrolls from the middle, Quint Out) → «НОВИНКА!» (a red sticker
+  slapped on — 2.4 → 1 with a turn, Back Out, it shivers as it lands with a white ring and a few
+  sparks: `CatchFx.slap`) → chips (each rises from below with a punch 0.85 → 1.1 → 1, the price
+  0.08 s later, the tick a little higher: `CatchFx.punchChips`) → price count-up (a soft ease-out
   that keeps running into the landing: 0.15 s before it ≤ ~92 %) and landing (the chip squashes
   1.25 × 0.85 and springs back, Elastic Out; the price itself is the card's biggest number; 0.12 s
   later «+N 💰» flies OUT of the chip — Back Out to the free space right of the card (a card beside
@@ -384,8 +406,10 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   rarity-coloured sparkle trail; it flexes and beats its tail, water drips off it) to above the
   fisher's head — `OwnFishLanded` fires the frame it lands — then the crisp burst (white pop, star
   of thin rays, halo), a nameplate
-  (rarity — Rare and up —, name, mutation, price; a Common fish: name and price, bigger; Nunito
-  Heavy with a thick round Ink outline; sized in studs + pixels; above the fish for others, popping in
+  (rarity — Rare and up —, name, mutation, price; a Common fish: name and price, bigger; UI v5:
+  the reference's billboard words — Montserrat Heavy, no plate, a dark round outline; the rarity
+  word white → its colours, the name white, the mutation in its colour, the price in italic
+  billboard-yellow digits; sized in studs + pixels; above the fish for others, popping in
   at the landing; beside it — to the right — for your own, hidden while the catch is on screen:
   under the title it would repeat the word, by the card show the final price early) and the
   rarity aura around the held fish for `FishingRules.HoldFishTime(rarity)` s (≈ 3 s longer than the
@@ -437,6 +461,18 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   no pelvis shift at all and half the waist lean (no waist: RootJoint tilts the legs too). Rules: no uploaded / Studio-registered
   animations, no C0 writes (AnimationConstraint rigs), no per-frame work when nobody fishes
   nearby; far fishers keep no growing lists.
+- **Words in the world** (UI v5; BaseTemplate builds them, BaseService paints them, HudController
+  shows the own base's line; the held fish's nameplate of FishingFxController follows the same
+  rules): like the reference's «МАГАЗИН СЛЕДОВ» / «БЕСПЛАТНО!» — big words straight over the
+  world, NO plate, NO bricks or studs behind them: Montserrat Heavy, a white → colour `Fill`
+  UIGradient, a dark round `Outline` UIStroke in the look's dark shade (`Lip`). The owner sign
+  over each flag (a BillboardGui, MaxDistance 500, sized in studs + pixels so it stays readable far
+  away): `OwnerLabel` — the owner's name in white, or «СВОБОДНО!» in `BillboardGreen` while the
+  base is free; `BaseLabel` under it — «ЛАЗУРНАЯ БАЗА» in CAPS in the base's own swatch
+  (`UIConfig.BaseSwatches`); `YoursLabel` above — «ТВОЯ БАЗА!» in `BillboardGreen`, shown only on
+  the owner's own client (HudController, a local write). The gate's name board (SurfaceGuis on
+  its cream board, both faces) shows the same two lines in the same letters. They never move or animate (no per-frame work); the colours
+  change only when the owner changes.
 
 ## 4. Budgets (phones first)
 

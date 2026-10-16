@@ -779,10 +779,11 @@ local function buildPodium(card: any, look: any)
 	Theme.icon(pedestal, "Star", "⭐", {
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.6),
-		Size = UDim2.fromScale(0.78, 0.78),
+		Position = UDim2.fromScale(0.5, 0.58),
+		Size = UDim2.fromScale(0.96, 0.96),
 		ZIndex = 4,
 		Outline = 2,
+		MaxTextSize = 64, -- (and MinTextSize 12: on the smallest card the ⭐ overhangs its column)
 	})
 	return pedestal
 end

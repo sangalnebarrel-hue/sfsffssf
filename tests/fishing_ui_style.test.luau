@@ -2255,4 +2255,174 @@ tests["minigame on a phone: beside the own bobber when it would cover it (world 
 	sim:AssertNoErrors({ warnings = true })
 end
 
+--------------------------------------------------------------------------------
+-- UI v5 [sim-c]: the catch reward — the card's parts, its dock beside the fisher
+--------------------------------------------------------------------------------
+
+-- FishingLayout is pure rectangle maths: loaded straight from src/ (Vector2 from Lune).
+local function loadLayout(): any
+	local path = "src/StarterPlayer/StarterPlayerScripts/Controllers/FishingLayout.luau"
+	local chunk = luau.load(fs.readFile(path), {
+		debugName = path,
+		environment = { Vector2 = roblox.Vector2, Vector3 = roblox.Vector3 },
+		injectGlobals = true,
+	})
+	return chunk()
+end
+
+tests["card parts: the catch reward is built from the sim primitives — chunky card, ribbon, trophy stand, round chips, panel-less title"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	local f = fishing(p)
+	local card = f.CatchCard
+	-- The card: a Cream sim plate with the chunky outline (UIConfig.Sim.Stroke), its light rim.
+	checkCandy(t, card, "CatchCard")
+	t.eq(card.Lip.UIStroke:GetAttribute("BaseThickness"), UIConfig.Sim.Stroke, "the card has the chunky outline")
+	t.ok(card.Face:FindFirstChild("Rim"), "…and the light inner rim")
+	t.ok(card.Face.Window:FindFirstChildOfClass("UIStroke"), "the fish window is framed")
+	-- The rarity ribbon: a label-radius sim plate overhanging both sides, outlined stars tilted out.
+	local banner = card.Banner
+	t.eq(banner:GetAttribute("CandyRadius"), UIConfig.Sim.PlateRadius, "the banner is a ribbon")
+	t.ok(banner.Size.X.Scale > 1, "…wider than the card")
+	t.ok(banner.StarLeft.Rotation < 0 and banner.StarRight.Rotation > 0, "…its stars tilt outwards")
+	t.ok(banner.StarLeft:FindFirstChild("Outline"), "…and are outlined")
+	t.ok(banner.RarityLabel.Outline:GetAttribute("BaseThickness") >= 4.5, "the rarity word: a display outline")
+	-- The podium (SIM-C1-05): a trophy stand — cap, column with a star, base — not an empty bar.
+	local stand = card.Pedestal
+	checkCandy(t, stand, "Pedestal")
+	checkCandy(t, stand.Cap, "Pedestal.Cap")
+	checkCandy(t, stand.Base, "Pedestal.Base")
+	t.ok(stand.Cap.Face:FindFirstChild("Shadow"), "the fish's shadow on the cap")
+	t.eq(stand.Star.Text, "⭐", "a star on the column")
+	local starSize = stand.Star:FindFirstChildOfClass("UITextSizeConstraint")
+	t.ok(starSize and starSize.MinTextSize >= 12, "…never drawn under 12 px (the smallest card)")
+	t.ok(stand.Cap.Size.X.Scale > 1 and stand.Base.Size.X.Scale > 1, "cap and base wider than the column")
+	-- The chips: round; the weight a grey chip with Ink text, the price gold with italic digits.
+	local weight, price = card.InfoLabel.Weight, card.InfoLabel.Price
+	t.eq(weight:GetAttribute("CandyRadius"), 0.5, "a round weight chip")
+	t.eq(price:GetAttribute("CandyRadius"), 0.5, "a round price chip")
+	t.ok(isCandy(weight, Palette.Slate) and isCandy(price, Palette.Gold), "grey weight, gold price")
+	t.eq(price.Label.FontFace.Style, Enum.FontStyle.Italic, "the price in italic digits")
+	t.ok(price.Label.Outline:GetAttribute("BaseThickness") >= 4.5, "…with a display outline")
+	t.ok(price.Icon:FindFirstChild("Outline"), "an outlined 💰")
+	t.eq(price.Multiplier.FontFace.Style, Enum.FontStyle.Italic, "«×N» italic")
+	-- The sticker, the name, the hint.
+	checkCandy(t, card.NewStamp, "NewStamp")
+	t.ok(isCandy(card.NewStamp, Palette.Berry), "«НОВИНКА!» a red sticker")
+	t.ok(card.NewStamp.Rotation < 0, "…slapped on at an angle")
+	t.eq(card.NameLabel.Outline.Color, UIConfig.Ink, "the name: white → rarity colours with an Ink outline")
+	t.eq(card.TapHint.FontFace.Style, Enum.FontStyle.Italic, "the tap hint in italic")
+	-- The giant title: panel-less outlined letters with the drop-shadow twin.
+	local title = f.TitleSlam
+	t.eq(title.BackgroundTransparency, 1, "no panel behind the title")
+	t.ok(title.Label.Outline:GetAttribute("BaseThickness") >= 8, "the giant outline")
+	t.ok(title:FindFirstChild("LabelShadow"), "…and its drop shadow")
+	-- No compat leftovers in the card: every shape is a sim (or glass) surface.
+	for _, d in card:GetDescendants() do
+		local style = d:GetAttribute("CandyStyle")
+		if style ~= nil then
+			t.ok(style == "sim" or style == "glass", `{d:GetFullName()}: a sim surface ({style})`)
+		end
+	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["card dock: FishingLayout.cardDock puts the card beside the fisher and his trophy (tablet), nil when no side fits"] = function(
+	t
+)
+	local Layout = loadLayout()
+	-- A 1024 x 768 tablet (HUD.Fishing 1024 x 710): the fisher with an Epic trophy over his head
+	-- in the middle-left, the action button bottom-right, «ДОМОЙ» above it, the thumbstick
+	-- bottom-left — the bands the controller measures (full height, above the button, above
+	-- the thumbstick, above «ДОМОЙ»).
+	local keepout = Layout.rect(179, 45, 613, 563)
+	local function bands(sides: { number }): { any }
+		local out = {}
+		for _, side in sides do
+			table.insert(out, { side = side, top = 24, bottom = 686, left = 196, right = 659 })
+			table.insert(out, { side = side, top = 24, bottom = 528, left = 196, right = 894 })
+			table.insert(out, { side = side, top = 24, bottom = 476, left = 16, right = 894 })
+			table.insert(out, { side = side, top = 24, bottom = 326, left = 16, right = 1008 })
+		end
+		return out
+	end
+	local want, least, aspect, span = 380, 274, 380 / 384, 1.08 * 1.025
+	local rect, side, edge = Layout.cardDock(keepout, bands({ -1, 1 }), want, least, aspect, span)
+	t.ok(rect, "a side band fits the card")
+	t.eq(side, 1, "…on the right (the left of him is too narrow above the thumbstick)")
+	t.eq(edge, keepout.x1, "…its edge is the fisher's right edge")
+	local w, h = rect.x1 - rect.x0, rect.y1 - rect.y0
+	t.ok(w >= least, `readable: {math.floor(w)} px wide (≥ {least})`)
+	t.near(w / h, aspect, 0.01, "the square card keeps its shape")
+	local foot = (w * span - w) / 2 -- the banner overhangs both sides
+	t.ok(rect.x0 - foot >= keepout.x1 - 1e-6, "never over the fisher or his trophy (banner included)")
+	t.ok(rect.x1 + foot <= 1008 + 1e-6, "inside the screen's 16 px")
+	t.ok(rect.y0 >= 24 - 1e-6 and rect.y1 <= 326 + 1e-6, "above «ДОМОЙ», under the top bar")
+	-- Mirrored room: the left wins (×1.1) — the fisher between the card and «ЗАБРАТЬ!».
+	local wideOpen = { { side = -1, top = 24, bottom = 600, left = 16, right = 1008 } }
+	table.insert(wideOpen, { side = 1, top = 24, bottom = 600, left = 16, right = 1008 })
+	local _, leftSide = Layout.cardDock(Layout.rect(420, 60, 604, 560), wideOpen, 300, 250, 1, 1.1)
+	t.eq(leftSide, -1, "equal room: the card docks on the left")
+	-- No side fits at a readable size: nil (the controller then centres it, as before).
+	local tight = Layout.rect(150, 40, 870, 600)
+	local none = Layout.cardDock(tight, bands({ -1, 1 }), want, least, aspect, span)
+	t.eq(none, nil, "a fisher filling the screen: no dock")
+end
+
+tests["card dock on a tablet: the square card stands beside the projected fisher and trophy, never on them"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "tablet")
+	ready(sim, p)
+	p:SetAttribute("FishCaught", 2)
+	sim:Advance(0.2)
+	local f = fishing(p)
+	-- The default follow camera behind the fisher (12.5 studs back, 18° down; RbxSim has no
+	-- camera scripts): the controller projects him and his trophy from it.
+	local base = sim.workspace.Bases:FindFirstChild(`Base_{p:GetAttribute("BaseIndex")}`)
+	local look = base:GetPivot().LookVector
+	local focus = p.Character.HumanoidRootPart.Position + Vector3.new(0, 1.5, 0)
+	local eye = focus - look * (12.5 * math.cos(math.rad(18))) + Vector3.new(0, 12.5 * math.sin(math.rad(18)), 0)
+	local camera = sim.workspace.CurrentCamera
+	sim:Run(function()
+		camera.CFrame = CFrame.lookAt(eye, focus)
+	end, p)
+	catch(sim, p, CATCHES.Legendary, 3)
+	t.ok(openCard(sim, p), "the card opens")
+	sim:Advance(0.8)
+	local scripts = p:FindFirstChildOfClass("PlayerScripts")
+	local Layout = sim:Require(sim:Find("Controllers.FishingLayout", scripts), p)
+	local origin = f.AbsolutePosition
+	local fisher = sim:Run(function()
+		return Layout.fisherBox(p.Character, sim.workspace.CurrentCamera, origin)
+	end, p)
+	local card = rectOf(sim, p, f.CatchCard)
+	local vp = sim.players.state[sim:Unwrap(p)].viewport
+	t.near(card.w / card.h, 380 / 384, 0.05, `still the square card {fmt(card)}`)
+	t.ok(fisher ~= nil, "the own fisher is on screen (the tablet has no fallback box)")
+	if fisher then
+		local box: Rect = {
+			x = fisher.x0 + origin.X,
+			y = fisher.y0 + origin.Y,
+			w = fisher.x1 - fisher.x0,
+			h = fisher.y1 - fisher.y0,
+		}
+		t.eq(overlap(card, box), 0, `the card {fmt(card)} is beside the fisher {fmt(box)}`)
+		local fades = 0
+		for _, side in { "Left", "Right" } do
+			local fade = f.CatchDim[side]:FindFirstChild("Fade")
+			if fade and fade.Enabled then
+				fades += 1
+			end
+		end
+		t.eq(fades, 1, "the dim: one side band that melts towards him (he stays bright)")
+	end
+	t.ok(card.y + card.h <= vp.Y - BOTTOM_GAP, `≥ 16 px above the bottom {fmt(card)}`)
+	t.ok(card.y >= INSET, `below the top bar {fmt(card)}`)
+	sim:AssertNoErrors({ warnings = true })
+end
+
 return tests

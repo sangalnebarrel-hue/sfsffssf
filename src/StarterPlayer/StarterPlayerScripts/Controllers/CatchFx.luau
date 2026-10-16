@@ -20,6 +20,9 @@
 	  • popStars — звёзды баннера выскакивают по очереди и качаются.
 	  • punchChips — фишки веса и цены поднимаются по очереди с «ударом» (0.85 → 1.1 → 1), «тик»
 	    всё выше.
+	  • outline — толщина обводки плашки «Симулятора» (Lip) на этом экране, px, × factor («живая»
+	    обводка карточки толще): на сколько она рисуется за своим прямоугольником
+	    (FishingController держит карточку на 16 px от кнопок по рисунку).
 	Всё, что живёт дольше вызова, отменяется уборкой trove (карточка закрылась — хвостов нет).
 ]]
 
@@ -172,6 +175,15 @@ function CatchFx.punchChips(chips: { GuiObject }, homes: { UDim2 }, rise: number
 			UiFx.sound("tick", 0.3, 1.1 + 0.15 * (index - 1) / math.max(#chips - 1, 1))
 		end)
 	end
+end
+
+-- Толщина обводки плашки «Симулятора» (её Lip, см. STYLE.md §6.2) на этом экране (как её
+-- ставит сборщик, UiFx.strokeThickness — не текущая, которую может раздувать твин), × factor;
+-- 0 — без обводки.
+function CatchFx.outline(gui: Instance?, factor: number?): number
+	local lip = gui and gui:FindFirstChild("Lip")
+	local stroke = lip and lip:FindFirstChildOfClass("UIStroke")
+	return if stroke then UiFx.strokeThickness(stroke) * (factor or 1) else 0
 end
 
 return CatchFx
