@@ -227,13 +227,27 @@ end
 
 -- Штамп мутации: «ЗОЛОТАЯ ×2!»; на широкой карточке (телефон) и на квадратной уже FULL_STAMP px
 -- (сбоку от рыбака) штамп маленький — без «×N» («×N» и так впечатывается в угол фишки цены); на
--- широкой уже SHORT_STAMP — коротким словом («РАДУГА»).
-function CatchFx.stampText(name: string, multiplier: number, wide: boolean, width: number?): string
+-- широкой уже SHORT_STAMP — коротким словом («РАДУГА»). room — ширина строки штампа, px: и из
+-- этого — первое, что в ней помещается не мельче 12 px (маленькая квадратная карточка у огромного
+-- трофея: «РАДУЖНАЯ!» иначе рвалась в «РАДУЖНА / Я!»).
+function CatchFx.stampText(name: string, multiplier: number, wide: boolean, width: number?, room: number?): string
 	local upper = TextUtil.upper(name)
-	if wide and width and width < CatchFx.SHORT_STAMP then
-		return CatchFx.STAMP_SHORT[upper] or upper
+	local short = CatchFx.STAMP_SHORT[upper] or upper
+	local text = if wide
+			and width
+			and width < CatchFx.SHORT_STAMP
+		then short
+		elseif wide or (width and width < CatchFx.FULL_STAMP) then `{upper}!`
+		else `{upper} ×{multiplier}!`
+	if room then
+		for _, candidate in { text, `{upper}!`, upper, short } do
+			if UiFx.textWidth(candidate, 12) * 1.05 <= room then -- (+5 %: оценка по буквам, с запасом)
+				return candidate
+			end
+		end
+		return short
 	end
-	return if wide or (width and width < CatchFx.FULL_STAMP) then `{upper}!` else `{upper} ×{multiplier}!`
+	return text
 end
 
 --[[

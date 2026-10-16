@@ -601,9 +601,9 @@ tests["minigame: rarity title, needle trail under the zone, hit juice: ИДЕА�
 		if c.Name == "FxGhost" then
 			ghosts += 1
 			t.ok(c.ZIndex < zone.ZIndex, "the trail passes UNDER the zone")
-			-- SIMB-C2-04: a bright streak (white with a cyan tint, 0.45 → 0.8), not dull teal slabs;
+			-- SIMB-C2-04: a bright streak (white with a cyan tint, 0.2 → 0.75), not dull teal slabs;
 			-- narrower and shorter than the needle, no outline, so it never reads as more needles.
-			t.ok(c.BackgroundTransparency >= 0.45 - 1e-6 and c.BackgroundTransparency <= 0.8 + 1e-6, "0.45 … 0.8")
+			t.ok(c.BackgroundTransparency >= 0.2 - 1e-6 and c.BackgroundTransparency <= 0.75 + 1e-6, "0.2 … 0.75")
 			brightest = math.min(brightest, c.BackgroundTransparency)
 			local col = c.BackgroundColor3
 			t.ok(math.min(col.R, col.G, col.B) > 0.7, `a light ghost ({col})`)
@@ -611,8 +611,8 @@ tests["minigame: rarity title, needle trail under the zone, hit juice: ИДЕА�
 			t.eq(c:FindFirstChildOfClass("UIStroke"), nil, "no outline")
 		end
 	end
-	t.eq(ghosts, 3, "three ghost copies trail the needle (UI v2 FUI-06)")
-	t.near(brightest, 0.45, 1e-3, "the first ghost is bright")
+	t.eq(ghosts, 4, "four ghost copies trail the needle (UI v2 FUI-06)")
+	t.near(brightest, 0.2, 1e-3, "the first ghost is bright")
 	t.ok(needle.ZIndex > zone.ZIndex, "the needle over the zone")
 	t.eq(mini.Pips.Pip1.Star.TextTransparency > 0.5, true, "pips start as ghost stars")
 
@@ -645,7 +645,7 @@ tests["minigame: rarity title, needle trail under the zone, hit juice: ИДЕА�
 
 	-- A fresh minigame, a hit without a perfect tap: «ОТЛИЧНО!».
 	serverSays(sim, p, "Minigame", minigame("Epic"))
-	t.eq(count(mini, "FxGhost"), 3, "the old trail is gone, a new one follows the needle")
+	t.eq(count(mini, "FxGhost"), 4, "the old trail is gone, a new one follows the needle")
 	serverSays(sim, p, "Zone", { ZoneCenter = 0.2, Hits = 1 })
 	t.eq(mini.FxFloat.Text, "ОТЛИЧНО!", "the first hit")
 
@@ -1871,7 +1871,7 @@ tests["minigame rarity: the rider by rarity rides the zone and hops; Rare light 
 		rider.AbsolutePosition.Y >= title.AbsolutePosition.Y + title.AbsoluteSize.Y - 1,
 		`… under the title ({rider.AbsolutePosition.Y} / {title.AbsolutePosition.Y + title.AbsoluteSize.Y})`
 	)
-	t.ok(rider.BackgroundTransparency < 0.9, "… on a light disc")
+	t.ok(rider.BackgroundTransparency <= 0.35 + 1e-3, "… on a light disc")
 	t.eq(mini.AuraStroke.Enabled, true, "Legendary: a gold rim")
 	t.ok(mini:FindFirstChild("FxRays"), "rays behind the panel")
 	t.eq(mini.FxRays.ZIndex, 0, "…behind the candy")
@@ -2912,6 +2912,15 @@ tests["card helpers: rays clear the trophy, the stamp and the close hint fit a s
 		end
 	end
 	t.eq(CatchFx.stampText("Радужная", 5, true, 170), "РАДУГА", "a short word on the narrowest cards")
+	-- …and on a small square card (DockSquarePhone beside a giant trophy): the caption's own width
+	-- decides — the first text that fits it at 12 px.
+	t.eq(
+		CatchFx.stampText("Радужная", 5, false, 190, 64),
+		"РАДУГА",
+		"a small square card: the short word"
+	)
+	t.eq(CatchFx.stampText("Золотая", 2, false, 380, 128), "ЗОЛОТАЯ ×2!", "a roomy caption keeps ×N")
+	t.eq(CatchFx.stampText("Неоновая", 3, false, 300, 80), "НЕОНОВАЯ!", "a medium one drops ×N only")
 	t.eq(CatchFx.tapHint(true, nil), "Тапни — забрать!")
 	t.eq(CatchFx.tapHint(false, nil), "Жми — забрать!")
 	t.eq(CatchFx.tapHint(true, 300), "Тапни — забрать!", "a roomy landscape card: the full hint")

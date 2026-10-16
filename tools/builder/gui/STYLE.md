@@ -310,9 +310,9 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   breathing light disc in the rarity colour — the dark 🦈 reads on the navy panel — with thin
   rings in the same band, never across the title's letters) on a soft glow halo (bright at the
   zone, fading away from it; it breathes in height only), needle ▼ (a white pill with an Ink
-  outline) with a bright speed streak of three ghost copies (white with a cyan tint
-  `UIConfig.Fishing.NeedleGhost`, 0.45 → 0.8 transparent, narrower and shorter than the needle,
-  no outline — r3, SIMB-C2-04: not dull teal slabs; under the zone), the time bar in a glass groove, pips as round chips with the minor
+  outline) with a bright speed streak of four ghost copies close together (white with a cyan tint
+  `UIConfig.Fishing.NeedleGhost`, 0.2 → 0.75 transparent, narrower and shorter than the needle,
+  no outline — r3, SIMB-C2-04: one streak, not dull teal slabs or extra needles; under the zone), the time bar in a glass groove, pips as round chips with the minor
   outline, an italic help line, a
   light Rare rim, Epic+ aura in the rarity colours (Legendary a gold sweep, Mythic a rainbow) —
   a band OUTSIDE the dark outline (`AuraStroke`, `Sim.Stroke` + 4 at 720: ≥ 2.5 px on phones;
@@ -420,7 +420,10 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   mid-word —, the landscape card's mutation stamp without «×N», which is on the price chip anyway,
   and on the narrowest landscape cards — under `CatchFx.SHORT_STAMP` 190 px, beside a giant trophy
   — a short word `CatchFx.STAMP_SHORT` («РАДУГА», «НЕОН», «ЗОЛОТО») in a stamp never under 18 px
-  tall (r3, SIMC-C2-01: «РАДУЖНАЯ» broke into «РАДУЖНА / Я»),
+  tall (r3, SIMC-C2-01: «РАДУЖНАЯ» broke into «РАДУЖНА / Я»); on any card the stamp word is then
+  checked against its own line (`CatchFx.stampText` `room`, the caption's width): the first of
+  «ЗОЛОТАЯ ×2!» / «ЗОЛОТАЯ!» / «ЗОЛОТАЯ» / «ЗОЛОТО» that fits at 12 px (the small square card beside
+  a giant trophy on the small phone said «РАДУЖНА / Я!»),
   and a short «Тапни!» on a landscape card under `CatchFx.SHORT_HINT` 238 px); with a rarity title the
   place is chosen twice (on the landing, where the title flies to, and at the card's birth), both
   times `CARD.DockSlack` px more lenient, so the title never heads for the middle while the card

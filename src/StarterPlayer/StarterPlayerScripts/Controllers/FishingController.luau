@@ -3272,8 +3272,18 @@ do
 		ui.mutationLabel.Visible = mutationText ~= nil
 		ui.mutationLabel.Text = mutationText or ""
 		local wideBox = if cardBox and cardBox.wide then cardBox.size.X else nil
+		-- (строка штампа, px: по ширине карточки и долям штампа и его подписи)
+		local stampRoom = if cardBox
+			then cardBox.size.X * ui.mutationLabel.Size.X.Scale * ui.mutationCaption.Size.X.Scale
+			else nil
 		ui.mutationCaption.Text = if mutation
-			then CatchFx.stampText(mutation.Name, mutation.Multiplier, wideBox ~= nil, cardBox and cardBox.size.X)
+			then CatchFx.stampText(
+				mutation.Name,
+				mutation.Multiplier,
+				wideBox ~= nil,
+				cardBox and cardBox.size.X,
+				stampRoom
+			)
 			else ""
 		ui.tapHint.Text = CatchFx.tapHint(UserInputService.TouchEnabled, wideBox)
 		ui.priceMult.Text = if mutation then `×{mutation.Multiplier}` else ""
@@ -5775,11 +5785,11 @@ do
 			local style = UIConfig.Rarity[mg.Rarity] or UIConfig.Rarity.Common
 			local glowColor = if style.Rainbow then WHITE else style.Top
 			rider.BackgroundColor3 = glowColor
-			rider.BackgroundTransparency = 0.5
+			rider.BackgroundTransparency = 0.1
 			local glow = TweenService:Create(
 				rider,
 				TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-				{ BackgroundTransparency = 0.78 }
+				{ BackgroundTransparency = 0.35 }
 			)
 			glow:Play()
 			phaseTrove:Add(function()
@@ -6078,16 +6088,16 @@ do
 		end
 		phaseTrove:Connect(RunService.RenderStepped, updateMinigameFrame)
 
-		-- Шлейф стрелки: три белые с голубым отливом копии ПОД зоной, уже стрелки и всё прозрачнее
-		-- к хвосту (0.45 → 0.8) — яркая полоса скорости на тёмной канавке (зону не закрывают, за
-		-- лишние стрелки не сходят: короче её и без обводки).
+		-- Шлейф стрелки: четыре белые с голубым отливом копии ПОД зоной, вплотную друг к другу (одна
+		-- полоса, а не лишние стрелки), уже стрелки и всё прозрачнее к хвосту (0.2 → 0.75) — яркая
+		-- полоса скорости на тёмной канавке (зону не закрывают; короче стрелки и без обводки).
 		phaseTrove:Add(UiFx.trail(ui.needle, {
-			count = 3,
-			lag = 0.03,
-			transparency = 0.45,
-			last = 0.8,
+			count = 4,
+			lag = 0.015,
+			transparency = 0.2,
+			last = 0.75,
 			color = UIConfig.Fishing.NeedleGhost,
-			width = 0.8,
+			width = 0.9,
 			taper = 0.5,
 			height = 0.6,
 			z = 2,
