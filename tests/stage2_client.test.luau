@@ -187,13 +187,21 @@ local tests = {}
 -- Action button
 --------------------------------------------------------------------------------
 
-tests["action button: hidden without the rod, shown while it is equipped, key hint on desktop"] = function(t)
+tests["action button: «ВЗЯТЬ» while the rod is in the Backpack (anywhere), its states in hand, key hint on desktop"] = function(
+	t
+)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
 	local button = gui(sim, p, "ActionArea.ActionButton")
 	t.eq(button.Visible, false, "no rod")
 	local rod = giveRod(sim, p)
-	t.eq(button.Visible, false, "rod only in the Backpack")
+	sim:Advance(0.3)
+	-- The screen never offers only «ДОМОЙ»: the rod in the Backpack — the button takes it,
+	-- wherever the player stands (here: the base, far from the fishing spot).
+	t.eq(button.Visible, true, "rod only in the Backpack: «ВЗЯТЬ»")
+	t.eq(caption(sim, p), "ВЗЯТЬ")
+	t.ok(isCandy(button, UIConfig.Palette.Gold), "a Gold candy")
+	t.eq(keyChip(sim, p), "F", "…with the F key chip (1 / F / R2 take the rod)")
 	sim:EquipTool(p, rod)
 	sim:Advance(0.1)
 	t.eq(button.Visible, true, "rod in hand")
@@ -210,7 +218,8 @@ tests["action button: hidden without the rod, shown while it is equipped, key hi
 	sim:Advance(0.3)
 	sim:UnequipTools(p)
 	sim:Advance(0.1)
-	t.eq(button.Visible, false, "rod back in the Backpack")
+	t.eq(button.Visible, true, "rod back in the Backpack: the button stays")
+	t.eq(caption(sim, p), "ВЗЯТЬ", "… and offers to take it again")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -319,11 +328,17 @@ tests["states: captions, colours, Stop button; Hook is sent once from button, to
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["console: R2 does the action and the key chip shows R2"] = function(t)
+tests["console: R2 takes the rod («ВЗЯТЬ») and does the action; the key chip shows R2"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "console")
-	equipRod(sim, p)
-	t.eq(caption(sim, p), "ЗАБРОСИТЬ")
+	giveRod(sim, p)
+	standAtSpot(sim, p)
+	t.eq(caption(sim, p), "ВЗЯТЬ")
+	t.eq(keyChip(sim, p), "R2", "«ВЗЯТЬ»: the R2 chip")
+	sim:PressKey(p, Enum.KeyCode.ButtonR2)
+	sim:Advance(0.1)
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "R2 took the rod")
+	t.eq(#sent(sim, p, "FishingCast"), 0, "… and cast nothing")
 	t.eq(keyChip(sim, p), "R2")
 	sim:PressKey(p, Enum.KeyCode.ButtonR2)
 	sim:Advance(0.05)
@@ -624,32 +639,170 @@ tests["hints: far → guide beam to the own FishingSpot, near → «Жми», De
 	t.ok(inHand and inHand:GetAttribute("RodId") == "RodBamboo", "the rod is in hand")
 	t.eq(caption(sim, p), "ЗАБРОСИТЬ")
 
-	-- Away from the spot without the rod in hand: no button, no hint.
+	-- Away from the spot with the rod in the Backpack: still «ВЗЯТЬ», the beam and «where to go».
 	sim:UnequipTools(p)
 	sim:Teleport(p, ownBase(sim, p).SpawnPad.Position + Vector3.new(0, 5, 0))
 	sim:Advance(0.5)
-	t.eq(button.Visible, false, "no button away from the spot without the rod")
-	t.eq(hint.Visible, false, "no hints away from the spot without the rod (the rod was taken before)")
+	t.eq(button.Visible, true, "«ВЗЯТЬ» away from the spot too: never only «ДОМОЙ» on screen")
+	t.eq(caption(sim, p), "ВЗЯТЬ")
+	t.eq(hint.Text, FishingConfig.Texts.Denied.far, "where to go, the rod in the Backpack")
+	t.eq(hint.Visible, true)
+	t.eq(beam.Enabled, true, "the guide beam with the rod in the Backpack too")
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["newcomer: «where is the rod» hint until the rod is first taken"] = function(t)
+tests["newcomer: spawned at the base, rod in the Backpack — «ВЗЯТЬ», the beam and «where to go» that keeps coming back"] = function(
+	t
+)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "phone")
 	local hint = gui(sim, p, "Hint")
+	local button = gui(sim, p, "ActionArea.ActionButton")
 	giveRod(sim, p)
 	sim:Advance(0.5)
+	-- What a player hit in v3: spawned far from the circle with the rod in the Backpack (no
+	-- Roblox hotbar), the screen offered nothing but «ДОМОЙ». Now the gold «ВЗЯТЬ» calls (rings,
+	-- the newcomer's «!») wherever the player stands …
+	t.eq(button.Visible, true, "«ВЗЯТЬ» right after the spawn, far from the spot")
+	t.eq(caption(sim, p), "ВЗЯТЬ")
+	local ok, why = sim:CanClick(p, button)
+	t.ok(ok, `«ВЗЯТЬ» can be tapped: {why}`)
+	t.eq(button.Badge.Visible, true, "the newcomer's «!» badge")
+	t.eq(keyChip(sim, p), "", "phone: no key chip")
+	-- … the guide beam runs to the sparkling circle, the hint says where to go.
+	local beam = sim:GetRoot(p):FindFirstChild("FishingGuide")
+	t.ok(beam and beam.Enabled, "the guide beam with the rod still in the Backpack")
+	t.ok(beam.Attachment1.Parent == ownBase(sim, p).FishingSpot, "… to the own FishingSpot")
 	t.eq(hint.Visible, true)
 	t.eq(hint.Text, FishingConfig.Texts.Denied.far, "UI v2 (M4): one name for the goal everywhere")
-	t.eq(gui(sim, p, "ActionArea.ActionButton").Visible, false, "no button away from the spot")
+	-- The hint rests after HINT_INFO_TIME (4 s) but comes back every HINT_AGAIN (10 s) until the
+	-- player has actually been to the circle — never gone for good after a few seconds.
+	for round = 1, 3 do
+		sim:Advance(5)
+		t.eq(hint.Visible, false, `round {round}: the hint rests`)
+		t.eq(button.Visible, true, `round {round}: «ВЗЯТЬ» stays`)
+		sim:Advance(10)
+		t.eq(hint.Visible, true, `round {round}: … and comes back`)
+		t.eq(hint.Text, FishingConfig.Texts.Denied.far)
+		t.ok(beam.Enabled, `round {round}: the beam stays on`)
+	end
 	standAtSpot(sim, p)
 	t.eq(hint.Text, "Возьми удочку — кнопка справа", "at the spot: take the rod")
+	t.eq(beam.Enabled, false, "no beam at the spot")
 	t.eq(caption(sim, p), "ВЗЯТЬ")
-	sim:Click(p, gui(sim, p, "ActionArea.ActionButton"))
+	sim:Click(p, button)
 	sim:Advance(0.3)
 	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "the rod is in hand")
 	t.eq(keyChip(sim, p), "", "phone: no key chip")
 	t.eq(hint.Text, "Жми «Забросить»")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["«ВЗЯТЬ» far from the spot: a tap takes the rod → «КУДА ИДТИ?» + the beam → at the spot «ЗАБРОСИТЬ»"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	local button = gui(sim, p, "ActionArea.ActionButton")
+	local hint = gui(sim, p, "Hint")
+	giveRod(sim, p)
+	sim:Advance(0.3)
+	t.eq(caption(sim, p), "ВЗЯТЬ", "spawned at the base, far from the spot")
+	local ok, why = sim:CanClick(p, button)
+	t.ok(ok, `«ВЗЯТЬ» can be clicked: {why}`)
+	sim:Click(p, button)
+	sim:Advance(0.3)
+	local inHand = p.Character:FindFirstChildOfClass("Tool")
+	t.ok(inHand and inHand:GetAttribute("RodId") == "RodBamboo", "the click took the rod")
+	t.eq(caption(sim, p), "КУДА ИДТИ?", "far from the spot: the button shows the way")
+	t.eq(#sent(sim, p, "FishingCast"), 0, "nothing is cast")
+	local beam = sim:GetRoot(p):FindFirstChild("FishingGuide")
+	t.ok(beam and beam.Enabled, "the guide beam to the circle")
+	t.eq(hint.Text, FishingConfig.Texts.Denied.far, "… and where to go")
+	standAtSpot(sim, p)
+	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "walked to the spot: ready to cast")
+	t.eq(keyChip(sim, p), "F")
+	t.eq(beam.Enabled, false, "no beam at the spot")
+	pressF(sim, p)
+	t.eq(#sent(sim, p, "FishingCast"), 1, "F casts")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["keys: 1 / F take the rod while «ВЗЯТЬ» is offered (not E); 1 puts it away at rest, never mid-fishing"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	giveRod(sim, p)
+	sim:Advance(0.3)
+	local function bound(name: string): any
+		return sim:Run(function()
+			return sim:Env(p).game:GetService("ContextActionService"):GetBoundActionInfo(name)
+		end, p)
+	end
+	local function inHand(): boolean
+		local tool = p.Character:FindFirstChildOfClass("Tool")
+		return tool ~= nil and tool:GetAttribute("RodId") == "RodBamboo"
+	end
+	local keys = {}
+	for _, input in bound("FishingTake").inputTypes or {} do
+		keys[tostring(input)] = true
+	end
+	t.ok(keys[tostring(Enum.KeyCode.One)], "1 is bound while «ВЗЯТЬ» is offered (like the old hotbar)")
+	t.ok(keys[tostring(Enum.KeyCode.F)] and keys[tostring(Enum.KeyCode.ButtonR2)], "… and F / R2")
+	t.ok(not keys[tostring(Enum.KeyCode.E)], "… not E (ProximityPrompt)")
+	t.eq(next(bound("FishingAction")), nil, "nothing casts without the rod")
+	sim:PressKey(p, Enum.KeyCode.E)
+	sim:Advance(0.1)
+	t.eq(inHand(), false, "E does not take the rod")
+
+	sim:PressKey(p, Enum.KeyCode.One)
+	sim:Advance(0.1)
+	t.ok(inHand(), "1 takes the rod")
+	t.eq(caption(sim, p), "КУДА ИДТИ?")
+	t.eq(next(bound("FishingTake")), nil, "the take keys are unbound once the rod is in hand")
+	t.eq(#sent(sim, p, "FishingCast"), 0, "nothing is cast")
+	sim:PressKey(p, Enum.KeyCode.One)
+	sim:Advance(0.1)
+	t.eq(inHand(), false, "1 again puts the rod away")
+	t.eq(caption(sim, p), "ВЗЯТЬ", "… and the button is «ВЗЯТЬ» again")
+	t.eq(gui(sim, p, "ActionArea.ActionButton").Visible, true)
+	pressF(sim, p)
+	sim:Advance(0.1)
+	t.ok(inHand(), "F takes the rod")
+	t.eq(#sent(sim, p, "FishingCast"), 0, "… without casting")
+
+	-- A line in the water: 1 does not cut the fishing short.
+	standAtSpot(sim, p)
+	pressF(sim, p)
+	t.eq(#sent(sim, p, "FishingCast"), 1, "F casts at the spot")
+	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = FishingConfig.CastFlightTime })
+	sim:PressKey(p, Enum.KeyCode.One)
+	sim:Advance(0.1)
+	t.ok(inHand(), "1 does not put the rod away mid-fishing")
+	t.eq(caption(sim, p), "ЖДИ КЛЁВА…")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["«ДОМОЙ» from the spot, the rod in the Backpack: «ВЗЯТЬ» stays, the beam points back to the circle"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	local button = gui(sim, p, "ActionArea.ActionButton")
+	giveRod(sim, p)
+	standAtSpot(sim, p)
+	t.eq(caption(sim, p), "ВЗЯТЬ", "at the spot")
+	sim:Click(p, sim:Gui(p, "HUD.RightButtons.HomeButton"))
+	sim:Advance(0.5)
+	local spot = ownBase(sim, p).FishingSpot
+	local away = (sim:GetRoot(p).Position - spot.Position).Magnitude
+	t.ok(away > FishingConfig.SpotRadius, `teleported home, {math.floor(away)} studs from the spot`)
+	t.eq(button.Visible, true, "«ВЗЯТЬ» right after «ДОМОЙ»: not only «ДОМОЙ» on screen")
+	t.eq(caption(sim, p), "ВЗЯТЬ")
+	local beam = sim:GetRoot(p):FindFirstChild("FishingGuide")
+	t.ok(beam and beam.Enabled, "the beam back to the circle")
+	t.eq(gui(sim, p, "Hint").Text, FishingConfig.Texts.Denied.far, "… and where to go")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -760,12 +913,12 @@ tests["unequip and respawn reset the fishing UI; no connections pile up"] = func
 	local info = sim:Run(function()
 		return sim:Env(p).game:GetService("ContextActionService"):GetBoundActionInfo("FishingAction")
 	end, p)
-	t.eq(next(info), nil, "F/R2 unbound without the rod")
+	t.eq(next(info), nil, "F/R2 no longer cast without the rod")
 	pressF(sim, p)
-	t.eq(#sent(sim, p, "FishingCast"), 0, "F does nothing without the rod")
-
-	sim:EquipTool(p, p.Backpack:FindFirstChildOfClass("Tool"))
 	sim:Advance(0.1)
+	t.eq(#sent(sim, p, "FishingCast"), 0, "F does not cast without the rod …")
+	local inHand = p.Character:FindFirstChildOfClass("Tool")
+	t.ok(inHand and inHand:GetAttribute("RodId") == "RodBamboo", "… it takes the rod («ВЗЯТЬ»)")
 	t.eq(caption(sim, p), "ЖДЁМ…", "re-equipped within CastCooldown of the unequip")
 	sim:Advance(FishingConfig.CastCooldown)
 	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "fresh state after re-equip")
@@ -779,6 +932,15 @@ tests["unequip and respawn reset the fishing UI; no connections pile up"] = func
 	sim:Advance(BaseConfig.RespawnDelay + 1)
 	t.ok(sim:GetHumanoid(p) and sim:GetHumanoid(p).Health > 0, "respawned")
 	t.eq(gui(sim, p, "ActionArea.ActionButton").Visible, false, "no rod on the new character yet")
+	-- The server puts the start rod into the new Backpack: «ВЗЯТЬ» is back at once.
+	giveRod(sim, p)
+	sim:Advance(0.3)
+	t.eq(gui(sim, p, "ActionArea.ActionButton").Visible, true, "the rod in the new Backpack: the button is back")
+	t.eq(caption(sim, p), "ВЗЯТЬ")
+	t.ok(sim:GetRoot(p):FindFirstChild("FishingGuide"), "the beam runs from the new character")
+	for _, tool in p.Backpack:GetChildren() do
+		tool:Destroy() -- (equipRod below hands out its own rod)
+	end
 	equipRod(sim, p)
 	sim:Advance(0.3)
 	t.eq(caption(sim, p), "ЗАБРОСИТЬ")

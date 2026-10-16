@@ -37,8 +37,8 @@
 	    качается «нет». Красный кружок «!» (HomeButton.Badge) спрятан: его зажжёт магазин (этап 3).
 	  • Обводки и шкала текста подгоняются под экран (UiFx.fitStrokes, UiFx.fitText).
 	  • Панель предметов Roblox (CoreGui Backpack) выключена (v3): удочку берут кнопкой «ВЗЯТЬ»
-	    у точки рыбалки (FishingController), а серый слот внизу по центру стоял под ногами
-	    рыбака и поднимал мини-игру и подсказки на него. Свою панель предметов принесёт этап
+	    (она есть везде, пока удочка в рюкзаке) или клавишей 1 (FishingController), а серый слот
+	    внизу по центру стоял под ногами рыбака и поднимал мини-игру и подсказки на него. Свою панель предметов принесёт этап
 	    магазина (несколько удочек).
 	  • На устройствах без тач-экрана колонка кнопок опускается к правому нижнему углу
 	    (на телефонах низ справа занят кнопкой прыжка).
@@ -133,7 +133,8 @@ function HudController:Start(hud: ScreenGui)
 	local cooldownText = homeButton:FindFirstChild("CooldownText") :: TextLabel?
 	local requestHome = Net.Event("RequestHome")
 
-	-- Панель предметов Roblox не нужна: удочку берёт кнопка «ВЗЯТЬ» (FishingController).
+	-- Панель предметов Roblox не нужна: удочку берёт кнопка «ВЗЯТЬ» — она есть везде, пока удочка
+	-- в рюкзаке (и клавиша 1, как в панели; FishingController).
 	pcall(function()
 		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 	end)
