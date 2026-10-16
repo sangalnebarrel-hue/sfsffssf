@@ -19,7 +19,8 @@
 
 	Cases: (1) phone, no latency; (2) phone, remoteLatency 0.15; (3)/(3b) a forced Mythic (3 hits)
 	without / with latency; (3c) the eager player, no latency; (4) a deliberate miss; (5) two
-	players at once; (6) PC, key F. Regression cases for two latency bugs found in review:
+	players at once; (6) PC, key F; (7) a phone's first minutes: the hint after the base banner,
+	«ДОМОЙ» right after a catch. Regression cases for two latency bugs found in review:
 	(2c) hooking at the end of the bite bar on a 0.5 s round trip (LatencyGrace must cover the
 	round trip), (3d) the eager player with latency (taps on the stale zone after a hit are not
 	judged against the new zone).
@@ -981,6 +982,70 @@ tests["(6) desktop: F casts, hooks and taps; F closes the catch card; the button
 	local again = Fisher.new(sim, p, hud, { key = true })
 	castAndPlay(t, sim, again)
 	checkCatch(t, sim, p, hud, again, 2)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- (7) the first minutes on a phone: the hint waits for the «ТВОЯ БАЗА» banner; «ДОМОЙ» right
+-- after collecting a fish — the beam leads back while the fish is still over the head
+--------------------------------------------------------------------------------
+
+tests["(7) phone: «where to go» after the base banner lands; «ДОМОЙ» right after a catch — the beam at once"] = function(
+	t
+)
+	local sim = boot(t, 0)
+	local p = join(t, sim, 1, "phone")
+	local hud = hudOf(sim, p)
+	local banner = sim:Gui(p, "HUD.BaseBanner")
+	local far = FishingConfig.Texts.Denied.far
+	local function beamOn(): boolean
+		local beam = p.Character and p.Character.HumanoidRootPart:FindFirstChild("FishingGuide")
+		return beam ~= nil and beam.Enabled
+	end
+	-- UX-AB-01: the big «ТВОЯ БАЗА / …!» banner holds the middle of the screen right after the
+	-- spawn; the first «where to go» used to spend most of its 4 s under it. Now it waits and then
+	-- gets a full look. «ВЗЯТЬ» (join checked it) and the beam do not wait.
+	t.eq(banner.Visible, true, "the welcome banner is up right after the spawn")
+	t.ok(beamOn(), "the beam to the circle at once")
+	t.ok(not (hud.hint.Visible and hud.hint.Text == far), "the hint waits for the banner")
+	t.ok(sim:WaitFor(function()
+		return not banner.Visible
+	end, 5, FRAME) == true, "the banner flies into the badge")
+	local shown = sim:WaitFor(function()
+		return hud.hint.Visible and hud.hint.Text == far
+	end, 0.5, FRAME)
+	t.ok(shown, "«where to go» pops once the banner has landed")
+	sim:Advance(3.6)
+	t.eq(hud.hint.Visible, true, "… and stays for a full look")
+
+	-- A real catch; collect it with the button, then «ДОМОЙ» at once (UX-AB-02).
+	forceFish(sim, "Crucian")
+	hud = goFish(t, sim, p)
+	local fisher = Fisher.new(sim, p, hud)
+	castAndPlay(t, sim, fisher)
+	checkCatch(t, sim, p, hud, fisher, 1)
+	t.ok(sim:WaitFor(function()
+		return hud.caption.Text == CAPTION_COLLECT
+	end, 4, FRAME) == true, "«ЗАБРАТЬ!» on the settled card")
+	sim:Click(p, hud.action)
+	t.ok(sim:WaitFor(function()
+		return not hud.card.Visible
+	end, 2, FRAME) == true, "the card is collected")
+	t.ok(p.Character:FindFirstChild("HeldFish"), "the fish is still over the head")
+	sim:Click(p, sim:Gui(p, "HUD.RightButtons.HomeButton"))
+	sim:Advance(0.5)
+	t.ok(p.Character:FindFirstChild("HeldFish"), "… still, after «ДОМОЙ»")
+	t.ok(flat(sim:GetRoot(p).Position - ownSpot(sim, p).Position).Magnitude > FishingConfig.SpotRadius, "home")
+	t.eq(hud.caption.Text, "КУДА ИДТИ?", "rod in hand, far from the circle")
+	t.ok(beamOn(), "the beam leads back at once, the fish over the head or not")
+	t.ok(not (hud.hint.Visible and hud.hint.Text == far), "phone: the hint text waits for the trophy")
+	t.ok(sim:WaitFor(function()
+		return p.Character:FindFirstChild("HeldFish") == nil
+	end, 8, FRAME) == true, "the fish is gone after HoldFishTime")
+	t.ok(sim:WaitFor(function()
+		return hud.hint.Visible and hud.hint.Text == far
+	end, 4, FRAME) == true, "then «where to go»")
+	t.ok(beamOn(), "the beam stays")
 	sim:AssertNoErrors({ warnings = true })
 end
 

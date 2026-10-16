@@ -170,8 +170,10 @@
 	    подсказка по месту (💡) уходит через HINT_INFO_TIME с; «куда идти» возвращается каждые
 	    HINT_AGAIN с, пока всё ещё к месту; подсказку, чьё действие игрок уже сделал HINT_LEARNED
 	    раз (забросил, взял удочку, дошёл до круга), больше не показываем («куда идти» — только
-	    когда он сам дошёл до круга); на телефоне, пока своя рыба над головой, подсказка по месту
-	    ждёт.
+	    когда он сам дошёл до круга); подсказка по месту ждёт, пока по центру стоит баннер
+	    «ТВОЯ БАЗА» (вход в игру: первая «куда идти» выскакивает целиком, когда он улетел в
+	    плашку), и на телефоне — пока своя рыба над головой (луч в мире не ждёт: «ДОМОЙ» сразу
+	    после улова — он уже ведёт назад).
 	    Подсказка, поклёвка и мини-игра (на телефоне — кроме неё) — одна колонка внизу по центру,
 	    под ногами рыбака (на телефоне подсказка, если легла бы ему на ноги, — слева от него;
 	    между джойстиком и кнопкой действия; на узком экране колонка
@@ -364,6 +366,8 @@ type Ui = {
 	priceIcon: GuiObject,
 	priceLabel: TextLabel,
 	counter: Frame,
+	-- Баннер «ТВОЯ БАЗА» по центру (его ведёт HudController): пока он виден, подсказка по месту ждёт.
+	baseBanner: GuiObject?,
 
 	-- Улов, UI v2 (FUI-01…12): корень Fishing, плашки статуса (гаснут под карточкой), подсказка
 	-- «закрыть», рамка мутации, «×N» у цены, огромное слово редкости (TitleSlam).
@@ -491,8 +495,20 @@ local function upper(text: string): string
 	return table.concat(out)
 end
 
+-- Элемент интерфейса по имени. HUD приходит клиенту целиком (StarterGui → PlayerGui, стриминга
+-- нет), ждать по сути нечего: недостающее имя (HUD поправили в Studio, место старее скриптов) —
+-- через CHILD_WAIT с громкая ошибка с путём, а не вечное «Infinite yield possible» и кнопка
+-- рыбалки, которая так и не появилась.
 local function child(parent: Instance, name: string): any
-	return parent:WaitForChild(name)
+	local CHILD_WAIT = 5
+	local found = parent:FindFirstChild(name) or parent:WaitForChild(name, CHILD_WAIT)
+	if not found then
+		error(
+			`[FishingController] нет {parent:GetFullName()}.{name}: пересобери место (tools/build.luau)`,
+			2
+		)
+	end
+	return found
 end
 
 -- fn() через delay секунд; отменяется уборкой trove.
@@ -608,11 +624,15 @@ local function ownFishingSpot(): BasePart?
 	return nil
 end
 
--- Тот же допуск, что проверяет сервер: SpotRadius по горизонтали, SpotMaxHeight по высоте.
+-- У точки рыбалки: допуск сервера (SpotRadius по горизонтали, SpotMaxHeight по высоте), но по
+-- горизонтали на SPOT_MARGIN стадов строже. Сервер проверяет заброс по своей копии персонажа, а
+-- она в настоящей игре отстаёт на пинг (идя к кругу со скоростью 16 — на 2–5 стадов): кнопка,
+-- ставшая «ЗАБРОСИТЬ» на самом краю, не должна в тот же миг получить отказ «далеко».
 local function isNearSpot(root: BasePart, spot: BasePart): boolean
+	local SPOT_MARGIN = 2
 	local offset = root.Position - spot.Position
 	local horizontal = Vector3.new(offset.X, 0, offset.Z).Magnitude
-	return horizontal <= FishingConfig.SpotRadius and math.abs(offset.Y) <= FishingConfig.SpotMaxHeight
+	return horizontal <= FishingConfig.SpotRadius - SPOT_MARGIN and math.abs(offset.Y) <= FishingConfig.SpotMaxHeight
 end
 
 --------------------------------------------------------------------------------
@@ -1359,8 +1379,9 @@ do
 	local shownLook: Look? = nil -- вид кнопки, который сейчас нарисован
 	local lookTrove = Trove.new() -- «фон» текущего вида кнопки (блик, песочные часы, сияние)
 
-	-- Удочка в руке, леска не в воде, а до точки рыбалки своей базы далеко (тот же допуск, что у
-	-- сервера): кнопка «КУДА ИДТИ?» не забрасывает. Без базы — «ЗАБРОСИТЬ» (сервер объяснит отказ).
+	-- Удочка в руке, леска не в воде, а до точки рыбалки своей базы далеко (допуск сервера, чуть
+	-- строже — isNearSpot): кнопка «КУДА ИДТИ?» не забрасывает. Без базы — «ЗАБРОСИТЬ» (сервер
+	-- объяснит отказ).
 	function isFar(): boolean
 		if not rod or phase ~= "Idle" then
 			return false
@@ -1674,17 +1695,26 @@ do
 			shownFar = far
 			refreshButtons()
 		end
-		-- v3: на телефоне (HUD ниже 500 px), пока своя рыба над головой, подсказка ждёт: рыбак с
-		-- трофеем опускается к низу кадра (камера трофея) — плитка легла бы ему на ноги.
+		-- Луч к кругу — удочка в руке или «ВЗЯТЬ», без рыбалки и экрана улова, а до точки далеко.
+		-- Он в мире и рыбака не закрывает: горит и пока своя рыба над головой («ДОМОЙ» сразу после
+		-- улова — луч уже ведёт назад).
+		local idle = take or (rod ~= nil and phase == "Idle")
+		if idle and root and spot and not near and not catchScreen then
+			guideTo = spot
+		end
+		-- Текст ждёт. v3: на телефоне (HUD ниже 500 px), пока своя рыба над головой: рыбак с
+		-- трофеем опускается к низу кадра (камера трофея) — плитка легла бы ему на ноги. И пока по
+		-- центру стоит баннер «ТВОЯ БАЗА» (вход в игру, HudController): под ним первая «куда идти»
+		-- отвисела бы свои HINT_INFO_TIME почти не прочитанной — она выскакивает целиком, когда
+		-- баннер улетел в плашку (следующий опрос, CONTEXT_CHECK_INTERVAL).
 		local character = player.Character
 		local trophy = character ~= nil
 			and character:FindFirstChild("HeldFish") ~= nil
 			and ui.fishing.AbsoluteSize.Y < 500
-		if not catchScreen and not trophy then
-			local idle = take or (rod ~= nil and phase == "Idle") -- удочка в руке или «ВЗЯТЬ», без рыбалки
-			if idle and root and spot and not near then
+		local welcome = ui.baseBanner ~= nil and ui.baseBanner.Visible
+		if not catchScreen and not trophy and not welcome then
+			if guideTo then
 				text = HINT_FAR
-				guideTo = spot
 			elseif rod and idle and root and spot then
 				text = HINT_NEAR
 			elseif take then
@@ -7167,6 +7197,7 @@ local function collectUi(hud: ScreenGui): Ui
 		priceIcon = child(price, "Icon"),
 		priceLabel = child(price, "Label"),
 		counter = counter,
+		baseBanner = hud:FindFirstChild("BaseBanner") :: GuiObject?,
 
 		-- Улов, UI v2 (FUI-01…12).
 		fishing = fishing,
@@ -7276,17 +7307,41 @@ function FishingController:Start(hud: ScreenGui)
 	ui.actionBobber.Visible = false
 	ui.keyChip.Visible = false
 
-	-- Центральная колонка — между джойстиком и кнопкой действия (и при смене размера экрана).
-	layoutColumn()
-	hud:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-		if hud.AbsoluteSize ~= laidOutFor then
-			layoutColumn()
+	-- Оформление — под защитой: упади что-то из него в настоящем Roblox (API движка, загрузка
+	-- помощника), кнопку действия всё равно подключим ниже — её показывает только опрос
+	-- персонажа (onCharacterAdded). Ошибка — красным в Output (с путём), а не молча.
+	local function guarded(what: string, fn: () -> ())
+		local ok, err = xpcall(fn, debug.traceback)
+		if not ok then
+			task.spawn(error, `[FishingController] {what}: {err}`, 0)
 		end
+	end
+
+	-- Центральная колонка — между джойстиком и кнопкой действия (и при смене размера экрана).
+	guarded("колонка", function()
+		layoutColumn()
+		hud:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			if hud.AbsoluteSize ~= laidOutFor then
+				layoutColumn()
+			end
+		end)
 	end)
 
 	-- Нажатие «сжимает» кнопки (связи живут, пока жив HUD — всю сессию).
-	UiFx.press(ui.actionButton, { sound = "click" })
-	UiFx.press(ui.stopButton, { sound = "click" })
+	guarded("нажатие", function()
+		UiFx.press(ui.actionButton, { sound = "click" })
+		UiFx.press(ui.stopButton, { sound = "click" })
+	end)
+
+	-- Персонаж — сразу после разметки, до остального: опрос при нём (раз в CONTEXT_CHECK_INTERVAL
+	-- с) — единственное, что показывает кнопку («ВЗЯТЬ» на базе сразу после появления). Ниже —
+	-- ввод, ответы сервера и остальное оформление (тот же кадр: нажать раньше них нельзя).
+	player.CharacterAdded:Connect(onCharacterAdded)
+	player.CharacterRemoving:Connect(onCharacterRemoving)
+	if player.Character then
+		onCharacterAdded(player.Character)
+	end
+	refreshButtons()
 
 	-- В мини-игре нажатие считается в момент касания (MouseButton1Down приходит и от касания
 	-- пальцем), а не отпускания (Activated): стрелка за время касания успевает уехать.
@@ -7341,8 +7396,10 @@ function FishingController:Start(hud: ScreenGui)
 	-- Улов (UI v2): своя рыба долетела до места над головой — сигнал FishingFxController
 	-- (подписка заранее: без прыжка он приходит раньше "Caught"). Подпись «закрыть» — по
 	-- устройству; карточка переставляется, если экран поменял размер.
-	local fx = require(script.Parent:WaitForChild("FishingFxController")) :: any
-	fx.OwnFishLanded:Connect(onOwnFishLanded)
+	guarded("FishingFxController", function()
+		local fx = require(child(script.Parent, "FishingFxController")) :: any
+		fx.OwnFishLanded:Connect(onOwnFishLanded)
+	end)
 	ui.tapHint.Text = if UserInputService.TouchEnabled
 		then "Тапни — забрать!"
 		else "Жми — забрать!"
@@ -7357,13 +7414,6 @@ function FishingController:Start(hud: ScreenGui)
 			placeCard(cardReveal.Scale, nil, nil, cardReveal)
 		end
 	end)
-
-	player.CharacterAdded:Connect(onCharacterAdded)
-	player.CharacterRemoving:Connect(onCharacterRemoving)
-	if player.Character then
-		onCharacterAdded(player.Character)
-	end
-	refreshButtons()
 end
 
 return FishingController
