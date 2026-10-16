@@ -270,11 +270,15 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   session explains itself with a hint «Жди, пока клюнет — потом жми!» →
   ПОДСЕЧЬ! «!» → ЛОВИ! 🎯; Slate ⏳ while waiting on the server, КУДА ИДТИ? 🧭 far from the spot — it
   shows the way, never scolds: a calm 💡 hint, the compass turns, the guide beam flares; ВЗЯТЬ
-  in gold at the spot; a dim frozen ЖДЁМ… during the catch until the card is fully shown, then
+  in gold with white rings WHEREVER the rod is in the Backpack (a base, alive, not fishing — the
+  screen never offers only «ДОМОЙ»: just spawned at the base, after a respawn, after «ДОМОЙ»); far
+  from the spot the guide beam and the «where to go» hint come with it, taken there it morphs into
+  КУДА ИДТИ?; keys 1 / F / R2 take the rod while it shows (like the old hotbar; never E, the
+  ProximityPrompt key), 1 puts it away at rest; a dim frozen ЖДЁМ… during the catch until the card is fully shown, then
   ЗАБРАТЬ! 👍 in Leaf with white rings — it closes the card), glow rings while it matters, a sim
   press (squash, a darker face, an overshoot, the icon kicks), ripple on tap; a white key chip («F»
-  / «R2», a Cream sim chip with the minor outline) on its shoulder without touch, punching in when
-  it appears. «СМОТАТЬ» (≥ 44 px, ≥ 22 px above the circle) only while waiting: a red `simButton`
+  / «R2», a Cream sim chip with the minor outline) on its shoulder without touch (ВЗЯТЬ too; not
+  КУДА ИДТИ?, whose key casts nothing), punching in when it appears. «СМОТАТЬ» (≥ 44 px, ≥ 22 px above the circle) only while waiting: a red `simButton`
   "row" — the outlined 🎣 («reel the rod in») at its left end, the caption filling the rest, like
   the reference's «Магазин» — anchored at its bottom-RIGHT corner, so its pop-in (0.2 → 1, the 🎣
   spinning in −180°, the caption punching, the rim flashing) grows away from the Home column: it
@@ -361,7 +365,9 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   no new pop and no slot roll (two texts rolling in the narrowed pill spilled out of it); leaving, it
   swells and shrinks away (0.16 s; at once when the bite / the minigame take the column). Info
   hints (💡) leave after 4 s; «where
-  to go» comes back every 10 s while it still applies; a hint whose action the player has done
+  to go» (far from the spot with the rod in hand OR in the Backpack — right after the spawn too,
+  with the guide beam) comes back every 10 s while it still applies — it never retires before the
+  player has reached the circle; a hint whose action the player has done
   twice (cast, took the rod, reached the spot) is not shown again (WOW-6); on phones a hint about
   the place waits while the own trophy is held over the head (the trophy camera lowers him onto it). The catch (UI v2) shows the world
   first: the winning tap freezes the needle gold where it was tapped (gold zone flash, a glow ring, a
@@ -841,7 +847,8 @@ RenderStepped connection for all running frame effects, disconnected when none r
   small step aside or lower). On a tablet
   or a PC the minigame docks beside him too when at the bottom it would lie on him (r4).
   No Roblox hotbar (HudController: `SetCoreGuiEnabled(Backpack, false)`): the rod is taken with
-  «ВЗЯТЬ»; a custom hotbar comes with the shop stage — keep the bottom band under the fisher's
+  «ВЗЯТЬ» — offered wherever the rod is in the Backpack, with the hotbar's key 1 (and F / R2);
+  a custom hotbar comes with the shop stage — keep the bottom band under the fisher's
   feet for the hint and «КЛЮЁТ!».
 - **Off-screen trophy chip**: `FishingFxController.OtherTrophy` (Signal: `player, basePosition,
   rarity`) fires on every client but the catcher's when a Legendary / Mythic pillar goes up;

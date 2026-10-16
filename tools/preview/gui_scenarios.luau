@@ -463,8 +463,10 @@ local scenarios = {
 	},
 	{
 		name = "start",
-		desc = "Just spawned: rod in the backpack (no Roblox hotbar), newcomer hint",
-		still = 0.8,
+		desc = "Just spawned at the base, far from the circle, rod in the backpack (no Roblox hotbar): «ВЗЯТЬ» "
+			.. "(rings, the newcomer «!», F on a PC) + «where to go» (+ the guide beam); 6 s: the hint rests, "
+			.. "14.6 s: it is back",
+		still = { 0.8, 6, 14.6 },
 		run = function(h: any)
 			h:giveRod()
 		end,
@@ -497,6 +499,17 @@ local scenarios = {
 		run = function(h: any)
 			h:giveRod()
 			h:standAtSpot()
+			h:advance(0.6)
+			h:click("HUD.Fishing.ActionArea.ActionButton")
+		end,
+	},
+	{
+		name = "far_take",
+		desc = "Tap «ВЗЯТЬ» far from the spot (just spawned): the rod in hand, the button morphs into «КУДА ИДТИ?»",
+		still = 0.8,
+		sheet = { from = 0, to = 0.8, fps = 15, roi = { "HUD.Fishing.ActionArea" }, margin = 0.06 },
+		run = function(h: any)
+			h:giveRod()
 			h:advance(0.6)
 			h:click("HUD.Fishing.ActionArea.ActionButton")
 		end,
