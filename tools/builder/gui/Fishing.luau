@@ -13,7 +13,7 @@
 	  TimeBar.Fill, Help}   Hint   CatchCard.{Banner.RarityLabel, Viewport, NameLabel,
 	  MutationLabel, InfoLabel, TapHint}
 	UI v2, the playing widgets (FishingController): ActionArea.ActionButton.{KeyChip.Key, TapCue,
-	Bobber, Badge} (the desktop key chip, the first-timer 👆, the waiting look's icon, the red «!»
+	Bobber, Badge} (the desktop key chip, the first-timer 👉, the waiting look's icon, the red «!»
 	newcomer badge), BiteAlert.{IconLeft, IconRight, TapPad} (the «!» glyphs, the touch tap pad
 	over the plate), Minigame.{Clock, TapPad, Track.Rider, Track.Needle.Head} (⏱, the touch tap
 	pad over the panel, the fish riding the zone — its glyph by rarity, the ▼ needle head),
@@ -130,6 +130,9 @@ end
 local DISC = 0.56
 local DISC_X = DISC / 2 * 0.46 / 0.66
 local DISC_Y = 0.9 - DISC / 2
+-- The first-timer's 👉: its centre on the disc's 135° radius, its fingertip on the outline (a share
+-- of the disc: 0.5 − (0.5 + 0.14) × cos 45°).
+local TAP_CUE = 0.5 - 0.64 * math.sqrt(0.5)
 
 local function buildActionArea(root: any)
 	-- Action area: 0.66H wide, 0.46H tall (at most 320 x 240 px), in the bottom-right corner. The
@@ -279,18 +282,19 @@ local function buildActionArea(root: any)
 		Size = UDim2.fromScale(0.3, 0.3),
 		ZIndex = SZ.Content + 3,
 	})
-	-- First-timer cue: a 👆 tapping the button while the needle is in the zone (the player's
-	-- first minigames and bites of the session; FishingController shows it and bounces it). On
-	-- the disc's right, its fingertip at the icon's foot — the «!» of the bite stays in view —
-	-- above the caption pill even at the bottom of its bounce (the caption stays readable), and
-	-- inside the button's right edge (the bounce never comes near the Jump button).
-	Theme.icon(action, "TapCue", "👆", {
+	-- First-timer cue: a pointing hand tapping the button while the needle is in the zone (the
+	-- player's first minigames and bites of the session on a touch screen; FishingController
+	-- shows it and bounces it towards the disc). It hangs OUTSIDE the disc on its upper-left
+	-- shoulder (away from Jump; the newcomer's «!» badge there is gone after the first cast),
+	-- 👉 turned 45° to point down-right, its fingertip on the outline: the icon and the caption
+	-- stay clean. Its box reaches no further left than the caption pill.
+	Theme.icon(action, "TapCue", "👉", {
 		Visible = false,
 		MaxTextSize = 64,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.74, 0.3),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(TAP_CUE, TAP_CUE),
 		Size = UDim2.fromScale(0.36, 0.36),
-		Rotation = -16,
+		Rotation = 45,
 		ZIndex = SZ.Content + 4,
 	})
 
@@ -351,13 +355,15 @@ local function buildBiteAlert(root: any)
 		MaxTextSize = 64,
 	})
 	-- «!» glyphs (not the ❗ emoji: red on orange disappears): the world marker's look —
-	-- white → gold text with a thick Ink outline, tilted outwards.
+	-- white → gold text with a thick Ink outline, tilted outwards. Their text boxes stay inside
+	-- the plate and its outline even tilted and wiggling (0.88 of its height: a box as tall as
+	-- the plate reached past it — on a notched phone the plate docks 16 px over the thumbstick).
 	for _, side in { { "IconLeft", 0.095, -10 }, { "IconRight", 0.905, 10 } } do
 		label(alert, side[1], {
 			SizeConstraint = Enum.SizeConstraint.RelativeYY,
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(side[2], 0.47),
-			Size = UDim2.fromScale(0.5, 1.02),
+			Size = UDim2.fromScale(0.5, 0.88),
 			Text = "!",
 			Rotation = side[3],
 			Outline = 5,
@@ -408,6 +414,8 @@ end
 
 -- The panel's corners.
 local PLATE_RADIUS = 0.1
+-- The rarity aura: how much wider than the panel's outline (px at 720).
+local AURA = 4
 
 local function buildMinigame(root: any)
 	-- A dark Night sim panel (opaque; the chunky outline in its near-black shade, a soft light
@@ -428,17 +436,20 @@ local function buildMinigame(root: any)
 	-- offset he stands left of the middle — it is ≈ 220 px.)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(520, 210), MinSize = Vector2.new(208, 92) }, mini)
 	Theme.sim(mini, "Night", { radius = PLATE_RADIUS, rim = 1.5, shine = false })
-	-- Epic+ aura: a rarity-coloured rim outside the outline (FishingController enables it and
-	-- recolours / animates "AuraFill": Legendary — a gold shine band, Mythic — a rainbow).
+	-- Rare+ aura: a rarity-coloured band OUTSIDE the dark outline (FishingController enables it and
+	-- recolours / animates "AuraFill": Rare — a light breathing rim, Epic — the rarity's colour,
+	-- Legendary — a gold shine band, Mythic — a rainbow). It is a stroke of the panel itself, so the
+	-- Lip's outline (a child) draws over its inner part: AURA px wider than the outline, it leaves a
+	-- coloured band of ≥ 2.5 px outside the dark edge even on the smallest phone.
 	corner(mini, PLATE_RADIUS)
 	local aura = U.new("UIStroke", {
 		Name = "AuraStroke",
 		Enabled = false,
 		Color = WHITE,
-		Thickness = 6,
+		Thickness = UI.Sim.Stroke + AURA,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 		LineJoinMode = Enum.LineJoinMode.Round,
-		Attributes = { BaseThickness = 6 },
+		Attributes = { BaseThickness = UI.Sim.Stroke + AURA },
 	}, mini)
 	U.new("UIGradient", { Name = "AuraFill", Color = Theme.sequence({ WHITE, WHITE }) }, aura)
 
@@ -481,7 +492,10 @@ local function buildMinigame(root: any)
 	end
 	-- The zone: a green sim pill (Leaf, the minor outline in dark green, a thin rim; a transparent
 	-- root = the logical box; the rider stands on it) on a soft light-green glow that breathes in
-	-- HEIGHT only (its width is the zone's), plus a white Flash layer for hits.
+	-- HEIGHT only (its width is the zone's), plus a white Flash layer for hits. The glow is a
+	-- bright halo that fades out away from the zone (a vertical UIGradient: opaque at the middle,
+	-- behind the pill, almost clear at its top and bottom edges), not a flat muddy ellipse on the
+	-- navy groove; the miss ghost fades it out with the zone turning red (FishingController).
 	local zone = U.new("Frame", {
 		Name = "Zone",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -492,14 +506,19 @@ local function buildMinigame(root: any)
 	local glow = U.new("Frame", {
 		Name = "Glow",
 		BackgroundColor3 = UI.Fishing.ZoneGlow,
-		BackgroundTransparency = 0.45,
+		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(1, 1.42),
+		Size = UDim2.fromScale(1, 1.3),
 		ZIndex = SZ.Behind,
 	}, zone)
 	corner(glow, 0.5)
+	U.new("UIGradient", {
+		Name = "Fade",
+		Rotation = 90,
+		Transparency = Theme.numbers({ { 0, 0.88 }, { 0.5, 0 }, { 1, 0.88 } }),
+	}, glow)
 	Theme.sim(zone, "Leaf", { round = true, stroke = Theme.MINOR, rim = 1.5, shine = false })
 	local flash = U.new("Frame", {
 		Name = "Flash",
@@ -1083,7 +1102,7 @@ end
 	                          «!» glyph: one Outline, TextFill), CaptionRibbon (glass pill) +
 	                          Caption («ЗАБРОСИТЬ» / «ЖДЁМ…» / «КУДА ИДТИ?» / «ПОДСЕЧЬ!» / «ЛОВИ!» /
 	                          «ВЗЯТЬ» / «ЗАБРАТЬ!»), Ring (white halo), KeyChip.Key («F» / «R2», a
-	                          Cream sim chip), TapCue (👆), Bobber (the waiting look's icon), Badge
+	                          Cream sim chip), TapCue (👉), Bobber (the waiting look's icon), Badge
 	                          (the newcomer's red «!»)
 	    StopButton            «СМОТАТЬ» red sim button above it (simButton "row": Icon 🎣, Caption)
 	  BiteAlert               orange sim plate: «КЛЮЁТ!» (Label + LabelShadow), «!» IconLeft /

@@ -20,7 +20,7 @@
 	    bottom.
 	  • topBand — полоса НАД рыбаком (и рыбой над головой): огромное слово редкости.
 	  • flightHits — заденет ли виджет прямоугольник, вылетая из точки на своё место.
-	  • hintWidth — ширина «таблетки» подсказки под её текст.
+	  • hintWidth — ширина «таблетки» подсказки под её текст (не влезает — две ровные строки).
 	  • JUMP_SMALL / JUMP_BIG, jumpCircle, growRoom — кнопка прыжка Roblox на тач-экране и во
 	    сколько раз может вырасти круглая кнопка действия (пульс, кольца), не подходя к ней ближе
 	    заданного зазора; RING, discFit — во сколько раз уменьшить её, чтобы и её белые кольца на
@@ -319,22 +319,48 @@ end
 	значок — у левого края (его правый край ≈ 0.78 высоты: «таблетка» не уже 5 высот, иначе
 	надпись наедет на значок). textWidth — ширина текста в px, измеренная по буквам (UiFx.textWidth:
 	Montserrat Heavy, курсив почти той же ширины); без неё — оценка HINT_CHAR × размер на букву
-	(Montserrat Heavy ≈ 0.54 в обычном тексте, с запасом). Не влезает в maxWidth — две строки
-	(TextWrapped).
+	(Montserrat Heavy ≈ 0.54 в обычном тексте, с запасом). Не влезает в maxWidth — две РОВНЫЕ
+	строки, как «через 54 / секунд» в «таблетке» референса (SIMB-C1-07): ширина — под длинную из
+	двух строк при лучшем переносе по пробелу (measure — ширина куска текста в px; без неё — оценка
+	по буквам; тире не начинает строку), с запасом HINT_WRAP на неточность замера. Надпись
+	переносится сама (TextWrapped) и при такой ширине — там же: а не «всё, что влезло, и одно
+	слово на второй строке».
 ]]
 local HINT_CHAR = 0.6
 local HINT_LABEL = 0.78
+local HINT_WRAP = 1.06
 function FishingLayout.hintWidth(
 	text: string,
 	textSize: number,
 	height: number,
 	maxWidth: number,
-	textWidth: number?
+	textWidth: number?,
+	measure: ((piece: string) -> number)?
 ): number
-	local letters = utf8.len(text) or #text
-	local measured = textWidth or letters * HINT_CHAR * textSize
-	local want = (measured + 10) / HINT_LABEL
-	return math.floor(math.min(math.max(want, 5 * height), math.max(maxWidth, 5 * height)))
+	local function widthOf(piece: string): number
+		return if measure then measure(piece) else (utf8.len(piece) or #piece) * HINT_CHAR * textSize
+	end
+	local cap = math.max(maxWidth, 5 * height)
+	local want = ((textWidth or widthOf(text)) + 10) / HINT_LABEL
+	if want > cap then
+		local best = math.huge
+		local from = 1
+		while true do
+			local at = string.find(text, " ", from, true)
+			if not at then
+				break
+			end
+			local rest = string.sub(text, at + 1)
+			if string.sub(rest, 1, 3) ~= "—" and string.sub(rest, 1, 3) ~= "–" then
+				best = math.min(best, math.max(widthOf(string.sub(text, 1, at - 1)), widthOf(rest)))
+			end
+			from = at + 1
+		end
+		if best < math.huge then
+			want = (best * HINT_WRAP + 10) / HINT_LABEL
+		end
+	end
+	return math.floor(math.min(math.max(want, 5 * height), cap))
 end
 
 --[[

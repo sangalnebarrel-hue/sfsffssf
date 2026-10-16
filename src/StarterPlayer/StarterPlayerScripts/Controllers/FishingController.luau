@@ -57,7 +57,7 @@
 	    плашку потряхивает. Полоска времени тает за Window секунд (зелёная → жёлтая → красная), то
 	    же время убывает кольцом-таймером вокруг кнопки, за плашкой — спокойные лучи. Плашка
 	    уходит копией: подсекли — «вдох» и белое кольцо, не успели — сползает вниз и тает. На тач-экране
-	    тап по самой плашке — подсечка (BiteAlert.TapPad); новичку (первые поклёвки за игру) 👆
+	    тап по самой плашке — подсечка (BiteAlert.TapPad); новичку (первые поклёвки за игру) 👉
 	    показывает на кнопку. Ни свой поплавок, ни свой рыбак не прячутся под плашкой: если нырок
 	    поплавка или рыбак (FishingLayout.fisherBox) попадает на неё, плашка становится чуть ниже
 	    или отъезжает вбок (keepClearOfBobber); на телефоне она стоит под ногами рыбака, а если
@@ -76,7 +76,7 @@
 	    в одной полосе не складываются; на телефоне оно пониже и на плашку базы не залезает) и стук
 	    сердца. На телефоне (HUD ниже 500 px) панель встаёт СЛЕВА от своего рыбака
 	    (keepClearOfBobber с dock: под плашкой базы, над джойстиком) — видно всю борьбу (упор,
-	    катушку, согнутую удочку) и поплавок. Новичку (первые мини-игры за игру) 👆
+	    катушку, согнутую удочку) и поплавок. Новичку (первые мини-игры за игру) 👉
 	    показывает на кнопку, пока стрелка в зоне. Попадание видно сразу, не дожидаясь сервера
 	    (он судит по тому же t; нет ответа за MaxLag + 0.2 с — предсказание забывается): стрелка
 	    на миг замирает и вспыхивает золотом, панель вздрагивает, искры, звук
@@ -364,7 +364,7 @@ type Ui = {
 	actionBobber: Frame, -- поплавок вместо значка, пока ждём поклёвку
 	keyChip: Frame,
 	keyLabel: TextLabel,
-	tapCue: TextLabel, -- 👆 новичку
+	tapCue: TextLabel, -- 👉 новичку
 	stopCaption: TextLabel,
 	aura: UIStroke, -- обводка панели мини-игры в цвет редкости (эпическая и выше)
 	auraFill: UIGradient,
@@ -757,14 +757,24 @@ do
 		end
 		-- Подсказка — по своему тексту (не пустая полоса на полэкрана); мини-игра на телефоне встаёт
 		-- слева от рыбака (keepClearOfBobber, dock) — центр колонки её не учитывает.
+		-- Не влезает в одну строку — две ровные (место — и потолок «таблетки», и просвет колонки).
 		local hint = ui.hint
 		local hintRest = defaults.hintSize
+		local hintCap = hint:FindFirstChildOfClass("UISizeConstraint")
+		local bodySize = UiFx.textSize("Body")
 		local hintWant = Layout.hintWidth(
 			ui.hint.Text,
-			UiFx.textSize("Body"),
+			bodySize,
 			boxSize(hint, width, height).Y,
-			hintRest.X.Scale * width + hintRest.X.Offset,
-			UiFx.textWidth(ui.hint.Text, UiFx.textSize("Body"))
+			math.min(
+				hintRest.X.Scale * width + hintRest.X.Offset,
+				if hintCap then hintCap.MaxSize.X else math.huge,
+				if right > left then right - left else math.huge
+			),
+			UiFx.textWidth(ui.hint.Text, bodySize),
+			function(piece: string): number
+				return UiFx.textWidth(piece, bodySize)
+			end
 		)
 		local mini = fit(ui.minigame, defaults.minigameSize)
 		local widest = math.max(
@@ -855,6 +865,7 @@ do
 	-- выскакивание. Едет она туда, куда её только что поставил renderHint (на телефоне — рядом с
 	-- рыбаком, если на месте по умолчанию легла бы ему на ноги), а не на место по умолчанию.
 	local HINT_RISE = 6
+	local HINT_MORPH = 0.2 -- подсказка на виду сменила текст: «таблетка» меняет ширину за столько, с
 	local function animateHint(kind: string)
 		local hint = ui.hint
 		local rest = hint.Position
@@ -923,9 +934,9 @@ do
 		end
 		local changed = force == true or not hint.Visible or leaving or hint.Text ~= text
 		local icon = HINT_ICONS[kind] or HINT_ICONS.info
-		-- Та же подсказка по месту сменила текст на виду (того же вида): надпись прокручивается
-		-- «слот-машиной», без нового выскока.
+		-- Та же подсказка по месту сменила текст на виду (того же вида): без нового выскока.
 		local roll = changed and not force and hint.Visible and not leaving and ui.hintIcon.Text == icon
+		local fromSize, fromPosition = hint.Size, hint.Position
 		hint.Text = text
 		if changed then
 			layoutColumn() -- ширина «таблетки» — по тексту
@@ -936,7 +947,28 @@ do
 			end
 		end
 		if roll then
-			UiFx.swapText(ui.hintLabel, text)
+			-- «Таблетка» плавно меняет ширину и место (HINT_MORPH с), надпись «ударяет» на месте, 💡
+			-- подпрыгивает (SIMB-C1-03: «слот-машина» двух надписей в «таблетке», уже сжатой под
+			-- новый текст, вылезала за неё). Пока «таблетка» растёт — на ней старая надпись (новая
+			-- длиннее: в узкую не влезла бы), сжимается — уже новая (она короче).
+			local toSize, toPosition = hint.Size, hint.Position
+			local wide = ui.fishing.AbsoluteSize.X
+			local grows = toSize.X.Scale * wide + toSize.X.Offset > fromSize.X.Scale * wide + fromSize.X.Offset
+			hint.Size, hint.Position = fromSize, fromPosition
+			UiFx.tween(hint, HINT_MORPH, { Size = toSize, Position = toPosition })
+			local shown: string = text
+			local function swap()
+				if hint.Text == shown and hint.Visible then
+					ui.hintLabel.Text = shown
+					UiFx.punch(ui.hintLabel, { from = 0.85 })
+					UiFx.popIn(ui.hintSocket, { from = 0.6, time = 0.3, rotate = -12 })
+				end
+			end
+			if grows then
+				task.delay(HINT_MORPH, swap)
+			else
+				swap()
+			end
 		else
 			ui.hintLabel.Text = text
 		end
@@ -1674,8 +1706,10 @@ do
 		if alert.Visible and phase == "Bite" and newPhase ~= "Bite" then
 			local ghost = ghostOf(alert, "FxBiteOut")
 			if newPhase == "Reeling" then
+				-- (Под мини-игрой: та встаёт в тот же слот — копия не закрывает её полосу и заголовок.)
+				ghost.ZIndex = ui.minigame.ZIndex - 1
 				UiFx.glowRing(ghost, { color = WHITE, scale = 1.25, thickness = 4, time = 0.2 })
-				UiFx.popOut(ghost, { time = 0.2, destroy = true })
+				UiFx.popOut(ghost, { time = 0.14, destroy = true })
 			else
 				local quad, inDir = Enum.EasingStyle.Quad, Enum.EasingDirection.In
 				UiFx.tween(ghost, 0.22, { Position = ghost.Position + UDim2.fromOffset(0, 10) }, quad, inDir)
@@ -4927,21 +4961,22 @@ do
 	-- нырок — становится чуть ниже (не меньше BITE_MIN_SCALE) или отъезжает вбок.
 	local BITE_DIVE = 1.8
 	local BITE_MIN_SCALE = 0.75
-	local CUE_BITES = 2 -- первые столько поклёвок за игру 👆 показывает на кнопку (как в мини-игре)
-	local CUE_BOUNCE = 0.08 -- 👆 «нажимает» на столько (доля кнопки) …
+	local CUE_BITES = 2 -- первые столько поклёвок за игру 👉 показывает на кнопку (как в мини-игре)
+	local CUE_BOUNCE = 0.06 -- 👉 «нажимает» на столько (доля кнопки, по каждой оси — к её центру) …
 	local CUE_PERIOD = 0.25 -- … за столько секунд туда (и столько же обратно)
 
 	local bitesShown = 0
 	local alertSize: UDim2? = nil -- размер плашки из шаблона (поклёвка может её уменьшить)
 
-	-- 👆 качается — «нажимает» кнопку (новичку: поклёвка, мини-игра); до уборки trove.
+	-- 👉 качается — «нажимает» кнопку (новичку с тач-экраном: поклёвка, мини-игра; висит на левом
+	-- верхнем плече круга и тычет вниз-вправо, к его центру); до уборки trove.
 	local function bounceCue(trove: Trove.Trove)
 		local cue = ui.tapCue
 		cue.Position = defaults.tapCuePosition
 		local bounce = TweenService:Create(
 			cue,
 			TweenInfo.new(CUE_PERIOD, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-			{ Position = defaults.tapCuePosition + UDim2.fromScale(0, CUE_BOUNCE) }
+			{ Position = defaults.tapCuePosition + UDim2.fromScale(CUE_BOUNCE, CUE_BOUNCE) }
 		)
 		bounce:Play()
 		trove:Add(function()
@@ -4968,10 +5003,11 @@ do
 			alert.Position = defaults.alertPosition
 			alert.Size = restSize
 		end)
-		-- Тач-экран: тап по плашке — подсечка. Новичку (первые CUE_BITES поклёвок) 👆 на кнопке.
+		-- Тач-экран: тап по плашке — подсечка. Новичку (первые CUE_BITES поклёвок) 👉 у кнопки — если
+		-- на ней нет клавиши (F / R2 и так говорит, что жать).
 		ui.biteTapPad.Visible = UserInputService.TouchEnabled
 		bitesShown += 1
-		if bitesShown <= CUE_BITES then
+		if bitesShown <= CUE_BITES and keyHint == "" then
 			ui.tapCue.Visible = true
 			bounceCue(phaseTrove)
 		end
@@ -5085,8 +5121,10 @@ do
 			end
 		end, BITE_BEAT)
 
-		-- Полоска времени тает (зелёная → жёлтая → красная), и то же время убывает кольцом вокруг
-		-- кнопки «ПОДСЕЧЬ!» (UiFx.ringTimer: только твины; подсечка его убирает — doAction).
+		-- Полоска времени тает (зелёная → жёлтая → красная), и то же время убывает кольцом по краю
+		-- кнопки «ПОДСЕЧЬ!» (UiFx.ringTimer: только твины; подсечка его убирает — doAction). Кольцо —
+		-- ВНУТРИ круга, вплотную к его тёмной обводке, поверх лица и под лентой подписи (снаружи места
+		-- нет: 16 px до кнопки прыжка, D4); под ним тёмная канавка — видно, сколько уже истекло.
 		local timer = ui.biteTimer
 		timer.Size = defaults.biteTimerSize
 		local stopTimer = UiFx.timerBar(timer, math.max(window, 0.05), TIME_COLORS)
@@ -5095,7 +5133,13 @@ do
 			timer.Size = defaults.biteTimerSize
 			timer.BackgroundColor3 = defaults.biteTimerColor
 		end)
-		phaseTrove:Add(UiFx.ringTimer(ui.actionButton, math.max(window, 0.05), { colors = TIME_COLORS }))
+		phaseTrove:Add(
+			UiFx.ringTimer(
+				ui.actionButton,
+				math.max(window, 0.05),
+				{ colors = TIME_COLORS, pad = 0, thickness = 7, z = ui.actionIcon.ZIndex, track = 0.4 }
+			)
+		)
 
 		-- Кнопка зовёт с первого кадра: кольцо сразу (пульс — с первого такта).
 		actionPulseTrove:Add(whiteRings(BITE_BEAT))
@@ -5125,7 +5169,7 @@ do
 
 	-- Мини-игра: предсказанные попадания, 🐟 на зоне, подсказка новичку, обводка редкости.
 	local NEEDLE_HOLD = 0.05 -- при попадании стрелка на миг «замирает» (только картинка)
-	local CUE_MINIGAMES = 2 -- первые столько мини-игр за игру 👆 показывает на кнопку
+	local CUE_MINIGAMES = 2 -- первые столько мини-игр за игру 👉 показывает на кнопку
 	local RIDER_TILT = 12 -- 🐟 покачивается ±градусов …
 	local RIDER_SWING = 0.3 -- … раз в столько секунд
 	local PIPS_SHARE, PIPS_PAD = 0.3, 0.04 -- рамка кружков попаданий: доля ширины панели, зазор (доля рамки)
@@ -5196,7 +5240,7 @@ do
 		return Vector2.new(x, 0.72)
 	end
 
-	-- Каждый кадр: стрелка по общей формуле, полоска оставшегося времени и 👆 новичку.
+	-- Каждый кадр: стрелка по общей формуле, полоска оставшегося времени и 👉 новичку.
 	local function updateMinigameFrame()
 		local mg = minigame
 		if not mg then
@@ -5506,7 +5550,7 @@ do
 		clearEventHint() -- колонка внизу — для мини-игры
 		layoutColumn()
 		minigamesShown += 1
-		cueOn = minigamesShown <= CUE_MINIGAMES
+		cueOn = minigamesShown <= CUE_MINIGAMES and keyHint == "" -- (с клавишей на кнопке — без 👉)
 		predictedHit = nil
 		needleHoldUntil = 0
 		local rarity = FishingRules.GetRarity(mg.Rarity)
@@ -5587,7 +5631,7 @@ do
 		showRider(mg)
 		-- Тач-экран: касание панели — тоже нажатие.
 		ui.tapPad.Visible = UserInputService.TouchEnabled
-		-- Новичку: 👆 «нажимает» кнопку, пока стрелка в зоне (видимость — каждый кадр).
+		-- Новичку: 👉 «нажимает» кнопку, пока стрелка в зоне (видимость — каждый кадр).
 		if cueOn then
 			bounceCue(phaseTrove)
 		end
@@ -5849,6 +5893,10 @@ do
 			local zone = track:FindFirstChild("Zone")
 			if zone and zone:IsA("GuiObject") then
 				UiFx.recolor(zone, "Berry", 0.12) -- зона «краснеет» (перетекает в красный)
+				local halo = zone:FindFirstChild("Glow") -- … и её зелёный ореол гаснет с ней
+				if halo and halo:IsA("GuiObject") then
+					UiFx.tween(halo, 0.12, { BackgroundTransparency = 1 })
+				end
 				local zoneFlash = zone:FindFirstChild("Flash")
 				if zoneFlash and zoneFlash:IsA("GuiObject") then
 					zoneFlash.BackgroundTransparency = 1 -- без золота «победного» нажатия (holdWin)
