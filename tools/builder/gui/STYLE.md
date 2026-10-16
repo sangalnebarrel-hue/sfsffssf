@@ -368,8 +368,12 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   to go» (far from the spot with the rod in hand OR in the Backpack — right after the spawn too,
   with the guide beam) comes back every 10 s while it still applies — it never retires before the
   player has reached the circle; a hint whose action the player has done
-  twice (cast, took the rod, reached the spot) is not shown again (WOW-6); on phones a hint about
-  the place waits while the own trophy is held over the head (the trophy camera lowers him onto it). The catch (UI v2) shows the world
+  twice (cast, took the rod, reached the spot) is not shown again (WOW-6); a hint about the place
+  waits while the «ТВОЯ БАЗА» banner holds the middle of the screen (joining: the first «where to
+  go» pops once the banner has landed in the badge, for its full 4 s), and on phones while the own
+  trophy is held over the head (the trophy camera lowers him onto it) — the guide beam, a world
+  object that covers no widget, does not wait. «ЗАБРОСИТЬ» shows 2 studs inside the server's
+  SpotRadius (the server judges a lagging copy of the character). The catch (UI v2) shows the world
   first: the winning tap freezes the needle gold where it was tapped (gold zone flash, a glow ring, a
   small bump, a higher pop) until the server answers (≤ 1.5 s); on "Caught" the minigame plays its
   win (FxMinigameWin: ⭐, gold zone, the needle where it was tapped, sparks) and sinks away early, and

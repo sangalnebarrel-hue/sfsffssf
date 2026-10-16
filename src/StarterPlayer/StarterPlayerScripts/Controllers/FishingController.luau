@@ -192,6 +192,12 @@
 	улова — в cardTrove, её лучи — в raysTrove; конфетти, дождь 💰 и полёт 🐟, которые
 	доигрывают после карточки, — в celebrationTrove. В покое (ничего не происходит) — ни одного
 	покадрового соединения: только таймеры и твины.
+
+	Запуск (Start): сначала разметка колонки и персонаж — опрос при нём единственный показывает
+	кнопку; оформление (колонка, «сжатие» кнопок) и помощник FishingFxController — под защитой:
+	упавшее в настоящем Roblox — красная ошибка с именем шага, а кнопка остаётся. Недостающий
+	элемент HUD (child) — через 5 с ошибка с путём, а не вечное ожидание (ClientMain тогда
+	запускает остальные контроллеры).
 ]]
 
 local ContextActionService = game:GetService("ContextActionService")
@@ -7311,9 +7317,12 @@ function FishingController:Start(hud: ScreenGui)
 	-- помощника), кнопку действия всё равно подключим ниже — её показывает только опрос
 	-- персонажа (onCharacterAdded). Ошибка — красным в Output (с путём), а не молча.
 	local function guarded(what: string, fn: () -> ())
-		local ok, err = xpcall(fn, debug.traceback)
+		local trace = ""
+		local ok = xpcall(fn, function(message: any)
+			trace = debug.traceback(tostring(message), 2)
+		end)
 		if not ok then
-			task.spawn(error, `[FishingController] {what}: {err}`, 0)
+			task.spawn(error, `[FishingController] {what}: {trace}`, 0)
 		end
 	end
 
