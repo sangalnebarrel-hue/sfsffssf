@@ -1,9 +1,9 @@
 --[[
 	Fishing — HUD.Fishing (stage 2) in the UI v5 «Симулятор» style (the user's reference: chunky
 	gradient plates with a thick outline in a dark shade of their own hue, outlined emoji, white
-	Montserrat Heavy text with a dark outline, dark glass pills; NO studs — they belong to the
-	map): the action button, the bite alert, the minigame, the hint and the catch card (the big
-	reveal). Controller and all the motion: FishingController (UiFx). Layout rules:
+	Montserrat Heavy text with a dark outline, dark glass pills; smooth surfaces — the LEGO look
+	belongs to the map): the action button, the bite alert, the minigame, the hint and the catch
+	card (the big reveal). Controller and all the motion: FishingController (UiFx). Layout rules:
 	tools/builder/Gui.luau; look and API: tools/builder/gui/STYLE.md.
 
 	Names are a contract (FishingController, tests and the preview scenarios find widgets by
@@ -35,10 +35,9 @@
 	bite alert an orange plate with a huge outlined «КЛЮЁТ!» and a glass groove for its countdown;
 	the hint the reference's glass timer pill with italic text; the minigame a dark navy plate
 	with a glass groove, the zone a green pill the fish rides on, pips as round chips.
-	The catch card (still built through the v3 / v4 Theme names — brick, tile, pill — which now
-	build sim plates) is a white plate (the fish in a display window on a podium in the
-	rarity's colour, the rarity banner a long plate, the price a yellow chip, the weight a grey
-	chip, «НОВИНКА!» a red stamp).
+	The catch card (the same sim API) is a white plate: the fish in a display window on a podium
+	in the rarity's colour, the rarity banner a long plate, the price a yellow chip, the weight a
+	grey chip, «НОВИНКА!» a red stamp.
 ]]
 
 local Theme = require("./Theme")
@@ -53,8 +52,7 @@ local rgb = U.rgb
 
 local UI = Theme.UI
 local P = Theme.P
-local BZ = Theme.BZ
-local SZ = Theme.SZ -- ZIndex layers inside a sim root (the playing widgets)
+local SZ = Theme.SZ -- ZIndex layers inside a sim root
 local INK = Theme.INK
 local WHITE = Theme.WHITE
 local HOTBAR = Theme.HOTBAR
@@ -528,15 +526,17 @@ local function buildMinigame(root: any)
 		ZIndex = SZ.Overlay,
 	}, zone)
 	corner(flash, 0.5)
-	-- The fish on the hook: a 🐟 standing on the zone (FishingController keeps it over
-	-- the zone, wiggles it and makes it hop to the next zone). Above the zone, under the needle.
+	-- The fish on the hook: a 🐟 standing on the zone's top edge (FishingController keeps it over
+	-- the zone, wiggles it and makes it hop to the next zone). Above the zone, under the needle,
+	-- in the band between the title and the groove (0.74 of the track tall; a Legendary+ one
+	-- 1.16× — its top stays under the title's letters, SIMB-C2-03).
 	local rider = Theme.icon(track, "Rider", "🐟", {
 		Visible = false,
 		MaxTextSize = 48,
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.fromScale(0.5, 0.04),
-		Size = UDim2.fromScale(0.9, 0.9),
+		Position = UDim2.fromScale(0.5, 0.1),
+		Size = UDim2.fromScale(0.74, 0.74),
 		Rotation = 0,
 		ZIndex = 5,
 		Outline = 2.5,
@@ -1018,6 +1018,9 @@ local function buildCatch(root: any)
 		MaxTextSize = 30,
 		MinTextSize = 12, -- (one line: on the landscape card the stamp is small)
 	})
+	-- (never so flat that the caption box is under 12 px: the smallest landscape card, 0.85 ×
+	-- DockMin beside a giant trophy, gave it a 10 px box — SIMC-C2-01)
+	U.new("UISizeConstraint", { MinSize = Vector2.new(0, 18) }, mutation)
 
 	-- The name: the hero of the card (display text, box-driven like the banner), white → the
 	-- rarity's colours with an Ink outline. MinTextSize 12, not more: TextScaled wraps a word

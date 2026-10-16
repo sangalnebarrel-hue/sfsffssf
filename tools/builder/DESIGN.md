@@ -233,9 +233,11 @@ lays its own floor/paths/borders on top (slab tops at y ≈ 0.2; nothing coplana
 * **Signs:** every SurfaceGui of a base has a `MaxDistance` (120; the 12 pedestal labels 60, at
   30 px per stud); the map's signs 250 (`Kit.sign` 600 for the big boards). The owner sign over
   the flag (UI v5 «Симулятор», like the reference's «МАГАЗИН СЛЕДОВ» / «БЕСПЛАТНО!») is billboard
-  words with NO plate and no studs (the map keeps its LEGO studs; GUI never has them): Montserrat
-  Heavy, a white → colour `Fill` UIGradient and a thick round `Outline` UIStroke in the look's
-  dark shade — the owner's name in white or «СВОБОДНО!» in `UIConfig.BillboardGreen` (a free
+  words with NO plate (smooth letters straight over the world; the LEGO look is the map's):
+  Montserrat Heavy, a white → colour `Fill` UIGradient and a THIN round `Outline` UIStroke in the
+  look's dark shade, like the reference's 1.5–2 px on a 33 px cap (2 px for the owner's line and
+  «ТВОЯ БАЗА!», 1.5 for the base name; the gate board 3 / 2.5 at 32 px per stud) — the owner's
+  name in white or «СВОБОДНО!» in `UIConfig.BillboardGreen` (a free
   base), under it the base's name in CAPS in its own swatch (`UIConfig.BaseSwatches`, painted by
   BaseService), over them «ТВОЯ БАЗА!» in green on the owner's own client (the three rows stay
   inside the billboard's frame, room left for the outline); 10 × 3.2 studs + 150 × 52 px,

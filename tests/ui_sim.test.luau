@@ -3,9 +3,9 @@
 	the sim: what Theme.sim / glass / simButton / plate / badge / stat / title / label / icon build
 	(the structure UiFx.setCandy, the motion helpers and the controllers rely on), that the numbers
 	come from UIConfig (Sim, Font, Palette — the same table the client uses), that the font is
-	Montserrat Heavy with an italic face for numbers, and that the v3 stud API builds no studs any
-	more (the compat shims Fishing.luau still calls). The HUD in the built place is checked by
-	tests/hud_style.test.luau; the runtime recolouring and motion by uifx.
+	Montserrat Heavy with an italic face for numbers, and that the kit is the only API: the old
+	v3 / v4 names are gone (every widget is built with the sim primitives). The HUD in the built
+	place is checked by tests/hud_style.test.luau; the runtime recolouring and motion by uifx.
 
 	Run: lune run tools/run_tests.luau ui_sim
 ]]
@@ -37,7 +37,7 @@ local function keyAt(gradient: any, time: number): any
 	return nil
 end
 
--- Every stud-like thing the v3 / v4 GUI had: none of them may exist any more.
+-- A guard: nothing stud-like may be built in the GUI (the LEGO look belongs to the map).
 local function studsIn(root: any): { string }
 	local found = {}
 	for _, d in root:GetDescendants() do
@@ -80,7 +80,7 @@ tests["sim: a gradient face, a thick outline in the hue's dark shade, a light ri
 	local fill = face.Fill
 	t.eq(fill.Rotation, 90, "vertical: light top → saturated bottom")
 	t.eq(#fill.Color.Keypoints, 2)
-	t.eq(keyAt(fill, UI.Brick.CapStop), P.Leaf.Top, "Top at the old CapStop key (0: no cap any more)")
+	t.eq(keyAt(fill, 0), P.Leaf.Top, "a plain Top → Bottom")
 	t.eq(keyAt(fill, 1), P.Leaf.Bottom)
 	local rim = face.Rim:FindFirstChildOfClass("UIStroke")
 	t.eq(rim.Color, UI.White, "a white rim …")
@@ -118,14 +118,13 @@ tests["glass: the reference's timer pill — a black face at half transparency, 
 	local edge = groove.Lip:FindFirstChildOfClass("UIStroke")
 	t.eq(edge.Color, UI.Ink)
 	t.ok(edge.Transparency < 1, "a groove keeps a faint edge")
-	-- The v3 dark tiles (the hint, the caption ribbon) become glass; bright ones a sim plate.
-	local hint = frame()
-	Theme.tile(hint, "Night")
-	t.eq(hint:GetAttribute("CandyStyle"), "glass", "a Night tile is glass now")
-	local chip = frame()
-	Theme.tile(chip, "Cream")
+	-- A glass plate (the hint) and a bright label plate (a chip).
+	local parent = frame()
+	local hint = Theme.plate(parent, "Hint", "Glass", { Glass = true, Text = "Жди" })
+	t.eq(hint:GetAttribute("CandyStyle"), "glass", "a glass pill")
+	local chip = Theme.plate(parent, "Chip", "Cream", { Text = "1 КГ" })
 	t.eq(chip:GetAttribute("CandyStyle"), "sim")
-	t.eq(chip:GetAttribute("CandyRadius"), SIM.PlateRadius, "a smooth tile is a label plate")
+	t.eq(chip:GetAttribute("CandyRadius"), SIM.PlateRadius, "a label plate")
 end
 
 tests["buttons and plates: row, square and round layouts; outlined icons; transparent icon holders"] = function(t)
@@ -230,34 +229,34 @@ tests["text: Montserrat Heavy, an italic face for numbers, outlines by tier"] = 
 	t.eq(UI.Type.Small, 14)
 end
 
-tests["compat: the v3 brick / stud API builds sim plates and no studs"] = function(t)
+tests["one kit: the sim primitives are the whole API — the v3 / v4 names are gone"] = function(t)
+	for _, name in
+		{
+			"brick",
+			"tile",
+			"roundPlate",
+			"candyButton",
+			"pill",
+			"topStud",
+			"studRow",
+			"studScale",
+			"BZ",
+			"BRICK",
+		}
+	do
+		t.eq((Theme :: any)[name], nil, `Theme.{name} is gone`)
+	end
+	t.eq((UI :: any).Brick, nil, "UIConfig.Brick is gone (a face's Fill is a plain Top → Bottom)")
 	local parent = frame()
-	local brick = frame()
-	brick.Parent = parent
-	local face = Theme.brick(brick, "Sun", { studs = 4, studArea = { 0.2, 1 }, studScale = 0.8, spec = {} })
-	t.eq(face.Name, "Face")
-	t.eq(brick:GetAttribute("CandyStyle"), "sim")
-	t.eq(brick:FindFirstChild("Studs"), nil, "no studs")
-	t.eq(face:FindFirstChild("Spec"), nil, "no glint")
-	t.eq(face.Size, UDim2.fromScale(1, 1), "no side band")
-	local row = Theme.studRow(parent, { Count = 12, Area = { 0, 0, 1, 0.1 } })
-	t.eq(row.Parent, nil, "studRow builds nothing in the tree")
-	t.eq(#row:GetChildren(), 0)
-	t.eq(Theme.topStud(parent, "Stud1").Parent, nil, "topStud builds nothing in the tree")
-	local button = Instance.new("TextButton")
-	button.Parent = parent
-	local plate = Theme.roundPlate(button, "Sky")
-	t.eq(button:GetAttribute("CandyRadius"), 0.5, "the round plate is a round sim button")
-	t.eq(plate:FindFirstChild("Stud"), nil, "no raised stud")
-	local old = Theme.candyButton(parent, "Stop", "Berry", { Brick = { studs = 3 } })
-	t.eq(old:GetAttribute("CandyStyle"), "sim")
-	local pill = Theme.pill(parent, "Price", "Gold", { Icon = "💰", Text = "0", Brick = { studs = 3 } })
-	t.eq(pill:FindFirstChild("Studs"), nil)
 	local socket = Theme.socket(parent, "IconSocket", "💡")
-	t.eq(socket.BackgroundTransparency, 1, "a socket is a transparent holder now")
+	t.eq(socket.BackgroundTransparency, 1, "a socket is a transparent holder")
+	t.ok(socket.Icon.Outline, "… with the outlined emoji")
+	local stop = Theme.simButton(parent, "Stop", "Berry", { Layout = "row", Icon = "🎣", Caption = "СМОТАТЬ" })
+	t.eq(stop:GetAttribute("CandyStyle"), "sim")
+	t.eq(stop.Face.Size, UDim2.fromScale(1, 1), "the face covers the button: no side band")
+	local price = Theme.plate(parent, "Price", "Gold", { Icon = "💰", Text = "0" })
+	t.eq(price:GetAttribute("CandyStyle"), "sim")
 	t.eq(#studsIn(parent), 0, "nothing stud-like anywhere")
-	t.eq(Theme.BZ, Theme.SZ, "the v4 layers are the sim layers")
-	t.eq(Theme.BRICK.Lip, 0, "no side band to offset content by")
 end
 
 tests["palette: the reference's colours; outlines in the hue's dark shade; Ink; the PIP colour kept"] = function(t)
@@ -292,7 +291,6 @@ tests["palette: the reference's colours; outlines in the hue's dark shade; Ink; 
 	t.eq(UI.Fx.TextStrokeMin, 2, "text outlines never under 2 px")
 	t.eq(UI.Fx.StrokeMax, 1.2)
 	t.eq(UI.Fx.TextStrokeMax, 1.0)
-	t.eq(UI.Brick.CapStop, 0, "the old CapStop key: Top is the first keypoint")
 	for id, look in UI.BaseSwatches do
 		t.ok(look.Top and look.Bottom and look.Lip, `base {id}`)
 	end

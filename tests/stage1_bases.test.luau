@@ -1,7 +1,8 @@
 --[[
 	Stage 1 integration tests (run inside RbxSim against the built Place1.rbxl):
-	base cloning, assignment on join, release on leave, waiting queue, spawning on the base,
-	respawn after death, the Home button and leak checks.
+	base cloning, assignment on join, signs, the base template, spawning on the base, respawn
+	after death and the Home button. The waiting queue, a released base taken again and the
+	leak check (all 8 bases filled — the slowest tests) are in stage1_queue.test.luau.
 
 	Run: lune run tools/run_tests.luau stage1
 ]]
@@ -29,18 +30,6 @@ local TextUtil = luau.load(fs.readFile("src/ReplicatedStorage/Shared/TextUtil.lu
 local upper = TextUtil.upper
 -- A free base's sign (UI v5 billboard words, BaseService).
 local FREE = "СВОБОДНО!"
-
--- Toast texts on a player's own screen (HUD.Toasts.Toast.Label).
-local function toastTexts(player: any): { string }
-	local texts = {}
-	local hud = player.PlayerGui:FindFirstChild("HUD")
-	for _, child in (if hud then hud.Toasts:GetChildren() else {}) do
-		if child.Name == "Toast" then
-			table.insert(texts, child.Label.Text)
-		end
-	end
-	return texts
-end
 
 local function boot(t: any): any
 	local sim = t.sim({ place = PLACE })
@@ -124,15 +113,6 @@ local function notifiesFor(sim: any, player: any): { string }
 		end
 	end
 	return texts
-end
-
-local function anyContains(list: { string }, needle: string): boolean
-	for _, s in list do
-		if string.find(s, needle, 1, true) then
-			return true
-		end
-	end
-	return false
 end
 
 -- Boots a sim whose ModuleScript sources are patched before the server starts.
@@ -248,7 +228,14 @@ tests["owner sign: billboard words over the flag — «СВОБОДНО!» green
 		local owner = sign.OwnerLabel
 		t.eq(owner.FontFace.Weight, roblox.Enum.FontWeight.Heavy, "Heavy letters")
 		t.ok(string.find(owner.FontFace.Family, "Montserrat", 1, true) ~= nil, "the UI font (Montserrat)")
-		t.ok(owner.Outline.Thickness >= 3, "an outline")
+		-- (SIMC-C2-05: a thin outline like the reference's billboard words — ≈ 0.06–0.1 of the cap
+		-- across the lagoon, not a chunky HUD sticker)
+		t.ok(
+			owner.Outline.Thickness >= 1.5 and owner.Outline.Thickness <= 2.5,
+			`a thin outline ({owner.Outline.Thickness} px)`
+		)
+		t.ok(sign.BaseLabel.Outline.Thickness <= owner.Outline.Thickness, "the base name's no heavier")
+		t.ok(sign.YoursLabel.Outline.Thickness <= 2.5, "«ТВОЯ БАЗА!» thin too")
 		t.eq(owner.Outline.LineJoinMode, roblox.Enum.LineJoinMode.Round, "round joins")
 		local top, bottom = fillOf(owner)
 		t.ok(
@@ -272,6 +259,7 @@ tests["owner sign: billboard words over the flag — «СВОБОДНО!» green
 			gate:FindFirstChild("Outline") ~= nil and gate:FindFirstChild("Fill") ~= nil,
 			"gate: outlined billboard words"
 		)
+		t.ok(gate.Outline.Thickness <= 3, "gate: a thin outline (32 px per stud)")
 	end
 	sim:AssertNoErrors()
 end
@@ -701,69 +689,6 @@ tests["two players get different bases"] = function(t)
 	sim:AssertNoErrors()
 end
 
-tests["leave: base is released and can be taken again"] = function(t)
-	local sim = boot(t)
-	local a = addPlayer(sim, 1)
-	local base = baseOf(sim, a)
-	sim:RemovePlayer(a)
-	sim:Advance(0.5)
-	t.eq(base:GetAttribute("OwnerUserId"), 0)
-	t.eq(base:GetAttribute("OwnerName"), "")
-	t.eq(base.Flag.Pole.SignAttachment.OwnerSign.OwnerLabel.Text, FREE)
-	-- Fill all 8 bases: the released one must be reusable.
-	local seen = {}
-	for id = 10, 17 do
-		local p = addPlayer(sim, id)
-		local b = baseOf(sim, p)
-		t.ok(b, `player {id} has a base`)
-		t.ok(not seen[b], "no base given twice")
-		seen[b] = true
-	end
-	sim:AssertNoErrors()
-end
-
-tests["overflow: 9th player waits at the hub and gets the first freed base"] = function(t)
-	local sim = boot(t)
-	local players = {}
-	for id = 1, 8 do
-		players[id] = addPlayer(sim, id)
-	end
-	local ninth = addPlayer(sim, 9)
-	t.eq(ninth:GetAttribute("BaseIndex"), 0, "9th player is waiting")
-	t.ok(anyContains(notifiesFor(sim, ninth), "Все базы заняты"), "waiting toast")
-	t.ok(rootPos(ninth), "waiting player still has a character (hub)")
-
-	local freed = baseOf(sim, players[3])
-	sim:RemovePlayer(players[3])
-	sim:Advance(1)
-	t.eq(baseOf(sim, ninth), freed, "waiting player received the freed base")
-	t.eq(freed:GetAttribute("OwnerUserId"), 9)
-	t.near(distance(rootPos(ninth), spawnPos(freed)), 0, 0.01, "teleported onto the new base")
-	-- The client announces it (in the base's colours): «Тебе досталась <Цвет> база!».
-	t.ok(
-		anyContains(toastTexts(ninth), `Тебе досталась {freed:GetAttribute("ColorName")} база!`),
-		"toast about the freed base"
-	)
-	sim:AssertNoErrors()
-end
-
-tests["queue: a waiting player who leaves is removed from the queue"] = function(t)
-	local sim = boot(t)
-	local players = {}
-	for id = 1, 8 do
-		players[id] = addPlayer(sim, id)
-	end
-	local ninth = addPlayer(sim, 9)
-	local tenth = addPlayer(sim, 10)
-	sim:RemovePlayer(ninth)
-	sim:Advance(0.5)
-	local freed = baseOf(sim, players[1])
-	sim:RemovePlayer(players[1])
-	sim:Advance(1)
-	t.eq(baseOf(sim, tenth), freed, "10th (still waiting) got the base, not the departed 9th")
-	sim:AssertNoErrors()
-end
-
 tests["respawn: after death the character returns to the base after RespawnDelay"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
@@ -819,20 +744,6 @@ tests["home: junk arguments from the client are ignored safely"] = function(t)
 	sim:AssertNoErrors()
 end
 
-tests["home: a waiting player (no base) gets a warning, no teleport"] = function(t)
-	local sim = boot(t)
-	for id = 1, 8 do
-		addPlayer(sim, id)
-	end
-	local ninth = addPlayer(sim, 9)
-	local before = rootPos(ninth)
-	sim:FireServer(ninth, "RequestHome")
-	sim:Advance(0.2)
-	t.near(distance(rootPos(ninth), before), 0, 0.01, "not moved")
-	t.ok(anyContains(notifiesFor(sim, ninth), "нельзя"), "warning toast")
-	sim:AssertNoErrors()
-end
-
 tests["client HUD: badge shows the base, Home button visible and fires the remote"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
@@ -843,14 +754,9 @@ tests["client HUD: badge shows the base, Home button visible and fires the remot
 	local TextUtil = sim:Require(sim:Find("ReplicatedStorage.Shared.TextUtil"), p)
 	t.eq(label.Text, `{TextUtil.upper(p:GetAttribute("BaseColorName"))} БАЗА`, "the base name in CAPS")
 	-- The badge wears the base's clean swatch (UIConfig.BaseSwatches), not a tinted base colour
-	-- (a brick: its Top sits under the light cap, at UIConfig.Brick.CapStop).
+	-- (a plain Top → Bottom gradient).
 	local swatch = UIConfig.BaseSwatches[baseOf(sim, p):GetAttribute("ColorId")]
-	local top = nil
-	for _, key in hud.Status.BaseBadge.Swatch.Fill.Color.Keypoints do
-		if math.abs(key.Time - UIConfig.Brick.CapStop) < 1e-3 then
-			top = key.Value
-		end
-	end
+	local top = hud.Status.BaseBadge.Swatch.Fill.Color.Keypoints[1].Value
 	t.eq(top, swatch.Top)
 	t.eq(hud.Status.BaseBadge.Lip.BackgroundColor3, swatch.Lip)
 	local home = hud.RightButtons.HomeButton
@@ -887,70 +793,6 @@ tests["client HUD: toasts appear and are capped"] = function(t)
 	sim:Advance(10)
 	t.eq(visibleToasts(), 0, "toasts disappear")
 	t.eq(p.PlayerGui.HUD.BaseBanner.Visible, false, "the banner has flown into the badge")
-	sim:AssertNoErrors()
-end
-
-tests["no leaks: connections return to baseline after players leave"] = function(t)
-	local sim = boot(t)
-	local baseline = sim:CountConnections()
-	local players = {}
-	for id = 1, 5 do
-		players[id] = addPlayer(sim, id)
-	end
-	sim:KillCharacter(players[2])
-	sim:Advance(BaseConfig.RespawnDelay + 1)
-	for _, p in players do
-		sim:RemovePlayer(p)
-	end
-	sim:Advance(1)
-	t.eq(sim:CountConnections(), baseline, "server connections back to baseline")
-	sim:AssertNoErrors()
-end
-
-tests["queue is FIFO: a newcomer in the same frame does not overtake a waiting player"] = function(t)
-	-- In Roblox (Deferred events) a join processed in the same cycle as a leave runs BEFORE the
-	-- deferred serveQueue. The sim flushes on RemovePlayer, so widen that window explicitly.
-	local sim = bootPatched(t, {
-		{
-			path = "ServerScriptService.Services.BaseService",
-			from = "task.defer(serveQueue)",
-			to = "task.delay(0.5, serveQueue)",
-		},
-	})
-	local players = {}
-	for id = 1, 8 do
-		players[id] = addPlayer(sim, id)
-	end
-	local waiting = addPlayer(sim, 9)
-	local freed = baseOf(sim, players[4])
-	-- Leave + join without advancing time in between (same frame).
-	sim:RemovePlayer(players[4])
-	local newcomer = sim:AddPlayer({ UserId = 10, Name = "Player10", DisplayName = "Игрок10" })
-	sim:Advance(1)
-	t.eq(baseOf(sim, waiting), freed, "the waiting player got the freed base")
-	t.eq(newcomer:GetAttribute("BaseIndex"), 0, "the newcomer waits")
-	sim:AssertNoErrors()
-end
-
-tests["queue: a dead waiting player's body is not moved; they respawn on the new base"] = function(t)
-	local sim = boot(t)
-	local players = {}
-	for id = 1, 8 do
-		players[id] = addPlayer(sim, id)
-	end
-	local waiting = addPlayer(sim, 9)
-	local corpse = waiting.Character
-	sim:KillCharacter(waiting)
-	sim:Advance(0.2)
-	local corpsePos = corpse.HumanoidRootPart.CFrame.Position
-	local freed = baseOf(sim, players[2])
-	sim:RemovePlayer(players[2])
-	sim:Advance(0.5)
-	t.eq(baseOf(sim, waiting), freed, "got the base while dead")
-	t.near(distance(corpse.HumanoidRootPart.CFrame.Position, corpsePos), 0, 0.01, "corpse not teleported")
-	sim:Advance(BaseConfig.RespawnDelay + 0.5)
-	t.ok(waiting.Character ~= corpse, "respawned")
-	t.near(distance(rootPos(waiting), spawnPos(freed)), 0, 0.01, "respawned on the new base")
 	sim:AssertNoErrors()
 end
 

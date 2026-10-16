@@ -12,7 +12,8 @@
 	dark shade, glass and back), the stud API gone, recolor / swapText / flashText / punch, the sim
 	press (squash 0.9 + a darker face + overshoot + icon kick, no sink; hover only without a touch
 	screen), snapIn, rimFlash, morphFlash with the icon pop, the idle life on timers (breathe, bob,
-	sway, the «!» badge), the ring timer (tweens only) and reduced motion.
+	sway, the «!» badge), the ring timer (tweens only) and reduced motion; a partial rainbow that
+	bounces (no grey blend of its last colour into the first) and sparkles only beside a text plate.
 
 	Run: lune run tools/run_tests.luau uifx
 ]]
@@ -611,6 +612,32 @@ tests["idle life on timers: breathe, bob, wobble, badgeBob, sway — no frame jo
 		stopRing()
 	end)
 	t.eq(s:FindFirstChild("FxRingTimer"), nil, "stop removes it")
+	-- Its colour goes full → middle over the first half and middle → empty over the second, one
+	-- stage after the other (SIMB-C2-01: a delayed second tween cancelled the first one, so the
+	-- ring skipped the middle colour and went green → red through olive).
+	local full, middle, empty = Color3.fromRGB(0, 255, 0), Color3.fromRGB(255, 240, 0), Color3.fromRGB(255, 0, 0)
+	client(sim, p, function()
+		stopRing = UiFx.ringTimer(s, 2, { colors = { full, middle, empty } })
+	end)
+	local function ringColor(side: string): any
+		return s.FxRingTimer[side].Circle:FindFirstChildOfClass("UIStroke").Color
+	end
+	sim:Advance(1)
+	for _, side in { "Right", "Left" } do
+		t.ok(colorNear(ringColor(side), middle, 0.06), `{side}: the middle colour at half time ({ringColor(side)})`)
+	end
+	sim:Advance(0.5)
+	local mid = middle:Lerp(empty, 0.5)
+	t.ok(
+		colorNear(ringColor("Left"), mid, 0.06),
+		`between the middle and the empty colour at 3/4 ({ringColor("Left")})`
+	)
+	t.ok(ringColor("Left").G > 0.3, "still on its way from the middle (not a green → red blend)")
+	client(sim, p, function()
+		stopRing()
+	end)
+	sim:Advance(1)
+	t.eq(s:FindFirstChild("FxRingTimer"), nil, "stop removes the colour stages too")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -1112,7 +1139,7 @@ tests["sim in motion: press squash + shade + overshoot + icon kick (no sink); sn
 	t.near(frame.Size.X.Scale, restSize.X.Scale, 1e-3)
 	t.near(frame.Size.Y.Scale, restSize.Y.Scale, 1e-3)
 
-	-- Rim flash (replaces the v3 «studs pop»): the light rim flashes white, a white veil, a bump.
+	-- Rim flash: the light rim flashes white, a white veil, a bump.
 	local ring = face.Rim:FindFirstChildOfClass("UIStroke")
 	local rimRest = ring.Transparency
 	client(sim, p, function()
@@ -1158,6 +1185,87 @@ tests["sim in motion: press squash + shade + overshoot + icon kick (no sink); sn
 	t.eq(label.Text, "500")
 	t.near(label.FxScale.Scale, 1, 1e-3)
 	t.eq(UiFx.activeJobs(), 0, "nothing left running")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["rainbow bounce: a partial rainbow never blends through grey; outside sparkles never land on the plate"] = function(
+	t
+)
+	local sim, p = boot(t)
+	local UiFx = fxOf(sim, p)
+	local UIConfig = sim:Require(sim:Find("ReplicatedStorage.Shared.Config.UIConfig"), p)
+	-- ART-01: the Mythic minigame title runs the first 5 rainbow colours (red … cyan). As a circle,
+	-- cyan blended straight back into red through grey; «bounce» runs them there and back.
+	local five = { table.unpack(UIConfig.Rainbow, 1, 5) }
+	local function saturation(c: any): number
+		local hi = math.max(c.R, c.G, c.B)
+		return if hi <= 0 then 0 else (hi - math.min(c.R, c.G, c.B)) / hi
+	end
+	local function least(gradient: any): number
+		local low = 1
+		for _, point in gradient.Color.Keypoints do
+			low = math.min(low, saturation(point.Value))
+		end
+		return low
+	end
+	local s = stage(sim, p, "RainbowStage")
+	local circle = sim:Create("UIGradient", { Name = "Circle" }, s)
+	local swing = sim:Create("UIGradient", { Name = "Swing" }, s)
+	local stops = {}
+	client(sim, p, function()
+		stops.circle = UiFx.rainbow(circle, { speed = 0.5, colors = five })
+		stops.swing = UiFx.rainbow(swing, { speed = 0.5, colors = five, bounce = true })
+	end)
+	local circleLow, swingLow = 1, 1
+	for _ = 1, 40 do
+		sim:Advance(0.05)
+		circleLow = math.min(circleLow, least(circle))
+		swingLow = math.min(swingLow, least(swing))
+	end
+	t.ok(circleLow < 0.6, `(the circle does pass through grey: saturation {circleLow})`)
+	t.ok(swingLow >= 0.6, `bounce: every colour along the word stays saturated ({swingLow})`)
+	client(sim, p, function()
+		for _, stop in stops do
+			stop()
+		end
+	end)
+
+	-- ART-02: sparkles «outside» pop only beside a text plate, left and right, never over it (a
+	-- wide toast: the side bands would have landed on its last letters, «×5!») nor under it.
+	local plate = stage(sim, p, "SparkleStage")
+	local stop
+	client(sim, p, function()
+		stop = UiFx.sparkles(plate, { rate = 20, size = 0.3, outside = true })
+	end)
+	local seen, onPlate, offSide = 0, 0, 0
+	local box = plate.AbsolutePosition
+	local size = plate.AbsoluteSize
+	for _ = 1, 30 do
+		sim:Advance(0.07)
+		for _, item in plate:GetChildren() do
+			if item.Name == "FxSparkle" then
+				seen += 1
+				local at, wh = item.AbsolutePosition, item.AbsoluteSize
+				local dx = math.min(at.X + wh.X, box.X + size.X) - math.max(at.X, box.X)
+				local dy = math.min(at.Y + wh.Y, box.Y + size.Y) - math.max(at.Y, box.Y)
+				if dx > 0 and dy > 0 then
+					onPlate += 1
+				end
+				local middle = at.Y + wh.Y / 2
+				if middle < box.Y or middle > box.Y + size.Y then
+					offSide += 1
+				end
+			end
+		end
+	end
+	t.ok(seen >= 10, `sparkles keep coming ({seen})`)
+	t.eq(onPlate, 0, "none of them over the plate")
+	t.eq(offSide, 0, "all of them beside it (none above or under it)")
+	client(sim, p, function()
+		stop()
+	end)
+	t.eq(count(plate, "FxSparkle"), 0)
+	t.eq(UiFx.activeJobs(), 0)
 	sim:AssertNoErrors({ warnings = true })
 end
 

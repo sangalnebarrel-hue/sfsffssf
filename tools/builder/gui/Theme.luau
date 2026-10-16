@@ -3,8 +3,8 @@
 	Roblox-simulator style of the user's reference (chunky saturated gradient buttons, a THICK
 	outline in a dark shade of the button's own hue, a thin light rim inside it, bold white
 	Montserrat Heavy text with a dark outline, outlined emoji icons, big italic numbers and huge
-	outlined titles with no panel, translucent dark "glass" pills). No studs anywhere in the GUI:
-	the LEGO look belongs to the map. Style guide and the full API: tools/builder/gui/STYLE.md.
+	outlined titles with no panel, translucent dark "glass" pills). Every surface is smooth: the
+	LEGO look belongs to the map. Style guide and the full API: tools/builder/gui/STYLE.md.
 
 	Colours, the font family and the shape numbers are NOT defined here: palette tokens, rarity
 	and mutation styles, toast kinds, UIConfig.Font and UIConfig.Sim are read from
@@ -35,11 +35,8 @@
 	"<Name>Shadow" a little lower (a sibling: with ZIndexBehavior Sibling a child would draw over
 	its parent; UiFx keeps the twin in step).
 
-	Compat (UI v3/v4 names that tools/builder/gui/Fishing.luau still calls until the fishing waves
-	restyle it): brick / tile / roundPlate build sim plates (a dark tile becomes glass), topStud and
-	studRow build NOTHING (they return a detached empty frame), studScale is 1, candyButton / pill /
-	socket build the sim button / plate / a transparent icon holder; BZ = SZ, BRICK = the shape
-	numbers with no side band (Lip 0).
+	Every widget of the HUD (the chrome, the fishing widgets, the catch card) is built from these
+	primitives: sim / glass / simButton / plate / socket / badge / stat / title / label / icon.
 ]]
 
 local U = require("../Util")
@@ -91,15 +88,6 @@ local SZ = {
 	Content = 3, -- icons, captions, labels
 	Overlay = 5, -- cooldowns, locks
 	Top = 6, -- text over overlays
-}
-
--- Compat: the v3/v4 brick numbers Fishing.luau still reads (a sim face covers its root: no band).
-local BRICK = {
-	Lip = 0,
-	TileLip = 0,
-	Radius = SIM.Radius,
-	TileRadius = SIM.PlateRadius,
-	CapStop = UI.Brick.CapStop,
 }
 
 --------------------------------------------------------------------------------
@@ -161,12 +149,6 @@ local function swatch(token: any): any
 		return found
 	end
 	return token
-end
-
--- A dark look (Night, Coal, Glass): a smooth tile in it becomes glass.
-local function isDark(look: any): boolean
-	local _, _, v = look.Top:ToHSV()
-	return look.Alpha ~= nil or v < 0.42
 end
 
 --------------------------------------------------------------------------------
@@ -300,8 +282,7 @@ end
 --[[
 	Emoji icon: its own label, upright (Rotation 0 unless given), with a dark Ink contour around the
 	emoji's shape (Outline = px at 720, default 3; false = none) — the reference's black-outlined
-	icons. A faint glyph (TextTransparency > 0) gets no contour. (Sticker = the v3 key, read as
-	Outline.)
+	icons. A faint glyph (TextTransparency > 0) gets no contour.
 ]]
 local function icon(parent: any, name: string, emoji: string, props: { [string]: any }?): any
 	local base: { [string]: any } = {
@@ -312,7 +293,7 @@ local function icon(parent: any, name: string, emoji: string, props: { [string]:
 	}
 	local contour: any = nil
 	for key, value in props or {} do
-		if key == "Outline" or key == "Sticker" then
+		if key == "Outline" then
 			contour = value
 		else
 			base[key] = value
@@ -525,8 +506,7 @@ end
 	           "round"  — a round button, the icon in the middle (captions are added by the caller);
 	           "stack"  — the v3 layout: icon over caption on the face (default)
 	  Icon (emoji), Caption (text), Tier (caption text tier), Radius, Square (UIAspectRatioConstraint 1),
-	  MaxTextSize / MinTextSize (a caption without a Tier), SimOpts (extra Theme.sim opts),
-	  Brick / CandyOpts (v3 keys: accepted, the studs ignored).
+	  MaxTextSize / MinTextSize (a caption without a Tier), SimOpts (extra Theme.sim opts).
 ]]
 local function simButton(parent: any, name: string, token: any, props: { [string]: any }): any
 	local base: { [string]: any } = {
@@ -545,8 +525,6 @@ local function simButton(parent: any, name: string, token: any, props: { [string
 		MaxTextSize = true,
 		MinTextSize = true,
 		SimOpts = true,
-		CandyOpts = true,
-		Brick = true,
 	}
 	for key, value in props do
 		if not special[key] then
@@ -564,10 +542,6 @@ local function simButton(parent: any, name: string, token: any, props: { [string
 	}
 	for key, value in props.SimOpts or {} do
 		simOpts[key] = value
-	end
-	if type(props.Brick) == "table" then
-		simOpts.radius = props.Brick.radius or simOpts.radius
-		simOpts.color = props.Brick.color
 	end
 	sim(button, token, simOpts)
 
@@ -683,7 +657,7 @@ end
 	  Socket (true → the icon sits in a transparent holder "IconSocket"; else a direct "Icon"),
 	  Text, Tier, Italic, MaxTextSize, LabelProps (extra Label properties), Radius (default
 	  UIConfig.Sim.PlateRadius), Glass (true → a glass pill), Color (a runtime colour),
-	  SimOpts (extra Theme.sim opts); the v3 keys Brick / CandyOpts are accepted.
+	  SimOpts (extra Theme.sim opts).
 ]]
 local function plate(parent: any, name: string, token: any, props: { [string]: any }): any
 	local base: { [string]: any } = { Name = name, BackgroundTransparency = 1 }
@@ -699,9 +673,7 @@ local function plate(parent: any, name: string, token: any, props: { [string]: a
 		Radius = true,
 		Glass = true,
 		SimOpts = true,
-		CandyOpts = true,
 		LabelProps = true,
-		Brick = true,
 	}
 	for key, value in props do
 		if not special[key] then
@@ -709,12 +681,11 @@ local function plate(parent: any, name: string, token: any, props: { [string]: a
 		end
 	end
 	local frame = U.new("Frame", base, parent)
-	local brickOpts = if type(props.Brick) == "table" then props.Brick else {}
-	local radius = props.Radius or brickOpts.radius or SIM.PlateRadius
+	local radius = props.Radius or SIM.PlateRadius
 	if props.Glass then
 		glass(frame, { radius = radius })
 	else
-		local simOpts: { [string]: any } = { radius = radius, color = props.Color or brickOpts.color }
+		local simOpts: { [string]: any } = { radius = radius, color = props.Color }
 		for key, value in props.SimOpts or {} do
 			simOpts[key] = value
 		end
@@ -865,100 +836,6 @@ local function rarityGradient(parent: any, rarityId: string, rotation: number?):
 	return gradient(parent, style.Top, style.Bottom, rotation or 90, "Fill")
 end
 
---------------------------------------------------------------------------------
--- Compat: the v3 / v4 brick API that tools/builder/gui/Fishing.luau still calls. Every one of
--- them builds the sim look (no studs); the fishing waves replace the calls with sim / glass /
--- simButton / plate and then these go.
---------------------------------------------------------------------------------
-
--- Outline weights of the compat shapes: the big ones (the action disc, «СМОТАТЬ», the bite and
--- minigame panels, the catch card and its banner) get the chrome's chunky UIConfig.Sim.Stroke —
--- the most important button is the chunkiest, as in the reference (SIM-C1-03); the small ones
--- (tiles, chips, pills: the key chip, the price and weight chips, «НОВИНКА!») the minor outline.
-local COMPAT_STROKE = MINOR
-
--- v3 brick / tile → a sim plate (studs, spec, lip ignored); a dark smooth tile → glass.
-local function brick(root: any, token: any, opts: { [string]: any }?): any
-	local o = opts or {}
-	local tile = o.tile == true
-	local look = if o.color then UI.swatchFor(o.color) else swatch(token)
-	local radius = o.radius or (if tile then SIM.PlateRadius else SIM.Radius)
-	if tile and isDark(look) then
-		return glass(root, { radius = radius, shine = o.shine, z = o.z })
-	end
-	local thickness = o.stroke or (if tile then COMPAT_STROKE else STROKE)
-	return sim(root, look, {
-		radius = radius,
-		stroke = thickness,
-		faceName = o.faceName,
-		shine = o.shine,
-		z = o.z,
-		rim = if thickness < 4 then 1.5 else nil,
-	})
-end
-
-local function tile(root: any, token: any, opts: { [string]: any }?): any
-	local o: { [string]: any } = { tile = true }
-	for key, value in opts or {} do
-		o[key] = value
-	end
-	return brick(root, token, o)
-end
-
--- v4 round plate (the action button) → a round sim button (no raised stud), chunky outline + gloss.
-local function roundPlate(button: any, token: any, opts: { [string]: any }?): any
-	local o = opts or {}
-	return sim(
-		button,
-		token,
-		{ round = true, color = o.color, shine = o.shine, z = o.z, stroke = STROKE, gloss = true }
-	)
-end
-
--- v3 studs seen from above: nothing is drawn any more (a detached, empty frame is returned).
-local function topStud(_parent: any, name: string, _props: { [string]: any }?): any
-	return U.new("Frame", { Name = name, BackgroundTransparency = 1 })
-end
-
-local function studRow(_parent: any, props: { [string]: any }): any
-	return U.new("Frame", { Name = props.Name or "StudRow", BackgroundTransparency = 1 })
-end
-
-local function studScale(_refHeight: number): number
-	return 1
-end
-
--- v1-v3 candy button → simButton (the "stack" layout unless given).
-local function candyButton(parent: any, name: string, token: any, props: { [string]: any }): any
-	local o: { [string]: any } = {}
-	for key, value in props do
-		o[key] = value
-	end
-	if o.Radius == nil then
-		o.Radius = if o.Brick then SIM.Radius else SIM.PlateRadius
-	end
-	local simOpts: { [string]: any } = { stroke = STROKE }
-	for key, value in o.SimOpts or {} do
-		simOpts[key] = value
-	end
-	o.SimOpts = simOpts
-	return simButton(parent, name, token, o)
-end
-
--- v1-v3 pill → plate (chips: the minor outline, see COMPAT_STROKE).
-local function pill(parent: any, name: string, token: any, props: { [string]: any }): any
-	local o: { [string]: any } = {}
-	for key, value in props do
-		o[key] = value
-	end
-	local simOpts: { [string]: any } = { stroke = COMPAT_STROKE }
-	for key, value in o.SimOpts or {} do
-		simOpts[key] = value
-	end
-	o.SimOpts = simOpts
-	return plate(parent, name, token, o)
-end
-
 return {
 	U = U,
 	UI = UI,
@@ -998,16 +875,5 @@ return {
 	stat = stat,
 	title = title,
 	rarityGradient = rarityGradient,
-	-- compat (Fishing.luau until the fishing waves)
-	BZ = SZ,
-	BRICK = BRICK,
-	brick = brick,
-	tile = tile,
-	roundPlate = roundPlate,
-	topStud = topStud,
-	studRow = studRow,
-	studScale = studScale,
 	socket = socket,
-	candyButton = candyButton,
-	pill = pill,
 }

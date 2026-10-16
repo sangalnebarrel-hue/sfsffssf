@@ -29,7 +29,7 @@
 	раскладывает этот модуль (без UIListLayout): новое уведомление съезжает сверху в свой слот с
 	пружинкой, значок «вкручивается» (−180° → 0), когда плашка села (у предупреждения и громких —
 	потом ещё качается), по плашке пробегает блик, у громких вспыхивает ободок; «успех» и
-	громкие — со звёздочками, «опасность» — встряхивается.
+	громкие — со звёздочками по бокам плашки (не на буквах), «опасность» — встряхивается.
 	Соседи съезжают на новые места с лёгким перелётом (Back Out). Без тач-экрана колонка (по центру) сужается так,
 	чтобы не задевать окно чата Roblox слева вверху (CHAT_RIGHT, CHAT_GAP), и при смене размера окна.
 
@@ -572,11 +572,12 @@ present = function(item: Pending)
 		UiFx.shine(frame, if big then 0.8 else 0.6)
 	end))
 	if big then
-		trove:Add(UiFx.sparkles(frame, { rate = 7, duration = 2, size = 0.45 }))
+		-- (Звёздочки — только по бокам плашки и мельче: на буквах они закрыли бы «×5!», ART-02.)
+		trove:Add(UiFx.sparkles(frame, { rate = 7, duration = 2, size = 0.3, outside = true }))
 		trove:Add(UiFx.arpeggio(if style.Rainbow then "Legendary" else "Epic", 0.25))
 		-- (v3, UIM-06: чужой улов экран не красит — края экрана только у своего.)
 	elseif item.kind == "success" or item.kind == "base" then
-		trove:Add(UiFx.sparkles(frame, { rate = 6, duration = 1.2, size = 0.75 }))
+		trove:Add(UiFx.sparkles(frame, { rate = 6, duration = 1.2, size = 0.5, outside = true }))
 	elseif item.kind == "danger" then
 		trove:Add(task.delay(ENTER_TIME, function()
 			UiFx.wiggle(frame, 4, 3, 0.4)

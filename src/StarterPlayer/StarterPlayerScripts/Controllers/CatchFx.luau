@@ -28,8 +28,8 @@
 	    (огромная мифическая рыба на маленьком телефоне).
 	  • stampText / tapHint — надписи штампа мутации и подсказки «закрыть» под размер карточки: на
 	    узкой широкой карточке длинные не влезают в строку не мельче 12–13 px (TextScaled тогда
-	    рвёт слово посередине) — короче; stampMin — наклейка «НОВИНКА!» на узкой карточке уже
-	    (не на имя).
+	    рвёт слово посередине) — короче («РАДУГА», «Тапни!»); stampMin — наклейка «НОВИНКА!» на
+	    узкой карточке уже (не на имя).
 	  • raysClip / raysFrame / raysSize / aimRays / ghostRays — лучи за карточкой: крупные (не
 	    меньше RAYS_MIN её высот), но слой CatchRays у карточки рядом с рыбаком обрезает их у его
 	    края (ClipsDescendants; полуплоскость по одну сторону от него): до рыбака с трофеем они не
@@ -37,7 +37,8 @@
 	    собственные лучи.
 	  • fitChip — подпись фишки начинается правее её значка (узкие фишки маленькой квадратной
 	    карточки); floatSpot — куда вылетает «+N 💰» у карточки сбоку от рыбака: над баннером или у
-	    внешнего края, а не на окно с рыбой.
+	    внешнего края, а не на окно с рыбой (и не в ряд верхней панели Roblox, и не на наклейку
+	    «НОВИНКА!»; места нет — не вылетает).
 	Всё, что живёт дольше вызова, отменяется уборкой trove (карточка закрылась — хвостов нет).
 ]]
 
@@ -57,8 +58,11 @@ CatchFx.SHORT_HINT = 238
 -- Квадратная карточка уже стольких px — штамп мутации без «×N» (не влезает в строку).
 CatchFx.FULL_STAMP = 340
 -- Широкая карточка уже стольких px (запасное место у огромного трофея, 0.85–0.95 DockMin) —
--- штамп мутации и без «!» («РАДУЖНАЯ!» не влезает в строку не мельче 12 px).
+-- штамп мутации коротким словом STAMP_SHORT («РАДУЖНАЯ» и без «!» не влезает в строку не мельче
+-- 12 px: TextScaled рвал её в «РАДУЖНА / Я», SIMC-C2-01).
 CatchFx.SHORT_STAMP = 190
+CatchFx.STAMP_SHORT =
+	{ ["РАДУЖНАЯ"] = "РАДУГА", ["НЕОНОВАЯ"] = "НЕОН", ["ЗОЛОТАЯ"] = "ЗОЛОТО" }
 -- Наклейка «НОВИНКА!» не шире такой доли карточки (но и не уже STAMP_MIN px; не шире, чем в
 -- сборщике): на узкой карточке она иначе наезжает на имя.
 CatchFx.STAMP_SHARE = 0.5
@@ -222,13 +226,28 @@ function CatchFx.clearRadius(trophy: { x0: number, y0: number, x1: number, y1: n
 end
 
 -- Штамп мутации: «ЗОЛОТАЯ ×2!»; на широкой карточке (телефон) и на квадратной уже FULL_STAMP px
--- (сбоку от рыбака) штамп маленький — без «×N» («×N» и так впечатывается в угол фишки цены).
-function CatchFx.stampText(name: string, multiplier: number, wide: boolean, width: number?): string
+-- (сбоку от рыбака) штамп маленький — без «×N» («×N» и так впечатывается в угол фишки цены); на
+-- широкой уже SHORT_STAMP — коротким словом («РАДУГА»). room — ширина строки штампа, px: и из
+-- этого — первое, что в ней помещается не мельче 12 px (маленькая квадратная карточка у огромного
+-- трофея: «РАДУЖНАЯ!» иначе рвалась в «РАДУЖНА / Я!»).
+function CatchFx.stampText(name: string, multiplier: number, wide: boolean, width: number?, room: number?): string
 	local upper = TextUtil.upper(name)
-	if wide and width and width < CatchFx.SHORT_STAMP then
-		return upper
+	local short = CatchFx.STAMP_SHORT[upper] or upper
+	local text = if wide
+			and width
+			and width < CatchFx.SHORT_STAMP
+		then short
+		elseif wide or (width and width < CatchFx.FULL_STAMP) then `{upper}!`
+		else `{upper} ×{multiplier}!`
+	if room then
+		for _, candidate in { text, `{upper}!`, upper, short } do
+			if UiFx.textWidth(candidate, 12) * 1.05 <= room then -- (+5 %: оценка по буквам, с запасом)
+				return candidate
+			end
+		end
+		return short
 	end
-	return if wide or (width and width < CatchFx.FULL_STAMP) then `{upper}!` else `{upper} ×{multiplier}!`
+	return text
 end
 
 --[[
@@ -491,18 +510,26 @@ export type FloatSpot = {
 	want: number, -- высота надписи, px
 	least: number, -- … не меньше (иначе — следующее место)
 	gap: number, -- зазор до карточки, px
-	limits: (top: number, bottom: number) -> (number, number), -- свободно по X в полосе (sideLimits)
+	-- свободно по X в полосе (sideLimits; и не у кнопок меню и чата Roblox вверху слева)
+	limits: (top: number, bottom: number) -> (number, number),
+	rise: number?, -- на столько px надпись поднимается, уже долетев (UiFx.floatText rise): её верх
+	-- на пике подъёма тоже в полосе (не в ряду верхней панели Roblox)
+	sticker: { x0: number, y0: number, x1: number, y1: number }?, -- «НОВИНКА!» на окне (рисунок), nil — нет
 }
 
 --[[
 	Куда вылетает «+N 💰» у карточки сбоку от рыбака (SIMC-C1-03: не на окно с рыбой — ребёнок как
 	раз смотрит на свою рыбу): над баннером, если там помещается надпись не ниже least (по X — над
-	карточкой, не за край рыбака); иначе — у внешнего края карточки (от рыбака) на высоте цены,
-	иначе — под карточкой; нет и там — на верхнюю полоску окна у его правого края (центр — 0.18 его высоты, высота — не
-	больше 0.3 окна; слева наверху — наклейка) и тает раньше (третье — true). Возвращает центр и
-	высоту надписи.
+	карточкой, не за край рыбака; с подъёмом rise — не выше верха HUD и, у верхней панели Roblox, не
+	левее её кнопок: limits); иначе — у внешнего края карточки (от рыбака) на высоте цены, иначе —
+	под карточкой; нет и там — на верхнюю полоску окна у его правого края (центр — 0.18 его высоты,
+	высота — не больше 0.3 окна) правее наклейки «НОВИНКА!» (sticker; SIMC-C2-02: на узком окне
+	телефона надпись иначе ложилась на неё) и тает раньше (третье — true). Возвращает центр и
+	высоту надписи; nil — места нет нигде (тогда «+N 💰» не вылетает: фишка цены и так пружинит и
+	сыплет искры, а цена — самое крупное число карточки).
 ]]
-function CatchFx.floatSpot(o: FloatSpot): (Vector2, number, boolean)
+function CatchFx.floatSpot(o: FloatSpot): (Vector2?, number, boolean)
+	local rise = o.rise or 0
 	-- Над баннером или под карточкой (room — высота полосы; down — под карточкой): по X — над
 	-- ней, не за край рыбака.
 	local function band(room: number, down: boolean): (Vector2?, number)
@@ -511,7 +538,7 @@ function CatchFx.floatSpot(o: FloatSpot): (Vector2, number, boolean)
 			return nil, h
 		end
 		local cy = if down then o.card.y1 + o.gap + h / 2 else o.card.y0 - o.gap - h / 2
-		local left, right = o.limits(cy - h / 2, cy + h / 2)
+		local left, right = o.limits(cy - h / 2 - rise, cy + h / 2)
 		if o.side < 0 then
 			right = math.min(right, o.edge - o.gap)
 		else
@@ -525,31 +552,41 @@ function CatchFx.floatSpot(o: FloatSpot): (Vector2, number, boolean)
 		local cx = math.clamp((o.card.x0 + o.card.x1) / 2, left + half, math.max(left + half, right - half))
 		return Vector2.new(cx, cy), h
 	end
-	local above, high = band(o.card.y0 - o.gap - 4, false)
+	local above, high = band(o.card.y0 - o.gap - 4 - rise, false)
 	if above then
 		return above, high, false
 	end
 	-- У внешнего края карточки, на высоте цены.
-	local y = o.source.Y
-	local left, right = o.limits(y - o.want / 2, y + o.want / 2)
+	local y = math.max(o.source.Y, o.want / 2 + 4 + rise)
+	local left, right = o.limits(y - o.want / 2 - rise, y + o.want / 2)
 	local room = if o.side < 0 then o.card.x0 - o.gap - left else right - (o.card.x1 + o.gap)
 	local h = math.min(o.want, room / o.perHeight)
 	if h >= o.least then
 		local w = h * o.perHeight
 		local cx = if o.side < 0 then o.card.x0 - o.gap - w / 2 else o.card.x1 + o.gap + w / 2
-		return Vector2.new(cx, math.clamp(y, h / 2 + 4, o.root.Y - h / 2 - 4)), h, false
+		return Vector2.new(cx, math.clamp(y, h / 2 + 4 + rise, o.root.Y - h / 2 - 4)), h, false
 	end
 	-- Под карточкой.
 	local below, low = band(o.root.Y - 4 - o.card.y1 - o.gap, true)
 	if below then
 		return below, low, false
 	end
-	-- Верхняя полоска окна (у его правого края: слева наверху — наклейка «НОВИНКА!») — и тает
-	-- раньше.
+	-- Верхняя полоска окна (у его правого края; правее наклейки «НОВИНКА!», если она в этой
+	-- полоске) — и тает раньше. Не влезает не ниже least — места нет.
 	local window = o.window
 	local ww, wh = window.x1 - window.x0, window.y1 - window.y0
-	h = math.min(o.want, wh * 0.3, ww * 0.96 / o.perHeight)
-	return Vector2.new(window.x1 - ww * 0.02 - h * o.perHeight / 2, window.y0 + wh * 0.18), h, true
+	local from, to = window.x0 + ww * 0.02, window.x1 - ww * 0.02
+	h = math.min(o.want, wh * 0.3)
+	local cy = window.y0 + wh * 0.18
+	local sticker = o.sticker
+	if sticker and sticker.y1 > cy - h / 2 and sticker.y0 < cy + h / 2 then
+		from = math.max(from, sticker.x1 + o.gap)
+	end
+	h = math.min(h, math.max(to - from, 0) / o.perHeight)
+	if h < o.least then
+		return nil, h, true
+	end
+	return Vector2.new(to - h * o.perHeight / 2, cy), h, true
 end
 
 return CatchFx

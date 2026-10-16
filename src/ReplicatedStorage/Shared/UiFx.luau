@@ -800,9 +800,9 @@ export type RimFlashOptions = {
 }
 
 --[[
-	Вспышка ободка (UI v5, вместо «пупырок по очереди» v3): светлый ободок Rim лица на миг
-	становится белым и сплошным и возвращается к UIConfig.Sim.RimAlpha (Quad Out), по лицу —
-	белая накладка FxMorph 0.6 → 1, кнопка чуть «вдыхает» (1 → 1.06 → 1). Только твины.
+	Вспышка ободка (UI v5): светлый ободок Rim лица на миг становится белым и сплошным и
+	возвращается к UIConfig.Sim.RimAlpha (Quad Out), по лицу — белая накладка FxMorph 0.6 → 1,
+	кнопка чуть «вдыхает» (1 → 1.06 → 1). Только твины.
 ]]
 function UiFx.rimFlash(root: GuiObject, opts: RimFlashOptions?)
 	local o: RimFlashOptions = opts or {}
@@ -1779,11 +1779,15 @@ export type SparkleOptions = {
 	area: number?, -- насколько выходить за края (0.18)
 	duration: number?, -- сами остановятся через столько секунд
 	z: number?, -- ZIndex (8)
+	outside: boolean?, -- только СБОКУ от элемента, слева и справа (плашка с текстом: ни на буквах,
+	-- ни над и под ней — там соседи и голова персонажа)
 }
 
 --[[
-	✨ / ⭐ то тут, то там по краям элемента: выскакивают, поворачиваются и гаснут. Таймеры и твины,
-	без соединений. Возвращает stop (живые звёздочки удаляются сразу).
+	✨ / ⭐ то тут, то там по краям элемента: выскакивают, поворачиваются и гаснут. outside —
+	только слева и справа от него (с запасом на поворот и перелёт звёздочки): на плашках с текстом
+	(тосты, штамп мутации, баннер) они не ложатся на буквы, а под тостом — на голову персонажа.
+	Таймеры и твины, без соединений. Возвращает stop (живые звёздочки удаляются сразу).
 ]]
 function UiFx.sparkles(gui: GuiObject, opts: SparkleOptions?): Stop
 	if reduced() then
@@ -1813,7 +1817,15 @@ function UiFx.sparkles(gui: GuiObject, opts: SparkleOptions?): Stop
 
 	local function spawnOne()
 		local x, y
-		if rng:NextNumber() < 0.5 then
+		local s = size * rng:NextNumber(0.7, 1.15)
+		local box = gui.AbsoluteSize
+		if o.outside and box.X > 0 and box.Y > 0 then
+			-- Половина звёздочки (в долях высоты элемента; повёрнутая на 45° и с перелётом
+			-- Back Out — до 0.75 её стороны) за боковым краем, и ещё до area дальше.
+			local dx = (0.75 * s + rng:NextNumber(0, area) * 0.6) * box.Y / box.X
+			x = if rng:NextNumber() < 0.5 then -dx else 1 + dx
+			y = rng:NextNumber(0.15, 0.85)
+		elseif rng:NextNumber() < 0.5 then
 			x = rng:NextNumber(-area, 1 + area)
 			y = if rng:NextNumber() < 0.5 then rng:NextNumber(-area, 0.12) else rng:NextNumber(0.88, 1 + area)
 		else
@@ -1832,7 +1844,6 @@ function UiFx.sparkles(gui: GuiObject, opts: SparkleOptions?): Stop
 		label.AnchorPoint = Vector2.new(0.5, 0.5)
 		label.Position = UDim2.fromScale(x, y)
 		label.SizeConstraint = Enum.SizeConstraint.RelativeYY
-		local s = size * rng:NextNumber(0.7, 1.15)
 		label.Size = UDim2.fromScale(s, s)
 		label.Rotation = rng:NextNumber(-25, 25)
 		label.ZIndex = o.z or 8
@@ -1893,6 +1904,7 @@ export type FloatOptions = {
 	z: number?, -- ZIndex (20)
 	to: UDim2?, -- сначала вылететь из position сюда (Back Out за travel), потом подниматься
 	travel: number?, -- 0.3 с
+	anchor: Vector2?, -- какую точку надписи задаёт position — вокруг неё UIScale её и растит (середина)
 }
 
 -- «ОТЛИЧНО!», «+1 🐟»: жирный наклонный текст с толстой обводкой выскакивает (0.4 → 1, Back Out),
@@ -1910,7 +1922,7 @@ function UiFx.floatText(container: GuiBase2d, text: string, opts: FloatOptions?)
 	label.FontFace = FONT_ITALIC
 	label.TextColor3 = o.color or WHITE
 	label.TextStrokeTransparency = 1
-	label.AnchorPoint = Vector2.new(0.5, 0.5)
+	label.AnchorPoint = o.anchor or Vector2.new(0.5, 0.5)
 	label.Position = start
 	label.Size = o.size or UDim2.fromScale(0.5, 0.2)
 	label.Rotation = if reduced() then 0 else (o.rotate or rng:NextNumber(-6, 6))
@@ -2325,8 +2337,10 @@ export type RingTimerOptions = {
 	(ClipsDescendants) с кругом в каждой; у круга обводка ВНУТРЬ (Inner: целиком внутри половины,
 	обрезка её не режет) с градиентом прозрачности «половина видна». Убывает по часовой от 12
 	часов: правая половина поворачивает свой градиент 180 → 360 за duration / 2, левая — 0 → 180
-	следом; цвет идёт colors[1] → [2] → [3]. track — тёмная канавка «Track» под кольцом. Только
-	твины: ни одного покадрового эффекта. Возвращает stop (всё удаляется).
+	следом; цвет идёт colors[1] → [2] за первую половину и [2] → [3] за вторую (ступени по
+	очереди, как у полоски timerBar с теми же цветами). track — тёмная канавка «Track» под
+	кольцом. Только твины и task.delay: ни одного покадрового эффекта. Возвращает stop (всё
+	удаляется).
 ]]
 function UiFx.ringTimer(gui: GuiObject, duration: number, opts: RingTimerOptions?): Stop
 	local o: RingTimerOptions = opts or {}
@@ -2367,6 +2381,7 @@ function UiFx.ringTimer(gui: GuiObject, duration: number, opts: RingTimerOptions
 		track.Parent = holder
 	end
 	local tweens: { Tween } = {}
+	local rings: { UIStroke } = {}
 	local function sideOf(name: string, x: number, from: number, to: number, delay: number)
 		local side = Instance.new("Frame")
 		side.Name = name
@@ -2401,19 +2416,36 @@ function UiFx.ringTimer(gui: GuiObject, duration: number, opts: RingTimerOptions
 		if #colors >= 2 then
 			table.insert(tweens, tween(ring, half, { Color = colors[2] }, LINEAR, OUT))
 		end
-		if #colors >= 3 then
-			table.insert(tweens, tween(ring, half, { Color = colors[3] }, LINEAR, OUT, half))
-		end
+		table.insert(rings, ring)
 	end
 	sideOf("Right", 0.5, 180, 360, 0)
 	sideOf("Left", 0, 0, 180, half)
 	holder.Parent = gui
+	-- Цвет — двумя ступенями ПО ОЧЕРЕДИ: твин к colors[3] запускается, когда первый дошёл до
+	-- colors[2] (запуск твина того же свойства отменяет идущий — с DelayTime второй сразу снимал
+	-- первый, и кольцо шло зелёный → красный мимо жёлтого).
+	local stages: { thread } = {}
+	if #colors >= 3 then
+		table.insert(
+			stages,
+			task.delay(half, function()
+				for _, ring in rings do
+					if ring.Parent then
+						table.insert(tweens, tween(ring, half, { Color = colors[3] }, LINEAR, OUT))
+					end
+				end
+			end)
+		)
+	end
 	local thread = task.delay(duration + 0.05, function()
 		holder:Destroy()
 	end)
+	table.insert(stages, thread)
 	return function()
-		if coroutine.status(thread) == "suspended" then
-			pcall(task.cancel, thread)
+		for _, waiting in stages do
+			if coroutine.status(waiting) == "suspended" then
+				pcall(task.cancel, waiting)
+			end
 		end
 		for _, playing in tweens do
 			playing:Cancel()
@@ -2477,9 +2509,12 @@ export type RainbowOptions = {
 	speed: number?, -- оборотов цвета в секунду (0.35)
 	colors: { Color3 }?, -- цвета (UIConfig.Rainbow)
 	spin: number?, -- ещё и вращать градиент, градусов в секунду
+	bounce: boolean?, -- цвета туда и обратно (не круг): для неполной радуги — последний не
+	-- смешивается с первым (голубой → красный дал бы серую полосу)
 }
 
--- Радуга: цвета градиента бегут по кругу (Mythic, мутация «Радужная»). Возвращает stop.
+-- Радуга: цвета градиента бегут по кругу (Mythic, мутация «Радужная»); bounce — «маятником»
+-- (красный → … → голубой → … → красный: соседи только из списка). Возвращает stop.
 function UiFx.rainbow(gradient: UIGradient, opts: RainbowOptions?): Stop
 	local o: RainbowOptions = opts or {}
 	local colors = o.colors or UIConfig.Rainbow
@@ -2487,10 +2522,13 @@ function UiFx.rainbow(gradient: UIGradient, opts: RainbowOptions?): Stop
 	local speed = (o.speed or 0.35) * (if reduced() then MOTION.Reduced.Rainbow else 1)
 	local original = gradient.Color
 	local originalRotation = gradient.Rotation
-	local points = math.min(count * 2, 18)
+	local points = math.min((if o.bounce then 2 * math.max(count - 1, 1) else count) * 2, 18)
 	local phase = 0
 	local sinceApply = 0
 	local function sample(t: number): Color3
+		if o.bounce then
+			return sampleColors(colors, 1 - math.abs(2 * (t % 1) - 1))
+		end
 		local x = (t % 1) * count
 		local index = math.floor(x)
 		return colors[index % count + 1]:Lerp(colors[(index + 1) % count + 1], x - index)
@@ -2526,7 +2564,7 @@ end
 
 -- Полоса-таймер: ширина тает от полной до 0 за duration, цвет идёт зелёный → жёлтый → красный.
 function UiFx.timerBar(fill: GuiObject, duration: number, colors: { Color3 }?): Stop
-	local list = colors or { Palette.Leaf.Top, Palette.Sun.Top, Palette.Berry.Bottom }
+	local list = colors or { Palette.Leaf.Top, Palette.Gold.Top, Palette.Berry.Bottom }
 	local base = fill.Size
 	local total = math.max(duration, 0.01)
 	local elapsed = 0
@@ -2589,6 +2627,8 @@ export type ShockwaveOptions = {
 	thickness: number?, -- толщина кольца на экране 720 px (14; на телефоне тоньше)
 	glow: number?, -- мягкий диск в центре: прозрачность в начале (0.55; 1 — без диска)
 	z: number?, -- ZIndex (60: над виджетами, под вспышкой и краями экрана)
+	from: number?, -- с какого диаметра начинаются кольца, в высотах слоя (0.3, не меньше): шире
+	-- того, что приземлилось (огромный трофей на маленьком телефоне)
 }
 
 --[[
@@ -2600,7 +2640,8 @@ export type ShockwaveOptions = {
 function UiFx.shockwave(layer: GuiBase2d, origin: Vector2, opts: ShockwaveOptions?)
 	local o: ShockwaveOptions = opts or {}
 	local time = o.time or 0.45
-	local size = o.size or 1.3
+	local start = math.max(o.from or 0.3, 0.3)
+	local size = math.max(o.size or 1.3, start * 1.3)
 	local z = o.z or 60
 	local k = math.clamp(screenUnit(layer) / Fx.StrokeHeight, 0.65, 1.5)
 	local made: { Instance } = {}
@@ -2622,9 +2663,10 @@ function UiFx.shockwave(layer: GuiBase2d, origin: Vector2, opts: ShockwaveOption
 		table.insert(made, frame)
 		return frame
 	end
-	-- Кольцо начинается чуть шире того, что приземлилось (0.3 высоты слоя: снаружи ореола рыбы), и расходится.
+	-- Кольцо начинается чуть шире того, что приземлилось (from, не меньше 0.3 высоты слоя: снаружи
+	-- ореола рыбы), и расходится.
 	local function ring(name: string, color: Color3, px: number, to: number, ringTime: number)
-		local frame = circle(name, math.min(0.3, to))
+		local frame = circle(name, math.min(start, to))
 		local stroke = Instance.new("UIStroke")
 		stroke.Color = color
 		stroke.Thickness = px
@@ -2645,7 +2687,7 @@ function UiFx.shockwave(layer: GuiBase2d, origin: Vector2, opts: ShockwaveOption
 	ring("FxShock", o.color or WHITE, thick, size, time)
 	task.delay(0.06, function()
 		if layer.Parent then
-			ring("FxShockInner", WHITE, math.max(thick * 0.4, 2), size * 0.72, time * 0.9)
+			ring("FxShockInner", WHITE, math.max(thick * 0.4, 2), math.max(size * 0.72, start * 1.15), time * 0.9)
 		end
 	end)
 	local glow = o.glow or 0.55
@@ -3090,9 +3132,19 @@ export type TrailOptions = {
 	count: number?, -- копий (3)
 	lag: number?, -- отставание каждой копии, с (0.035)
 	transparency: number?, -- прозрачность первой копии (0.55)
+	last: number?, -- прозрачность последней (nil: равными шагами к 1)
+	color: Color3?, -- цвет копий (nil: цвет элемента)
+	width: number?, -- ширина первой копии — доля ширины элемента (1)
+	taper: number?, -- … и последней (nil: как первой) — шлейф сужается к хвосту
+	height: number?, -- высота копий — доля высоты элемента (1)
+	z: number?, -- ZIndex копий (nil: на 1 ниже элемента)
 }
 
--- «Шлейф»: полупрозрачные копии элемента догоняют его (стрелка мини-игры). Возвращает stop.
+--[[
+	«Шлейф»: полупрозрачные копии элемента догоняют его (стрелка мини-игры): каждая — на lag с
+	позади предыдущей, прозрачнее и (с taper) уже к хвосту, без обводки, — яркая полоса скорости.
+	Возвращает stop.
+]]
 function UiFx.trail(gui: GuiObject, opts: TrailOptions?): Stop
 	local o: TrailOptions = opts or {}
 	local count = o.count or 3
@@ -3102,17 +3154,29 @@ function UiFx.trail(gui: GuiObject, opts: TrailOptions?): Stop
 	if not parent then
 		return noop
 	end
+	local widthFirst = o.width or 1
+	local widthLast = o.taper or widthFirst
+	local height = o.height or 1
 	local ghosts: { Frame } = {}
 	for index = 1, count do
+		local k = if count > 1 then (index - 1) / (count - 1) else 0
+		local share = widthFirst + (widthLast - widthFirst) * k
 		local ghost = Instance.new("Frame")
 		ghost.Name = "FxGhost"
 		ghost.AnchorPoint = gui.AnchorPoint
-		ghost.Size = gui.Size
+		ghost.Size = UDim2.new(
+			gui.Size.X.Scale * share,
+			gui.Size.X.Offset * share,
+			gui.Size.Y.Scale * height,
+			gui.Size.Y.Offset * height
+		)
 		ghost.Position = gui.Position
-		ghost.BackgroundColor3 = gui.BackgroundColor3
-		ghost.BackgroundTransparency = first + (1 - first) * (index - 1) / count
+		ghost.BackgroundColor3 = o.color or gui.BackgroundColor3
+		ghost.BackgroundTransparency = if o.last
+			then first + (o.last - first) * k
+			else first + (1 - first) * (index - 1) / count
 		ghost.BorderSizePixel = 0
-		ghost.ZIndex = math.max(gui.ZIndex - 1, 0)
+		ghost.ZIndex = o.z or math.max(gui.ZIndex - 1, 0)
 		copyCorner(gui, ghost)
 		ghost.Parent = parent
 		table.insert(ghosts, ghost)

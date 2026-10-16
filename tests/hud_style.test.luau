@@ -81,13 +81,8 @@ local function colorNear(a: any, b: any, eps: number?): boolean
 	return math.abs(a.R - b.R) <= e and math.abs(a.G - b.G) <= e and math.abs(a.B - b.B) <= e
 end
 
--- A sim face's Top colour: the keypoint at UIConfig.Brick.CapStop (0 since UI v5: no cap).
+-- A sim face's Top colour: the first keypoint of its Top → Bottom "Fill".
 local function capTop(fill: any): any
-	for _, key in fill.Color.Keypoints do
-		if math.abs(key.Time - UIConfig.Brick.CapStop) < 1e-3 then
-			return key.Value
-		end
-	end
 	return fill.Color.Keypoints[1].Value
 end
 
@@ -190,7 +185,7 @@ end
 
 -- A sim plate / button (Theme.sim): the Lip carries the thick outline (no fill) in the swatch's
 -- dark shade, the face covers the root with a Top → Bottom "Fill", a light Rim inside, a hidden
--- Shine; no studs, no glint, no side band.
+-- Shine; a smooth surface: nothing raised, no glint, no side band.
 local function checkSim(t: any, root: any, token: string?, what: string)
 	local faceName = root:GetAttribute("CandyFace")
 	t.ok(type(faceName) == "string", `{what}: CandyFace attribute`)
@@ -229,8 +224,8 @@ local function checkSim(t: any, root: any, token: string?, what: string)
 	t.ok(math.abs(shine.Band.Offset.X) >= 1, `{what}: the band waits out of sight`)
 end
 
--- Anything stud-like under root: none may exist in the GUI (empty v3 holders that Fishing.luau
--- still builds until the fishing waves draw nothing and are not counted).
+-- A guard: nothing stud-like may be built under root (the GUI is smooth; the LEGO look belongs
+-- to the map).
 local function studsUnder(root: any): { string }
 	local found = {}
 	for _, d in root:GetDescendants() do

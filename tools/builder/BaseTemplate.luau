@@ -511,8 +511,9 @@ end
 --[[
 	The base's words in the world in the reference's billboard style (UI v5 «Симулятор», like its
 	«МАГАЗИН СЛЕДОВ» / «БЕСПЛАТНО!»; tools/builder/gui/STYLE.md): Montserrat Heavy (UIConfig.Font),
-	no plate and no studs (those belong to the map), white letters under a vertical fill gradient
-	"Fill" and a dark round outline "Outline" in the dark shade of the fill's hue. BaseService
+	no plate (smooth letters straight over the world), white letters under a vertical fill
+	gradient "Fill" and a THIN dark round outline "Outline" in the dark shade of the fill's hue
+	(like the reference's 1.5–2 px on a 33 px cap: px of the BillboardGui / SurfaceGui). BaseService
 	repaints them: a free base — «СВОБОДНО!» in UIConfig.BillboardGreen, the owner's name white,
 	the base's name in CAPS in its colour (UIConfig.BaseSwatches).
 ]]
@@ -1060,9 +1061,10 @@ end
 
 local function signFace(board: any, face: any)
 	local gui = surfaceGui(board, "Sign" .. face.Name, face, 32)
-	-- (UI v5: the billboard letters of the owner sign over the flag, on the cream board)
-	billboardText(textBand(gui, "OwnerLabel", "СВОБОДНО!", C.White, 0.08, 0.54, false), UI.BillboardGreen, 4)
-	billboardText(textBand(gui, "BaseLabel", "БАЗА", C.White, 0.64, 0.3, false), SIGN_WHITE, 3)
+	-- (UI v5: the billboard letters of the owner sign over the flag, on the cream board; a thin
+	-- outline like the reference's billboard words — ≈ 0.06 of the cap, 32 px per stud)
+	billboardText(textBand(gui, "OwnerLabel", "СВОБОДНО!", C.White, 0.08, 0.54, false), UI.BillboardGreen, 3)
+	billboardText(textBand(gui, "BaseLabel", "БАЗА", C.White, 0.64, 0.3, false), SIGN_WHITE, 2.5)
 end
 
 local function buildGate(template: any, plot: any)
@@ -1160,8 +1162,8 @@ local function buildFlag(template: any): any
 	)
 
 	-- Owner sign above the mast (BaseService writes the owner name / base name): the reference's
-	-- billboard words floating over the flag, no plate (UI v5; the v3 «Кирпичики» brick plate with
-	-- its studs is gone): «СВОБОДНО!» in billboard green (a free base) or the owner's name in white,
+	-- billboard words floating over the flag, no plate (UI v5): «СВОБОДНО!» in billboard green (a
+	-- free base) or the owner's name in white,
 	-- under it the base's name in CAPS in its colour, and over them «ТВОЯ БАЗА!» in green — hidden,
 	-- only the owner's own client shows it (HudController). Studs + pixels (10 x 3.2 studs + 150 x
 	-- 52 px): readable across the lagoon (MaxDistance 500); the labels stay direct children of
@@ -1190,12 +1192,13 @@ local function buildFlag(template: any): any
 		}, sign)
 	end
 	-- (Три строки целиком в рамке таблички, с запасом под обводку: за рамкой BillboardGui
-	-- может обрезать.)
+	-- может обрезать. Обводка тонкая, как у слов образца «МАГАЗИН СЛЕДОВ» / «БЕСПЛАТНО!»:
+	-- ≈ 0.06–0.1 высоты заглавной буквы через лагуну — px BillboardGui, вблизи буквы крупнее.)
 	local yours = words("YoursLabel", "ТВОЯ БАЗА!", 0.02, 0.7, 0.26)
-	billboardText(yours, UI.BillboardGreen, 3)
+	billboardText(yours, UI.BillboardGreen, 2)
 	yours.Visible = false
-	billboardText(words("OwnerLabel", "СВОБОДНО!", 0.28, 0.96, 0.41), UI.BillboardGreen, 3.5)
-	billboardText(words("BaseLabel", "БАЗА", 0.69, 0.84, 0.28), SIGN_WHITE, 3)
+	billboardText(words("OwnerLabel", "СВОБОДНО!", 0.28, 0.96, 0.41), UI.BillboardGreen, 2)
+	billboardText(words("BaseLabel", "БАЗА", 0.69, 0.84, 0.28), SIGN_WHITE, 1.5)
 	return signOffset
 end
 
