@@ -680,7 +680,7 @@ rendered by `--timeline` or by name):
 | `catch_timeline_mythic` | a real Mythic Rainbow catch (Рыба-дракон) | 0..9 s @ 6 fps + burst |
 | `fishing_timeline` | a whole real session with the avatar (Epic Рыба-меч) from the tap «ЗАБРОСИТЬ»: wind-up and throw, the wait (shadow, nibbles), the bite, the strike, the fight with the bent rod and the taut line, the winning tap, the leap, both arms up with the fish, the card (the bite comes 2.6 s after the landing: `h:fixBiteDelay`) | 0..9.5 s @ 4 fps + `_world` (no HUD) |
 | `trophy_hold` | after the card has closed: the Legendary trophy over the head bobs and flops (FishLife), the nameplate beside it, both arms hold it up (cropped to the fisher, no x-ray) | 0..3.2 s @ 5 fps |
-| `lost_fish` | a Rare fight, then a tap outside the zone: «МИМО!», the line flashes red and goes slack, the fish dives off, the shadow flees, the fisher slumps and shakes his head (on a phone the minigame panel hides him: see `_world`) | 0..3.4 s @ 8 fps + `_world` |
+| `lost_fish` | a Rare fight, then a tap outside the zone: «МИМО!», the line flashes red and goes slack, the fish dives off, the shadow flees, the fisher slumps and shakes his head (the minigame panel stands beside him on every device — on a tablet and a PC too since r4, UX-01; `_world` shows the world alone) | 0..3.4 s @ 8 fps + `_world` |
 | `ambient_pier` | the living world from the pier tip, nothing else happening (stub server): a fish jumps (`AmbientController.JumpSoon` at 1.2 s), the pier gull swoops (`SwoopSoon`), schools, dragonflies, foam rings, swaying flags, the windmill and the Ferris wheel turn | 0..6 s @ 4 fps + `_world` + `_motion` |
 
 World + HUD scenarios in `gui_scenarios.luau` (`server = true`, `world = true`, not in `--all`; by
