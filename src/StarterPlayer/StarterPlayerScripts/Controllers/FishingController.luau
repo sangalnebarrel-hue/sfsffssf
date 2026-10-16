@@ -1971,7 +1971,8 @@ do
 		  ConfettiMid  мифическая: второй залп конфетти через столько после приземления.
 		  Fly          уходя, карточка сама летит снарядом в счётчик (Shrink — её размер у цели, Reach
 		               — доля пути, Travel — время, Quad In); через Fly рядом с ней вылетают 🐟 и ★ и
-		               долетают вместе с ней за FishTime (★ — друг за другом через StarGap).
+		               долетают вместе с ней за FishTime (★ — одной стайкой, до 6: разлетаются из карточки и
+		               летят друг за другом через 2 × StarGap; один покадровый эффект).
 		  Fov, FovWide, Yaw, Swing, SwingPeriod, FishBob, FishBobPeriod   рыба во ViewportFrame: камера
 		               (на широкой — уже: меньше искажений), рыба вполоборота (нос чуть к камере),
 		               покачивается ±Swing (ребром не встаёт) и «дышит» вверх-вниз (доля её высоты).
@@ -2039,7 +2040,8 @@ do
 		NewStamp = { Position = UDim2.fromScale(0.14, 0.32), Size = UDim2.fromScale(0.26, 0.12) },
 		-- (UI v5: чуть выше — обведённый значок мутации у нижнего угла не подходит к джойстику
 		-- ближе 16 px на маленьком телефоне.)
-		MutationLabel = { Position = UDim2.fromScale(0.25, 0.88), Size = UDim2.fromScale(0.42, 0.12), Rotation = -4 },
+		-- (UI v5: «РАДУЖНАЯ!» в одну строку не мельче 12 px и на самой маленькой карточке — шире.)
+		MutationLabel = { Position = UDim2.fromScale(0.25, 0.88), Size = UDim2.fromScale(0.46, 0.125), Rotation = -4 },
 		NameLabel = { Position = UDim2.fromScale(0.75, 0.272), Size = UDim2.fromScale(0.46, 0.205) },
 		-- Цена — главное число карточки: её «фишка» выше веса (крупный текст, уровень Title).
 		InfoLabel = { Position = UDim2.fromScale(0.75, 0.485), Size = UDim2.fromScale(0.42, 0.355) },
@@ -3796,25 +3798,24 @@ do
 				task.delay(0.15, finishCatch, serial, true)
 			end,
 		}))
+		-- ★ — одной стайкой (один покадровый эффект: бюджет полёта — не больше трёх): разлетаются
+		-- из карточки и летят друг за другом, на прилёте каждой — «тик» всё выше.
 		local style = UIConfig.Rarity[reveal.Id] or UIConfig.Rarity.Common
-		local colors = if style.Rainbow then UIConfig.Rainbow else { style.Top, WHITE, style.Bottom }
-		for index = 1, reveal.Trail do
-			later(celebrationTrove, CARD.StarGap * index, function()
-				celebrationTrove:Add(UiFx.flyTo(hud, start, counter, {
-					text = "★",
-					color = colors[(index - 1) % #colors + 1],
-					time = CARD.FishTime,
-					size = fishPx * (0.62 - 0.03 * index) / height,
-					arc = 0.08 + 0.03 * (index % 3),
-				}))
-				if index == reveal.Trail then
-					start:Destroy()
-				end
-			end)
+		if reveal.Trail > 0 then
+			celebrationTrove:Add(UiFx.flyTo(hud, start, counter, {
+				text = "★",
+				color = if style.Rainbow then UIConfig.Rainbow[5] else style.Top,
+				count = reveal.Trail,
+				gap = CARD.StarGap * 2,
+				time = CARD.FishTime,
+				size = fishPx * 0.55 / height,
+				arc = 0.12,
+				onEach = function(index: number)
+					UiFx.sound("tick", 0.18, 1.15 + 0.06 * index)
+				end,
+			}))
 		end
-		if reveal.Trail < 1 then
-			start:Destroy()
-		end
+		start:Destroy() -- (откуда лететь, flyTo запомнил сразу)
 	end
 
 	local function closeCard()

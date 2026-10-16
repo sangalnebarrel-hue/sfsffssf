@@ -1237,6 +1237,10 @@ tests["closing: skip, then close — the card itself flies into the counter, �
 		end
 	end
 	t.ok(stars > 0, "★ in the rarity colours follow it")
+	t.ok(
+		UiFx.activeJobs() <= 3,
+		`the close flight: ≤ 3 frame effects — the card, the 🐟, the ★ flock ({UiFx.activeJobs()})`
+	)
 	t.eq(hud:GetAttribute("CounterHold"), 0, "the counter still holds its number while they fly")
 	t.eq(button.Ring.Transparency, 1, "…still no halo on the frozen button")
 	sim:Advance(0.15) -- close + 0.39 s

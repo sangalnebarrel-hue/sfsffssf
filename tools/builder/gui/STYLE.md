@@ -394,7 +394,9 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   closes by itself after `UIConfig.CatchCardTime` (at least 0.6 s after its last beat). Closing:
   the card itself is the projectile — it flies into the counter shrinking to a speck (the first
   catch: the counter pops in with «🐟 0»; the card aims at its slot in the Status list), a 🐟
-  with ★ in the rarity colours leaves beside it and they land together (tap → «+1» ≈ 0.35 s; the
+  leaves beside it and they land together, a flock of ★ in the rarity colour (up to 6, one frame
+  effect — `UiFx.flyTo { count }`: they scatter out of the card and follow 0.06 s apart, a rising
+  tick on each arrival; the close flight stays within 3 frame effects) (tap → «+1» ≈ 0.35 s; the
   counter holds its number meanwhile and greets the fish in the rarity colour — its number rolls
   like an odometer); right after the
   «+1» the trophy over the head flashes once more (`FishingFxController.ReplayOwnTrophy`; the own
