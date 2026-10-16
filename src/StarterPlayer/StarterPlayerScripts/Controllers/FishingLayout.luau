@@ -20,7 +20,10 @@
 	    bottom.
 	  • topBand — полоса НАД рыбаком (и рыбой над головой): огромное слово редкости.
 	  • flightHits — заденет ли виджет прямоугольник, вылетая из точки на своё место.
-	  • hintWidth — ширина плитки подсказки под её текст.
+	  • hintWidth — ширина «таблетки» подсказки под её текст.
+	  • JUMP_SMALL / JUMP_BIG, jumpCircle, growRoom — кнопка прыжка Roblox на тач-экране и во
+	    сколько раз может вырасти круглая кнопка действия (пульс, кольца), не подходя к ней ближе
+	    заданного зазора.
 	  • rectOf / placeOf — прямоугольник виджета «в покое» по Position/Size/AnchorPoint и обратно.
 	Ничего не создаёт и не подключает: вызывается в событиях (поклёвка, мини-игра, подсказка,
 	карточка), не каждый кадр.
@@ -310,17 +313,52 @@ function FishingLayout.flightHits(from: Vector2, to: Rect, keepout: Rect, startS
 end
 
 --[[
-	Ширина плитки подсказки под её текст (UIM-03): плитка не шире нужного (а не полоса на полэкрана
-	над ногами рыбака). Надпись занимает 0.8 ширины справа, значок в кружке — левый край (его
-	правый край ≈ 0.78 высоты плитки: плитка не уже 5 высот, иначе надпись наедет на значок).
-	Ширина текста — оценка: HINT_CHAR × размер на букву (Nunito Heavy ≈ 0.43, с запасом); не
-	влезает в maxWidth — две строки (TextWrapped).
+	Ширина «таблетки» подсказки под её текст (UIM-03): не шире нужного (а не полоса на полэкрана
+	над ногами рыбака). Надпись занимает HINT_LABEL ширины справа (концы «таблетки» круглые),
+	значок — у левого края (его правый край ≈ 0.78 высоты: «таблетка» не уже 5 высот, иначе
+	надпись наедет на значок). textWidth — ширина текста в px, измеренная по буквам (UiFx.textWidth:
+	Montserrat Heavy, курсив почти той же ширины); без неё — оценка HINT_CHAR × размер на букву
+	(Montserrat Heavy ≈ 0.54 в обычном тексте, с запасом). Не влезает в maxWidth — две строки
+	(TextWrapped).
 ]]
-local HINT_CHAR = 0.5
-function FishingLayout.hintWidth(text: string, textSize: number, height: number, maxWidth: number): number
+local HINT_CHAR = 0.6
+local HINT_LABEL = 0.78
+function FishingLayout.hintWidth(
+	text: string,
+	textSize: number,
+	height: number,
+	maxWidth: number,
+	textWidth: number?
+): number
 	local letters = utf8.len(text) or #text
-	local want = (letters * HINT_CHAR * textSize + 8) / 0.8
+	local measured = textWidth or letters * HINT_CHAR * textSize
+	local want = (measured + 10) / HINT_LABEL
 	return math.floor(math.min(math.max(want, 5 * height), math.max(maxWidth, 5 * height)))
+end
+
+--[[
+	Кнопка прыжка Roblox на тач-экране (у короткой стороны экрана ≤ 500 px — маленькая): отступы от
+	правого и нижнего края и размер, px. Джойстик слева — её зеркало. Низ и правый край корня HUD —
+	низ и правый край экрана (полоса меню Roblox — только сверху).
+]]
+FishingLayout.JUMP_SMALL = { right = 25, bottom = 20, size = 70 }
+FishingLayout.JUMP_BIG = { right = 50, bottom = 90, size = 120 }
+
+-- Центр и радиус кнопки прыжка в px корня размера rootSize.
+function FishingLayout.jumpCircle(rootSize: Vector2, small: boolean): (Vector2, number)
+	local jump = if small then FishingLayout.JUMP_SMALL else FishingLayout.JUMP_BIG
+	local r = jump.size / 2
+	return Vector2.new(rootSize.X - jump.right - r, rootSize.Y - jump.bottom - r), r
+end
+
+--[[
+	Сколько px радиуса есть у круглого виджета (центр center, px корня) до кнопки прыжка, если между
+	ними должно остаться clear px: расстояние между центрами минус радиус кнопки и зазор. Кнопка
+	действия по нему решает, насколько могут вырасти её кольца (они растут вместе с её пульсом).
+]]
+function FishingLayout.growRoom(center: Vector2, rootSize: Vector2, small: boolean, clear: number): number
+	local jump, r = FishingLayout.jumpCircle(rootSize, small)
+	return math.max((center - jump).Magnitude - r - clear, 0)
 end
 
 -- Прямоугольник (px корня rootSize) элемента с такими Position, размером в px и AnchorPoint.
