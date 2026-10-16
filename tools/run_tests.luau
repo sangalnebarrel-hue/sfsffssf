@@ -12,6 +12,10 @@
 -- Exit code is non-zero when any test fails or a file crashes. Each file has a
 -- wall-clock limit (SIM_TEST_TIMEOUT seconds, default 600). LUNE_BIN overrides
 -- the Lune executable used for child processes.
+-- A child writes every result to a results file as it goes (synchronously, so
+-- nothing is lost when it exits) and ends it with a "done" record; a file whose
+-- results stop short of that record fails loudly instead of silently dropping
+-- its last tests (stdout alone could lose the tail on a loaded machine).
 
 local fs = require("@lune/fs")
 local process = require("@lune/process")
@@ -194,8 +198,16 @@ end
 
 -- Child mode: run one file and emit machine-readable results --------------------------------------
 
+local resultsPath: string? = nil
+local resultLines: { string } = {}
+
 local function emit(record)
-	print(MARK .. serde.encode("json", record))
+	local line = MARK .. serde.encode("json", record)
+	print(line)
+	if resultsPath then
+		table.insert(resultLines, line)
+		fs.writeFile(resultsPath, table.concat(resultLines, "\n") .. "\n")
+	end
 end
 
 local function normalizeSuite(suite)
@@ -341,6 +353,9 @@ while i <= #args do
 	if a == "--child" then
 		childFile = args[i + 1]
 		i += 1
+	elseif a == "--results" then
+		resultsPath = args[i + 1]
+		i += 1
 	elseif a == "--inproc" then
 		inproc = true
 	elseif a == "--verbose" or a == "-v" then
@@ -354,7 +369,14 @@ while i <= #args do
 end
 
 if childFile then
-	runFile(childFile, filters, emit)
+	local count = 0
+	runFile(childFile, filters, function(record)
+		if record.kind == "result" then
+			count += 1
+		end
+		emit(record)
+	end)
+	emit({ kind = "done", file = childFile, count = count })
 	process.exit(0)
 end
 
@@ -404,7 +426,16 @@ for _, rel in files do
 	if inproc then
 		runFile(rel, fileFilters, printResult)
 	else
-		local childArgs = { "run", SELF, "--child", rel }
+		local resultsFile = string.format(
+			"%s/simtest-%s-%s.jsonl",
+			process.env.TMPDIR or "/tmp",
+			(string.gsub(rel, "[^%w]", "_")),
+			tostring(os.time())
+		)
+		if fs.isFile(resultsFile) then
+			fs.removeFile(resultsFile)
+		end
+		local childArgs = { "run", SELF, "--child", rel, "--results", resultsFile }
 		for _, f in fileFilters do
 			table.insert(childArgs, f)
 		end
@@ -416,12 +447,27 @@ for _, rel in files do
 		end
 		local res = process.exec(program, childArgs, { cwd = ROOT })
 		local gotResult = false
+		local done = false
 		local otherOutput = {}
-		for line in string.gmatch(res.stdout, "[^\n]*") do
+		-- The results file is the record (written synchronously by the child); stdout is the
+		-- fallback and the place of everything else the file printed.
+		local fromFile = if fs.isFile(resultsFile) then fs.readFile(resultsFile) else nil
+		if fromFile then
+			fs.removeFile(resultsFile)
+		end
+		for line in string.gmatch(fromFile or res.stdout, "[^\n]*") do
 			if string.sub(line, 1, #MARK) == MARK then
-				gotResult = true
-				printResult(serde.decode("json", string.sub(line, #MARK + 1)))
-			elseif line ~= "" then
+				local record = serde.decode("json", string.sub(line, #MARK + 1))
+				if record.kind == "done" then
+					done = true
+				else
+					gotResult = true
+					printResult(record)
+				end
+			end
+		end
+		for line in string.gmatch(res.stdout, "[^\n]*") do
+			if line ~= "" and string.sub(line, 1, #MARK) ~= MARK then
 				table.insert(otherOutput, line)
 			end
 		end
@@ -437,6 +483,10 @@ for _, rel in files do
 			print(string.format("FAIL %s (%s)", rel, why))
 			local tail = res.stderr ~= "" and res.stderr or table.concat(otherOutput, "\n")
 			print("  " .. (string.gsub(string.sub(tail, -3000), "\n", "\n  ")))
+		elseif not done then
+			failed += 1
+			table.insert(failures, rel .. " (results cut short)")
+			print(string.format("FAIL %s (its results stop before the end: some tests may not have run)", rel))
 		elseif not gotResult and #fileFilters == 0 then
 			print(string.format("WARN %s produced no test results", rel))
 		end
