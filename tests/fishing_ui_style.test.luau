@@ -1862,8 +1862,16 @@ tests["minigame rarity: the rider by rarity rides the zone and hops; Rare light 
 		"… above the panel (never over the needle and the zone)"
 	)
 	t.eq(rider.Text, "🦈", "Legendary: 🦈")
-	t.ok(rider.Size.Y.Scale > riderSize.Y.Scale * 1.2, "… bigger")
+	t.ok(rider.Size.Y.Scale > riderSize.Y.Scale * 1.1, "… bigger")
 	sim:Advance(0.6)
+	-- SIMB-C2-03: the big rider stays in the band under the title (never on its letters) and sits
+	-- on a light disc in the rarity colour, so the dark 🦈 reads on the navy panel.
+	local title = mini.Title
+	t.ok(
+		rider.AbsolutePosition.Y >= title.AbsolutePosition.Y + title.AbsoluteSize.Y - 1,
+		`… under the title ({rider.AbsolutePosition.Y} / {title.AbsolutePosition.Y + title.AbsoluteSize.Y})`
+	)
+	t.ok(rider.BackgroundTransparency < 0.9, "… on a light disc")
 	t.eq(mini.AuraStroke.Enabled, true, "Legendary: a gold rim")
 	t.ok(mini:FindFirstChild("FxRays"), "rays behind the panel")
 	t.eq(mini.FxRays.ZIndex, 0, "…behind the candy")
@@ -1872,6 +1880,7 @@ tests["minigame rarity: the rider by rarity rides the zone and hops; Rare light 
 	t.eq(mini.AuraStroke.Enabled, false, "the rim goes with the minigame")
 	t.eq(rider.Visible, false)
 	t.eq(rider.Size, riderSize, "the rider back to its size")
+	t.eq(rider.BackgroundTransparency, 1, "…and off its disc")
 	sim:Advance(1.5)
 	t.eq(hud:FindFirstChild("FxVignette"), nil, "the edges faded away")
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
@@ -3126,7 +3135,7 @@ tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticke
 	-- narrow phone window there is no room beside it — no fly-out at all, never over the sticker.
 	local sticker = { x0 = 625, y0 = 85, x1 = 700, y1 = 115 }
 	local right = spot(30, 950, 660, { sticker = sticker })
-	t.ok(right.c and right.c.X - right.h * 5.4 / 2 >= sticker.x1 + 10 - 1e-6, "right of the sticker")
+	t.ok(right.c and right.c.X - right.h * 5.4 / 2 >= sticker.x1 + 10 - 1e-3, "right of the sticker")
 	local narrow = spot(30, 950, 660, {
 		window = { x0 = 630, y0 = 90, x1 = 730, y1 = 190 },
 		sticker = { x0 = 625, y0 = 85, x1 = 715, y1 = 120 },

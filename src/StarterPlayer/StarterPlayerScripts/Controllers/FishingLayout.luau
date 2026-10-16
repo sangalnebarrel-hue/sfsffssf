@@ -502,6 +502,9 @@ function FishingLayout.cardDock(
 		if bestSide < 0 then keepout.x0 else keepout.x1
 end
 
+-- Запасное место, прижатое к рыбаку с трофеем (leastCover), — на столько px от его края.
+local PRESS_GAP = 2
+
 -- Площадь пересечения двух прямоугольников (0 — не пересекаются).
 local function overlapArea(a: Rect, b: Rect): number
 	return math.max(0, math.min(a.x1, b.x1) - math.max(a.x0, b.x0))
@@ -533,8 +536,10 @@ function FishingLayout.leastCover(
 		if band.right - band.left < fw or band.bottom - band.top < h then
 			continue
 		end
-		local xs = { band.left, band.right - fw, keepout.x0 - fw, keepout.x1 }
-		local ys = { band.top, band.bottom - h, keepout.y0 - h, keepout.y1, mid - h / 2 }
+		-- (прижатая к его краю — с зазором PRESS_GAP: рыбак с трофеем к рождению карточки
+		-- сдвигается на доли пикселя — покачивание, камера выше, — и вплотную она бы его задела)
+		local xs = { band.left, band.right - fw, keepout.x0 - fw - PRESS_GAP, keepout.x1 + PRESS_GAP }
+		local ys = { band.top, band.bottom - h, keepout.y0 - h - PRESS_GAP, keepout.y1 + PRESS_GAP, mid - h / 2 }
 		for _, x in xs do
 			x = math.clamp(x, band.left, band.right - fw)
 			for _, y in ys do
