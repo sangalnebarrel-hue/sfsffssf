@@ -2325,8 +2325,10 @@ export type RingTimerOptions = {
 	(ClipsDescendants) с кругом в каждой; у круга обводка ВНУТРЬ (Inner: целиком внутри половины,
 	обрезка её не режет) с градиентом прозрачности «половина видна». Убывает по часовой от 12
 	часов: правая половина поворачивает свой градиент 180 → 360 за duration / 2, левая — 0 → 180
-	следом; цвет идёт colors[1] → [2] → [3]. track — тёмная канавка «Track» под кольцом. Только
-	твины: ни одного покадрового эффекта. Возвращает stop (всё удаляется).
+	следом; цвет идёт colors[1] → [2] за первую половину и [2] → [3] за вторую (ступени по
+	очереди, как у полоски timerBar с теми же цветами). track — тёмная канавка «Track» под
+	кольцом. Только твины и task.delay: ни одного покадрового эффекта. Возвращает stop (всё
+	удаляется).
 ]]
 function UiFx.ringTimer(gui: GuiObject, duration: number, opts: RingTimerOptions?): Stop
 	local o: RingTimerOptions = opts or {}
@@ -2367,6 +2369,7 @@ function UiFx.ringTimer(gui: GuiObject, duration: number, opts: RingTimerOptions
 		track.Parent = holder
 	end
 	local tweens: { Tween } = {}
+	local rings: { UIStroke } = {}
 	local function sideOf(name: string, x: number, from: number, to: number, delay: number)
 		local side = Instance.new("Frame")
 		side.Name = name
@@ -2401,19 +2404,36 @@ function UiFx.ringTimer(gui: GuiObject, duration: number, opts: RingTimerOptions
 		if #colors >= 2 then
 			table.insert(tweens, tween(ring, half, { Color = colors[2] }, LINEAR, OUT))
 		end
-		if #colors >= 3 then
-			table.insert(tweens, tween(ring, half, { Color = colors[3] }, LINEAR, OUT, half))
-		end
+		table.insert(rings, ring)
 	end
 	sideOf("Right", 0.5, 180, 360, 0)
 	sideOf("Left", 0, 0, 180, half)
 	holder.Parent = gui
+	-- Цвет — двумя ступенями ПО ОЧЕРЕДИ: твин к colors[3] запускается, когда первый дошёл до
+	-- colors[2] (запуск твина того же свойства отменяет идущий — с DelayTime второй сразу снимал
+	-- первый, и кольцо шло зелёный → красный мимо жёлтого).
+	local stages: { thread } = {}
+	if #colors >= 3 then
+		table.insert(
+			stages,
+			task.delay(half, function()
+				for _, ring in rings do
+					if ring.Parent then
+						table.insert(tweens, tween(ring, half, { Color = colors[3] }, LINEAR, OUT))
+					end
+				end
+			end)
+		)
+	end
 	local thread = task.delay(duration + 0.05, function()
 		holder:Destroy()
 	end)
+	table.insert(stages, thread)
 	return function()
-		if coroutine.status(thread) == "suspended" then
-			pcall(task.cancel, thread)
+		for _, waiting in stages do
+			if coroutine.status(waiting) == "suspended" then
+				pcall(task.cancel, waiting)
+			end
 		end
 		for _, playing in tweens do
 			playing:Cancel()
@@ -2526,7 +2546,7 @@ end
 
 -- Полоса-таймер: ширина тает от полной до 0 за duration, цвет идёт зелёный → жёлтый → красный.
 function UiFx.timerBar(fill: GuiObject, duration: number, colors: { Color3 }?): Stop
-	local list = colors or { Palette.Leaf.Top, Palette.Sun.Top, Palette.Berry.Bottom }
+	local list = colors or { Palette.Leaf.Top, Palette.Gold.Top, Palette.Berry.Bottom }
 	local base = fill.Size
 	local total = math.max(duration, 0.01)
 	local elapsed = 0
@@ -3090,9 +3110,19 @@ export type TrailOptions = {
 	count: number?, -- копий (3)
 	lag: number?, -- отставание каждой копии, с (0.035)
 	transparency: number?, -- прозрачность первой копии (0.55)
+	last: number?, -- прозрачность последней (nil: равными шагами к 1)
+	color: Color3?, -- цвет копий (nil: цвет элемента)
+	width: number?, -- ширина первой копии — доля ширины элемента (1)
+	taper: number?, -- … и последней (nil: как первой) — шлейф сужается к хвосту
+	height: number?, -- высота копий — доля высоты элемента (1)
+	z: number?, -- ZIndex копий (nil: на 1 ниже элемента)
 }
 
--- «Шлейф»: полупрозрачные копии элемента догоняют его (стрелка мини-игры). Возвращает stop.
+--[[
+	«Шлейф»: полупрозрачные копии элемента догоняют его (стрелка мини-игры): каждая — на lag с
+	позади предыдущей, прозрачнее и (с taper) уже к хвосту, без обводки, — яркая полоса скорости.
+	Возвращает stop.
+]]
 function UiFx.trail(gui: GuiObject, opts: TrailOptions?): Stop
 	local o: TrailOptions = opts or {}
 	local count = o.count or 3
@@ -3102,17 +3132,29 @@ function UiFx.trail(gui: GuiObject, opts: TrailOptions?): Stop
 	if not parent then
 		return noop
 	end
+	local widthFirst = o.width or 1
+	local widthLast = o.taper or widthFirst
+	local height = o.height or 1
 	local ghosts: { Frame } = {}
 	for index = 1, count do
+		local k = if count > 1 then (index - 1) / (count - 1) else 0
+		local share = widthFirst + (widthLast - widthFirst) * k
 		local ghost = Instance.new("Frame")
 		ghost.Name = "FxGhost"
 		ghost.AnchorPoint = gui.AnchorPoint
-		ghost.Size = gui.Size
+		ghost.Size = UDim2.new(
+			gui.Size.X.Scale * share,
+			gui.Size.X.Offset * share,
+			gui.Size.Y.Scale * height,
+			gui.Size.Y.Offset * height
+		)
 		ghost.Position = gui.Position
-		ghost.BackgroundColor3 = gui.BackgroundColor3
-		ghost.BackgroundTransparency = first + (1 - first) * (index - 1) / count
+		ghost.BackgroundColor3 = o.color or gui.BackgroundColor3
+		ghost.BackgroundTransparency = if o.last
+			then first + (o.last - first) * k
+			else first + (1 - first) * (index - 1) / count
 		ghost.BorderSizePixel = 0
-		ghost.ZIndex = math.max(gui.ZIndex - 1, 0)
+		ghost.ZIndex = o.z or math.max(gui.ZIndex - 1, 0)
 		copyCorner(gui, ghost)
 		ghost.Parent = parent
 		table.insert(ghosts, ghost)

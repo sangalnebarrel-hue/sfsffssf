@@ -1060,9 +1060,10 @@ end
 
 local function signFace(board: any, face: any)
 	local gui = surfaceGui(board, "Sign" .. face.Name, face, 32)
-	-- (UI v5: the billboard letters of the owner sign over the flag, on the cream board)
-	billboardText(textBand(gui, "OwnerLabel", "СВОБОДНО!", C.White, 0.08, 0.54, false), UI.BillboardGreen, 4)
-	billboardText(textBand(gui, "BaseLabel", "БАЗА", C.White, 0.64, 0.3, false), SIGN_WHITE, 3)
+	-- (UI v5: the billboard letters of the owner sign over the flag, on the cream board; a thin
+	-- outline like the reference's billboard words — ≈ 0.06 of the cap, 32 px per stud)
+	billboardText(textBand(gui, "OwnerLabel", "СВОБОДНО!", C.White, 0.08, 0.54, false), UI.BillboardGreen, 3)
+	billboardText(textBand(gui, "BaseLabel", "БАЗА", C.White, 0.64, 0.3, false), SIGN_WHITE, 2.5)
 end
 
 local function buildGate(template: any, plot: any)
@@ -1190,12 +1191,13 @@ local function buildFlag(template: any): any
 		}, sign)
 	end
 	-- (Три строки целиком в рамке таблички, с запасом под обводку: за рамкой BillboardGui
-	-- может обрезать.)
+	-- может обрезать. Обводка тонкая, как у слов образца «МАГАЗИН СЛЕДОВ» / «БЕСПЛАТНО!»:
+	-- ≈ 0.06–0.1 высоты заглавной буквы через лагуну — px BillboardGui, вблизи буквы крупнее.)
 	local yours = words("YoursLabel", "ТВОЯ БАЗА!", 0.02, 0.7, 0.26)
-	billboardText(yours, UI.BillboardGreen, 3)
+	billboardText(yours, UI.BillboardGreen, 2)
 	yours.Visible = false
-	billboardText(words("OwnerLabel", "СВОБОДНО!", 0.28, 0.96, 0.41), UI.BillboardGreen, 3.5)
-	billboardText(words("BaseLabel", "БАЗА", 0.69, 0.84, 0.28), SIGN_WHITE, 3)
+	billboardText(words("OwnerLabel", "СВОБОДНО!", 0.28, 0.96, 0.41), UI.BillboardGreen, 2)
+	billboardText(words("BaseLabel", "БАЗА", 0.69, 0.84, 0.28), SIGN_WHITE, 1.5)
 	return signOffset
 end
 

@@ -81,13 +81,8 @@ local function colorNear(a: any, b: any, eps: number?): boolean
 	return math.abs(a.R - b.R) <= e and math.abs(a.G - b.G) <= e and math.abs(a.B - b.B) <= e
 end
 
--- A sim face's Top colour: the keypoint at UIConfig.Brick.CapStop (0 since UI v5: no cap).
+-- A sim face's Top colour: the first keypoint of its Top → Bottom "Fill".
 local function capTop(fill: any): any
-	for _, key in fill.Color.Keypoints do
-		if math.abs(key.Time - UIConfig.Brick.CapStop) < 1e-3 then
-			return key.Value
-		end
-	end
 	return fill.Color.Keypoints[1].Value
 end
 

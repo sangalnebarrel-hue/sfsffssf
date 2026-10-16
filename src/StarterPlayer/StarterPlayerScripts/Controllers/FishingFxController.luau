@@ -85,7 +85,8 @@
 	    улова своего экрана) и ждёт, пока улов на экране (у HUD атрибут CounterHold): под
 	    заголовком она повторяла бы его слово, из-за карточки торчала бы готовая цена, пока та
 	    считает; выскакивает на «повторе» трофея (ReplayOwnTrophy), а не было его — через
-	    PLATE_AFTER_CARD после того, как счётчик отпустили.
+	    PLATE_AFTER_CARD после того, как счётчик отпустили. Рыбу убрали — табличка на её месте
+	    «выдыхает» и тает за PLATE_OUT (без рыбы не висит).
 	    Легендарная и мифическая — ещё столб света (неоновая сердцевина + лучи Beam), конфетти и
 	    волна по земле вокруг рыбака (свой столб — через FX.OwnPillarDelay после удара и с
 	    тонкой сердцевиной: виден за лучами заголовка, но не заливает кадр). Чужой
@@ -238,6 +239,7 @@ local LEAP_START, LEAP_GROWN = 0.4, 0.8
 -- TROPHY_SHORT_HALO): столб над рыбой вставал бы за счётчиком улова, ореол — его окружал.
 local TROPHY_SHORT_SCREEN, TROPHY_SHORT_HALO = 500, 0.7
 local PLATE_AFTER_CARD = 0.5 -- своя табличка: «повтора» трофея не было — выскакивает через столько после карточки, с
+local PLATE_OUT = 0.14 -- рыбу убрали: табличка «выдыхает» и тает за столько, с (не висит без неё)
 local ALERT_OTHER_DISTANCE = 90 -- чужой «!» виден не дальше, studs
 local OWN_PILLAR_WIDTH = 0.4 -- свой столб света уже чужого во столько раз (см. pillar)
 local PILLAR_FAR = 80 -- чужой столб дальше стольких studs шире: × расстояние / PILLAR_FAR (≈ 28 px на телефоне)
@@ -2512,6 +2514,42 @@ local function nameplate(tracker: Tracker, held: Model, rarity: string, event: F
 			stop()
 		end
 	end
+	-- Рыбу убрали (трофей снят): табличка не висит без неё ни кадра — там, где была рыба (точка в
+	-- Terrain), «выдыхает» до 0.8 и тает за PLATE_OUT с, потом уходит вместе с эффектом (SIMC-C2-06).
+	local gone: RBXScriptConnection? = nil
+	gone = held.AncestryChanged:Connect(function()
+		if effect.done or held:IsDescendantOf(Workspace) then
+			return
+		end
+		if gone then
+			gone:Disconnect()
+		end
+		local spot = Instance.new("Attachment")
+		spot.Name = "NameplateSpot"
+		spot.WorldPosition = body.Position
+		spot.Parent = Workspace.Terrain
+		table.insert(effect.instances, spot)
+		gui.Adornee = spot
+		local out = TweenInfo.new(PLATE_OUT, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tween(scale, out, { Scale = 0.8 * scale.Scale })
+		for _, item in plate:GetDescendants() do
+			if item:IsA("TextLabel") then
+				tween(item, out, { TextTransparency = 1 })
+			elseif item:IsA("UIStroke") then
+				tween(item, out, { Transparency = 1 })
+			end
+		end
+		cancelThread(effect.thread)
+		effect.thread = task.delay(PLATE_OUT + 0.02, function()
+			effect.thread = nil
+			endEffect(effect)
+		end)
+	end)
+	table.insert(stops, function()
+		if gone then
+			gone:Disconnect()
+		end
+	end)
 	local hud = hudGui
 	if isOwn(tracker) and hud and hud:GetAttribute("CounterHold") ~= nil then
 		-- Своя табличка ждёт, пока улов на экране (HUD держит CounterHold): под заголовком она

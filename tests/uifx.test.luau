@@ -611,6 +611,32 @@ tests["idle life on timers: breathe, bob, wobble, badgeBob, sway — no frame jo
 		stopRing()
 	end)
 	t.eq(s:FindFirstChild("FxRingTimer"), nil, "stop removes it")
+	-- Its colour goes full → middle over the first half and middle → empty over the second, one
+	-- stage after the other (SIMB-C2-01: a delayed second tween cancelled the first one, so the
+	-- ring skipped the middle colour and went green → red through olive).
+	local full, middle, empty = Color3.fromRGB(0, 255, 0), Color3.fromRGB(255, 240, 0), Color3.fromRGB(255, 0, 0)
+	client(sim, p, function()
+		stopRing = UiFx.ringTimer(s, 2, { colors = { full, middle, empty } })
+	end)
+	local function ringColor(side: string): any
+		return s.FxRingTimer[side].Circle:FindFirstChildOfClass("UIStroke").Color
+	end
+	sim:Advance(1)
+	for _, side in { "Right", "Left" } do
+		t.ok(colorNear(ringColor(side), middle, 0.06), `{side}: the middle colour at half time ({ringColor(side)})`)
+	end
+	sim:Advance(0.5)
+	local mid = middle:Lerp(empty, 0.5)
+	t.ok(
+		colorNear(ringColor("Left"), mid, 0.06),
+		`between the middle and the empty colour at 3/4 ({ringColor("Left")})`
+	)
+	t.ok(ringColor("Left").G > 0.3, "still on its way from the middle (not a green → red blend)")
+	client(sim, p, function()
+		stopRing()
+	end)
+	sim:Advance(1)
+	t.eq(s:FindFirstChild("FxRingTimer"), nil, "stop removes the colour stages too")
 	sim:AssertNoErrors({ warnings = true })
 end
 

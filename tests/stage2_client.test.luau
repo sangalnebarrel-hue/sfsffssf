@@ -41,20 +41,12 @@ local HINT_TIME = 3.5 -- FishingController: event hints hide after this
 
 -- The look of a sim plate (Theme.sim / UiFx.setCandy): the face's "Fill" gradient, top and
 -- bottom, and the Lip (outline) colour. The fishing widgets are sim plates (UI v5 «Симулятор»,
--- tools/builder/gui/STYLE.md), so their colour is the gradient, not BackgroundColor3; the Top
--- sits at UIConfig.Brick.CapStop (0: the gradient is a plain Top → Bottom).
+-- tools/builder/gui/STYLE.md), so their colour is the gradient, not BackgroundColor3: a plain
+-- Top → Bottom.
 local function candyLook(root: any): (any, any, any)
 	local face = root:FindFirstChild(root:GetAttribute("CandyFace") or "Face")
 	local keys = face.Fill.Color.Keypoints
-	local top = keys[1].Value
-	if root:GetAttribute("CandyStyle") ~= nil then
-		for _, key in keys do
-			if math.abs(key.Time - UIConfig.Brick.CapStop) < 1e-3 then
-				top = key.Value
-			end
-		end
-	end
-	return top, keys[#keys].Value, root.Lip.BackgroundColor3
+	return keys[1].Value, keys[#keys].Value, root.Lip.BackgroundColor3
 end
 
 --------------------------------------------------------------------------------

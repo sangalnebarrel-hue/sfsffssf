@@ -158,18 +158,11 @@ local function colorNear(a: any, b: any, eps: number?): boolean
 end
 
 -- The sim plate shows a style (palette token / rarity / mutation): face gradient and the Lip (the
--- outline's colour). Its Top sits at UIConfig.Brick.CapStop (0 since UI v5: no cap).
+-- outline's colour). The face's "Fill" is a plain Top → Bottom.
 local function isCandy(root: any, style: any): boolean
 	local face = root:FindFirstChild(root:GetAttribute("CandyFace") or "Face")
 	local keys = face.Fill.Color.Keypoints
 	local top = keys[1].Value
-	if root:GetAttribute("CandyStyle") ~= nil then
-		for _, key in keys do
-			if math.abs(key.Time - UIConfig.Brick.CapStop) < 1e-3 then
-				top = key.Value
-			end
-		end
-	end
 	return colorNear(top, style.Top)
 		and colorNear(keys[#keys].Value, style.Bottom)
 		and colorNear(root.Lip.BackgroundColor3, style.Lip)
@@ -603,15 +596,23 @@ tests["minigame: rarity title, needle trail under the zone, hit juice: ИДЕА�
 	t.ok(colorNear(keys[#keys].Value, UIConfig.Rarity.Legendary.Top), "Legendary colour at the bottom")
 	sim:Advance(0.5) -- the pips and the zone have popped in
 	local zoneHeight = zone.Size.Y.Scale
-	local ghosts = 0
+	local ghosts, brightest = 0, 1
 	for _, c in track:GetChildren() do
 		if c.Name == "FxGhost" then
 			ghosts += 1
 			t.ok(c.ZIndex < zone.ZIndex, "the trail passes UNDER the zone")
-			t.ok(c.BackgroundTransparency >= 0.75 - 1e-6, "faint ghosts (never read as more needles)")
+			-- SIMB-C2-04: a bright streak (white with a cyan tint, 0.45 → 0.8), not dull teal slabs;
+			-- narrower and shorter than the needle, no outline, so it never reads as more needles.
+			t.ok(c.BackgroundTransparency >= 0.45 - 1e-6 and c.BackgroundTransparency <= 0.8 + 1e-6, "0.45 … 0.8")
+			brightest = math.min(brightest, c.BackgroundTransparency)
+			local col = c.BackgroundColor3
+			t.ok(math.min(col.R, col.G, col.B) > 0.7, `a light ghost ({col})`)
+			t.ok(c.Size.X.Scale < needle.Size.X.Scale and c.Size.Y.Scale < needle.Size.Y.Scale, "narrower and shorter")
+			t.eq(c:FindFirstChildOfClass("UIStroke"), nil, "no outline")
 		end
 	end
-	t.eq(ghosts, 2, "two ghost copies trail the needle (UI v2 FUI-06)")
+	t.eq(ghosts, 3, "three ghost copies trail the needle (UI v2 FUI-06)")
+	t.near(brightest, 0.45, 1e-3, "the first ghost is bright")
 	t.ok(needle.ZIndex > zone.ZIndex, "the needle over the zone")
 	t.eq(mini.Pips.Pip1.Star.TextTransparency > 0.5, true, "pips start as ghost stars")
 
@@ -644,7 +645,7 @@ tests["minigame: rarity title, needle trail under the zone, hit juice: ИДЕА�
 
 	-- A fresh minigame, a hit without a perfect tap: «ОТЛИЧНО!».
 	serverSays(sim, p, "Minigame", minigame("Epic"))
-	t.eq(count(mini, "FxGhost"), 2, "the old trail is gone, a new one follows the needle")
+	t.eq(count(mini, "FxGhost"), 3, "the old trail is gone, a new one follows the needle")
 	serverSays(sim, p, "Zone", { ZoneCenter = 0.2, Hits = 1 })
 	t.eq(mini.FxFloat.Text, "ОТЛИЧНО!", "the first hit")
 
@@ -2880,6 +2881,28 @@ tests["card helpers: rays clear the trophy, the stamp and the close hint fit a s
 		"a smaller square card (docked) too"
 	)
 	t.eq(CatchFx.stampText("Золотая", 2, false, 380), "ЗОЛОТАЯ ×2!", "the full square card keeps ×N")
+	-- SIMC-C2-01: on the smallest landscape cards (0.85–0.95 × DockMin beside a giant trophy, the
+	-- CARD_WIDE stamp 0.46 × 0.125 of the card) the word fits its caption box on ONE line at the
+	-- 12 px floor and the box is at least 12 px tall (it was 62 × 10: «РАДУЖНА / Я»).
+	local UiFx = sim:Require(sim:Find("ReplicatedStorage.Shared.UiFx"), p)
+	local stamp = fishing(p).CatchCard.MutationLabel
+	local minH = stamp:FindFirstChildOfClass("UISizeConstraint").MinSize.Y
+	local caption = stamp.Caption
+	for _, k in { 0.85, 0.9, 0.95 } do
+		local h = 128 * k
+		local w = h * 1.55
+		local boxW = w * 0.46 * caption.Size.X.Scale
+		local boxH = math.max(h * 0.125, minH) * caption.Size.Y.Scale
+		t.ok(boxH >= 12, `{k} × DockMin: a caption box {math.floor(boxH)} px tall`)
+		for _, name in { "Радужная", "Неоновая", "Золотая" } do
+			local text = CatchFx.stampText(name, 5, true, w)
+			t.ok(
+				UiFx.textWidth(text, 12) <= boxW,
+				`{k} × DockMin: «{text}» ({math.floor(UiFx.textWidth(text, 12))} px) fits {math.floor(boxW)} px`
+			)
+		end
+	end
+	t.eq(CatchFx.stampText("Радужная", 5, true, 170), "РАДУГА", "a short word on the narrowest cards")
 	t.eq(CatchFx.tapHint(true, nil), "Тапни — забрать!")
 	t.eq(CatchFx.tapHint(false, nil), "Жми — забрать!")
 	t.eq(CatchFx.tapHint(true, 300), "Тапни — забрать!", "a roomy landscape card: the full hint")
@@ -3063,9 +3086,9 @@ tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticke
 	-- «+N 💰» beside a docked card: above the banner when there is room, else at the outer
 	-- edge, else under the card, else the window's top strip (fading early) — never on the fish
 	-- in the window.
-	local function spot(cardTop: number, outer: number, tall: number?): any
+	local function spot(cardTop: number, outer: number, tall: number?, extra: { [string]: any }?): any
 		local h = tall or 300
-		local c, size, early = CatchFx.floatSpot({
+		local o: { [string]: any } = {
 			root = V2(1024, 710),
 			card = { x0 = 600, y0 = cardTop, x1 = 900, y1 = cardTop + h },
 			side = 1,
@@ -3074,12 +3097,16 @@ tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticke
 			source = V2(800, cardTop + h - 70),
 			perHeight = 5.4,
 			want = 80,
-			least = 36,
+			least = 24,
 			gap = 10,
 			limits = function()
 				return 16, outer
 			end,
-		})
+		}
+		for key, value in extra or {} do
+			o[key] = value
+		end
+		local c, size, early = CatchFx.floatSpot(o :: any)
 		return { c = c, h = size, early = early }
 	end
 	local above = spot(200, 1008)
@@ -3095,6 +3122,33 @@ tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticke
 	t.ok(strip.c.Y + strip.h / 2 <= 30 + 60 + 0.5 * 100, "…in its top half")
 	t.ok(strip.h <= 30 + 1e-6, "…at most 0.3 of the window tall")
 	t.ok(strip.c.X + strip.h * 5.4 / 2 <= 870 + 1e-6, "…inside the window, by its right end")
+	-- SIMC-C2-02: the strip keeps right of the «НОВИНКА!» sticker (top-left of the window); on a
+	-- narrow phone window there is no room beside it — no fly-out at all, never over the sticker.
+	local sticker = { x0 = 625, y0 = 85, x1 = 700, y1 = 115 }
+	local right = spot(30, 950, 660, { sticker = sticker })
+	t.ok(right.c and right.c.X - right.h * 5.4 / 2 >= sticker.x1 + 10 - 1e-6, "right of the sticker")
+	local narrow = spot(30, 950, 660, {
+		window = { x0 = 630, y0 = 90, x1 = 730, y1 = 190 },
+		sticker = { x0 = 625, y0 = 85, x1 = 715, y1 = 120 },
+	})
+	t.eq(narrow.c, nil, "a narrow window with the sticker: no «+N 💰» (not over the sticker)")
+	-- SIMC-C2-03: with its rise the float's top stays in the band the limits allow (the limits keep
+	-- it right of the Roblox Menu / Chat pills near the HUD top): above a high card it may not
+	-- climb into the top bar row.
+	local high = spot(110, 1008, 300, {
+		rise = 28,
+		limits = function(top: number): (number, number)
+			return if top < 16 then 172 else 16, 1008
+		end,
+	})
+	t.ok(high.c, "a spot is found")
+	if high.c then
+		local top = high.c.Y - high.h / 2 - 28
+		t.ok(top >= 4 - 1e-6, `the risen float stays inside the HUD ({top})`)
+		if top < 16 then
+			t.ok(high.c.X - high.h * 5.4 / 2 >= 172 - 1e-6, "…and right of the Roblox top-bar pills")
+		end
+	end
 	sim:AssertNoErrors({ warnings = true })
 end
 

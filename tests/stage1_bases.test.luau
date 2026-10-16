@@ -248,7 +248,14 @@ tests["owner sign: billboard words over the flag — «СВОБОДНО!» green
 		local owner = sign.OwnerLabel
 		t.eq(owner.FontFace.Weight, roblox.Enum.FontWeight.Heavy, "Heavy letters")
 		t.ok(string.find(owner.FontFace.Family, "Montserrat", 1, true) ~= nil, "the UI font (Montserrat)")
-		t.ok(owner.Outline.Thickness >= 3, "an outline")
+		-- (SIMC-C2-05: a thin outline like the reference's billboard words — ≈ 0.06–0.1 of the cap
+		-- across the lagoon, not a chunky HUD sticker)
+		t.ok(
+			owner.Outline.Thickness >= 1.5 and owner.Outline.Thickness <= 2.5,
+			`a thin outline ({owner.Outline.Thickness} px)`
+		)
+		t.ok(sign.BaseLabel.Outline.Thickness <= owner.Outline.Thickness, "the base name's no heavier")
+		t.ok(sign.YoursLabel.Outline.Thickness <= 2.5, "«ТВОЯ БАЗА!» thin too")
 		t.eq(owner.Outline.LineJoinMode, roblox.Enum.LineJoinMode.Round, "round joins")
 		local top, bottom = fillOf(owner)
 		t.ok(
@@ -272,6 +279,7 @@ tests["owner sign: billboard words over the flag — «СВОБОДНО!» green
 			gate:FindFirstChild("Outline") ~= nil and gate:FindFirstChild("Fill") ~= nil,
 			"gate: outlined billboard words"
 		)
+		t.ok(gate.Outline.Thickness <= 3, "gate: a thin outline (32 px per stud)")
 	end
 	sim:AssertNoErrors()
 end
@@ -843,14 +851,9 @@ tests["client HUD: badge shows the base, Home button visible and fires the remot
 	local TextUtil = sim:Require(sim:Find("ReplicatedStorage.Shared.TextUtil"), p)
 	t.eq(label.Text, `{TextUtil.upper(p:GetAttribute("BaseColorName"))} БАЗА`, "the base name in CAPS")
 	-- The badge wears the base's clean swatch (UIConfig.BaseSwatches), not a tinted base colour
-	-- (a brick: its Top sits under the light cap, at UIConfig.Brick.CapStop).
+	-- (a plain Top → Bottom gradient).
 	local swatch = UIConfig.BaseSwatches[baseOf(sim, p):GetAttribute("ColorId")]
-	local top = nil
-	for _, key in hud.Status.BaseBadge.Swatch.Fill.Color.Keypoints do
-		if math.abs(key.Time - UIConfig.Brick.CapStop) < 1e-3 then
-			top = key.Value
-		end
-	end
+	local top = hud.Status.BaseBadge.Swatch.Fill.Color.Keypoints[1].Value
 	t.eq(top, swatch.Top)
 	t.eq(hud.Status.BaseBadge.Lip.BackgroundColor3, swatch.Lip)
 	local home = hud.RightButtons.HomeButton

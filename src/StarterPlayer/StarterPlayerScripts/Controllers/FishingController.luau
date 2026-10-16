@@ -644,6 +644,9 @@ do
 		сужается. Сдвиг — Position.X.Offset (X.Scale остаётся 0.5); пересчёт — при смене размера HUD.
 	]]
 	local COLUMN_GAP = 24 -- до джойстика и кнопки действия (с запасом на обводки и рамку редкости), px
+	-- Мини-игра по центру (планшет, ПК): от её рамки редкости до джойстика и ленты подписи кнопки — не
+	-- меньше MINI_GAP px и ещё MINI_JUICE её ширины в каждую сторону на «приземление» и удары.
+	local MINI_GAP, MINI_JUICE = 18, 0.05
 	local spanLeft, spanRight = 0, math.huge -- просвет колонки без значка подсказки, px (layoutColumn)
 	-- Кнопки Roblox на тач-экране (короткая сторона экрана ≤ 500 px — маленькие): правый край
 	-- джойстика от левого края, px; кнопка прыжка — FishingLayout.JUMP_SMALL / JUMP_BIG.
@@ -745,7 +748,7 @@ do
 		spanLeft, spanRight = left - socketOut, right
 		-- Подсказка и мини-игра сужаются до просвета (планшет 4:3, маленький телефон); их
 		-- содержимое — в долях, а MinSize панели не даёт ей стать нечитаемой.
-		local function fit(gui: GuiObject, rest: UDim2): number
+		local function fit(gui: GuiObject, rest: UDim2, room: number?): number
 			local target = rest
 			local yy = gui.SizeConstraint == Enum.SizeConstraint.RelativeYY
 			local cap = gui:FindFirstChildOfClass("UISizeConstraint")
@@ -753,8 +756,9 @@ do
 			if cap then
 				w = math.clamp(w, cap.MinSize.X, cap.MaxSize.X)
 			end
-			if w > right - left and right - left > 0 then
-				w = math.floor(math.max(right - left, if cap then cap.MinSize.X else 0))
+			local span = room or (right - left)
+			if w > span and span > 0 then
+				w = math.floor(math.max(span, if cap then cap.MinSize.X else 0))
 				target = UDim2.new(0, w, rest.Y.Scale, rest.Y.Offset) -- смещение UDim — целые пиксели
 			end
 			assign(gui, "Size", target)
@@ -781,7 +785,23 @@ do
 				return UiFx.textWidth(piece, bodySize)
 			end
 		)
-		local mini = fit(ui.minigame, defaults.minigameSize)
+		-- Мини-игра на планшете и ПК (по центру колонки; на телефоне она встаёт у рыбака): её рамка
+		-- редкости (AuraStroke) шире обводки, а «приземление» (перелёт pop-in и сплющивание 1.08) и
+		-- удар попадания (1.06) раздувают её ещё на MINI_JUICE ширины в каждую сторону — запас на
+		-- всё это, чтобы и на пике до ленты подписи кнопки и до джойстика было ≥ 16 px (SIMB-C2-02).
+		local miniLo, miniHi, miniReserve = left, right, 0
+		local miniRoom: number? = nil
+		if height >= SHORT_SCREEN then
+			local aura = ui.minigame:FindFirstChild("AuraStroke")
+			local auraPx = if aura and aura:IsA("UIStroke") then UiFx.strokeThickness(aura) else 0
+			miniLo = (if touch then (if small then STICK_SMALL else STICK_BIG) else 0) + MINI_GAP + auraPx
+			miniHi = width - area.X + discLeft - overhang - lipStroke(ribbon) - MINI_GAP - auraPx
+			miniRoom = math.floor((miniHi - miniLo) / (1 + 2 * MINI_JUICE))
+		end
+		local mini = fit(ui.minigame, defaults.minigameSize, miniRoom)
+		if miniRoom then
+			miniReserve = math.ceil(MINI_JUICE * mini)
+		end
 		local widest = math.max(
 			fit(hint, UDim2.new(0, hintWant, hintRest.Y.Scale, hintRest.Y.Offset)),
 			boxSize(ui.biteAlert, width, height).X,
@@ -801,7 +821,17 @@ do
 		end
 		defaults.hintPosition = place(hint, defaults.hintPosition)
 		defaults.alertPosition = place(ui.biteAlert, defaults.alertPosition)
-		defaults.minigamePosition = place(ui.minigame, defaults.minigamePosition)
+		if miniRoom and miniHi - miniLo >= mini + 2 * miniReserve then
+			-- (своя середина, если общая подвела бы её к краю ближе запаса)
+			local own = math.clamp(width / 2 + shift, miniLo + miniReserve + mini / 2, miniHi - miniReserve - mini / 2)
+			local miniRest = defaults.minigamePosition
+			local placed =
+				UDim2.new(miniRest.X.Scale, math.floor(own - width / 2 + 0.5), miniRest.Y.Scale, miniRest.Y.Offset)
+			assign(ui.minigame, "Position", placed)
+			defaults.minigamePosition = placed
+		else
+			defaults.minigamePosition = place(ui.minigame, defaults.minigamePosition)
+		end
 
 		-- «СМОТАТЬ» над кнопкой действия: на большом тач-экране (планшет) кнопка прыжка выше —
 		-- тогда кнопка поднимается, чтобы между ними было COLUMN_GAP; поднятая, она встаёт рядом
@@ -2153,10 +2183,12 @@ do
 		               неё за Fly с (Back Out) на свободное место справа от карточки, Lift высоты экрана
 		               над ценой (или в 2 и 3.5 раза выше — где просторнее; Gap px от карточки); там
 		               тесно — меньше, но не меньше MinTitle × Title; совсем тесно — над строкой
-		               веса. Живёт Time с: поднимается и тает. Цену и «×N» не закрывает. У
-		               карточки сбоку от рыбака (UI v5) — не на окно с рыбой: над баннером или у её
-		               внешнего края (CatchFx.floatSpot); нет места и там — на верхнюю полоску окна,
-		               и живёт Early с (тает с 0.4 с).
+		               веса. Живёт Time с: поднимается (на Rise высоты экрана) и тает. Цену и «×N» не
+		               закрывает. У карточки сбоку от рыбака (UI v5) — не на окно с рыбой: над баннером
+		               или у её внешнего края (CatchFx.floatSpot; и на пике подъёма не в ряду кнопок
+		               меню и чата Roblox — r3, SIMC-C2-03); нет места и там — на верхнюю полоску окна
+		               правее наклейки «НОВИНКА!» и живёт Early с (тает с 0.4 с); не влезает и там (узкое
+		               окно телефона, SIMC-C2-02) — не вылетает.
 		  New          новый вид обычной и редкой рыбы — маленький праздник: Confetti бумажек и
 		               Sparks искр из штампа «НОВИНКА!» цветами Colors, лучи не прозрачнее Alpha, не
 		               меньше Size (и MaxPx) и с зеленью и золотом, затемнение не светлее Dim, «+N 💰»
@@ -2168,6 +2200,8 @@ do
 		               CatchFx.outline; с мутацией обводка карточки толще в 4/3).
 		  EdgeRoom     … и ещё столько над кнопкой действия и колонкой: их обводки и значок клавиши
 		               тоже выступают за свои прямоугольники (по рисунку — те же 16 px).
+		  KeyRoom      … и над кнопкой действия без тач-экрана ещё столько: значок клавиши на её
+		               плече «дышит» вместе с «ЗАБРАТЬ!» (квадратная карточка сбоку на компьютере).
 		  DesktopRays  без тач-экрана лучи не больше стольких REVEAL.MaxPx (заливка на компьютере).
 		  ConfettiMid  мифическая: второй залп конфетти через столько после приземления.
 		  Fly          уходя, карточка сама летит снарядом в счётчик (Shrink — её размер у цели, Reach
@@ -2182,6 +2216,7 @@ do
 		MaxScale = 1.1,
 		RimRoom = 8,
 		EdgeRoom = 10,
+		KeyRoom = 3,
 		Span = 1.05 * 1.025,
 		SquareSpan = 1.08 * 1.025,
 		Breath = 1.025,
@@ -2204,7 +2239,16 @@ do
 		DockSquarePhone = 166,
 		DockSlack = 12,
 		PriceText = 1.4,
-		PriceFloat = { Delay = 0.12, Fly = 0.35, Time = 0.95, Early = 0.8, Lift = 0.1, Gap = 10, MinTitle = 1.2 },
+		PriceFloat = {
+			Delay = 0.12,
+			Fly = 0.35,
+			Time = 0.95,
+			Early = 0.8,
+			Lift = 0.1,
+			Gap = 10,
+			MinTitle = 1.2,
+			Rise = 0.04,
+		},
 		New = {
 			Confetti = 12,
 			Sparks = 16,
@@ -2844,16 +2888,18 @@ do
 			least: number?
 		): any
 			local origin = ui.fishing.AbsolutePosition
-			-- (обводка карточки по рисунку, rim; до кнопок — ещё их обводки, EdgeRoom)
+			local touch = UserInputService.TouchEnabled
+			-- (обводка карточки по рисунку, rim; до кнопок — ещё их обводки, EdgeRoom; над кнопкой
+			-- действия без тач-экрана — ещё KeyRoom: значок клавиши на её плече «дышит» вместе с
+			-- «ЗАБРАТЬ!», SIMC-C2-04)
 			local reach = CARD_SIDE_GAP + rim + CARD.EdgeRoom
 			local high = CARD_TOP_GAP + rim + 12
 			local floor = rootSize.Y - CARD_BOTTOM_CLEAR
 			local floors = { floor }
 			local button = ui.actionButton
 			if button.Visible then
-				table.insert(floors, button.AbsolutePosition.Y - origin.Y - reach)
+				table.insert(floors, button.AbsolutePosition.Y - origin.Y - reach - (if touch then 0 else CARD.KeyRoom))
 			end
-			local touch = UserInputService.TouchEnabled
 			if touch then
 				-- над джойстиком (большой — 210 px от низа; ещё 1 px — округление рисунка)
 				local small = math.min(rootSize.X, rootSize.Y) <= WIDE_BELOW
@@ -4200,7 +4246,8 @@ do
 
 	-- Дождь 💰 сверху экрана, когда цена «приземлилась» (легендарная и мифическая): монеты падают
 	-- по бокам от карточки и за ней (слой HUD.Fishing под карточкой, над затемнением и лучами) —
-	-- на имя и цену не падают. Только твины.
+	-- на имя и цену не падают. Появляются (тают в видимость) в Layout.EDGE px под верхом HUD — не в
+	-- ряду кнопок меню и чата Roblox (SIMC-C2-03). Только твины.
 	local function coinRain(count: number, time: number)
 		local rootSize = ui.fishing.AbsoluteSize
 		local box = cardBox
@@ -4235,13 +4282,15 @@ do
 				local u = rng:NextNumber(0, leftRoom + rightRoom)
 				x = if u < leftRoom then 0.03 + u else x1 + (u - leftRoom)
 			end
-			coin.Position = UDim2.fromScale(x, -0.08)
+			coin.Position = UDim2.new(x, 0, 0.0375, Layout.EDGE)
 			coin.Rotation = rng:NextNumber(-30, 30)
 			coin.ZIndex = ui.card.ZIndex - 2
+			coin.TextTransparency = 1
 			coin.Parent = ui.fishing
 			celebrationTrove:Add(coin)
 			local fall = time * rng:NextNumber(0.7, 1)
 			local wait = (index - 1) * time * 0.035
+			UiFx.tween(coin, 0.12, { TextTransparency = 0 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, wait)
 			UiFx.tween(coin, fall, {
 				Position = UDim2.fromScale(x + rng:NextNumber(-0.025, 0.025), 1.1),
 				Rotation = coin.Rotation + rng:NextNumber(-220, 220),
@@ -4776,6 +4825,14 @@ do
 				local windowPos, windowSize = cardRect(ui.window)
 				local half = box.size * Vector2.new(if box.wide then CARD.Span else CARD.SquareSpan, 1) / 2
 				local early = false
+				-- (наклейка «НОВИНКА!» — как нарисована сейчас: с обводкой и наклоном, ≈ +4 px)
+				local sticker = nil
+				if ui.newStamp.Visible then
+					local at = ui.newStamp.AbsolutePosition - ui.fishing.AbsolutePosition
+					local reach = ui.newStamp.AbsoluteSize
+					local pad = CatchFx.outline(ui.newStamp) + 4
+					sticker = { x0 = at.X - pad, y0 = at.Y - pad, x1 = at.X + reach.X + pad, y1 = at.Y + reach.Y + pad }
+				end
 				spot, height, early = CatchFx.floatSpot({
 					root = root,
 					card = {
@@ -4797,18 +4854,27 @@ do
 					want = root.Y * share,
 					least = math.min(root.Y * share, UiFx.textSize("Title") * spec.MinTitle),
 					gap = spec.Gap,
-					-- (без тач-экрана — и не на окне чата и списке игроков Roblox)
+					-- (у верха HUD — правее кнопок меню и чата Roblox, на любом экране, SIMC-C2-03; без
+					-- тач-экрана — и не на окне чата и списке игроков Roblox)
 					limits = function(top: number, bottom: number): (number, number)
 						local left, right = sideLimits(root, top, bottom, true)
+						if top < Layout.EDGE then
+							left = math.max(left, CLIMAX.TopbarRight)
+						end
 						if not UserInputService.TouchEnabled then
 							left = if top < CLIMAX.ChatBottom then math.max(left, CLIMAX.ChatRight) else left
 							right = if top < CLIMAX.ListBottom then math.min(right, root.X - CLIMAX.ListLeft) else right
 						end
 						return left, right
 					end,
+					rise = root.Y * spec.Rise,
+					sticker = sticker,
 				})
 				if early then
 					life = spec.Early
+				end
+				if not spot then
+					return -- (места нет нигде: фишка и так пружинит и сыплет искры)
 				end
 			elseif height < math.min(root.Y * share, UiFx.textSize("Title") * spec.MinTitle) then
 				-- Справа места нет: вверх, над строкой веса (её верх — над фишкой цены).
@@ -4828,7 +4894,7 @@ do
 				travel = spec.Fly,
 				size = UDim2.fromScale(height * perHeight / w, height / h),
 				colors = { Palette.Gold.Top, Palette.Sun.Bottom },
-				rise = 0.04,
+				rise = spec.Rise,
 				time = life,
 				rotate = -5,
 				z = 30,
@@ -5321,8 +5387,10 @@ local enterBite, syncFromAttribute, startPending, refreshPips, showMinigame, pun
 do
 	local PENDING_TIMEOUT = 1.5 -- ответа на заброс нет столько секунд — кнопка снова «Забросить»
 
-	-- Полоска поклёвки: зелёная → жёлтая → красная (в мини-игре — своя, без зелёного: UIConfig.Fishing.TimeBar).
-	local TIME_COLORS = { Palette.Leaf.Top, Palette.Sun.Top, Palette.Berry.Bottom }
+	-- Полоска поклёвки и кольцо «ПОДСЕЧЬ!»: зелёная → жёлтая (Gold — настоящий жёлтый, не
+	-- персиковый верх Sun на оранжевой плашке) → красная (в мини-игре — своя, без зелёного:
+	-- UIConfig.Fishing.TimeBar).
+	local TIME_COLORS = { Palette.Leaf.Top, Palette.Gold.Top, Palette.Berry.Bottom }
 
 	-- Слова попаданий (type HitWord — в начале файла).
 	local HIT_FIRST: HitWord = { text = "ОТЛИЧНО!", colors = { Palette.Leaf.Top, Palette.Leaf.Bottom } }
@@ -5573,7 +5641,7 @@ do
 		Legendary = "🦈",
 		Mythic = "🐉",
 	}
-	local RIDER_BIG = 1.25
+	local RIDER_BIG = 1.16 -- легендарный / мифический наездник крупнее (и всё равно под заголовком)
 	local SHORT_SCREEN = 500 -- HUD ниже — телефон: мини-игра встаёт слева от рыбака
 	local REEL_DIVE = 0.8 -- поплавок в мини-игре мечется и притапливается на столько studs
 	local RARITY_WORD_TIME = 0.9 -- слово редкости над панелью (легендарная, мифическая), с
@@ -5681,7 +5749,10 @@ do
 	end
 
 	-- Наездник на зоне (🐟 🐠 🐡 🦈 🐉 — по редкости): стоит на её верхнем крае (над зоной, под
-	-- стрелкой) и покачивается; у легендарной и мифической — крупнее и светится кольцами.
+	-- стрелкой, в полосе под заголовком) и покачивается; у легендарной и мифической — крупнее, на
+	-- «дышащем» светлом диске цвета редкости (свой фон метки — под глифом: тёмная 🦈 читается на
+	-- тёмно-синей панели) с тонкими кольцами в той же полосе — не через буквы заголовка
+	-- (SIMB-C2-03).
 	local function showRider(mg: Minigame)
 		local rider = ui.rider
 		local rest = riderSize or rider.Size
@@ -5697,11 +5768,23 @@ do
 		startRiderWiggle()
 		if big then
 			local style = UIConfig.Rarity[mg.Rarity] or UIConfig.Rarity.Common
+			local glowColor = if style.Rainbow then WHITE else style.Top
+			rider.BackgroundColor3 = glowColor
+			rider.BackgroundTransparency = 0.5
+			local glow = TweenService:Create(
+				rider,
+				TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+				{ BackgroundTransparency = 0.78 }
+			)
+			glow:Play()
+			phaseTrove:Add(function()
+				glow:Cancel()
+			end)
 			phaseTrove:Add(UiFx.glowRing(rider, {
 				loop = true,
-				color = if style.Rainbow then WHITE else style.Top,
-				scale = 1.9,
-				thickness = 2.5,
+				color = glowColor,
+				scale = 1.3,
+				thickness = 2,
 				time = 0.7,
 				interval = 0.8,
 			}))
@@ -5710,6 +5793,7 @@ do
 			stopRiderWiggle()
 			rider.Visible = false
 			rider.Rotation = 0
+			rider.BackgroundTransparency = 1
 			rider.Size = rest
 			rider.Position = UDim2.fromScale(0.5, defaults.riderY)
 		end)
@@ -5989,15 +6073,20 @@ do
 		end
 		phaseTrove:Connect(RunService.RenderStepped, updateMinigameFrame)
 
-		-- Шлейф стрелки: две голубые тени ПОД зоной (ни зону не закрывают, ни за стрелки не сойдут).
-		phaseTrove:Add(UiFx.trail(ui.needle, { count = 2, lag = 0.035, transparency = 0.75 }))
-		for _, item in ui.track:GetChildren() do
-			if item.Name == "FxGhost" and item:IsA("GuiObject") then
-				item.ZIndex = 2
-				item.BackgroundColor3 = Palette.Sky.Top
-				item.Size = UDim2.fromScale(ui.needle.Size.X.Scale, 0.9)
-			end
-		end
+		-- Шлейф стрелки: три белые с голубым отливом копии ПОД зоной, уже стрелки и всё прозрачнее
+		-- к хвосту (0.45 → 0.8) — яркая полоса скорости на тёмной канавке (зону не закрывают, за
+		-- лишние стрелки не сходят: короче её и без обводки).
+		phaseTrove:Add(UiFx.trail(ui.needle, {
+			count = 3,
+			lag = 0.03,
+			transparency = 0.45,
+			last = 0.8,
+			color = UIConfig.Fishing.NeedleGhost,
+			width = 0.8,
+			taper = 0.5,
+			height = 0.6,
+			z = 2,
+		}))
 		-- Свет под зоной «дышит» — только по высоте (по ширине зона не врёт).
 		local glow = ui.zoneGlow
 		local glowRest = defaults.glowSize
