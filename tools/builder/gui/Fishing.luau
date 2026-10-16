@@ -720,7 +720,8 @@ local function buildHint(root: any)
 end
 
 --------------------------------------------------------------------------------
--- Catch card: the big reveal (UI v2: FUI-02 / 03 / 07 / 12; UI v5: a white sim display plate)
+-- Catch card: the big reveal (UI v2: FUI-02 / 03 / 07 / 12; UI v5 «Симулятор»: a white sim
+-- display plate with the chunky outline, a rarity ribbon, a podium, gold and grey chips)
 --------------------------------------------------------------------------------
 
 --[[
@@ -728,20 +729,81 @@ end
 	screens (HUD under 500 px tall: phones) FishingController re-lays the same instances out as
 	a landscape trophy card (CARD_WIDE in the controller): the fish on the left, name / chips /
 	tap hint in a right column, the same child names (also the display window under its Face:
-	Face.Window). The controller also places the card (and
-	its CatchRays) itself every time it opens: centred in its slot, born at the held fish.
+	Face.Window). The controller also places the card itself every time it opens: beside the own
+	fisher and his trophy where a side gap fits it (FishingLayout.cardDock / dockSide), else
+	centred in its slot; CatchRays is the layer of its sunburst (CatchFx.raysFrame: the whole
+	screen, or up to the fisher's edge when the card is docked — the rays never reach him).
 ]]
-local CARD_RADIUS = 0.09
+local CARD_RADIUS = 0.07
 -- The share of the card the v4 plate's face covered (it had a side band): the window and the
 -- children were laid out in it; kept so the tuned layout stays put.
 local CARD_FACE = 0.965
 
--- Name text on the white plate: a dark rarity gradient with a white outline (FUI-12).
-local NAME_COMMON = { P.Night.Top, INK }
+-- Name text: white → the rarity's colours with an Ink outline, like every other word of the
+-- reference (FishingController paints the fill per rarity).
+local NAME_COMMON = { WHITE, UI.Rarity.Common.Bottom }
 
--- The display window behind the fish: a recessed pale sky panel (one quad + its outline).
+-- The display window behind the fish: a pale sky panel with a dark slate-blue frame.
 local WINDOW_TOP = rgb(250, 253, 255)
-local WINDOW_BOTTOM = rgb(214, 230, 246)
+local WINDOW_BOTTOM = rgb(207, 230, 250)
+local WINDOW_EDGE = rgb(44, 58, 79)
+
+--[[
+	The podium the fish stands on (SIM-C1-05: a trophy stand, not an empty bar): three stacked
+	sim shapes in the rarity's colours, outlined in its dark shade — a light oval Cap (its top,
+	with the fish's soft Shadow on it), the Pedestal itself as the column (its face — the rarity
+	gradient — with an outlined ⭐ on the front) and a darker Base slab. FishingController paints
+	it per rarity (CatchFx.paintPodium) and pops it in under the fish.
+]]
+local function buildPodium(card: any, look: any)
+	local pedestal = U.new("Frame", {
+		Name = "Pedestal",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 0.59),
+		Size = UDim2.fromScale(0.2, 0.07),
+		ZIndex = 4,
+	}, card)
+	Theme.sim(pedestal, look, { radius = 0.22, stroke = Theme.MINOR, rim = 1.5, shine = false })
+	local function slab(name: string, y: number, w: number, h: number, round: boolean): any
+		local frame = U.new("Frame", {
+			Name = name,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, y),
+			Size = UDim2.fromScale(w, h),
+			ZIndex = 3,
+		}, pedestal)
+		return Theme.sim(frame, look, {
+			round = round,
+			radius = 0.35,
+			stroke = Theme.MINOR,
+			rim = 1.5,
+			shine = false,
+		})
+	end
+	slab("Base", 1, 1.34, 0.46, false)
+	local cap = slab("Cap", 0, 1.56, 0.62, true)
+	local shadow = U.new("Frame", {
+		Name = "Shadow",
+		BackgroundColor3 = INK,
+		BackgroundTransparency = 0.7,
+		BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.42),
+		Size = UDim2.fromScale(0.5, 0.42),
+		ZIndex = 3,
+	}, cap)
+	corner(shadow, 0.5)
+	Theme.icon(pedestal, "Star", "⭐", {
+		SizeConstraint = Enum.SizeConstraint.RelativeYY,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.58),
+		Size = UDim2.fromScale(0.96, 0.96),
+		ZIndex = 4,
+		Outline = 2,
+		MaxTextSize = 64, -- (and MinTextSize 12: on the smallest card the ⭐ overhangs its column)
+	})
+	return pedestal
+end
 
 local function buildCatch(root: any)
 	-- The dim around the card: four Ink bands (Top, Bottom, Left, Right) that FishingController
@@ -767,32 +829,31 @@ local function buildCatch(root: any)
 			ZIndex = 6,
 		}, dim)
 		if band == "Left" or band == "Right" then
-			-- v3 (UIM-04): a phone card docked beside the fisher dims one side band that melts away
+			-- v3 (UIM-04): a card docked beside the fisher dims one side band that melts away
 			-- towards him (FishingController placeDim sets its Transparency and enables it).
 			U.new("UIGradient", { Name = "Fade", Enabled = false }, frame)
 		end
 	end
 
-	-- Same box as the card: UiFx.rays sizes its sunburst by this holder's height.
+	-- The layer of the card's sunburst: the whole screen here; FishingController
+	-- (CatchFx.raysFrame) makes it end at the fisher's edge when the card docks beside him (it
+	-- then clips its rays: big, but never over him and his trophy) and puts the rays' centre and
+	-- size in pixels (behind the card, or at the fish over his head for the rarity title).
 	local cardSize = UDim2.fromScale(0.58, 0.58)
 	local cardPosition = UDim2.new(0.5, 0, 1, -HOTBAR - 16) -- 16 px above the screen bottom
-	local rays = U.new("Frame", {
+	U.new("Frame", {
 		Name = "CatchRays",
 		Visible = false,
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = cardPosition,
-		Size = cardSize,
-		SizeConstraint = Enum.SizeConstraint.RelativeYY,
+		Size = UDim2.fromScale(1, 1),
 		ZIndex = 7,
 	}, root)
-	U.new("UISizeConstraint", { MaxSize = Vector2.new(380, 400) }, rays)
 
 	-- The card: a modal (tap anywhere on it: skip the reveal / close). A white sim display plate
-	-- (Cream: the light → cream gradient, the outline in its dark shade, a light rim). A mutation
-	-- recolours that outline (FishingController, FUI-07). ZIndex inside the card: Lip 1, Face 2
-	-- (with its Window), FishGlow 3, Banner and Pedestal 4, Viewport 5, NameLabel / InfoLabel /
-	-- TapHint 6, NewStamp / MutationLabel 8.
+	-- (Cream: the white → cool white gradient, the chunky outline in its dark ink-blue shade, the
+	-- light rim). A mutation recolours that outline (FishingController, FUI-07). ZIndex inside the
+	-- card: Lip 1, Face 2 (with its Window), FishGlow 3, Banner and Pedestal 4, Viewport 5,
+	-- NameLabel / InfoLabel / TapHint 6, NewStamp / MutationLabel 8.
 	local card = U.new("TextButton", {
 		Name = "CatchCard",
 		Visible = false,
@@ -806,8 +867,7 @@ local function buildCatch(root: any)
 	}, root)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(380, 400) }, card)
 	corner(card, CARD_RADIUS)
-	-- (The minor outline: the placement's thumbstick gap on the smallest phone was tuned with it.)
-	local face = Theme.brick(card, "Cream", { radius = CARD_RADIUS, stroke = Theme.MINOR, z = 1 })
+	local face = Theme.sim(card, "Cream", { radius = CARD_RADIUS, z = 1 })
 
 	-- The display window behind the fish (in the v4 face's coordinates: the card's y / CARD_FACE).
 	local window = U.new("Frame", {
@@ -818,13 +878,14 @@ local function buildCatch(root: any)
 		Size = UDim2.fromScale(0.87, 0.366 / CARD_FACE),
 		ZIndex = 2,
 	}, face)
-	corner(window, 0.12)
-	stroke(window, 3)
+	corner(window, 0.1)
+	stroke(window, 3, 0, WINDOW_EDGE)
 	Theme.gradient(window, WINDOW_TOP, WINDOW_BOTTOM)
 
-	-- Rarity banner overhanging both sides: a long sim plate with the chunky outline
-	-- (FishingController: UiFx.setCandy with UIConfig.Rarity[r]; Mythic: an animated rainbow +
-	-- sparkles; Epic+: the giant TitleSlam flies into it).
+	-- The rarity ribbon overhanging both sides: a sim plate (label radius) with the chunky
+	-- outline (FishingController: UiFx.setCandy with UIConfig.Rarity[r]; Mythic: an animated
+	-- rainbow + sparkles; Epic+: the giant TitleSlam flies into it), the rarity word in outlined
+	-- white CAPS between two outlined ⭐ tilted outwards.
 	local banner = U.new("Frame", {
 		Name = "Banner",
 		AnchorPoint = Vector2.new(0.5, 0),
@@ -834,26 +895,25 @@ local function buildCatch(root: any)
 	}, card)
 	local common = UI.Rarity.Common
 	local commonLook = { Top = common.Top, Bottom = common.Bottom, Lip = common.Lip }
-	Theme.brick(banner, commonLook, {
-		radius = 0.22,
-	})
+	Theme.sim(banner, commonLook, { radius = UI.Sim.PlateRadius })
 	label(banner, "RarityLabel", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
 		Size = UDim2.fromScale(0.72, 0.72),
 		Text = "ОБЫЧНАЯ",
-		Outline = 4.5,
-		ZIndex = BZ.Content,
+		Outline = Theme.DISPLAY_OUTLINE,
+		ZIndex = Theme.SZ.Content,
 		MaxTextSize = 40,
 		MinTextSize = 14,
 	})
-	for _, side in { { "StarLeft", 0.07 }, { "StarRight", 0.93 } } do
+	for _, side in { { "StarLeft", 0.07, -10 }, { "StarRight", 0.93, 10 } } do
 		Theme.icon(banner, side[1], "⭐", {
 			SizeConstraint = Enum.SizeConstraint.RelativeYY,
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(side[2], 0.5),
-			Size = UDim2.fromScale(0.82, 0.82),
-			ZIndex = BZ.Content,
+			Size = UDim2.fromScale(0.86, 0.86),
+			Rotation = side[3],
+			ZIndex = Theme.SZ.Content,
 		})
 	end
 
@@ -868,43 +928,18 @@ local function buildCatch(root: any)
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 		ZIndex = 3,
 	}, card)
-	for i, disc in { { "Disc", 0.82, 0.5, common.Top } } do
-		local frame = U.new("Frame", {
-			Name = disc[1],
-			BackgroundColor3 = disc[4],
-			BackgroundTransparency = disc[3],
-			BorderSizePixel = 0,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromScale(disc[2], disc[2]),
-			ZIndex = i,
-		}, glow)
-		corner(frame, 0.5)
-	end
-	-- The podium the fish stands on (a simulator display stand, UI v5): a round plate in the
-	-- rarity's colours seen a little from above — a sim stadium (the face's light → saturated
-	-- gradient is its body; FishingController recolours it with UiFx.setCandy and flashes its
-	-- rim) with a lighter TOP face: a translucent white stadium over its upper part, edged in Ink,
-	-- so the colour under it tints it. In front of the glow, behind the fish: it reads as a
-	-- podium, not as an empty bar or a button.
-	local pedestal = U.new("Frame", {
-		Name = "Pedestal",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.fromScale(0.5, 0.6),
-		Size = UDim2.fromScale(0.34, 0.085),
-		ZIndex = 4,
-	}, card)
-	local podium = Theme.sim(pedestal, commonLook, { round = true, stroke = Theme.MINOR, rim = false, shine = false })
-	local top = U.new("Frame", {
-		Name = "Top",
-		BackgroundColor3 = WHITE,
-		BackgroundTransparency = 0.45,
+	local disc = U.new("Frame", {
+		Name = "Disc",
+		BackgroundColor3 = common.Top,
+		BackgroundTransparency = 0.5,
 		BorderSizePixel = 0,
-		Size = UDim2.fromScale(1, 0.6),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.82, 0.82),
 		ZIndex = 1,
-	}, podium)
-	corner(top, 0.5)
-	stroke(top, 2, 0.5)
+	}, glow)
+	corner(disc, 0.5)
+	buildPodium(card, commonLook)
 	U.new("ViewportFrame", {
 		Name = "Viewport",
 		BackgroundTransparency = 1,
@@ -917,10 +952,11 @@ local function buildCatch(root: any)
 		ZIndex = 5,
 	}, card)
 
-	-- «НОВИНКА!»: a red tile stamped on the top-left corner of the window (first catch of a
-	-- species this session). Neutral for any fish name («НОВАЯ! Акулёнок» did not agree). Never
-	-- smaller than 96 x 28 px: its text stays ≥ 14 px even on the smallest phone's Common card.
-	local newStamp = Theme.pill(card, "NewStamp", "Berry", {
+	-- «НОВИНКА!»: a red sticker slapped on the top-left corner of the window (first catch of a
+	-- species this session; CatchFx.slap). Neutral for any fish name («НОВАЯ! Акулёнок» did not
+	-- agree). Never smaller than 96 x 28 px: its text stays ≥ 14 px even on the smallest phone's
+	-- Common card.
+	local newStamp = Theme.plate(card, "NewStamp", "Berry", {
 		Visible = false,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.2, 0.26),
@@ -929,7 +965,8 @@ local function buildCatch(root: any)
 		ZIndex = 8,
 		Text = "НОВИНКА!",
 		MaxTextSize = 24,
-		Radius = 0.25,
+		Radius = UI.Sim.PlateRadius,
+		SimOpts = { stroke = Theme.DISPLAY_OUTLINE },
 		LabelProps = {
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
@@ -940,8 +977,9 @@ local function buildCatch(root: any)
 	U.new("UISizeConstraint", { MinSize = Vector2.new(96, 28) }, newStamp)
 
 	-- Mutation stamp on the top-right corner of the window (FUI-07; on phones a plaque on the
-	-- pedestal): a tile in the mutation's colours with its icon; MutationLabel.Text is the value
-	-- («Золотая мутация ×2»), MutationLabel.Caption shows the stamp («ЗОЛОТАЯ ×2!»).
+	-- podium): a sim plate in the mutation's colours with its outlined icon overhanging the left
+	-- end; MutationLabel.Text is the value («Золотая мутация ×2»), MutationLabel.Caption shows
+	-- the stamp («ЗОЛОТАЯ ×2!»).
 	local mutation = U.new("TextLabel", {
 		Name = "MutationLabel",
 		Visible = false,
@@ -957,9 +995,10 @@ local function buildCatch(root: any)
 		ZIndex = 8,
 	}, card)
 	local gold = UI.Mutations.Gold
-	Theme.tile(mutation, { Top = gold.Top, Bottom = gold.Bottom, Lip = gold.Lip }, {
-		radius = 0.25,
-		stroke = 3.5,
+	Theme.sim(mutation, { Top = gold.Top, Bottom = gold.Bottom, Lip = gold.Lip }, {
+		radius = UI.Sim.PlateRadius,
+		stroke = Theme.DISPLAY_OUTLINE,
+		rim = 1.5,
 	})
 	Theme.icon(mutation, "Icon", gold.Icon, {
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
@@ -967,7 +1006,7 @@ local function buildCatch(root: any)
 		Position = UDim2.fromScale(0, 0.46),
 		Size = UDim2.fromScale(1.45, 1.45),
 		Rotation = -10,
-		ZIndex = BZ.Content,
+		ZIndex = Theme.SZ.Content,
 	})
 	label(mutation, "Caption", {
 		AnchorPoint = Vector2.new(1, 0.5),
@@ -975,33 +1014,34 @@ local function buildCatch(root: any)
 		Size = UDim2.fromScale(0.8, 0.74),
 		Text = "",
 		Outline = 3,
-		ZIndex = BZ.Content,
+		ZIndex = Theme.SZ.Content,
 		MaxTextSize = 30,
-		MinTextSize = 14,
+		MinTextSize = 12, -- (one line: on the landscape card the stamp is small)
 	})
 
-	-- The name: the hero of the card (display text, box-driven like the banner), a dark rarity
-	-- gradient with a white outline (readable on the white plate); two lines on the landscape card.
+	-- The name: the hero of the card (display text, box-driven like the banner), white → the
+	-- rarity's colours with an Ink outline. MinTextSize 12, not more: TextScaled wraps a word
+	-- that does not fit at the minimum size mid-word («Рыба-драк / он» on the smallest card).
 	label(card, "NameLabel", {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.5, 0.608),
 		Size = UDim2.fromScale(0.92, 0.108),
 		Text = "Карасик",
 		TextWrapped = true,
-		Outline = 3,
-		OutlineColor = WHITE,
+		Outline = 3.5,
 		TextGradient = NAME_COMMON,
 		ZIndex = 6,
 		MaxTextSize = 44,
-		MinTextSize = 18,
+		MinTextSize = 12,
 	})
 
 	-- Weight and price chips; InfoLabel.Text is the summary «1,2 кг · цена 35 💰» (the value),
-	-- Price.Label counts up from 0: the hero number, a tall label (0.8 of the chip's face) that
-	-- FishingController turns into display text (box-driven, up to 1.4 × Title, never under
-	-- Button − 2). Weight is a light grey tile with Ink text in CAPS (never the rarity's colour
-	-- again), the price a yellow Gold chip (it is what a thief steals) with the «×N» of a
-	-- mutation slammed on its corner.
+	-- Price.Label counts up from 0: the hero number in italic white digits with a display outline,
+	-- a tall label (0.8 of the chip) that FishingController turns into display text (box-driven,
+	-- up to 1.4 × Title, never under Button − 2). Weight is a light grey round chip with Ink text
+	-- in CAPS (never the rarity's colour again), the price a yellow Gold round chip (it is what a
+	-- thief steals) with its outlined 💰 overhanging the left end and the «×N» of a mutation
+	-- slammed on its corner.
 	local info = U.new("TextLabel", {
 		Name = "InfoLabel",
 		BackgroundTransparency = 1,
@@ -1014,7 +1054,7 @@ local function buildCatch(root: any)
 		FontFace = Theme.FONT,
 		ZIndex = 6,
 	}, card)
-	Theme.pill(info, "Weight", "Slate", {
+	Theme.plate(info, "Weight", "Slate", {
 		AnchorPoint = Vector2.new(0, 0),
 		Position = UDim2.fromScale(0.05, 0),
 		Size = UDim2.fromScale(0.41, 1),
@@ -1022,9 +1062,11 @@ local function buildCatch(root: any)
 		IconScale = 1.3,
 		Text = "1 КГ",
 		Tier = "Body",
+		Radius = 0.5,
+		SimOpts = { stroke = Theme.MINOR },
 		LabelProps = { Outline = false, TextColor3 = INK, TextStrokeTransparency = 1 },
 	})
-	local price = Theme.pill(info, "Price", "Gold", {
+	local price = Theme.plate(info, "Price", "Gold", {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
 		Size = UDim2.fromScale(0.45, 1),
@@ -1032,7 +1074,10 @@ local function buildCatch(root: any)
 		IconScale = 1.45,
 		Text = "0",
 		Tier = "Title",
-		LabelProps = { Size = UDim2.fromScale(0.78, 0.8) },
+		Italic = true,
+		Radius = 0.5,
+		SimOpts = { stroke = Theme.DISPLAY_OUTLINE },
+		LabelProps = { Size = UDim2.fromScale(0.78, 0.8), Outline = Theme.DISPLAY_OUTLINE },
 	})
 	label(price, "Multiplier", {
 		Visible = false,
@@ -1041,15 +1086,17 @@ local function buildCatch(root: any)
 		Size = UDim2.fromScale(0.42, 0.95),
 		Rotation = 12,
 		Text = "×2",
+		Italic = true,
 		Outline = 4,
 		TextGradient = { WHITE, P.Gold.Top },
-		ZIndex = BZ.Top,
+		ZIndex = Theme.SZ.Top,
 		MaxTextSize = 34,
 		MinTextSize = 14,
 	})
 
-	-- The close hint, named like the button's «ЗАБРАТЬ!»: muted on the plate, Body tier (≥ 14 px
-	-- on the smallest phone); hidden until the last beat of the reveal, then it breathes gently.
+	-- The close hint, named like the button's «ЗАБРАТЬ!»: muted italic on the plate (the
+	-- reference's hint text), Body tier (≥ 14 px on the smallest phone); hidden until the last
+	-- beat of the reveal, then it breathes gently.
 	label(card, "TapHint", {
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.fromScale(0.5, 0.955),
@@ -1057,13 +1104,16 @@ local function buildCatch(root: any)
 		Text = "Тапни — забрать!",
 		TextColor3 = UI.Fishing.Muted,
 		TextStrokeTransparency = 1,
+		Italic = true,
 		ZIndex = 6,
 		Tier = "Body",
 	})
 
-	-- The giant rarity title (Epic and rarer, FUI-03): slams in at the centre of the screen when
-	-- the fish lands, then flies into the card's banner. Label: the whole word (Epic); Letters:
-	-- FishingController puts one label per letter there (Legendary / Mythic wave).
+	-- The giant rarity title (Epic and rarer, FUI-03): the reference's panel-less title —
+	-- outlined letters (Theme.title: a thick Ink outline and the drop-shadow twin LabelShadow),
+	-- white → the rarity's colours. It slams in over the fisher and his trophy when the fish
+	-- lands, then flies into the card's banner. Label: the whole word (Epic); Letters:
+	-- FishingController puts one label per letter there (Legendary / Mythic wave, no shadow).
 	local title = U.new("Frame", {
 		Name = "TitleSlam",
 		Visible = false,
@@ -1074,11 +1124,11 @@ local function buildCatch(root: any)
 		Size = UDim2.fromScale(0.9, 0.17),
 		ZIndex = 12,
 	}, root)
-	label(title, "Label", {
+	Theme.title(title, "Label", {
 		Size = UDim2.fromScale(1, 1),
 		Text = "ЭПИЧЕСКАЯ!",
-		Outline = 8,
-		TextGradient = { WHITE, UI.Rarity.Epic.Top },
+		Outline = Theme.TITLE_OUTLINE,
+		TextGradient = { WHITE, WHITE, UI.Rarity.Epic.Top, UI.Rarity.Epic.Bottom },
 		ZIndex = 2,
 		MaxTextSize = 120,
 		MinTextSize = 14,
@@ -1114,17 +1164,21 @@ end
 	                          Star), Help (italic), TapPad
 	  Hint                    the glass timer pill (a Sun / Berry plate for warnings / danger):
 	                          IconSocket.Icon + Label (italic; Hint.Text = the value)
-	  CatchDim, CatchRays     the reveal's dim and the holder of its sunburst, behind the card
-	  CatchCard               TextButton (tap: skip the reveal / close) — a white sim display plate:
-	                          Face.Window, Banner (a sim plate: RarityLabel, stars), FishGlow,
-	                          Pedestal (the podium: a sim stadium with a lighter Top), Viewport (the
-	                          fish model), NewStamp «НОВИНКА!» (red stamp), NameLabel, MutationLabel
-	                          (corner stamp: Icon, Caption), InfoLabel (Weight chip, Price chip;
-	                          Price.Multiplier «×N»), TapHint.
+	  CatchDim, CatchRays     the reveal's dim and the layer of its sunburst (FxRays), behind the
+	                          card; docked beside the fisher the layer clips the rays at his edge
+	  CatchCard               TextButton (tap: skip the reveal / close) — a white sim display plate
+	                          with the chunky outline: Face.Window (sky panel), Banner (the rarity
+	                          ribbon: RarityLabel, StarLeft / StarRight), FishGlow, Pedestal (the
+	                          trophy stand: Cap — the light oval top with the fish's Shadow, the
+	                          rarity column with an outlined Star, Base slab), Viewport (the fish
+	                          model), NewStamp «НОВИНКА!» (red sticker),
+	                          NameLabel, MutationLabel (corner stamp: Icon, Caption), InfoLabel
+	                          (Weight — grey round chip, Price — gold round chip with italic digits;
+	                          Price.Multiplier «×N»), TapHint (italic).
 	                          Square here; phones: the landscape layout of FishingController
-	                          (same children)
-	  TitleSlam               the giant rarity title of Epic+ (Label, Letters), flies into the
-	                          banner
+	                          (same children); docked beside the fisher wherever it fits
+	  TitleSlam               the giant panel-less rarity title of Epic+ (Label + its LabelShadow
+	                          twin, Letters), flies into the banner
 ]]
 local function buildFishing(hud: any)
 	local root = U.new("Frame", {

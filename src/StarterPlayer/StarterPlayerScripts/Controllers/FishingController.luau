@@ -120,7 +120,9 @@
 	    ниже CARD.DockMin, а места нет — посередине, как раньше), на планшете и компьютере —
 	    квадратная; легендарная и мифическая — крупнее. Вокруг — затемнение (у обычной нет; на
 	    телефоне — одна полоса с её стороны экрана, тающая к рыбаку, иначе — полосы сверху и
-	    снизу, как в кино) и лучи цветов редкости (до рыбака не достают). Редкость видна и на самой карточке:
+	    снизу, как в кино) и крупные лучи цветов редкости (UI v5: у карточки рядом с рыбаком их
+	    слой CatchRays обрезает их у его края — до рыбака с трофеем не достают; спицы слова
+	    уходят в карточку копией). Редкость видна и на самой карточке:
 	    маленькие лучи за рыбой, у эпической и выше — «живая» обводка (виноград дышит, по
 	    золоту бежит блик, радуга вращается; с мутацией — на баннере), у легендарной и
 	    мифической — лицо в цвет редкости (у мифической по нему бежит пастельная радуга). Имя
@@ -129,8 +131,9 @@
 	    редкость, «НОВИНКА!» (штамп; вид пойман впервые за игру — у обычной и редкой это ещё и
 	    маленький праздник: искры, конфетти, лучи ярче, «+N 💰»), вес и цена (поднимаются), цена
 	    набегает до самого «приземления» (фишка пружинит, из неё вылетает «+N 💰» — на свободное
-	    место рядом с карточкой, у карточки сбоку от рыбака — на окошко с рыбой; цену не закрывает; у легендарной и мифической — дождь 💰 по
-	    бокам и конфетти, у мифической — вспышка радужной обводки), у мутации цена сперва «дышит»
+	    место рядом с карточкой, у карточки сбоку от рыбака — над ней, у её внешнего края или под
+	    ней, и только если места нет — на верх окошка с рыбой; цену не закрывает; у легендарной и
+	    мифической — дождь 💰 по бокам (у карточки сбоку от рыбака — с её внешней стороны) и конфетти, у мифической — вспышка радужной обводки), у мутации цена сперва «дышит»
 	    одну долю, потом штамп на углу рыбы, «×N» у цены, пересчёт (праздник — у полной цены) и
 	    цветная обводка карточки; последней — «Тапни — забрать!», кнопка действия — «ЗАБРАТЬ!»,
 	    и всё успокаивается (мифическая «дышит»). Тап по карточке раньше последней доли
@@ -2046,7 +2049,10 @@ do
 		               телефоне) — выше, но правее TopbarRight px (её кнопки меню и чата слева);
 		               и там тесно (трофей × HeldScale на телефоне упирается в верх) — сбоку от
 		               рыбака с рыбой, где просвет шире, на той же высоте (не мельче TitleSide px;
-		               без тач-экрана — не на окне чата: ChatRight, ChatBottom).
+		               без тач-экрана — не на окне чата: ChatRight, ChatBottom, и не на списке
+		               игроков справа вверху: ListLeft, ListBottom — и карточка); v5 (D5): сбоку и
+		               тогда, когда над рыбой лишь узкая полоса, а сбоку буквы в TitleBeside раз
+		               крупнее (планшет, компьютер: слово над трофеем выходило мелким).
 		  TitleRays    лучи сцены слова — тонкие спицы (Width доли диаметра) и на Fade прозрачнее
 		               лучей карточки: вокруг рыбы не встаёт жёлтая «заливка» (v3).
 		  TitleDim     сцена слова: через At после приземления (кольца удара уже ушли — заливка
@@ -2074,8 +2080,11 @@ do
 		TitleMax = 110,
 		TopbarRight = 172,
 		ChatRight = 384, -- без тач-экрана слева вверху окно чата Roblox (до x 368 + 16 px зазора) …
-		ChatBottom = 186, -- … и до этой высоты HUD: слово сбоку от рыбака туда не встаёт
+		ChatBottom = 201, -- … и до этой высоты HUD (низ окна — y 184 HUD + 16 px + 1 на округление): ниже
+		ListLeft = 202, -- без тач-экрана справа вверху список игроков (от края 8…186 px + 16 px) …
+		ListBottom = 33, -- … и до этой высоты HUD (низ списка — y 16 HUD + 16 px + 1 на округление)
 		TitleSide = 24,
+		TitleBeside = 1.25,
 		TitleDim = { At = 0.55, Add = 0.2 },
 		RaysHole = 0.3,
 		Shine = 0.4,
@@ -2096,6 +2105,7 @@ do
 	local NARROW_LETTERS = { ["Г"] = true, ["Е"] = true, ["З"] = true, ["С"] = true, ["Э"] = true, ["Р"] = true }
 
 	local Layout = require(script.Parent:WaitForChild("FishingLayout")) -- раскладка у своего рыбака
+	local CatchFx = require(script.Parent:WaitForChild("CatchFx")) -- вид и движение карточки (UI v5)
 	-- Карточка: широкая (телефоны) — на экране ниже WIDE_BELOW пикселей.
 	local WIDE_BELOW = 500
 	local CARD_ASPECT = 1.55 -- широкая карточка: ширина / высота
@@ -2123,24 +2133,47 @@ do
 		               на маленьком телефоне не «крошечная» (текст на ней не меньше 14 px).
 		  DockMin      … а сбоку от рыбака (v3) — не ниже стольких px: на маленьком телефоне
 		               лучше чуть меньше, но рядом с ним, чем поверх него.
+		  DockShrink, DockCover   запасное место широкой карточки (огромный трофей на маленьком
+		               телефоне, UI v5): размеры DockMin × эти доли по очереди — первый, где она
+		               закрывает рыбака с трофеем не больше DockCover его прямоугольника (тексты
+		               на 0.85 ещё не мельче 12 px).
+		  DockSquare, DockSquareMin   квадратная (планшет, компьютер; v5) сбоку от рыбака с трофеем —
+		               не меньше такой доли своего размера «посередине» и не меньше стольких px
+		               (текст на ней ещё помещается в свои строки); не встала — там, где такая
+		               закрывает рыбака с трофеем меньше всего (FishingLayout.leastCover), если это
+		               заметно меньше, чем посередине; иначе — посередине, как раньше.
+		  DockSquarePhone  маленький телефон, широкой сбоку места нет (огромный трофей): сбоку
+		               встаёт квадратная, если она не меньше стольких px.
+		  DockSlack    у слова редкости место карточки выбирается дважды (на приземлении — куда
+		               лететь слову, и на рождении карточки), рыбак с трофеем за это время чуть
+		               сдвигается: оба раза порог «сбоку» ниже на столько px — иначе на впритык
+		               помещающемся экране слово летит к середине, а карточка рождается сбоку.
 		  PriceText    цена на фишке — до стольких Title (крупное «витринное» число, по своей коробке).
 		  PriceFloat   «+N 💰»: через Delay после «приземления» цены (фишка уже пружинит) вылетает из
 		               неё за Fly с (Back Out) на свободное место справа от карточки, Lift высоты экрана
 		               над ценой (или в 2 и 3.5 раза выше — где просторнее; Gap px от карточки); там
 		               тесно — меньше, но не меньше MinTitle × Title; совсем тесно — над строкой
-		               веса. Живёт Time с: поднимается и тает. Цену и «×N» не закрывает.
+		               веса. Живёт Time с: поднимается и тает. Цену и «×N» не закрывает. У
+		               карточки сбоку от рыбака (UI v5) — не на окно с рыбой: над баннером или у её
+		               внешнего края (CatchFx.floatSpot); нет места и там — на верхнюю полоску окна,
+		               и живёт Early с (тает с 0.4 с).
 		  New          новый вид обычной и редкой рыбы — маленький праздник: Confetti бумажек и
 		               Sparks искр из штампа «НОВИНКА!» цветами Colors, лучи не прозрачнее Alpha, не
 		               меньше Size (и MaxPx) и с зеленью и золотом, затемнение не светлее Dim, «+N 💰»
 		               высотой Float.
 		  RefHeight    высота места под карточку на телефоне 844×390: лучи на тач-экране
 		               уменьшаются вместе с ним (маленький телефон — меньше заливки).
-		  RimRoom      «живая» обводка выступает за карточку: над кнопкой действия — ещё столько, px.
+		  RimRoom      «живая» обводка выступает за карточку: над кнопкой действия — ещё столько, px
+		               (UI v5: или толщина её обводки на этом экране × Rim, если та толще —
+		               CatchFx.outline; с мутацией обводка карточки толще в 4/3).
+		  EdgeRoom     … и ещё столько над кнопкой действия и колонкой: их обводки и значок клавиши
+		               тоже выступают за свои прямоугольники (по рисунку — те же 16 px).
 		  DesktopRays  без тач-экрана лучи не больше стольких REVEAL.MaxPx (заливка на компьютере).
 		  ConfettiMid  мифическая: второй залп конфетти через столько после приземления.
 		  Fly          уходя, карточка сама летит снарядом в счётчик (Shrink — её размер у цели, Reach
 		               — доля пути, Travel — время, Quad In); через Fly рядом с ней вылетают 🐟 и ★ и
-		               долетают вместе с ней за FishTime (★ — друг за другом через StarGap).
+		               долетают вместе с ней за FishTime (★ — одной стайкой, до 6: разлетаются из карточки и
+		               летят друг за другом через 2 × StarGap; один покадровый эффект).
 		  Fov, FovWide, Yaw, Swing, SwingPeriod, FishBob, FishBobPeriod   рыба во ViewportFrame: камера
 		               (на широкой — уже: меньше искажений), рыба вполоборота (нос чуть к камере),
 		               покачивается ±Swing (ребром не встаёт) и «дышит» вверх-вниз (доля её высоты).
@@ -2148,6 +2181,7 @@ do
 	local CARD = {
 		MaxScale = 1.1,
 		RimRoom = 8,
+		EdgeRoom = 10,
 		Span = 1.05 * 1.025,
 		SquareSpan = 1.08 * 1.025,
 		Breath = 1.025,
@@ -2163,8 +2197,14 @@ do
 		Rise = 0.05,
 		MinHeight = 165,
 		DockMin = 128,
+		DockShrink = { 1, 0.95, 0.9, 0.85 },
+		DockCover = 0.03,
+		DockSquare = 0.6,
+		DockSquareMin = 250,
+		DockSquarePhone = 166,
+		DockSlack = 12,
 		PriceText = 1.4,
-		PriceFloat = { Delay = 0.12, Fly = 0.35, Time = 0.95, Lift = 0.1, Gap = 10, MinTitle = 1.2 },
+		PriceFloat = { Delay = 0.12, Fly = 0.35, Time = 0.95, Early = 0.8, Lift = 0.1, Gap = 10, MinTitle = 1.2 },
 		New = {
 			Confetti = 12,
 			Sparks = 16,
@@ -2198,12 +2238,13 @@ do
 		-- Витрина: окно рыбы слева, рыба стоит на подиуме (Pedestal). (Дети лица — в долях лица.)
 		["Face.Window"] = { Position = UDim2.fromScale(0.03, 0.296), Size = UDim2.fromScale(0.44, 0.676) },
 		FishGlow = { Position = UDim2.fromScale(0.25, 0.545), Size = UDim2.fromScale(0.6, 0.6) },
-		Pedestal = { Position = UDim2.fromScale(0.25, 0.925), Size = UDim2.fromScale(0.25, 0.115) },
+		Pedestal = { Position = UDim2.fromScale(0.25, 0.9), Size = UDim2.fromScale(0.16, 0.115) },
 		Viewport = { Position = UDim2.fromScale(0.25, 0.545), Size = UDim2.fromScale(0.42, 0.68) },
 		NewStamp = { Position = UDim2.fromScale(0.14, 0.32), Size = UDim2.fromScale(0.26, 0.12) },
 		-- (UI v5: чуть выше — обведённый значок мутации у нижнего угла не подходит к джойстику
 		-- ближе 16 px на маленьком телефоне.)
-		MutationLabel = { Position = UDim2.fromScale(0.25, 0.88), Size = UDim2.fromScale(0.42, 0.12), Rotation = -4 },
+		-- (UI v5: «РАДУЖНАЯ!» в одну строку не мельче 12 px и на самой маленькой карточке — шире.)
+		MutationLabel = { Position = UDim2.fromScale(0.25, 0.88), Size = UDim2.fromScale(0.46, 0.125), Rotation = -4 },
 		NameLabel = { Position = UDim2.fromScale(0.75, 0.272), Size = UDim2.fromScale(0.46, 0.205) },
 		-- Цена — главное число карточки: её «фишка» выше веса (крупный текст, уровень Title).
 		InfoLabel = { Position = UDim2.fromScale(0.75, 0.485), Size = UDim2.fromScale(0.42, 0.355) },
@@ -2225,7 +2266,17 @@ do
 	local cardDefaults: { [Instance]: Place }? = nil
 	-- dock — карточка сбоку от своего рыбака (−1 слева, 1 справа; v3, телефон), edge — его край
 	-- (px HUD.Fishing) с этой стороны: лучи и затемнение до него не достают.
-	local cardBox: { center: Vector2, size: Vector2, wide: boolean, slot: number, dock: number?, edge: number? }? = nil
+	-- clip — где видны её лучи (CatchFx.raysClip: по одну сторону от рыбака с трофеем; nil — везде).
+	local cardBox: {
+		center: Vector2,
+		size: Vector2,
+		wide: boolean,
+		slot: number,
+		dock: number?,
+		edge: number?,
+		clip: Layout.Rect?,
+	}? =
+		nil
 
 	local catchTrove = Trove.new() -- от "Caught" до карточки: ожидание приземления, слово редкости
 	local raysTrove = Trove.new() -- лучи за карточкой (на закрытии сжимаются, потом удаляются)
@@ -2240,7 +2291,7 @@ do
 	local faded: { [Instance]: { [string]: number } } = {} -- погашенное (плашки статуса, кнопка)
 	local fadeTweens: { [Instance]: Tween } = {} -- … и его идущие твины (возврат их отменяет)
 	-- Лучи улова: у слова редкости — с приземления (за словом), иначе — с карточки.
-	local cardRays: { serial: number, main: UiFx.Rays, extra: UiFx.Rays? }? = nil
+	local cardRays: { serial: number, main: UiFx.Rays, extra: UiFx.Rays?, card: boolean }? = nil
 
 	-- Буква «по ширине» для огромного слова.
 	local function letterWidth(ch: string): number
@@ -2430,7 +2481,6 @@ do
 		end
 		local fresh: { [Instance]: Place } = {}
 		fresh[ui.card] = placeOf(ui.card)
-		fresh[ui.rays] = placeOf(ui.rays)
 		for _, gui in cardParts() do
 			fresh[gui] = placeOf(gui)
 		end
@@ -2459,17 +2509,25 @@ do
 
 	--[[
 		Свободное место по бокам (пиксели HUD.Fishing) для полосы высоты top … bottom: от края экрана
-		(или джойстика) до кнопки действия (её подпись-лента выступает на 8 % ширины) или колонки
-		кнопок справа («ДОМОЙ»), с зазором CARD_SIDE_GAP. Препятствие, которое целиком ниже (или
+		(или джойстика) до кнопки действия (её подпись-лента выступает на 8 % ширины), кнопки
+		прыжка (тач-экран) или колонки кнопок справа («ДОМОЙ»), с зазором CARD_SIDE_GAP. Препятствие, которое целиком ниже (или
 		выше) полосы, не мешает: на телефоне джойстик и кнопка действия внизу, под карточкой.
 		Так же меряются карточка и огромное слово редкости; shown — у колонки справа мешают только
-		показанные кнопки (она растёт снизу вверх, её пустой верх свободен: туда вылетает «+N 💰»).
+		показанные кнопки (она растёт снизу вверх, её пустой верх свободен: туда вылетает «+N 💰»);
+		reach — кнопка действия и колонка мешают и полосе, которая кончается меньше чем в стольких
+		px над ними (UI v5: зазор по рисунку — с обводками).
 	]]
-	local function sideLimits(rootSize: Vector2, top: number, bottom: number, shown: boolean?): (number, number)
+	local function sideLimits(
+		rootSize: Vector2,
+		top: number,
+		bottom: number,
+		shown: boolean?,
+		reach: number?
+	): (number, number)
 		local origin = ui.fishing.AbsolutePosition
 		local left, right = CARD_SIDE_GAP, rootSize.X - CARD_SIDE_GAP
-		local function block(side: number, x: number, from: number, to: number)
-			if from < bottom and to > top then
+		local function block(side: number, x: number, from: number, to: number, near: number?)
+			if from < bottom + (near or 0) and to > top then
 				if side < 0 then
 					left = math.max(left, x + CARD_SIDE_GAP)
 				else
@@ -2482,6 +2540,15 @@ do
 			local small = math.min(rootSize.X, rootSize.Y) <= WIDE_BELOW
 			local clear = if small then THUMBSTICK_CLEAR else THUMBSTICK_CLEAR_BIG
 			block(-1, clear - CARD_SIDE_GAP, rootSize.Y - (if small then 90 else 210), rootSize.Y)
+			-- … и кнопка прыжка справа внизу (её зеркало: маленькая — 95 px от правого края, верх в
+			-- 90 px от низа; большая — 170 и 210: на планшете она выше кнопки действия, UI v5).
+			block(
+				1,
+				rootSize.X - (if small then 95 else 170),
+				rootSize.Y - (if small then 90 else 210),
+				rootSize.Y,
+				reach
+			)
 		end
 		local button = ui.actionButton
 		if button.Visible then
@@ -2495,7 +2562,7 @@ do
 			if ribbon and ribbon:IsA("GuiObject") and ribbon.Visible then
 				x = math.min(x, ribbon.AbsolutePosition.X - origin.X - (if stroke then stroke.Thickness else 0))
 			end
-			block(1, x, at.Y, rootSize.Y)
+			block(1, x, at.Y, rootSize.Y, reach)
 		end
 		local column = ui.hud:FindFirstChild("RightButtons")
 		if column and column:IsA("GuiObject") and column.Visible then
@@ -2514,7 +2581,7 @@ do
 				end
 			end
 			local bottomY = at.Y + column.AbsoluteSize.Y
-			block(1, at.X - ribbonOut, if shown then bottomY - stack else at.Y, bottomY)
+			block(1, at.X - ribbonOut, if shown then bottomY - stack else at.Y, bottomY, reach)
 		end
 		return left, right
 	end
@@ -2526,30 +2593,52 @@ do
 		CARD.DockMin. Рыбака не знаем или сбоку тесно (огромная рыба над головой) — как раньше: от
 		верха HUD до низа экрана или — если так выйдет крупнее и ближе к середине — над кнопкой
 		действия; посередине экрана, если там хватает места, иначе сдвиг от препятствий.
-		Возвращает центр, размер и сторону (−1 / 1; nil — не сбоку) с краем рыбака с этой стороны.
+		Возвращает центр, размер и сторону (−1 / 1; nil — не сбоку) с краем рыбака с этой стороны;
+		пятое — запасное место (UI v5, D1/D2), если сбоку тесно: в тех же полосах, где карточка
+		CARD.DockMin закрывает рыбака с трофеем меньше всего (FishingLayout.leastCover), — когда это
+		заметно меньше, чем «посередине» (placeCard берёт его, если не встала и квадратная).
 	]]
-	local function wideSlot(rootSize: Vector2): (Vector2, Vector2, number?, number?)
+	local function wideSlot(
+		rootSize: Vector2,
+		fisher: Layout.Rect?,
+		rim: number
+	): (Vector2, Vector2, number?, number?, {
+		center: Vector2,
+		size: Vector2,
+		side: number,
+		edge: number,
+	}?)
 		local top = CARD_TOP_GAP
 		local floor = rootSize.Y - CARD_BOTTOM_CLEAR
 		local mid = rootSize.X / 2
 		local button = ui.actionButton
-		local lifted = button.AbsolutePosition.Y - ui.fishing.AbsolutePosition.Y - CARD_SIDE_GAP - CARD.RimRoom
-		local fisher = fisherRect()
+		-- (rim — «живая» обводка карточки, см. placeCard; у кнопки — своя, EdgeRoom)
+		local lifted = button.AbsolutePosition.Y - ui.fishing.AbsolutePosition.Y - CARD_SIDE_GAP - rim - CARD.EdgeRoom
+		local bands: { Layout.DockBand }? = nil -- (полосы сбоку: для запасного места)
 		if fisher then
 			local aspect = CARD_ASPECT * CARD.Span
 			local small = math.min(rootSize.X, rootSize.Y) <= WIDE_BELOW
 			-- слева — над джойстиком (тач-экран), справа — над кнопкой действия
+			-- (UI v5: и ещё 1 px — округление рисунка, иначе зазор до джойстика 15.7 px)
 			local leftFloor = if UserInputService.TouchEnabled
-				then rootSize.Y - (if small then 90 else 210) - CARD_SIDE_GAP - CARD.RimRoom
+				then rootSize.Y - (if small then 90 else 210) - CARD_SIDE_GAP - rim - 1
 				else floor
 			local rightFloor = if button.Visible then math.min(floor, lifted) else floor
 			local best: any, bestSide, bestEdge = nil, nil, nil
 			-- (Сверху — на CARD_SIDE_GAP ниже: над карточкой у края экрана — кнопки Roblox, у
-			-- карточки — «живая» обводка и «дыхание».)
-			local high = CARD_TOP_GAP + CARD.RimRoom + 8
+			-- карточки — «живая» обводка (UI v5: толще — ещё 4 px) и «дыхание».)
+			local high = CARD_TOP_GAP + rim + 12
+			bands = {}
 			for _, side in { -1, 1 } do
 				local bottom = if side < 0 then leftFloor else rightFloor
 				local left, right = sideLimits(rootSize, high, bottom)
+				table.insert(bands, {
+					side = side,
+					top = high,
+					bottom = bottom,
+					left = left + (rim + CARD.RimRoom) / 2,
+					right = right - (rim + CARD.RimRoom) / 2,
+				})
 				local slot = Layout.dockSide(
 					side,
 					fisher,
@@ -2558,7 +2647,9 @@ do
 					high,
 					bottom,
 					aspect,
-					if side < 0 then left else right
+					-- (UI v5: толстая «живая» обводка баннера и «дыхание» выступают за «отпечаток» — ещё
+					-- полсуммы rim и RimRoom)
+					if side < 0 then left + (rim + CARD.RimRoom) / 2 else right - (rim + CARD.RimRoom) / 2
 				)
 				-- (Слева — чуть охотнее: рыбак с трофеем между карточкой и «ЗАБРАТЬ!».)
 				local area = if slot
@@ -2575,7 +2666,8 @@ do
 				return Vector2.new((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2),
 					Vector2.new(w, w / CARD_ASPECT),
 					bestSide,
-					bestEdge
+					bestEdge,
+					nil
 			end
 		end
 		local bottoms = { floor }
@@ -2598,7 +2690,38 @@ do
 				bestSize = Vector2.new(w, h)
 			end
 		end
-		return bestCenter, bestSize, nil, nil
+		if fisher and bands then
+			-- Запасное место: там, где карточка CARD.DockMin закрывает рыбака с трофеем меньше всего
+			-- (огромный мифический трофей на маленьком телефоне) — если заметно меньше, чем здесь;
+			-- UI v5 (SIMC-C1-02): чуть меньше (CARD.DockShrink), если так она встаёт рядом с рыбой.
+			local rect, side, cover = Layout.leastCoverScaled(
+				fisher,
+				bands,
+				CARD.DockMin * CARD_ASPECT,
+				CARD.DockMin,
+				CARD.Span,
+				CARD.DockShrink,
+				CARD.DockCover * (fisher.x1 - fisher.x0) * (fisher.y1 - fisher.y0)
+			)
+			local foot = bestSize * Vector2.new(CARD.Span, 1) / 2
+			local here = Layout.overlapArea(
+				Layout.rect(bestCenter.X - foot.X, bestCenter.Y - foot.Y, bestCenter.X + foot.X, bestCenter.Y + foot.Y),
+				fisher
+			)
+			if rect and side and cover and cover < here * 0.7 then
+				return bestCenter,
+					bestSize,
+					nil,
+					nil,
+					{
+						center = Vector2.new((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2),
+						size = Vector2.new(rect.x1 - rect.x0, rect.y1 - rect.y0),
+						side = side,
+						edge = if side < 0 then rect.x1 else rect.x0,
+					}
+			end
+		end
+		return bestCenter, bestSize, nil, nil, nil
 	end
 
 	-- Затемнение — четыре полосы ВОКРУГ карточки (заходят под её скруглённые края на r px и далеко
@@ -2691,17 +2814,129 @@ do
 	end
 
 	-- Поставить карточку (и её лучи) на место: центр и размер в пикселях; внутри — широкая или
-	-- квадратная раскладка. scale — меньше для обычной рыбы.
-	function placeCard(scale: number)
+	-- квадратная раскладка. scale — меньше для обычной рыбы. trophy — где на экране (будет) рыба
+	-- над головой (fishBox: сервер ставит её чуть позже): карточка не встаёт на неё.
+	function placeCard(scale: number, trophy: Layout.Rect?, slack: number?, look: Reveal?)
+		--[[
+			Квадратная карточка (планшет, компьютер) СБОКУ от рыбака с трофеем (UI v5, D1: посередине
+			она закрывала больше половины рыбы над головой): полосы слева и справа от него — во всю
+			высоту и над препятствиями (джойстик, кнопка действия, показанные кнопки колонки; без
+			тач-экрана слева вверху — окно чата), FishingLayout.cardDock выбирает, где карточка
+			крупнее; не меньше CARD.DockSquare её размера «посередине» (и не меньше DockSquareMin px —
+			иначе текст не помещается в свои строки). keepout — рыбак с трофеем (с запасом); want —
+			размер «посередине»; aspect — её ширина / высота; least — не меньше стольких px (по
+			умолчанию — см. выше), минус slack (CARD.DockSlack). nil — сбоку не помещается.
+			look.Rim — во сколько раз толще обводка карточки («живая», reveal.Rim): зазоры до кнопок
+			и края — по ней.
+		]]
+		-- (UI v5: «живая» обводка толще RimRoom на крупном экране; с мутацией — в 4/3)
+		local rim = math.max(CARD.RimRoom, CatchFx.outline(ui.card, math.max(look and look.Rim or 1, 4 / 3)))
+		if look and (UIConfig.Rarity[look.Id] or UIConfig.Rarity.Common).Rainbow then
+			-- (мифическая потом «дышит» — CARD.Breath: шире и выше на столько px; карточка — до
+			-- 0.6 высоты экрана, не выше 420 px)
+			rim += math.ceil((CARD.Breath - 1) * math.min(ui.fishing.AbsoluteSize.Y * 0.6, 420))
+		end
+		local function squareDock(
+			rootSize: Vector2,
+			keepout: Layout.Rect,
+			want: number,
+			aspect: number,
+			least: number?
+		): any
+			local origin = ui.fishing.AbsolutePosition
+			-- (обводка карточки по рисунку, rim; до кнопок — ещё их обводки, EdgeRoom)
+			local reach = CARD_SIDE_GAP + rim + CARD.EdgeRoom
+			local high = CARD_TOP_GAP + rim + 12
+			local floor = rootSize.Y - CARD_BOTTOM_CLEAR
+			local floors = { floor }
+			local button = ui.actionButton
+			if button.Visible then
+				table.insert(floors, button.AbsolutePosition.Y - origin.Y - reach)
+			end
+			local touch = UserInputService.TouchEnabled
+			if touch then
+				-- над джойстиком (большой — 210 px от низа; ещё 1 px — округление рисунка)
+				local small = math.min(rootSize.X, rootSize.Y) <= WIDE_BELOW
+				table.insert(floors, rootSize.Y - (if small then 90 else 210) - CARD_SIDE_GAP - rim - 1)
+			end
+			local column = ui.hud:FindFirstChild("RightButtons")
+			if column and column:IsA("GuiObject") and column.Visible then
+				-- над показанными кнопками колонки (она растёт снизу вверх; как в sideLimits)
+				local list = column:FindFirstChildOfClass("UIListLayout")
+				local gap = if list then list.Padding.Scale * column.AbsoluteSize.Y + list.Padding.Offset else 0
+				local stack = 0
+				for _, item in column:GetChildren() do
+					if item:IsA("GuiObject") and item.Visible then
+						stack += item.AbsoluteSize.Y + (if stack > 0 then gap else 0)
+					end
+				end
+				if stack > 0 then
+					local bottomY = column.AbsolutePosition.Y - origin.Y + column.AbsoluteSize.Y
+					table.insert(floors, bottomY - stack - reach)
+				end
+			end
+			local bands: { Layout.DockBand } = {}
+			for _, side in { -1, 1 } do
+				for _, bottom in floors do
+					local tops = { high }
+					if not touch then
+						-- (без тач-экрана: окно чата слева вверху и список игроков справа вверху —
+						-- ниже них, с обводкой карточки rim)
+						table.insert(tops, (if side < 0 then CLIMAX.ChatBottom else CLIMAX.ListBottom) + rim)
+					end
+					for _, top in tops do
+						if bottom - top > 0 then
+							local left, right = sideLimits(rootSize, top, bottom, true, reach)
+							if not touch and top < CLIMAX.ChatBottom + rim then
+								left = math.max(left, CLIMAX.ChatRight + rim)
+							end
+							if not touch and top < CLIMAX.ListBottom + rim then
+								right = math.min(right, rootSize.X - CLIMAX.ListLeft - rim)
+							end
+							-- (полсуммы rim и RimRoom: «живая» обводка баннера и «дыхание» выступают)
+							table.insert(bands, {
+								side = side,
+								top = top,
+								bottom = bottom,
+								left = left + (rim + CARD.RimRoom) / 2,
+								right = right - (rim + CARD.RimRoom) / 2,
+							})
+						end
+					end
+				end
+			end
+			local smallest = (least or math.max(want * CARD.DockSquare, CARD.DockSquareMin)) - (slack or 0)
+			local rect, side, edge =
+				Layout.cardDock(keepout, bands, want, math.min(smallest, want), aspect, CARD.SquareSpan)
+			-- (не встала — полосы и размер для запасного места, см. ниже)
+			return { rect = rect, side = side, edge = edge, bands = bands, least = math.min(smallest, want) }
+		end
 		local defaults = rememberDefaults()
 		local root = ui.fishing
 		local rootSize = root.AbsoluteSize
 		local wide = rootSize.Y < WIDE_BELOW
 		local center: Vector2, size: Vector2
 		local dock: number?, edge: number? = nil, nil
+		local fixed = false -- (место уже под свой размер: сбоку от рыбака)
+		local fisher = fisherRect()
+		if fisher and trophy then
+			local pad = Layout.FISHER_PAD
+			fisher = Layout.rect(
+				math.min(fisher.x0, trophy.x0 - pad),
+				math.min(fisher.y0, trophy.y0 - pad),
+				math.max(fisher.x1, trophy.x1 + pad),
+				fisher.y1
+			)
+		end
+		local spare = nil -- (запасное место широкой карточки, см. wideSlot)
 		if wide then
-			center, size, dock, edge = wideSlot(rootSize)
-		else
+			center, size, dock, edge, spare = wideSlot(rootSize, fisher, rim)
+		end
+		-- (v5: на маленьком телефоне огромный трофей не оставляет места широкой карточке сбоку —
+		-- тогда сбоку встаёт квадратная, она уже: не меньше CARD.DockSquarePhone px; не встала и
+		-- она — широкая CARD.DockMin там, где меньше всего закрывает трофей (запасное место
+		-- wideSlot), а нет и его — как раньше.)
+		if not wide or (fisher and not dock) then
 			local pos, box = restRect(ui.card, defaults[ui.card], rootSize)
 			local capPlace = nil
 			local cap = ui.card:FindFirstChildOfClass("UISizeConstraint")
@@ -2718,20 +2953,65 @@ do
 				)
 				box = Vector2.new(w, h)
 			end
-			center, size = pos + box / 2, box
+			-- v5 (D1): сбоку от рыбака с трофеем, если там помещается (обводка «живой» рамки — ещё
+			-- CARD.RimRoom px от него).
+			local docked = if fisher
+				then squareDock(rootSize, {
+					x0 = fisher.x0 - CARD.RimRoom,
+					y0 = fisher.y0,
+					x1 = fisher.x1 + CARD.RimRoom,
+					y1 = fisher.y1,
+				}, box.X * scale, box.X / math.max(box.Y, 1), if wide then CARD.DockSquarePhone else nil)
+				else nil
+			if docked and docked.rect then
+				local rect = docked.rect
+				center = Vector2.new((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2)
+				size = Vector2.new(rect.x1 - rect.x0, rect.y1 - rect.y0)
+				dock, edge, fixed = docked.side, docked.edge - docked.side * CARD.RimRoom, true
+				wide = false
+			elseif not wide then
+				center, size = pos + box / 2, box
+				-- (v5: и сбоку не встала — там, где карточка не меньше least закрывает рыбака с
+				-- трофеем меньше всего, если заметно меньше, чем посередине)
+				local rect, side, cover = nil, nil, nil
+				if docked and fisher then
+					rect, side, cover = Layout.leastCover(
+						fisher,
+						docked.bands,
+						docked.least,
+						docked.least * box.Y / math.max(box.X, 1),
+						CARD.SquareSpan
+					)
+				end
+				if
+					rect
+					and side
+					and fisher
+					and (cover or 0)
+						< 0.7 * Layout.overlapArea(Layout.rect(pos.X, pos.Y, pos.X + box.X, pos.Y + box.Y), fisher)
+				then
+					center = Vector2.new((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2)
+					size = Vector2.new(rect.x1 - rect.x0, rect.y1 - rect.y0)
+					dock, edge, fixed = side, if side < 0 then rect.x1 else rect.x0, true
+				end
+			elseif spare then
+				-- (v5: и квадратная не встала — там, где широкая меньше всего закрывает трофей)
+				center, size, dock, edge, fixed = spare.center, spare.size, spare.side, spare.edge, true
+			end
 		end
 		-- Размер по редкости, низ остаётся на месте (над хотбаром). Широкая карточка: место — под
 		-- самую крупную (мифическую), остальные — меньше, но не ниже CARD.MinHeight (маленький
 		-- телефон: обычная рыба не «крошечная»). slot — высота этого места (лучи).
 		local slot = size.Y
-		local grow = if wide
-			then math.max(scale / CARD.MaxScale, math.min(1, CARD.MinHeight / math.max(slot, 1)))
+		local grow = if fixed
+			then 1
+			elseif wide then math.max(scale / CARD.MaxScale, math.min(1, CARD.MinHeight / math.max(slot, 1)))
 			else scale
 		local scaled = size * grow
 		-- (Сбоку от рыбака — по середине своего места; иначе низ остаётся на месте.)
 		center += Vector2.new(0, if dock then 0 else (size.Y - scaled.Y) / 2)
 		size = scaled
-		if not wide then
+		if not wide and not fixed then
 			-- Квадратная не налезает на кнопку действия, джойстик (планшет 4:3) и колонку справа:
 			-- сдвиг, а не хватает места — меньше (баннер шире на 8 %, мифическая ещё «дышит»); и не
 			-- выше верха HUD (крупная мифическая на невысоком экране).
@@ -2743,19 +3023,18 @@ do
 			center =
 				Vector2.new(math.clamp(center.X, left + half, math.max(left + half, right - half)), bottom - size.Y / 2)
 		end
-		for _, gui in { ui.card, ui.rays } do
-			local cap = gui:FindFirstChildOfClass("UISizeConstraint")
-			if cap then
-				cap.MaxSize = Vector2.new(4096, 4096)
-			end
-			applyPlace(gui, {
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				SizeConstraint = Enum.SizeConstraint.RelativeXY,
-				Size = offset(size.X, size.Y),
-				Position = offset(center.X, center.Y),
-				Rotation = 0,
-			})
+		-- (UI v5: слой лучей CatchRays ставит startRays — CatchFx.raysFrame.)
+		local cap = ui.card:FindFirstChildOfClass("UISizeConstraint")
+		if cap then
+			cap.MaxSize = Vector2.new(4096, 4096)
 		end
+		applyPlace(ui.card, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			SizeConstraint = Enum.SizeConstraint.RelativeXY,
+			Size = offset(size.X, size.Y),
+			Position = offset(center.X, center.Y),
+			Rotation = 0,
+		})
 		for path, gui in cardParts() do
 			local base = defaults[gui]
 			local place = base
@@ -2771,8 +3050,27 @@ do
 			end
 			applyPlace(gui, place)
 		end
-		cardBox = { center = center, size = size, wide = wide, slot = slot, dock = dock, edge = edge }
+		CatchFx.stampMin(ui.newStamp, size.X) -- (UI v5: на узкой карточке наклейка уже)
+		cardBox = {
+			center = center,
+			size = size,
+			wide = wide,
+			slot = slot,
+			dock = dock,
+			edge = edge,
+			clip = if dock and fisher then CatchFx.raysClip(fisher, center, size, rootSize) else nil,
+		}
 		placeDim(center, size, wide, dock, edge)
+		local rays = cardRays
+		if rays and rays.card then
+			-- (экран поменял размер: лучи — за карточкой на новом месте, обрезка — по нему)
+			CatchFx.raysFrame(ui.rays, rootSize, cardBox and cardBox.clip)
+			for _, ring in { rays.main, rays.extra } do
+				if ring then
+					CatchFx.aimRays(ring.holder, ui.rays, center, ring.holder.Size.X.Offset)
+				end
+			end
+		end
 	end
 
 	-- Прямоугольник элемента карточки «в покое» (пиксели HUD.Fishing) — куда влетает слово
@@ -2809,6 +3107,41 @@ do
 		end
 		local model = variants:FindFirstChild(fish.Mutation or "Normal") or variants:FindFirstChild("Normal")
 		return if model and model:IsA("Model") then model else nil
+	end
+
+	-- Где встанет рыба над головой своего рыбака на экране (px HUD.Fishing), ещё до того, как её
+	-- поставил сервер: от макушки + FishingConfig.HeldFishGap вверх на высоту модели рыбы и вширь
+	-- на её длину (× HeldScale редкости, с запасом на вес). nil — не видно.
+	local function fishBox(fish: FishingRules.FishData): Layout.Rect?
+		local character = player.Character
+		local head = character and character:FindFirstChild("Head")
+		local camera = Workspace.CurrentCamera
+		if not head or not head:IsA("BasePart") or not camera then
+			return nil
+		end
+		local template = fishTemplate(fish)
+		local height, length = 1.5, 3
+		if template then
+			local _, size = template:GetBoundingBox()
+			height = math.max(size.Y, math.min(size.X, size.Z) * 0.5)
+			length = math.max(size.X, size.Z)
+		end
+		local scale = (FishingConfig.HeldScale[fish.Rarity] or 1) * 1.15
+		local base = head.Position + Vector3.new(0, head.Size.Y / 2 + FishingConfig.HeldFishGap, 0)
+		local half = camera.CFrame.RightVector * (length * scale / 2)
+		local top = camera:WorldToScreenPoint(base + Vector3.new(0, height * scale, 0))
+		local a = camera:WorldToScreenPoint(base - half)
+		local b = camera:WorldToScreenPoint(base + half)
+		if top.Z <= 0 or a.Z <= 0 or b.Z <= 0 then
+			return nil
+		end
+		local origin = ui.fishing.AbsolutePosition
+		return Layout.rect(
+			math.min(a.X, b.X) - origin.X,
+			top.Y - origin.Y,
+			math.max(a.X, b.X) - origin.X,
+			math.max(a.Y, b.Y) - origin.Y
+		)
 	end
 
 	--[[
@@ -2853,20 +3186,6 @@ do
 		end))
 	end
 
-	-- Имя на кремовой карточке: тёмный градиент редкости с белой обводкой (мифическая — тёмная радуга).
-	local function nameColors(rarityId: string, style: UIConfig.RarityStyle): (ColorSequence, number)
-		if style.Rainbow then
-			local stops = {}
-			for _, index in { 1, 2, 4, 6, 7 } do
-				table.insert(stops, UiFx.darken(UIConfig.Rainbow[index], 0.15))
-			end
-			return UiFx.sequence(stops), 0
-		elseif rarityId == "Common" then
-			return ColorSequence.new(Palette.Night.Top, UIConfig.Ink), 90
-		end
-		return ColorSequence.new(style.Bottom, style.Lip), 90
-	end
-
 	local function fillCard(fish: FishingRules.FishData, style: UIConfig.RarityStyle)
 		local rarity = FishingRules.GetRarity(fish.Rarity)
 
@@ -2880,10 +3199,10 @@ do
 				else cream
 		)
 
-		-- Баннер редкости и подставка рыбы — плашки её цвета (мифическая — радуга, бегущая по
-		-- баннеру: её запускает openCard).
+		-- Баннер редкости и подиум рыбы — в её цветах (мифическая — радуга, бегущая по баннеру: её
+		-- запускает openCard; у подиума светлый верх с тенью рыбы — CatchFx.paintPodium).
 		UiFx.setCandy(ui.banner, swatchOf(style))
-		UiFx.setCandy(ui.pedestal, swatchOf(style))
+		CatchFx.paintPodium(ui.pedestal, style)
 		if style.Rainbow then
 			ui.bannerFill.Color = UiFx.sequence(UIConfig.Rainbow)
 			ui.bannerFill.Rotation = 0
@@ -2898,7 +3217,7 @@ do
 			disc.Visible = false
 		end
 		ui.nameLabel.Text = FishingRules.DisplayName(fish)
-		ui.nameFill.Color, ui.nameFill.Rotation = nameColors(fish.Rarity, style)
+		ui.nameFill.Color, ui.nameFill.Rotation = CatchFx.nameColors(fish.Rarity, style)
 
 		-- Штамп мутации на углу рыбы: «ЗОЛОТАЯ ×2!»; Text — значение «Золотая мутация ×2».
 		local mutationText = FishingRules.MutationLabel(fish)
@@ -2906,7 +3225,11 @@ do
 		local mutationStyle = if fish.Mutation then UIConfig.Mutations[fish.Mutation] else nil
 		ui.mutationLabel.Visible = mutationText ~= nil
 		ui.mutationLabel.Text = mutationText or ""
-		ui.mutationCaption.Text = if mutation then `{upper(mutation.Name)} ×{mutation.Multiplier}!` else ""
+		local wideBox = if cardBox and cardBox.wide then cardBox.size.X else nil
+		ui.mutationCaption.Text = if mutation
+			then CatchFx.stampText(mutation.Name, mutation.Multiplier, wideBox ~= nil, cardBox and cardBox.size.X)
+			else ""
+		ui.tapHint.Text = CatchFx.tapHint(UserInputService.TouchEnabled, wideBox)
 		ui.priceMult.Text = if mutation then `×{mutation.Multiplier}` else ""
 		ui.priceMult.Visible = false
 		if mutationStyle then
@@ -3194,20 +3517,23 @@ do
 			clearLeft = CLIMAX.TopbarRight
 		end
 		local centerX = rootSize.X / 2
-		local room: number
+		local wantY, wantH = middle, height -- (желанные: для места сбоку)
 		if bandY and bandH then
 			middle, height = bandY, bandH
 		end
 		local left, right = sideLimits(rootSize, middle - height / 2, middle + height / 2)
 		left = math.max(left, clearLeft)
 		-- (Ещё 10 px с каждой стороны: обводка букв и их «выскок» Back Out выходят за рамку.)
-		room = 2 * math.max(math.min(centerX - left, right - centerX) - 10, 40)
-		if not bandY and fisher then
+		local room = 2 * math.max(math.min(centerX - left, right - centerX) - 10, 40)
+		if fisher then
 			-- v3: над рыбой с трофеем места нет (телефон) — сбоку от них, где просвет шире, на той
-			-- же высоте (не выше 16 px от верха): слово рядом с рыбой, а не на ней.
-			middle = math.max(middle, Layout.EDGE + height / 2)
-			left, right = sideLimits(rootSize, middle - height / 2, middle + height / 2)
-			if not UserInputService.TouchEnabled and middle - height / 2 < CLIMAX.ChatBottom then
+			-- же высоте (не выше 16 px от верха): слово рядом с рыбой, а не на ней. v5 (D5): и когда
+			-- над ней лишь узкая полоса (планшет, компьютер: слово там мелкое) — сбоку, если там
+			-- буквы в CLIMAX.TitleBeside раз крупнее.
+			local sideY = math.max(wantY, Layout.EDGE + wantH / 2)
+			-- (у колонки справа мешают только показанные кнопки: её пустой верх свободен)
+			left, right = sideLimits(rootSize, sideY - wantH / 2, sideY + wantH / 2, true)
+			if not UserInputService.TouchEnabled and sideY - wantH / 2 < CLIMAX.ChatBottom then
 				left = math.max(left, CLIMAX.ChatRight) -- (окно чата слева вверху)
 			end
 			local from, to = left, fisher.x0
@@ -3215,8 +3541,9 @@ do
 				from, to = fisher.x1, right
 			end
 			local side = to - from - 20
-			if side >= total * CLIMAX.TitleSide then
-				centerX, room = (from + to) / 2, side
+			local above = if bandY then math.min(height, room / total) else 0
+			if side >= total * CLIMAX.TitleSide and math.min(wantH, side / total) > above * CLIMAX.TitleBeside then
+				centerX, room, middle, height = (from + to) / 2, side, sideY, wantH
 			end
 		end
 		local width = math.min(total * height, room)
@@ -3234,8 +3561,14 @@ do
 			ColorSequenceKeypoint.new(1, style.Bottom),
 		})
 		ui.titleLabel.Visible = single
-		ui.titleLabel.Text = text
+		UiFx.setText(ui.titleLabel, text)
+		local twin = UiFx.twinOf(ui.titleLabel) -- тень слова (у букв её нет)
+		if twin then
+			twin.Visible = single
+		end
 		ui.titleSlamFill.Color = fill
+		local edge = ui.titleLabel:FindFirstChild("Outline")
+		local edgePx = if edge and edge:IsA("UIStroke") then UiFx.strokeThickness(edge) else 5
 		local labels: { TextLabel } = { ui.titleLabel }
 
 		if not single then
@@ -3259,10 +3592,10 @@ do
 				local outline = Instance.new("UIStroke")
 				outline.Name = "Outline"
 				outline.Color = UIConfig.Ink
-				outline.Thickness = 4
+				outline.Thickness = edgePx -- (как у слова целиком: толстая обводка образца)
 				outline.LineJoinMode = Enum.LineJoinMode.Round
 				outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
-				outline:SetAttribute("BaseThickness", 6)
+				outline:SetAttribute("BaseThickness", edge and edge:GetAttribute("BaseThickness") or 8)
 				outline.Parent = letter
 				local gradient = Instance.new("UIGradient")
 				gradient.Name = "TextFill"
@@ -3315,6 +3648,14 @@ do
 		-- (Буквы и так выскакивают по одной — у них «удар» меньше.)
 		slam.Scale = math.max(1, math.min(if single then 2.5 else 1.7, room / width))
 		UiFx.tween(slam, 0.3, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		if single then
+			-- Слово целиком, встав, качается волной (−3° → +3° → 0).
+			later(catchTrove, 0.3, function()
+				if not titleWave.stopped then
+					UiFx.wiggle(title, 3, 2, 0.6)
+				end
+			end)
+		end
 		-- Блик — следом за буквами (как встали первые три; одной надписью — когда «удар» сел).
 		later(catchTrove, if single then 0.3 else CLIMAX.TitleStagger * 3 + 0.24, function()
 			if not titleWave.stopped then
@@ -3728,25 +4069,24 @@ do
 				task.delay(0.15, finishCatch, serial, true)
 			end,
 		}))
+		-- ★ — одной стайкой (один покадровый эффект: бюджет полёта — не больше трёх): разлетаются
+		-- из карточки и летят друг за другом, на прилёте каждой — «тик» всё выше.
 		local style = UIConfig.Rarity[reveal.Id] or UIConfig.Rarity.Common
-		local colors = if style.Rainbow then UIConfig.Rainbow else { style.Top, WHITE, style.Bottom }
-		for index = 1, reveal.Trail do
-			later(celebrationTrove, CARD.StarGap * index, function()
-				celebrationTrove:Add(UiFx.flyTo(hud, start, counter, {
-					text = "★",
-					color = colors[(index - 1) % #colors + 1],
-					time = CARD.FishTime,
-					size = fishPx * (0.62 - 0.03 * index) / height,
-					arc = 0.08 + 0.03 * (index % 3),
-				}))
-				if index == reveal.Trail then
-					start:Destroy()
-				end
-			end)
+		if reveal.Trail > 0 then
+			celebrationTrove:Add(UiFx.flyTo(hud, start, counter, {
+				text = "★",
+				color = if style.Rainbow then UIConfig.Rainbow[5] else style.Top,
+				count = reveal.Trail,
+				gap = CARD.StarGap * 2,
+				time = CARD.FishTime,
+				size = fishPx * 0.55 / height,
+				arc = 0.12,
+				onEach = function(index: number)
+					UiFx.sound("tick", 0.18, 1.15 + 0.06 * index)
+				end,
+			}))
 		end
-		if reveal.Trail < 1 then
-			start:Destroy()
-		end
+		start:Destroy() -- (откуда лететь, flyTo запомнил сразу)
 	end
 
 	local function closeCard()
@@ -3870,6 +4210,16 @@ do
 			x1 = (box.center.X + box.size.X * 0.6) / math.max(rootSize.X, 1)
 		end
 		local leftRoom, rightRoom = math.max(x0 - 0.03, 0), math.max(0.97 - x1, 0)
+		if box and box.dock then
+			-- (UI v5: карточка сбоку от рыбака — 💰 падают с её внешней стороны и за ней, но не
+			-- ближе 0.3 её ширины к рыбаку с трофеем)
+			local inner = (box.center.X + box.dock * box.size.X * 0.2) / math.max(rootSize.X, 1)
+			if box.dock < 0 then
+				leftRoom, rightRoom = math.max(inner - 0.03, 0), 0
+			else
+				leftRoom, rightRoom, x1 = 0, math.max(0.97 - inner, 0), inner
+			end
+		end
 		local rng = Random.new()
 		for index = 1, count do
 			local coin = Instance.new("TextLabel")
@@ -3945,20 +4295,23 @@ do
 	-- Карточка: открытие и доли
 	--------------------------------------------------------------------------------
 
-	-- Лучи цветов редкости в слое CatchRays (placeCard уже поставил его на место карточки; у слова
-	-- редкости — сначала в точку рыбы над головой, с пустой серединой hole): растут из центра и
+	-- Лучи цветов редкости в слое CatchRays: за карточкой (placeCard уже поставил её на место) или
+	-- у слова редкости — в точке рыбы над головой at, с пустой серединой hole; растут из центра и
 	-- крутятся; второе кольцо навстречу — у легендарной и мифической или цветами мутации. На
-	-- тач-экране лучей меньше (REVEAL.TouchRays) и они короче (MaxPx — по краям широкой карточки
-	-- их видно; на маленьком телефоне ещё короче, вместе с карточкой: заливка), без ореолов,
-	-- «дыхания» и свечения в центре (оно под карточкой); на компьютере — не больше
-	-- CARD.DesktopRays × MaxPx. look — «громкость» (новый вид — свой праздник), colors — цвета
-	-- лучей (по умолчанию — редкости).
+	-- тач-экране лучей меньше (REVEAL.TouchRays) и они короче (MaxPx; на маленьком телефоне ещё
+	-- короче, вместе с карточкой: заливка), без ореолов, «дыхания» и свечения в центре (оно под
+	-- карточкой); на компьютере — не больше CARD.DesktopRays × MaxPx. За карточкой — не меньше
+	-- CatchFx.RAYS_MIN её высот (UI v5, SIMC-C1-01: у карточки сбоку от рыбака они не короче, а
+	-- обрезаны у его края — CatchFx.raysFrame: до рыбака с трофеем не достают). look —
+	-- «громкость» (новый вид — свой праздник), colors — цвета лучей (по умолчанию — редкости).
 	local function startRays(
 		fish: FishingRules.FishData,
 		hole: number?,
 		look: Reveal?,
-		colors: { Color3 }?
-	): { serial: number, main: UiFx.Rays, extra: UiFx.Rays? }
+		colors: { Color3 }?,
+		clear: number?,
+		at: Vector2?
+	): { serial: number, main: UiFx.Rays, extra: UiFx.Rays?, card: boolean }
 		raysTrove:Clean()
 		local style = UIConfig.Rarity[fish.Rarity] or UIConfig.Rarity.Common
 		local reveal = look or REVEAL[fish.Rarity] or REVEAL.Common
@@ -3967,17 +4320,23 @@ do
 		local box = cardBox
 		local small = if box then math.clamp(box.slot / CARD.RefHeight, 0.7, 1) else 1
 		local maxPx = if touch then reveal.MaxPx * small else reveal.MaxPx * CARD.DesktopRays
-		if box and box.edge and not hole then
-			-- Карточка сбоку от рыбака: лучи за ней до него не дотягиваются (рыбак с трофеем — яркий).
-			maxPx = math.min(maxPx, math.max(2 * math.abs(box.edge - box.center.X), box.size.X * CARD.Span))
+		local height = if box then box.size.Y else 200
+		local across = CatchFx.raysSize(reveal.Size, height, maxPx, hole ~= nil)
+		if hole and clear then
+			-- (v5: пустая середина — не меньше трофея, clear px от центра лучей: огромную рыбу на
+			-- маленьком телефоне спицы не перечёркивают)
+			hole = math.max(hole, clear / math.max(across / 2, 1))
 		end
+		-- Слой лучей: у карточки рядом с рыбаком — до его края (лучи у него обрезаны), у слова — весь.
+		CatchFx.raysFrame(ui.rays, ui.fishing.AbsoluteSize, if box and not hole then box.clip else nil)
+		local center = at or (if box then box.center else ui.fishing.AbsoluteSize / 2)
 		ui.rays.Visible = true
 		local main = raysTrove:Add(UiFx.rays(ui.rays, {
 			colors = colors or style.Rays,
 			count = if touch then reveal.TouchRays else reveal.Rays,
 			speed = reveal.Speed,
 			size = reveal.Size,
-			maxPx = maxPx,
+			maxPx = across,
 			-- сцена слова (hole): тонкие лучи-спицы, прозрачнее — удар в точке рыбы не заливается
 			-- (CLIMAX.TitleRays); за карточкой — обычные
 			width = if hole then CLIMAX.TitleRays.Width else nil,
@@ -3987,6 +4346,7 @@ do
 			hole = hole,
 			growFrom = if hole then 0.75 else 0, -- середина пустая с первого кадра
 		}))
+		CatchFx.aimRays(main.holder, ui.rays, center, across)
 		local extraColors: { Color3 }? = if reveal.Extra then style.Rays else nil
 		if mutationStyle then
 			extraColors = if mutationStyle.Effect == "rainbow"
@@ -3995,12 +4355,13 @@ do
 		end
 		local extra: UiFx.Rays? = nil
 		if extraColors then
-			extra = raysTrove:Add(UiFx.rays(ui.rays, {
+			local wider = CatchFx.raysSize(reveal.Size * 1.2, height, maxPx * 1.12, hole ~= nil)
+			local ring = raysTrove:Add(UiFx.rays(ui.rays, {
 				colors = extraColors,
 				count = if touch then 6 else 8,
 				speed = -reveal.Speed * 0.6,
 				size = reveal.Size * 1.2,
-				maxPx = maxPx * 1.12,
+				maxPx = wider,
 				width = if hole then CLIMAX.TitleRays.Width * 0.6 else 0.045,
 				transparency = math.min(reveal.Alpha + 0.2 + (if hole then CLIMAX.TitleRays.Fade else 0), 0.88),
 				glow = false,
@@ -4010,8 +4371,10 @@ do
 				hole = hole,
 				growFrom = if hole then 0.75 else 0,
 			}))
+			CatchFx.aimRays(ring.holder, ui.rays, center, wider)
+			extra = ring
 		end
-		local current = { serial = catchSerial, main = main, extra = extra }
+		local current = { serial = catchSerial, main = main, extra = extra, card = hole == nil }
 		cardRays = current
 		raysTrove:Add(function()
 			ui.rays.Visible = false
@@ -4069,14 +4432,21 @@ do
 		end
 		cardReveal = reveal
 
-		local raysAt = ui.rays.Position -- лучи слова редкости (если уже есть) — у рыбы
-		placeCard(reveal.Scale)
+		-- (у слова место уже выбрано на приземлении — порог «сбоку» тот же, CARD.DockSlack)
+		placeCard(reveal.Scale, fishBox(fish), if reveal.Title then CARD.DockSlack else nil, reveal)
 		fillCard(fish, style)
 		showFishModel(fish)
 		card.Visible = true
 		ui.rays.Visible = true
-		local box =
-			cardBox :: { center: Vector2, size: Vector2, wide: boolean, slot: number, dock: number?, edge: number? }
+		local box = cardBox :: {
+			center: Vector2,
+			size: Vector2,
+			wide: boolean,
+			slot: number,
+			dock: number?,
+			edge: number?,
+			clip: Layout.Rect?,
+		}
 		-- Где доли стоят «в покое» (после раскладки): к этому они едут и пружинят.
 		local rest = {
 			banner = ui.banner.Size,
@@ -4096,27 +4466,42 @@ do
 		end
 
 		-- Всё, что появится по долям, пока спрятано.
-		local hidden: { GuiObject } = { ui.banner, ui.weightChip, ui.priceChip, ui.newStamp }
+		local hidden: { GuiObject } = { ui.banner, ui.weightChip, ui.priceChip, ui.newStamp, ui.pedestal }
 		for _, gui in hidden do
 			UiFx.scaleOf(gui).Scale = 0
 		end
 		ui.newStamp.Visible = isNew
+		-- (UI v5: подписи фишек — правее их значков; у карточки сбоку от рыбака наклейка и в
+		-- покое, и в шлепке — внутри карточки ниже баннера: CatchFx.fitChip / fitStamp)
+		for _, chip in { ui.weightChip, ui.priceChip } do
+			local _, chipSize = cardRect(chip)
+			CatchFx.fitChip(chip, chipSize)
+		end
+		local slapFrom: number? = nil
+		if isNew and box.dock then
+			local stampPos, stampSize = cardRect(ui.newStamp)
+			local bannerPos, bannerSize = cardRect(ui.banner)
+			slapFrom = CatchFx.fitStamp(ui.newStamp, stampPos, stampSize, {
+				x0 = box.center.X - box.size.X / 2,
+				y0 = bannerPos.Y + bannerSize.Y,
+				x1 = box.center.X + box.size.X / 2,
+				y1 = box.center.Y + box.size.Y / 2,
+			})
+		end
 		if mutationStyle then
 			UiFx.scaleOf(ui.mutationLabel).Scale = 0
 		end
 		ui.tapHint.TextTransparency = 1
 
-		-- Карточка рождается в точке рыбы над головой и встаёт на место с доворотом — Quint Out,
-		-- без перелёта (перелёт масштаба опустил бы её низ к хотбару). Имя — с ней: въезжает
-		-- справа на CARD.Slide её ширины за то же время.
-		local start = from or box.center
-		card.Position = offset(start.X, start.Y)
-		UiFx.tween(card, 0.35, { Position = offset(box.center.X, box.center.Y) }, quint, out)
-		local birth = UiFx.scaleOf(card)
-		birth.Scale = 0.4
-		UiFx.tween(birth, 0.35, { Scale = 1 }, quint, out)
-		card.Rotation = -6
-		UiFx.tween(card, 0.35, { Rotation = 0 }, quint, out)
+		-- Карточка рождается у рыбы над головой и встаёт на место с доворотом (Quint Out), растёт
+		-- с лёгким перелётом (1.04: у рыбака — в пределах его запаса). Сбоку от рыбака (v5, D2) —
+		-- у своего края со стороны рыбы и растёт к середине своего места: ни на миг не на рыбаке
+		-- и трофее (CatchFx.birthPoint). Имя — с ней: въезжает справа на CARD.Slide её ширины.
+		CatchFx.birth(
+			card,
+			CatchFx.birthPoint(from, box.center, box.size, box.dock ~= nil),
+			offset(box.center.X, box.center.Y)
+		)
 		local name = ui.nameLabel
 		UiFx.scaleOf(name).Scale = 1
 		settle(name, { TextTransparency = 0 })
@@ -4127,8 +4512,9 @@ do
 		name.Position = rest.name + UDim2.fromOffset(math.round(box.size.X * CARD.Slide), 0)
 		UiFx.tween(name, 0.35, { Position = rest.name }, quint, out)
 		UiFx.sound("pop", 0.5, 0.9)
-		-- Ободок подставки рыбы вспыхивает, пока карточка встаёт на место.
-		UiFx.rimFlash(ui.pedestal, { delay = 0.2 })
+		-- Подиум выскакивает под рыбу («удар» 0.5 → 1.12 → 1), его ободок вспыхивает.
+		UiFx.punch(ui.pedestal, { from = 0.5, peak = 1.12, delay = 0.2 })
+		UiFx.rimFlash(ui.pedestal, { delay = 0.3, bump = 1 })
 
 		-- Затемнение (у обычной — нет) и лучи растут вместе с карточкой.
 		local dim = ui.dim
@@ -4150,22 +4536,19 @@ do
 		else
 			dim.Visible = false
 		end
-		-- Лучи: у слова редкости они уже крутятся вокруг рыбы с приземления (startRays) и
-		-- переезжают за карточкой на её место; иначе — растут с карточкой.
+		-- Лучи растут с карточкой. У слова редкости спицы уже крутятся вокруг рыбы с приземления:
+		-- они уходят копией в середину карточки (CatchFx.ghostRays), а за ней вырастают её
+		-- собственные — крупные, у карточки сбоку от рыбака обрезанные у его края (UI v5).
 		local started = cardRays
-		local current = if started and started.serial == catchSerial
-			then started
-			else startRays(
-				fish,
-				nil,
-				reveal,
-				if fanfare then { Palette.Gold.Top, style.Rays[1], Palette.Leaf.Top, style.Rays[2] } else nil
-			)
-		if current == started then
-			local home = ui.rays.Position
-			ui.rays.Position = raysAt
-			UiFx.tween(ui.rays, 0.35, { Position = home }, quad, out)
+		if started and started.serial == catchSerial then
+			CatchFx.ghostRays(ui.rays, ui.fishing, box.center, cardTrove)
 		end
+		local current = startRays(
+			fish,
+			nil,
+			reveal,
+			if fanfare then { Palette.Gold.Top, style.Rays[1], Palette.Leaf.Top, style.Rays[2] } else nil
+		)
 		local rays, extra = current.main, current.extra
 
 		-- Рыба: маленькие лучи цветов редкости за ней (на лице карточки — экран не заливают),
@@ -4239,6 +4622,8 @@ do
 			local outline = label:FindFirstChild("Outline")
 			UiFx.scaleOf(banner).Scale = 1
 			if instant then
+				UiFx.scaleOf(child(banner, "StarLeft")).Scale = 1
+				UiFx.scaleOf(child(banner, "StarRight")).Scale = 1
 				settle(banner, { Size = rest.banner })
 				settle(label, { TextTransparency = 0 })
 				if outline then
@@ -4261,9 +4646,10 @@ do
 			UiFx.rimFlash(banner, { delay = CARD.Grow * 0.45 }) -- ободок вспыхивает
 			later(cardTrove, CARD.Grow * 0.6, function()
 				UiFx.glowRing(banner, { color = style.Top, scale = 1.3, thickness = 3, time = 0.4 })
+				UiFx.flashText(label, Palette.Gold.Top) -- слово редкости вспыхивает золотом
 			end)
-			UiFx.wiggle(child(banner, "StarLeft"), 18, 3, 0.5)
-			UiFx.wiggle(child(banner, "StarRight"), 18, 3, 0.5)
+			-- Звёзды по краям выскакивают по очереди и качаются.
+			CatchFx.popStars(banner, CARD.Grow * 0.5, cardTrove)
 			if style.Rainbow then
 				cardTrove:Add(UiFx.sparkles(banner, { rate = 3, size = 0.9, area = 0.1 }))
 			end
@@ -4298,13 +4684,15 @@ do
 					UiFx.scaleOf(ui.newStamp).Scale = 1
 					return
 				end
-				stampIn(ui.newStamp, 2.2, -16, 0.3)
+				-- «НОВИНКА!» шлёпается наклейкой (CatchFx.slap: крупной с доворотом, вздрагивает,
+				-- кольцо и искры).
+				local root = ui.fishing.AbsoluteSize
+				local pos, size = cardRect(ui.newStamp)
+				local center = pos + size / 2
+				local at = Vector2.new(center.X / math.max(root.X, 1), center.Y / math.max(root.Y, 1))
+				cardTrove:Add(CatchFx.slap(ui.newStamp, ui.fishing, at, cardTrove, slapFrom))
 				UiFx.sound("pop", 0.4, 1.3)
 				if fanfare then
-					local root = ui.fishing.AbsoluteSize
-					local pos, size = cardRect(ui.newStamp)
-					local center = pos + size / 2
-					local at = Vector2.new(center.X / math.max(root.X, 1), center.Y / math.max(root.Y, 1))
 					local spec = CARD.New
 					cardTrove:Add(UiFx.burst(ui.fishing, {
 						origin = at,
@@ -4327,25 +4715,18 @@ do
 		end
 		-- Вес и цена поднимаются (Quad Out), цена — на CARD.Chips позже.
 		addBeat(chipsAt, function(instant: boolean)
-			for index, chip in { ui.weightChip, ui.priceChip } do
-				local home = if index == 1 then rest.weight else rest.price
-				local scale = UiFx.scaleOf(chip)
-				if instant then
-					settle(scale, { Scale = 1 })
-					settle(chip, { Position = home })
-				else
-					later(cardTrove, (index - 1) * CARD.Chips, function()
-						scale.Scale = 0.85
-						chip.Position = home + UDim2.fromOffset(0, math.round(box.size.Y * CARD.Rise))
-						UiFx.tween(scale, 0.25, { Scale = 1 }, quad, out)
-						UiFx.tween(chip, 0.25, { Position = home }, quad, out)
-					end)
+			local chips: { GuiObject } = { ui.weightChip, ui.priceChip }
+			local homes = { rest.weight, rest.price }
+			if instant then
+				for index, chip in chips do
+					settle(UiFx.scaleOf(chip), { Scale = 1 })
+					settle(chip, { Position = homes[index] })
 				end
+				return
 			end
-			if not instant then
-				UiFx.sound("tick", 0.3, 1.1)
-				UiFx.rimFlash(ui.priceChip, { delay = CARD.Chips + 0.12 })
-			end
+			-- По очереди, каждая с «ударом» (0.85 → 1.1 → 1) из-под своего места, «тик» всё выше.
+			CatchFx.punchChips(chips, homes, box.size.Y * CARD.Rise, CARD.Chips, cardTrove)
+			UiFx.rimFlash(ui.priceChip, { delay = CARD.Chips + 0.12, bump = 1 })
 		end)
 
 		-- Цена набегает (с мутацией — сначала до цены без неё).
@@ -4387,12 +4768,48 @@ do
 					height, spot = fit, Vector2.new(edge + fit * perHeight / 2, y)
 				end
 			end
-			if box.dock then
-				-- Карточка сбоку от рыбака (v3): по сторонам — он сам и край экрана; «+N 💰» летит влево,
-				-- на окошко с рыбой на высоте цены (рыба на карточке — та же, что у него над головой).
+			local life = spec.Time
+			if box.dock and box.edge then
+				-- Карточка сбоку от рыбака (v3): по сторонам — он сам и край экрана. UI v5 (SIMC-C1-03):
+				-- «+N 💰» — не на окно с рыбой (на неё как раз смотрят), а над баннером или у внешнего
+				-- края карточки (CatchFx.floatSpot); нет места и там — на верх окна, и тает раньше.
 				local windowPos, windowSize = cardRect(ui.window)
-				height = math.min(root.Y * share, windowSize.X * 0.96 / perHeight)
-				spot = Vector2.new(windowPos.X + windowSize.X / 2, source.Y - height * 0.2)
+				local half = box.size * Vector2.new(if box.wide then CARD.Span else CARD.SquareSpan, 1) / 2
+				local early = false
+				spot, height, early = CatchFx.floatSpot({
+					root = root,
+					card = {
+						x0 = box.center.X - half.X,
+						y0 = box.center.Y - half.Y,
+						x1 = box.center.X + half.X,
+						y1 = box.center.Y + half.Y,
+					},
+					side = box.dock,
+					edge = box.edge,
+					window = {
+						x0 = windowPos.X,
+						y0 = windowPos.Y,
+						x1 = windowPos.X + windowSize.X,
+						y1 = windowPos.Y + windowSize.Y,
+					},
+					source = source,
+					perHeight = perHeight,
+					want = root.Y * share,
+					least = math.min(root.Y * share, UiFx.textSize("Title") * spec.MinTitle),
+					gap = spec.Gap,
+					-- (без тач-экрана — и не на окне чата и списке игроков Roblox)
+					limits = function(top: number, bottom: number): (number, number)
+						local left, right = sideLimits(root, top, bottom, true)
+						if not UserInputService.TouchEnabled then
+							left = if top < CLIMAX.ChatBottom then math.max(left, CLIMAX.ChatRight) else left
+							right = if top < CLIMAX.ListBottom then math.min(right, root.X - CLIMAX.ListLeft) else right
+						end
+						return left, right
+					end,
+				})
+				if early then
+					life = spec.Early
+				end
 			elseif height < math.min(root.Y * share, UiFx.textSize("Title") * spec.MinTitle) then
 				-- Справа места нет: вверх, над строкой веса (её верх — над фишкой цены).
 				height = root.Y * share
@@ -4412,7 +4829,7 @@ do
 				size = UDim2.fromScale(height * perHeight / w, height / h),
 				colors = { Palette.Gold.Top, Palette.Sun.Bottom },
 				rise = 0.04,
-				time = spec.Time,
+				time = life,
 				rotate = -5,
 				z = 30,
 			})
@@ -4445,6 +4862,7 @@ do
 				Enum.EasingDirection.Out
 			)
 			UiFx.wiggle(ui.priceIcon, 18, 3, 0.45)
+			UiFx.flashText(ui.priceLabel, Palette.Gold.Top) -- цифры вспыхивают золотом
 			UiFx.shine(chip, 0.5)
 			UiFx.sound("pop", 0.45, 1.5)
 			UiFx.sound("ping", 0.3, 2)
@@ -4660,41 +5078,6 @@ do
 	-- легендарной и мифической — ещё лёгкий отсвет экрана, у мифической — радужные края), тряска,
 	-- «толчок», конфетти из точки над головой; у эпической и выше — лучи и огромное слово (сцена
 	-- слова); через Hold — карточка. На весь экран ничего яркого: приземление должно быть видно.
-	-- Где встанет рыба над головой своего рыбака на экране (px HUD.Fishing), ещё до того, как её
-	-- поставил сервер: от макушки + FishingConfig.HeldFishGap вверх на высоту модели рыбы и вширь
-	-- на её длину (× HeldScale редкости, с запасом на вес). nil — не видно.
-	local function fishBox(fish: FishingRules.FishData): Layout.Rect?
-		local character = player.Character
-		local head = character and character:FindFirstChild("Head")
-		local camera = Workspace.CurrentCamera
-		if not head or not head:IsA("BasePart") or not camera then
-			return nil
-		end
-		local template = fishTemplate(fish)
-		local height, length = 1.5, 3
-		if template then
-			local _, size = template:GetBoundingBox()
-			height = math.max(size.Y, math.min(size.X, size.Z) * 0.5)
-			length = math.max(size.X, size.Z)
-		end
-		local scale = (FishingConfig.HeldScale[fish.Rarity] or 1) * 1.15
-		local base = head.Position + Vector3.new(0, head.Size.Y / 2 + FishingConfig.HeldFishGap, 0)
-		local half = camera.CFrame.RightVector * (length * scale / 2)
-		local top = camera:WorldToScreenPoint(base + Vector3.new(0, height * scale, 0))
-		local a = camera:WorldToScreenPoint(base - half)
-		local b = camera:WorldToScreenPoint(base + half)
-		if top.Z <= 0 or a.Z <= 0 or b.Z <= 0 then
-			return nil
-		end
-		local origin = ui.fishing.AbsolutePosition
-		return Layout.rect(
-			math.min(a.X, b.X) - origin.X,
-			top.Y - origin.Y,
-			math.max(a.X, b.X) - origin.X,
-			math.max(a.Y, b.Y) - origin.Y
-		)
-	end
-
 	local function onLanded(fish: FishingRules.FishData, serial: number, world: Vector3?)
 		if serial ~= catchSerial then
 			return
@@ -4769,12 +5152,12 @@ do
 			-- из рыбы над головой (середина пустая — рыбу видно), огромное слово — ниже неё, на
 			-- лучах; карточка — когда оно сложилось и постояло (Hold): лучи переезжают за ней, слово
 			-- летит в её баннер.
-			placeCard(reveal.Scale)
+			local trophy = fishBox(fish)
+			placeCard(reveal.Scale, trophy, CARD.DockSlack, reveal)
 			local at = point or Vector2.new(origin.X * rootSize.X, origin.Y * rootSize.Y)
-			ui.rays.Position = offset(at.X, at.Y)
 			later(catchTrove, CLIMAX.TitleDelay, function()
-				startRays(fish, CLIMAX.RaysHole)
-				slamTitle(fish.Rarity, reveal, style, fishBox(fish))
+				startRays(fish, CLIMAX.RaysHole, nil, nil, CatchFx.clearRadius(trophy, at), at)
+				slamTitle(fish.Rarity, reveal, style, trophy)
 			end)
 			-- Слово вылетает к месту баннера за CLIMAX.Lead до карточки: она рождается под уже
 			-- улетевшим словом (не «наезжает» на него посреди экрана); баннер вырастает из него.
@@ -6652,7 +7035,7 @@ function FishingController:Start(hud: ScreenGui)
 	end)
 	ui.fishing:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		if ui.card.Visible then
-			placeCard(cardReveal.Scale)
+			placeCard(cardReveal.Scale, nil, nil, cardReveal)
 		end
 	end)
 

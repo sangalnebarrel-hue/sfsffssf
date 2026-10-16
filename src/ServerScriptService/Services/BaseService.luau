@@ -9,9 +9,14 @@
 	     с WallTone = true получают тон стен базы (BaseConfig.WallTones, оттенок — WallShade);
 	     числовой атрибут AccentShade (от -1 до 1) даёт оттенок: > 0 — светлее (к белому),
 	     < 0 — темнее (к чёрному). То же для элементов интерфейса (GuiObject) с Accent = true:
-	     их фон (BackgroundColor3) — цвет базы с оттенком (кирпичик таблички над флагом).
+	     их фон (BackgroundColor3) — цвет базы с оттенком.
 	     Все TextLabel с именами OwnerLabel / BaseLabel (табличка над флагом, вывеска на воротах
-	     и т.д.) показывают владельца и название базы.
+	     и т.д.) показывают владельца и название базы — надписями над миром, как у образца
+	     интерфейса «Симулятор» (UI v5): заливка UIGradient "Fill" и тёмная обводка UIStroke
+	     "Outline". У свободной базы — зелёное «СВОБОДНО!» (UIConfig.BillboardGreen), у занятой —
+	     имя владельца белым; название — ЗАГЛАВНЫМИ в цвете базы (UIConfig.BaseSwatches).
+	     «ТВОЯ БАЗА!» над табличкой (OwnerSign.YoursLabel) видит только сам владелец — её
+	     показывает его клиент (HudController).
 	     Сценки с атрибутами Variant / VariantOf (например, крабовые ловушки или якорь на пирсе)
 	     остаются только на «своих» базах — так 8 баз не одинаковые.
 	  2. Выдаёт игроку свободную базу при входе и освобождает её при выходе.
@@ -44,6 +49,8 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage.Shared
 local BaseConfig = require(Shared.Config.BaseConfig)
+local UIConfig = require(Shared.Config.UIConfig)
+local TextUtil = require(Shared.TextUtil)
 local Cooldown = require(Shared.Util.Cooldown)
 local Net = require(Shared.Net)
 local Signal = require(Shared.Util.Signal)
@@ -153,11 +160,27 @@ local function getSlots(): { BasePart }
 	return slots
 end
 
+-- Надпись над миром: заливка "Fill" (сверху вниз) и тёмная обводка "Outline" — по виду look.
+local FREE_TEXT = "СВОБОДНО!"
+local OWNER_LOOK: UIConfig.Swatch = { Top = WHITE, Bottom = Color3.fromRGB(221, 230, 240), Lip = UIConfig.Ink }
+local function paintWords(label: TextLabel, look: UIConfig.Swatch)
+	label.TextColor3 = WHITE -- (цвет даёт градиент)
+	local fill = label:FindFirstChild("Fill")
+	if fill and fill:IsA("UIGradient") then
+		fill.Color = ColorSequence.new(look.Top, look.Bottom)
+	end
+	local outline = label:FindFirstChild("Outline")
+	if outline and outline:IsA("UIStroke") then
+		outline.Color = look.Lip
+	end
+end
+
 local function updateSign(base: Base)
 	local owner = base.Owner
-	local text = if owner then owner.DisplayName else "Свободно"
+	local text = if owner then owner.DisplayName else FREE_TEXT
 	for _, label in base.OwnerLabels do
 		label.Text = text
+		paintWords(label, if owner then OWNER_LOOK else UIConfig.BillboardGreen)
 	end
 end
 
@@ -257,9 +280,10 @@ local function createBase(template: Model, slot: BasePart, index: number, parent
 
 	-- Табличка над флагом обязательна; остальные надписи (ворота и т.д.) — сколько есть.
 	findRequired(model, { "Flag", "Pole", "SignAttachment", "OwnerSign", "BaseLabel" }, "TextLabel")
+	local swatch = UIConfig.BaseSwatches[colorDef.Id] or UIConfig.swatchFor(colorDef.Color)
 	for _, baseLabel in baseLabels do
-		baseLabel.Text = `{colorDef.Name} база`
-		baseLabel.TextColor3 = colorDef.Color
+		baseLabel.Text = TextUtil.upper(`{colorDef.Name} база`)
+		paintWords(baseLabel, swatch)
 	end
 	updateSign(base)
 

@@ -72,8 +72,10 @@
 	    тонкое кольцо-ореол лицом к камере — никакой заливки кадра. Рыба над головой ЖИВЁТ на
 	    каждом клиенте (FishLife): покачивается, виляет хвостом и время от времени бьётся
 	    (сварки HoldWeld и хвоста — только у себя, сервер не трогаем; табличка не трясётся); над
-	    любой рыбой — табличка (у редкой и выше — редкость, у всех — название, мутация, цена;
-	    буквы Nunito Heavy с толстой круглой обводкой Ink; размер — studs + пиксели
+	    любой рыбой — табличка в духе надписей образца над миром (UI v5 «Симулятор»: без плашки,
+	    буквы Montserrat Heavy с тёмной обводкой; у редкой и выше — слово редкости ЗАГЛАВНЫМИ в её
+	    цветах, у всех — название белым, мутация в её цвете, цена наклонными жёлтыми
+	    цифрами; размер — studs + пиксели
 	    NAMEPLATE_STUDS / NAMEPLATE_PIXELS: вблизи растёт с миром, издали не меньше пикселей),
 	    у редкой рыбы и выше — искры цвета редкости, у рыбы с мутацией — искры
 	    цветов мутации (свет PointLight — только у своей рыбы, v3 fix F9: подвижный свет
@@ -223,10 +225,11 @@ local SPOUT_FADE = 0.4 -- … и тает, с
 local HALO_FROM, HALO_TO, HALO_TIME = 1.5, 5.2, 0.38 -- ореол над рыбой: диаметр, studs; время, с
 local POP_SIZE, POP_GROW, POP_FADE = 2.4, 0.06, 0.16 -- вспышка-шар над рыбой: studs; с; с
 -- Табличка над рыбой: studs + пиксели (как «!» поклёвки) — вблизи около 9 × 3 studs, а с
--- соседнего пирса (≈240 studs) всё ещё читается (≈160 × 52 px); буквы — Nunito Heavy с
--- толстой круглой обводкой Ink, как надписи интерфейса «Кирпичики» (v3 fix WOW-5).
+-- соседнего пирса (≈240 studs) всё ещё читается (≈160 × 52 px); буквы — Montserrat Heavy
+-- (UIConfig.Font, шрифт интерфейса «Симулятор») с тёмной круглой обводкой, без плашки — как
+-- надписи над миром у образца («МАГАЗИН СЛЕДОВ», «БЕСПЛАТНО!»).
 local NAMEPLATE_STUDS, NAMEPLATE_PIXELS = Vector2.new(4, 1.25), Vector2.new(150, 48)
-local PLATE_FONT = Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Heavy)
+local PLATE_FONT = Font.new(UIConfig.Font.Family, Enum.FontWeight.Heavy)
 local TROPHY_PILLAR_TIME = 1.2 -- свой трофей «вспыхивает» после карточки: короткий столб света, с
 -- Прыжок пойманной рыбы: из воды она уже крупнее настоящей — на такую долю пути к размеру над
 -- головой (FishingConfig.HeldScale), и дорастает до него к такой доле прыжка.
@@ -2352,13 +2355,22 @@ local function starBurst(tracker: Tracker, body: BasePart, center: Vector3, size
 	table.insert(effect.instances, gui)
 end
 
-local function plateLabel(parent: Instance, name: string, text: string, box: { number }, outline: number): TextLabel
+local function plateLabel(
+	parent: Instance,
+	name: string,
+	text: string,
+	box: { number },
+	outline: number,
+	italic: boolean?
+): TextLabel
 	local label = Instance.new("TextLabel")
 	label.Name = name
 	label.Position = UDim2.fromScale(box[1], box[2])
 	label.Size = UDim2.fromScale(box[3], box[4])
 	label.BackgroundTransparency = 1
-	label.FontFace = PLATE_FONT
+	label.FontFace = if italic
+		then Font.new(UIConfig.Font.Family, Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
+		else PLATE_FONT
 	label.Text = text
 	label.TextColor3 = WHITE
 	label.TextScaled = true
@@ -2395,9 +2407,10 @@ local function revealPlate(gui: BillboardGui, delay: number): boolean
 	return true
 end
 
--- Табличка над рыбой (видят все, пока рыба над головой): редкость (с редкой и выше; легендарная —
--- золотом, мифическая — переливающейся радугой), название, мутация и цена; у обычной — только
--- название и цена, крупнее (v3 fix WOW-5: соседи видят, что за рыба). Всё берётся из
+-- Табличка над рыбой (видят все, пока рыба над головой): редкость (с редкой и выше: белое → цвет
+-- редкости, мифическая — переливающейся радугой), название белым, мутация её цветом и цена
+-- наклонными жёлтыми цифрами; у обычной — только название и цена, крупнее (v3 fix WOW-5: соседи
+-- видят, что за рыба). UI v5: надпись над миром как у образца — без плашки, тёмная обводка. Всё берётся из
 -- атрибутов модели (FishId, Rarity, Mutation, Value — их ставит FishingService), поэтому
 -- годится и для рыб на витринах базы (Этап 3). Размер — studs + пиксели (издалека читается).
 -- У самого рыбака табличка не над рыбой, а справа от неё: сверху экрана — плашки статуса и
@@ -2454,16 +2467,18 @@ local function nameplate(tracker: Tracker, held: Model, rarity: string, event: F
 	local fill: UIGradient? = nil
 	if not common then
 		local title =
-			plateLabel(plate, "Rarity", upper(if rarityDef then rarityDef.Name else rarity), { 0, 0, 1, 0.42 }, 3.5)
+			plateLabel(plate, "Rarity", upper(if rarityDef then rarityDef.Name else rarity), { 0, 0, 1, 0.42 }, 3)
 		local gradientFill = Instance.new("UIGradient")
 		gradientFill.Name = "Fill"
 		gradientFill.Rotation = if style.Rainbow then 0 else 90
-		gradientFill.Color = if style.Rainbow then gradient(UIConfig.Rainbow) else gradient({ style.Top, style.Bottom })
+		gradientFill.Color = if style.Rainbow
+			then gradient(UIConfig.Rainbow)
+			else gradient({ WHITE, style.Top, style.Bottom })
 		gradientFill.Parent = title
 		fill = gradientFill
 	end
 	local nameBox = if common then { 0.03, 0.18, 0.94, 0.44 } else { 0.05, 0.4, 0.9, 0.3 }
-	plateLabel(plate, "FishName", if def then def.Name else "", nameBox, 3)
+	plateLabel(plate, "FishName", if def then def.Name else "", nameBox, 2.5)
 	local mutationDef = if mutation then FishingRules.GetMutation(mutation) else nil
 	local mutationStyle = if mutation then UIConfig.Mutations[mutation] else nil
 	local row = if common then 0.62 else 0.7
@@ -2475,13 +2490,13 @@ local function nameplate(tracker: Tracker, held: Model, rarity: string, event: F
 			"Mutation",
 			`{mutationStyle.Icon} {mutationDef.Name} ×{mutationDef.Multiplier}`,
 			{ 0.02, row, 0.48, rowH },
-			2.5
+			2
 		)
 		tag.TextColor3 = mutationStyle.Top
 	end
 	if value then
-		local price = plateLabel(plate, "Price", `💰 {FishingRules.FormatCoins(value)}`, priceBox, 2.5)
-		price.TextColor3 = Palette.Gold.Top
+		local price = plateLabel(plate, "Price", `💰 {FishingRules.FormatCoins(value)}`, priceBox, 2, true)
+		price.TextColor3 = UIConfig.BillboardYellow.Top
 	end
 	gui.Parent = parent
 	local life = tracker.life

@@ -664,6 +664,26 @@ function Capture:scan(): { any }
 			walk(character, nil, character)
 		end
 	end
+	-- The bases' words in the world (UI v5): the owner sign over each flag (BillboardGui) and
+	-- the gate board's two faces (SurfaceGui) — found directly, the base models are not walked.
+	local bases = self.sim.workspace:FindFirstChild("Bases")
+	for _, base in if bases then bases:GetChildren() else {} do
+		local node = base
+		for _, name in { "Flag", "Pole", "SignAttachment", "OwnerSign" } do
+			node = node and node:FindFirstChild(name)
+		end
+		if node then
+			table.insert(out, { inst = node })
+		end
+		local board = base:FindFirstChild("Gate")
+		board = board and board:FindFirstChild("Board")
+		for _, name in { "SignFront", "SignBack" } do
+			local face = board and board:FindFirstChild(name)
+			if face then
+				table.insert(out, { inst = face })
+			end
+		end
+	end
 	return out
 end
 

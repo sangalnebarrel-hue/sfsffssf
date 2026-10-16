@@ -382,7 +382,7 @@ tests["parts: the fishing widgets are sim plates with their decorations, no stud
 	checkCandy(t, card.MutationLabel, "MutationLabel")
 	checkCandy(t, card.NewStamp, "NewStamp")
 	checkCandy(t, card.InfoLabel.Weight, "Weight chip")
-	t.eq(card.InfoLabel.Weight:GetAttribute("CandyRadius"), UIConfig.Sim.PlateRadius, "the weight on a grey chip")
+	t.eq(card.InfoLabel.Weight:GetAttribute("CandyRadius"), 0.5, "the weight on a grey round chip")
 	checkCandy(t, card.InfoLabel.Price, "Price chip")
 	t.ok(isCandy(card.InfoLabel.Price, Palette.Gold), "price on a yellow chip")
 	local studs = studsUnder(f)
@@ -1314,6 +1314,10 @@ tests["closing: skip, then close — the card itself flies into the counter, �
 		end
 	end
 	t.ok(stars > 0, "★ in the rarity colours follow it")
+	t.ok(
+		UiFx.activeJobs() <= 3,
+		`the close flight: ≤ 3 frame effects — the card, the 🐟, the ★ flock ({UiFx.activeJobs()})`
+	)
 	t.eq(hud:GetAttribute("CounterHold"), 0, "the counter still holds its number while they fly")
 	t.eq(button.Ring.Transparency, 1, "…still no halo on the frozen button")
 	sim:Advance(0.15) -- close + 0.39 s
@@ -2627,6 +2631,470 @@ tests["«СМОТАТЬ»: pops in from its corner by Home — the overshoot nev
 	t.ok(grew, "it overshoots on the way in")
 	t.ok(stop.Icon:FindFirstChild("FxScale"), "the 🎣 spins in too")
 	t.ok(stop.Caption:FindFirstChild("FxScale"), "… and the caption punches")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- UI v5 [sim-c]: the catch reward — the card's parts, its dock beside the fisher
+--------------------------------------------------------------------------------
+
+-- FishingLayout is pure rectangle maths: loaded straight from src/ (Vector2 from Lune).
+local function loadLayout(): any
+	local path = "src/StarterPlayer/StarterPlayerScripts/Controllers/FishingLayout.luau"
+	local chunk = luau.load(fs.readFile(path), {
+		debugName = path,
+		environment = { Vector2 = roblox.Vector2, Vector3 = roblox.Vector3 },
+		injectGlobals = true,
+	})
+	return chunk()
+end
+
+tests["card parts: the catch reward is built from the sim primitives — chunky card, ribbon, trophy stand, round chips, panel-less title"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1)
+	local f = fishing(p)
+	local card = f.CatchCard
+	-- The card: a Cream sim plate with the chunky outline (UIConfig.Sim.Stroke), its light rim.
+	checkCandy(t, card, "CatchCard")
+	t.eq(card.Lip.UIStroke:GetAttribute("BaseThickness"), UIConfig.Sim.Stroke, "the card has the chunky outline")
+	t.ok(card.Face:FindFirstChild("Rim"), "…and the light inner rim")
+	t.ok(card.Face.Window:FindFirstChildOfClass("UIStroke"), "the fish window is framed")
+	-- The rarity ribbon: a label-radius sim plate overhanging both sides, outlined stars tilted out.
+	local banner = card.Banner
+	t.eq(banner:GetAttribute("CandyRadius"), UIConfig.Sim.PlateRadius, "the banner is a ribbon")
+	t.ok(banner.Size.X.Scale > 1, "…wider than the card")
+	t.ok(banner.StarLeft.Rotation < 0 and banner.StarRight.Rotation > 0, "…its stars tilt outwards")
+	t.ok(banner.StarLeft:FindFirstChild("Outline"), "…and are outlined")
+	t.ok(banner.RarityLabel.Outline:GetAttribute("BaseThickness") >= 4.5, "the rarity word: a display outline")
+	-- The podium (SIM-C1-05): a trophy stand — cap, column with a star, base — not an empty bar.
+	local stand = card.Pedestal
+	checkCandy(t, stand, "Pedestal")
+	checkCandy(t, stand.Cap, "Pedestal.Cap")
+	checkCandy(t, stand.Base, "Pedestal.Base")
+	t.ok(stand.Cap.Face:FindFirstChild("Shadow"), "the fish's shadow on the cap")
+	t.eq(stand.Star.Text, "⭐", "a star on the column")
+	local starSize = stand.Star:FindFirstChildOfClass("UITextSizeConstraint")
+	t.ok(starSize and starSize.MinTextSize >= 12, "…never drawn under 12 px (the smallest card)")
+	t.ok(stand.Cap.Size.X.Scale > 1 and stand.Base.Size.X.Scale > 1, "cap and base wider than the column")
+	-- The chips: round; the weight a grey chip with Ink text, the price gold with italic digits.
+	local weight, price = card.InfoLabel.Weight, card.InfoLabel.Price
+	t.eq(weight:GetAttribute("CandyRadius"), 0.5, "a round weight chip")
+	t.eq(price:GetAttribute("CandyRadius"), 0.5, "a round price chip")
+	t.ok(isCandy(weight, Palette.Slate) and isCandy(price, Palette.Gold), "grey weight, gold price")
+	t.eq(price.Label.FontFace.Style, Enum.FontStyle.Italic, "the price in italic digits")
+	t.ok(price.Label.Outline:GetAttribute("BaseThickness") >= 4.5, "…with a display outline")
+	t.ok(price.Icon:FindFirstChild("Outline"), "an outlined 💰")
+	t.eq(price.Multiplier.FontFace.Style, Enum.FontStyle.Italic, "«×N» italic")
+	-- The sticker, the name, the hint.
+	checkCandy(t, card.NewStamp, "NewStamp")
+	t.ok(isCandy(card.NewStamp, Palette.Berry), "«НОВИНКА!» a red sticker")
+	t.ok(card.NewStamp.Rotation < 0, "…slapped on at an angle")
+	t.eq(card.NameLabel.Outline.Color, UIConfig.Ink, "the name: white → rarity colours with an Ink outline")
+	t.eq(card.TapHint.FontFace.Style, Enum.FontStyle.Italic, "the tap hint in italic")
+	-- The giant title: panel-less outlined letters with the drop-shadow twin.
+	local title = f.TitleSlam
+	t.eq(title.BackgroundTransparency, 1, "no panel behind the title")
+	t.ok(title.Label.Outline:GetAttribute("BaseThickness") >= 8, "the giant outline")
+	t.ok(title:FindFirstChild("LabelShadow"), "…and its drop shadow")
+	-- No compat leftovers in the card: every shape is a sim (or glass) surface.
+	for _, d in card:GetDescendants() do
+		local style = d:GetAttribute("CandyStyle")
+		if style ~= nil then
+			t.ok(style == "sim" or style == "glass", `{d:GetFullName()}: a sim surface ({style})`)
+		end
+	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["card dock: FishingLayout.cardDock puts the card beside the fisher and his trophy (tablet), nil when no side fits"] = function(
+	t
+)
+	local Layout = loadLayout()
+	-- A 1024 x 768 tablet (HUD.Fishing 1024 x 710): the fisher with an Epic trophy over his head
+	-- in the middle-left, the action button bottom-right, «ДОМОЙ» above it, the thumbstick
+	-- bottom-left — the bands the controller measures (full height, above the button, above
+	-- the thumbstick, above «ДОМОЙ»).
+	local keepout = Layout.rect(179, 45, 613, 563)
+	local function bands(sides: { number }): { any }
+		local out = {}
+		for _, side in sides do
+			table.insert(out, { side = side, top = 24, bottom = 686, left = 196, right = 659 })
+			table.insert(out, { side = side, top = 24, bottom = 528, left = 196, right = 894 })
+			table.insert(out, { side = side, top = 24, bottom = 476, left = 16, right = 894 })
+			table.insert(out, { side = side, top = 24, bottom = 326, left = 16, right = 1008 })
+		end
+		return out
+	end
+	local want, least, aspect, span = 380, 274, 380 / 384, 1.08 * 1.025
+	local rect, side, edge = Layout.cardDock(keepout, bands({ -1, 1 }), want, least, aspect, span)
+	t.ok(rect, "a side band fits the card")
+	t.eq(side, 1, "…on the right (the left of him is too narrow above the thumbstick)")
+	t.eq(edge, keepout.x1, "…its edge is the fisher's right edge")
+	local w, h = rect.x1 - rect.x0, rect.y1 - rect.y0
+	t.ok(w >= least, `readable: {math.floor(w)} px wide (≥ {least})`)
+	t.near(w / h, aspect, 0.01, "the square card keeps its shape")
+	local foot = (w * span - w) / 2 -- the banner overhangs both sides
+	t.ok(rect.x0 - foot >= keepout.x1 - 1e-6, "never over the fisher or his trophy (banner included)")
+	t.ok(rect.x1 + foot <= 1008 + 1e-6, "inside the screen's 16 px")
+	t.ok(rect.y0 >= 24 - 1e-6 and rect.y1 <= 326 + 1e-6, "above «ДОМОЙ», under the top bar")
+	-- Mirrored room: the left wins (×1.1) — the fisher between the card and «ЗАБРАТЬ!».
+	local wideOpen = { { side = -1, top = 24, bottom = 600, left = 16, right = 1008 } }
+	table.insert(wideOpen, { side = 1, top = 24, bottom = 600, left = 16, right = 1008 })
+	local _, leftSide = Layout.cardDock(Layout.rect(420, 60, 604, 560), wideOpen, 300, 250, 1, 1.1)
+	t.eq(leftSide, -1, "equal room: the card docks on the left")
+	-- No side fits at a readable size: nil (the controller then centres it, as before).
+	local tight = Layout.rect(150, 40, 870, 600)
+	local none = Layout.cardDock(tight, bands({ -1, 1 }), want, least, aspect, span)
+	t.eq(none, nil, "a fisher filling the screen: no dock")
+	-- A slot exactly as tall as its band: top + h/2 and bottom − h/2 differ by a float's last
+	-- bit (these two numbers do) — that must not break math.clamp (it did: the Mythic card on
+	-- the tablet threw "max must be greater than or equal to min" and stayed in the middle).
+	local top, bottom = 28.15787603227047, 90.9142404671733
+	local ok, slot =
+		pcall(Layout.dockSide, -1, Layout.rect(600, 0, 700, 400), roblox.Vector2.new(2000, 2000), 10, top, bottom, 1)
+	t.ok(ok, `dockSide survives a band-tall slot ({slot})`)
+	t.ok(ok and slot and slot.y0 >= top - 1e-6 and slot.y1 <= bottom + 1e-6, "…and keeps it inside the band")
+	local fit = pcall(Layout.cardDock, Layout.rect(600, 0, 700, 400), {
+		{ side = -1, top = top, bottom = bottom, left = 16, right = 1008 },
+	}, 2000, 10, 1, 1)
+	t.ok(fit, "cardDock too")
+	local band = pcall(Layout.topBand, Layout.rect(0, bottom, 10, 400), 0, 2000, top, 10)
+	t.ok(band, "topBand too")
+end
+
+tests["title on a PC: beside the fisher and his trophy when the band above is thin — big, clear of him and the chat"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1) -- desktop 1280 x 720 (the chat window top-left, no touch)
+	ready(sim, p)
+	p:SetAttribute("FishCaught", 2)
+	sim:Advance(0.2)
+	local f = fishing(p)
+	-- The default follow camera (as in the tablet dock test): over a trophy that big only a thin
+	-- band is left (the word there was 34 px tall).
+	local base = sim.workspace.Bases:FindFirstChild(`Base_{p:GetAttribute("BaseIndex")}`)
+	local look = base:GetPivot().LookVector
+	local focus = p.Character.HumanoidRootPart.Position + Vector3.new(0, 1.5, 0)
+	local eye = focus - look * (12.5 * math.cos(math.rad(18))) + Vector3.new(0, 12.5 * math.sin(math.rad(18)), 0)
+	sim:Run(function()
+		sim.workspace.CurrentCamera.CFrame = CFrame.lookAt(eye, focus)
+	end, p)
+	catch(sim, p, { Id = "Swordfish", Rarity = "Epic", Kg = 58.2, Value = 161, Income = 14 }, 3)
+	local title = f.TitleSlam
+	t.ok(
+		waitFor(sim, function()
+			return title.Visible
+		end, CARD_OPENS),
+		"the giant title slams in"
+	)
+	sim:Advance(0.45) -- (the slam has settled)
+	local box = rectOf(sim, p, title)
+	t.ok(box.h >= 60, `big letters beside him {fmt(box)} (over the trophy they were 34 px)`)
+	local scripts = p:FindFirstChildOfClass("PlayerScripts")
+	local Layout = sim:Require(sim:Find("Controllers.FishingLayout", scripts), p)
+	local origin = f.AbsolutePosition
+	local fisher = sim:Run(function()
+		return Layout.fisherBox(p.Character, sim.workspace.CurrentCamera, origin)
+	end, p)
+	t.ok(fisher ~= nil, "the own fisher is on screen")
+	if fisher then
+		local him: Rect = {
+			x = fisher.x0 + origin.X,
+			y = fisher.y0 + origin.Y,
+			w = fisher.x1 - fisher.x0,
+			h = fisher.y1 - fisher.y0,
+		}
+		t.eq(overlap(box, him), 0, `the title {fmt(box)} is beside the fisher {fmt(him)}, not on him`)
+	end
+	-- Roblox's chat window (top-left, 8..368 x, INSET + 4..INSET + 184 y): 16 px from it.
+	local chat: Rect = { x = 8 - 16, y = INSET + 4 - 16, w = 360 + 32, h = 180 + 32 }
+	t.eq(overlap(box, chat), 0, `16 px from the chat window {fmt(box)}`)
+	t.ok(box.y >= INSET + 16 - 1, `16 px under the top bar {fmt(box)}`)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["card spare slot: FishingLayout.leastCover puts a card where it hides the least of a giant trophy (small phone)"] = function(
+	t
+)
+	local Layout = loadLayout()
+	-- A 667 x 375 phone (HUD.Fishing 667 x 317): a Mythic trophy over the fisher fills the middle
+	-- (x 148..398); left of it the band over the thumbstick, right of it the band over the action
+	-- button up to «ДОМОЙ» — neither fits a 128 px landscape card beside him (213 px with the
+	-- banner), so the old fallback centred it right over the fish.
+	local keepout = Layout.rect(148, 0, 398, 290)
+	local bands = {
+		{ side = -1, top = 26, bottom = 200, left = 20, right = 600 },
+		{ side = 1, top = 26, bottom = 166, left = 20, right = 584 },
+	}
+	local w, h, span = 128 * 1.55, 128, 1.05 * 1.025
+	local rect, side, cover = Layout.leastCover(keepout, bands, w, h, span)
+	t.ok(rect, "a spare slot")
+	t.near(rect.x1 - rect.x0, w, 0.01, "the card keeps its size")
+	t.near(rect.y1 - rect.y0, h, 0.01)
+	local foot = (w * span - w) / 2
+	local centred = Layout.overlapArea(Layout.rect(333.5 - w * span / 2, 26, 333.5 + w * span / 2, 26 + h), keepout)
+	t.ok(cover < centred * 0.5, `it hides far less of him ({math.floor(cover)} vs {math.floor(centred)} px²)`)
+	t.eq(cover, Layout.overlapArea(Layout.rect(rect.x0 - foot, rect.y0, rect.x1 + foot, rect.y1), keepout))
+	t.eq(side, 1, "…right of his middle: there a band reaches past his edge farther")
+	local inside = false
+	for _, band in bands do
+		inside = inside
+			or (
+				rect.x0 - foot >= band.left - 1e-6
+				and rect.x1 + foot <= band.right + 1e-6
+				and rect.y0 >= band.top - 1e-6
+				and rect.y1 <= band.bottom + 1e-6
+			)
+	end
+	t.ok(inside, "inside one of the bands")
+	-- A band too small for the card: nil.
+	local none =
+		Layout.leastCover(keepout, { { side = 1, top = 26, bottom = 100, left = 400, right = 584 } }, w, h, span)
+	t.eq(none, nil, "no band holds it")
+	-- Room beside him after all: no overlap at all.
+	local _, _, free =
+		Layout.leastCover(keepout, { { side = 1, top = 26, bottom = 300, left = 400, right = 660 } }, w, h, span)
+	t.eq(free, 0, "a free band: nothing hidden")
+end
+
+tests["card helpers: rays clear the trophy, the stamp and the close hint fit a small landscape card"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	local scripts = p:FindFirstChildOfClass("PlayerScripts")
+	local CatchFx = sim:Require(sim:Find("Controllers.CatchFx", scripts), p)
+	local trophy = { x0 = 150, y0 = 50, x1 = 390, y1 = 200 }
+	t.eq(CatchFx.clearRadius(trophy, roblox.Vector2.new(270, 140)), 120, "the farthest edge of the fish by the axes")
+	t.eq(CatchFx.clearRadius(nil, roblox.Vector2.new(0, 0)), nil, "no trophy: the default hole")
+	t.eq(CatchFx.stampText("Радужная", 5, false), "РАДУЖНАЯ ×5!", "the square card: name and ×N")
+	t.eq(
+		CatchFx.stampText("Радужная", 5, true),
+		"РАДУЖНАЯ!",
+		"the landscape card: the name (×N is on the price chip)"
+	)
+	t.eq(
+		CatchFx.stampText("Радужная", 5, false, 300),
+		"РАДУЖНАЯ!",
+		"a smaller square card (docked) too"
+	)
+	t.eq(CatchFx.stampText("Золотая", 2, false, 380), "ЗОЛОТАЯ ×2!", "the full square card keeps ×N")
+	t.eq(CatchFx.tapHint(true, nil), "Тапни — забрать!")
+	t.eq(CatchFx.tapHint(false, nil), "Жми — забрать!")
+	t.eq(CatchFx.tapHint(true, 300), "Тапни — забрать!", "a roomy landscape card: the full hint")
+	t.eq(CatchFx.tapHint(true, 198), "Тапни!", "a narrow one: short (the long one would wrap under 13 px)")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["card dock on a tablet: the square card stands beside the projected fisher and trophy, never on them; its rays big, clipped at him"] = function(
+	t
+)
+	for _, fish in { CATCHES.Legendary, CATCHES.Mythic } do
+		local what = fish.Rarity
+		local sim = boot(t)
+		local p = addPlayer(sim, 1, "tablet")
+		ready(sim, p)
+		p:SetAttribute("FishCaught", 2)
+		sim:Advance(0.2)
+		local f = fishing(p)
+		-- The default follow camera behind the fisher (12.5 studs back, 18° down; RbxSim has no
+		-- camera scripts): the controller projects him and his trophy from it.
+		local base = sim.workspace.Bases:FindFirstChild(`Base_{p:GetAttribute("BaseIndex")}`)
+		local look = base:GetPivot().LookVector
+		local focus = p.Character.HumanoidRootPart.Position + Vector3.new(0, 1.5, 0)
+		local eye = focus - look * (12.5 * math.cos(math.rad(18))) + Vector3.new(0, 12.5 * math.sin(math.rad(18)), 0)
+		local camera = sim.workspace.CurrentCamera
+		sim:Run(function()
+			camera.CFrame = CFrame.lookAt(eye, focus)
+		end, p)
+		catch(sim, p, fish, 3)
+		t.ok(openCard(sim, p), `{what}: the card opens`)
+		sim:Advance(0.8)
+		local scripts = p:FindFirstChildOfClass("PlayerScripts")
+		local Layout = sim:Require(sim:Find("Controllers.FishingLayout", scripts), p)
+		local origin = f.AbsolutePosition
+		local fisher = sim:Run(function()
+			return Layout.fisherBox(p.Character, sim.workspace.CurrentCamera, origin)
+		end, p)
+		local card = rectOf(sim, p, f.CatchCard)
+		local vp = sim.players.state[sim:Unwrap(p)].viewport
+		t.near(card.w / card.h, 380 / 384, 0.05, `{what}: still the square card {fmt(card)}`)
+		t.ok(fisher ~= nil, `{what}: the own fisher is on screen (the tablet has no fallback box)`)
+		local layer = f.CatchRays
+		if fisher then
+			local box: Rect = {
+				x = fisher.x0 + origin.X,
+				y = fisher.y0 + origin.Y,
+				w = fisher.x1 - fisher.x0,
+				h = fisher.y1 - fisher.y0,
+			}
+			t.eq(overlap(card, box), 0, `{what}: the card {fmt(card)} is beside the fisher {fmt(box)}`)
+			local fades = 0
+			for _, side in { "Left", "Right" } do
+				local fade = f.CatchDim[side]:FindFirstChild("Fade")
+				if fade and fade.Enabled then
+					fades += 1
+				end
+			end
+			t.eq(fades, 1, `{what}: the dim: one side band that melts towards him (he stays bright)`)
+			-- SIMC-C1-01: the sunburst behind a docked card is not shortened to the card any more —
+			-- its layer clips it at the fisher's edge on the card's side (he and his trophy stay
+			-- clear), so the rays stay big around the card.
+			t.ok(layer.ClipsDescendants, `{what}: the rays' layer clips them`)
+			local clip = rectOf(sim, p, layer)
+			-- (≤ 1.5 px: his box now and at the card's birth differ by a fraction of a pixel)
+			t.ok(
+				overlap(clip, box) <= 1.5 * math.max(box.w, box.h),
+				`{what}: the rays' window {fmt(clip)} stops at him {fmt(box)}`
+			)
+			t.ok(overlap(clip, card) >= card.w * card.h * 0.99, `{what}: …and holds the card {fmt(card)}`)
+		end
+		local longest, rings = 0, 0
+		for _, holder in layer:GetChildren() do
+			if holder.Name == "FxRays" then
+				rings += 1
+				for _, ray in holder:GetChildren() do
+					if string.sub(ray.Name, 1, 3) == "Ray" then
+						longest = math.max(longest, ray.Size.Y.Scale * holder.Size.Y.Offset)
+					end
+				end
+			end
+		end
+		t.eq(rings, 2, `{what}: two rings of rays`)
+		t.ok(longest >= 0.6 * card.h, `{what}: long rays ({math.floor(longest)} px for a {card.h} px card)`)
+		t.ok(card.y + card.h <= vp.Y - BOTTOM_GAP, `{what}: ≥ 16 px above the bottom {fmt(card)}`)
+		t.ok(card.y >= INSET, `{what}: below the top bar {fmt(card)}`)
+		-- SIMC-C1-05: the chips' labels start right of their icons.
+		for _, name in { "Weight", "Price" } do
+			local chip = f.CatchCard.InfoLabel[name]
+			local icon, label = rectOf(sim, p, chip.Icon), rectOf(sim, p, chip.Label)
+			t.ok(
+				label.x >= icon.x + icon.w + 2,
+				`{what}: {name}: the label {fmt(label)} starts right of its icon {fmt(icon)}`
+			)
+		end
+		sim:AssertNoErrors({ warnings = true })
+	end
+end
+
+tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticker, chips, rays and «+N 💰» keep clear"] = function(
+	t
+)
+	-- SIMC-C1-02: a 667 x 375 phone, a giant Mythic trophy (x 148..396): the 128 px landscape
+	-- card overlaps it on either side; a 0.9 one fits right of it, between it and «ДОМОЙ».
+	local Layout = loadLayout()
+	local keepout = Layout.rect(148, 30, 396, 300)
+	local bands = {
+		{ side = -1, top = 30, bottom = 197, left = 20, right = 584 },
+		{ side = 1, top = 30, bottom = 160, left = 20, right = 584 },
+	}
+	local aspect, span = 1.54, 1.05 * 1.025
+	local scales = { 1, 0.95, 0.9, 0.85 }
+	local tolerance = 0.03 * (396 - 148) * (300 - 30)
+	local _, _, full = Layout.leastCover(keepout, bands, 128 * aspect, 128, span)
+	local rect, side, cover, scale = Layout.leastCoverScaled(keepout, bands, 128 * aspect, 128, span, scales, tolerance)
+	t.ok(full > tolerance, `the full card hides {math.floor(full)} px² of him`)
+	t.ok(rect and cover <= tolerance, `a smaller one stays off him ({cover} px² at {scale})`)
+	t.ok(scale < 1 and scale >= 0.85, `…not smaller than 0.85 ({scale})`)
+	t.eq(side, 1, "…right of him")
+	t.near((rect.y1 - rect.y0) / 128, scale, 1e-6, "the card keeps its proportions at that scale")
+	local none, _, least = Layout.leastCoverScaled(keepout, bands, 128 * aspect, 128, span, { 1 }, 0)
+	t.ok(none and least == full, "no scale fits: the one that hides the least")
+
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	local f = fishing(p)
+	local scripts = p:FindFirstChildOfClass("PlayerScripts")
+	local CatchFx = sim:Require(sim:Find("Controllers.CatchFx", scripts), p)
+	local V2 = roblox.Vector2.new
+	-- The rays behind a card: at least RAYS_MIN card heights across (the scene of the title keeps
+	-- its own size).
+	t.eq(CatchFx.raysSize(2.55, 251, 470, false), 470, "capped by MaxPx")
+	t.eq(CatchFx.raysSize(2.55, 390, 600, false), CatchFx.RAYS_MIN * 390, "never under RAYS_MIN card heights")
+	t.eq(CatchFx.raysSize(2.55, 390, 600, true), 600, "the title's spokes: MaxPx")
+	-- The rays' layer: on the card's side of the fisher with his trophy (beside him, or under him
+	-- for a spare slot below the giant trophy), or the whole screen.
+	local keepout = { x0 = 300, y0 = 50, x1 = 500, y1 = 300 }
+	local root = V2(844, 332)
+	local left = CatchFx.raysClip(keepout, V2(150, 150), V2(200, 200), root)
+	t.eq(left.x1, 300, "a card left of him: the rays end at his left edge")
+	t.ok(left.y0 < -332 and left.y1 > 664, "…all the way up and down")
+	local right = CatchFx.raysClip(keepout, V2(650, 150), V2(200, 200), root)
+	t.eq(right.x0, 500, "right of him: they start at his right edge")
+	local under = CatchFx.raysClip(keepout, V2(390, 380), V2(200, 150), root)
+	t.eq(under.y0, 300, "a spare slot under the trophy: they start below him")
+	local layer = f.CatchRays
+	CatchFx.raysFrame(layer, root, left)
+	t.ok(layer.ClipsDescendants, "a docked card: clipped")
+	t.eq(layer.Position.X.Offset + layer.Size.X.Offset, 300, "…up to his edge")
+	t.ok(layer.Position.X.Offset <= -844, "…from beyond the screen")
+	CatchFx.raysFrame(layer, root, nil)
+	t.eq(layer.ClipsDescendants, false, "no dock: not clipped")
+	t.ok(layer.Position.X.Offset <= -844 and layer.Size.X.Offset >= 3 * 844, "…three screens wide")
+
+	-- «НОВИНКА!» on a small docked card: inside at rest, its slap from ≤ SLAP_DOCKED, anchored
+	-- where it has room (the scaled sticker stays on the card, under the banner).
+	local stamp = f.CatchCard.NewStamp
+	stamp.AnchorPoint = roblox.Vector2.new(0.5, 0.5)
+	stamp.Position = roblox.UDim2.fromOffset(28, 41)
+	local area = { x0 = 0, y0 = 28, x1 = 197, y1 = 129 }
+	local peak = CatchFx.fitStamp(stamp, V2(-20, 27), V2(96, 28), area)
+	t.ok(peak <= CatchFx.SLAP_DOCKED and peak >= 1, `a modest slap ({peak})`)
+	t.near(stamp.Position.X.Offset - stamp.AnchorPoint.X * 96, 0, 0.5, "moved inside the card at rest")
+	t.near(stamp.Position.Y.Offset - stamp.AnchorPoint.Y * 28, 27, 0.5, "…not up or down")
+	local a = stamp.AnchorPoint
+	local x0 = stamp.Position.X.Offset - a.X * 96 * peak
+	local y0 = stamp.Position.Y.Offset - a.Y * 28 * peak
+	t.ok(x0 >= area.x0 - 0.5 and x0 + 96 * peak <= area.x1 + 0.5, `its slap stays on the card ({x0})`)
+	t.ok(y0 >= area.y0 - 1.5, `…and off the banner ({y0})`)
+
+	-- A narrow chip: the icon shrinks a little and the label starts right of it.
+	local chip = f.CatchCard.InfoLabel.Price
+	CatchFx.fitChip(chip, V2(93, 29))
+	local iconRight = chip.Icon.Position.X.Scale * 93 + (1 - chip.Icon.AnchorPoint.X) * chip.Icon.Size.X.Scale * 29
+	local labelLeft = chip.Label.Position.X.Scale * 93 - chip.Label.AnchorPoint.X * chip.Label.Size.X.Scale * 93
+	t.ok(labelLeft >= iconRight + 2.9, `the price starts right of 💰 ({labelLeft} / {iconRight})`)
+	t.ok(chip.Label.UITextSizeConstraint.MinTextSize <= math.floor(0.8 * 0.8 * 29), "its text may fit the small chip")
+	CatchFx.fitChip(chip, V2(300, 29))
+	t.eq(chip.Icon.Size, chip.Icon:GetAttribute("RestSize"), "a wide chip: the builder's icon")
+	t.eq(chip.Label.Size, chip.Label:GetAttribute("RestSize"), "…and label")
+
+	-- «+N 💰» beside a docked card: above the banner when there is room, else at the outer
+	-- edge, else under the card, else the window's top strip (fading early) — never on the fish
+	-- in the window.
+	local function spot(cardTop: number, outer: number, tall: number?): any
+		local h = tall or 300
+		local c, size, early = CatchFx.floatSpot({
+			root = V2(1024, 710),
+			card = { x0 = 600, y0 = cardTop, x1 = 900, y1 = cardTop + h },
+			side = 1,
+			edge = 580,
+			window = { x0 = 630, y0 = cardTop + 60, x1 = 870, y1 = cardTop + 160 },
+			source = V2(800, cardTop + h - 70),
+			perHeight = 5.4,
+			want = 80,
+			least = 36,
+			gap = 10,
+			limits = function()
+				return 16, outer
+			end,
+		})
+		return { c = c, h = size, early = early }
+	end
+	local above = spot(200, 1008)
+	t.ok(above.c.Y + above.h / 2 <= 190 + 1e-6 and not above.early, "room above: over the banner")
+	t.ok(above.c.X - above.h * 5.4 / 2 >= 590 - 1e-6, "…not over the fisher")
+	local beside = spot(30, 1300)
+	t.ok(beside.c.X - beside.h * 5.4 / 2 >= 910 - 1e-6 and not beside.early, "no room above: at the outer edge")
+	local under = spot(30, 1008)
+	t.ok(under.c.Y - under.h / 2 >= 340 - 1e-6 and not under.early, "…else under the card")
+	t.ok(under.c.X - under.h * 5.4 / 2 >= 590 - 1e-6, "…not over the fisher")
+	local strip = spot(30, 950, 660)
+	t.ok(strip.early, "no room at all: the window's top strip, fading early")
+	t.ok(strip.c.Y + strip.h / 2 <= 30 + 60 + 0.5 * 100, "…in its top half")
+	t.ok(strip.h <= 30 + 1e-6, "…at most 0.3 of the window tall")
+	t.ok(strip.c.X + strip.h * 5.4 / 2 <= 870 + 1e-6, "…inside the window, by its right end")
 	sim:AssertNoErrors({ warnings = true })
 end
 

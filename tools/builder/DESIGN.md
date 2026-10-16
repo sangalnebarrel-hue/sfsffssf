@@ -196,7 +196,8 @@ lays its own floor/paths/borders on top (slab tops at y ≈ 0.2; nothing coplana
   `Pedestal.LabelGui.Label` (SurfaceGui + TextLabel on the front, text "Пусто")
 * `Alarm.Lamp` (BasePart, Neon when lit), `Dog` (Model with PrimaryPart; invisible, attribute
   `Unlocked = false`, until the stage-4 dog upgrade shows it)
-* `Flag.Pole.SignAttachment.OwnerSign.{OwnerLabel, BaseLabel}` (BillboardGui TextLabels)
+* `Flag.Pole.SignAttachment.OwnerSign.{OwnerLabel, BaseLabel, YoursLabel}` (BillboardGui
+  TextLabels; `YoursLabel` «ТВОЯ БАЗА!» is hidden — only the owner's own client shows it)
 * any number of extra `OwnerLabel` / `BaseLabel` TextLabels elsewhere (e.g. the gate sign):
   BaseService updates **all** TextLabels with those names
 * `Accent = true` attribute → painted with the base colour; optional number attribute
@@ -231,12 +232,15 @@ lays its own floor/paths/borders on top (slab tops at y ≈ 0.2; nothing coplana
   corner shows top-left; the rod rack stands under it behind the bench (v3 fix W1).
 * **Signs:** every SurfaceGui of a base has a `MaxDistance` (120; the 12 pedestal labels 60, at
   30 px per stud); the map's signs 250 (`Kit.sign` 600 for the big boards). The owner sign over
-  the flag is a LEGO brick in the «Кирпичики» UI style: a plate in the base colour (GUI objects
-  with `Accent = true` / `AccentShade` — BaseService paints their `BackgroundColor3`) with a thick
-  Ink outline, a darker lip and three studs, the owner's name in Nunito Heavy with a round Ink
-  outline and a white → cream gradient, the base's name in its colour on a cream tile; 10 × 3.2
-  studs + 150 × 52 px, `MaxDistance` 500 (readable across the lagoon). The gate's labels use the
-  same letters (v3 fix WOW-5, F4).
+  the flag (UI v5 «Симулятор», like the reference's «МАГАЗИН СЛЕДОВ» / «БЕСПЛАТНО!») is billboard
+  words with NO plate and no studs (the map keeps its LEGO studs; GUI never has them): Montserrat
+  Heavy, a white → colour `Fill` UIGradient and a thick round `Outline` UIStroke in the look's
+  dark shade — the owner's name in white or «СВОБОДНО!» in `UIConfig.BillboardGreen` (a free
+  base), under it the base's name in CAPS in its own swatch (`UIConfig.BaseSwatches`, painted by
+  BaseService), over them «ТВОЯ БАЗА!» in green on the owner's own client (the three rows stay
+  inside the billboard's frame, room left for the outline); 10 × 3.2 studs + 150 × 52 px,
+  `MaxDistance` 500 (readable across the lagoon; the GUI previews' world scenes draw them). The gate's name board uses the same
+  letters (v3 fix WOW-5, F4; UI v5; tools/builder/gui/STYLE.md §3 «Words in the world»).
 
 ## 3. Builder modules and who owns what
 
