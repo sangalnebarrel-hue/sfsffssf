@@ -28,6 +28,8 @@ export type MinigameRule = {
 local FishingConfig = {
 	-- Где можно рыбачить: в радиусе SpotRadius стадов (по горизонтали) от точки рыбалки
 	-- (FishingSpot) своей базы. Отошёл дальше KeepRadius во время рыбалки — леска сматывается.
+	-- (Кнопка «ЗАБРОСИТЬ» у клиента — на 2 стада ближе: копия персонажа на сервере отстаёт на
+	-- пинг; FishingController.isNearSpot.)
 	SpotRadius = 12,
 	KeepRadius = 18,
 	SpotMaxHeight = 10, -- насколько выше/ниже точки может стоять персонаж

@@ -462,9 +462,25 @@ local scenarios = {
 		end,
 	},
 	{
+		name = "spawn_rod",
+		desc = "Just joined, rod in the backpack: «ВЗЯТЬ» at once; «where to go» waits for the «ТВОЯ БАЗА» "
+			.. "banner (0.8 s) and pops once it has landed in the badge (3.2 s), a full 4 s look (6 s)",
+		fresh = true,
+		still = { 0.8, 3.2, 6 },
+		run = function(h: any)
+			h:waitFor(function()
+				local index = h.player:GetAttribute("BaseIndex")
+				return typeof(index) == "number" and index > 0
+			end, 5)
+			h:giveRod()
+		end,
+	},
+	{
 		name = "start",
-		desc = "Just spawned: rod in the backpack (no Roblox hotbar), newcomer hint",
-		still = 0.8,
+		desc = "Just spawned at the base, far from the circle, rod in the backpack (no Roblox hotbar): «ВЗЯТЬ» "
+			.. "(rings, the newcomer «!», F on a PC) + «where to go» (+ the guide beam); 6 s: the hint rests, "
+			.. "14.6 s: it is back",
+		still = { 0.8, 6, 14.6 },
 		run = function(h: any)
 			h:giveRod()
 		end,
@@ -497,6 +513,17 @@ local scenarios = {
 		run = function(h: any)
 			h:giveRod()
 			h:standAtSpot()
+			h:advance(0.6)
+			h:click("HUD.Fishing.ActionArea.ActionButton")
+		end,
+	},
+	{
+		name = "far_take",
+		desc = "Tap «ВЗЯТЬ» far from the spot (just spawned): the rod in hand, the button morphs into «КУДА ИДТИ?»",
+		still = 0.8,
+		sheet = { from = 0, to = 0.8, fps = 15, roi = { "HUD.Fishing.ActionArea" }, margin = 0.06 },
+		run = function(h: any)
+			h:giveRod()
 			h:advance(0.6)
 			h:click("HUD.Fishing.ActionArea.ActionButton")
 		end,
@@ -877,11 +904,23 @@ local scenarios = {
 	},
 	{
 		name = "home_cooldown",
-		desc = "«ДОМОЙ» pressed: the cooldown drains",
+		desc = "«ДОМОЙ» pressed (rod in the backpack): the cooldown drains; «ВЗЯТЬ» stays, «where to go» (+ the beam)",
 		still = 1.5,
 		sheet = { from = 0, to = 0.8, fps = 15, roi = { "HUD.RightButtons" }, margin = 0.05 },
 		run = function(h: any)
+			h:giveRod()
 			h:standFar()
+			h:click("HUD.RightButtons.HomeButton")
+		end,
+	},
+	{
+		name = "home_rod",
+		desc = "«ДОМОЙ» pressed with the rod in hand: the cooldown drains; «КУДА ИДТИ?» 🧭 + «where to go» (+ the beam)",
+		still = 1.5,
+		run = function(h: any)
+			h:standFar()
+			h:equipRod()
+			h:advance(0.3)
 			h:click("HUD.RightButtons.HomeButton")
 		end,
 	},
