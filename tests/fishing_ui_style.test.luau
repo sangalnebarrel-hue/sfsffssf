@@ -114,6 +114,21 @@ local function fishing(p: any): any
 	return p.PlayerGui.HUD.Fishing
 end
 
+-- The «ТВОЯ БАЗА» banner (HudController) holds the middle ≈ 2.4 s after the base arrives; the
+-- contextual hint waits for it (UX-AB-01). Steps until it has flown into the badge, plus one
+-- context poll (FishingController CONTEXT_CHECK_INTERVAL, 0.25 s).
+local function bannerGone(sim: any, p: any)
+	local banner = p.PlayerGui.HUD.BaseBanner
+	for _ = 1, 50 do
+		if not banner.Visible then
+			break
+		end
+		sim:Advance(0.1)
+	end
+	assert(not banner.Visible, "the base banner never left")
+	sim:Advance(0.3)
+end
+
 local function serverSays(sim: any, p: any, state: string, data: any?)
 	sim:Find("ReplicatedStorage.Remotes.FishingState"):FireClient(p, state, data)
 	sim:Advance(0.05)
@@ -1477,6 +1492,7 @@ tests["catch: the card owns the screen — frozen button, no hint, status faded;
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "phone")
 	ready(sim, p)
+	bannerGone(sim, p)
 	sim:Advance(1)
 	local f = fishing(p)
 	local hud = p.PlayerGui.HUD
@@ -1556,6 +1572,7 @@ tests["hint: a glass pill with an icon by kind, slides up with a bounce"] = func
 	local p = addPlayer(sim, 1)
 	ready(sim, p)
 	local hint = fishing(p).Hint
+	bannerGone(sim, p)
 	sim:Advance(1)
 	t.eq(hint.Visible, true)
 	t.eq(hint.Text, "Жми «Забросить»")
@@ -1679,6 +1696,7 @@ tests["far from the spot: «КУДА ИДТИ?» 🧭 casts nothing — the hint
 	local rod = giveRod(sim, p)
 	sim:EquipTool(p, rod) -- at the spawn, far from the fishing spot
 	sim:Advance(0.5)
+	bannerGone(sim, p)
 	local f = fishing(p)
 	local button = f.ActionArea.ActionButton
 	t.eq(button.Caption.Text, "КУДА ИДТИ?")
@@ -2477,6 +2495,7 @@ tests["hint: its entrance ends where the layout put it (beside the fisher on a p
 	-- behind the camera and the fisher could not be projected.)
 	giveRod(sim, p)
 	standAtSpot(sim, p)
+	bannerGone(sim, p)
 	sim:Advance(1)
 	local f = fishing(p)
 	local hint = f.Hint
@@ -2534,6 +2553,7 @@ tests["hint: a new text on screen morphs the pill (no rolling copy spills out); 
 	local p = addPlayer(sim, 1, "phone")
 	giveRod(sim, p)
 	standAtSpot(sim, p)
+	bannerGone(sim, p)
 	sim:Advance(1)
 	local f = fishing(p)
 	local hint = f.Hint
