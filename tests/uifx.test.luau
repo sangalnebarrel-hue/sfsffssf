@@ -12,7 +12,8 @@
 	dark shade, glass and back), the stud API gone, recolor / swapText / flashText / punch, the sim
 	press (squash 0.9 + a darker face + overshoot + icon kick, no sink; hover only without a touch
 	screen), snapIn, rimFlash, morphFlash with the icon pop, the idle life on timers (breathe, bob,
-	sway, the «!» badge), the ring timer (tweens only) and reduced motion.
+	sway, the «!» badge), the ring timer (tweens only) and reduced motion; a partial rainbow that
+	bounces (no grey blend of its last colour into the first) and sparkles only outside a text plate.
 
 	Run: lune run tools/run_tests.luau uifx
 ]]

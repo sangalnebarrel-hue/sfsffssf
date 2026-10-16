@@ -171,7 +171,7 @@ temporary instances, cancel tweens) and accept a Trove or return a cleanup funct
 | glow ring | a copy of the round shape behind it, scale 1 → 1.5, transparency 0.3 → 1 | 0.6 s, repeat while important; stop fades live rings in 0.1 s |
 | rays | sunburst of 8–16 thin rotated bars in alternating rarity colours, growing from the centre (Quad Out), slowly rotating (≈20°/s; two rings turn opposite ways), behind titles and the catch card; on touch: no halo quads, no breathing, size capped (`maxPx`); `settle()` after the reveal; with a `hole` the middle stays empty | while shown |
 | confetti | 30–60 small Frames (squares/strips, vivid colours, rotation), launched up/out then falling with gravity and spin, fading in the last 30 % | 1.6–2.2 s |
-| sparkles | ✨ / ⭐ labels popping in/out at random spots around an element | while shown |
+| sparkles | ✨ / ⭐ labels popping in/out at random spots around an element (on a text plate only outside it, never on its letters) | while shown |
 | float text | «ОТЛИЧНО!», «+1 🐟», «МИМО!» in Montserrat Heavy **Italic** with a 4 px outline: pop, rise 8 % and fade, slight rotation | 0.8 s |
 | rainbow | UIGradient colour keypoints shifted every frame (hue cycle), or Rotation spin | continuous while shown |
 | flash | full-screen white / rarity-coloured Frame 0.6 → 1 transparency (`flashBig` exists but is not used: never a near-solid screen on a catch landing) | 0.25 s; ≤ 3 per second |
@@ -229,7 +229,8 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   off in the first half of its life comes back); Legendary (a yellow Gold plate, 🌟) and Mythic (a
   dark Night plate in a spinning rainbow OUTLINE, 🌈 — the rainbow only on the outline, never
   behind the letters) broadcasts are bigger plates that punch in (0.3 → 1.12 → 1) and land with a
-  ring in the rarity colour, a rim flash and a gold flash of the headline, in two lines — who
+  ring in the rarity colour, a rim flash and a gold flash of the headline (sparkles 0.3 of its
+  height pop only around the plate — none on «×5!», r4 ART-02), in two lines — who
   (Small, never under 14 px) over what (up to Title, the rarity word in capitals), never wider than
   the column — 1.25 columns on a touch screen, centred, clear of Home — (measured per glyph,
   `UiFx.textWidth`; on a touch screen a long headline first shrinks, down to 12 px, and wraps into
@@ -318,14 +319,26 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   a band OUTSIDE the dark outline (`AuraStroke`, `Sim.Stroke` + 4 at 720: ≥ 2.5 px on phones;
   as wide as the outline it would hide under it), Legendary/Mythic slam the giant rarity
   word over the panel once (the first hit / miss / win word knocks it away: it swells and fades in
-  0.12 s — never two words stacked; on phones it never climbs onto the base badge: lower, over
-  the panel's top edge, and smaller); on a tablet or a PC (centred in the column) the column keeps
+  0.12 s — never two words stacked; on phones it never climbs onto the base badge or the flag
+  hanging over its left end — its −4° tilt counted, r4 ART-04: lower, over the panel's top edge,
+  and smaller); the Mythic title's rainbow (red … cyan, no dark blue / purple) runs there and back
+  (`UiFx.rainbow` `bounce`, r4 ART-01: as a circle cyan blended into red through grey); on a
+  tablet or a PC the panel rests centred in the column, which keeps
   room for the aura band plus `MINI_JUICE` 5 % of its width a side (its pop-in overshoot, the
   snap-in squash 1.08 and the 1.06 hit bump), so even at that peak it stays ≥ 16 px from the
   action button's caption pill and the thumbstick (FishingController.layoutColumn, r3,
-  SIMB-C2-02); on phones (HUD under 500 px) the panel docks LEFT of the own
+  SIMB-C2-02) — unless it would lie on the own fisher there (the fishing camera lowers him to the
+  bottom of the frame: his legs, the brace), then it slides aside at the bottom or docks LEFT of
+  him like on a phone, smaller as a whole (r4 UX-01, `MINI_DOCK_MIN` 0.75 under him, ≥ 208 px
+  wide beside him; its real rarity aura kept 16 px off the thumbstick); on phones (HUD under 500 px)
+  the panel always docks LEFT of the own
   fisher (FishingLayout: under the status stack, over the thumbstick, ≥ 208 px wide) — the whole
-  fight (the brace, the crank, the bent rod) and the bobber stay in view; the hit is shown at once (the needle freezes gold, sparks, rising pitch) with
+  fight (the brace, the crank, the bent rod) and the bobber stay in view; the words over the
+  panel (the rarity word, the hit words even at their 1.3 pop, «МИМО!» / «ВРЕМЯ!») keep 8 px off
+  the own fisher — moved aside, the rarity word narrower if it must — and off the status plates
+  and the flag (`FishingLayout.clearOf`: aside, else lower), and a slam from big (the rarity word
+  2.2, «ИДЕАЛЬНО!» 2) grows from its far edge when from its middle it would cross him
+  (`FishingLayout.slamPivot`, r4 ART-03); the hit is shown at once (the needle freezes gold, sparks, rising pitch) with
   «ОТЛИЧНО!» → «СУПЕР!» → «МЕГА!» or «ИДЕАЛЬНО!» (within 25 % of the zone centre; the title flashes
   gold), pip turns into a
   ⭐; on touch the panel itself is a tap pad and the 👇 cue helps the first games; on miss / timeout a
@@ -354,7 +367,11 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   small bump, a higher pop) until the server answers (≤ 1.5 s); on "Caught" the minigame plays its
   win (FxMinigameWin: ⭐, gold zone, the needle where it was tapped, sparks) and sinks away early, and
   «ПОЙМАНА!» slams in (2.4 → 1, tilted, ≈ 0.17 of the HUD height, in the rarity colours — Mythic a
-  sweeping rainbow — with a glow ring) left of the character, never over the leap, and is gone
+  sweeping rainbow — with a glow ring) left of the character, never over the leap: in its band it
+  keeps 8 px off the own fisher and 16 px off the thumbstick and the buttons (`sideLimits`; in a
+  tight band it gets shorter, ≥ `CLIMAX.WinLeast` 40 px), its slam grows from the edge away from
+  them (`FishingLayout.slamPivot`: right of the word stands the fisher — it grows leftwards, off
+  the screen edge if need be) and its glow ring stops short of them (r4 UX-02 / UX-03), and is gone
   ≈ 0.2 s before the landing (a quiet beat before the shockwave); the status badge and the counter
   fade out, the button freezes; Epic+ get a narrow edge frame (0.13 of the height) that builds
   0.85 → 0.5 alpha into the landing (Quad In) and cuts off on it — Mythic's is a light rainbow
@@ -765,11 +782,11 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `confetti(container, {count?, colors?, origin?, spread?, power?, duration?, z?})` → stop | frame | ≤ 40 alive on touch devices, ≤ 60 otherwise (`confettiCap()`, `liveConfetti()`) |
 | `confettiPop(container, {same options})` → stop | timers | the same pieces on tweens only — for moments when the rest is idle (joining, the base banner) |
 | `burst(container, {count?, colors?, origin?, power?, time?, z?, size?})` → stop | frame | round sparks flying out of `origin` |
-| `sparkles(gui, {icons?, rate?, size?, area?, duration?, z?})` → stop | timers | ✨/⭐ popping around the edges |
-| `floatText(container, text, {position?, size?, color?, colors?, rise?, time?, rotate?, z?, to?, travel?})` → label | timers | italic «ОТЛИЧНО!», «+1»: pop, rise 8 %, fade (0.8 s); with `to` it first flies out of `position` to `to` |
+| `sparkles(gui, {icons?, rate?, size?, area?, duration?, z?, outside?})` → stop | timers | ✨/⭐ popping around the edges; `outside` — only around the element, never over it (text plates: toasts, the mutation stamp, banners — r4 ART-02) |
+| `floatText(container, text, {position?, size?, color?, colors?, rise?, time?, rotate?, z?, to?, travel?, anchor?})` → label | timers | italic «ОТЛИЧНО!», «+1»: pop, rise 8 %, fade (0.8 s); with `to` it first flies out of `position` to `to`; `anchor` — the point `position` names and its UIScale grows about (a slam from its far edge) |
 | `countUp(label, from, to, time?, format?, {bump?})` → stop | frame | Quad Out; `bump`: each new number bumps 1.06 → 1 (≤ 12 Hz) |
 | `flyTo(layer, from, to, {text?, texts?, color?, time?, size?, arc?, count?, gap?, onEach?, onArrive?})` → stop | frame | §2 fly-up: one frame job for all icons |
-| `rainbow(gradient, {speed?, colors?, spin?})` → stop | frame | hue cycle (30 Hz); stop restores the colours |
+| `rainbow(gradient, {speed?, colors?, spin?, bounce?})` → stop | frame | hue cycle (30 Hz); `bounce` — there and back (a partial rainbow: the last colour never blends into the first); stop restores the colours |
 | `timerBar(fill, duration, colors?)` → stop | frame | width 1 → 0, green → yellow → red |
 | `flash(layer, color?, time?, from?, hold?)`, `flashBig(layer, color?)` | timers | full-screen flash, at most 3 per second |
 | `shockwave(layer, origin, {color?, colors?, size?, time?, thickness?, glow?, z?, from?})` | timers | the landing hit at `origin`; the rings start at `from` layer heights (≥ 0.3: outside what landed) |
@@ -817,7 +834,10 @@ RenderStepped connection for all running frame effects, disconnected when none r
   the cast, the bite, the fight and the trophy are placed with
   `Controllers.FishingLayout` (`fisherBox` — the own character with the rod and the held fish
   projected through the camera, padded 12 px, or `fallbackFisher` where it stands at the default
-  camera; `avoid` — lower / slide aside; `dockSide` — a slot beside him; `topBand` — above him).
+  camera; `avoid` — lower / slide aside; `dockSide` — a slot beside him; `topBand` — above him;
+  `slamPivot` — where a slam from big grows from so even its first frame misses him;
+  `clearOf` — a word over the panel shifted off the status plates and the base flag). On a tablet
+  or a PC the minigame docks beside him too when at the bottom it would lie on him (r4).
   No Roblox hotbar (HudController: `SetCoreGuiEnabled(Backpack, false)`): the rod is taken with
   «ВЗЯТЬ»; a custom hotbar comes with the shop stage — keep the bottom band under the fisher's
   feet for the hint and «КЛЮЁТ!».
