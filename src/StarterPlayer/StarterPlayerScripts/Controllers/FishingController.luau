@@ -1943,7 +1943,9 @@ do
 		               лучше чуть меньше, но рядом с ним, чем поверх него.
 		  DockSquare, DockSquareMin   квадратная (планшет, компьютер; v5) сбоку от рыбака с трофеем —
 		               не меньше такой доли своего размера «посередине» и не меньше стольких px
-		               (текст на ней ещё помещается в свои строки), иначе — посередине, как раньше.
+		               (текст на ней ещё помещается в свои строки); не встала — там, где такая
+		               закрывает рыбака с трофеем меньше всего (FishingLayout.leastCover), если это
+		               заметно меньше, чем посередине; иначе — посередине, как раньше.
 		  DockSquarePhone  маленький телефон, широкой сбоку места нет (огромный трофей): сбоку
 		               встаёт квадратная, если она не меньше стольких px.
 		  DockSlack    у слова редкости место карточки выбирается дважды (на приземлении — куда
@@ -1996,7 +1998,7 @@ do
 		Rise = 0.05,
 		MinHeight = 165,
 		DockMin = 128,
-		DockSquare = 0.65,
+		DockSquare = 0.6,
 		DockSquareMin = 250,
 		DockSquarePhone = 168,
 		DockSlack = 12,
@@ -2414,8 +2416,8 @@ do
 					side = side,
 					top = high,
 					bottom = bottom,
-					left = left + CARD.RimRoom / 2,
-					right = right - CARD.RimRoom / 2,
+					left = left + (rim + CARD.RimRoom) / 2,
+					right = right - (rim + CARD.RimRoom) / 2,
 				})
 				local slot = Layout.dockSide(
 					side,
@@ -2425,8 +2427,9 @@ do
 					high,
 					bottom,
 					aspect,
-					-- (UI v5: толстая «живая» обводка выступает за карточку — ещё ползапаса RimRoom)
-					if side < 0 then left + CARD.RimRoom / 2 else right - CARD.RimRoom / 2
+					-- (UI v5: толстая «живая» обводка баннера и «дыхание» выступают за «отпечаток» — ещё
+					-- полсуммы rim и RimRoom)
+					if side < 0 then left + (rim + CARD.RimRoom) / 2 else right - (rim + CARD.RimRoom) / 2
 				)
 				-- (Слева — чуть охотнее: рыбак с трофеем между карточкой и «ЗАБРАТЬ!».)
 				local area = if slot
@@ -2601,8 +2604,9 @@ do
 		-- (UI v5: «живая» обводка толще RimRoom на крупном экране; с мутацией — в 4/3)
 		local rim = math.max(CARD.RimRoom, CatchFx.outline(ui.card, math.max(look and look.Rim or 1, 4 / 3)))
 		if look and (UIConfig.Rarity[look.Id] or UIConfig.Rarity.Common).Rainbow then
-			-- (мифическая потом «дышит» — CARD.Breath: шире и выше на столько px)
-			rim += math.ceil((CARD.Breath - 1) * CARD.RefHeight)
+			-- (мифическая потом «дышит» — CARD.Breath: шире и выше на столько px; карточка — до
+			-- 0.6 высоты экрана, не выше 420 px)
+			rim += math.ceil((CARD.Breath - 1) * math.min(ui.fishing.AbsoluteSize.Y * 0.6, 420))
 		end
 		local function squareDock(
 			rootSize: Vector2,
@@ -2655,19 +2659,19 @@ do
 					for _, top in tops do
 						if bottom - top > 0 then
 							local left, right = sideLimits(rootSize, top, bottom, true, reach)
-							if not touch and top < CLIMAX.ChatBottom then
+							if not touch and top < CLIMAX.ChatBottom + rim then
 								left = math.max(left, CLIMAX.ChatRight + rim)
 							end
-							if not touch and top < CLIMAX.ListBottom then
+							if not touch and top < CLIMAX.ListBottom + rim then
 								right = math.min(right, rootSize.X - CLIMAX.ListLeft - rim)
 							end
-							-- (ползапаса RimRoom: толстая «живая» обводка выступает за карточку)
+							-- (полсуммы rim и RimRoom: «живая» обводка баннера и «дыхание» выступают)
 							table.insert(bands, {
 								side = side,
 								top = top,
 								bottom = bottom,
-								left = left + CARD.RimRoom / 2,
-								right = right - CARD.RimRoom / 2,
+								left = left + (rim + CARD.RimRoom) / 2,
+								right = right - (rim + CARD.RimRoom) / 2,
 							})
 						end
 					end
@@ -2676,10 +2680,8 @@ do
 			local smallest = (least or math.max(want * CARD.DockSquare, CARD.DockSquareMin)) - (slack or 0)
 			local rect, side, edge =
 				Layout.cardDock(keepout, bands, want, math.min(smallest, want), aspect, CARD.SquareSpan)
-			if not rect then
-				return nil
-			end
-			return { rect = rect, side = side, edge = edge }
+			-- (не встала — полосы и размер для запасного места, см. ниже)
+			return { rect = rect, side = side, edge = edge, bands = bands, least = math.min(smallest, want) }
 		end
 		local defaults = rememberDefaults()
 		local root = ui.fishing
@@ -2733,7 +2735,7 @@ do
 					y1 = fisher.y1,
 				}, box.X * scale, box.X / math.max(box.Y, 1), if wide then CARD.DockSquarePhone else nil)
 				else nil
-			if docked then
+			if docked and docked.rect then
 				local rect = docked.rect
 				center = Vector2.new((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2)
 				size = Vector2.new(rect.x1 - rect.x0, rect.y1 - rect.y0)
@@ -2741,6 +2743,29 @@ do
 				wide = false
 			elseif not wide then
 				center, size = pos + box / 2, box
+				-- (v5: и сбоку не встала — там, где карточка не меньше least закрывает рыбака с
+				-- трофеем меньше всего, если заметно меньше, чем посередине)
+				local rect, side, cover = nil, nil, nil
+				if docked and fisher then
+					rect, side, cover = Layout.leastCover(
+						fisher,
+						docked.bands,
+						docked.least,
+						docked.least * box.Y / math.max(box.X, 1),
+						CARD.SquareSpan
+					)
+				end
+				if
+					rect
+					and side
+					and fisher
+					and (cover or 0)
+						< 0.7 * Layout.overlapArea(Layout.rect(pos.X, pos.Y, pos.X + box.X, pos.Y + box.Y), fisher)
+				then
+					center = Vector2.new((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2)
+					size = Vector2.new(rect.x1 - rect.x0, rect.y1 - rect.y0)
+					dock, edge, fixed = side, if side < 0 then rect.x1 else rect.x0, true
+				end
 			elseif spare then
 				-- (v5: и квадратная не встала — там, где широкая меньше всего закрывает трофей)
 				center, size, dock, edge, fixed = spare.center, spare.size, spare.side, spare.edge, true

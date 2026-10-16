@@ -338,7 +338,9 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   (`FishingLayout.cardDock` over the free bands on either side: full height, above the thumbstick,
   the action button or the shown «ДОМОЙ» stack, without touch below the chat window and clear of
   the player list — `CLIMAX.ChatBottom` / `ListLeft` / `ListBottom`; the left side a little
-  preferred), no smaller than `CARD.DockSquare` 65 % of its centred size and 250 px
+  preferred), no smaller than `CARD.DockSquare` 60 % of its centred size and 250 px (if no side takes
+  even that — a giant Mythic trophy on a tablet —, it goes where it hides the least of him and his
+  trophy, `FishingLayout.leastCover`, when that is clearly less than centred)
   — else centred at the bottom as before. Its gaps are measured by the drawing: 16 px plus its own
   outline (`CatchFx.outline`, thicker than `RimRoom` on big screens; a Mythic card's breath too)
   plus `CARD.EdgeRoom` for the outlines and key chip of the action button and the «ДОМОЙ» column;
