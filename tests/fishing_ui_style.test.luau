@@ -29,6 +29,7 @@ local roblox = require("@lune/roblox")
 local Enum = roblox.Enum
 local Vector3 = roblox.Vector3
 local CFrame = roblox.CFrame
+local UDim2 = roblox.UDim2
 
 local INSET = 58 -- RbxSim's top bar inset for ScreenGuis without IgnoreGuiInset
 local BOTTOM_GAP = 16 -- v3: no Roblox hotbar (HudController switches the Backpack CoreGui off)
@@ -44,6 +45,16 @@ local function loadConfig(name: string): any
 end
 
 local UIConfig = loadConfig("UIConfig")
+-- The layout maths of the fishing widgets (pure: no instances, no services).
+local FishingLayout = (function()
+	local path = "src/StarterPlayer/StarterPlayerScripts/Controllers/FishingLayout.luau"
+	local chunk = luau.load(fs.readFile(path), {
+		debugName = path,
+		environment = { Vector2 = roblox.Vector2, Vector3 = roblox.Vector3, CFrame = roblox.CFrame },
+		injectGlobals = true,
+	})
+	return chunk()
+end)()
 local FishingConfig = loadConfig("FishingConfig")
 local Palette = UIConfig.Palette
 
@@ -253,26 +264,53 @@ tests["parts: the fishing widgets are sim plates with their decorations, no stud
 
 	-- UI v5: the action button is a round sim button (no raised stud), its caption on a glass pill
 	-- (the reference's timer pill); «СМОТАТЬ» a red sim button; the key chip a white plate.
+	-- [sim-b] Built with the sim API itself (no compat shims): the big shapes carry the chrome's
+	-- chunky Sim.Stroke (SIM-C1-03: the most important button is the chunkiest), small parts the
+	-- minor outline; the disc is anchored at its centre (every scale effect grows it evenly).
+	local function outlineOf(root: any): number
+		return root.Lip:FindFirstChildOfClass("UIStroke"):GetAttribute("BaseThickness")
+	end
 	local action = area.ActionButton
 	checkCandy(t, action, "ActionButton")
 	t.ok(isCandy(action, Palette.Gold), "ActionButton: painted with the «ВЗЯТЬ» look (no rod)")
 	t.ok(action.Ring:IsA("UIStroke"), "ActionButton.Ring halo")
 	t.eq(action:GetAttribute("CandyRadius"), 0.5, "a round button")
 	t.eq(action.Face:FindFirstChild("Stud"), nil, "no raised stud")
+	t.eq(outlineOf(action), UIConfig.Sim.Stroke, "the disc has the chunky outline")
+	t.ok(action.Face:FindFirstChild("Rim") and action.Face:FindFirstChild("Gloss"), "… a light rim and a gloss")
+	t.eq(action.AnchorPoint, roblox.Vector2.new(0.5, 0.5), "… anchored at its centre (scale grows it evenly)")
 	checkCandy(t, action.CaptionRibbon, "CaptionRibbon")
 	t.eq(action.CaptionRibbon:GetAttribute("CandyStyle"), "glass", "the caption on a glass pill")
+	t.eq(action.CaptionRibbon:GetAttribute("CandyRadius"), 0.5, "… a stadium")
 	t.ok(action.Caption.ZIndex > action.CaptionRibbon.ZIndex, "caption over its pill")
 	t.ok(action.Caption:FindFirstChild("Outline"), "outlined caption")
 	checkCandy(t, action.KeyChip, "KeyChip")
-	checkCandy(t, area.StopButton, "StopButton")
-	t.ok(isCandy(area.StopButton, Palette.Berry), "StopButton: a red button")
-	t.eq(area.StopButton.Icon.Text, "🎣", "v3 (UIM-09): the rod — «reel it in», not a sewing thread")
+	t.eq(outlineOf(action.KeyChip), UIConfig.Sim.MinorStroke, "the key chip: the minor outline")
+	local stop = area.StopButton
+	checkCandy(t, stop, "StopButton")
+	t.ok(isCandy(stop, Palette.Berry), "StopButton: a red button")
+	t.eq(outlineOf(stop), UIConfig.Sim.Stroke, "«СМОТАТЬ»: the chunky outline")
+	t.eq(stop.Icon.Text, "🎣", "v3 (UIM-09): the rod — «reel it in», not a sewing thread")
+	t.ok(stop.Icon:FindFirstChild("Outline"), "… an outlined icon")
+	t.ok(stop.Icon.Position.X.Scale < 0.1 and stop.Caption.AnchorPoint.X == 1, "icon at the left end, caption right")
+	t.eq(stop.AnchorPoint, roblox.Vector2.new(1, 1), "anchored at its bottom-right corner (pops away from Home)")
 
 	local alert = f.BiteAlert
 	checkCandy(t, alert, "BiteAlert")
 	t.ok(isCandy(alert, Palette.Sun), "BiteAlert: an orange plate")
+	t.eq(outlineOf(alert), UIConfig.Sim.Stroke, "… with the chunky outline")
 	t.eq(alert.Label.Text, "КЛЮЁТ!")
 	t.ok(alert.Label:FindFirstChild("TextFill") and alert.Label:FindFirstChild("Outline"), "gradient, outlined title")
+	local twin = alert:FindFirstChild("LabelShadow")
+	t.ok(
+		twin and twin:GetAttribute("ShadowOf") == "Label",
+		"«КЛЮЁТ!» has the reference title's drop-shadow twin"
+	)
+	t.ok(
+		twin and twin.ZIndex > alert.Face.ZIndex and twin.ZIndex < alert.Label.ZIndex,
+		"… over the face, under the word"
+	)
+	t.eq(alert.TimerTrack:GetAttribute("CandyStyle"), "glass", "the countdown runs in a glass groove")
 	-- UI v2 (FUI-08): «!» glyphs — white → gold text with an Ink outline, not the ❗ emoji.
 	for _, side in { alert.IconLeft, alert.IconRight } do
 		t.eq(side.Text, "!")
@@ -288,6 +326,7 @@ tests["parts: the fishing widgets are sim plates with their decorations, no stud
 	local mini = f.Minigame
 	checkCandy(t, mini, "Minigame")
 	t.ok(isCandy(mini, Palette.Night), "Minigame: a dark navy panel")
+	t.eq(outlineOf(mini), UIConfig.Sim.Stroke, "… with the chunky outline")
 	t.eq(mini.Face.BackgroundTransparency, 0, "…opaque")
 	t.eq(mini.Face:FindFirstChild("StudRow"), nil, "no row of studs")
 	t.ok(mini.Title:FindFirstChild("TextFill") and mini.Title:FindFirstChild("Outline"), "rarity-gradient title")
@@ -298,19 +337,37 @@ tests["parts: the fishing widgets are sim plates with their decorations, no stud
 	local track, zone, needle = mini.Track, mini.Track.Zone, mini.Track.Needle
 	checkCandy(t, zone, "Zone")
 	t.ok(isCandy(zone, Palette.Leaf), "Zone: a green plate")
+	t.eq(zone:GetAttribute("CandyRadius"), 0.5, "… a pill")
+	t.eq(outlineOf(zone), UIConfig.Sim.MinorStroke, "… with the minor outline")
 	t.ok(zone.Glow.ZIndex < zone.Lip.ZIndex, "the zone's glow is behind it")
 	t.ok(zone.Flash.ZIndex > zone.Face.ZIndex, "hit flash over the zone")
 	t.ok(needle.ZIndex > zone.ZIndex, "the needle is drawn over the zone")
 	t.ok(needle:FindFirstChildOfClass("UICorner") and needle:FindFirstChildOfClass("UIStroke"), "an outlined bar")
 	t.ok(needle.Size.X.Scale <= 0.03, "the needle stays thin (the e2e bot aims with its width)")
-	t.ok(track:FindFirstChildOfClass("UIStroke"), "outlined track")
+	t.eq(track:GetAttribute("CandyStyle"), "glass", "the track is a glass groove")
+	t.ok(track.Lip:FindFirstChildOfClass("UIStroke").Transparency < 1, "… with a faint edge")
+	for _, item in track:GetChildren() do
+		if string.match(item.Name, "^Tick") then
+			t.ok(
+				item.ZIndex > track.Face.ZIndex and item.ZIndex < zone.ZIndex,
+				`{item.Name}: in the groove, under the zone`
+			)
+		end
+	end
+	t.eq(mini.TimeBar:GetAttribute("CandyStyle"), "glass", "the time bar runs in a glass groove")
+	t.ok(mini.TimeBar.Fill.ZIndex > mini.TimeBar.Face.ZIndex, "… over its glass")
 	t.ok(mini.TimeBar.Fill:FindFirstChild("Gloss"), "glossy time bar")
+	t.eq(mini.Help.FontFace.Style, Enum.FontStyle.Italic, "an italic help line")
 
 	checkCandy(t, f.Hint, "Hint")
 	t.eq(f.Hint:GetAttribute("CandyStyle"), "glass", "Hint: the reference's timer pill (glass)")
 	t.ok(isCandy(f.Hint, Palette.Glass), "Hint: dark glass")
+	t.eq(f.Hint:GetAttribute("CandyRadius"), 0.5, "… a stadium pill")
+	t.eq(outlineOf(f.Hint), UIConfig.Sim.Stroke, "… whose warning / danger plate has the chunky outline")
 	t.eq(f.Hint.TextTransparency, 1, "Hint.Text is the value, Hint.Label shows it")
 	t.eq(f.Hint.IconSocket.Rotation, 0, "an upright outlined icon")
+	t.ok(f.Hint.IconSocket.Icon:FindFirstChild("Outline"), "… with its Ink contour")
+	t.eq(f.Hint.Label.FontFace.Style, Enum.FontStyle.Italic, "italic text, like the reference's timer pill")
 
 	-- The catch card: a white plate — the fish in a window on a pedestal in the rarity's colour,
 	-- the rarity banner, the price on a yellow chip. No studs anywhere.
@@ -387,9 +444,27 @@ tests["action button: a look per state (Take, Cast, Wait, Bite, Reel), pop on ch
 	t.eq(button.Caption.Text, "ЗАБРОСИТЬ")
 	t.ok(isCandy(button, Palette.Sky), "Sky while ready to cast")
 	t.eq(button.Icon.Text, "🎣")
-	t.ok(button.FxScale.Scale < 1, "pops in")
+	-- [sim-b] A look change on screen punches the disc (from 0.86 over 1.04 back to 1), cross-fades
+	-- its colours (FxRecolor), spins the icon in and punches the new caption in place.
+	t.ok(math.abs(button.FxScale.Scale - 1) > 0.01, "punches")
+	local lowest, highest = button.FxScale.Scale, button.FxScale.Scale
+	t.ok(button.Face:FindFirstChild("FxRecolor") ~= nil, "the colours cross-fade")
+	local captionPunched = false
+	for _ = 1, 30 do
+		sim:Advance(1 / 60)
+		lowest = math.min(lowest, button.FxScale.Scale)
+		highest = math.max(highest, button.FxScale.Scale)
+		local captionScale = button.Caption:FindFirstChild("FxScale")
+		if captionScale and math.abs(captionScale.Scale - 1) > 0.02 then
+			captionPunched = true
+		end
+	end
+	t.ok(highest > 1.03, `… overshoots ({highest})`)
+	t.ok(captionPunched, "the new caption punches in place (after the disc)")
 	sim:Advance(0.6)
-	t.near(button.FxScale.Scale, 1, 1e-3, "settles")
+	t.near(button.FxScale.Scale, 1, 0.02, "settles (a breath may have started)")
+	t.eq(button.Face:FindFirstChild("FxRecolor"), nil, "the cross-fade is gone")
+	t.eq(button:FindFirstChild("FxSwap"), nil, "the caption's ghost is gone")
 
 	-- A tap: ripple + squash; «ЖДЁМ…» while the server answers: Slate ⏳ that flips. (The icon's
 	-- rest rotation is read before the tap: UI v5's press kicks the icon −8° for 0.25 s.)
@@ -600,12 +675,14 @@ tests["miss: the minigame closes at once, its ghost flashes red with «МИМО!
 	t.ok(ghost:FindFirstChild("FxFloat") and ghost.FxFloat.Text == "МИМО!", "«МИМО!»")
 	t.ok(ghost.Track:FindFirstChild("FxMissFlash"), "a red flash on the track")
 	t.ok(isCandy(ghost.Track.Zone, Palette.Berry), "the ghost's zone turns red")
+	sim:Advance(0.15)
+	t.ok(ghost.Track.Zone.Glow.BackgroundTransparency > 0.95, "… and its green glow fades with it (SIMB-C1-04)")
 	t.eq(ghost:FindFirstChild("TapPad"), nil, "the ghost never takes taps")
 	t.eq(UiFx.activeJobs(), 0, "the ghost runs on timers only")
 	-- UI v2 (FUI-15): the hint shares the column with the minigame — it comes once the ghost has
 	-- left (M10: no two red panels on top of each other).
 	t.eq(f.Hint.Visible, false, "no hint over the ghost")
-	sim:Advance(0.6)
+	sim:Advance(0.45)
 	t.eq(f.Hint.Visible, false, "still no hint while the ghost leaves")
 	sim:Advance(0.2)
 	t.eq(f:FindFirstChild("FxMinigameMiss"), nil, "the ghost has left …")
@@ -1572,7 +1649,7 @@ tests["v2 parts: tiers on the playing widgets, key chip, «!» glyph slot, bobbe
 	t.ok(button.Icon.Outline.Enabled, "the emoji is outlined like the reference's icons")
 	t.eq(button.Icon.Outline:GetAttribute("BaseThickness"), 3.5)
 	t.eq(button.Icon.TextFill.Enabled, false)
-	t.eq(button.TapCue.Text, "👆")
+	t.eq(button.TapCue.Text, "👇")
 	t.eq(button.TapCue.Visible, false)
 	t.eq(button.Bobber.Visible, false)
 	-- Minigame: the 🐟 rider under the needle, the ▼ head on the needle, ⏱ by the time bar.
@@ -1757,6 +1834,13 @@ tests["minigame rarity: the rider by rarity rides the zone and hops; Rare light 
 	t.eq(rider.Text, "🐠", "Rare: 🐠")
 	t.near(rider.Position.X.Scale, 0.4, 1e-6, "the rider sits on the zone")
 	t.eq(mini.AuraStroke.Enabled, true, "Rare: a light rim (UI v2, W7)")
+	-- The rim is the panel's own stroke: the Lip's dark outline (a child) covers its inner part, so
+	-- it must be wider — a coloured band of ≥ 2 px outside the dark edge on a phone (SIMB-C1-01).
+	local edge = mini.Lip:FindFirstChildOfClass("UIStroke")
+	t.ok(
+		mini.AuraStroke.Thickness - edge.Thickness >= 2.5,
+		`the rim shows outside the outline ({mini.AuraStroke.Thickness} vs {edge.Thickness} px)`
+	)
 	t.eq(mini:FindFirstChild("FxRays"), nil, "Rare: no rays")
 	t.eq(hud:FindFirstChild("FxVignette"), nil, "Rare: no screen edges")
 	t.eq(fishing(p):FindFirstChild("FxFloat"), nil, "Rare: no rarity word over the panel")
@@ -1790,7 +1874,7 @@ tests["minigame rarity: the rider by rarity rides the zone and hops; Rare light 
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["touch: a tap on the minigame panel counts; 👆 shows a first-timer the button while the needle is in"] = function(
+tests["touch: a tap on the minigame panel counts; 👇 shows a first-timer the button while the needle is in"] = function(
 	t
 )
 	local sim = boot(t)
@@ -1810,7 +1894,7 @@ tests["touch: a tap on the minigame panel counts; 👆 shows a first-timer the b
 			break
 		end
 	end
-	t.ok(shown, "👆 while the needle is in the zone")
+	t.ok(shown, "👇 while the needle is in the zone")
 	sim:Click(p, mini.TapPad)
 	sim:Advance(0.05)
 	t.eq(#sim:ServerEventsFor(p, "FishingTap"), 1, "a panel tap is a tap")
@@ -2078,6 +2162,38 @@ tests["layout: the fishing UI fits on phone, tablet and desktop without overlaps
 			for _, name in { "button", "ribbon", "stop" } do
 				t.eq(overlap(all[name], jump), 0, `{device}: {name} {fmt(all[name])} clear of the Jump button`)
 			end
+			-- [sim-b] D4: the round disc keeps 16 px to the round Jump button, its outline included,
+			-- at rest and at the peak of its pulses (the disc is anchored at its centre, so a pulse
+			-- grows it evenly instead of throwing it from its corner towards Jump; how much it may
+			-- grow on this screen — the bite's pulse, a hit's bump — is its GrowMax attribute).
+			local disc = f.ActionArea.ActionButton
+			local edge = disc.Lip:FindFirstChildOfClass("UIStroke").Thickness
+			local jumpCenter = roblox.Vector2.new(jump.x + jump.w / 2, jump.y + jump.h / 2)
+			local discCenter = roblox.Vector2.new(button.x + button.w / 2, button.y + button.h / 2)
+			local grow = disc:GetAttribute("GrowMax")
+			t.ok(type(grow) == "number" and grow >= 1.05, `{device}: room for the bite's pulse ({grow})`)
+			for _, k in { 1, grow } do
+				local gap = (jumpCenter - discCenter).Magnitude - jump.w / 2 - (button.w / 2 + edge) * k
+				t.ok(gap >= 15.5, `{device}: the disc keeps 16 px to Jump at scale {k} ({gap})`)
+			end
+			-- … and so do its white rings (they grow with its pulse): the disc steps left of Jump
+			-- until rings of FishingLayout.RING.grow fit at the pulse's peak (≈ 20 px on a tablet).
+			local ring = FishingLayout.RING
+			local px = ring.thickness * math.clamp(vp.Y / 720, 0.65, UIConfig.Fx.StrokeMax)
+			local ringGap = (jumpCenter - discCenter).Magnitude
+				- jump.w / 2
+				- (button.w / 2 * ring.grow + px) * math.min(ring.peak, grow)
+			t.ok(ringGap >= 15.5, `{device}: its white rings keep 16 px to Jump ({ringGap})`)
+			-- D3: «СМОТАТЬ» keeps 16 px to the Home column (both outlines included); it is
+			-- anchored at its bottom-right corner, so its pop-in never grows towards Home.
+			local dx = math.max(home.x - (stop.x + stop.w), stop.x - (home.x + home.w), 0)
+			local dy = math.max(home.y - (stop.y + stop.h), stop.y - (home.y + home.h), 0)
+			local edges = f.ActionArea.StopButton.Lip:FindFirstChildOfClass("UIStroke").Thickness
+				+ hud.RightButtons.HomeButton.Lip:FindFirstChildOfClass("UIStroke").Thickness
+			t.ok(
+				math.sqrt(dx * dx + dy * dy) - edges >= 16,
+				`{device}: «СМОТАТЬ» {fmt(stop)} keeps 16 px to Home {fmt(home)}`
+			)
 			for _, name in { "minigame", "alert", "hint", "card" } do
 				t.eq(overlap(all[name], stick), 0, `{device}: {name} {fmt(all[name])} clear of the thumbstick`)
 			end
@@ -2157,7 +2273,7 @@ tests["catch card layout: a landscape trophy card on phones, square on tablet / 
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["bite: «СМОТАТЬ» leaves; touch: a tap on «КЛЮЁТ!» hooks; 👆 shows the first two bites"] = function(
+tests["bite: «СМОТАТЬ» leaves; touch: a tap on «КЛЮЁТ!» hooks; 👇 shows the first two bites"] = function(
 	t
 )
 	local sim = boot(t)
@@ -2176,7 +2292,7 @@ tests["bite: «СМОТАТЬ» leaves; touch: a tap on «КЛЮЁТ!» hooks; �
 		bite()
 		t.eq(f.ActionArea.StopButton.Visible, false, `bite {round}: no «СМОТАТЬ»`)
 		t.eq(f.BiteAlert.TapPad.Visible, true, `bite {round}: the plate is a tap pad on touch`)
-		t.eq(cue.Visible, round <= 2, `bite {round}: 👆 only for the first two bites`)
+		t.eq(cue.Visible, round <= 2, `bite {round}: 👇 only for the first two bites`)
 		sim:Click(p, f.BiteAlert.TapPad)
 		sim:Advance(0.05)
 		t.eq(#sim:ServerEventsFor(p, "FishingHook"), round, `bite {round}: a tap on the plate hooks`)
@@ -2247,11 +2363,270 @@ tests["minigame on a phone: beside the own bobber when it would cover it (world 
 	local left, right = mini.AbsolutePosition.X, mini.AbsolutePosition.X + mini.AbsoluteSize.X
 	t.ok(point.X < left or point.X > right, `the panel ({left}..{right}) is beside the bobber (x {point.X})`)
 	t.ok(mini.AbsoluteSize.X >= 280, "still readable")
-	local column = f.Hint.Position.X.Offset
 	p:SetAttribute("FishingState", "Idle")
 	serverSays(sim, p, "Lost", { Reason = "timeout", Text = "" })
 	sim:Advance(1)
+	-- (The centre column's shift depends on the hint's width — measured per glyph since UI v5 — so
+	-- it is read after the reason hint has laid the column out; the bite alert rests in it.)
+	local column = f.BiteAlert.Position.X.Offset
 	t.eq(mini.Position.X.Offset, column, "back to the centre column after the minigame")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- [sim-b] The playing widgets in motion: ring timer, bite exits, hint placement and exit
+--------------------------------------------------------------------------------
+
+tests["bite: a ring timer drains round «ПОДСЕЧЬ!» (tweens only); the plate leaves as a ghost — popped on the hook, drifting away when late"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	ready(sim, p)
+	local f = fishing(p)
+	local button = f.ActionArea.ActionButton
+	local UiFx = uiFx(sim, p)
+	local idle = frameConnections(sim, p)
+
+	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
+	serverSays(sim, p, "Bite", { Window = 1.8 })
+	local ring = button:FindFirstChild("FxRingTimer")
+	t.ok(ring, "a ring timer round the action button")
+	-- SIMB-C1-02: inside the disc along its dark outline (no room outside: 16 px to Jump), over
+	-- the face and under the caption pill, its strokes drawn inward (the halves' clip never cuts
+	-- them), on a dark track that shows the time already gone.
+	t.eq(ring.Size, UDim2.fromScale(1, 1), "… the disc's own size: inside its outline")
+	t.ok(
+		ring.ZIndex > button.Face.ZIndex and ring.ZIndex < button.CaptionRibbon.ZIndex,
+		"… over the face, under the caption pill"
+	)
+	for _, half in { ring.Left, ring.Right } do
+		local stroke = half.Circle:FindFirstChildOfClass("UIStroke")
+		t.eq(stroke.BorderStrokePosition, Enum.BorderStrokePosition.Inner, `{half.Name}: drawn inward`)
+		t.ok(stroke.Thickness >= 4, `{half.Name}: ≥ 4 px on a phone ({stroke.Thickness})`)
+	end
+	local track = ring:FindFirstChild("Track")
+	t.ok(track and track:FindFirstChildOfClass("UIStroke").Transparency < 0.7, "… on a dark track")
+	local drain = ring.Right.Circle:FindFirstChildOfClass("UIStroke").Drain
+	local before = drain.Rotation
+	sim:Advance(0.4)
+	t.ok(drain.Rotation > before, "it drains clockwise")
+	t.ok(frameConnections(sim, p) - idle <= 1, "tweens only: at most the bite bar's frame job runs")
+	-- The urgency: «КЛЮЁТ!» flashes gold on the beat (its rest colour is white).
+	local flashed = false
+	for _ = 1, 12 do
+		sim:Advance(0.05)
+		if f.BiteAlert.Label.TextColor3.B < 0.9 then
+			flashed = true
+		end
+	end
+	t.ok(flashed, "«КЛЮЁТ!» flashes gold with the beat")
+
+	-- The hook: the ring goes at once, the plate leaves as a popping ghost with a white ring.
+	pressF(sim, p)
+	t.eq(button:FindFirstChild("FxRingTimer"), nil, "the hook removes the ring timer")
+	serverSays(sim, p, "Minigame", minigame("Common"))
+	t.eq(f.BiteAlert.Visible, false, "the real plate hides at once")
+	local ghost = f:FindFirstChild("FxBiteOut")
+	t.ok(ghost and ghost.Visible, "a ghost of the plate pops away")
+	t.eq(ghost and ghost:FindFirstChild("TapPad"), nil, "… it takes no taps")
+	sim:Advance(0.3)
+	t.eq(f:FindFirstChild("FxBiteOut"), nil, "… and is gone")
+
+	-- Too late: the ghost drifts down and fades.
+	serverSays(sim, p, "Lost", { Reason = "timeout", Text = "" })
+	sim:Advance(FishingConfig.CastCooldown + 0.3)
+	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
+	serverSays(sim, p, "Bite", { Window = 1.8 })
+	sim:Advance(0.5)
+	local rest = f.BiteAlert.Position
+	serverSays(sim, p, "Lost", { Reason = "late", Text = "Поздно! Рыба ушла" })
+	ghost = f:FindFirstChild("FxBiteOut")
+	t.ok(ghost, "a late bite leaves a ghost too")
+	sim:Advance(0.1)
+	t.ok(ghost.Position.Y.Offset > rest.Y.Offset, "… drifting down")
+	t.ok(ghost.Label.TextTransparency > 0.2, "… and fading")
+	t.eq(button:FindFirstChild("FxRingTimer"), nil, "the ring timer ended with the bite")
+	sim:Advance(0.3)
+	t.eq(f:FindFirstChild("FxBiteOut"), nil, "gone")
+	sim:Advance(1)
+	t.eq(UiFx.activeJobs(), 0, "nothing runs per frame afterwards")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["hint: its entrance ends where the layout put it (beside the fisher on a phone), and it leaves with a pop"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	-- (No rod in the hand: RbxSim does not weld a held tool, its parts would sit at the origin
+	-- behind the camera and the fisher could not be projected.)
+	giveRod(sim, p)
+	standAtSpot(sim, p)
+	sim:Advance(1)
+	local f = fishing(p)
+	local hint = f.Hint
+	t.eq(hint.Visible, true, "the context hint is up")
+	local column = f.BiteAlert.Position -- the centre column's bottom line
+	-- The fishing camera lowers the fisher to the bottom of the frame: aim the camera so the
+	-- character stands right on the hint's default spot.
+	local camera = sim.workspace.CurrentCamera
+	local at = sim:GetRoot(p).Position
+	sim:Run(function()
+		camera.CFrame = CFrame.lookAt(at + Vector3.new(0, 4.5, 9), at + Vector3.new(0, 4.6, 0))
+	end, p)
+	local scripts = p:FindFirstChildOfClass("PlayerScripts")
+	local Layout = sim:Require(sim:Find("Controllers.FishingLayout", scripts), p)
+	local fisher = sim:Run(function()
+		return Layout.fisherBox(p.Character, camera, f.AbsolutePosition)
+	end, p)
+	t.ok(fisher, "the fisher is on the screen")
+	serverSays(sim, p, "Denied", { Reason = "far", Text = "Подойди к краю своего пирса" })
+	sim:Advance(0.6)
+	t.near(hint.FxScale.Scale, 1, 1e-3, "the entrance is over")
+	-- v5 fix (spec W10): the entrance animates TO the place renderHint chose — beside the fisher —
+	-- instead of snapping back to the column's default spot on his feet.
+	t.ok(
+		hint.Position.X.Offset ~= column.X.Offset or hint.Position.Y.Offset ~= column.Y.Offset,
+		"moved off the default spot"
+	)
+	local x0, y0 = hint.AbsolutePosition.X - f.AbsolutePosition.X, hint.AbsolutePosition.Y - f.AbsolutePosition.Y
+	local x1, y1 = x0 + hint.AbsoluteSize.X, y0 + hint.AbsoluteSize.Y
+	t.ok(
+		x1 <= fisher.x0 or x0 >= fisher.x1 or y1 <= fisher.y0 or y0 >= fisher.y1,
+		`the hint ({x0},{y0}..{x1},{y1}) stays clear of the fisher ({fisher.x0},{fisher.y0}..{fisher.x1},{fisher.y1})`
+	)
+
+	-- The event hint expires (HINT_TIME): it swells and shrinks away, then hides.
+	local shrank = false
+	for _ = 1, 200 do
+		sim:Advance(0.025)
+		if hint.Visible and hint.Label.Text ~= "Подойди к краю своего пирса" then
+			break
+		end
+		if hint.Visible and hint.FxScale.Scale < 0.95 then
+			shrank = true
+		end
+		if not hint.Visible then
+			break
+		end
+	end
+	t.ok(shrank, "the hint pops out before it hides")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["hint: a new text on screen morphs the pill (no rolling copy spills out); two lines break evenly"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	giveRod(sim, p)
+	standAtSpot(sim, p)
+	sim:Advance(1)
+	local f = fishing(p)
+	local hint = f.Hint
+	t.eq(hint.Text, "Возьми удочку — кнопка справа", "at the spot: take the rod")
+	local before = hint.AbsoluteSize.X
+	-- SIMB-C1-03: the newcomer takes the rod — «Жми «Забросить»» replaces the text on the shown
+	-- pill. No slot-machine copy (FxSwap) of the old long text in the narrowed pill: the pill
+	-- shrinks over HINT_MORPH and the new (shorter) text is on it at once, with a punch.
+	sim:Click(p, f.ActionArea.ActionButton)
+	local widths = {}
+	for _ = 1, 12 do
+		sim:Advance(1 / 30)
+		t.eq(hint:FindFirstChild("FxSwap"), nil, "no rolling copy of the old text")
+		table.insert(widths, hint.AbsoluteSize.X)
+	end
+	t.eq(hint.Text, "Жми «Забросить»")
+	t.eq(hint.Label.Text, "Жми «Забросить»", "the shorter text is on the pill at once")
+	local after = widths[#widths]
+	t.ok(after < before - 20, `the pill narrowed to the new text ({before} → {after} px)`)
+	local between = false
+	for _, w in widths do
+		if w < before - 2 and w > after + 2 then
+			between = true
+		end
+	end
+	t.ok(between, "… gradually (a tween), not in one snap")
+	t.ok(hint.Visible and hint.FxScale.Scale > 0.99, "no re-pop: the same pill stays up")
+
+	-- SIMB-C1-07: a hint too long for one line breaks into two EVEN lines (the reference's
+	-- «через 54 / секунд» pill), never «… потом» / «жми!»; a dash never starts the second line.
+	local scripts = p:FindFirstChildOfClass("PlayerScripts")
+	local Layout = sim:Require(sim:Find("Controllers.FishingLayout", scripts), p)
+	local UiFx = uiFx(sim, p)
+	local size = 15
+	local function measure(piece: string): number
+		return UiFx.textWidth(piece, size)
+	end
+	local function lines(text: string, width: number): { string }
+		local out, line = {}, ""
+		for word in string.gmatch(text, "%S+") do
+			local candidate = if line == "" then word else `{line} {word}`
+			if line ~= "" and measure(candidate) > width then
+				table.insert(out, line)
+				line = word
+			else
+				line = candidate
+			end
+		end
+		table.insert(out, line)
+		return out
+	end
+	for _, text in
+		{
+			"Жди, пока клюнет — потом жми!",
+			"Мимо! Рыба сорвалась",
+			"Возьми удочку — кнопка справа",
+		}
+	do
+		local room = 0.9 * measure(text) / 0.78 -- a little short of one line
+		local pill = Layout.hintWidth(text, size, 20, room, measure(text), measure)
+		local split = lines(text, pill * 0.78)
+		t.eq(#split, 2, `«{text}»: two lines in {pill} px`)
+		local first, second = split[1], split[2] or ""
+		local short, long = math.min(measure(first), measure(second)), math.max(measure(first), measure(second))
+		t.ok(short >= 0.5 * long, `«{text}»: even lines, no widow («{first}» / «{second}»)`)
+		t.ok(string.sub(second, 1, 3) ~= "—", `«{text}»: the dash stays on line 1`)
+		t.ok(pill <= room, "… never wider than the room")
+	end
+	t.eq(
+		Layout.hintWidth(
+			"Жми «Забросить»",
+			size,
+			40,
+			400,
+			measure("Жми «Забросить»"),
+			measure
+		),
+		math.floor(math.max((measure("Жми «Забросить»") + 10) / 0.78, 200)),
+		"one line when it fits: as wide as the text"
+	)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["«СМОТАТЬ»: pops in from its corner by Home — the overshoot never grows towards the Home column"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "tablet")
+	ready(sim, p)
+	local stop = fishing(p).ActionArea.StopButton
+	serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
+	t.eq(stop.Visible, true)
+	-- A UIScale grows a widget round its AnchorPoint: at the bottom-right corner the right edge
+	-- (by the Home column) stays put while the button pops in with its overshoot.
+	t.eq(stop.AnchorPoint, roblox.Vector2.new(1, 1), "anchored at the corner by Home")
+	local rest = stop.Position
+	local grew = false
+	for _ = 1, 30 do
+		sim:Advance(1 / 60)
+		if stop.FxScale.Scale > 1.01 then
+			grew = true
+		end
+		t.eq(stop.Position, rest, "its place does not move")
+	end
+	t.ok(grew, "it overshoots on the way in")
+	t.ok(stop.Icon:FindFirstChild("FxScale"), "the 🎣 spins in too")
+	t.ok(stop.Caption:FindFirstChild("FxScale"), "… and the caption punches")
 	sim:AssertNoErrors({ warnings = true })
 end
 

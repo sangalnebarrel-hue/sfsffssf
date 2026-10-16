@@ -910,7 +910,7 @@ local scenarios = {
 	},
 	{
 		name = "minigame_cue",
-		desc = "A first-timer's minigame: the needle in the zone, 👆 taps «ЛОВИ!» (first 2 per session)",
+		desc = "A first-timer's minigame: the needle in the zone, 👇 taps «ЛОВИ!» (first 2 per session)",
 		still = 0.55,
 		run = function(h: any)
 			-- Common: the needle runs 0.05 → 0.49 by 0.55 s, inside the zone 0.35..0.65.

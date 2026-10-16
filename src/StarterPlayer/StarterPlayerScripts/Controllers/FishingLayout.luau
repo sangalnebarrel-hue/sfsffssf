@@ -20,7 +20,11 @@
 	    bottom.
 	  • topBand — полоса НАД рыбаком (и рыбой над головой): огромное слово редкости.
 	  • flightHits — заденет ли виджет прямоугольник, вылетая из точки на своё место.
-	  • hintWidth — ширина плитки подсказки под её текст.
+	  • hintWidth — ширина «таблетки» подсказки под её текст (не влезает — две ровные строки).
+	  • JUMP_SMALL / JUMP_BIG, jumpCircle, growRoom — кнопка прыжка Roblox на тач-экране и во
+	    сколько раз может вырасти круглая кнопка действия (пульс, кольца), не подходя к ней ближе
+	    заданного зазора; RING, discFit — во сколько раз уменьшить её, чтобы и её белые кольца на
+	    пике пульса держали 16 px (D4: на планшете большая кнопка прыжка выше).
 	  • rectOf / placeOf — прямоугольник виджета «в покое» по Position/Size/AnchorPoint и обратно.
 	Ничего не создаёт и не подключает: вызывается в событиях (поклёвка, мини-игра, подсказка,
 	карточка), не каждый кадр.
@@ -310,17 +314,112 @@ function FishingLayout.flightHits(from: Vector2, to: Rect, keepout: Rect, startS
 end
 
 --[[
-	Ширина плитки подсказки под её текст (UIM-03): плитка не шире нужного (а не полоса на полэкрана
-	над ногами рыбака). Надпись занимает 0.8 ширины справа, значок в кружке — левый край (его
-	правый край ≈ 0.78 высоты плитки: плитка не уже 5 высот, иначе надпись наедет на значок).
-	Ширина текста — оценка: HINT_CHAR × размер на букву (Nunito Heavy ≈ 0.43, с запасом); не
-	влезает в maxWidth — две строки (TextWrapped).
+	Ширина «таблетки» подсказки под её текст (UIM-03): не шире нужного (а не полоса на полэкрана
+	над ногами рыбака). Надпись занимает HINT_LABEL ширины справа (концы «таблетки» круглые),
+	значок — у левого края (его правый край ≈ 0.78 высоты: «таблетка» не уже 5 высот, иначе
+	надпись наедет на значок). textWidth — ширина текста в px, измеренная по буквам (UiFx.textWidth:
+	Montserrat Heavy, курсив почти той же ширины); без неё — оценка HINT_CHAR × размер на букву
+	(Montserrat Heavy ≈ 0.54 в обычном тексте, с запасом). Не влезает в maxWidth — две РОВНЫЕ
+	строки, как «через 54 / секунд» в «таблетке» референса (SIMB-C1-07): ширина — под длинную из
+	двух строк при лучшем переносе по пробелу (measure — ширина куска текста в px; без неё — оценка
+	по буквам; тире не начинает строку), с запасом HINT_WRAP на неточность замера. Надпись
+	переносится сама (TextWrapped) и при такой ширине — там же: а не «всё, что влезло, и одно
+	слово на второй строке».
 ]]
-local HINT_CHAR = 0.5
-function FishingLayout.hintWidth(text: string, textSize: number, height: number, maxWidth: number): number
-	local letters = utf8.len(text) or #text
-	local want = (letters * HINT_CHAR * textSize + 8) / 0.8
-	return math.floor(math.min(math.max(want, 5 * height), math.max(maxWidth, 5 * height)))
+local HINT_CHAR = 0.6
+local HINT_LABEL = 0.78
+local HINT_WRAP = 1.06
+function FishingLayout.hintWidth(
+	text: string,
+	textSize: number,
+	height: number,
+	maxWidth: number,
+	textWidth: number?,
+	measure: ((piece: string) -> number)?
+): number
+	local function widthOf(piece: string): number
+		return if measure then measure(piece) else (utf8.len(piece) or #piece) * HINT_CHAR * textSize
+	end
+	local cap = math.max(maxWidth, 5 * height)
+	local want = ((textWidth or widthOf(text)) + 10) / HINT_LABEL
+	if want > cap then
+		local best = math.huge
+		local from = 1
+		while true do
+			local at = string.find(text, " ", from, true)
+			if not at then
+				break
+			end
+			local rest = string.sub(text, at + 1)
+			if string.sub(rest, 1, 3) ~= "—" and string.sub(rest, 1, 3) ~= "–" then
+				best = math.min(best, math.max(widthOf(string.sub(text, 1, at - 1)), widthOf(rest)))
+			end
+			from = at + 1
+		end
+		if best < math.huge then
+			want = (best * HINT_WRAP + 10) / HINT_LABEL
+		end
+	end
+	return math.floor(math.min(math.max(want, 5 * height), cap))
+end
+
+--[[
+	Кнопка прыжка Roblox на тач-экране (у короткой стороны экрана ≤ 500 px — маленькая): отступы от
+	правого и нижнего края и размер, px. Джойстик слева — её зеркало. Низ и правый край корня HUD —
+	низ и правый край экрана (полоса меню Roblox — только сверху).
+]]
+FishingLayout.JUMP_SMALL = { right = 25, bottom = 20, size = 70 }
+FishingLayout.JUMP_BIG = { right = 50, bottom = 90, size = 120 }
+
+-- Центр и радиус кнопки прыжка в px корня размера rootSize.
+function FishingLayout.jumpCircle(rootSize: Vector2, small: boolean): (Vector2, number)
+	local jump = if small then FishingLayout.JUMP_SMALL else FishingLayout.JUMP_BIG
+	local r = jump.size / 2
+	return Vector2.new(rootSize.X - jump.right - r, rootSize.Y - jump.bottom - r), r
+end
+
+--[[
+	Сколько px радиуса есть у круглого виджета (центр center, px корня) до кнопки прыжка, если между
+	ними должно остаться clear px: расстояние между центрами минус радиус кнопки и зазор. Кнопка
+	действия по нему решает, насколько могут вырасти её кольца (они растут вместе с её пульсом).
+]]
+function FishingLayout.growRoom(center: Vector2, rootSize: Vector2, small: boolean, clear: number): number
+	local jump, r = FishingLayout.jumpCircle(rootSize, small)
+	return math.max((center - jump).Magnitude - r - clear, 0)
+end
+
+-- Белые кольца круглой кнопки действия (такт поклёвки, «ВЗЯТЬ», «ЛОВИ!», рябь): растут хотя бы до
+-- grow её радиуса (дальше её обводки), толщиной thickness px (на экране высотой 720 px), вместе с
+-- её пульсом (до peak) — и держат clear px до кнопки прыжка (FishingController.whiteRings).
+FishingLayout.RING = { grow = 1.15, peak = 1.14, thickness = 5, clear = 16 }
+
+--[[
+	Во сколько раз уменьшить круг радиуса radius (его левый край left и низ bottom, px корня, —
+	на месте), чтобы его кольца (RING, обводка ringPx px) и на пике пульса держали RING.clear px
+	до кнопки прыжка; не меньше least. Сдвинуть круг влево нельзя: там колонка подсказки и карточка
+	улова. На телефонах — 1 или почти 1, на планшете (большая кнопка прыжка выше) — ≈ 0.9.
+]]
+function FishingLayout.discFit(
+	left: number,
+	bottom: number,
+	radius: number,
+	rootSize: Vector2,
+	small: boolean,
+	ringPx: number,
+	least: number
+): number
+	local jump, r = FishingLayout.jumpCircle(rootSize, small)
+	local ring = FishingLayout.RING
+	local fit = 1
+	while fit > least do
+		local reach = radius * fit
+		local center = Vector2.new(left + reach, bottom - reach)
+		if (center - jump).Magnitude - r - ring.clear >= (reach * ring.grow + ringPx) * ring.peak then
+			return fit
+		end
+		fit -= 0.01
+	end
+	return least
 end
 
 -- Прямоугольник (px корня rootSize) элемента с такими Position, размером в px и AnchorPoint.

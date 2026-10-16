@@ -2312,16 +2312,21 @@ end
 export type RingTimerOptions = {
 	colors: { Color3 }?, -- полно → мало (UIConfig.Fishing.TimeBar)
 	thickness: number?, -- толщина кольца, px при 720 (UIConfig.Motion.Ring.Thickness)
-	pad: number?, -- отступ от элемента, px (UIConfig.Motion.Ring.Pad)
+	pad: number?, -- внешний край кольца — на столько px за краем элемента (UIConfig.Motion.Ring.Pad);
+	-- 0 и меньше — кольцо ВНУТРИ элемента, у самого его края (поверх лица: ставьте z)
+	z: number?, -- ZIndex слоя (0: под содержимым элемента)
+	track: number?, -- прозрачность тёмной «канавки» под кольцом (во всю окружность, чуть шире
+	-- кольца): видно, сколько уже истекло; nil — без неё
 }
 
 --[[
 	Кольцо-таймер вокруг элемента (круглого или квадратного): слой FxRingTimer (на pad px больше
-	элемента, под его содержимым) из двух половин Left / Right (ClipsDescendants) с кругом в
-	каждой; у круга обводка с градиентом прозрачности «половина видна». Убывает по часовой от
-	12 часов: правая половина поворачивает свой градиент 180 → 360 за duration / 2, левая — 0 →
-	180 следом; цвет идёт colors[1] → [2] → [3]. Только твины: ни одного покадрового эффекта.
-	Возвращает stop (всё удаляется).
+	элемента; ZIndex z, по умолчанию 0 — под его содержимым) из двух половин Left / Right
+	(ClipsDescendants) с кругом в каждой; у круга обводка ВНУТРЬ (Inner: целиком внутри половины,
+	обрезка её не режет) с градиентом прозрачности «половина видна». Убывает по часовой от 12
+	часов: правая половина поворачивает свой градиент 180 → 360 за duration / 2, левая — 0 → 180
+	следом; цвет идёт colors[1] → [2] → [3]. track — тёмная канавка «Track» под кольцом. Только
+	твины: ни одного покадрового эффекта. Возвращает stop (всё удаляется).
 ]]
 function UiFx.ringTimer(gui: GuiObject, duration: number, opts: RingTimerOptions?): Stop
 	local o: RingTimerOptions = opts or {}
@@ -2337,7 +2342,30 @@ function UiFx.ringTimer(gui: GuiObject, duration: number, opts: RingTimerOptions
 	holder.AnchorPoint = Vector2.new(0.5, 0.5)
 	holder.Position = UDim2.fromScale(0.5, 0.5)
 	holder.Size = UDim2.new(1, pad * 2, 1, pad * 2)
-	holder.ZIndex = 0
+	holder.ZIndex = o.z or 0
+	local z = holder.ZIndex
+	local function innerRing(parent: Frame, px: number, color: Color3): UIStroke
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.5, 0)
+		corner.Parent = parent
+		local ring = Instance.new("UIStroke")
+		ring.Color = color
+		ring.Thickness = px
+		ring.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		ring.BorderStrokePosition = Enum.BorderStrokePosition.Inner
+		ring:SetAttribute("BaseThickness", px)
+		ring.Parent = parent
+		return ring
+	end
+	if o.track then
+		local track = Instance.new("Frame")
+		track.Name = "Track"
+		track.BackgroundTransparency = 1
+		track.Size = UDim2.fromScale(1, 1)
+		track.ZIndex = z
+		innerRing(track, thickness + 2, INK).Transparency = o.track
+		track.Parent = holder
+	end
 	local tweens: { Tween } = {}
 	local function sideOf(name: string, x: number, from: number, to: number, delay: number)
 		local side = Instance.new("Frame")
@@ -2346,22 +2374,14 @@ function UiFx.ringTimer(gui: GuiObject, duration: number, opts: RingTimerOptions
 		side.ClipsDescendants = true
 		side.Position = UDim2.fromScale(x, 0)
 		side.Size = UDim2.fromScale(0.5, 1)
-		side.ZIndex = 0
+		side.ZIndex = z
 		local circle = Instance.new("Frame")
 		circle.Name = "Circle"
 		circle.BackgroundTransparency = 1
 		circle.Position = UDim2.fromScale(if x > 0 then -1 else 0, 0)
 		circle.Size = UDim2.fromScale(2, 1)
-		circle.ZIndex = 0
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0.5, 0)
-		corner.Parent = circle
-		local ring = Instance.new("UIStroke")
-		ring.Color = colors[1] or WHITE
-		ring.Thickness = thickness
-		ring.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		ring:SetAttribute("BaseThickness", thickness)
-		ring.Parent = circle
+		circle.ZIndex = z
+		local ring = innerRing(circle, thickness, colors[1] or WHITE)
 		local mask = Instance.new("UIGradient")
 		mask.Name = "Drain"
 		mask.Transparency = NumberSequence.new({
