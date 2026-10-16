@@ -44,6 +44,8 @@ local CatchFx = {}
 -- Широкая карточка уже стольких px — подсказка «закрыть» короткая («Тапни — забрать!» в Body
 -- не мельче 13 px — ≈ 114 px строки, это 0.48 ширины карточки).
 CatchFx.SHORT_HINT = 238
+-- Квадратная карточка уже стольких px — штамп мутации без «×N» (не влезает в строку).
+CatchFx.FULL_STAMP = 340
 
 local WHITE = UIConfig.White
 local QUINT, QUAD, BACK = Enum.EasingStyle.Quint, Enum.EasingStyle.Quad, Enum.EasingStyle.Back
@@ -199,11 +201,11 @@ function CatchFx.clearRadius(trophy: { x0: number, y0: number, x1: number, y1: n
 	return math.max(at.X - trophy.x0, trophy.x1 - at.X, at.Y - trophy.y0, trophy.y1 - at.Y, 0)
 end
 
--- Штамп мутации: «ЗОЛОТАЯ ×2!»; на широкой карточке (телефон: штамп маленький) — без «×N»
--- («×N» и так впечатывается в угол фишки цены).
-function CatchFx.stampText(name: string, multiplier: number, wide: boolean): string
+-- Штамп мутации: «ЗОЛОТАЯ ×2!»; на широкой карточке (телефон) и на квадратной уже FULL_STAMP px
+-- (сбоку от рыбака) штамп маленький — без «×N» («×N» и так впечатывается в угол фишки цены).
+function CatchFx.stampText(name: string, multiplier: number, wide: boolean, width: number?): string
 	local upper = TextUtil.upper(name)
-	return if wide then `{upper}!` else `{upper} ×{multiplier}!`
+	return if wide or (width and width < CatchFx.FULL_STAMP) then `{upper}!` else `{upper} ×{multiplier}!`
 end
 
 -- Подсказка «закрыть» по устройству; на узкой широкой карточке (width — её ширина, px) — короткая.

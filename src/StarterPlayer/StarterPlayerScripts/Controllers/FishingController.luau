@@ -2981,7 +2981,7 @@ do
 		ui.mutationLabel.Text = mutationText or ""
 		local wideBox = if cardBox and cardBox.wide then cardBox.size.X else nil
 		ui.mutationCaption.Text = if mutation
-			then CatchFx.stampText(mutation.Name, mutation.Multiplier, wideBox ~= nil)
+			then CatchFx.stampText(mutation.Name, mutation.Multiplier, wideBox ~= nil, cardBox and cardBox.size.X)
 			else ""
 		ui.tapHint.Text = CatchFx.tapHint(UserInputService.TouchEnabled, wideBox)
 		ui.priceMult.Text = if mutation then `×{mutation.Multiplier}` else ""

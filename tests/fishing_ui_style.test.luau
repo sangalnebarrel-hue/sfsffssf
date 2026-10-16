@@ -2499,6 +2499,12 @@ tests["card helpers: rays clear the trophy, the stamp and the close hint fit a s
 		"РАДУЖНАЯ!",
 		"the landscape card: the name (×N is on the price chip)"
 	)
+	t.eq(
+		CatchFx.stampText("Радужная", 5, false, 300),
+		"РАДУЖНАЯ!",
+		"a smaller square card (docked) too"
+	)
+	t.eq(CatchFx.stampText("Золотая", 2, false, 380), "ЗОЛОТАЯ ×2!", "the full square card keeps ×N")
 	t.eq(CatchFx.tapHint(true, nil), "Тапни — забрать!")
 	t.eq(CatchFx.tapHint(false, nil), "Жми — забрать!")
 	t.eq(CatchFx.tapHint(true, 300), "Тапни — забрать!", "a roomy landscape card: the full hint")
