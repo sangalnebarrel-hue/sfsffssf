@@ -51,8 +51,10 @@ function Players.new(sim)
 	self.order = {} -- raw players in join order
 	self.state = {} -- raw player -> state table
 	self.byChar = setmetatable({}, { __mode = "k" }) -- raw character -> raw player
-	self.dead = setmetatable({}, { __mode = "k" }) -- raw humanoid -> true
-	self.humState = setmetatable({}, { __mode = "k" }) -- raw humanoid -> HumanoidStateType
+	-- (Strong keys, like Rigs.throttled: read later through fresh lookups, a weak entry could be
+	-- collected with its userdata and a dead humanoid would look alive. Lives as long as the sim.)
+	self.dead = {} -- raw humanoid -> true
+	self.humState = {} -- raw humanoid -> HumanoidStateType
 	self.walks = {} -- raw humanoid -> { target, started }
 	self.mice = setmetatable({}, { __mode = "k" }) -- raw PlayerMouse -> state
 	self.count = 0

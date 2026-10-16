@@ -133,8 +133,11 @@ function Rigs.new(sim)
 	self.chars = setmetatable({}, { __mode = "k" })
 	self.count = 0
 	self.poses = setmetatable({}, { __mode = "k" }) -- raw player -> { [jointName] = CFrame }
-	self.throttle = setmetatable({}, { __mode = "k" }) -- raw player -> every Nth frame skipped
-	self.throttled = setmetatable({}, { __mode = "k" }) -- raw Animator -> skipped this frame
+	-- (Strong keys: a raw instance's userdata is only interned while something holds it, so a
+	-- weak key written in one frame and read later through a fresh lookup could vanish under GC
+	-- — a flaky EvaluationThrottled. The tables live as long as this sim, i.e. one test.)
+	self.throttle = {} -- raw player -> every Nth frame skipped
+	self.throttled = {} -- raw Animator -> skipped this frame
 	return self
 end
 
