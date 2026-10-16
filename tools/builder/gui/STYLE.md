@@ -282,8 +282,8 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   drop-shadow twin — jumps out of the own bobber (0.35 → 1,
   flying to its slot; where that path would cross the fisher it pops up in place — v3: never a
   screen-wide slam over the fisher) with a sun flash and a FOV punch; the word punches in after the
-  plate, the two «!» glyphs pop in one after the other, turning (their text boxes stay inside the
-  plate and its outline, tilted or wiggling: 0.88 of its height); sun edge glow, one BITE_BEAT for
+  plate, the two «!» glyphs (level with the word) pop in one after the other, turning (their text
+  boxes stay within the plate's bottom outline, tilted, wiggling or popping: 0.8 of its height); sun edge glow, one BITE_BEAT for
   the plate, the button and the swinging «!» glyphs, the word flashing gold on the beat (≤ 3/s), a
   shake every other beat once the window hurries; the countdown is a gradient bar in a glass groove
   (green→yellow→red) AND a ring timer draining clockwise from 12 o'clock INSIDE the «ПОДСЕЧЬ!» disc,
@@ -292,9 +292,9 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   strokes drawn inward so the halves' clip never cuts them; tweens only; the hook removes it). The
   plate leaves as a ghost (FxBiteOut): hooked — it swells and pops away (0.14 s) with a white ring
   UNDER the minigame that takes its slot; too late — it drifts down 10 px and fades. On touch the
-  plate is a tap pad, a 👉 hanging on the disc's upper-left shoulder (turned 45°, its fingertip on
-  the outline, tapping towards the centre: the icon and the caption stay clean; not when the key
-  chip shows the key) helps the first two bites, and
+  plate is a tap pad, a 👇 hanging over the disc's top, a little left of the middle (tilted towards
+  the centre, its fingertip on the outline, tapping down onto it: the icon and the caption stay
+  clean, its box within the disc's width; not when the key chip shows the key) helps the first two bites, and
   the plate gets a little lower (or moves aside) when it would hide the own diving
   bobber or the own fisher (on a phone it stands under his feet; when the fishing camera lowers him
   to the very bottom of the frame — left of him, where the minigame comes next). Minigame (a dark
@@ -315,7 +315,7 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   fight (the brace, the crank, the bent rod) and the bobber stay in view; the hit is shown at once (the needle freezes gold, sparks, rising pitch) with
   «ОТЛИЧНО!» → «СУПЕР!» → «МЕГА!» or «ИДЕАЛЬНО!» (within 25 % of the zone centre; the title flashes
   gold), pip turns into a
-  ⭐; on touch the panel itself is a tap pad and the 👉 cue helps the first games; on miss / timeout a
+  ⭐; on touch the panel itself is a tap pad and the 👇 cue helps the first games; on miss / timeout a
   copy (FxMinigameMiss) blushes (its zone cross-fades to red, its green glow fades), shakes and says
   «МИМО!» / «ВРЕМЯ!»,
   and is gone before the reason hint springs up. Hint: the reference's timer pill — dark glass

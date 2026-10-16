@@ -1649,7 +1649,7 @@ tests["v2 parts: tiers on the playing widgets, key chip, «!» glyph slot, bobbe
 	t.ok(button.Icon.Outline.Enabled, "the emoji is outlined like the reference's icons")
 	t.eq(button.Icon.Outline:GetAttribute("BaseThickness"), 3.5)
 	t.eq(button.Icon.TextFill.Enabled, false)
-	t.eq(button.TapCue.Text, "👉")
+	t.eq(button.TapCue.Text, "👇")
 	t.eq(button.TapCue.Visible, false)
 	t.eq(button.Bobber.Visible, false)
 	-- Minigame: the 🐟 rider under the needle, the ▼ head on the needle, ⏱ by the time bar.
@@ -1874,7 +1874,7 @@ tests["minigame rarity: the rider by rarity rides the zone and hops; Rare light 
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["touch: a tap on the minigame panel counts; 👉 shows a first-timer the button while the needle is in"] = function(
+tests["touch: a tap on the minigame panel counts; 👇 shows a first-timer the button while the needle is in"] = function(
 	t
 )
 	local sim = boot(t)
@@ -1894,7 +1894,7 @@ tests["touch: a tap on the minigame panel counts; 👉 shows a first-timer the b
 			break
 		end
 	end
-	t.ok(shown, "👉 while the needle is in the zone")
+	t.ok(shown, "👇 while the needle is in the zone")
 	sim:Click(p, mini.TapPad)
 	sim:Advance(0.05)
 	t.eq(#sim:ServerEventsFor(p, "FishingTap"), 1, "a panel tap is a tap")
@@ -2273,7 +2273,7 @@ tests["catch card layout: a landscape trophy card on phones, square on tablet / 
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["bite: «СМОТАТЬ» leaves; touch: a tap on «КЛЮЁТ!» hooks; 👉 shows the first two bites"] = function(
+tests["bite: «СМОТАТЬ» leaves; touch: a tap on «КЛЮЁТ!» hooks; 👇 shows the first two bites"] = function(
 	t
 )
 	local sim = boot(t)
@@ -2292,7 +2292,7 @@ tests["bite: «СМОТАТЬ» leaves; touch: a tap on «КЛЮЁТ!» hooks; �
 		bite()
 		t.eq(f.ActionArea.StopButton.Visible, false, `bite {round}: no «СМОТАТЬ»`)
 		t.eq(f.BiteAlert.TapPad.Visible, true, `bite {round}: the plate is a tap pad on touch`)
-		t.eq(cue.Visible, round <= 2, `bite {round}: 👉 only for the first two bites`)
+		t.eq(cue.Visible, round <= 2, `bite {round}: 👇 only for the first two bites`)
 		sim:Click(p, f.BiteAlert.TapPad)
 		sim:Advance(0.05)
 		t.eq(#sim:ServerEventsFor(p, "FishingHook"), round, `bite {round}: a tap on the plate hooks`)

@@ -13,7 +13,7 @@
 	  TimeBar.Fill, Help}   Hint   CatchCard.{Banner.RarityLabel, Viewport, NameLabel,
 	  MutationLabel, InfoLabel, TapHint}
 	UI v2, the playing widgets (FishingController): ActionArea.ActionButton.{KeyChip.Key, TapCue,
-	Bobber, Badge} (the desktop key chip, the first-timer 👉, the waiting look's icon, the red «!»
+	Bobber, Badge} (the desktop key chip, the first-timer 👇, the waiting look's icon, the red «!»
 	newcomer badge), BiteAlert.{IconLeft, IconRight, TapPad} (the «!» glyphs, the touch tap pad
 	over the plate), Minigame.{Clock, TapPad, Track.Rider, Track.Needle.Head} (⏱, the touch tap
 	pad over the panel, the fish riding the zone — its glyph by rarity, the ▼ needle head),
@@ -130,9 +130,6 @@ end
 local DISC = 0.56
 local DISC_X = DISC / 2 * 0.46 / 0.66
 local DISC_Y = 0.9 - DISC / 2
--- The first-timer's 👉: its centre on the disc's 135° radius, its fingertip on the outline (a share
--- of the disc: 0.5 − (0.5 + 0.14) × cos 45°).
-local TAP_CUE = 0.5 - 0.64 * math.sqrt(0.5)
 
 local function buildActionArea(root: any)
 	-- Action area: 0.66H wide, 0.46H tall (at most 320 x 240 px), in the bottom-right corner. The
@@ -284,17 +281,18 @@ local function buildActionArea(root: any)
 	})
 	-- First-timer cue: a pointing hand tapping the button while the needle is in the zone (the
 	-- player's first minigames and bites of the session on a touch screen; FishingController
-	-- shows it and bounces it towards the disc). It hangs OUTSIDE the disc on its upper-left
-	-- shoulder (away from Jump; the newcomer's «!» badge there is gone after the first cast),
-	-- 👉 turned 45° to point down-right, its fingertip on the outline: the icon and the caption
-	-- stay clean. Its box reaches no further left than the caption pill.
-	Theme.icon(action, "TapCue", "👉", {
+	-- shows it and bounces it down onto the disc). It hangs OUTSIDE the disc over its top, a
+	-- little left of the middle (away from Jump; «СМОТАТЬ» above it is hidden while a fish is on
+	-- the hook), 👇 tilted to point at the centre, its fingertip on the outline: the icon and the
+	-- caption stay clean, and its box stays within the disc's width — clear of the centre column
+	-- (the minigame) on the left and of Jump on the right.
+	Theme.icon(action, "TapCue", "👇", {
 		Visible = false,
 		MaxTextSize = 64,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(TAP_CUE, TAP_CUE),
+		Position = UDim2.fromScale(0.42, -0.12),
 		Size = UDim2.fromScale(0.36, 0.36),
-		Rotation = 45,
+		Rotation = -12,
 		ZIndex = SZ.Content + 4,
 	})
 
@@ -355,15 +353,16 @@ local function buildBiteAlert(root: any)
 		MaxTextSize = 64,
 	})
 	-- «!» glyphs (not the ❗ emoji: red on orange disappears): the world marker's look —
-	-- white → gold text with a thick Ink outline, tilted outwards. Their text boxes stay inside
-	-- the plate and its outline even tilted and wiggling (0.88 of its height: a box as tall as
-	-- the plate reached past it — on a notched phone the plate docks 16 px over the thumbstick).
+	-- white → gold text with a thick Ink outline, tilted outwards, level with the word. Their text
+	-- boxes stay within the plate's bottom outline even tilted, wiggling and popping in (0.8 of
+	-- its height, centred a little high: a box as tall as the plate reached 10 px past it — on a
+	-- phone the plate may dock 16 px over the thumbstick).
 	for _, side in { { "IconLeft", 0.095, -10 }, { "IconRight", 0.905, 10 } } do
 		label(alert, side[1], {
 			SizeConstraint = Enum.SizeConstraint.RelativeYY,
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(side[2], 0.47),
-			Size = UDim2.fromScale(0.5, 0.88),
+			Position = UDim2.fromScale(side[2], 0.42),
+			Size = UDim2.fromScale(0.5, 0.8),
 			Text = "!",
 			Rotation = side[3],
 			Outline = 5,
@@ -1102,7 +1101,7 @@ end
 	                          «!» glyph: one Outline, TextFill), CaptionRibbon (glass pill) +
 	                          Caption («ЗАБРОСИТЬ» / «ЖДЁМ…» / «КУДА ИДТИ?» / «ПОДСЕЧЬ!» / «ЛОВИ!» /
 	                          «ВЗЯТЬ» / «ЗАБРАТЬ!»), Ring (white halo), KeyChip.Key («F» / «R2», a
-	                          Cream sim chip), TapCue (👉), Bobber (the waiting look's icon), Badge
+	                          Cream sim chip), TapCue (👇), Bobber (the waiting look's icon), Badge
 	                          (the newcomer's red «!»)
 	    StopButton            «СМОТАТЬ» red sim button above it (simButton "row": Icon 🎣, Caption)
 	  BiteAlert               orange sim plate: «КЛЮЁТ!» (Label + LabelShadow), «!» IconLeft /
