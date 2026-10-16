@@ -282,23 +282,32 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   drop-shadow twin — jumps out of the own bobber (0.35 → 1,
   flying to its slot; where that path would cross the fisher it pops up in place — v3: never a
   screen-wide slam over the fisher) with a sun flash and a FOV punch; the word punches in after the
-  plate, the two «!» glyphs pop in one after the other, turning; sun edge glow, one BITE_BEAT for
+  plate, the two «!» glyphs pop in one after the other, turning (their text boxes stay inside the
+  plate and its outline, tilted or wiggling: 0.88 of its height); sun edge glow, one BITE_BEAT for
   the plate, the button and the swinging «!» glyphs, the word flashing gold on the beat (≤ 3/s), a
   shake every other beat once the window hurries; the countdown is a gradient bar in a glass groove
-  (green→yellow→red) AND a ring timer draining clockwise round «ПОДСЕЧЬ!» (`UiFx.ringTimer`, tweens
-  only; the hook removes it). The plate leaves as a ghost (FxBiteOut): hooked — it swells and pops
-  away with a white ring; too late — it drifts down 10 px and fades. On touch the plate is a tap
-  pad, a 👆 (its fingertip at the icon's foot: the «!» stays in view) helps the first two bites, and
+  (green→yellow→red) AND a ring timer draining clockwise from 12 o'clock INSIDE the «ПОДСЕЧЬ!» disc,
+  right along its dark outline (over the face, under the caption pill, on a dark track that shows
+  the time gone; no room outside it — 16 px to Jump: `UiFx.ringTimer` with pad 0, z and track, its
+  strokes drawn inward so the halves' clip never cuts them; tweens only; the hook removes it). The
+  plate leaves as a ghost (FxBiteOut): hooked — it swells and pops away (0.14 s) with a white ring
+  UNDER the minigame that takes its slot; too late — it drifts down 10 px and fades. On touch the
+  plate is a tap pad, a 👉 hanging on the disc's upper-left shoulder (turned 45°, its fingertip on
+  the outline, tapping towards the centre: the icon and the caption stay clean; not when the key
+  chip shows the key) helps the first two bites, and
   the plate gets a little lower (or moves aside) when it would hide the own diving
   bobber or the own fisher (on a phone it stands under his feet; when the fishing camera lowers him
   to the very bottom of the frame — left of him, where the minigame comes next). Minigame (a dark
   navy Night sim plate with the chunky outline and a soft rim; it snaps on, its rim flashes and its
   title punches): a glass groove (darker than the bite's), the zone a green Leaf sim pill with the
   minor outline and a rider by rarity standing on it (🐟 🐠 🐡 🦈 🐉; Legendary+
-  bigger and glowing) and a glow pulse, needle ▼ (a white pill with an Ink outline) with two fading
+  bigger and glowing) on a soft glow halo (bright at the zone, fading away from it; it breathes in
+  height only), needle ▼ (a white pill with an Ink outline) with two fading
   ghost copies (under the zone), the time bar in a glass groove, pips as round chips with the minor
   outline, an italic help line, a
-  light Rare rim, Epic+ outline/aura in the rarity colours, Legendary/Mythic slam the giant rarity
+  light Rare rim, Epic+ aura in the rarity colours (Legendary a gold sweep, Mythic a rainbow) —
+  a band OUTSIDE the dark outline (`AuraStroke`, `Sim.Stroke` + 4 at 720: ≥ 2.5 px on phones;
+  as wide as the outline it would hide under it), Legendary/Mythic slam the giant rarity
   word over the panel once (the first hit / miss / win word knocks it away: it swells and fades in
   0.12 s — never two words stacked; on phones it never climbs onto the base badge: lower, over
   the panel's top edge, and smaller); on phones (HUD under 500 px) the panel docks LEFT of the own
@@ -306,19 +315,23 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   fight (the brace, the crank, the bent rod) and the bobber stay in view; the hit is shown at once (the needle freezes gold, sparks, rising pitch) with
   «ОТЛИЧНО!» → «СУПЕР!» → «МЕГА!» or «ИДЕАЛЬНО!» (within 25 % of the zone centre; the title flashes
   gold), pip turns into a
-  ⭐; on touch the panel itself is a tap pad and a 👆 cue helps the first games; on miss / timeout a
-  copy (FxMinigameMiss) blushes (its zone cross-fades to red), shakes and says «МИМО!» / «ВРЕМЯ!»,
+  ⭐; on touch the panel itself is a tap pad and the 👉 cue helps the first games; on miss / timeout a
+  copy (FxMinigameMiss) blushes (its zone cross-fades to red, its green glow fades), shakes and says
+  «МИМО!» / «ВРЕМЯ!»,
   and is gone before the reason hint springs up. Hint: the reference's timer pill — dark glass
   (`Theme.glass`, a stadium) with ITALIC white text (a warning / danger: a solid orange / red sim
   plate with the chunky outline, `UiFx.setCandy`) and the outlined 💡 / ⚠️ / 🚨 overhanging its left
-  end, up to two lines,
-  as wide as its text (`FishingLayout.hintWidth`, the text measured per glyph with `UiFx.textWidth`;
-  at least 5 × its height), at the bottom centre
+  end, as wide as its text (`FishingLayout.hintWidth`, the text measured per glyph with
+  `UiFx.textWidth`; at least 5 × its height); too long for one line in the column's room, it takes
+  two EVEN lines like the reference's «через 54 / секунд» pill (the narrowest width for the best
+  word break — no lone «жми!» on line 2, a dash never starts it), at the bottom centre
   under the fisher's feet (on a phone beside him when it would lie on his feet — and its entrance
   ends THERE: it rises a few px to the place `renderHint` chose, never back to the default spot on
   his feet; v3: no Roblox hotbar — the Backpack CoreGui is off, a custom hotbar comes with the shop
   stage), pops up from a few px below; an info 💡 hops twice. A text change of the same kind while
-  it is up rolls the label («slot machine», `UiFx.swapText`) instead of a new pop; leaving, it
+  it is up morphs the pill to its new width and place (0.2 s; growing, the old text stays until it
+  is wide enough; shrinking, the new shorter text is on at once), the text punches and the 💡 hops —
+  no new pop and no slot roll (two texts rolling in the narrowed pill spilled out of it); leaving, it
   swells and shrinks away (0.16 s; at once when the bite / the minigame take the column). Info
   hints (💡) leave after 4 s; «where
   to go» comes back every 10 s while it still applies; a hint whose action the player has done
@@ -643,7 +656,7 @@ RenderStepped connection for all running frame effects, disconnected when none r
 | `swapText(label, text, {out?, inTime?, lift?})` | timers | the slot-machine roll (a "FxSwap" ghost of the old text) |
 | `flashText(label, color, time?)` | timers | TextColor3 → colour → rest (≥ 0.34 s apart per label) |
 | `textWidth(text, px)` | — | estimated width of Montserrat Heavy text at TextSize `px`, per glyph (capitals ≈ 0.68, small letters ≈ 0.59, digits and Latin narrower, spaces and punctuation ≈ 0.25, emoji ≈ 0.82 of the size): plates sized to their text before it is drawn (toasts) |
-| `ringTimer(gui, duration, {colors?, thickness?, pad?})` → stop | timers | §2 ring timer ("FxRingTimer" with Left / Right halves) |
+| `ringTimer(gui, duration, {colors?, thickness?, pad?, z?, track?})` → stop | timers | §2 ring timer ("FxRingTimer" with Left / Right halves, strokes drawn inward; pad ≤ 0 + z: inside the widget's outline; track: a dark "Track" ring under it) |
 | `wiggle(gui, angle?, swings?, time?)` | timers | ±6°, 3 swings, 0.4 s; restarts cleanly, returns to the rest rotation |
 | `shake(gui, amount?, time?)` | timers | Position jitter ±1.5 %; **no effect inside a UIListLayout** (use wiggle there) |
 | `shine(gui, time?)` | timers | sweeps the surface's `Shine.Band`; others get a temporary overlay with the same UICorner |
