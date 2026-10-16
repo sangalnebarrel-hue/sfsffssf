@@ -4605,8 +4605,14 @@ do
 					want = root.Y * share,
 					least = math.min(root.Y * share, UiFx.textSize("Title") * spec.MinTitle),
 					gap = spec.Gap,
+					-- (без тач-экрана — и не на окне чата и списке игроков Roblox)
 					limits = function(top: number, bottom: number): (number, number)
-						return sideLimits(root, top, bottom, true)
+						local left, right = sideLimits(root, top, bottom, true)
+						if not UserInputService.TouchEnabled then
+							left = if top < CLIMAX.ChatBottom then math.max(left, CLIMAX.ChatRight) else left
+							right = if top < CLIMAX.ListBottom then math.min(right, root.X - CLIMAX.ListLeft) else right
+						end
+						return left, right
 					end,
 				})
 				if early then

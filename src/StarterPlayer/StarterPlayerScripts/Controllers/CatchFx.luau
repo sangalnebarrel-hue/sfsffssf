@@ -497,16 +497,20 @@ export type FloatSpot = {
 --[[
 	Куда вылетает «+N 💰» у карточки сбоку от рыбака (SIMC-C1-03: не на окно с рыбой — ребёнок как
 	раз смотрит на свою рыбу): над баннером, если там помещается надпись не ниже least (по X — над
-	карточкой, не за край рыбака); иначе — у внешнего края карточки (от рыбака) на высоте цены;
-	нет и там — на верхнюю полоску окна у его правого края (центр — 0.18 его высоты, высота — не
+	карточкой, не за край рыбака); иначе — у внешнего края карточки (от рыбака) на высоте цены,
+	иначе — под карточкой; нет и там — на верхнюю полоску окна у его правого края (центр — 0.18 его высоты, высота — не
 	больше 0.3 окна; слева наверху — наклейка) и тает раньше (третье — true). Возвращает центр и
 	высоту надписи.
 ]]
 function CatchFx.floatSpot(o: FloatSpot): (Vector2, number, boolean)
-	-- Над баннером.
-	local h = math.min(o.want, o.card.y0 - o.gap - 4)
-	if h >= o.least then
-		local cy = o.card.y0 - o.gap - h / 2
+	-- Над баннером или под карточкой (room — высота полосы; down — под карточкой): по X — над
+	-- ней, не за край рыбака.
+	local function band(room: number, down: boolean): (Vector2?, number)
+		local h = math.min(o.want, room)
+		if h < o.least then
+			return nil, h
+		end
+		local cy = if down then o.card.y1 + o.gap + h / 2 else o.card.y0 - o.gap - h / 2
 		local left, right = o.limits(cy - h / 2, cy + h / 2)
 		if o.side < 0 then
 			right = math.min(right, o.edge - o.gap)
@@ -514,21 +518,31 @@ function CatchFx.floatSpot(o: FloatSpot): (Vector2, number, boolean)
 			left = math.max(left, o.edge + o.gap)
 		end
 		h = math.min(h, (right - left) / o.perHeight)
-		if h >= o.least then
-			local half = h * o.perHeight / 2
-			local cx = math.clamp((o.card.x0 + o.card.x1) / 2, left + half, math.max(left + half, right - half))
-			return Vector2.new(cx, cy), h, false
+		if h < o.least then
+			return nil, h
 		end
+		local half = h * o.perHeight / 2
+		local cx = math.clamp((o.card.x0 + o.card.x1) / 2, left + half, math.max(left + half, right - half))
+		return Vector2.new(cx, cy), h
+	end
+	local above, high = band(o.card.y0 - o.gap - 4, false)
+	if above then
+		return above, high, false
 	end
 	-- У внешнего края карточки, на высоте цены.
 	local y = o.source.Y
 	local left, right = o.limits(y - o.want / 2, y + o.want / 2)
 	local room = if o.side < 0 then o.card.x0 - o.gap - left else right - (o.card.x1 + o.gap)
-	h = math.min(o.want, room / o.perHeight)
+	local h = math.min(o.want, room / o.perHeight)
 	if h >= o.least then
 		local w = h * o.perHeight
 		local cx = if o.side < 0 then o.card.x0 - o.gap - w / 2 else o.card.x1 + o.gap + w / 2
 		return Vector2.new(cx, math.clamp(y, h / 2 + 4, o.root.Y - h / 2 - 4)), h, false
+	end
+	-- Под карточкой.
+	local below, low = band(o.root.Y - 4 - o.card.y1 - o.gap, true)
+	if below then
+		return below, low, false
 	end
 	-- Верхняя полоска окна (у его правого края: слева наверху — наклейка «НОВИНКА!») — и тает
 	-- раньше.
