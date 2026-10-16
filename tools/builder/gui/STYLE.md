@@ -336,7 +336,8 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   hidden; centred only when nothing is better), the 380 x 384
   square elsewhere — v5 (D1): on a tablet and a PC docked beside the fisher and his trophy too
   (`FishingLayout.cardDock` over the free bands on either side: full height, above the thumbstick,
-  the action button or the shown «ДОМОЙ» stack, without touch below the chat window and clear of
+  the action button or the shown «ДОМОЙ» stack, clear of the tablet's Jump button (it stands higher
+  than the action button there), without touch below the chat window and clear of
   the player list — `CLIMAX.ChatBottom` / `ListLeft` / `ListBottom`; the left side a little
   preferred), no smaller than `CARD.DockSquare` 60 % of its centred size and 250 px (if no side takes
   even that — a giant Mythic trophy on a tablet —, it goes where it hides the least of him and his
