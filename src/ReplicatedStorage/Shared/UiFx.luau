@@ -800,9 +800,9 @@ export type RimFlashOptions = {
 }
 
 --[[
-	Вспышка ободка (UI v5, вместо «пупырок по очереди» v3): светлый ободок Rim лица на миг
-	становится белым и сплошным и возвращается к UIConfig.Sim.RimAlpha (Quad Out), по лицу —
-	белая накладка FxMorph 0.6 → 1, кнопка чуть «вдыхает» (1 → 1.06 → 1). Только твины.
+	Вспышка ободка (UI v5): светлый ободок Rim лица на миг становится белым и сплошным и
+	возвращается к UIConfig.Sim.RimAlpha (Quad Out), по лицу — белая накладка FxMorph 0.6 → 1,
+	кнопка чуть «вдыхает» (1 → 1.06 → 1). Только твины.
 ]]
 function UiFx.rimFlash(root: GuiObject, opts: RimFlashOptions?)
 	local o: RimFlashOptions = opts or {}

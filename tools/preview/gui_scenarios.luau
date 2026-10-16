@@ -943,7 +943,7 @@ local scenarios = {
 	},
 	{
 		name = "toast_mythic",
-		desc = "Broadcast of someone's Mythic Rainbow catch: a dark Night brick with 🌈 in a spinning rainbow rim, white letters, no screen edges",
+		desc = "Broadcast of someone's Mythic Rainbow catch: a dark Night plate with 🌈 in a spinning rainbow rim, white letters, no screen edges",
 		still = 0.7,
 		sheet = { from = 0, to = 0.9, fps = 15, roi = { "HUD.Toasts" }, margin = 0.05 },
 		run = function(h: any)

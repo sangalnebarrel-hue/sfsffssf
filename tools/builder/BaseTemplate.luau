@@ -511,8 +511,9 @@ end
 --[[
 	The base's words in the world in the reference's billboard style (UI v5 «Симулятор», like its
 	«МАГАЗИН СЛЕДОВ» / «БЕСПЛАТНО!»; tools/builder/gui/STYLE.md): Montserrat Heavy (UIConfig.Font),
-	no plate and no studs (those belong to the map), white letters under a vertical fill gradient
-	"Fill" and a dark round outline "Outline" in the dark shade of the fill's hue. BaseService
+	no plate (smooth letters straight over the world), white letters under a vertical fill
+	gradient "Fill" and a THIN dark round outline "Outline" in the dark shade of the fill's hue
+	(like the reference's 1.5–2 px on a 33 px cap: px of the BillboardGui / SurfaceGui). BaseService
 	repaints them: a free base — «СВОБОДНО!» in UIConfig.BillboardGreen, the owner's name white,
 	the base's name in CAPS in its colour (UIConfig.BaseSwatches).
 ]]
@@ -1161,8 +1162,8 @@ local function buildFlag(template: any): any
 	)
 
 	-- Owner sign above the mast (BaseService writes the owner name / base name): the reference's
-	-- billboard words floating over the flag, no plate (UI v5; the v3 «Кирпичики» brick plate with
-	-- its studs is gone): «СВОБОДНО!» in billboard green (a free base) or the owner's name in white,
+	-- billboard words floating over the flag, no plate (UI v5): «СВОБОДНО!» in billboard green (a
+	-- free base) or the owner's name in white,
 	-- under it the base's name in CAPS in its colour, and over them «ТВОЯ БАЗА!» in green — hidden,
 	-- only the owner's own client shows it (HudController). Studs + pixels (10 x 3.2 studs + 150 x
 	-- 52 px): readable across the lagoon (MaxDistance 500); the labels stay direct children of

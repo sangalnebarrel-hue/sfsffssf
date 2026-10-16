@@ -168,9 +168,9 @@ local function isCandy(root: any, style: any): boolean
 		and colorNear(root.Lip.BackgroundColor3, style.Lip)
 end
 
--- UI v5: every fishing widget is a sim plate (Theme.sim, or the compat brick / tile / roundPlate
--- that build it): the Lip carries the outline (no fill) in the dark shade of the swatch, the face
--- (a Top → Bottom gradient) covers the whole root; or the glass look (no outline).
+-- UI v5: every fishing widget is a sim plate (Theme.sim / simButton / plate): the Lip carries the
+-- outline (no fill) in the dark shade of the swatch, the face (a Top → Bottom gradient) covers the
+-- whole root; or the glass look (no outline).
 local function checkCandy(t: any, root: any, what: string)
 	local faceName = root:GetAttribute("CandyFace")
 	t.ok(type(faceName) == "string", `{what}: CandyFace attribute`)
@@ -195,8 +195,8 @@ local function checkCandy(t: any, root: any, what: string)
 	t.ok(fill and fill:IsA("UIGradient"), `{what}: Fill gradient`)
 end
 
--- Anything stud-like under root (UI v5: the GUI has no studs; empty v3 holders left by
--- Fishing.luau until the fishing waves delete them draw nothing).
+-- A guard: nothing stud-like may be built under root (the GUI is smooth; the LEGO look belongs
+-- to the map).
 local function studsUnder(root: any): { string }
 	local found = {}
 	for _, d in root:GetDescendants() do

@@ -640,7 +640,7 @@ safe area).
 | `take_rod` | tap «ВЗЯТЬ»: the rod in hand, the button pops into «ЗАБРОСИТЬ» | 0..0.8 s, action area |
 | `spot_ready` | at the spot with the rod: «ЗАБРОСИТЬ» | 0..4 s @ 6 fps (idle shine) |
 | `cast` | tap «ЗАБРОСИТЬ» → waiting | 0..1 s, action area |
-| `press_sink` | «ЗАБРОСИТЬ» held down (touch-down only): the UI v5 sim press — the button squashes to 0.9 and its face darkens a step, the outline and the caption pill stay (the name is kept from the v4 brick press) | 0..0.3 s, action area |
+| `press_sink` | «ЗАБРОСИТЬ» held down (touch-down only): the UI v5 sim press — the button squashes to 0.9 and its face darkens a step, the outline and the caption pill stay (the scenario keeps its older name) | 0..0.3 s, action area |
 | `waiting` | line in the water: the Water «ЖДЁМ…» (bobber, ripples, dots, 1–2 nibbles) + «СМОТАТЬ» | 0..2.4 s, action area |
 | `bite` | «КЛЮЁТ!» slam, «!» glyphs, Sun edges, one 0.45 s beat + «ПОДСЕЧЬ!» | 0..1.2 s |
 | `minigame_common` … `minigame_mythic` | the minigame for each rarity, needle mid-run (Epic 1/2, Mythic 2/3 hits done) | legendary: 0..1 s |
