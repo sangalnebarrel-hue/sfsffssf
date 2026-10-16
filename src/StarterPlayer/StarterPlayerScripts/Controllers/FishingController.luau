@@ -1228,7 +1228,9 @@ do
 			local left, right = spanLeft, spanRight
 			if withDock and fisher then
 				local aura = gui:FindFirstChild("AuraStroke")
-				local edge = math.max(OUTLINE, if aura and aura:IsA("UIStroke") then UiFx.strokeThickness(aura) else 0)
+				-- (+1 px: сглаживание края «ауры» на экране)
+				local edge =
+					math.max(OUTLINE, if aura and aura:IsA("UIStroke") then UiFx.strokeThickness(aura) + 1 else 0)
 				local top, bottom = dockBand(origin, area.Y, math.min(Layout.EDGE + box.X, fisher.x0), edge)
 				-- (Виджет, которому можно стать меньше, — меньше целиком, не сплющенный.)
 				local shrinks = minScale < 1
