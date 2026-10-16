@@ -1779,11 +1779,14 @@ export type SparkleOptions = {
 	area: number?, -- насколько выходить за края (0.18)
 	duration: number?, -- сами остановятся через столько секунд
 	z: number?, -- ZIndex (8)
+	outside: boolean?, -- только СНАРУЖИ элемента (плашка с текстом: ни одной звёздочки на буквах)
 }
 
 --[[
-	✨ / ⭐ то тут, то там по краям элемента: выскакивают, поворачиваются и гаснут. Таймеры и твины,
-	без соединений. Возвращает stop (живые звёздочки удаляются сразу).
+	✨ / ⭐ то тут, то там по краям элемента: выскакивают, поворачиваются и гаснут. outside —
+	только вокруг него (с запасом на поворот и перелёт звёздочки): на плашках с текстом (тосты,
+	штамп мутации, баннер) они не ложатся на буквы. Таймеры и твины, без соединений. Возвращает
+	stop (живые звёздочки удаляются сразу).
 ]]
 function UiFx.sparkles(gui: GuiObject, opts: SparkleOptions?): Stop
 	if reduced() then
@@ -1813,7 +1816,23 @@ function UiFx.sparkles(gui: GuiObject, opts: SparkleOptions?): Stop
 
 	local function spawnOne()
 		local x, y
-		if rng:NextNumber() < 0.5 then
+		local s = size * rng:NextNumber(0.7, 1.15)
+		local box = gui.AbsoluteSize
+		if o.outside and box.X > 0 and box.Y > 0 then
+			-- Половина звёздочки (в долях высоты элемента; повёрнутая на 45° и с перелётом
+			-- Back Out — до 0.75 её стороны) за краем, и ещё до area дальше.
+			local edge = 0.75 * s
+			local side = rng:NextNumber() < 0.5
+			local far = rng:NextNumber(0, area)
+			if side then
+				local dx = (edge + far * 0.6) * box.Y / box.X
+				x = if rng:NextNumber() < 0.5 then -dx else 1 + dx
+				y = rng:NextNumber(0.15, 0.85)
+			else
+				x = rng:NextNumber(0, 1)
+				y = if rng:NextNumber() < 0.5 then -edge - far else 1 + edge + far
+			end
+		elseif rng:NextNumber() < 0.5 then
 			x = rng:NextNumber(-area, 1 + area)
 			y = if rng:NextNumber() < 0.5 then rng:NextNumber(-area, 0.12) else rng:NextNumber(0.88, 1 + area)
 		else
@@ -1832,7 +1851,6 @@ function UiFx.sparkles(gui: GuiObject, opts: SparkleOptions?): Stop
 		label.AnchorPoint = Vector2.new(0.5, 0.5)
 		label.Position = UDim2.fromScale(x, y)
 		label.SizeConstraint = Enum.SizeConstraint.RelativeYY
-		local s = size * rng:NextNumber(0.7, 1.15)
 		label.Size = UDim2.fromScale(s, s)
 		label.Rotation = rng:NextNumber(-25, 25)
 		label.ZIndex = o.z or 8
@@ -1893,6 +1911,7 @@ export type FloatOptions = {
 	z: number?, -- ZIndex (20)
 	to: UDim2?, -- сначала вылететь из position сюда (Back Out за travel), потом подниматься
 	travel: number?, -- 0.3 с
+	anchor: Vector2?, -- какую точку надписи задаёт position — вокруг неё UIScale её и растит (середина)
 }
 
 -- «ОТЛИЧНО!», «+1 🐟»: жирный наклонный текст с толстой обводкой выскакивает (0.4 → 1, Back Out),
@@ -1910,7 +1929,7 @@ function UiFx.floatText(container: GuiBase2d, text: string, opts: FloatOptions?)
 	label.FontFace = FONT_ITALIC
 	label.TextColor3 = o.color or WHITE
 	label.TextStrokeTransparency = 1
-	label.AnchorPoint = Vector2.new(0.5, 0.5)
+	label.AnchorPoint = o.anchor or Vector2.new(0.5, 0.5)
 	label.Position = start
 	label.Size = o.size or UDim2.fromScale(0.5, 0.2)
 	label.Rotation = if reduced() then 0 else (o.rotate or rng:NextNumber(-6, 6))
@@ -2497,9 +2516,12 @@ export type RainbowOptions = {
 	speed: number?, -- оборотов цвета в секунду (0.35)
 	colors: { Color3 }?, -- цвета (UIConfig.Rainbow)
 	spin: number?, -- ещё и вращать градиент, градусов в секунду
+	bounce: boolean?, -- цвета туда и обратно (не круг): для неполной радуги — последний не
+	-- смешивается с первым (голубой → красный дал бы серую полосу)
 }
 
--- Радуга: цвета градиента бегут по кругу (Mythic, мутация «Радужная»). Возвращает stop.
+-- Радуга: цвета градиента бегут по кругу (Mythic, мутация «Радужная»); bounce — «маятником»
+-- (красный → … → голубой → … → красный: соседи только из списка). Возвращает stop.
 function UiFx.rainbow(gradient: UIGradient, opts: RainbowOptions?): Stop
 	local o: RainbowOptions = opts or {}
 	local colors = o.colors or UIConfig.Rainbow
@@ -2507,10 +2529,13 @@ function UiFx.rainbow(gradient: UIGradient, opts: RainbowOptions?): Stop
 	local speed = (o.speed or 0.35) * (if reduced() then MOTION.Reduced.Rainbow else 1)
 	local original = gradient.Color
 	local originalRotation = gradient.Rotation
-	local points = math.min(count * 2, 18)
+	local points = math.min((if o.bounce then 2 * math.max(count - 1, 1) else count) * 2, 18)
 	local phase = 0
 	local sinceApply = 0
 	local function sample(t: number): Color3
+		if o.bounce then
+			return sampleColors(colors, 1 - math.abs(2 * (t % 1) - 1))
+		end
 		local x = (t % 1) * count
 		local index = math.floor(x)
 		return colors[index % count + 1]:Lerp(colors[(index + 1) % count + 1], x - index)

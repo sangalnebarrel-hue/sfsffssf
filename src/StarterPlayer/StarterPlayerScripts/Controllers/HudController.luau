@@ -273,7 +273,7 @@ function HudController:Start(hud: ScreenGui)
 				socket.Rotation = rest
 			end)
 		end
-		bannerTrove:Add(UiFx.sparkles(live, { rate = 5, size = 0.3, area = 0.1 }))
+		bannerTrove:Add(UiFx.sparkles(live, { rate = 5, size = 0.3, area = 0.1, outside = true }))
 		local area = hud.AbsoluteSize
 		local center = live.AbsolutePosition + live.AbsoluteSize / 2 - hud.AbsolutePosition
 		local origin = if area.X > 1 and area.Y > 1

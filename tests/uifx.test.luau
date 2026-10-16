@@ -1187,4 +1187,80 @@ tests["sim in motion: press squash + shade + overshoot + icon kick (no sink); sn
 	sim:AssertNoErrors({ warnings = true })
 end
 
+tests["rainbow bounce: a partial rainbow never blends through grey; outside sparkles never land on the plate"] = function(
+	t
+)
+	local sim, p = boot(t)
+	local UiFx = fxOf(sim, p)
+	local UIConfig = sim:Require(sim:Find("ReplicatedStorage.Shared.Config.UIConfig"), p)
+	-- ART-01: the Mythic minigame title runs the first 5 rainbow colours (red … cyan). As a circle,
+	-- cyan blended straight back into red through grey; «bounce» runs them there and back.
+	local five = { table.unpack(UIConfig.Rainbow, 1, 5) }
+	local function saturation(c: any): number
+		local hi = math.max(c.R, c.G, c.B)
+		return if hi <= 0 then 0 else (hi - math.min(c.R, c.G, c.B)) / hi
+	end
+	local function least(gradient: any): number
+		local low = 1
+		for _, point in gradient.Color.Keypoints do
+			low = math.min(low, saturation(point.Value))
+		end
+		return low
+	end
+	local s = stage(sim, p, "RainbowStage")
+	local circle = sim:Create("UIGradient", { Name = "Circle" }, s)
+	local swing = sim:Create("UIGradient", { Name = "Swing" }, s)
+	local stops = {}
+	client(sim, p, function()
+		stops.circle = UiFx.rainbow(circle, { speed = 0.5, colors = five })
+		stops.swing = UiFx.rainbow(swing, { speed = 0.5, colors = five, bounce = true })
+	end)
+	local circleLow, swingLow = 1, 1
+	for _ = 1, 40 do
+		sim:Advance(0.05)
+		circleLow = math.min(circleLow, least(circle))
+		swingLow = math.min(swingLow, least(swing))
+	end
+	t.ok(circleLow < 0.6, `(the circle does pass through grey: saturation {circleLow})`)
+	t.ok(swingLow >= 0.6, `bounce: every colour along the word stays saturated ({swingLow})`)
+	client(sim, p, function()
+		for _, stop in stops do
+			stop()
+		end
+	end)
+
+	-- ART-02: sparkles «outside» pop only around a text plate, never over it (a wide toast: the
+	-- side bands would have landed on its last letters, «×5!»).
+	local plate = stage(sim, p, "SparkleStage")
+	local stop
+	client(sim, p, function()
+		stop = UiFx.sparkles(plate, { rate = 20, size = 0.3, outside = true })
+	end)
+	local seen, onPlate = 0, 0
+	local box = plate.AbsolutePosition
+	local size = plate.AbsoluteSize
+	for _ = 1, 30 do
+		sim:Advance(0.07)
+		for _, item in plate:GetChildren() do
+			if item.Name == "FxSparkle" then
+				seen += 1
+				local at, wh = item.AbsolutePosition, item.AbsoluteSize
+				local dx = math.min(at.X + wh.X, box.X + size.X) - math.max(at.X, box.X)
+				local dy = math.min(at.Y + wh.Y, box.Y + size.Y) - math.max(at.Y, box.Y)
+				if dx > 0 and dy > 0 then
+					onPlate += 1
+				end
+			end
+		end
+	end
+	t.ok(seen >= 10, `sparkles keep coming ({seen})`)
+	t.eq(onPlate, 0, "none of them over the plate")
+	client(sim, p, function()
+		stop()
+	end)
+	t.eq(count(plate, "FxSparkle"), 0)
+	t.eq(UiFx.activeJobs(), 0)
+	sim:AssertNoErrors({ warnings = true })
+end
+
 return tests

@@ -26,6 +26,10 @@
 	    рыбой, а не на ней).
 	  • topBand — полоса НАД рыбаком (и рыбой над головой): огромное слово редкости.
 	  • flightHits — заденет ли виджет прямоугольник, вылетая из точки на своё место.
+	  • slamPivot — откуда растить «удар» огромной надписи (от середины или от края), чтобы и в
+	    начале она не легла на своего рыбака и джойстик.
+	  • clearOf — на сколько сдвинуть слово над панелью, чтобы оно не заходило на плашки статуса
+	    и флажок базы.
 	  • hintWidth — ширина «таблетки» подсказки под её текст (не влезает — две ровные строки).
 	  • JUMP_SMALL / JUMP_BIG, jumpCircle, growRoom — кнопка прыжка Roblox на тач-экране и во
 	    сколько раз может вырасти круглая кнопка действия (пульс, кольца), не подходя к ней ближе
@@ -320,6 +324,84 @@ function FishingLayout.flightHits(from: Vector2, to: Rect, keepout: Rect, startS
 		end
 	end
 	return false
+end
+
+--[[
+	«Удар» надписи (UIScale from → 1: «ПОЙМАНА!», слово редкости, «ИДЕАЛЬНО!»): откуда её растить,
+	чтобы и в начале, в from раз больше, она не легла ни на один из keepouts (свой рыбак, джойстик;
+	spec_anim, принцип 6 — «удар» только там, где путь свободен). rest — надпись в покое. Сначала —
+	от середины; задевает — от края, дальнего от помехи (от правого: растёт влево, за край экрана
+	можно), потом от левого; нигде — от середины, но с меньшего масштаба (не меньше 1). centred —
+	только от середины (кольцо вокруг надписи). Возвращает AnchorPoint (вокруг него UIScale её
+	растит; по высоте — середина) и начальный масштаб.
+]]
+function FishingLayout.slamPivot(rest: Rect, from: number, keepouts: { Rect }, centred: boolean?): (Vector2, number)
+	local w, h = rest.x1 - rest.x0, rest.y1 - rest.y0
+	local cy = (rest.y0 + rest.y1) / 2
+	local function clear(ax: number, k: number): boolean
+		local px = rest.x0 + ax * w
+		local grown = { x0 = px - ax * w * k, y0 = cy - h * k / 2, x1 = px + (1 - ax) * w * k, y1 = cy + h * k / 2 }
+		for _, keepout in keepouts do
+			if hits(grown, keepout) then
+				return false
+			end
+		end
+		return true
+	end
+	for _, ax in if centred then { 0.5 } else { 0.5, 1, 0 } do
+		if clear(ax, from) then
+			return Vector2.new(ax, 0.5), from
+		end
+	end
+	local k = from
+	while k > 1 and not clear(0.5, k) do
+		k = math.max(1, k - 0.05)
+	end
+	return Vector2.new(0.5, 0.5), k
+end
+
+--[[
+	Слово над панелью мини-игры («МИМО!», «ВРЕМЯ!», слова попаданий) не заходит на плашки статуса и
+	флажок базы над плашкой (blocks, px корня шириной width; ART-04): word — его прямоугольник в
+	покое, up — на сколько px оно за жизнь поднимается (и задирает край поворотом), gap — зазор.
+	Сначала — вбок (влево, потом вправо), пока не станет свободно (не ближе EDGE / 2 к краю
+	экрана), иначе — ниже: верх под самой нижней задетой помехой. Возвращает сдвиг (dx, dy).
+]]
+function FishingLayout.clearOf(word: Rect, up: number, blocks: { Rect }, gap: number, width: number): (number, number)
+	local function blocker(dx: number, dy: number): Rect?
+		local r = { x0 = word.x0 + dx, y0 = word.y0 + dy - up, x1 = word.x1 + dx, y1 = word.y1 + dy }
+		for _, b in blocks do
+			if hits(r, { x0 = b.x0 - gap, y0 = b.y0 - gap, x1 = b.x1 + gap, y1 = b.y1 + gap }) then
+				return b
+			end
+		end
+		return nil
+	end
+	if not blocker(0, 0) then
+		return 0, 0
+	end
+	for _, side in { -1, 1 } do
+		local dx = 0
+		for _ = 1, #blocks + 1 do
+			local b = blocker(dx, 0)
+			if not b then
+				break
+			end
+			dx = if side < 0 then math.min(dx, b.x0 - gap - word.x1) else math.max(dx, b.x1 + gap - word.x0)
+		end
+		if word.x0 + dx >= EDGE / 2 and word.x1 + dx <= width - EDGE / 2 and not blocker(dx, 0) then
+			return dx, 0
+		end
+	end
+	local dy = 0
+	for _ = 1, #blocks + 1 do
+		local b = blocker(0, dy)
+		if not b then
+			break
+		end
+		dy = math.max(dy, b.y1 + gap - (word.y0 - up))
+	end
+	return 0, dy
 end
 
 --[[
