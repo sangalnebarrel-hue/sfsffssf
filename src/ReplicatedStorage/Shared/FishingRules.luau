@@ -10,10 +10,13 @@
 	старта; u0 — фаза старта 0..2 (0..1 — едет вправо из точки u0, 1..2 — едет влево из 2 − u0),
 	движение «туда-обратно» с постоянной скоростью speed полос в секунду.
 
-	Описание пойманной рыбы (FishData) — обычная таблица (её можно отправить клиенту
-	и сохранить в DataStore на Этапе 3):
+	Описание пойманной рыбы (FishData) — обычная таблица (её можно отправить клиенту):
 	  { Id = "Perch", Rarity = "Common", Mutation = "Gold" | nil, Kg = 1.23, Value = 35, Income = 3.5 }
 	(Mutation — Id из FishConfig.Mutations; Value и Income уже с размером и мутацией.)
+	Этап 3: в "Caught" у рыбы ещё два необязательных поля — Uid (номер рыбы в садке игрока, "f7";
+	нет — рыба в садок не легла) и New (true — первый улов этого вида за всё время, для
+	«НОВИНКА!»). В DataStore рыба хранится по-своему (PlayerData: Uid, Id, Kg, Mutation, Age,
+	Slot, CaughtAt) — Rarity, Value и Income сервер каждый раз считает заново (Price).
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -30,6 +33,8 @@ export type FishData = {
 	Kg: number,
 	Value: number,
 	Income: number,
+	Uid: string?, -- (Этап 3, только в "Caught") номер рыбы в садке игрока
+	New: boolean?, -- (Этап 3, только в "Caught") первый улов этого вида за всё время
 }
 
 export type Rng = { NextNumber: (self: any, min: number?, max: number?) -> number }
