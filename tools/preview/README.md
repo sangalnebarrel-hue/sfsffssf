@@ -572,7 +572,8 @@ Examples of the current HUD are in `docs/ui/`.
 ### How it works
 
 1. `tools/preview/gui_dump.luau` (Lune) loads `Place1.rbxl` into RbxSim, replaces the source of
-   `ServerScriptService.Services.FishingService` with `return {}` (like
+   `ServerScriptService.Services.FishingService` (and of the stage 3 DataService,
+   EconomyService, MarketService and TankService) with `return {}` (like
    `tests/stage2_client.test.luau`), starts the server and, for each scenario, adds a fresh
    player on the device (see [Devices](#devices)), waits for the base, the character and the
    HUD plus `settle` seconds (4.2 s: the welcome toast is gone), runs the scenario — the REAL
@@ -740,8 +741,15 @@ The harness `h` (documented in `gui_scenarios.luau`'s header and `gui_dump.luau`
 `h:advance`, `h:gui`, `h:visible`, `h:shown(path)` (visible AND not scaled to nothing or
 faded out), `h:waitFor`, `h:waitVisible`, `h:click`, `h:press`, `h:serverSays(state, data)`
 (FishingState), `h:notify(text, kind)`, `h:giveRod`, `h:equipRod`, `h:standAtSpot`,
-`h:standFar`, `h:config`, `h:minigame(rarity, extra)`, `h:caught(fish, total)`, and for
-`server = true` scenarios:
+`h:standFar`, `h:config`, `h:minigame(rarity, extra)`, `h:caught(fish, total, tank?)`
+(stage 3: `tank` is the TankResult the server sends with the catch), and stage 3's
+`h:money(n, income10?)` (Player `Money` / `Income`), `h:tank(list, opts?)` (the own base's
+display attributes, the tank model's and the player's, written like TankService: fish fields →
+`State` → `Event` last) and `h:tankEvent(kind, data)` (TankEvent to this client). In the stub
+sim DataService, EconomyService, MarketService and TankService are switched off like
+FishingService, and every player joins with the stage 3 defaults (`DataMode = "Ready"`,
+`Money = 0`, `Income = 0`, `TankSlots = 6`, `TankCount = 0`, `SellRatePct = 100`,
+`SellPlace = ""`). For `server = true` scenarios:
 
 * `h:playCatch(fish, opts?) -> FishData` — a whole real catch: `h:readyReal(fish)` (every roll
   gives `fish`, onto the spot facing the lagoon, rod in hand), `h:castAndHook(opts)` (tap
