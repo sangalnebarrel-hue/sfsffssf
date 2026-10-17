@@ -910,6 +910,19 @@ tests["slot events: in / sold / swap make their FX and clean them up; mount none
 		end
 	end
 	t.eq(pop.Plate.Amount.Text, "+" .. fake.tank.FormatMoney(45), "«+$45»")
+	-- it stays under the arcade ceiling (a BillboardGui is hidden by parts in front of it)
+	local ceiling = math.huge
+	for _, d in base:GetDescendants() do
+		if d:IsA("BasePart") and d.Name == "Ceiling" then
+			ceiling = math.min(ceiling, d.Position.Y - d.Size.Y / 2)
+		end
+	end
+	t.ok(ceiling < math.huge, "the arcade ceiling is found")
+	local popTop = (pop.Parent :: Attachment).WorldPosition.Y + FX.Rise + FX.RiseSize.Height / 2
+	t.ok(
+		popTop < ceiling - 0.25,
+		string.format("the sale pop tops out at %.2f under the ceiling %.2f", popTop, ceiling)
+	)
 	sim:Advance(FX.Shrink + 0.1)
 	t.eq(world.GetFish(base, 1), nil, "sold: the fish is gone after the shrink")
 	sim:Advance(FX.RiseTime + 0.3)

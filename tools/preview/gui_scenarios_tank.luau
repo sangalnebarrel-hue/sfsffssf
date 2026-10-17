@@ -148,7 +148,7 @@ return {
 		burst = false,
 		run = function(h: any)
 			h.sim:Teleport(h.player, at(h, -20, 3.2, 62))
-			court(h, { -22.5, 9.4, 64 }, { -33.5, 8.4, 71.5 }, 55)
+			court(h, { -21.5, 10.2, 63.5 }, { -33.5, 9.4, 71.5 }, 55)
 		end,
 	},
 	{
@@ -160,7 +160,7 @@ return {
 		burst = false,
 		run = function(h: any)
 			h.sim:Teleport(h.player, at(h, 20, 3.2, 92))
-			court(h, { 26.5, 9.4, 89 }, { 33.5, 8.4, 82.5 }, 55)
+			court(h, { 25.5, 10.2, 90 }, { 33.5, 9.4, 82.5 }, 55)
 		end,
 	},
 	{

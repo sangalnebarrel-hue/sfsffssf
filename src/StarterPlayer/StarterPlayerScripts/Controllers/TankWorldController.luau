@@ -523,9 +523,10 @@ local function saleFx(slot: Slot, price: number?)
 	end
 	burst(top, "sparkle", { Color3.new(1, 1, 1), UIConfig.Palette.Gold.Top, UIConfig.Palette.Gold.Bottom }, FX.Sparkle)
 	if price and price > 0 then
-		-- (с места надписи витрины: она в этот миг уходит)
+		-- (с места надписи витрины — она в этот миг уходит — и не выше потолка галереи)
 		local text = TextUtil.fill(TEXTS.Pop, { amount = TankRules.FormatMoney(price) })
-		riseAt(tag, text, UIConfig.BillboardYellow, FX.RiseSize, FX.Rise, FX.RiseTime, DISPLAY.EventRange)
+		local from = tag + Vector3.new(0, FX.RiseFrom, 0)
+		riseAt(from, text, UIConfig.BillboardYellow, FX.RiseSize, FX.Rise, FX.RiseTime, DISPLAY.EventRange)
 	end
 end
 
