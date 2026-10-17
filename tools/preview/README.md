@@ -709,7 +709,10 @@ have no GUI path) — and may be mixed with GUI paths.
 Stage 3 world views (`tools/preview/gui_scenarios_tank.luau`, loaded by `gui_dump.luau` after
 `gui_scenarios.luau`, `world = true`, not in `--all`; by name): `tank_court` (the court of base 1
 from the gate side: six display fish, the locked rows, the big tank's sign), `tank_aisle` (the
-follow camera in the west aisle: the tags over the displays), `tank_display` / `tank_rainbow`
+follow camera in the west aisle: the tags over the displays), `tank_aisle_walk` / `tank_front` /
+`tank_front_east` / `tank_court_low` (a kid's follow and eye-level cameras: the tag size on a
+phone, the light bar behind the value line, the far tags hidden, the lock words from the gate),
+`tank_display` / `tank_rainbow`
 (display close-ups), `tank_sign` (the big tank's sign from the spawn), `tank_events` (a catch
 landing on a display, a sale, a replacement: the slot FX over the glass), `pier_tank_word` /
 `pier_tank_wait` (`server = true`: the real cast) / `pier_tank_arrival` (the fishing camera: the

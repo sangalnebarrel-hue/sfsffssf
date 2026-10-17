@@ -26,11 +26,11 @@
 	Italic) белые с градиентом Fill цвета (Top → Bottom) и тонкой круглой обводкой Outline тёмного
 	оттенка того же цвета (Lip); LightInfluence 0, AlwaysOnTop false; содержимое — во Frame
 	"Plate" (его UIScale «FxScale» — для UiFx.popIn / punch).
-	  tag   — над витриной (FxTankTag): «+$4/с» (BillboardGreen) и «$45 ▲» / «$135 МАКС»
-	          (BillboardYellow);
+	  tag   — перед витриной, на высоте её планки (FxTankTag): «+$4/с» (BillboardGreen) и
+	          «$45 ▲» / «$135 МАКС» (BillboardYellow), строки чуть внахлёст рамками (крупнее буквы);
 	  sign  — над большим аквариумом (FxTankSign): «+$42/с» крупно зелёным, «🐠 4/6» белым;
 	  pier  — над ведром у места рыбалки (FxPierTank): «🐠 4/6» белым, «+$42/с» зелёным;
-	  lock  — над закрытой витриной (FxTankLock): «🔒 Закрыто» светло-серым (Palette.Slate);
+	  lock  — на закрытой витрине (FxTankLock): «🔒 Закрыто» светло-серым (Palette.Slate);
 	  market — над рынком острова (FxMarketWord): «РЫНОК +50%!» (BillboardYellow);
 	  rise  — всплывающая сумма (FxTankPop): выскакивает, поднимается на lift studs за time с и
 	          тает, потом удаляется сама (task.delay).
@@ -387,9 +387,9 @@ end
 function TankDisplay.tag(parent: Instance): Tag
 	local spec = DISPLAY.Tag
 	local gui, plate = TankDisplay.billboard(parent, "FxTankTag", sizeOf(spec), DISPLAY.TagShow)
-	local rate = TankDisplay.word(plate, "Rate", "", { 0, 0, 1, 0.52 }, UIConfig.BillboardGreen, spec.Outline, true)
+	local rate = TankDisplay.word(plate, "Rate", "", { 0, -0.02, 1, 0.54 }, UIConfig.BillboardGreen, spec.Outline, true)
 	local value =
-		TankDisplay.word(plate, "Value", "", { 0.04, 0.54, 0.92, 0.44 }, UIConfig.BillboardYellow, spec.Outline, true)
+		TankDisplay.word(plate, "Value", "", { 0.03, 0.52, 0.94, 0.48 }, UIConfig.BillboardYellow, spec.Outline, true)
 	return { gui = gui, plate = plate, rate = rate, value = value }
 end
 
@@ -427,7 +427,7 @@ function TankDisplay.setPair(pair: Pair, topText: string, bottomText: string)
 	end
 end
 
--- Тусклое слово над закрытой витриной (светло-серое, как плашка «нет базы»), мельче надписи рыбы.
+-- Тусклое слово на закрытой витрине (светло-серое, как плашка «нет базы»), мельче надписи рыбы.
 function TankDisplay.lock(parent: Instance, text: string): BillboardGui
 	local spec = DISPLAY.Tag
 	local size =

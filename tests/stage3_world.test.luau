@@ -396,7 +396,21 @@ tests["display fish: one per occupied display, centred on FishPoint, inside the 
 	standFrom(sim, p, base, (DISPLAY.LifeRange + DISPLAY.Range) / 2 + 20)
 	sim:Advance(1)
 	t.eq(world.Stats().life, 0, "no life tweens out here")
-	t.eq(world.Stats().locks, TankConfig.MaxSlots - 6, "a dim «🔒 Закрыто» over every locked display")
+	t.eq(world.Stats().locks, TankConfig.MaxSlots - 6, "a dim «🔒 Закрыто» on every locked display")
+	-- the lock word: in front of the empty glass (at FishPoint height + LockLift), seen from the gate
+	local display7 = slotModel(base, 7).Display
+	local want = (display7.FishPoint.WorldCFrame * CFrame.new(0, DISPLAY.Tag.LockLift, -DISPLAY.Tag.Forward)).Position
+	local lockCount, nearest = 0, math.huge
+	for _, d in folderOf(sim, p):GetDescendants() do
+		if d:IsA("BillboardGui") and d.Name == "FxTankLock" then
+			lockCount += 1
+			t.eq(d.MaxDistance, DISPLAY.LockRange, "the lock word's MaxDistance = LockRange")
+			nearest = math.min(nearest, (d.Parent.WorldPosition - want).Magnitude)
+		end
+	end
+	t.ok(nearest < 0.01, `Slot_7's lock word at FishPoint + (0, LockLift, −Forward) ({nearest})`)
+	t.ok(display7.CFrame:PointToObjectSpace(want).Z < -display7.Size.Z / 2, "… on the aisle side of the glass")
+	t.eq(lockCount, TankConfig.MaxSlots - 6, "one lock word per locked display")
 	for index = 1, TankConfig.MaxSlots do
 		local fish = world.GetFish(base, index)
 		local slot = slotModel(base, index)
@@ -681,7 +695,19 @@ tests["tags: «+$X/с» and the value ticking to «МАКС» in front of the gl
 	t.near(rel, Vector3.new(0, DISPLAY.Tag.Lift, -DISPLAY.Tag.Forward), 0.01, "at FishPoint + (0, Lift, −Forward)")
 	t.ok(rel.Z < -d1.Size.Z / 2, "in front of the glass's face (the aisle side)")
 	local top = holder.WorldPosition.Y + DISPLAY.Tag.Height / 2
-	t.ok(top < base.Root.Position.Y + 13.15, `under the arcade ceiling ({top})`)
+	local ceiling = base.Root.Position.Y + 13.15
+	t.ok(top < ceiling, `under the arcade ceiling ({top})`)
+	-- … even with its pixel part at TagShow on a phone (390 px tall, FieldOfView 70: the farthest
+	-- shown tag is the tallest in studs)
+	local studsPerPixel = 2 * DISPLAY.TagShow * math.tan(math.rad(35)) / 390
+	local farTop = holder.WorldPosition.Y + (DISPLAY.Tag.Height + DISPLAY.Tag.PixelsY * studsPerPixel) / 2
+	t.ok(farTop < ceiling, string.format("at TagShow its top %.2f stays under the ceiling %.2f", farTop, ceiling))
+	-- the light bar runs between the two lines (the tag's middle at the bar, ± a fifth of it)
+	local bar = slotModel(base, 1).LightBar.Position.Y
+	t.ok(
+		math.abs(holder.WorldPosition.Y - bar) < DISPLAY.Tag.Height / 5,
+		string.format("the tag's middle %.2f at the light bar %.2f", holder.WorldPosition.Y, bar)
+	)
 	-- the value ticks (1 s chain), the far tag does not
 	local farBefore = world.GetTag(base, 11).Plate.Value.Text
 	sim:Advance(60)

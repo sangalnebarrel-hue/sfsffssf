@@ -38,24 +38,29 @@
 	    RainbowFish, и FishingFxController перекрашивает её покадрово (его Heartbeat) — дальше
 	    LifeDrop тег снят, цвета застывают, Heartbeat отпущен.
 	  • Надпись витрины FxTankTag — BillboardGui на FishPoint + (0, Tag.Lift, −Tag.Forward) в осях
-	    витрины: над стеклом и ПЕРЕД его лицевой гранью, ниже потолка галереи (из прохода взгляд на
-	    неё не идёт сквозь стекло — стекло прячет надписи за собой; отступление от «прямо над
-	    центром» дизайна), Tag.Width × Tag.Height studs + Tag.PixelsX × Tag.PixelsY px,
-	    MaxDistance TagShow (дальше надписи соседних витрин прохода сливаются в кашу), без света
-	    и AlwaysOnTop: «+$4/с» (BillboardGreen) и «$45 ▲» /
-	    «$135 МАКС» (BillboardYellow; Texts.TagValue / TagMax), стиль STYLE §3 «надписи в мире»;
+	    витрины: ПЕРЕД лицевой гранью стекла, на высоте светящейся планки LightBar — с камеры
+	    прохода планка идёт между двумя строками, как черта, — и ниже потолка галереи (из прохода
+	    взгляд на неё не идёт сквозь стекло — стекло прячет надписи за собой; отступление от
+	    «прямо над центром» дизайна), Tag.Width × Tag.Height studs + Tag.PixelsX × Tag.PixelsY px,
+	    обводка Tag.Outline (толще обычной: буквы на неоне), MaxDistance TagShow (дальше надписи
+	    соседних витрин прохода сливаются в кашу), без света и AlwaysOnTop: «+$4/с»
+	    (BillboardGreen) и «$45 ▲» / «$135 МАКС» (BillboardYellow; Texts.TagValue / TagMax), стиль
+	    STYLE §3 «надписи в мире»;
 	    цена — TankRules.CurrentValue(Value, AgeAt(GrowFrom, GetServerTimeNow())) раз в TagEvery
 	    с (та же цепочка) и только у надписей ближе TagRange (≥ TagShow: показалась — уже свежая).
-	    Над закрытой витриной ("locked") на том же месте — тусклое «🔒 Закрыто» (FxTankLock,
-	    Texts.SlotLocked, светло-серым Slate; MaxDistance LockRange — видно и от ворот двора, слово
-	    не меняется): из прохода табличку на тумбе не прочесть.
+	    На закрытой витрине ("locked") — тусклое «🔒 Закрыто» (FxTankLock, Texts.SlotLocked,
+	    светло-серым Slate) перед пустым стеклом, на FishPoint + (0, Tag.LockLift, −Tag.Forward) —
+	    как табличка на витрине магазина, ниже надписей прохода (с ними не сливается);
+	    MaxDistance LockRange — видно и от ворот двора (слово не меняется, обновлять нечего): из
+	    прохода табличку на тумбе не прочесть.
 	  • Надпись садка FxTankSign над передним краем Tank.Glass (выше таблички «АКВАРИУМ»),
 	    MaxDistance SignRange: «+$42/с» крупно зелёным, «🐠 4/6» мельче белым (Texts.TankCount) — из
 	    атрибутов садка Count / Slots / Income; у свободной базы и до подключения садка (нет Count)
 	    спрятана.
 	  • Слово у ведра FxPierTank — ТОЛЬКО своя база: BillboardGui на Attachment над Platform.Bucket
-	    (низ — Pier.Lift над верхом ведра и рыбьего хвоста BucketFish), Pier.Width × Pier.Height
-	    studs + px, MaxDistance Pier.Range: «🐠 4/6» белым и «+$42/с» (BillboardGreen) из атрибутов
+	    (низ — Pier.Lift над верхом ведра и рыбьего хвоста BucketFish, на Pier.Out дальше от места
+	    рыбалки: с камеры рыбалки — правее удочки и лески, выше кнопки «СМОТАТЬ»), Pier.Width ×
+	    Pier.Height studs + px, MaxDistance Pier.Range: «🐠 4/6» белым и «+$42/с» (BillboardGreen) из атрибутов
 	    игрока TankCount / TankSlots / Income; нет TankSlots (данные не загружены) — нет слова.
 	    Спрятано, пока FishingState — Bite или Reeling, пока у HUD CounterHold и пока свой
 	    персонаж держит HeldFish (как уведомления); снова видно — выскакивает. Прилёт "stored" /
@@ -542,7 +547,9 @@ end
 local function setLocked(slot: Slot, locked: boolean)
 	local current = slot.lockHolder
 	if locked and not current then
-		local at = tagPoint(slot)
+		local fishPoint = slot.fishPoint
+		local at = fishPoint
+			and (fishPoint.WorldCFrame * CFrame.new(0, DISPLAY.Tag.LockLift, -DISPLAY.Tag.Forward)).Position
 		local point = at and holder("FxTankLock", CFrame.new(at))
 		if point then
 			slot.lockHolder = point

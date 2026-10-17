@@ -823,10 +823,10 @@ tests["configs: DataService's boot invariants, patchable knobs, ShortName, share
 		1,
 		200,
 		{ Bob = 0.12, Turn = 6, TimeMin = 2.4, TimeMax = 3.2 },
-		{ 3.6, 3.6, 4.6, 1.5, 24, 8 },
+		{ 3.3, 3.6, 5.6, 1.9, 44, 16 },
 		{ 0.25, 0.35, 2, 1.2 },
 	}, "Display: the tag timer, the hub word, the calm life, the slot tag, the event FX")
-	t.eq({ pier.Rise, pier.PopTime, pier.Width, pier.Height }, { 2.5, 1.2, 4, 1.4 }, "Pier: the pop and the word")
+	t.eq({ pier.Rise, pier.PopTime, pier.Width, pier.Height }, { 2.5, 1.2, 4.4, 1.6 }, "Pier: the pop and the word")
 	t.ok(display.Life.TimeMin <= display.Life.TimeMax, "the bob period range")
 	t.ok(pier.PopRange < pier.Range, "income pops only where the word is visible")
 	t.ok(EconomyConfig.HomeRatePct < EconomyConfig.MarketRatePct, "the stall pays more")

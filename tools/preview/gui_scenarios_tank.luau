@@ -16,6 +16,9 @@
 
 	  gui_render.py --scenario tank_court,tank_aisle,tank_display,tank_rainbow,tank_sign \
 	      --devices phone --no-hud --out DIR      (the world views; HUD-less)
+	  gui_render.py --scenario tank_aisle_walk,tank_front,tank_front_east,tank_court_low \
+	      --devices phone,desktop --out DIR       (the follow / eye-level cameras: tag size, the
+	                                               light bar behind the value, the lock words)
 	  gui_render.py --scenario pier_tank_word,pier_tank_wait,pier_tank_arrival \
 	      --devices phone,desktop --out DIR       (the fishing camera with the HUD)
 	  gui_render.py --scenario market_word,tank_events --devices phone --no-hud --out DIR
@@ -140,6 +143,54 @@ return {
 		end,
 	},
 	{
+		name = "tank_aisle_walk",
+		desc = "Walking down the west aisle (character mid-aisle, the follow camera behind and above it): the next displays' tags readable, the farther ones hidden (TagShow) instead of piling up, the locked rows' «🔒 Закрыто» far down",
+		world = true,
+		standard = false,
+		still = { 0.4 },
+		burst = false,
+		run = function(h: any)
+			h.sim:Teleport(h.player, at(h, -26.5, 3.2, 66))
+			court(h, { -25.5, 10.5, 54 }, { -27.5, 6.5, 80 }, 70)
+		end,
+	},
+	{
+		name = "tank_front",
+		desc = "A kid in the west aisle facing Slot_3 (the follow camera ≈ 12 studs behind): the tag's size on a phone, its value line over the light bar",
+		world = true,
+		standard = false,
+		still = { 0.4 },
+		burst = false,
+		run = function(h: any)
+			h.sim:Teleport(h.player, at(h, -26.0, 3.2, 71.5))
+			court(h, { -15.5, 10.5, 71.5 }, { -33.5, 7.5, 71.5 }, 70)
+		end,
+	},
+	{
+		name = "tank_front_east",
+		desc = "A kid in the east aisle facing Slot_6 (the Rainbow DragonFish), the camera ≈ 12 behind: a tag over a coloured light bar",
+		world = true,
+		standard = false,
+		still = { 0.4 },
+		burst = false,
+		run = function(h: any)
+			h.sim:Teleport(h.player, at(h, 26.0, 3.2, 82.5))
+			court(h, { 15.5, 10.5, 82.5 }, { 33.5, 7.5, 82.5 }, 70)
+		end,
+	},
+	{
+		name = "tank_court_low",
+		desc = "Walking into the court from the gate at eye height: the tank sign, the locked rows' «🔒 Закрыто» (LockRange), no far tags",
+		world = true,
+		standard = false,
+		still = { 0.4 },
+		burst = false,
+		run = function(h: any)
+			h.sim:Teleport(h.player, at(h, 0, 3.2, 52))
+			court(h, { 0, 9.5, 40 }, { 0, 7, 90 }, 70)
+		end,
+	},
+	{
 		name = "tank_display",
 		desc = "A display close-up from the aisle: the Puffer on Slot_3 (at «МАКС») centred in the glass, its tag over the light bar, the pedestal label in the rarity colour",
 		world = true,
@@ -160,7 +211,7 @@ return {
 		burst = false,
 		run = function(h: any)
 			h.sim:Teleport(h.player, at(h, 20, 3.2, 92))
-			court(h, { 25.5, 10.2, 90 }, { 33.5, 9.4, 82.5 }, 55)
+			court(h, { 24.8, 9.8, 91 }, { 33.5, 10.2, 82.5 }, 55)
 		end,
 	},
 	{
