@@ -21,7 +21,9 @@
 	    по меркам шрифта (GLYPHS ниже), а не по средней UiFx.textWidth (цифры у Heavy шире).
 	  • Доход каждую секунду — ПРОСТО ТЕКСТ (без countUp и подпрыгиваний: покой HUD без
 	    покадровой работы): надпись пишет атрибут Money (через кадр — улов успевает придержать
-	    свою сумму, см. ниже). Раз в Wallet.FloatEvery с при доходе > 0 справа от числа всплывает
+	    свою сумму, см. ниже). Рост больше Wallet.JumpSeconds секунд дохода — продажа, чей
+	    праздник идёт следом за атрибутом: надпись ждёт его Wallet.SaleWait с (Celebrate или
+	    "Caught" придержит сумму), никто не пришёл — число «набегает» само. Раз в Wallet.FloatEvery с при доходе > 0 справа от числа всплывает
 	    маленькое зелёное «+$13» (доход в секунду; floatText на цепочке task.delay). «+$/с» скрыт,
 	    пока доход 0; не мельче Button.
 	  • Один хозяин надписи. shown — число на надписи; held — монеты, которые сервер УЖЕ зачислил
@@ -142,6 +144,7 @@ local shown = 0 -- число на надписи
 local held = 0 -- зачислено, но ещё не отпраздновано
 local counting: { target: number }? = nil -- идёт «набегание» к target
 local rateShown = 0 -- доход на надписи, десятые монеты в секунду
+local rateWanted = false -- доход есть (> 0); строке тесно — layout его прячет (число важнее)
 local stopRate: (() -> ())? = nil
 local state: "hidden" | "loading" | "ready" = "hidden"
 local startedAt = 0
@@ -215,7 +218,7 @@ local function layout(force: boolean?)
 	if W < 4 or H < 4 then
 		return
 	end
-	local key = `{label.Text}|{if rate.Visible then rate.Text else ""}|{W}|{H}`
+	local key = `{label.Text}|{if rateWanted then rate.Text else ""}|{W}|{H}`
 	if key == lastFit and not force then
 		return
 	end
@@ -227,15 +230,16 @@ local function layout(force: boolean?)
 	local px = math.min(maxPx, H * LABEL_TALL * WALLET.TextFill)
 	local textW = textWidth(label.Text, px)
 	local ratePx = math.min(UiFx.textSize("Button"), H * rate.Size.Y.Scale)
-	local rateW = if rate.Visible then textWidth(rate.Text, ratePx) else 0
-	local gap = if rate.Visible then H * WALLET.RowGap else 0
+	local rateW = if rateWanted then textWidth(rate.Text, ratePx) else 0
+	local gap = if rateWanted then H * WALLET.RowGap else 0
+	local dropped = false
 	local room = W - labelX - gap - rateW
 	if textW > room then
 		-- Тесно: число мельчает (TextScaled по коробке), не мельче MinMoney; и так не влезает —
 		-- доход уходит (число важнее).
 		local least = textWidth(label.Text, WALLET.MinMoney)
-		if room < least and rate.Visible then
-			rateW, gap = 0, 0
+		if room < least and rateWanted then
+			rateW, gap, dropped = 0, 0, true
 			room = W - labelX
 		end
 		textW = math.max(math.min(textW, room), least)
@@ -249,6 +253,9 @@ local function layout(force: boolean?)
 	setScale(icon, "Position", UDim2.fromScale(iconSize * 0.5 / moneyW, 0.5))
 	setScale(label, "Position", UDim2.fromScale(labelX / moneyW, 0.5))
 	setScale(label, "Size", UDim2.fromScale(textW / moneyW, LABEL_TALL))
+	if rate.Visible ~= (rateWanted and not dropped) then
+		rate.Visible = rateWanted and not dropped
+	end
 	if rate.Visible then
 		setScale(rate, "Size", UDim2.fromScale(math.max(rateW, 1) / W, rate.Size.Y.Scale))
 	end
@@ -276,8 +283,21 @@ local function truth(): number
 	return math.max(0, moneyNow() - held)
 end
 
+local function countTime(amount: number): number
+	local spec = WALLET.Count
+	return spec.Min + (spec.Max - spec.Min) * math.clamp(amount / WALLET.CountBig, 0, 1)
+end
+
+-- Рост больше стольких монет за раз — не доход секунды, а продажа (её праздник ещё в пути).
+local function jumpLimit(): number
+	return math.max(2, math.ceil(income10() / 10 * WALLET.JumpSeconds))
+end
+
+local countTo: (time: number) -> ()
+local jumpWait = false -- большой рост Money ждёт свой праздник (SaleWait)
+
 local function tick()
-	if state ~= "ready" then
+	if state ~= "ready" or jumpWait then
 		return
 	end
 	local goal = truth()
@@ -286,13 +306,31 @@ local function tick()
 		run.target = goal -- «набегание» само дойдёт до правды
 		return
 	end
+	if goal - shown > jumpLimit() then
+		-- Продажа: её remote (и Celebrate / "Caught") приходит после атрибута — подождать, пока
+		-- праздник придержит свою сумму; никто не пришёл — число «набегает» само (не прыгает).
+		jumpWait = true
+		task.delay(WALLET.SaleWait, function()
+			jumpWait = false
+			if state ~= "ready" then
+				return
+			end
+			local step = truth() - shown
+			if step > jumpLimit() and counting == nil then
+				countTo(countTime(step))
+			else
+				tick()
+			end
+		end)
+		return
+	end
 	shown = goal
 	setMoneyText(shown)
 end
 
 -- Число «набегает» от shown до правды (цель двигает тик) за time с; Quad Out, каждое новое
 -- число подпрыгивает (≤ 12 Гц). Покадровая работа — только пока идёт.
-local function countTo(time: number)
+function countTo(time: number)
 	local run = counting
 	if run then
 		run.target = truth()
@@ -342,10 +380,10 @@ local function rollRate(force: boolean?)
 		return -- улов летит в садок: доход катится, когда долетел
 	end
 	if goal == rateShown then
-		if rate.Visible ~= (goal > 0) then
-			rate.Visible = goal > 0
+		if rateWanted ~= (goal > 0) then
+			rateWanted = goal > 0
 			rate.Text = TankRules.FormatRate(goal)
-			layout()
+			layout(true)
 		end
 		return
 	end
@@ -356,14 +394,17 @@ local function rollRate(force: boolean?)
 		stopRate = nil
 	end
 	if goal <= 0 then
-		rate.Visible = false
-		layout()
+		rateWanted = false
+		layout(true)
 		return
 	end
-	local appear = not rate.Visible
-	rate.Visible = true
+	local appear = not rateWanted
+	rateWanted = true
 	rate.Text = TankRules.FormatRate(goal)
 	layout(true)
+	if not rate.Visible then
+		return -- (строке тесно: доход спрятан, число важнее)
+	end
 	if appear then
 		UiFx.popIn(rate, { from = 0.4, time = 0.3 })
 		return
@@ -427,11 +468,6 @@ local function coinsFor(amount: number): number
 	local spec = WALLET.Coins
 	local k = math.clamp(math.log10(math.max(amount, 1)) / 4, 0, 1)
 	return math.floor(spec.Min + (spec.Max - spec.Min) * k + 0.5)
-end
-
-local function countTime(amount: number): number
-	local spec = WALLET.Count
-	return spec.Min + (spec.Max - spec.Min) * math.clamp(amount / WALLET.CountBig, 0, 1)
 end
 
 -- Всплывающая надпись у кошелька: на слое HUD (в самом кошельке её поставил бы в ряд его
@@ -635,6 +671,7 @@ local function refresh()
 		lastFit = ""
 		setMoneyText(shown)
 		rateShown = 0
+		rateWanted = false
 		rate.Visible = false
 		rollRate(true)
 		layout(true)
@@ -653,6 +690,7 @@ local function refresh()
 	elseif state == "hidden" and os.clock() - startedAt >= WALLET.LoadingAfter - 1e-3 then
 		state = "loading"
 		back.Visible = true
+		rateWanted = false
 		rate.Visible = false
 		label.Text = EconomyConfig.Format.Loading
 		lastFit = ""

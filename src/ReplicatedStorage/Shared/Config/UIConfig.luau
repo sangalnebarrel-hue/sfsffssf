@@ -427,6 +427,9 @@ local UIConfig = {
 		  HoldRelease  — замена при улове: TankButtonController зовёт Celebrate после своего прилёта;
 		                 не позвал за столько секунд после снятия CounterHold — монеты отпускаются
 		                 (надпись не застревает);
+		  JumpSeconds, SaleWait — Money вырос больше, чем на JumpSeconds секунд дохода: это продажа,
+		                 её праздник (remote) идёт следом за атрибутом — надпись ждёт его SaleWait с,
+		                 потом число «набегает» само (не прыгает);
 		  RowGap       — промежуток между числом и доходом (доля высоты строки); IconShare — сколько
 		                 ширины строки занимает 💵 (в высотах строки); TextFill — текст числа от высоты
 		                 строки; MinMoney — число не мельче стольких px (длинная строка — сжимается
@@ -449,6 +452,8 @@ local UIConfig = {
 		Coins = { Min = 3, Max = 8 },
 		RateRoll = 0.5,
 		HoldRelease = 2.5,
+		JumpSeconds = 2,
+		SaleWait = 0.6,
 		RowGap = 0.22,
 		IconShare = 1.0,
 		TextFill = 1.0,
