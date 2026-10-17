@@ -240,6 +240,7 @@ local TankConfig = {
 		Locked = "ЕЩЁ МЕСТО",
 		LockedHint = "Скоро в магазине",
 		MarketChip = "РЫНОК +{bonus}%",
+		MarketIcon = "💰", -- значок фишки рынка (🏪 рисуется вывеской «24» — не рынок)
 		-- Штамп на карточке улова (CatchFx.tankStamp): что стало с рыбой
 		Stamp = {
 			stored = "В САДОК!",

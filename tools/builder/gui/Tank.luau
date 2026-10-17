@@ -13,7 +13,8 @@
 	      Rate    «+$0/с» green italic (UIConfig.MoneyText; hidden on a header narrower than
 	              TankConfig.Panel.RateFrom px — the Wallet right above shows the same income)
 	      Total   «💵 $0 ▲» — the tank's total value now (it grows: «дорожает, чем дольше лежит»)
-	      Market  a Gold chip «🏪 РЫНОК +50%» (Label), hidden: only while SellRatePct > 100
+	      Market  a Gold chip «💰 РЫНОК +50%» (Icon TankConfig.Texts.MarketIcon, Label), hidden:
+	              only while SellRatePct > 100
 	    Panel.Strip            the Night band under the header (phones: the plate is glass there)
 	    Panel.Close            the round Berry «✕»
 	    Panel.Cards            ScrollingFrame + UIGridLayout with three hidden templates:
@@ -117,7 +118,7 @@ local function buildHeader(header: any)
 		LayoutOrder = 6,
 		Visible = false,
 		Size = UDim2.fromScale(0.24, 0.66),
-		Icon = "🏪",
+		Icon = TEXTS.MarketIcon,
 		IconScale = 1.2,
 		LabelProps = {
 			AnchorPoint = Vector2.new(1, 0.5),

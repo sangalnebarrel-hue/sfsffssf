@@ -727,6 +727,23 @@ client's `Workspace.TankWorld` (TankWorldController's fish, words and FX; its fi
 boxes) and draws the pedestal labels (`Pedestal.LabelGui`) of the bases within 60 studs of the
 camera. Render them HUD-less: `gui_render.py --scenario tank_court,tank_aisle --no-hud …`.
 
+Stage 3 tank panel (`tools/preview/gui_scenarios_panel.luau`, loaded after the tank file, in the
+standard set): `tank_panel_home` (3/6: a Gold Perch, a maxed Puffer, a young Crucian, empty
+cards, the locked teaser; the open's rise and card pops at 0.12 s), `tank_panel_full` (6/6 with a
+Rainbow Dragon, the Gold count chip), `tank_panel_market` (TankEvent "Open" from the hub market,
+then `SellRatePct` 150: the «РЫНОК +50%» chip pops in, the prices jump, the buttons turn Gold),
+`tank_sell_confirm` (the first tap: Berry «ТОЧНО?» with its ring, the red «−$X/с»), `tank_sell`
+(the second tap, then the stub server's answer — the display empties with "sold", TankEvent
+"Sold": the card squashes, «+$X» rises, an empty card pops in) and `panel_bite_yield` (a bite
+while the panel is open: it is gone at once). The panel opens through
+`TankPanelController.Toggle()` run in the client's context (`h.sim:Run(fn, h.player)`: the sheet
+reads that client's UserInputService and camera). Until Wave 2 C's MoneyController /
+TankButtonController show the Wallet and «САДОК», the file's `showChrome` stands in for them (it
+only shows what is still hidden). The layout pass treats `HUD.TankPanel.Panel` as a container
+(`gui/checks.py` CONTAINERS: its header, ✕, card strip and its own outline / face are widgets) and
+`HUD.TankPanel` as a sheet (`SHEETS`): its widgets are judged against the rest of the HUD and the
+CoreGui, not against each other, and may cover the idle action button and the thumbstick zone.
+
 Scenarios find widgets by name only (`HUD.Fishing.ActionArea.ActionButton`, `HUD.Fishing.CatchCard`,
 `HUD.RightButtons.HomeButton`, ...), so they survive restyles; a missing or hidden widget is a
 warning, not a crash (clicks are forced). A scenario is

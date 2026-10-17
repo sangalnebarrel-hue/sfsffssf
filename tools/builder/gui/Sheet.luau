@@ -1,7 +1,7 @@
 --[[
 	Sheet — the shell of a modal "sheet" over the game in the UI v5 «Симулятор» style: the tank
 	panel (stage 3, tools/builder/gui/Tank.luau fills it) and later the stage 5 shop reuse it. The
-	client helper Controllers/Sheet.luau opens, places and closes it (snapIn / popOut; its place
+	client helper Controllers/Sheet.luau opens, places and closes it (a rise from below / a shrink; its place
 	and the place of the header, the ✕ and the card strip are computed in px and written back as
 	scales — of the HUD, of the plate —, again on a ViewportSize change; it closes itself when
 	fishing needs the screen). Layout rules: tools/builder/Gui.luau; look and API:

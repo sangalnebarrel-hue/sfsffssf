@@ -1,7 +1,7 @@
 --!strict
 --[[
 	TankPanelController — панель садка (Этап 3): HUD.TankPanel — лист (Panel) с шапкой
-	🐠 «САДОК» · «4/6» · «+$42/с» · «💵 $2 783 ▲» · фишка «🏪 РЫНОК +50%», круглый ✕ и
+	🐠 «САДОК» · «4/6» · «+$42/с» · «💵 $2 783 ▲» · фишка «💰 РЫНОК +50%», круглый ✕ и
 	карточками рыб (Cards: CardTemplate / EmptyTemplate / LockedTemplate). Лист открывает,
 	раскладывает и закрывает помощник Controllers.Sheet (его же возьмёт магазин Этапа 5),
 	карточки рисует помощник Controllers.TankCards. Строят их tools/builder/gui/Sheet.luau
@@ -39,13 +39,15 @@
 	    карточки красным «−$4/с»; второе раньше ConfirmArm не считается; 0.4–3 с — TankSell(uid),
 	    на кнопке ⏳ до ответа (нет ответа Panel.SellWait с — кнопка возвращается); через 3 с —
 	    назад; нажатие на другую карточку отменяет первую. "Sold" — карточка сжимается, рыба
-	    уходит, на её месте выскакивает пустая карточка с золотым кольцом,
+	    уходит, из карточки поднимается золотое «+$45», на её месте выскакивает пустая карточка с
+	    золотым кольцом,
 	    MoneyController.Celebrate(Amount, карточка, { Rate = "down" }) — монеты летят в кошелёк,
 	    доход катится вниз (каждый "Sold" — ровно один Celebrate; панель закрыта — без полёта:
 	    from = nil); рыбу в мире убирает событие витрины. "Denied" — карточка качается,
 	    подсказка — Text сервера (NotifyController.Show, «warning»; колонка уведомлений — над
 	    листом, Sheet).
-	  • Открытие: snapIn + лесенка карточек / закрытие popOut. Пока CounterHold (рыба летит в
+	  • Открытие: лист поднимается снизу (Sheet; без перелёта — он у самых краёв своего места) +
+	    лесенка карточек и «кивок» 🐠 / закрытие — сжимается (для рыбалки — сразу). Пока CounterHold (рыба летит в
 	    кнопку) — открытие откладывается до прилёта; во время поклёвки, мини-игры, открытой
 	    карточки улова — отказ (Open → false; качает кнопку TankButtonController). Закрывается
 	    САМА (Sheet), когда FishingState становится "Bite" или "Reeling", появляется
@@ -101,6 +103,8 @@ local TEXTS = TankConfig.Texts
 local MAX_SLOTS = TankConfig.MaxSlots
 local HOME_RATE = EconomyConfig.HomeRatePct
 local BOTTOM = 0.03 -- под рядом карточек — столько их высоты (обводка не обрезается)
+local RING_Z = 8 -- кольцо «ТОЧНО?» — над лицом и подписью кнопки (Theme.SZ.Top 6 + 2)
+local FLOAT_Z = 40 -- «+$45» продажи — над листом (ZIndex 30)
 
 -- Всё состояние модуля — в одной таблице (свободные регистры верхнего уровня: compile_limits).
 local S = {
@@ -458,7 +462,8 @@ onSell = function(card: Card)
 		end
 		if card.sell then
 			UiFx.morphFlash(card.sell)
-			S.ring = UiFx.ringTimer(card.sell, TankConfig.ConfirmTime, { pad = 3 })
+			-- (над кнопкой, снаружи её обводки: под ней кольцо не видно)
+			S.ring = UiFx.ringTimer(card.sell, TankConfig.ConfirmTime, { pad = 4, z = RING_Z, thickness = 4 })
 		end
 		UiFx.sound("tick", 0.4, 1.25)
 		S.confirmEnd = task.delay(TankConfig.ConfirmTime, function()
@@ -655,6 +660,29 @@ local function celebrate(amount: number, from: GuiObject?)
 	end
 end
 
+-- «+$45» золотом поднимается из карточки (над листом); монеты в кошелёк — Celebrate.
+local function floatFrom(frame: GuiObject, amount: number)
+	local hud = S.hud
+	if not hud then
+		return
+	end
+	local area = hud.AbsoluteSize
+	if area.X <= 0 or area.Y <= 0 then
+		return
+	end
+	local size = frame.AbsoluteSize
+	local centre = frame.AbsolutePosition + size / 2 - hud.AbsolutePosition
+	local gold = UIConfig.Palette.Gold
+	UiFx.floatText(hud, TextUtil.fill(TEXTS.Pop, { amount = TankRules.FormatMoney(amount) }), {
+		position = UDim2.fromScale(centre.X / area.X, centre.Y / area.Y),
+		size = UDim2.fromScale(size.X * 1.1 / area.X, size.Y * 0.2 / area.Y),
+		colors = { UIConfig.White, gold.Top, gold.Bottom },
+		rise = 0.1,
+		time = 0.9,
+		z = FLOAT_Z,
+	})
+end
+
 local function onSold(data: { [string]: any })
 	local amount = if typeof(data.Amount) == "number" then data.Amount else 0
 	local items = data.Items
@@ -683,6 +711,9 @@ local function onSold(data: { [string]: any })
 		end
 	end
 	if amount > 0 then
+		if from then
+			floatFrom(from, amount)
+		end
 		celebrate(amount, from)
 	end
 end
