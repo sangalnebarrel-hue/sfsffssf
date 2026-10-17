@@ -11,8 +11,10 @@
 	FlagSocket.Flag}, Status.CatchCounter.{Icon, Label}, RightButtons.HomeButton.{Icon, Caption,
 	Cooldown, CooldownText, Badge}, Toasts.ToastTemplate.{Label, IconSocket.Icon}, BaseBanner.{Caption,
 	NameLabel, FlagSocket.Flag}, TrophyPointer.{Body.IconSocket.Icon, Tip, BaseRing.Stroke}
-	(NotifyController: the chip pointing at someone else's off-screen light pillar). Everything
-	else (Lip, Rim, Shine, NameLabelShadow, …) is decoration.
+	(NotifyController: the chip pointing at someone else's off-screen light pillar); stage 3 (all
+	hidden until their controllers show them): Status.Wallet.{Money.{Icon, Label, Back}, Rate}
+	(MoneyController), RightButtons.TankButton.{Icon, Caption, Count.Label, Badge}
+	(TankButtonController). Everything else (Lip, Rim, Shine, NameLabelShadow, …) is decoration.
 
 	The widgets (Theme.sim and friends; content at Theme.SZ.Content):
 	  BaseBadge     a label plate in the base colour (Theme.plate shape), the 🚩 overhanging its
@@ -20,6 +22,10 @@
 	  CatchCounter  a panel-less stat like the reference's «👟 10»: 🐟 + a big italic white number;
 	  HomeButton    a square purple button: 🏠 big in the middle, «ДОМОЙ» on its bottom edge, a
 	                hidden red «!» badge (the shop stage);
+	  Wallet        (stage 3) the reference's panel-less «💵 $0»: a big italic green number and the
+	                income «+$42/с» beside it, on the catch counter's row;
+	  TankButton    (stage 3) a square aqua button above Home: 🐠 «САДОК», the chip «0/6» on its
+	                top-left shoulder, a hidden red «!»;
 	  ToastTemplate a label plate in the kind's colour with the kind's emoji overhanging its left end;
 	  BaseBanner    the reference title: «ТВОЯ БАЗА» over a huge outlined «ЛАЗУРНАЯ!» in the base
 	                colours with a drop shadow, a waving 🚩, no panel;
@@ -149,6 +155,54 @@ local function buildStatus(hud: any)
 		MinTextSize = 16,
 	})
 
+	-- Wallet (stage 3; it takes the catch counter's row when the counter goes): the reference's
+	-- panel-less «💵 $0» — Money is a Theme.stat (the outlined 💵 at −8° and a big italic number in
+	-- MoneyText green with the display outline), Rate the income «+$42/с» in a smaller italic green
+	-- beside it (Button tier; hidden while the income is 0). One centred row (UIListLayout) 0.94 of
+	-- the stack wide: Money 0.64, Rate 0.34 — the stack does not grow (phones have no room under
+	-- it). Money.Back is a hidden glass pill: while the player's data loads longer than 3 s the
+	-- money shows on glass with «$…». Hidden until the data is loaded (MoneyController).
+	local wallet = U.new("Frame", {
+		Name = "Wallet",
+		LayoutOrder = 30,
+		Visible = false,
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(0.94, 0.38),
+	}, status)
+	U.new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+	}, wallet)
+	local money = Theme.stat(wallet, "Money", "💵", {
+		LayoutOrder = 1,
+		Size = UDim2.fromScale(0.64, 1),
+		Text = "$0",
+		Color = UI.MoneyText,
+		MaxTextSize = 48,
+		MinTextSize = 16,
+	})
+	local back = U.new("Frame", {
+		Name = "Back",
+		Visible = false,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1.04, 0.9),
+		ZIndex = SZ.Behind,
+	}, money)
+	Theme.glass(back, { radius = 0.5 })
+	label(wallet, "Rate", {
+		LayoutOrder = 2,
+		Visible = false,
+		Size = UDim2.fromScale(0.34, 0.6),
+		Text = "+$0/с",
+		TextColor3 = UI.MoneyText,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Italic = true,
+		Tier = "Button",
+	})
+
 	buildBaseBanner(hud)
 end
 
@@ -217,6 +271,44 @@ local function buildRightButtons(hud: any)
 	})
 	-- The red «!» of the reference on the top-right corner: hidden (the shop stage lights it).
 	Theme.badge(home, "Badge")
+
+	-- «САДОК» (stage 3): the same square recipe as Home, one slot above it (LayoutOrder 90), in
+	-- aqua Water (never Grape «ДОМОЙ», Leaf «ЛОВИ!» or Sky «ЗАБРОСИТЬ»), 🐠 big in the middle and
+	-- «САДОК» on its bottom edge; Count — a small Cream chip «0/6» (italic dark digits) on its
+	-- top-left shoulder (Gold when the tank is full), Badge — the hidden red «!» (the first fish
+	-- ever: open me). Hidden until the base and the data are there (TankButtonController).
+	local tank = Theme.simButton(right, "TankButton", "Water", {
+		LayoutOrder = 90,
+		Size = UDim2.fromScale(1, 0.3),
+		Visible = false,
+		Layout = "square",
+		Icon = "🐠",
+		Caption = "САДОК",
+		Tier = "Small",
+		SimOpts = { stroke = 5 },
+	})
+	local count = Theme.plate(tank, "Count", "Cream", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.14, 0.12),
+		Size = UDim2.fromScale(0.7, 0.32),
+		ZIndex = SZ.Top + 1,
+		Text = "0/6",
+		Italic = true,
+		Tier = "Small",
+		Radius = 0.5,
+		SimOpts = { stroke = Theme.MINOR, shine = false },
+		LabelProps = {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.86, 0.8),
+			Outline = false,
+			TextColor3 = INK,
+			TextStrokeTransparency = 1,
+		},
+	})
+	-- (never so small that «12/12» drops under 12 px: 40 × 20 px on the smallest phone)
+	U.new("UISizeConstraint", { MinSize = Vector2.new(40, 20) }, count)
+	Theme.badge(tank, "Badge")
 end
 
 local function buildToasts(hud: any)

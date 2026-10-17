@@ -23,7 +23,8 @@
 	parent, so the plate's face would hide the label's own text): Hint.Label, MutationLabel.Caption,
 	InfoLabel.Weight / InfoLabel.Price (chips; the price counts up). The catch also uses (by name)
 	CatchCard.{FishGlow, NewStamp, Lip (its outline), InfoLabel.Price.Multiplier, Pedestal} and
-	TitleSlam.{Label, Letters} (the giant rarity title).
+	TitleSlam.{Label, Letters} (the giant rarity title). Stage 3: CatchCard.TankStamp.Label (the
+	hidden tank stamp under the price: «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА», CatchFx.tankStamp).
 	Minigame pips keep a visible BackgroundColor3 (filled = green 64,200,96, as the e2e bot reads
 	it); the zone and the needle keep Position.X = centre and Size.X = width in track fractions.
 
@@ -51,6 +52,8 @@ local Vector2 = U.Vector2
 local rgb = U.rgb
 
 local UI = Theme.UI
+-- The stage 3 card stamp's words (a pure module, the same table the client reads).
+local TankConfig = U.loadPure("src/ReplicatedStorage/Shared/Config/TankConfig.luau")
 local P = Theme.P
 local SZ = Theme.SZ -- ZIndex layers inside a sim root
 local INK = Theme.INK
@@ -1097,6 +1100,32 @@ local function buildCatch(root: any)
 		MinTextSize = 14,
 	})
 
+	-- Stage 3: the tank stamp under the price — what happened to the fish in the tank (K-4):
+	-- «В САДОК!» (Water), «ЗАМЕНА!» (Leaf), «ПРОДАНА» (Gold) — CatchFx.tankStamp gives the text
+	-- and the colour, FishingController fits it with UiFx.textWidth (never under 12 px) and
+	-- shows it; a small tilted sim plate like «НОВИНКА!», hidden (no Tank in "Caught": no stamp).
+	local tankStamp = Theme.plate(card, "TankStamp", "Water", {
+		Visible = false,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.74, 0.84),
+		Size = UDim2.fromScale(0.36, 0.075),
+		Rotation = -6,
+		ZIndex = 8,
+		Text = TankConfig.Texts.Stamp.stored,
+		MaxTextSize = 22,
+		Radius = UI.Sim.PlateRadius,
+		SimOpts = { stroke = Theme.MINOR, shine = false },
+		LabelProps = {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.88, 0.72),
+			Outline = 3,
+			MinTextSize = 12,
+		},
+	})
+	-- (never so small that its word drops under 12 px on one line)
+	U.new("UISizeConstraint", { MinSize = Vector2.new(84, 22) }, tankStamp)
+
 	-- The close hint, named like the button's «ЗАБРАТЬ!»: muted italic on the plate (the
 	-- reference's hint text), Body tier (≥ 14 px on the smallest phone); hidden until the last
 	-- beat of the reveal, then it breathes gently.
@@ -1177,7 +1206,8 @@ end
 	                          model), NewStamp «НОВИНКА!» (red sticker),
 	                          NameLabel, MutationLabel (corner stamp: Icon, Caption), InfoLabel
 	                          (Weight — grey round chip, Price — gold round chip with italic digits;
-	                          Price.Multiplier «×N»), TapHint (italic).
+	                          Price.Multiplier «×N»), TankStamp (stage 3, the tank result stamp,
+	                          hidden), TapHint (italic).
 	                          Square here; phones: the landscape layout of FishingController
 	                          (same children); docked beside the fisher wherever it fits
 	  TitleSlam               the giant panel-less rarity title of Epic+ (Label + its LabelShadow
