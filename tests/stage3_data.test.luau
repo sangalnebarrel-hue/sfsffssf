@@ -23,7 +23,8 @@
 	  • modes: Memory (Studio without API access) — one warn, DataMode "Memory", zero writes, an
 	    instant shutdown, a player gone before the probe answered leaves no record; Broken (an
 	    error in Start) — plays, never writes;
-	  • hygiene: a garbage save is sanitized (warns expected); nothing left behind after leave.
+	  • hygiene: a garbage save is sanitized (warns expected); a corrupt NextUid (1e300) is
+	    renumbered from f1 and new catches stay sellable; nothing left behind after leave.
 	Every test that leaves data checks the ledger (Money == StartMoney + Earned − Spent).
 
 	Run: lune run tools/run_tests.luau stage3_data
@@ -1049,6 +1050,34 @@ tests["hygiene: a garbage save is sanitized on load (warns), playable, and saved
 	t.eq(#saved.Tank, 2)
 	t.ok(saved.Tank[1].Uid ~= saved.Tank[2].Uid, "unique uids")
 	t.eq(saved.Stats.Species.Perch, 2)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["hygiene: a corrupt NextUid (1e300) → the tank renumbered from f1 on load (one warn); a new catch gets a valid uid and sells"] = function(
+	t
+)
+	local sim = boot(t)
+	local data = service(sim, "DataService")
+	sim.DataStore:Poke(STORE, key(1), template({ NextUid = 1e300, Tank = { savedFish("Perch", "f7", 1) } }))
+	local p = addPlayer(sim, 1)
+	t.eq(p:GetAttribute("DataMode"), "Ready")
+	t.eq(takeWarnings(sim, "починены при загрузке"), 1, "one warn listing the repairs")
+	local live = data:Get(p)
+	t.eq({ live.Tank[1].Uid, live.NextUid }, { "f1", 2 }, "renumbered from f1")
+	local tank = service(sim, "TankService")
+	local rules = sim:Require(sim:Find("ReplicatedStorage.Shared.FishingRules"))
+	local value, income = rules.Price("Crucian", 1, nil)
+	local result = sim:Run(function()
+		return tank:AddFish(p, { Id = "Crucian", Rarity = "Common", Kg = 1, Value = value, Income = income }, "catch")
+	end)
+	t.eq(result.Uid, "f2", "a valid uid for the new catch")
+	sim:FireServer(p, "TankSell", "f2")
+	sim:Advance(0.5)
+	t.eq(#live.Tank, 1, "the new catch sold")
+	t.eq(live.Tank[1].Uid, "f1")
+	local saved = peekAfter(sim, p)
+	t.eq(saved.NextUid, 3, "saved back clean")
+	ledgerHolds(t, sim, saved, "saved")
 	sim:AssertNoErrors({ warnings = true })
 end
 

@@ -52,7 +52,8 @@
 	                                      при загрузке. opts.skipUid(uid) → true: рыбу не
 	                                      сохранять (Этап 4, «в пути» при краже); opts.strict —
 	                                      без незнакомых полей вовсе (повтор после ошибки 103/104/105)
-	  NewUid(data) -> string              номер новой рыбы ("f" .. NextUid; NextUid += 1)
+	  NewUid(data) -> string              номер новой рыбы ("f" .. NextUid; NextUid += 1); NextUid
+	                                      за пределом длины Uid (порча) — младший свободный
 	  SlotCap(data) -> number             витрин в игре: min(TankSlots, MaxSlots)
 	  Layout(data) -> (active, dormant)   кто где: active[slot] = рыба (вид знаком, Slot — целое
 	                                      1..SlotCap, первая в порядке Tank); dormant — остальные
@@ -75,7 +76,8 @@
 	  • Tank — словарь или массив с дырами переупаковывается плотно; рыба без строкового Id или без
 	    конечного Kg > 0 выбрасывается; незнакомый Id и незнакомая мутация остаются как есть (в игре
 	    — «спит» / без мутации); Age — 0..Growth.Time; плохой или повторный Uid — новый (NewUid);
-	    NextUid ≥ 1 + самый большой номер;
+	    NextUid ≥ 1 + самый большой номер; NextUid (или номер рыбы) у предела длины Uid
+	    (TankConfig.Uid.MaxLength) — весь садок перенумерован с f1;
 	  • витрины: знакомая рыба сохраняет целый Slot 1..SlotCap, если он ни у кого раньше; рыбы с
 	    повторным или неверным слотом встают в самые младшие свободные; свободных нет — «спит»,
 	    Slot не меняется (вернётся, когда витрина освободится: проверка при каждой загрузке).
@@ -138,6 +140,9 @@ export type SerializeOptions = {
 
 local LIMITS = DataConfig.Limits
 local GROWTH_TIME = TankConfig.Growth.Time
+-- Самый большой номер рыбы, чей Uid влезает в TankConfig.Uid.MaxLength ("f" + 11 цифр): дальше
+-- TankRules.UidNumber номер не примет (рыбу нельзя было бы продать).
+local UID_LIMIT = 10 ^ (TankConfig.Uid.MaxLength - #TankConfig.Uid.Prefix) - 1
 
 -- Шаги миграции: MIGRATIONS[v](data) переводит данные версии v в v + 1 (в v1 — ни одного).
 local MIGRATIONS: { [number]: (data: any) -> () } = {}
@@ -396,6 +401,22 @@ end
 
 function PlayerData.NewUid(data: any): string
 	local n = math.floor(num(data.NextUid, 1, 1))
+	if n > UID_LIMIT then
+		-- Номера кончились (только порча: Sanitize при загрузке такого не оставляет) — младший
+		-- свободный; NextUid не растёт, следующая загрузка перенумерует садок.
+		local used: { [number]: boolean } = {}
+		for _, fish in if type(data.Tank) == "table" then data.Tank else {} do
+			local k = if type(fish) == "table" then TankRules.UidNumber(fish.Uid) else nil
+			if k then
+				used[k] = true
+			end
+		end
+		local free = 1
+		while used[free] do
+			free += 1
+		end
+		return TankRules.UidOf(free)
+	end
 	data.NextUid = n + 1
 	return TankRules.UidOf(n)
 end
@@ -560,7 +581,20 @@ function PlayerData.Sanitize(data: any): (Data, { string })
 		end
 	end
 	local nextUid = math.floor(num(data.NextUid, 1, 1))
-	if nextUid < highest + 1 or nextUid ~= data.NextUid then
+	if nextUid > UID_LIMIT or highest >= UID_LIMIT then
+		-- Номера за пределом длины Uid (порча): весь садок заново с f1 (номера — у каждого
+		-- игрока свои, ссылок на них в сохранении нет).
+		report("NextUid", data.NextUid, #fishes + 1)
+		for i, fish in fishes do
+			local uid = TankRules.UidOf(i)
+			if uid ~= fish.Uid then
+				report(`{paths[i]}.Uid`, fish.Uid, uid)
+				fish.Uid = uid
+			end
+		end
+		nextUid = #fishes + 1
+		renumber = {}
+	elseif nextUid < highest + 1 or nextUid ~= data.NextUid then
 		local fixed = math.max(nextUid, highest + 1)
 		report("NextUid", data.NextUid, fixed)
 		nextUid = fixed
