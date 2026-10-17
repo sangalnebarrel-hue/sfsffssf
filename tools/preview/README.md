@@ -656,7 +656,7 @@ safe area).
 | `catch_common_again` | a known Common (the second Карасик): calm — no dim, no confetti, no «+N 💰», 0.2 s beats | 0..2.3 s (whole screen) |
 | `catch_gold`, `catch_neon`, `catch_rainbow` | catch card with a mutation (the base price ticks, stamp, «×N», recount with the party, outline) | rainbow 1.4..3.0 s |
 | `catch_skip` | a tap during the reveal (Epic) shows every beat at once | 0..0.5 s |
-| `catch_close` | tap closes the settled card: the card itself flies into the counter shrinking to a speck (the first catch: «Улов: 0» pops in), 🐟 ★ beside it, +1 in the rarity colour ≈ 0.33 s after the tap (stills 0.2 / 0.36 s) | 0..1 s, whole screen |
+| `catch_close` | tap closes the settled card: the card itself flies into «САДОК» shrinking to a speck, 🐟 ★ beside it, the chip rolls 0/6 → 1/6 with a ring in the rarity colour ≈ 0.33 s after the tap (stills 0.2 / 0.36 s; stage 3) | 0..1 s, whole screen |
 | `toast_info`, `toast_success`, `toast_warning`, `toast_danger` | one toast of each kind | success 0..0.8 s |
 | `toast_stack` | three toasts (the cap), then the oldest leaves | 3..4.4 s |
 | `home_cooldown` | «ДОМОЙ» pressed with the rod in the backpack: the cooldown drains, «ВЗЯТЬ» stays + «where to go» (never only «ДОМОЙ» on screen) | 0..0.8 s |
@@ -691,7 +691,8 @@ World + HUD scenarios in `gui_scenarios.luau` (`server = true`, `world = true`, 
 name): `bite_world` (a real bite: the bobber dives above the «КЛЮЁТ!» plate), `minigame_world` (a
 real Legendary minigame: on a phone the panel stands beside the reeling bobber), `nibble_world`
 (the own bobber's nibble: the dip, ring, drops and «?»). `trophy_chip` (`world = true` only, IN
-`--all` since UI v5 so its gap to the Home column is checked on every device): someone else's
+`--all` since UI v5 so its gap to the right column — stage 3: «САДОК» over «ДОМОЙ» — is checked
+on every device): someone else's
 Legendary pillar on the next pier, off-screen — the broadcast and the 🌟 chip at the screen edge on
 its side; `FishingFxController.OtherTrophy` is fired directly, with the player itself as the
 catcher.
@@ -705,6 +706,20 @@ plop; burst 0..1.6 s), `fx_wait` (the slack line, the fish shadow swimming in an
 0.6..1.6 s over the whole screen: the crisp burst at the fish, no screen wash). Their `roi` is a
 fixed part of the screen — `{ frac = { x0, y0, x1, y1 } }` (fractions of the screen; world FX
 have no GUI path) — and may be mixed with GUI paths.
+
+Stage 3 HUD (`tools/preview/gui_scenarios_hud3.luau`, loaded by `gui_dump.luau` after
+`gui_scenarios.luau`; the standard set, so `--all` checks them on every device; the stage 3
+services are stubs — the scenarios write the player attributes and send "Caught" with its
+TankResult in the same frame, like TankService): `wallet_idle` (the panel-less Wallet «💵 $1 234
++$19/с» under the badge; the 5 s income float), `wallet_loading` (`fresh`: the data loads longer
+than 3 s — «$…» on a glass pill, then the punch-in), `wallet_big` («$999 999» with «+$1 234/с»: the
+number stays ≥ 22 px on `phone_small`), `tank_button` / `tank_full` (the square aqua «САДОК» over
+«ДОМОЙ», the chip «4/6», gold «6/6»), `catch_to_tank` (a Rare catch: «+$5.2/с» out of the price,
+«В САДОК!» stamped, the card flies into «САДОК», the chip rolls 2 → 3; sheet 2.6..3.5 s),
+`catch_replaced` (a full tank, an Epic: «ЗАМЕНА!», coins from «САДОК» into the Wallet, the toast
+naming both fish), `catch_sold` (a weaker catch: «ПРОДАНА», a gold «+$11», the card flies into the
+Wallet as 💵, «Садок полон…» once), `tank_button_badge` (the onboarding «!» after the first fish
+ever), `first_fish_toast`, `data_memory_toast` (`fresh`: Studio without DataStore access).
 
 Stage 3 world views (`tools/preview/gui_scenarios_tank.luau`, loaded by `gui_dump.luau` after
 `gui_scenarios.luau`, `world = true`, not in `--all`; by name): `tank_court` (the court of base 1

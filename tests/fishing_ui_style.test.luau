@@ -9,11 +9,15 @@
 	    sparks), the miss ghost («МИМО!»), the catch card per rarity (dim, rays, pop-in with a
 	    turn, «НОВАЯ!», count-up, confetti; Legendary/Mythic: a crisp burst at the fish — no edge
 	    flash —, second ring, rainbow), the mutation badge effects and the hint pill by kind;
+	    stage 3: the fish's income «+$X/с» flies out of the price, the tank stamp «В САДОК!» /
+	    «ЗАМЕНА!» / «ПРОДАНА» lands after it, and the card flies into «САДОК» (a fish sold on the
+	    spot — as 💵 into the Wallet);
 	  • effects start and are cleaned up: no Fx* instances left after a full catch/close and after
 	    a miss, no frame effect (RenderStepped/Heartbeat) running while idle, connection counts
 	    back to their baseline;
-	  • the layout fits on a phone, a tablet and a desktop: nothing overlaps the status stack, the
-	    Home button, the thumbstick or the Jump button, and the widgets do not overlap each other
+	  • the layout fits on a phone, a tablet and a desktop: nothing overlaps the status stack (the
+	    badge and the Wallet), the right column («САДОК» over «ДОМОЙ»), the thumbstick or the Jump
+	    button, and the widgets do not overlap each other
 	    (v3: the Roblox hotbar is off; on a phone the minigame docks LEFT of the own fisher, the
 	    catch card beside him — FishingLayout).
 	The server's FishingService is switched off (like tests/stage2_client.test.luau): the harness
@@ -161,6 +165,43 @@ end
 local function catch(sim: any, p: any, fish: { [string]: any }, total: number)
 	p:SetAttribute("FishCaught", total)
 	serverSays(sim, p, "Caught", { Fish = fish, Total = total })
+end
+
+-- Stage 3: the catch with its TankResult — the tank (and money) attributes first, like TankService
+-- and EconomyService, then "Caught" (RemoteNames: crediting → attributes → remotes).
+local function catchTank(
+	sim: any,
+	p: any,
+	fish: { [string]: any },
+	total: number,
+	tank: { [string]: any },
+	money: number?
+)
+	p:SetAttribute("FishCaught", total)
+	p:SetAttribute("TankCount", tank.Count)
+	p:SetAttribute("TankSlots", tank.Slots)
+	if money then
+		p:SetAttribute("Money", money)
+	end
+	serverSays(sim, p, "Caught", { Fish = fish, Total = total, Tank = tank })
+end
+
+-- A fish laid into slot `n` of a 6-slot tank (the n-th fish).
+local function stored(n: number): { [string]: any }
+	return { Result = "stored", Slot = n, Uid = `f{n}`, Count = n, Slots = 6 }
+end
+
+-- Every player's Wallet and «САДОК» have popped in (after the base banner, HudController IntroAt).
+local function chromeIn(sim: any, players: { any }): boolean
+	return sim:WaitFor(function()
+		for _, p in players do
+			local hud = p.PlayerGui.HUD
+			if not (hud.Status.Wallet.Visible and hud.RightButtons.TankButton.Visible) then
+				return false
+			end
+		end
+		return true
+	end, 10) == true
 end
 
 local function uiFx(sim: any, p: any): any
@@ -788,7 +829,8 @@ end
 -- and no confetti; the texts appear by beats; «НОВИНКА!» instead of «НОВАЯ!». Wave D: the name is
 -- born with the card, and a NEW Common species gets a small fanfare — a light dim, brighter rays
 -- with gold and green, sparks + confetti + a ping at «НОВИНКА!», a «+N 💰»; the same species again
--- is calm.)
+-- is calm. Stage 3: «цена $11» in the summary, and what flies out of the price is the fish's income
+-- «+$1.1/с».)
 tests["catch card: Common reveal — a new species gets a small fanfare, a known one stays calm"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)
@@ -807,7 +849,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 	t.ok(card.FxScale.Scale < 1, "the card pops in")
 	t.ok(card.Rotation < 0, "…with a little turn")
 	t.ok(isCandy(card.Banner, UIConfig.Rarity.Common), "the banner in the rarity gradient")
-	t.eq(card.InfoLabel.Text, "840 г · цена 11 💰", "InfoLabel holds the summary at once")
+	t.eq(card.InfoLabel.Text, "840 г · цена $11", "InfoLabel holds the summary at once")
 	t.eq(card.InfoLabel.Weight.Label.Text, "840 Г", "the weight chip in CAPS")
 	t.eq(price.Text, "0", "the price starts at 0")
 	t.eq(card.Banner.FxScale.Scale, 0, "the rarity waits for its beat")
@@ -835,9 +877,9 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 		waitFor(sim, function()
 			return f:FindFirstChild("FxPriceFloat") ~= nil
 		end, 1),
-		"a new species: «+11 💰» flies out of the price"
+		"a new species: its income «+$1.1/с» flies out of the price"
 	)
-	t.eq(f.FxPriceFloat.Text, "+11 💰")
+	t.eq(f.FxPriceFloat.Text, "+$1.1/с")
 	sim:Advance(0.5)
 	t.eq(price.Text, "11", "the price counted up to the value")
 	t.near(card.NewStamp.FxScale.Scale, 1, 1e-3, "«НОВИНКА!» stamped")
@@ -854,7 +896,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 		"a plain Common card keeps its own outline"
 	)
 
-	-- The same species again: calm — no «НОВИНКА!», no dim, no confetti, no «+N 💰», rarity rays.
+	-- The same species again: calm — no «НОВИНКА!», no dim, no confetti, no «+$X/с», rarity rays.
 	sim:Advance(UIConfig.CatchCardTime.Common + 1)
 	t.eq(card.Visible, false, "closed by itself")
 	sim:Advance(2)
@@ -872,7 +914,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 			or p.PlayerGui.HUD:FindFirstChild("FxConfetti") ~= nil
 	end
 	t.eq(price.Text, "11", "…the price lands")
-	t.eq(float, false, "…without «+N 💰»")
+	t.eq(float, false, "…without «+$X/с»")
 	t.eq(confetti, false, "…and without confetti")
 	sim:AssertNoErrors({ warnings = true })
 end
@@ -1012,6 +1054,7 @@ tests["mutation: stamped after the base price — «×N», recount, outline; Gol
 	local outline = card.Lip:FindFirstChildOfClass("UIStroke")
 	local outlineRest = outline.Color -- (UI v5: the card's dark navy outline, Palette.Cream.Lip)
 	local price = card.InfoLabel.Price.Label
+	local TankRules = sim:Require(sim:Find("ReplicatedStorage.Shared.TankRules"), p)
 	local cases = {
 		{ "Gold", "Золотая мутация ×2", "ЗОЛОТАЯ ×2!", "×2", 2 },
 		{ "Neon", "Неоновая мутация ×3", "НЕОНОВАЯ ×3!", "×3", 3 },
@@ -1021,6 +1064,7 @@ tests["mutation: stamped after the base price — «×N», recount, outline; Gol
 		local fish = table.clone(CATCHES.Rare)
 		fish.Mutation = case[1]
 		fish.Value = CATCHES.Rare.Value * case[5]
+		fish.Income = CATCHES.Rare.Income * case[5]
 		catch(sim, p, fish, index)
 		t.ok(openCard(sim, p))
 		t.eq(badge.Visible, true)
@@ -1046,14 +1090,15 @@ tests["mutation: stamped after the base price — «×N», recount, outline; Gol
 		)
 		sim:Advance(0.1)
 		t.eq(badge.FxScale.Scale, 0, `{case[1]}: the stamp not yet (the base price breathes)`)
-		t.eq(fishing(p):FindFirstChild("FxPriceFloat"), nil, `{case[1]}: no «+N 💰» for the base price`)
+		t.eq(fishing(p):FindFirstChild("FxPriceFloat"), nil, `{case[1]}: no «+$X/с» for the base price`)
 		sim:Advance(1.0)
 		t.near(badge.FxScale.Scale, 1, 0.02, `{case[1]}: stamped in`)
 		t.eq(card.InfoLabel.Price.Multiplier.Visible, true, `{case[1]}: «×N» slammed`)
 		t.eq(price.Text, tostring(fish.Value), `{case[1]}: recounted to the full price`)
 		t.ok(outline:FindFirstChild("FxRimFill"), `{case[1]}: the card outline in its colours`)
 		local float = fishing(p):FindFirstChild("FxPriceFloat")
-		t.ok(float and float.Text == `+{fish.Value} 💰`, `{case[1]}: «+N 💰» with the full price`)
+		local income = TankRules.FormatRate(TankRules.Income10(fish.Income))
+		t.ok(float and float.Text == income, `{case[1]}: «{income}» — the full income`)
 		if case[1] == "Gold" then
 			t.ok(count(badge, "FxSparkle") > 0, "Gold: sparkles")
 		elseif case[1] == "Neon" then
@@ -1264,9 +1309,10 @@ end
 
 -- (UI v2: a tap during the reveal skips it; wave D: the card itself is the projectile — it flies
 -- into the counter shrinking to a speck, a 🐟 with ★ leaves beside it 0.05 s later and they land
--- together; the rays shrink with it — timings this test checked before. The first catch: the
--- counter appears with «🐟 0» as the card leaves, so the 🐟 has a target.)
-tests["closing: skip, then close — the card itself flies into the counter, 🐟 ★ with it, +1 ≈ 0.35 s; nothing leaks"] = function(
+-- together; the rays shrink with it — timings this test checked before. Stage 3: the target is
+-- «САДОК» — its chip «0/6» waits for the fish and rolls to «1/6» when it lands; a fish sold on the
+-- spot («ПРОДАНА») flies as 💵 into the Wallet, which counts its price up only then.)
+tests["closing: skip, then close — the card flies into «САДОК», 🐟 ★ with it, the chip rolls ≈ 0.35 s; nothing leaks"] = function(
 	t
 )
 	local sim = boot(t)
@@ -1276,14 +1322,21 @@ tests["closing: skip, then close — the card itself flies into the counter, �
 	local f = fishing(p)
 	local card = f.CatchCard
 	local hud = p.PlayerGui.HUD
-	local counter = hud.Status.CatchCounter
+	local tankButton = hud.RightButtons.TankButton
+	local chip = tankButton.Count.Label
+	local money = hud.Status.Wallet.Money
 	local UiFx = uiFx(sim, p)
+	t.ok(tankButton.Visible and hud.Status.Wallet.Visible, "«САДОК» and the Wallet are on screen")
+	t.eq(chip.Text, "0/6")
 	local idleConnections = sim:CountConnections(p)
 	local idleFrames = frameConnections(sim, p)
 	t.eq(UiFx.activeJobs(), 0, "idle")
+	local function center(gui: any): any
+		return gui.AbsolutePosition + gui.AbsoluteSize / 2
+	end
 
-	catch(sim, p, CATCHES.Rare, 1)
-	t.eq(hud:GetAttribute("CounterHold"), 0, "the counter holds the old number")
+	catchTank(sim, p, CATCHES.Rare, 1, stored(1))
+	t.eq(hud:GetAttribute("CounterHold"), 0, "the catch holds «САДОК» on its old count")
 	t.ok(openCard(sim, p))
 	t.ok(frameConnections(sim, p) > idleFrames, "the reveal animates per frame")
 	sim:Advance(0.02)
@@ -1297,10 +1350,12 @@ tests["closing: skip, then close — the card itself flies into the counter, �
 	t.eq(card.Visible, true, "a tap during the reveal skips it")
 	t.near(card.Banner.FxScale.Scale, 1, 0.2, "…every beat at once")
 	t.eq(card.InfoLabel.Price.Label.Text, "58")
+	t.ok(card.TankStamp.Visible, "…the tank stamp too")
+	t.eq(card.TankStamp.Label.Text, "В САДОК!")
 	local button = f.ActionArea.ActionButton
 	t.eq(button.Caption.Text, "ЗАБРАТЬ!", "the settled card: the button says «ЗАБРАТЬ!»")
 	t.ok(isCandy(button, Palette.Leaf), "…a green plate, awake")
-	t.eq(counter.Visible, false, "the first catch: no counter yet")
+	t.eq(chip.Text, "0/6", "«САДОК» waits for the fish")
 	sim:Advance(0.2)
 	sim:Click(p, card)
 	sim:Advance(0.02)
@@ -1313,16 +1368,19 @@ tests["closing: skip, then close — the card itself flies into the counter, �
 	t.eq(card.Viewport:FindFirstChildOfClass("Model"), nil, "the fish model is gone from the card")
 	local ghost = f:FindFirstChild("FxCardOut")
 	t.ok(ghost, "its ghost shrinks away…")
-	t.eq(hud:GetAttribute("CounterIncoming"), "Rare", "…towards the counter, which knows what flies in")
-	t.eq(counter.Visible, true, "the first catch: the counter appears…")
-	t.eq(counter.Label.Text, "0", "…with the number before the fish")
+	t.eq(hud:GetAttribute("CounterIncoming"), "Rare", "…towards «САДОК», which knows what flies in")
+	t.eq(chip.Text, "0/6", "…still on the count before the fish")
 	t.eq(button.Ring.Transparency, 1, "the frozen button has no halo during the flight")
-	-- (Wave D, R3-6: the card itself is the projectile — it flies almost into the counter,
-	-- shrinking to a speck; the 🐟 and ★ leave at once from near its start and land with it.)
+	local target = center(tankButton)
+	local from = (center(ghost) - target).Magnitude
+	-- (Wave D, R3-6: the card itself is the projectile — it flies almost into «САДОК», shrinking
+	-- to a speck; the 🐟 and ★ leave at once from near its start and land with it.)
 	sim:Advance(0.06)
 	t.ok(hud:FindFirstChild("FxFly"), "a 🐟 leaves right away, beside the flying card")
 	sim:Advance(0.16)
 	t.ok(ghost.FxScale.Scale < 0.6, `the card shrinks as it flies ({ghost.FxScale.Scale})`)
+	local now = (center(ghost) - target).Magnitude
+	t.ok(now < from - 20, `…towards «САДОК» ({from} → {now} px)`)
 	local stars = 0
 	for _, item in hud:GetChildren() do
 		if item.Name == "FxFly" and item.Text == "★" then
@@ -1334,17 +1392,17 @@ tests["closing: skip, then close — the card itself flies into the counter, �
 		UiFx.activeJobs() <= 3,
 		`the close flight: ≤ 3 frame effects — the card, the 🐟, the ★ flock ({UiFx.activeJobs()})`
 	)
-	t.eq(hud:GetAttribute("CounterHold"), 0, "the counter still holds its number while they fly")
+	t.eq(hud:GetAttribute("CounterHold"), 0, "«САДОК» still holds its count while they fly")
 	t.eq(button.Ring.Transparency, 1, "…still no halo on the frozen button")
 	sim:Advance(0.15) -- close + 0.39 s
 	t.eq(f.CatchRays:FindFirstChild("FxRays"), nil, "the rays shrank with the card")
-	t.eq(f:FindFirstChild("FxCardOut"), nil, "the card is gone into the counter")
+	t.eq(f:FindFirstChild("FxCardOut"), nil, "the card is gone into «САДОК»")
 	t.eq(f.CatchDim.Visible, false, "the dim faded away")
-	t.eq(hud:GetAttribute("CounterHold"), nil, "the 🐟 arrived with the card (tap → +1 ≈ 0.35 s)")
+	t.eq(hud:GetAttribute("CounterHold"), nil, "the 🐟 arrived with the card (tap → the chip ≈ 0.35 s)")
 	t.eq(hud:GetAttribute("CounterIncoming"), nil, "…and the incoming mark is cleared")
-	t.eq(counter.Label.Text, "1")
-	t.ok(counter.FxScale.Scale > 1, "the counter bumps when the fish arrives")
-	t.ok(counter:FindFirstChild("FxRing", true), "…with a ring in the rarity colour (round the 🐟)")
+	t.eq(chip.Text, "1/6")
+	t.ok(tankButton.FxScale.Scale > 1, "«САДОК» bumps when the fish arrives")
+	t.ok(tankButton:FindFirstChild("FxRing"), "…with a ring in the rarity colour")
 	sim:Advance(0.3)
 	t.eq(hud:FindFirstChild("FxFlyFrom"), nil, "the 🐟's start point is gone once the last ★ left")
 	sim:Advance(3)
@@ -1354,12 +1412,59 @@ tests["closing: skip, then close — the card itself flies into the counter, �
 	t.eq(sim:CountConnections(p), idleConnections, "connections back to the idle count")
 
 	-- Closing by itself (UIConfig.CatchCardTime) does the same.
-	catch(sim, p, CATCHES.Legendary, 2)
+	catchTank(sim, p, CATCHES.Legendary, 2, stored(2))
 	t.ok(openCard(sim, p))
 	sim:Advance(UIConfig.CatchCardTime.Legendary + 0.05)
 	t.eq(card.Visible, false, "closed by itself")
 	sim:Advance(3)
-	t.eq(counter.Label.Text, "2")
+	t.eq(chip.Text, "2/6")
+	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
+	t.eq(frameConnections(sim, p), idleFrames)
+	t.eq(sim:CountConnections(p), idleConnections)
+
+	-- A full tank sells a weaker catch on the spot: «ПРОДАНА», the card flies into the Wallet as
+	-- 💵, and only then the Wallet counts the price up («САДОК» stays as it is).
+	local before = money.Label.Text
+	catchTank(sim, p, CATCHES.Common, 3, { Result = "sold", Count = 2, Slots = 6, Price = 11 }, 11)
+	t.ok(openCard(sim, p))
+	t.ok(
+		waitFor(sim, function()
+			return card.TankStamp.Visible
+		end, 3),
+		"the stamp lands after the price"
+	)
+	t.eq(card.TankStamp.Label.Text, "ПРОДАНА")
+	t.eq(money.Label.Text, before, "the Wallet holds the sale while the card is up")
+	t.ok(
+		waitFor(sim, function()
+			return card.TapHint.TextTransparency < 0.5
+		end, 2),
+		"the last beat (a tap now closes)"
+	)
+	sim:Advance(0.1)
+	sim:Click(p, card)
+	sim:Advance(0.02)
+	t.eq(card.Visible, false)
+	local soldGhost = f:FindFirstChild("FxCardOut")
+	t.ok(soldGhost, "the card flies…")
+	local wallet = center(money)
+	local start = (center(soldGhost) - wallet).Magnitude
+	sim:Advance(0.06)
+	local bill = false
+	for _, item in hud:GetChildren() do
+		if item.Name == "FxFly" and item.Text == "💵" then
+			bill = true
+		end
+	end
+	t.ok(bill, "…with a 💵 instead of the 🐟")
+	sim:Advance(0.16)
+	local near = (center(soldGhost) - wallet).Magnitude
+	t.ok(near < start - 20, `…towards the Wallet ({start} → {near} px)`)
+	t.eq(money.Label.Text, before, "…the Wallet still holds the sale")
+	sim:Advance(1.4)
+	t.eq(money.Label.Text, "$11", "the 💵 landed: the Wallet counted the price up")
+	t.eq(chip.Text, "2/6", "«САДОК» is untouched")
+	sim:Advance(3)
 	t.eq(#leftovers(p), 0, `no effect instances left: {table.concat(leftovers(p), ", ")}`)
 	t.eq(frameConnections(sim, p), idleFrames)
 	t.eq(sim:CountConnections(p), idleConnections)
@@ -2084,9 +2189,11 @@ tests["layout: the fishing UI fits on phone, tablet and desktop without overlaps
 		players[device] = addPlayer(sim, i, device)
 	end
 	for _, device in devices do
+		ready(sim, players[device])
+	end
+	t.ok(chromeIn(sim, { players.phone, players.tablet, players.desktop }), "the Wallet and «САДОК» popped in")
+	for _, device in devices do
 		local p = players[device]
-		ready(sim, p)
-		p:SetAttribute("FishCaught", 3) -- the catch counter shows
 		serverSays(sim, p, "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
 	end
 	sim:Advance(0.5)
@@ -2122,7 +2229,8 @@ tests["layout: the fishing UI fits on phone, tablet and desktop without overlaps
 		local hint = r(f.Hint)
 		local card = r(f.CatchCard)
 		local badge = r(hud.Status.BaseBadge)
-		local counter = r(hud.Status.CatchCounter)
+		local wallet = r(hud.Status.Wallet)
+		local tank = r(hud.RightButtons.TankButton)
 		local home = r(hud.RightButtons.HomeButton)
 
 		local all = {
@@ -2171,13 +2279,13 @@ tests["layout: the fishing UI fits on phone, tablet and desktop without overlaps
 			local a, b = all[pair[1]], all[pair[2]]
 			t.eq(overlap(a, b), 0, `{device}: {pair[1]} {fmt(a)} overlaps {pair[2]} {fmt(b)}`)
 		end
-		local chrome = { badge = badge, counter = counter, home = home }
+		local chrome = { badge = badge, wallet = wallet, tank = tank, home = home }
 		for cname, crect in chrome do
 			for name, rect in all do
 				-- (UI v2: the catch card is placed when it opens, and the status stack fades
 				-- under it — see "catch card layout"; its unopened builder box is not checked
 				-- against the status stack.)
-				if not (name == "card" and cname ~= "home") then
+				if not (name == "card" and (cname == "badge" or cname == "wallet")) then
 					t.eq(overlap(crect, rect), 0, `{device}: {name} {fmt(rect)} overlaps {cname} {fmt(crect)}`)
 				end
 			end
@@ -2216,16 +2324,19 @@ tests["layout: the fishing UI fits on phone, tablet and desktop without overlaps
 				- jump.w / 2
 				- (button.w / 2 * ring.grow + px) * math.min(ring.peak, grow)
 			t.ok(ringGap >= 15.5, `{device}: its white rings keep 16 px to Jump ({ringGap})`)
-			-- D3: «СМОТАТЬ» keeps 16 px to the Home column (both outlines included); it is
-			-- anchored at its bottom-right corner, so its pop-in never grows towards Home.
-			local dx = math.max(home.x - (stop.x + stop.w), stop.x - (home.x + home.w), 0)
-			local dy = math.max(home.y - (stop.y + stop.h), stop.y - (home.y + home.h), 0)
-			local edges = f.ActionArea.StopButton.Lip:FindFirstChildOfClass("UIStroke").Thickness
-				+ hud.RightButtons.HomeButton.Lip:FindFirstChildOfClass("UIStroke").Thickness
-			t.ok(
-				math.sqrt(dx * dx + dy * dy) - edges >= 16,
-				`{device}: «СМОТАТЬ» {fmt(stop)} keeps 16 px to Home {fmt(home)}`
-			)
+			-- D3: «СМОТАТЬ» keeps 16 px to the right column (both outlines included; stage 3:
+			-- «САДОК» over «ДОМОЙ»); it is anchored at its bottom-right corner, so its pop-in never
+			-- grows towards the column.
+			for cname, column in { ["«САДОК»"] = tank, ["Home"] = home } do
+				local dx = math.max(column.x - (stop.x + stop.w), stop.x - (column.x + column.w), 0)
+				local dy = math.max(column.y - (stop.y + stop.h), stop.y - (column.y + column.h), 0)
+				local edges = f.ActionArea.StopButton.Lip:FindFirstChildOfClass("UIStroke").Thickness
+					+ hud.RightButtons.HomeButton.Lip:FindFirstChildOfClass("UIStroke").Thickness
+				t.ok(
+					math.sqrt(dx * dx + dy * dy) - edges >= 16,
+					`{device}: «СМОТАТЬ» {fmt(stop)} keeps 16 px to {cname} {fmt(column)}`
+				)
+			end
 			for _, name in { "minigame", "alert", "hint", "card" } do
 				t.eq(overlap(all[name], stick), 0, `{device}: {name} {fmt(all[name])} clear of the thumbstick`)
 			end
@@ -2254,11 +2365,12 @@ tests["catch card layout: a landscape trophy card on phones, square on tablet / 
 		players[device] = addPlayer(sim, i, device)
 	end
 	for _, device in devices do
+		ready(sim, players[device])
+	end
+	t.ok(chromeIn(sim, { players.phone, players.tablet, players.desktop }), "the Wallet and «САДОК» popped in")
+	for _, device in devices do
 		local p = players[device]
-		ready(sim, p)
-		p:SetAttribute("FishCaught", 2)
-		sim:Advance(0.2)
-		catch(sim, p, CATCHES.Legendary, 3)
+		catchTank(sim, p, CATCHES.Legendary, 3, stored(3))
 	end
 	sim:Advance(CARD_OPENS + 0.8)
 	for _, device in devices do
@@ -2290,6 +2402,13 @@ tests["catch card layout: a landscape trophy card on phones, square on tablet / 
 			t.near(card.w / card.h, 380 / 384, 0.05, `{device}: the square card {fmt(card)}`)
 		end
 		t.ok(card.x + card.w * 1.04 <= button.x, `{device}: clear of the action button {fmt(card)} / {fmt(button)}`)
+		-- Stage 3: the right column is taller («САДОК» over «ДОМОЙ»): the card keeps 16 px to it.
+		for _, name in { "TankButton", "HomeButton" } do
+			local column = rectOf(sim, p, hud.RightButtons[name])
+			local gap = math.max(column.x - (card.x + card.w), card.x - (column.x + column.w))
+			local apart = column.y >= card.y + card.h or card.y >= column.y + column.h
+			t.ok(apart or gap >= 16, `{device}: the card {fmt(card)} keeps 16 px to {name} {fmt(column)}`)
+		end
 		t.ok(card.y + card.h <= vp.Y - BOTTOM_GAP, `{device}: ≥ 16 px above the bottom {fmt(card)}`)
 		t.ok(card.y >= INSET, `{device}: below the top bar {fmt(card)}`)
 		if device ~= "desktop" then
@@ -2301,6 +2420,102 @@ tests["catch card layout: a landscape trophy card on phones, square on tablet / 
 			t.eq(overlap(card, grown), 0, `{device}: clear of the thumbstick {fmt(card)}`)
 		end
 		t.ok(hud.Status.BaseBadge.Label.TextTransparency > 0.95, `{device}: the status stack faded under the card`)
+	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- Stage 3: what happened to the fish, stamped on the card after its price lands — «В САДОК!» (Water),
+-- «ЗАМЕНА!» (Leaf), «ПРОДАНА» (Gold) — in the close-hint row (the hint shortens beside it or goes),
+-- never under 12 px; a catch without a tank result keeps the whole row for the hint.
+tests["tank stamp: «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА» after the price, in the hint row, ≥ 12 px"] = function(
+	t
+)
+	local sim = boot(t)
+	local players = { addPlayer(sim, 1, "phone"), addPlayer(sim, 2, "desktop") }
+	for _, p in players do
+		ready(sim, p)
+	end
+	sim:Advance(3)
+	local cases = {
+		{ CATCHES.Rare, stored(1), "В САДОК!", Palette.Water },
+		{
+			CATCHES.Legendary,
+			{
+				Result = "replaced",
+				Slot = 1,
+				Uid = "f2",
+				Count = 6,
+				Slots = 6,
+				Price = 24,
+				Replaced = { Uid = "f1", Id = "Crucian", Rarity = "Common", Price = 24 },
+			},
+			"ЗАМЕНА!",
+			Palette.Leaf,
+		},
+		{ CATCHES.Common, { Result = "sold", Count = 6, Slots = 6, Price = 11 }, "ПРОДАНА", Palette.Gold },
+	}
+	for index, case in cases do
+		for _, p in players do
+			catchTank(sim, p, case[1], index, case[2])
+		end
+		for _, p in players do
+			t.ok(openCard(sim, p))
+		end
+		for _, p in players do
+			t.eq(fishing(p).CatchCard.TankStamp.Visible, false, `{case[3]} ({p.Name}): waits for the price`)
+		end
+		t.ok(
+			waitFor(sim, function()
+				for _, p in players do
+					if not fishing(p).CatchCard.TankStamp.Visible then
+						return false
+					end
+				end
+				return true
+			end, 5),
+			`{case[3]}: stamped`
+		)
+		sim:Advance(0.6) -- (its slap is over)
+		for _, p in players do
+			local card = fishing(p).CatchCard
+			local stamp = card.TankStamp
+			local what = `{case[3]} ({p.Name})`
+			t.eq(card.InfoLabel.Price.Label.Text, tostring(case[1].Value), `{what}: after the price landed`)
+			t.eq(stamp.Label.Text, case[3])
+			t.ok(isCandy(stamp, case[4]), `{what}: its colour`)
+			local s0, s1 = stamp.AbsolutePosition, stamp.AbsolutePosition + stamp.AbsoluteSize
+			local c0, c1 = card.AbsolutePosition, card.AbsolutePosition + card.AbsoluteSize
+			t.ok(
+				s0.X >= c0.X and s0.Y >= c0.Y and s1.X <= c1.X and s1.Y <= c1.Y,
+				`{what}: on the card ({s0} … {s1} in {c0} … {c1})`
+			)
+			t.ok(stamp.AbsoluteSize.Y * 0.72 >= 12 - 0.01, `{what}: ≥ 12 px ({stamp.AbsoluteSize.Y})`)
+			local price = card.InfoLabel.Price
+			local p1 = price.AbsolutePosition + price.AbsoluteSize
+			t.ok(s0.Y >= p1.Y - 1 or s1.X <= price.AbsolutePosition.X, `{what}: below the price chip`)
+			local hint = card.TapHint
+			if hint.Text ~= "" then
+				local h0, h1 = hint.AbsolutePosition, hint.AbsolutePosition + hint.AbsoluteSize
+				t.ok(h1.X <= s0.X + 1 or h0.X >= s1.X - 1, `{what}: beside the close hint «{hint.Text}»`)
+			end
+		end
+		for _, p in players do
+			sim:Click(p, fishing(p).CatchCard)
+		end
+		sim:Advance(4)
+	end
+	-- No tank result (a server without stage 3): no stamp, the whole row for the hint.
+	for _, p in players do
+		catch(sim, p, CATCHES.Rare, 9)
+	end
+	for _, p in players do
+		t.ok(openCard(sim, p))
+	end
+	sim:Advance(2.5)
+	for _, p in players do
+		local card = fishing(p).CatchCard
+		t.eq(card.TankStamp.Visible, false, `{p.Name}: no stamp without a tank result`)
+		t.ok(#card.TapHint.Text > 0, `{p.Name}: the close hint has its row`)
 	end
 	sim:AssertNoErrors({ warnings = true })
 end
@@ -2394,7 +2609,12 @@ tests["minigame on a phone: beside the own bobber when it would cover it (world 
 	end, p)
 	local left, right = mini.AbsolutePosition.X, mini.AbsolutePosition.X + mini.AbsoluteSize.X
 	t.ok(point.X < left or point.X > right, `the panel ({left}..{right}) is beside the bobber (x {point.X})`)
-	t.ok(mini.AbsoluteSize.X >= 280, "still readable")
+	-- (Stage 3: the Wallet row is always under the badge — the docked panel starts below it, as it
+	-- did beside the catch counter after the first catch; its text stays ≥ 12 px: gui_render checks.)
+	t.ok(
+		mini.AbsoluteSize.X >= 240,
+		`still readable ({mini.AbsoluteSize.X} px wide at {left}..{right}, bobber x {point.X})`
+	)
 	p:SetAttribute("FishingState", "Idle")
 	serverSays(sim, p, "Lost", { Reason = "timeout", Text = "" })
 	sim:Advance(1)
