@@ -658,6 +658,41 @@ tests["base template: 12 display slots, tank prompt, alarm, dog (names the serve
 	sim:AssertNoErrors()
 end
 
+-- Stage 3 (TankService): an owned base shows its tank — the open displays «Пусто», the closed
+-- ones «🔒 Закрыто»; a free base again shows «Пусто» everywhere.
+tests["owned base: open displays «Пусто», closed ones «🔒 Закрыто»; free again after leave"] = function(
+	t
+)
+	local sim = boot(t)
+	local TankConfig = loadConfig("TankConfig")
+	local p = addPlayer(sim, 1)
+	sim:WaitFor(function()
+		return p:GetAttribute("DataMode") ~= "Loading"
+	end, 5)
+	local base = baseOf(sim, p)
+	for i = 1, TankConfig.MaxSlots do
+		local slot = base.Tank.Slots:FindFirstChild(`Slot_{i}`)
+		local open = i <= TankConfig.StartSlots
+		t.eq(
+			slot.Pedestal.LabelGui.Label.Text,
+			if open then TankConfig.Texts.SlotEmpty else TankConfig.Texts.SlotLocked,
+			`Slot_{i} label`
+		)
+		t.eq(slot:GetAttribute("State"), if open then "empty" else "locked", `Slot_{i} State`)
+	end
+	t.eq(base.Tank:GetAttribute("Slots"), TankConfig.StartSlots)
+	t.eq(base.Tank.Glass.PromptAttachment.TankPrompt.Enabled, true, "the tank prompt is on for the owner")
+	sim:RemovePlayer(p)
+	sim:Advance(0.5)
+	for i = 1, TankConfig.MaxSlots do
+		local slot = base.Tank.Slots:FindFirstChild(`Slot_{i}`)
+		t.eq(slot.Pedestal.LabelGui.Label.Text, TankConfig.Texts.SlotEmpty, `Slot_{i} free again`)
+		t.eq(slot:GetAttribute("State"), "empty")
+	end
+	t.eq(base.Tank.Glass.PromptAttachment.TankPrompt.Enabled, false, "the prompt is off on a free base")
+	sim:AssertNoErrors()
+end
+
 tests["join: player gets a free base, spawns on its pad, sees the base banner"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1)

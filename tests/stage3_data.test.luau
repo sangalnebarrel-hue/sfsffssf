@@ -579,7 +579,11 @@ tests["B-5: runtime junk in the live table → the save still commits a valid va
 	t.eq(peek(sim, 1).Future, nil, "strict: unknown fields dropped")
 	t.eq(data._recordFor(p).Strict, true)
 	t.eq(takeWarnings(sim, "повтор без незнакомых полей"), 1)
-	t.eq(takeWarnings(sim, "Future: незнакомое поле → выброшено (strict)"), 1, "what strict dropped is logged")
+	t.eq(
+		takeWarnings(sim, "Future: незнакомое поле → выброшено (strict)"),
+		1,
+		"what strict dropped is logged"
+	)
 	finish(t, sim)
 	sim:AssertNoErrors({ warnings = true })
 end

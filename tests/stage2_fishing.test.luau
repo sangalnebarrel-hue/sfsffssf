@@ -3,6 +3,9 @@
 	the built Place1.rbxl: rod giving, cast checks, bite timing, hook, the minigame (hits, zone
 	moves, misses, bogus taps, spam, timeout), the catch (FishData, counter, signal, the fish
 	held above the head), every way a session ends, stale threads, two players, leaks.
+	Stage 3 runs with real persistence (DataService on the sim DataStore): a join waits for the
+	data (a cast before it — "Denied" "loading"), the catch goes into the tank and "Caught" carries
+	Fish.Uid / Fish.New and Tank (TankResult), GetCatch keeps only the last 50 fish.
 
 	The tests drive the real server like a client would: sim:FireServer(...) with the
 	FishingCast / FishingHook / FishingTap / FishingStop remotes, then read the FishingState
@@ -73,9 +76,14 @@ local function boot(t: any, patches: { { path: string, from: string, to: string 
 	return sim
 end
 
+-- Stage 3: a cast is accepted only once the player's data is loaded (DataService, ≈ 0.1 s in the
+-- sim; before that "Denied" "loading"), so every join waits for DataMode ~= "Loading".
 local function addPlayer(sim: any, id: number): any
 	local player = sim:AddPlayer({ UserId = id, Name = `Player{id}`, DisplayName = `Игрок{id}` })
 	sim:Advance(0.5)
+	sim:WaitFor(function()
+		return player:GetAttribute("DataMode") ~= "Loading"
+	end, 5)
 	return player
 end
 
@@ -631,6 +639,17 @@ tests["minigame: payload follows the rules, perfect taps catch the fish"] = func
 	t.eq(data.Total, 1)
 	t.eq(p:GetAttribute("FishCaught"), 1)
 	t.eq(p:GetAttribute("FishingState"), "Idle")
+	-- Stage 3: the catch went straight into the tank; the payload says how (TankResult).
+	local tank = data.Tank
+	t.ok(tank ~= nil, "the payload carries Tank")
+	t.eq(tank.Result, "stored", "an empty tank stores it")
+	t.eq(tank.Slot, 1)
+	t.eq(tank.Uid, "f1")
+	t.eq(fish.Uid, tank.Uid, "Fish.Uid names it in the tank")
+	t.eq(fish.New, true, "the first fish of its kind ever")
+	t.eq(tank.First, true, "the first fish ever")
+	t.eq(tank.Count, 1)
+	t.eq(p:GetAttribute("TankCount"), 1)
 
 	local catch = fishing:GetCatch(p)
 	t.eq(#catch, 1, "in this session's catch")
@@ -649,6 +668,60 @@ tests["minigame: payload follows the rules, perfect taps catch the fish"] = func
 	t.eq(data2.Total, 2)
 	t.eq(p:GetAttribute("FishCaught"), 2)
 	t.eq(#fishing:GetCatch(p), 2)
+	t.eq(data2.Tank.Result, "stored")
+	t.eq(data2.Tank.Slot, 2, "the next free display")
+	t.eq(data2.Fish.Uid, "f2")
+	t.eq(data2.Tank.First, nil, "First only once ever")
+	t.eq(data2.Fish.New, data2.Fish.Id ~= fish.Id, "New only for a species never caught before")
+	sim:AssertNoErrors()
+end
+
+tests["cast denied: the player's data is still loading («Загружаем твой садок…»)"] = function(t)
+	local sim = boot(t)
+	sim.DataStore:SetLatency(1.5)
+	local p = sim:AddPlayer({ UserId = 1, Name = "Player1", DisplayName = "Игрок1" })
+	sim:WaitFor(function()
+		return #rodsOf(p) == 1 and baseOf(sim, p) ~= nil
+	end, 5)
+	t.eq(p:GetAttribute("DataMode"), "Loading")
+	ready(sim, p)
+	local name, data = cast(sim, p)
+	t.eq(name, "Denied")
+	t.eq(data.Reason, "loading")
+	t.eq(data.Text, FishingConfig.Texts.Denied.loading)
+	sim.DataStore:SetLatency(0.05)
+	sim:WaitFor(function()
+		return p:GetAttribute("DataMode") == "Ready"
+	end, 5)
+	ready(sim, p)
+	t.eq((cast(sim, p)), "Waiting", "accepted once the data is loaded")
+	sim:AssertNoErrors()
+end
+
+tests["catch: GetCatch keeps only the last 50 fish (no unbounded list)"] = function(t)
+	local sim = boot(t, {
+		{
+			path = "ReplicatedStorage.Shared.Config.FishingConfig",
+			from = "BiteDelay = { Min = 2.5, Max = 6 },",
+			to = "BiteDelay = { Min = 0.05, Max = 0.05 },",
+		},
+	})
+	-- Headless (no client scripts): 52 catches are only about the server's list.
+	local p = sim:AddPlayer({ UserId = 1, Name = "Player1", DisplayName = "Игрок1", clientDelay = 1e9 })
+	sim:WaitFor(function()
+		return p:GetAttribute("DataMode") == "Ready" and #rodsOf(p) == 1
+	end, 5)
+	sim:Advance(0.5)
+	ready(sim, p)
+	forceFish(sim, "Crucian")
+	for i = 1, 52 do
+		local mg, startTime = startMinigame(t, sim, p)
+		local name = winMinigame(sim, p, mg, startTime)
+		t.eq(name, "Caught", `catch {i}`)
+		sim:Advance(FishingConfig.CastCooldown + 0.05)
+	end
+	t.eq(p:GetAttribute("FishCaught"), 52, "every catch counted")
+	t.eq(#service(sim):GetCatch(p), 50, "the list keeps the last 50")
 	sim:AssertNoErrors()
 end
 
