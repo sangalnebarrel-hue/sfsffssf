@@ -242,7 +242,8 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 			local jump, r = FishingLayout.jumpCircle(size, small)
 			right = math.min(right, jump.X - r - chrome)
 		end
-		local top = (statusBottom or 0) + m
+		-- (+1 px и здесь: кошелёк чуть «вздрагивает», когда в него летят монеты продажи)
+		local top = (statusBottom or 0) + chrome
 		if not touch and m < cfg.ChatRight then
 			top = math.max(top, cfg.ChatBottom + m - cfg.Margin)
 		end
