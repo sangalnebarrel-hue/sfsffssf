@@ -243,10 +243,15 @@ must see every base's displays and attributes.
   display, scaled to `Display.Fit` (≤ `MaxScale`), its bounding box centred on
   `Display.FishPoint`, the head along the display's ±X (`SlotIndex % 4 < 2`: towards the weed),
   yawed `Display.Yaw` towards the aisle (−Z), ≤ 20 parts, no collisions / queries / touches /
-  shadows; the tag over the glass at `FishPoint + (0, Tag.Lift, −Tag.Forward)` (in front of the
-  glass's face: transparent glass hides billboards and particles behind it); slot FX over the
-  display's top, in front of its face; the tank sign over the front of `Tank.Glass`; the pier
-  word over `Platform.Bucket` (and its `BucketFish`) of the own base only. Names relied on:
+  shadows; the tag at `FishPoint + (0, Tag.Lift, −Tag.Forward)` — in front of the glass's face
+  (transparent glass hides billboards and particles behind it), at the `LightBar`'s height so
+  the bar runs between its two lines, its top under the arcade ceiling (13.15) up to
+  `Display.TagShow`: keep the LightBar at FishPoint + 3.1 … 3.4 and the ceiling where they are;
+  «🔒 Закрыто» on a locked display's glass at `FishPoint + (0, Tag.LockLift, −Tag.Forward)`; slot
+  FX over the display's top, in front of its face; the tank sign over the front of `Tank.Glass`;
+  the pier word over `Platform.Bucket` (and its `BucketFish`), `Pier.Out` further from
+  `FishingSpot` (from the fishing camera: right of the rod, above «СМОТАТЬ»), of the own base
+  only. Names relied on:
   `Tank.Glass`, `Tank.Slots.Slot_K.{Display, Display.FishPoint, LightBar}`, `Platform.Bucket`,
   `Platform.BucketFish`, `FishingSpot` — keep them. The parts budget reserve for the display
   fish is `MapConfig.PartBudget.RuntimeReserve.TankFish` (12 × 8 × ≤ 20, the worst case; in
