@@ -237,9 +237,15 @@ local function userIdsOf(rec: Record): { number }?
 	return if rec.UserId > 0 then { rec.UserId } else nil
 end
 
+-- Текст ошибки DataStore без приставки «Скрипт:строка: » (её добавляет Lua, когда ошибка
+-- проходит через нашу функцию в pcall: «…DataService:323: 104: Cannot store …»).
+local function errorText(err: any): string
+	return (string.gsub(tostring(err), "^[^\n]-:%d+: ", "", 1))
+end
+
 -- Код ошибки DataStore («104: Cannot store …» → 104) или nil.
 local function errorCode(err: any): number?
-	local code = string.match(tostring(err), "(%d%d%d):")
+	local code = string.match(errorText(err), "^%s*(%d%d%d):")
 	return if code then tonumber(code) else nil
 end
 
@@ -252,15 +258,15 @@ end
 -- Повторять ли запрос после этой ошибки: 101–107 — наша ошибка, 403 — доступ запрещён.
 local function retryable(err: any): boolean
 	local code = errorCode(err)
-	if code and code >= 101 and code <= 107 then
+	if code and ((code >= 101 and code <= 107) or code == 403) then
 		return false
 	end
-	return string.find(tostring(err), "403", 1, true) == nil
+	return string.find(errorText(err), "HTTP 403", 1, true) == nil
 end
 
 -- Ошибка проверки, которая значит «в Studio выключен доступ к API».
 local function accessError(err: any): boolean
-	local text = string.lower(tostring(err))
+	local text = string.lower(errorText(err))
 	return string.find(text, "403", 1, true) ~= nil
 		or string.find(text, "publish", 1, true) ~= nil
 		or string.find(text, "not allowed", 1, true) ~= nil
@@ -554,13 +560,15 @@ local function processSave(request: Request)
 			rec.Strict = true
 			local paths = if info and #info.issues > 0 then table.concat(info.issues, "; ") else "—"
 			warn(
-				`[DataService] сохранение игрока {rec.UserId} отклонено ({err}); поля: {paths} — повтор без незнакомых полей`
+				`[DataService] сохранение игрока {rec.UserId} отклонено ({errorText(err)}); поля: {paths} — повтор без незнакомых полей`
 			)
 			attempts -= 1 -- (повтор strict — не обычная попытка)
 			continue
 		end
 		warn(
-			`[DataService] сохранение игрока {rec.UserId} не удалось (попытка {attempts}): {err}`
+			`[DataService] сохранение игрока {rec.UserId} не удалось (попытка {attempts}): {errorText(
+				err
+			)}`
 		)
 		if badValue(err) or not retryable(err) or attempts >= maxAttempts then
 			break
@@ -676,7 +684,9 @@ local function processLoad(request: Request)
 		if not ok then
 			failures += 1
 			warn(
-				`[DataService] загрузка игрока {rec.UserId} не удалась (попытка {failures}): {value}`
+				`[DataService] загрузка игрока {rec.UserId} не удалась (попытка {failures}): {errorText(
+					value
+				)}`
 			)
 			if rec.Left or closing then
 				release(rec)
@@ -940,7 +950,7 @@ local function probe()
 			mode = "Memory"
 			warn(TEXTS.MemoryWarn)
 		else
-			warn(`[DataService] проверка DataStore не удалась: {err}`)
+			warn(`[DataService] проверка DataStore не удалась: {errorText(err)}`)
 		end
 	end
 	finishProbe()
