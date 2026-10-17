@@ -19,7 +19,8 @@
 	    after 3 s of loading, the pop-in order badge → Wallet → «САДОК»;
 	  • idle with income: plain-text ticks, the 5 s «+$N» float only, no frame job, no connection
 	    churn; the tick never fights a count-up (K-11), a sale's jump waits for its celebration;
-	  • the catch: the stamp, «САДОК» frozen under CounterHold and the arrival in rarity colours;
+	  • the catch: the stamp, «САДОК» and the Wallet's «+$/с» frozen under CounterHold, the
+	    arrival in rarity colours, the rate rolling to the new income (RateRoll) after it;
 	    "sold" — the card flies into Wallet.Money as 💵, the Wallet counts up only then, «Садок
 	    полон…» once per session; "replaced" — coins from «САДОК» to the Wallet, then the toast
 	    naming both fish; the onboarding «!» after the first fish ever, gone on the first open; a
@@ -227,13 +228,17 @@ local function catchTank(
 	fish: { [string]: any },
 	total: number,
 	tank: { [string]: any },
-	money: number?
+	money: number?,
+	income: number?
 )
 	p:SetAttribute("FishCaught", total)
 	p:SetAttribute("TankCount", tank.Count)
 	p:SetAttribute("TankSlots", tank.Slots)
 	if money then
 		p:SetAttribute("Money", money)
+	end
+	if income then
+		p:SetAttribute("Income", income)
 	end
 	sim:Find("ReplicatedStorage.Remotes.FishingState"):FireClient(p, "Caught", {
 		Fish = fish,
@@ -697,18 +702,21 @@ end
 -- The catch → the tank
 --------------------------------------------------------------------------------
 
-tests["catch stored: «В САДОК!», «САДОК» frozen under CounterHold, the arrival in rarity colours"] = function(
+tests["catch stored: «В САДОК!», «САДОК» and the Wallet's «+$/с» frozen under CounterHold, the arrival in rarity colours, the rate rolls up"] = function(
 	t
 )
 	local sim = boot(t)
-	local p = join(sim, 1, { device = "phone", money = 100 })
+	local p = join(sim, 1, { device = "phone", money = 100, income = 2.9 })
 	t.ok(chromeIn(sim, p))
 	ready(sim, p)
 	local hud = hudOf(p)
 	local card = hud.Fishing.CatchCard
 	local button = hud.RightButtons.TankButton
 	local chip = button.Count.Label
-	catchTank(sim, p, CATCHES.Rare, 1, { Result = "stored", Slot = 1, Uid = "f1", Count = 1, Slots = 6 })
+	local rate = hud.Status.Wallet.Rate
+	t.eq(rate.Text, "+$2.9/с", "the rate before the catch")
+	-- EconomyService credits the new fish's income with the catch (+$5.2/с).
+	catchTank(sim, p, CATCHES.Rare, 1, { Result = "stored", Slot = 1, Uid = "f1", Count = 1, Slots = 6 }, nil, 8.1)
 	t.eq(hud:GetAttribute("CounterHold"), 0, "the catch holds «САДОК»")
 	t.ok(openCard(sim, p))
 	t.ok(sim:WaitFor(function()
@@ -716,14 +724,19 @@ tests["catch stored: «В САДОК!», «САДОК» frozen under CounterHold
 	end, 3) == true, "the stamp lands after the price")
 	t.eq(card.TankStamp.Label.Text, TankConfig.Texts.Stamp.stored)
 	t.eq(chip.Text, "0/6", "«САДОК» frozen while the card is up")
+	t.eq(rate.Text, "+$2.9/с", "… and the rate too")
 	t.ok(closeCard(sim, p), "a tap closes the card")
 	t.eq(chip.Text, "0/6", "… still frozen while the fish flies")
+	t.eq(rate.Text, "+$2.9/с", "… the rate too")
 	t.ok(arrived(sim, p))
 	sim:Advance(0.02)
 	t.eq(chip.Text, "1/6", "the arrival rolls the chip")
+	t.ok(rate.Text ~= "+$2.9/с" and rate.Text ~= "+$8.1/с", `… and the rate starts rolling ({rate.Text})`)
 	local ring = button:FindFirstChild("FxRing")
 	t.ok(ring and colorNear(ring:FindFirstChildOfClass("UIStroke").Color, UIConfig.Rarity.Rare.Top), "a Rare ring")
 	t.ok(button.FxScale.Scale > 1.05, "«САДОК» jumps (RarityBump)")
+	sim:Advance(WALLET.RateRoll + 0.1)
+	t.eq(rate.Text, "+$8.1/с", "the rate has rolled up to the new income")
 	sim:Advance(2)
 	t.eq(button:FindFirstChild("FxRing"), nil, "the juice is over")
 	t.eq(uiFx(sim, p).activeJobs(), 0)

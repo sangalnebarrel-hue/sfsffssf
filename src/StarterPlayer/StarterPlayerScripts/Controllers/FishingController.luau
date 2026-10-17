@@ -3696,7 +3696,10 @@ do
 		if bandY and bandH then
 			middle, height = bandY, bandH
 		end
-		local left, right = sideLimits(rootSize, middle - height / 2, middle + height / 2)
+		-- (Полоса слова — с запасом 16 px сверху и снизу: кнопка колонки или прыжка чуть ниже
+		-- слова тоже его сужает, а не встаёт вплотную под буквы.)
+		local left, right =
+			sideLimits(rootSize, middle - height / 2 - CARD_SIDE_GAP, middle + height / 2 + CARD_SIDE_GAP)
 		left = math.max(left, clearLeft)
 		-- (Ещё 10 px с каждой стороны: обводка букв и их «выскок» Back Out выходят за рамку.)
 		local room = 2 * math.max(math.min(centerX - left, right - centerX) - 10, 40)
@@ -3707,7 +3710,8 @@ do
 			-- буквы в CLIMAX.TitleBeside раз крупнее.
 			local sideY = math.max(wantY, Layout.EDGE + wantH / 2)
 			-- (у колонки справа мешают только показанные кнопки: её пустой верх свободен)
-			left, right = sideLimits(rootSize, sideY - wantH / 2, sideY + wantH / 2, true)
+			left, right =
+				sideLimits(rootSize, sideY - wantH / 2 - CARD_SIDE_GAP, sideY + wantH / 2 + CARD_SIDE_GAP, true)
 			if not UserInputService.TouchEnabled and sideY - wantH / 2 < CLIMAX.ChatBottom then
 				left = math.max(left, CLIMAX.ChatRight) -- (окно чата слева вверху)
 			end

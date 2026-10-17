@@ -66,13 +66,25 @@ local function toMinigame(h: any, rarity: string)
 end
 
 -- The server's catch with its TankResult: the player attributes first (TankService /
--- EconomyService), then "Caught" — the same frame.
+-- EconomyService), then "Caught" — the same frame. The income grows by the new fish's and, on
+-- "replaced", drops by the replaced one's (its display's Income, written by h:tank); a fish sold
+-- on the spot changes nothing — the Wallet's «+$/с» rolls when the fish lands (CounterHold).
 local function serverCatch(h: any, fish: { [string]: any }, total: number, tank: { [string]: any }, money: number?)
 	h.player:SetAttribute("FishCaught", total)
 	h.player:SetAttribute("TankCount", tank.Count)
 	h.player:SetAttribute("TankSlots", tank.Slots)
 	if money then
 		h.player:SetAttribute("Money", money)
+	end
+	if tank.Result == "stored" or tank.Result == "replaced" then
+		local gone = 0
+		local base = if tank.Result == "replaced" then h:base() else nil
+		local slot = base and base.Tank.Slots:FindFirstChild(`Slot_{tank.Slot}`)
+		if slot then
+			gone = slot:GetAttribute("Income") or 0
+		end
+		local income = (h.player:GetAttribute("Income") or 0) + fish.Income - gone
+		h.player:SetAttribute("Income", math.max(0, math.round(income * 10) / 10))
 	end
 	h:caught(fish, total, tank)
 end
@@ -150,7 +162,7 @@ return {
 	},
 	{
 		name = "catch_to_tank",
-		desc = "A Rare catch into the tank: «+$5.2/с» flies out of the price, «В САДОК!» stamped, then the card flies into «САДОК» (chip 2 → 3)",
+		desc = "A Rare catch into the tank: «+$5.2/с» flies out of the price, «В САДОК!» stamped, then the card flies into «САДОК» (chip 2 → 3) and the Wallet's «+$/с» rolls up",
 		still = { 1.75, 2.85, 3.05, 3.4 },
 		sheet = { from = 2.6, to = 3.5, fps = 15, roi = {}, margin = 0 },
 		run = function(h: any)
@@ -162,7 +174,7 @@ return {
 	},
 	{
 		name = "catch_replaced",
-		desc = "A full tank, an Epic catch: «ЗАМЕНА!» — it flies into «САДОК», coins fly to the Wallet, the toast names both fish",
+		desc = "A full tank, an Epic catch: «ЗАМЕНА!» — it flies into «САДОК», coins fly to the Wallet, «+$/с» rolls up, the toast names both fish",
 		still = { 2.45, 3.5, 3.8, 4.4 },
 		run = function(h: any)
 			h:tank(FULL)

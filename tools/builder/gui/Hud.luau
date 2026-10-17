@@ -24,8 +24,8 @@
 	                MoneyText-green number with the display outline, the income «+$42/с» beside it
 	                (smaller italic green); a glass «$…» pill while the data loads (Money.Back);
 	                MoneyController sizes the row to its text so the group stays centred;
-	  TankButton    a square aqua button above Home: 🐠 «САДОК», the chip «0/6» on its top-left
-	                shoulder, a hidden red «!» (the first fish ever: open me);
+	  TankButton    a square aqua button above Home: 🐠 «САДОК», the chip «0/6» in its top-left
+	                corner, a hidden red «!» on its top-right one (the first fish ever: open me);
 	  HomeButton    a square purple button: 🏠 big in the middle, «ДОМОЙ» on its bottom edge, a
 	                hidden red «!» badge (the shop stage);
 	  ToastTemplate a label plate in the kind's colour with the kind's emoji overhanging its left end;
@@ -272,8 +272,9 @@ local function buildRightButtons(hud: any)
 	-- «САДОК» (stage 3): the same square recipe as Home, one slot above it (LayoutOrder 90), in
 	-- aqua Water (never Grape «ДОМОЙ», Leaf «ЛОВИ!» or Sky «ЗАБРОСИТЬ»), 🐠 big in the middle and
 	-- «САДОК» on its bottom edge; Count — a small Cream chip «0/6» (italic dark digits) in its
-	-- top-left corner (Gold when the tank is full), Badge — the hidden red «!» (the first fish
-	-- ever: open me). Hidden until the base and the data are there (TankButtonController).
+	-- top-left corner (Gold when the tank is full), Badge — the hidden red «!» on its top-right
+	-- corner (the first fish ever: open me). Hidden until the base and the data are there
+	-- (TankButtonController).
 	local tank = Theme.simButton(right, "TankButton", "Water", {
 		LayoutOrder = 90,
 		Size = UDim2.fromScale(1, 0.28),
@@ -286,11 +287,11 @@ local function buildRightButtons(hud: any)
 	})
 	-- (the chip sits in the top-left corner, inside the button's outline: nothing of it sticks
 	-- out of the column — the trophy chip above it, a wide toast and «СМОТАТЬ» beside it keep
-	-- their 16 px)
+	-- their 16 px; it grows rightwards from its left edge when its 40 px minimum kicks in)
 	local count = Theme.plate(tank, "Count", "Cream", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.33, 0.18),
-		Size = UDim2.fromScale(0.58, 0.28),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0.05, 0.17),
+		Size = UDim2.fromScale(0.5, 0.24),
 		ZIndex = SZ.Top + 1,
 		Text = "0/6",
 		Italic = true,
@@ -308,7 +309,21 @@ local function buildRightButtons(hud: any)
 	})
 	-- (never so small that «12/12» drops under 12 px: 40 × 20 px on the smallest phone)
 	U.new("UISizeConstraint", { MinSize = Vector2.new(40, 20) }, count)
-	Theme.badge(tank, "Badge")
+	-- 🐠 smaller and lower right than Home's 🏠 (its bottom just under the caption's outline):
+	-- its head and eye (the fish faces left) clear the chip — on a phone too, where the chip is
+	-- at its 40 × 20 px minimum — so «САДОК» reads as a fish next to the Sky «ЗАБРОСИТЬ» (K-23).
+	local fish = tank:FindFirstChild("Icon")
+	if fish then
+		fish.Position = UDim2.fromScale(0.58, 0.55)
+		fish.Size = UDim2.fromScale(0.5, 0.5)
+	end
+	-- «!» on the top-right corner like the reference's, but tucked in: the column hugs the
+	-- screen's right edge (≈ 1 % of the width away), so the disc overhangs upwards, not out of
+	-- the screen — even at the top of its pop (1.25) on a tablet / desktop.
+	Theme.badge(tank, "Badge", {
+		Position = UDim2.fromScale(0.84, 0.1),
+		Size = UDim2.fromScale(0.4, 0.4),
+	})
 end
 
 local function buildToasts(hud: any)
@@ -319,12 +334,15 @@ local function buildToasts(hud: any)
 	-- Wallet row, which is always shown): on a phone one toast ends above the avatar's head.
 	-- Without a touch screen NotifyController narrows it to 512 px, clear of the Roblox chat
 	-- window in the top-left corner.
+	-- ZIndex 0: under the status stack — a toast drops into its slot from above (NotifyController)
+	-- and passes behind the Wallet row on the way, never over the money.
 	local toasts = U.new("Frame", {
 		Name = "Toasts",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.5, 0.26),
 		Size = UDim2.fromScale(0.56, 0.34),
+		ZIndex = 0,
 	}, hud)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(640, 190) }, toasts)
 
