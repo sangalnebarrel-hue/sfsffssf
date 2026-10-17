@@ -416,7 +416,12 @@ tests["display fish: one per occupied display, centred on FishPoint, inside the 
 		local lo, hi = aabb(fish, display.CFrame)
 		local half = display.Size / 2
 		t.ok(
-			lo.X >= -half.X and lo.Y >= -half.Y and lo.Z >= -half.Z and hi.X <= half.X and hi.Y <= half.Y and hi.Z <= half.Z,
+			lo.X >= -half.X
+				and lo.Y >= -half.Y
+				and lo.Z >= -half.Z
+				and hi.X <= half.X
+				and hi.Y <= half.Y
+				and hi.Z <= half.Z,
 			`Slot_{index}: inside the 6.2 cube ({lo} .. {hi})`
 		)
 		local size = hi - lo
@@ -535,6 +540,534 @@ tests["range: built within Display.Range, kept until DropRange, ≤ BuildPerChec
 	end
 	table.sort(left)
 	t.eq(left, { "FxMarketWord", "FxPierTank" }, "… holding only the market word and the pier word (not range-bound)")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["life: one looped Body tween within LifeRange (the fish bobs), none beyond (it rests)"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 4)
+	local fake = Fake.new(sim, p)
+	local base = fake.base
+	fake:mount(sixFish(fake))
+	settle(sim)
+	local world = controller(sim, p)
+	-- the character at the gate end of the tank, camera far: some fish within LifeRange
+	standFrom(sim, p, base, 30)
+	sim:Advance(1.2)
+	local root = p.Character.HumanoidRootPart.Position
+	local alive = 0
+	for index = 1, 6 do
+		local d = (slotModel(base, index).Display.FishPoint.WorldPosition - root).Magnitude
+		if math.abs(d - DISPLAY.LifeRange) < 2 then
+			continue -- (too close to the edge to judge in one check)
+		end
+		local inRange = d <= DISPLAY.LifeRange
+		t.eq(world.IsAlive(base, index), inRange, `Slot_{index} at {math.floor(d)} studs: life {inRange}`)
+		if inRange then
+			alive += 1
+		end
+	end
+	t.ok(alive >= 2, `some fish live ({alive})`)
+	-- a living fish's Body moves (bob + yaw), within ±Bob of its rest
+	local live = nil
+	for index = 1, 6 do
+		if world.IsAlive(base, index) then
+			live = index
+			break
+		end
+	end
+	local body = world.GetFish(base, live).PrimaryPart
+	local lo, hi = math.huge, -math.huge
+	for _ = 1, 16 do
+		sim:Advance(0.25)
+		lo = math.min(lo, body.CFrame.Position.Y)
+		hi = math.max(hi, body.CFrame.Position.Y)
+	end
+	t.ok(hi - lo > DISPLAY.Life.Bob * 0.5, `the living Body bobs ({hi - lo})`)
+	t.ok(hi - lo <= DISPLAY.Life.Bob * 2 + 0.05, `… gently (≤ ±Bob: {hi - lo})`)
+	-- away beyond LifeRange (still within Range): the tweens stop and the fish rests
+	standFrom(sim, p, base, DISPLAY.LifeRange + 50)
+	sim:Advance(1)
+	t.eq(world.Stats().life, 0, "beyond LifeRange: no life tweens")
+	local rest = body.CFrame
+	sim:Advance(1.5)
+	t.near(body.CFrame.Position, rest.Position, 1e-4, "the resting fish does not move")
+	t.ok(world.IsBuilt(base), "still built (within Range)")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["tags: «+$X/с» and the value ticking to «МАКС» in front of the glass; ticks only within TagRange"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 5)
+	local fake = Fake.new(sim, p)
+	local base = fake.base
+	local young = fake:record("Perch", { age = 0 })
+	local old = fake:record("Swordfish", { age = TankConfig.Growth.Time + 5 })
+	local far = fake:record("Crucian", { age = 0 })
+	fake:mount({ [1] = young, [2] = old, [11] = far }, 12)
+	settle(sim)
+	local world = controller(sim, p)
+	local tank = fake.tank
+	-- stand right in front of Slot_1 (the west aisle), Slot_11's tag beyond TagRange
+	local d1 = slotModel(base, 1).Display
+	sim:Teleport(p, (d1.CFrame * CFrame.new(0, -4, -9)).Position)
+	setCamera(sim, FAR)
+	sim:Advance(1.1)
+	local tag1 = world.GetTag(base, 1)
+	t.ok(tag1, "Slot_1 has a tag")
+	t.eq(tag1.Name, "FxTankTag")
+	t.eq(tag1.MaxDistance, DISPLAY.TagRange, "MaxDistance = TagRange")
+	t.eq(tag1.LightInfluence, 0)
+	t.eq(tag1.AlwaysOnTop, false)
+	local plate = tag1.Plate
+	t.eq(plate.Rate.Text, tank.FormatRate(young.Income10), "line 1: the income")
+	local function valueText(fish: any, age: number): string
+		local price = tank.FormatMoney(tank.CurrentValue(fish.Value, age))
+		local template = if tank.IsMaxed(age) then TankConfig.Texts.TagMax else TankConfig.Texts.TagValue
+		return (string.gsub(string.gsub(template, "{price}", price), "{max}", TankConfig.Texts.Max))
+	end
+	t.eq(plate.Value.Text, valueText(young, 0), "line 2: the value now «$X ▲»")
+	t.match(plate.Value.Text, "▲$")
+	t.match(world.GetTag(base, 2).Plate.Value.Text, TankConfig.Texts.Max .. "$")
+	-- where: over the glass, in front of its face, under the arcade ceiling
+	local holder = tag1.Parent
+	local rel = d1.CFrame:PointToObjectSpace(holder.WorldPosition)
+	t.near(rel, Vector3.new(0, DISPLAY.Tag.Lift, -DISPLAY.Tag.Forward), 0.01, "at FishPoint + (0, Lift, −Forward)")
+	t.ok(rel.Z < -d1.Size.Z / 2, "in front of the glass's face (the aisle side)")
+	local top = holder.WorldPosition.Y + DISPLAY.Tag.Height / 2
+	t.ok(top < base.Root.Position.Y + 13.15, `under the arcade ceiling ({top})`)
+	-- the value ticks (1 s chain), the far tag does not
+	local farBefore = world.GetTag(base, 11).Plate.Value.Text
+	sim:Advance(60)
+	local age = sim.workspace:GetServerTimeNow() - slotModel(base, 1):GetAttribute("GrowFrom")
+	t.eq(plate.Value.Text, valueText(young, age), "the near value ticks")
+	t.neq(plate.Value.Text, valueText(young, 0), "… and grew")
+	t.eq(world.GetTag(base, 11).Plate.Value.Text, farBefore, "beyond TagRange the tag is not refreshed")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["tank sign: «+$42/с» / «🐠 4/6» over the big tank of an owned, mounted base only"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 6)
+	local world = controller(sim, p)
+	local fake = Fake.new(sim, p)
+	local base = fake.base
+	sim:Advance(0.6)
+	local sign = world.GetSign(base)
+	t.ok(sign == nil or not sign.Enabled, "before the mount (no Count): no sign")
+	local list = sixFish(fake)
+	fake:mount({ list[1], list[2], list[3], list[4] })
+	sim:Advance(0.1)
+	sign = world.GetSign(base)
+	t.ok(sign and sign.Enabled, "mounted: the sign shows")
+	t.eq(sign.MaxDistance, DISPLAY.SignRange)
+	local income10 = list[1].Income10 + list[2].Income10 + list[3].Income10 + list[4].Income10
+	t.eq(sign.Plate.Rate.Text, fake.tank.FormatRate(income10), "big green income")
+	t.eq(sign.Plate.Count.Text, "🐠 4/6", "the count")
+	local glass = base.Tank.Glass
+	local rel = glass.CFrame:PointToObjectSpace(sign.Parent.WorldPosition)
+	t.ok(rel.Y > glass.Size.Y / 2, "above the glass")
+	t.ok(rel.Z < 0, "over its front half (the «АКВАРИУМ» plaque side)")
+	-- a free base has none
+	local other = sim.workspace.Bases:FindFirstChild("Base_2")
+	t.eq(other:GetAttribute("OwnerUserId"), 0, "Base_2 is free")
+	sim:Teleport(p, other.Tank.Glass.Position + Vector3.new(0, 4, -30))
+	sim:Advance(1)
+	t.ok(world.IsBuilt(other), "the free base is built (in range)")
+	local free = world.GetSign(other)
+	t.ok(free == nil or not free.Enabled, "a free base: no sign")
+	-- unmount: hidden
+	fake:unmount()
+	sim:Advance(0.1)
+	t.ok(not sign.Enabled or sign.Parent == nil, "unmounted: hidden")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["pier word: own base only, hidden on Bite / Reeling / CounterHold / HeldFish; splash on a stored arrival"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 7)
+	local world = controller(sim, p)
+	local fake = Fake.new(sim, p)
+	local base = fake.base
+	local hud = p.PlayerGui.HUD
+	local word = world.GetPierWord()
+	t.ok(word, "the pier word exists for the own base")
+	t.eq(word.Name, "FxPierTank")
+	t.eq(word.Enabled, false, "no TankSlots yet (data not loaded): hidden")
+	t.eq(word.MaxDistance, PIER.Range)
+	-- over the bucket of the OWN base
+	local bucket = base.Platform.Bucket
+	local at = word.Parent.WorldPosition
+	t.near(Vector3.new(at.X, 0, at.Z), Vector3.new(bucket.Position.X, 0, bucket.Position.Z), 0.01, "over the bucket")
+	t.ok(at.Y > bucket.Position.Y + 1, "above it")
+	fake:mount({ fake:record("Perch"), fake:record("Puffer") })
+	sim:Advance(0.1)
+	t.eq(word.Enabled, true, "loaded: shown")
+	t.eq(word.Plate.Count.Text, "🐠 2/6")
+	t.eq(word.Plate.Rate.Text, fake.tank.FormatRate(fake.fish[1].Income10 + fake.fish[2].Income10))
+	local function busy(label: string, set: () -> (), clear: () -> ())
+		set()
+		sim:Advance(0.05)
+		t.eq(word.Enabled, false, `{label}: hidden`)
+		clear()
+		sim:Advance(0.05)
+		t.eq(word.Enabled, true, `{label} over: shown again`)
+	end
+	busy("Bite", function()
+		p:SetAttribute("FishingState", "Bite")
+	end, function()
+		p:SetAttribute("FishingState", "Waiting")
+	end)
+	busy("Reeling", function()
+		p:SetAttribute("FishingState", "Reeling")
+	end, function()
+		p:SetAttribute("FishingState", "Idle")
+	end)
+	busy("CounterHold", function()
+		hud:SetAttribute("CounterHold", 0)
+	end, function()
+		hud:SetAttribute("CounterHold", nil)
+	end)
+	busy("HeldFish", function()
+		sim:Create("Model", { Name = "HeldFish" }, p.Character)
+	end, function()
+		p.Character.HeldFish:Destroy()
+	end)
+	-- a stored arrival: held by CounterHold → no splash; released → a splash at the bucket
+	hud:SetAttribute("CounterHold", 0)
+	sim:Advance(0.05)
+	local remote = sim:Find("ReplicatedStorage.Remotes.FishingState")
+	local fish = fake:record("Crucian")
+	remote:FireClient(p, "Caught", {
+		Fish = { Id = fish.Id, Rarity = fish.Rarity, Kg = fish.Kg, Value = fish.Value, Income = fish.Income10 / 10 },
+		Total = 0,
+		Tank = { Result = "stored", Slot = 3, Uid = fish.Uid, Count = 3, Slots = 6 },
+	})
+	sim:Advance(1.5)
+	t.eq(world.Stats().emitters, 0, "held: no splash yet")
+	fake:store(3, fish)
+	standFrom(sim, p, base, DISPLAY.DropRange + 30) -- (the court far: no slot FX in the count)
+	sim:Teleport(p, base.FishingSpot.Position + Vector3.new(0, 3, 0))
+	sim:Advance(0.1)
+	hud:SetAttribute("CounterHold", nil)
+	sim:Advance(0.05)
+	local splash = nil
+	for _, d in folderOf(sim, p):GetDescendants() do
+		if d:IsA("ParticleEmitter") and d.Name == "Fxsplash" then
+			local pos = d.Parent.WorldPosition
+			if
+				(Vector3.new(pos.X, 0, pos.Z) - Vector3.new(bucket.Position.X, 0, bucket.Position.Z)).Magnitude < 0.5
+			then
+				splash = d
+			end
+		end
+	end
+	t.ok(splash, "released: a splash at the bucket rim")
+	t.eq(word.Plate.Count.Text, "🐠 3/6", "the word counts the new fish")
+	sim:Advance(FX.EmitterLife + 0.2)
+	t.eq(world.Stats().emitters, 0, "the splash emitter is gone")
+	-- a sold catch: no splash; without CounterHold a stored one splashes after a moment
+	remote:FireClient(p, "Caught", {
+		Fish = { Id = "Crucian", Rarity = "Common", Kg = 0.5, Value = 9 },
+		Total = 0,
+		Tank = { Result = "sold", Count = 3, Slots = 6, Price = 9 },
+	})
+	sim:Advance(1.5)
+	t.eq(world.Stats().emitters, 0, "sold: no splash")
+	remote:FireClient(p, "Caught", {
+		Fish = { Id = "Crucian", Rarity = "Common", Kg = 0.5, Value = 9 },
+		Total = 0,
+		Tank = { Result = "stored", Slot = 4, Uid = "f99", Count = 4, Slots = 6 },
+	})
+	sim:Advance(1.2)
+	t.ok(world.Stats().emitters >= 1, "stored without CounterHold: the splash comes anyway")
+	sim:Advance(2)
+	t.eq(countClass(folderOf(sim, p), "BillboardGui", "FxPierTank"), 1, "one pier word (the own bucket only)")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["pier pops: «+$X» every PopEvery s only within PopRange of the bucket and with income"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 8)
+	local world = controller(sim, p)
+	local fake = Fake.new(sim, p)
+	local base = fake.base
+	fake:mount({ fake:record("Swordfish") })
+	sim:Advance(0.2)
+	local bucket = base.Platform.Bucket.Position
+	local function pops(): { any }
+		local list = {}
+		for _, d in folderOf(sim, p):GetDescendants() do
+			if d:IsA("BillboardGui") and d.Name == "FxTankPop" then
+				table.insert(list, d)
+			end
+		end
+		return list
+	end
+	-- on the fishing spot, by the bucket
+	sim:Teleport(p, base.FishingSpot.Position + Vector3.new(0, 3, 0))
+	setCamera(sim, FAR)
+	local seen, texts, was = 0, {}, false
+	local span = PIER.PopEvery * 2 + 1
+	for _ = 1, math.floor(span / 0.1) do
+		sim:Advance(0.1)
+		local now = pops()
+		if #now > 0 and not was then
+			seen += 1
+			table.insert(texts, now[1].Plate.Amount.Text)
+		end
+		was = #now > 0
+	end
+	t.ok(seen >= 2 and seen <= 3, `≈ one pop every {PIER.PopEvery} s by the bucket ({seen} in {span} s)`)
+	local amount = string.sub(fake.tank.FormatRate(fake.fish[1].Income10), 2, -1 - #EconomyConfig.Format.Rate)
+	t.eq(texts[1], "+" .. amount, "the pop is the income per second")
+	-- away from the bucket: none
+	sim:Teleport(p, bucket + Vector3.new(0, 3, PIER.PopRange + 15))
+	sim:Advance(PIER.PopTime + 0.2)
+	local quiet = true
+	for _ = 1, math.floor(PIER.PopEvery * 2 / 0.25) do
+		sim:Advance(0.25)
+		if #pops() > 0 then
+			quiet = false
+		end
+	end
+	t.ok(quiet, "beyond PopRange: no pops")
+	-- no income: none
+	sim:Teleport(p, base.FishingSpot.Position + Vector3.new(0, 3, 0))
+	p:SetAttribute("Income", 0)
+	sim:Advance(0.1)
+	for _ = 1, math.floor(PIER.PopEvery * 2 / 0.25) do
+		sim:Advance(0.25)
+		if #pops() > 0 then
+			quiet = false
+		end
+	end
+	t.ok(quiet, "no income: no pops")
+	t.ok(world.GetPierWord().Enabled, "the word itself is still there")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["slot events: in / sold / swap make their FX and clean them up; mount none; far bases quiet; ≤ MaxEmitters"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 9)
+	local world = controller(sim, p)
+	local fake = Fake.new(sim, p)
+	local base = fake.base
+	fake:mount({})
+	settle(sim, 1)
+	local folder = folderOf(sim, p)
+	local function fx(): (number, number, number)
+		return countClass(folder, "ParticleEmitter"),
+			countClass(folder, "PointLight", "FxFlash"),
+			countClass(folder, "BillboardGui", "FxTankPop")
+	end
+	local e0, l0, p0 = fx()
+	t.eq(e0 + l0 + p0, 0, "mount: no FX")
+	-- "in": splash + sparkles over the display's top, a flash at the LightBar, the fish grows
+	fake:store(1, fake:record("Puffer"))
+	local e1, l1 = fx()
+	t.ok(e1 >= 1 and e1 <= FX.MaxEmitters, `in: particles (≤ {FX.MaxEmitters}: {e1})`)
+	t.eq(l1, 1, "in: the LightBar flash")
+	local display = slotModel(base, 1).Display
+	for _, d in folder:GetDescendants() do
+		if d:IsA("ParticleEmitter") then
+			local rel = display.CFrame:PointToObjectSpace(d.Parent.WorldPosition)
+			t.ok(rel.Y > display.Size.Y / 2, "the burst is above the glass, not inside it")
+		end
+	end
+	t.ok(world.GetFish(base, 1), "the fish is there at once")
+	sim:Advance(math.max(FX.EmitterLife, FX.FlashTime, FX.Grow) + 0.3)
+	local e2, l2 = fx()
+	t.eq(e2 + l2, 0, "in: FX cleaned up")
+	-- two events at once: never more than MaxEmitters emitters
+	fake:store(2, fake:record("Crucian"))
+	fake:store(4, fake:record("Perch"))
+	t.ok(countClass(folder, "ParticleEmitter") <= FX.MaxEmitters, "≤ MaxEmitters at once")
+	sim:Advance(1.5)
+	-- "sold": the fish shrinks away, gold sparkles, «+$45» rises
+	fake:sell(1, 45)
+	local e3, _, p3 = fx()
+	t.ok(e3 >= 1, "sold: sparkles")
+	t.eq(p3, 1, "sold: the rising price")
+	local pop = nil
+	for _, d in folder:GetDescendants() do
+		if d:IsA("BillboardGui") and d.Name == "FxTankPop" then
+			pop = d
+		end
+	end
+	t.eq(pop.Plate.Amount.Text, "+" .. fake.tank.FormatMoney(45), "«+$45»")
+	sim:Advance(FX.Shrink + 0.1)
+	t.eq(world.GetFish(base, 1), nil, "sold: the fish is gone after the shrink")
+	sim:Advance(FX.RiseTime + 0.3)
+	local e4, l4, p4 = fx()
+	t.eq(e4 + l4 + p4, 0, "sold: FX cleaned up")
+	-- "swap": price + the new fish
+	local old = world.GetFish(base, 2)
+	fake:swap(2, fake:record("SharkPup"), 12)
+	local _, _, p5 = fx()
+	t.eq(p5, 1, "swap: the rising price of the replaced fish")
+	sim:Advance(FX.Shrink + FX.Grow + 0.2)
+	t.eq(world.GetFish(base, 2):GetAttribute("FishId"), "SharkPup", "swap: the new fish")
+	t.eq(old.Parent, nil, "swap: the old model is gone")
+	sim:Advance(FX.RiseTime + 0.3)
+	local e6, l6, p6 = fx()
+	t.eq(e6 + l6 + p6, 0, "swap: FX cleaned up")
+	-- a base beyond EventRange (still within Range): quiet, the fish still comes
+	standFrom(sim, p, base, DISPLAY.EventRange + 25)
+	sim:Advance(1)
+	t.ok(world.IsBuilt(base), "still built")
+	fake:store(5, fake:record("Swordfish"))
+	local e7, l7, p7 = fx()
+	t.eq(e7 + l7 + p7, 0, "beyond EventRange: no FX")
+	sim:Advance(1.2)
+	t.ok(world.GetFish(base, 5), "… but the fish is built (quietly)")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["prompts: other players' TankPrompt hidden on this client only; the own one untouched"] = function(t)
+	local sim = boot(t)
+	local p1 = addPlayer(sim, 11)
+	local p2 = addPlayer(sim, 12)
+	local fake1 = Fake.new(sim, p1)
+	local fake2 = Fake.new(sim, p2)
+	fake1:mount({ fake1:record("Crucian") })
+	fake2:mount({ fake2:record("Perch") })
+	local own = fake1.base.Tank.Glass.PromptAttachment.TankPrompt
+	local foreign = fake2.base.Tank.Glass.PromptAttachment.TankPrompt
+	local function enabledFor(player: any, prompt: any): boolean
+		return sim:Run(function()
+			return prompt.Enabled
+		end, player)
+	end
+	-- p1 walks into p2's court (in range of it)
+	sim:Teleport(p1, fake2.base.Tank.Glass.Position + Vector3.new(0, 4, -25))
+	setCamera(sim, FAR)
+	sim:Advance(1.2)
+	local world = controller(sim, p1)
+	t.ok(world.IsBuilt(fake2.base), "p2's base is built on p1's client")
+	t.eq(enabledFor(p1, foreign), false, "p1 sees no prompt on p2's tank")
+	t.eq(foreign.Enabled, true, "the server's stays enabled")
+	t.eq(enabledFor(p2, foreign), true, "p2 still has its own")
+	-- the server re-enables it (a remount): hidden again on p1's client
+	fake2:mount({ fake2:record("Perch") })
+	sim:Advance(0.6)
+	t.eq(enabledFor(p1, foreign), false, "after a remount: still hidden for p1")
+	-- the own prompt is never written by the client
+	sim:Teleport(p1, fake1.base.Tank.Glass.Position + Vector3.new(0, 4, -25))
+	sim:Advance(1.2)
+	t.eq(enabledFor(p1, own), true, "p1's own prompt: enabled")
+	local writes = 0
+	for _, write in sim.ClientWrites do
+		if write.property == "Enabled" and write.instance == own then
+			writes += 1
+		end
+	end
+	t.eq(writes, 0, "no client write to the own base's prompt")
+	local foreignWrites = 0
+	for _, write in sim.ClientWrites do
+		if write.property == "Enabled" and write.instance == foreign then
+			foreignWrites += 1
+		end
+	end
+	t.ok(foreignWrites >= 1, "the foreign prompt was hidden by a client-local write")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["market: «РЫНОК +50%!» over the hub market; coins at a stall's scales on a Sold there"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 13)
+	local world = controller(sim, p)
+	local folder = folderOf(sim, p)
+	local word = nil
+	for _, d in folder:GetDescendants() do
+		if d:IsA("BillboardGui") and d.Name == "FxMarketWord" then
+			word = d
+		end
+	end
+	t.ok(word, "the market word exists")
+	local bonus = EconomyConfig.MarketRatePct - 100
+	t.eq(
+		word.Plate.Word.Text,
+		(string.gsub(TankConfig.Texts.MarketWord, "{bonus}", tostring(bonus))),
+		"«РЫНОК +50%!»"
+	)
+	t.eq(word.MaxDistance, DISPLAY.MarketWordRange)
+	local sign = sim.workspace.Map.Hub.FishMarket.Sign
+	local at = word.Parent.WorldPosition
+	t.ok(at.Y > sign.Position.Y + sign.Size.Y / 2, "above the «РЫБНЫЙ РЫНОК» sign")
+	t.ok((Vector3.new(at.X, 0, at.Z) - Vector3.new(sign.Position.X, 0, sign.Position.Z)).Magnitude < 3, "… over it")
+	-- a Sold at Kiosk1 with the player there: coins; elsewhere / at home: none
+	local kiosk = sim:Find("Workspace.Map.Bridges.Bridge_1.Lookout.SellKiosk.Scales.SellPromptAttachment")
+	sim:Teleport(p, kiosk.WorldPosition + Vector3.new(0, 2, -6))
+	setCamera(sim, FAR)
+	sim:Advance(0.6)
+	local event = sim:Find("ReplicatedStorage.Remotes.TankEvent")
+	event:FireClient(p, "Sold", { Items = {}, Amount = 67, RatePct = 150, Place = "Kiosk1" })
+	sim:Advance(0.05)
+	t.eq(countClass(folder, "ParticleEmitter", "Fxcoins"), 1, "coins at the kiosk")
+	sim:Advance(FX.EmitterLife + 0.2)
+	t.eq(countClass(folder, "ParticleEmitter"), 0, "gone")
+	event:FireClient(p, "Sold", { Items = {}, Amount = 67, RatePct = 150, Place = "Market" })
+	sim:Advance(0.05)
+	t.eq(countClass(folder, "ParticleEmitter"), 0, "a far stall: no coins")
+	event:FireClient(p, "Sold", { Items = {}, Amount = 12, RatePct = 100 })
+	sim:Advance(0.05)
+	t.eq(countClass(folder, "ParticleEmitter"), 0, "a home sale (no Place): no coins")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["budget and leaks: no frame connections from the tank scripts; a released base leaves nothing; tear-down restores the connections"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 14)
+	local world = controller(sim, p)
+	local fake = Fake.new(sim, p)
+	local base = fake.base
+	-- leave the yard so the base is torn down, measure the baseline
+	standFrom(sim, p, base, DISPLAY.DropRange + 30)
+	sim:Advance(1)
+	t.ok(not world.IsBuilt(base), "torn down")
+	local frames0 = frameConnections(sim, p)
+	local tank0 = tankConnections(sim, p)
+	-- back in: six non-rainbow fish, living, tags, the sign
+	fake:mount(sixFish(fake, { [3] = "Gold", [5] = "Neon" }))
+	standFrom(sim, p, base, 30)
+	settle(sim)
+	t.eq(world.Stats().fish, 6, "six fish")
+	t.ok(world.Stats().life > 0, "some living")
+	sim:Advance(3)
+	t.eq(frameConnections(sim, p), frames0, "no RenderStepped / Heartbeat / Stepped connection added")
+	local total = 0
+	for index = 1, 6 do
+		total += #partsOf(world.GetFish(base, index))
+	end
+	t.ok(total <= 6 * 20, `display fish parts ≤ 20 each ({total} for 6)`)
+	-- released: every display empty (no Event: BaseReleased) → nothing left
+	fake:unmount()
+	base:SetAttribute("OwnerUserId", 0)
+	sim:Advance(0.6)
+	t.eq(world.Stats().fish, 0, "released: no fish")
+	t.eq(world.Stats().tags, 0, "released: no tags")
+	local sign = world.GetSign(base)
+	t.ok(sign == nil or not sign.Enabled, "released: no sign")
+	local fishLeft = 0
+	for _, child in folderOf(sim, p):GetChildren() do
+		if child:IsA("Model") then
+			fishLeft += 1
+		end
+	end
+	t.eq(fishLeft, 0, "no fish model in the folder")
+	-- torn down: the tank scripts' connections are back to the baseline
+	standFrom(sim, p, base, DISPLAY.DropRange + 30)
+	sim:Advance(1.5)
+	t.eq(tankConnections(sim, p), tank0, "connections back to the baseline after the tear-down")
 	sim:AssertNoErrors({ warnings = true })
 end
 

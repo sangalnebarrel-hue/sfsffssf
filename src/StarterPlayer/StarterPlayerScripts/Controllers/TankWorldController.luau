@@ -88,6 +88,7 @@
 	  TankWorldController.IsBuilt(base) -> boolean
 	  TankWorldController.IsAlive(base, slotIndex) -> boolean         -- твин жизни идёт
 	  TankWorldController.Stats() -> { bases, fish, tags, life, emitters, lastBuilds, folder }
+	  TankWorldController.SetLife(enabled)   -- превью: RbxSim не двигает приваренные детали за Body
 ]]
 
 local Players = game:GetService("Players")
@@ -178,6 +179,7 @@ local emitters: { Emitter } = {}
 local rng = Random.new()
 local nextTag = 0
 local lastBuilds = 0
+local lifeEnabled = true
 local warned: { [string]: boolean } = {}
 local sellPoints: { [string]: Attachment } = {}
 -- Слово у ведра своей базы.
@@ -937,10 +939,11 @@ local function onFishingState(state: any, data: any)
 	if result ~= "stored" and result ~= "replaced" then
 		return
 	end
-	local arrival = { held = false }
+	-- (FishingController ставит CounterHold на этот же "Caught" — до нас или после)
+	local hud = hudGui
+	local arrival = { held = hud ~= nil and hud:GetAttribute("CounterHold") ~= nil }
 	pier.arrival = arrival
 	task.delay(ARRIVAL_WAIT, function()
-		local hud = hudGui
 		if pier.arrival == arrival and not arrival.held and not (hud and hud:GetAttribute("CounterHold") ~= nil) then
 			arrive()
 		end
@@ -1007,7 +1010,7 @@ local function check()
 			end
 			local model, point = slot.fish, slot.fishPoint
 			if model and point then
-				local near = distanceFrom(point.WorldPosition, cam, body) <= DISPLAY.LifeRange
+				local near = lifeEnabled and distanceFrom(point.WorldPosition, cam, body) <= DISPLAY.LifeRange
 				if near and not slot.life and now >= slot.busyUntil then
 					cancelTweens(slot)
 					slot.life = TankDisplay.startLife(model, rng)
@@ -1088,6 +1091,19 @@ function TankWorldController.IsAlive(base: Instance, index: number): boolean
 	return slot ~= nil and slot.life ~= nil
 end
 
+-- Превью (tools/preview): RbxSim не двигает приваренные детали за Body — для кадров жизнь
+-- выключают, рыбы стоят в позе покоя.
+function TankWorldController.SetLife(enabled: boolean)
+	lifeEnabled = enabled
+	if not enabled then
+		for _, base in bases do
+			for _, slot in base.slots do
+				stopLife(slot)
+			end
+		end
+	end
+end
+
 function TankWorldController.Stats(): { [string]: any }
 	local count = { bases = 0, fish = 0, tags = 0, life = 0 }
 	for _, base in bases do
@@ -1149,7 +1165,7 @@ function TankWorldController:Start(hud: ScreenGui)
 		if arrival then
 			if hud:GetAttribute("CounterHold") ~= nil then
 				arrival.held = true
-			elseif arrival.held then
+			else
 				arrive()
 			end
 		end
