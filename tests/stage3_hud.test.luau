@@ -24,7 +24,8 @@
 	    полон…» once per session; "replaced" — coins from «САДОК» to the Wallet, then the toast
 	    naming both fish; the onboarding «!» after the first fish ever, gone on the first open; a
 	    tap during the flight opens the panel after the arrival, on the new fish; the first-fish
-	    toast and the memory-mode toast once.
+	    toast and the memory-mode toast once; the catch toasts wait while the own trophy (HeldFish)
+	    is over the head (a tablet: NotifyController holds them back only on phones).
 
 	Run: lune run tools/run_tests.luau stage3_hud
 ]]
@@ -883,6 +884,67 @@ tests["onboarding: the first fish ever lights «!» on «САДОК» and its to
 	local again = watchToasts(sim, p, 2)
 	t.eq(badge.Visible, false, "no «!» again")
 	t.eq(again[TankConfig.Texts.FirstFish], nil, "the first-fish toast once")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["catch toasts wait for the held trophy (a tablet: the column is over the head), then show; nothing left connected"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = join(sim, 1, { device = "tablet", money = 500, count = 0 })
+	t.ok(chromeIn(sim, p))
+	ready(sim, p)
+	local hud = hudOf(p)
+	local idle = sim:CountConnections(p)
+	local Rules = sim:Require(sim:Find("ReplicatedStorage.Shared.FishingRules"), p)
+	local TextUtil = sim:Require(sim:Find("ReplicatedStorage.Shared.TextUtil"), p)
+	local replacedText = TextUtil.fill(TankConfig.Texts.Replaced, {
+		new = Rules.GetFish("Swordfish").ShortName,
+		old = Rules.GetFish("Crucian").ShortName,
+		price = "$24",
+	})
+	local rounds = {
+		{
+			what = "the first fish ever",
+			fish = CATCHES.Common,
+			tank = { Result = "stored", Slot = 1, Uid = "f1", Count = 1, Slots = 6, First = true },
+			text = TankConfig.Texts.FirstFish,
+		},
+		{
+			what = "a replacement",
+			fish = CATCHES.Epic,
+			tank = {
+				Result = "replaced",
+				Slot = 1,
+				Uid = "f7",
+				Count = 6,
+				Slots = 6,
+				Price = 24,
+				Replaced = { Uid = "f1", Id = "Crucian", Rarity = "Common", Mutation = nil, Price = 24 },
+			},
+			money = 524,
+			text = replacedText,
+		},
+	}
+	for i, round in rounds do
+		catchTank(sim, p, round.fish, i, round.tank, round.money)
+		t.ok(openCard(sim, p), `{round.what}: the card`)
+		-- The trophy is over the head (FishingService's HeldFish: it stays ~3 s after the card).
+		local held = sim:Create("Model", { Name = "HeldFish" }, p.Character)
+		closeCard(sim, p)
+		t.ok(arrived(sim, p), `{round.what}: the fish flew in`)
+		local early = watchToasts(sim, p, SPEC.ReplacedToastAfter + 1.5)
+		t.eq(next(early), nil, `{round.what}: no toast while the trophy is over the head`)
+		if round.money then
+			t.eq(hud.Status.Wallet.Money.Label.Text, "$524", `{round.what}: the coins are counted meanwhile`)
+		end
+		held:Destroy()
+		local seen = watchToasts(sim, p, 1)
+		t.eq(seen[round.text], 1, `{round.what}: the trophy is gone — «{round.text}»`)
+		sim:Advance(UIConfig.ToastDuration + 1)
+	end
+	sim:Advance(2)
+	t.eq(sim:CountConnections(p), idle, "the waits are disconnected")
 	sim:AssertNoErrors({ warnings = true })
 end
 

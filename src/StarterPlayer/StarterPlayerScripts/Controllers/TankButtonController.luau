@@ -19,16 +19,18 @@
 	    "replaced" — фишка та же, 🐠 качается, кольцо, потом MoneyController.Celebrate(Tank.Price,
 	    TankButton, { Rate = "up" }) — эта кнопка ЕДИНСТВЕННАЯ празднует замену (MoneyController лишь
 	    держит сумму до этого вызова; кнопка спрятана — всё равно позвать, с from = nil) и
-	    уведомление «Замена! «Меч-рыба» вместо «Карасик» +$24» (TankConfig.Texts.Replaced, Leaf 💵);
+	    уведомление «Замена! «Меч-рыба» вместо «Карасик» +$24» (TankConfig.Texts.Replaced, Leaf 💵;
+	    через ReplacedToastAfter с, MoneyController.CatchToast — когда трофей над головой ушёл);
 	    "sold" — на кнопке НИЧЕГО (призрак улетел в кошелёк, сумму празднует сам MoneyController).
 	    Нет Tank в "Caught" (садок не принял рыбу) — фишка не меняется, кнопка лишь чуть
 	    подпрыгивает. Без CounterHold (нет карточки; Этап 4: "Stored") — тот же прилёт через
 	    ArrivalWait после события / через StoredWait после роста TankCount (если "Caught" не
 	    пришёл следом: он мог отстать от атрибутов на кадр).
 	  • «!» новичка: после прилёта первой рыбы за всё время (Tank.First) — UiFx.badgeBob(Badge) и
-	    уведомление TankConfig.Texts.FirstFish (Water 🐠); панель садка открылась (HUD.TankPanel
-	    стала видна — кнопкой, кнопкой у аквариума или у ларька) — UiFx.badgeHide (на сессию, без
-	    remote: First и так один раз).
+	    уведомление TankConfig.Texts.FirstFish (Water 🐠; MoneyController.CatchToast: не раньше,
+	    чем трофей над головой ушёл — на планшете плашка легла бы на него); панель садка
+	    открылась (HUD.TankPanel стала видна — кнопкой, кнопкой у аквариума или у ларька) —
+	    UiFx.badgeHide (на сессию, без remote: First и так один раз).
 	  • Нажатие во время полёта рыбы (CounterHold, карточка уже закрылась) запоминается (без
 	    «нет»-качания): панель откроется сразу после прилёта (OpenAfter), прокрученная к новой рыбе
 	    (TankPanelController.Open(uid)); нажатие во время поклёвки, мини-игры или открытой
@@ -56,7 +58,6 @@ local TankRules = require(Shared:WaitForChild("TankRules"))
 local TextUtil = require(Shared:WaitForChild("TextUtil"))
 local Net = require(Shared:WaitForChild("Net"))
 local UiFx = require(Shared:WaitForChild("UiFx"))
-local NotifyController = require(script.Parent:WaitForChild("NotifyController"))
 local MoneyController = require(script.Parent:WaitForChild("MoneyController"))
 
 local player = Players.LocalPlayer
@@ -220,17 +221,17 @@ function TankButtonController:Start(hud: ScreenGui)
 			local gone = catch.replaced
 			local newDef = FishingRules.GetFish(catch.fishId)
 			local oldDef = if gone and typeof(gone.Id) == "string" then FishingRules.GetFish(gone.Id) else nil
-			task.delay(SPEC.ReplacedToastAfter, function()
-				NotifyController.Show(
-					TextUtil.fill(TankConfig.Texts.Replaced, {
-						new = if newDef then newDef.ShortName else catch.fishId,
-						old = if oldDef then oldDef.ShortName elseif gone then tostring(gone.Id) else "?",
-						price = TankRules.FormatMoney(catch.price),
-					}),
-					"success",
-					{ swatch = Palette.Leaf, icon = "💵" }
-				)
-			end)
+			-- (уведомление — когда монеты долетели и трофей над головой ушёл: не на рыбу и табличку)
+			MoneyController.CatchToast(
+				TextUtil.fill(TankConfig.Texts.Replaced, {
+					new = if newDef then newDef.ShortName else catch.fishId,
+					old = if oldDef then oldDef.ShortName elseif gone then tostring(gone.Id) else "?",
+					price = TankRules.FormatMoney(catch.price),
+				}),
+				"success",
+				{ swatch = Palette.Leaf, icon = "💵" },
+				SPEC.ReplacedToastAfter
+			)
 		elseif result == "stored" or (catch == nil and shownCount > before) then
 			-- (одометр: Label.Text — уже новое число, прежнее уезжает копией)
 			chipLabel.Text = chipText(before, shownSlots)
@@ -244,9 +245,12 @@ function TankButtonController:Start(hud: ScreenGui)
 		if catch and catch.first and result ~= "sold" then
 			onboarding = true
 			UiFx.badgeBob(badge)
-			task.delay(SPEC.ToastAfter, function()
-				NotifyController.Show(TankConfig.Texts.FirstFish, "info", { swatch = Palette.Water, icon = "🐠" })
-			end)
+			MoneyController.CatchToast(
+				TankConfig.Texts.FirstFish,
+				"info",
+				{ swatch = Palette.Water, icon = "🐠" },
+				SPEC.ToastAfter
+			)
 		end
 		if wantsOpen then
 			wantsOpen = false

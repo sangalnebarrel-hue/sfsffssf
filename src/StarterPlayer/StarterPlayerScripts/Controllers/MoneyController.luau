@@ -58,18 +58,25 @@
 	        CounterHold — отпускает: надпись не застревает);
 	      улов "sold" — ТОЛЬКО MoneyController, когда снят CounterHold: Celebrate(Price, nil) —
 	        призрак карточки уже прилетел в Wallet.Money как 💵 (FishingController), только счёт;
-	        первый раз за игру — уведомление TankConfig.Texts.FullSold (Sun, 💵).
+	        первый раз за игру — уведомление TankConfig.Texts.FullSold (Sun, 💵) через CatchToast,
+	        когда число набежало (+ Wallet.SoldToastGap с): не поверх праздника продажи.
+	  • CatchToast(text, kind, look?, delay?) — уведомление улова (зовёт и TankButtonController:
+	    первая рыба, замена): через delay с и не раньше, чем своя рыба над головой (HeldFish в
+	    своём персонаже) ушла, но не дольше Wallet.TrophyWait с — на планшете и компьютере
+	    NotifyController при трофее уведомления не держит, а их колонка — над головой рыбака.
 	  • Придержка улова: на "Caught" с Tank.Result "replaced" / "sold" (Tank.Price — монеты этого
 	    улова, RemoteNames) MoneyController держит Price (held += min(Price, Money − held − shown)),
 	    пока у HUD есть CounterHold и до Celebrate этой суммы (шаг 1 берёт её отсюда).
 	Атрибуты, которые читает: Player — Money, Income, DataMode; HUD — CounterHold, IntroAt. Remote:
 	FishingState "Caught" (Tank.Result, Tank.Price — только для придержки). Соединения — один раз
-	на сессию (HUD живёт всю игру).
+	на сессию (HUD живёт всю игру); CatchToast — ChildRemoved персонажа и CharacterAdded, только пока
+ждёт ухода трофея.
 
 	API:
 	  MoneyController:Start(hud)
 	  MoneyController.Celebrate(amount: number, from: GuiObject?, opts: { Rate: ("down" | "up")? }?)
 	  MoneyController.Shown() -> number     -- число на надписи (тесты, сценарии)
+	  MoneyController.CatchToast(text: string, kind: string, look: NotifyController.Look?, delay: number?)
 ]]
 
 local Players = game:GetService("Players")
@@ -570,6 +577,44 @@ function MoneyController.Shown(): number
 	return shown
 end
 
+-- Уведомление улова (первая рыба, замена, продажа на месте): через delay с и не раньше, чем
+-- своя рыба над головой ушла (HeldFish в своём персонаже; не дольше Wallet.TrophyWait с; новый
+-- персонаж — трофея нет). NotifyController держит уведомления при трофее только на телефоне, а
+-- на планшете и компьютере плашка легла бы на трофей и его табличку. Соединения — только пока
+-- ждёт.
+function MoneyController.CatchToast(text: string, kind: string, look: NotifyController.Look?, delay: number?)
+	task.delay(delay or 0, function()
+		local character = player.Character
+		if not (character and character:FindFirstChild("HeldFish")) then
+			NotifyController.Show(text, kind, look)
+			return
+		end
+		local done = false
+		local links: { RBXScriptConnection } = {}
+		local function show()
+			if done then
+				return
+			end
+			done = true
+			for _, link in links do
+				link:Disconnect()
+			end
+			table.clear(links)
+			NotifyController.Show(text, kind, look)
+		end
+		table.insert(
+			links,
+			character.ChildRemoved:Connect(function(child: Instance)
+				if child.Name == "HeldFish" and not character:FindFirstChild("HeldFish") then
+					show()
+				end
+			end)
+		)
+		table.insert(links, player.CharacterAdded:Connect(show))
+		task.delay(WALLET.TrophyWait, show)
+	end)
+end
+
 --------------------------------------------------------------------------------
 -- Придержка улова
 --------------------------------------------------------------------------------
@@ -607,14 +652,20 @@ local function onCaught(data: any)
 	end)
 end
 
--- Рыба долетела: "sold" — счёт (💵 уже сел в кошелёк) и первый раз за игру — «Садок полон…»;
--- "replaced" — ждём Celebrate от TankButtonController (не позвал за HoldRelease с — отпустить).
+-- Рыба долетела: "sold" — счёт (💵 уже сел в кошелёк) и первый раз за игру — «Садок полон…»
+-- (когда число набежало и трофей ушёл: не на праздник продажи); "replaced" — ждём Celebrate от
+-- TankButtonController (не позвал за HoldRelease с — отпустить).
 function arrived(hold: CatchHold)
 	if hold.result == "sold" then
 		MoneyController.Celebrate(hold.amount, nil) -- (берёт придержанное как своё)
 		if not soldToast then
 			soldToast = true
-			NotifyController.Show(TankConfig.Texts.FullSold, "warning", { icon = "💵" })
+			MoneyController.CatchToast(
+				TankConfig.Texts.FullSold,
+				"warning",
+				{ icon = "💵" },
+				countTime(hold.amount) + WALLET.SoldToastGap
+			)
 		end
 	else
 		task.delay(WALLET.HoldRelease, function()
