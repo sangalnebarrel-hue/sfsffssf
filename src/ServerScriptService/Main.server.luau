@@ -15,12 +15,18 @@ local ServerScriptService = game:GetService("ServerScriptService")
 
 local Services = ServerScriptService:WaitForChild("Services")
 
--- Порядок важен: карта → базы → рыбалка (ей нужны базы игроков) →
--- (следующие этапы: данные, садок, кража, магазин).
+-- Порядок важен: карта → базы → данные игроков (DataService) → деньги (EconomyService, ему
+-- нужны данные) → ларьки (MarketService) → рыбалка (ей нужны базы и данные) → садок
+-- (TankService: ему нужны все, он подключается к улову рыбалки) →
+-- (следующие этапы: кража, магазин).
 local ORDER = {
 	"MapService",
 	"BaseService",
+	"DataService",
+	"EconomyService",
+	"MarketService",
 	"FishingService",
+	"TankService",
 }
 
 local loaded = {}

@@ -43,7 +43,21 @@
 	  h:standAtSpot() / h:standFar()   onto the own FishingSpot / 40 studs inland of it
 	  h:config(name) -> table          ReplicatedStorage.Shared.Config.<name>
 	  h:minigame(rarity, extra?)       "Minigame" with the rarity's rule from FishingConfig
-	  h:caught(fish, total?)           "Caught" { Fish = fish, Total = total }
+	  h:caught(fish, total?, tank?)    "Caught" { Fish = fish, Total = total, Tank = tank } (stage 3:
+	                                   tank = { Result = "stored" | "replaced" | "sold", Count, Slots, … })
+	Stage 3 (DataService, EconomyService, MarketService, TankService are switched off too; every
+	player joins with DataMode "Ready", Money 0, Income 0, TankSlots 6, TankCount 0, SellRatePct 100):
+	  h:money(n, income10?)            Player Money (and Income = income10 / 10 $/s)
+	  h:tank(list, opts?)              the own base's displays as TankService writes them:
+	                                   list = { { Id, Kg?, Mutation?, Age?, Slot?, Uid? } } (the
+	                                   whole tank after the change), opts = { slots = unlocked
+	                                   (6), event = "mount" (every display) | "in" | "swap" |
+	                                   "sold" (only display at: "<n>|in|<FishId>",
+	                                   "<n>|swap|<price>", "<n>|sold|<price>"), at = slot (default:
+	                                   the last fish in list; required for "sold"), price = coins
+	                                   or gone = { Id, Kg?, Mutation?, Age? } (the fish that left:
+	                                   its SellPrice at home) }
+	  h:tankEvent(kind, data?)         TankEvent ("Open" | "Sold" | "Stored" | "Denied") to this client
 ]]
 
 local roblox = require("@lune/roblox")

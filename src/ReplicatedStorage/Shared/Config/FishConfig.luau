@@ -28,6 +28,9 @@ export type Rarity = {
 export type Fish = {
 	Id: string, -- совпадает с id блок-спецификации (tools/builder/gear/fish)
 	Name: string,
+	-- Короткое имя (Этап 3): карточки садка на телефоне (ЗАГЛАВНЫМИ через TextUtil.upper —
+	-- «ОКУНЬ») и уведомления «Замена! «Меч-рыба» вместо «Карасик» +$24».
+	ShortName: string,
 	Rarity: string,
 	Weight: number, -- шанс вида внутри своей редкости
 	Value: number, -- базовая цена продажи (Этап 3), монет
@@ -95,6 +98,7 @@ local FishConfig = {
 		{
 			Id = "Crucian",
 			Name = "Карасик",
+			ShortName = "Карасик",
 			Rarity = "Common",
 			Weight = 35,
 			Value = 10,
@@ -105,6 +109,7 @@ local FishConfig = {
 		{
 			Id = "Perch",
 			Name = "Окунь-полосатик",
+			ShortName = "Окунь",
 			Rarity = "Common",
 			Weight = 25,
 			Value = 15,
@@ -115,6 +120,7 @@ local FishConfig = {
 		{
 			Id = "Puffer",
 			Name = "Фугу-пуфик",
+			ShortName = "Фугу",
 			Rarity = "Rare",
 			Weight = 1,
 			Value = 45,
@@ -125,6 +131,7 @@ local FishConfig = {
 		{
 			Id = "Swordfish",
 			Name = "Меч-рыба",
+			ShortName = "Меч-рыба",
 			Rarity = "Epic",
 			Weight = 1,
 			Value = 140,
@@ -135,6 +142,7 @@ local FishConfig = {
 		{
 			Id = "SharkPup",
 			Name = "Акулёнок",
+			ShortName = "Акулёнок",
 			Rarity = "Legendary",
 			Weight = 1,
 			Value = 450,
@@ -145,6 +153,7 @@ local FishConfig = {
 		{
 			Id = "DragonFish",
 			Name = "Рыба-дракон",
+			ShortName = "Дракон",
 			Rarity = "Mythic",
 			Weight = 1,
 			Value = 1800,

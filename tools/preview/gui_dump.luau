@@ -38,6 +38,11 @@
 	h:stateEvents(), h:stateAfter(count, state), h:forceFish(fish), h:playCatch(fish, opts) =
 	h:readyReal(fish) + h:castAndHook(opts) + h:playMinigame(mg, opts), h:fixBiteDelay(s),
 	h:clientModule(name), h:poseLikeBackdrop(), h.world (documented where they are defined).
+	Stage 3 (the stub sim also switches off DataService, EconomyService, MarketService and
+	TankService — STUBBED_SERVICES — and every player joins with the stage 3 defaults: DataMode
+	"Ready", Money 0, Income 0, TankSlots 6, TankCount 0, SellRatePct 100, SellPlace ""):
+	h:money(n, income10?), h:tank(list, opts?) (the own base's slot / tank / player attributes,
+	written like TankService), h:tankEvent(kind, data), h:caught(fish, total, tank?).
 	Every player is an R15 rig (RbxSim `rig = "R15"`) on base 1 (BaseConfig.RandomAssignment is
 	switched off: the backdrop is base 1's pier); while a Tool is equipped the Animator stand-in
 	holds the "toolnone" pose (FisherPoses.Hold), like Roblox's Animate script.
@@ -103,6 +108,26 @@ local Vector3 = roblox.Vector3
 
 local INSET = 58
 local FRAME = 1 / 60
+
+-- The stub sim switches these services off ("return {}", like the client tests): the harness
+-- plays the server (FishingState / Notify / TankEvent and the replicated attributes).
+local STUBBED_SERVICES = { "FishingService", "DataService", "EconomyService", "MarketService", "TankService" }
+-- Stage 3 state every stub-sim player joins with (what the real services would replicate once
+-- the data is loaded: RemoteNames, «Состояние садка и денег»; the numbers from the place's
+-- configs); scenarios change it with h:money / h:tank / player:SetAttribute.
+local function stage3Defaults(sim: any): { [string]: any }
+	local tank = sim:Require(sim:Find("ReplicatedStorage.Shared.Config.TankConfig"))
+	local economy = sim:Require(sim:Find("ReplicatedStorage.Shared.Config.EconomyConfig"))
+	return {
+		DataMode = "Ready",
+		Money = economy.StartMoney,
+		Income = 0,
+		TankSlots = tank.StartSlots,
+		TankCount = 0,
+		SellRatePct = economy.HomeRatePct,
+		SellPlace = "",
+	}
+end
 
 --[[
 	Devices: an RbxSim input profile (tools/sim/players.luau: touch / keyboard / ...) plus the
@@ -1184,8 +1209,161 @@ function Harness:minigame(rarity: string, extra: { [string]: any }?)
 	self:serverSays("Minigame", data)
 end
 
-function Harness:caught(fish: { [string]: any }, total: number?)
-	self:serverSays("Caught", { Fish = fish, Total = total or 1 })
+-- "Caught" { Fish, Total, Tank? } — tank (stage 3) is the TankResult the server sends with the
+-- catch ({ Result = "stored" | "replaced" | "sold", Slot?, Uid?, Count, Slots, Replaced?, Price?,
+-- First? }); nil = the old payload (the tank did not take the fish).
+function Harness:caught(fish: { [string]: any }, total: number?, tank: { [string]: any }?)
+	self:serverSays("Caught", { Fish = fish, Total = total or 1, Tank = tank })
+end
+
+--------------------------------------------------------------------------------
+-- Stage 3: the tank and the money. In the stub sim DataService, EconomyService, MarketService and
+-- TankService are switched off like FishingService (STUBBED_SERVICES): the harness plays them
+-- through their replicated state (RemoteNames, «Состояние садка и денег») — every player joins
+-- with stage3Defaults (loaded data, $0, an empty StartSlots tank, the home rate).
+--------------------------------------------------------------------------------
+
+-- The player's money (Player attribute Money) and, optionally, income (income10: tenths of a
+-- coin per second → the Income attribute in $/s).
+function Harness:money(n: number, income10: number?)
+	self.player:SetAttribute("Money", n)
+	if income10 ~= nil then
+		self.player:SetAttribute("Income", income10 / 10)
+	end
+	self:simStep(FRAME)
+end
+
+-- The own base's tank, written like TankService does. list = { { Id, Kg?, Mutation?, Age?,
+-- Slot?, Uid? } } is the WHOLE tank after the change (Slot defaults to the position in the list,
+-- Age to 0 s in the tank). Every display Slot_1..MaxSlots gets its fish fields (FishUid, FishId,
+-- Rarity, Mutation, Kg, Value, Income, GrowFrom = TankRules.AttrTime(now − Age); all nil on
+-- "empty" / "locked"), then State ("fish" | "empty" | "locked" beyond opts.slots), then Event
+-- LAST, in RemoteNames' «Состояние садка» format:
+--   opts.event "mount" (default) — every display gets "<n>|mount|" (the tank mounting on a base);
+--   "in" | "swap" | "sold" — only the display opts.at gets an Event (as on the server, which
+--   writes just the slot that changed): "<n>|in|<its FishId>", "<n>|swap|<price>" (a new fish in
+--   place of a sold one) or "<n>|sold|<price>" (the display is empty now). opts.at defaults to
+--   the slot of the LAST fish in list for "in" / "swap" and is required for "sold"; price =
+--   opts.price, else TankRules.SellPrice(value, Age, HomeRatePct) of opts.gone = { Id, Kg?,
+--   Mutation?, Age? } (the fish that left).
+-- The tank model gets Count / Slots / Income and the player TankCount / TankSlots / Income.
+-- Returns the fish as written ({ Uid, Slot, Id, Rarity, Value, Income10, … }).
+local slotEventSerial = 0
+local SLOT_EVENTS = { mount = true, ["in"] = true, swap = true, sold = true }
+function Harness:tank(list: { { [string]: any } }, opts: { [string]: any }?): { { [string]: any } }
+	local base = self:base()
+	local written = {}
+	if not base then
+		self:warn("h:tank: the player has no base")
+		return written
+	end
+	local o = opts or {}
+	local cfg = self:config("TankConfig")
+	local rules = self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.FishingRules"))
+	local tankRules = self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.TankRules"))
+	local unlocked = math.min(o.slots or cfg.StartSlots, cfg.MaxSlots)
+	local now = self.sim.workspace:GetServerTimeNow()
+	local event = o.event or "mount"
+	if not SLOT_EVENTS[event] then
+		self:warn(`h:tank: unknown event «{event}» (mount | in | swap | sold)`)
+		event = "mount"
+	end
+	local bySlot = {}
+	local lastSlot = nil
+	for i, spec in list do
+		bySlot[spec.Slot or i] = spec
+		lastSlot = spec.Slot or i
+	end
+	local at = o.at or (if event == "in" or event == "swap" then lastSlot else nil)
+	if event ~= "mount" and not (at and at >= 1 and at <= cfg.MaxSlots) then
+		self:warn(`h:tank: event «{event}» needs opts.at (the display it happened on)`)
+	end
+	local price = o.price
+	if (event == "sold" or event == "swap") and price == nil then
+		local gone = o.gone
+		if gone and rules.GetFish(gone.Id) then
+			local def = rules.GetFish(gone.Id)
+			local value = rules.Price(gone.Id, gone.Kg or (def.MinKg + def.MaxKg) / 2, gone.Mutation)
+			price = tankRules.SellPrice(value, gone.Age or 0, self:config("EconomyConfig").HomeRatePct)
+		else
+			self:warn(`h:tank: event «{event}» needs opts.price or opts.gone (the fish that left)`)
+			price = 0
+		end
+	end
+	local fields = { "FishUid", "FishId", "Rarity", "Mutation", "Kg", "Value", "Income", "GrowFrom" }
+	local count, income10 = 0, 0
+	for index = 1, cfg.MaxSlots do
+		local slot = base.Tank.Slots:FindFirstChild(`Slot_{index}`)
+		local spec = bySlot[index]
+		if not slot then
+			self:warn(`h:tank: no Slot_{index}`)
+			continue
+		end
+		local state = if index > unlocked then "locked" elseif spec then "fish" else "empty"
+		if state == "fish" and spec then
+			local def = rules.GetFish(spec.Id)
+			local kg = spec.Kg or (if def then (def.MinKg + def.MaxKg) / 2 else 1)
+			local value, income = rules.Price(spec.Id, kg, spec.Mutation)
+			local tenths = tankRules.Income10(income)
+			local uid = spec.Uid or tankRules.UidOf(index)
+			slot:SetAttribute("FishUid", uid)
+			slot:SetAttribute("FishId", spec.Id)
+			slot:SetAttribute("Rarity", if def then def.Rarity else "Common")
+			slot:SetAttribute("Mutation", spec.Mutation)
+			slot:SetAttribute("Kg", kg)
+			slot:SetAttribute("Value", value)
+			slot:SetAttribute("Income", tenths / 10)
+			slot:SetAttribute("GrowFrom", tankRules.AttrTime(now - (spec.Age or 0)))
+			count += 1
+			income10 += tenths
+			table.insert(written, {
+				Uid = uid,
+				Slot = index,
+				Id = spec.Id,
+				Rarity = if def then def.Rarity else "Common",
+				Mutation = spec.Mutation,
+				Kg = kg,
+				Value = value,
+				Income10 = tenths,
+			})
+		else
+			for _, name in fields do
+				slot:SetAttribute(name, nil)
+			end
+		end
+		slot:SetAttribute("State", state)
+		local detail = nil
+		if event == "mount" then
+			detail = ""
+		elseif index == at then
+			if event == "in" then
+				detail = if spec then spec.Id else ""
+				if not spec then
+					self:warn(`h:tank: event «in» on Slot_{index}, but list has no fish there`)
+				end
+			else
+				detail = string.format("%d", price)
+			end
+		end
+		if detail ~= nil then
+			slotEventSerial += 1
+			slot:SetAttribute("Event", `{slotEventSerial}|{event}|{detail}`)
+		end
+	end
+	base.Tank:SetAttribute("Count", count)
+	base.Tank:SetAttribute("Slots", unlocked)
+	base.Tank:SetAttribute("Income", income10 / 10)
+	self.player:SetAttribute("TankCount", count)
+	self.player:SetAttribute("TankSlots", unlocked)
+	self.player:SetAttribute("Income", income10 / 10)
+	self:simStep(FRAME)
+	return written
+end
+
+-- TankEvent (kind, data) to this client: "Open" | "Sold" | "Stored" | "Denied" (RemoteNames).
+function Harness:tankEvent(kind: string, data: { [string]: any }?)
+	self.sim:Find("ReplicatedStorage.Remotes.TankEvent"):FireClient(self.player, kind, data or {})
+	self:simStep(FRAME)
 end
 
 --------------------------------------------------------------------------------
@@ -1996,9 +2174,13 @@ local function main()
 			return sim
 		end
 		sim = Sim.new({ place = opts.place, verbose = opts.verbose })
-		local fishingService = sim:Find("ServerScriptService.Services.FishingService")
-		if fishingService and not real then
-			fishingService.Source = "return {}"
+		if not real then
+			for _, name in STUBBED_SERVICES do
+				local service = sim:Find(`ServerScriptService.Services.{name}`)
+				if service then
+					service.Source = "return {}"
+				end
+			end
 		end
 		-- Every scenario's player gets base 1 (one player at a time): the backdrop IS base 1's
 		-- pier, and the world capture's movers / exclusion list are base 1's surroundings.
@@ -2047,6 +2229,12 @@ local function main()
 		previous[sim] = player
 		if insets then
 			playerInsets[sim:Unwrap(player)] = insets
+		end
+		if s.server ~= true then
+			-- The stub sim plays the stage 3 services: the data is loaded, an empty tank.
+			for name, value in stage3Defaults(sim) do
+				player:SetAttribute(name, value)
+			end
 		end
 		local h = setmetatable({
 			sim = sim,
