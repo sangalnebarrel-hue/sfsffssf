@@ -12,6 +12,7 @@
 	  TankRequests.Size() -> number          -- сколько игроков в таблице (тесты: _debugSizes)
 ]]
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local TankConfig = require(ReplicatedStorage.Shared.Config.TankConfig)
@@ -29,6 +30,9 @@ function TankRequests.Take(player: Player): boolean
 	local now = os.clock()
 	local bucket = buckets[player]
 	if not bucket then
+		if player.Parent ~= Players then
+			return false -- (запрос ушедшего игрока: записи не заводим)
+		end
 		bucket = { Tokens = BURST, At = now }
 		buckets[player] = bucket
 	end

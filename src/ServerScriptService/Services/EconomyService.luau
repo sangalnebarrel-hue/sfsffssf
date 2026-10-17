@@ -90,7 +90,7 @@ local function publish(player: Player, money: number)
 end
 
 local function onPlayerAdded(player: Player)
-	if records[player] then
+	if records[player] or player.Parent ~= Players then
 		return
 	end
 	local folder = Instance.new("Folder")

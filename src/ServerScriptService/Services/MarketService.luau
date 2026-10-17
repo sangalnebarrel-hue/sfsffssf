@@ -139,7 +139,7 @@ local function onTriggered(point: Point, player: Player)
 end
 
 local function onPlayerAdded(player: Player)
-	if records[player] then
+	if records[player] or player.Parent ~= Players then
 		return
 	end
 	records[player] = newRecord()
