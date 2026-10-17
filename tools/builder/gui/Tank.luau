@@ -9,8 +9,9 @@
 	Names are a contract (TankPanelController, tests and the preview scenarios find them):
 	  TankPanel                (hidden, ZIndex 30)
 	    Panel.Header.{Icon, Title, Count, Rate, Total, Market} — the client sizes each item to its
-	              text (px written as scales of the header) and drops what does not fit before the
-	              ✕: first Rate, then the Market chip's long text, then the Title (🐠 stays)
+	              text (px written as scales of the header) and, when even the bare text widths do
+	              not fit before the ✕, drops first Rate, then the Market chip's long text, then the
+	              Title (🐠 stays)
 	      Count   a Cream chip «0/6» (Label; italic dark digits; Gold when the tank is full)
 	      Rate    «+$0/с» green italic (UIConfig.MoneyText; the Wallet right above shows the same
 	              income, so it is the first to go)

@@ -40,8 +40,8 @@
 	    панели в покое — нет. Витрина перечитывается только по её Event (и State), одним
 	    task.defer на витрину. Шапка: «4/6» (TankCount / TankSlots; полный садок — фишка Gold),
 	    «+$42/с» (Income). Шапка — по ширине своих текстов (fitHeader): не влезает до ✕ —
-	    сперва прячется «+$42/с» (он же — в кошельке), потом фишка рынка короче («💰 +50%»),
-	    потом слово «САДОК».
+	    сперва без запаса к оценке ширины, потом прячется «+$42/с» (он же — в кошельке), потом
+	    фишка рынка короче («💰 +50%»), потом слово «САДОК».
 	  • Рынок: SellRatePct > 100 (атрибут сервера — единственный источник) — фишка «РЫНОК +50%»
 	    выскакивает, цены — по ставке ларька (подпрыгивают), кнопки — Gold (до ≈ 2 с после
 	    прихода к ларьку: сервер ждёт MarketDwell проверок). TankEvent "Open" с ларька (или у
@@ -120,7 +120,7 @@ local BOTTOM = 0.03 -- под рядом карточек — столько и�
 local RING_Z = 8 -- кольцо «ПРОДАТЬ?» — над лицом и подписью кнопки (Theme.SZ.Top 6 + 2)
 local FLOAT_Z = 40 -- «+$45» продажи — над листом (ZIndex 30)
 local CHIP_OUT = 0.18 -- фишка рынка уходит за столько секунд
-local HEAD_SLACK = 1.08 -- запас к оценке ширины текста шапки (UiFx.textWidth, наклон, обводка)
+local HEAD_SLACK = 1.08 -- запас к оценке ширины текста шапки (наклон, обводка), пока есть место
 local BONUS = EconomyConfig.MarketRatePct - 100
 
 -- Всё состояние модуля — в одной таблице (свободные регистры верхнего уровня: compile_limits).
@@ -340,11 +340,12 @@ end
 
 --[[
 	Шапка — по ширине своих текстов (px, записанные долями шапки; UIListLayout ставит их в ряд):
-	фишка «4/6», «+$42/с», «💵 $2 783 ▲», фишка рынка (её значок свисает влево — запас у суммы),
-	слово «САДОК». Не влезает до ✕ (узкий экран; полный садок у ларька) — сперва прячется
-	«+$42/с» (тот же доход — в кошельке над листом), потом фишка рынка короче («💰 +50%»), потом
-	слово «САДОК» (🐠 остаётся). Зовётся при раскладке, при смене текстов шапки и фишки — не каждый
-	кадр.
+	фишка «4/6», «+$42/с», «💵 $2 783 ▲», фишка рынка (её значок свисает влево — на просвет и
+	хвост суммы), слово «САДОК». Ширины — оценка UiFx.textWidth с запасом HEAD_SLACK; не влезает до
+	✕ — сперва без запаса (оценка и так не уже нарисованного текста, TextScaled ужмёт на пиксель), и
+	только потом прячется «+$42/с» (тот же доход — в кошельке над листом), потом фишка рынка короче
+	(«💰 +50%»), потом слово «САДОК» (🐠 остаётся). Зовётся при раскладке, при смене текстов шапки
+	и фишки — не каждый кадр.
 ]]
 fitHeader = function()
 	local head = S.head
@@ -354,43 +355,49 @@ fitHeader = function()
 	if W <= 0 or H <= 0 or not (title and count and countLabel and rate and total and chip and chipLabel) then
 		return
 	end
+	local tight = false
 	local function ink(text: string, tier: string): number
-		return UiFx.textWidth(text, UiFx.textSize(tier)) * HEAD_SLACK + 4
+		local w = UiFx.textWidth(text, UiFx.textSize(tier))
+		return if tight then w else w * HEAD_SLACK + 4
 	end
 	local list = head.List
 	local gap = if list then list.Padding.Scale * W + list.Padding.Offset else 0
 	local icon: GuiObject? = head.Icon
 	local iconW = if icon then icon.Size.X.Scale * H else 0 -- (RelativeYY)
-	local titleW = ink(title.Text, "Title")
 	local chipH = chip.Size.Y.Scale * H
-	local countW = math.max(ink(countLabel.Text, "Small") / math.max(countLabel.Size.X.Scale, 0.5), chipH * 1.4)
-	local rateW = ink(rate.Text, "Body")
-	local totalW = ink(total.Text, "Body")
 	local market = chip.Visible
 	local badge = if chipIcon then chipIcon.Size.X.Scale * chipH else chipH -- значок (RelativeYY)
 	local hang = if chipIcon then chipIcon.AnchorPoint.X * badge else 0 -- … свисает влево
 	local inner = badge - hang + 2 -- надпись — правее значка
 	local cap = 0.3 * chipH -- и до круглого правого края
+	-- (значок рынка свисает на просвет списка, сумме — только остаток)
+	local reserve = if market then math.max(hang - gap, 0) else 0
 	local texts = {
 		TextUtil.fill(TEXTS.MarketChip, { bonus = BONUS }),
 		TextUtil.fill(TEXTS.MarketShort, { bonus = BONUS }),
 	}
 	local showRate, showTitle, chipText = true, true, texts[1]
+	local function countWidth(): number
+		return math.max(ink(countLabel.Text, "Small") / math.max(countLabel.Size.X.Scale, 0.5), chipH * 1.4)
+	end
 	local function width(): number
-		local sum, n = iconW + countW + totalW, 3
+		local sum, n = iconW + countWidth() + ink(total.Text, "Body") + reserve, 3
 		if showTitle then
-			sum += titleW
+			sum += ink(title.Text, "Title")
 			n += 1
 		end
 		if showRate then
-			sum += rateW
+			sum += ink(rate.Text, "Body")
 			n += 1
 		end
 		if market then
-			sum += hang + inner + ink(chipText, "Small") + cap
+			sum += inner + ink(chipText, "Small") + cap
 			n += 1
 		end
 		return sum + gap * (n - 1)
+	end
+	if width() > W then
+		tight = true -- (сперва без запаса, и только потом что-то прятать)
 	end
 	if width() > W then
 		showRate = false
@@ -402,11 +409,11 @@ fitHeader = function()
 		showTitle = false
 	end
 	title.Visible = showTitle
-	title.Size = UDim2.fromScale(titleW / H, title.Size.Y.Scale)
-	count.Size = UDim2.fromScale(countW / W, count.Size.Y.Scale)
+	title.Size = UDim2.fromScale(ink(title.Text, "Title") / H, title.Size.Y.Scale)
+	count.Size = UDim2.fromScale(countWidth() / W, count.Size.Y.Scale)
 	rate.Visible = showRate
-	rate.Size = UDim2.fromScale(rateW / W, rate.Size.Y.Scale)
-	total.Size = UDim2.fromScale((totalW + (if market then hang else 0)) / W, total.Size.Y.Scale)
+	rate.Size = UDim2.fromScale(ink(rate.Text, "Body") / W, rate.Size.Y.Scale)
+	total.Size = UDim2.fromScale((ink(total.Text, "Body") + reserve) / W, total.Size.Y.Scale)
 	local labelW = ink(chipText, "Small")
 	local chipW = inner + labelW + cap
 	chip.Size = UDim2.fromScale(chipW / W, chip.Size.Y.Scale)

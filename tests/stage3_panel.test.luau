@@ -725,7 +725,7 @@ tests["wide labels: full names and «ПРОДАТЬ $X» only on wide cards and 
 	sim2:AssertNoErrors({ warnings = true })
 end
 
-tests["the header fits before the ✕ at a stall with a full tank: «+$X/с» gives way first, the chip sizes to its text"] = function(
+tests["the header fits before the ✕ at a stall with a full tank: «+$X/с» gives way first, the chip sizes to its text; a desktop at 3/6 keeps everything, no dead gap"] = function(
 	t
 )
 	for i, spec in
@@ -788,6 +788,39 @@ tests["the header fits before the ✕ at a stall with a full tank: «+$X/с» gi
 		t.ok(header.Title.Visible, `{what}: «САДОК» is back`)
 		sim:AssertNoErrors({ warnings = true })
 	end
+	-- a desktop at a stall with 3/6: there is room, so nothing gives way (the bare text widths are
+	-- tried before anything hides), and the total leaves no dead gap before the chip's 💰
+	local sim, p = opened(t, "desktop")
+	p:SetAttribute("SellRatePct", 150)
+	sim:Advance(1)
+	local header = hudOf(p).TankPanel.Panel.Header
+	t.ok(
+		header.Market.Visible and header.Rate.Visible and header.Title.Visible,
+		"desktop 3/6 at a stall: «+$X/с» stays"
+	)
+	t.eq(
+		header.Market.Label.Text,
+		TextFill(TEXTS.MarketChip, { bonus = EconomyConfig.MarketRatePct - 100 }),
+		"… the full chip"
+	)
+	local close = rectOf(hudOf(p).TankPanel.Panel.Close)
+	for _, item in header:GetChildren() do
+		if item:IsA("GuiObject") and item.Visible then
+			t.ok(rectOf(item).x1 <= close.x0 + 0.5, `desktop 3/6: {item.Name} left of the ✕`)
+		end
+	end
+	local total, icon = rectOf(header.Total), rectOf(header.Market.Icon)
+	local UiFx = uifx(sim, p)
+	local px = call(sim, p, function()
+		return UiFx.textSize("Body")
+	end)
+	local ink = UiFx.textWidth(header.Total.Text, px)
+	t.ok(icon.x0 >= total.x0 + UiFx.textWidth(header.Total.Text, px - 2) - 0.5, "the 💰 starts past the total's text")
+	t.ok(
+		icon.x0 - (total.x0 + ink) <= 16,
+		`no dead gap: the 💰 at {icon.x0} is ≤ 16 px past the total's text ({total.x0 + ink}; the critic saw 35)`
+	)
+	sim:AssertNoErrors({ warnings = true })
 end
 
 tests["values tick on one 1 s chain while open: prices, bars, the header total; no frame job, no frame connection"] = function(
