@@ -727,8 +727,8 @@ client's `Workspace.TankWorld` (TankWorldController's fish, words and FX; its fi
 boxes) and draws the pedestal labels (`Pedestal.LabelGui`) of the bases within 60 studs of the
 camera. Render them HUD-less: `gui_render.py --scenario tank_court,tank_aisle --no-hud …`.
 
-Stage 3 tank panel (`tools/preview/gui_scenarios_panel.luau`, loaded after the tank file, in the
-standard set): `tank_panel_home` (3/6: a Gold Perch, a maxed Puffer, a young Crucian, empty
+Stage 3 tank panel (`tools/preview/gui_scenarios_panel.luau`, listed after the built-in states, in
+the standard set): `tank_panel_home` (3/6: a Gold Perch, a maxed Puffer, a young Crucian, empty
 cards, the locked teaser; the open's rise and card pops at 0.12 s), `tank_panel_full` (6/6 with a
 Rainbow Dragon, the Gold count chip), `tank_panel_market` (TankEvent "Open" from the hub market,
 then `SellRatePct` 150: the «РЫНОК +50%» chip pops in, the prices jump, the buttons turn Gold),
