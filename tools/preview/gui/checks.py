@@ -50,9 +50,10 @@ FULLSCREEN_SHARE = 0.45
 CONTAINERS = {"HUD": {"Fishing", "TankPanel", "TankPanel.Panel"}}
 # Sheets (modal panels on the sheet shell, Controllers/Sheet): their widgets are checked against
 # the rest of the HUD and the CoreGui, but not against each other (a sheet packs its rows tighter
-# than 16 px) and not against what a modal sheet may cover (design §6.4: the idle action button
-# and the thumbstick zone); never dropped as a full-screen layer.
-SHEETS = {"HUD.TankPanel": {"HUD.Fishing.ActionArea", "Thumbstick"}}
+# than 16 px) and not against what a modal sheet may cover (design §6.4: the idle action button);
+# the thumbstick IS checked (the sheet keeps clear of it: a thumb that wants to walk would hit a
+# sell button); never dropped as a full-screen layer.
+SHEETS = {"HUD.TankPanel": {"HUD.Fishing.ActionArea"}}
 # Screen layers (dims, ray holders) that are never widgets, whatever their size.
 LAYERS = {"HUD.Fishing.CatchDim", "HUD.Fishing.CatchRays"}
 
@@ -533,7 +534,8 @@ def selftest():
     assert widget_of("HUD.TankPanel.Panel.Lip") == ("HUD.TankPanel.Panel.Lip", "solid")
     assert sheet_of("HUD.TankPanel.Panel.Close") == "HUD.TankPanel" and sheet_of("HUD.Status") is None
     assert _exempt("HUD.TankPanel.Panel.Header", "HUD.TankPanel.Panel.Close")
-    assert _exempt("HUD.TankPanel.Panel.Cards", "Thumbstick")
+    assert _exempt("HUD.TankPanel.Panel.Cards", "HUD.Fishing.ActionArea")
+    assert not _exempt("HUD.TankPanel.Panel.Cards", "Thumbstick")
     assert not _exempt("HUD.TankPanel.Panel.Cards", "Jump")
     assert not _exempt("HUD.TankPanel.Panel.Header", "HUD.Status")
     assert widget_of("HUD.Status.BaseBadge") == ("HUD.Status", "solid")

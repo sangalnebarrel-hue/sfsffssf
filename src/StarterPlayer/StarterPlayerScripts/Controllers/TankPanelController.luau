@@ -10,33 +10,45 @@
 	Что делает:
 	  • Место — Sheet: в px при открытии, записанное как UDim2.fromScale(x / W, y / H) от HUD, и
 	    заново при смене ViewportSize: слева 16 px, справа min(колонка кнопок, кнопка прыжка) −
-	    16, сверху низ стопки статуса + 16, снизу HUD − 16 (телефон 844×390 ≈ 717 × 228); на
-	    планшете и ПК — не больше 900 × 560 и не шире карточек, по центру этого места. Не
-	    закрывает ни кошелёк, ни кнопку «САДОК»; без затемнения. Ячейки сетки, отступы и ширина
-	    холста (CanvasSize) — тоже масштабом (TankConfig.Panel: Aspect, Gap, Overhang, Side).
+	    16, сверху низ стопки статуса + 16, снизу HUD − 16; на тач-экране — правее джойстика
+	    Roblox + 16 (или выше него: где лист теряет меньше; телефон 844×390 ≈ 114..733 × 153..371);
+	    на планшете и ПК — не больше 900 × 560 и не шире карточек, по центру этого места. Не
+	    закрывает ни кошелёк, ни кнопку «САДОК», ни джойстик (кто хочет идти, не попадёт в кнопку
+	    продажи); без затемнения. Ячейки сетки, отступы и ширина холста (CanvasSize) — тоже
+	    масштабом (TankConfig.Panel: Aspect, Gap, Overhang, Side); при смене размера ячейки
+	    карточки собираются заново (их строки разложены в px).
 	  • Фон: на телефоне — «стекло» с тёмной полосой Night под шапкой, на планшете и ПК — Night;
 	    карточки — Theme.sim без блика, глянца и тени.
 	  • Карточки: на телефоне один ряд (ScrollingFrame, явный CanvasSize), на HUD ≥ TankConfig.Panel
-	    .TallFrom px — RowsTall ряда; витрины 1..TankSlots, потом ОДНА закрытая (Locked). Рыба
-	    (TankCards): плашка цвета редкости (мифическая — радужная обводка, только пока открыта),
-	    имя заглавными (на карточке шире Panel.WideCard — полное), сама рыба во ViewportFrame
-	    (создаётся при открытии, удаляется при закрытии), фишка мутации «👑 ×2», доход «+$4/с»,
-	    полоска «×1.4» или золотое «МАКС», кнопка «💵 $45» (на широкой — «ПРОДАТЬ $45»): Leaf дома,
-	    Gold у ларька, Berry «ТОЧНО?» с ringTimer при подтверждении, Slate «⏳» — ждём сервер.
-	    Пустая — стекло, 🎣, «ПУСТО», «Поймай рыбу!»; закрытая — Slate, 🔒, «ЕЩЁ МЕСТО», «Скоро в
+	    .TallFrom px — RowsTall ряда (все столбцы в листе, если карточки для этого мельче не
+	    больше чем до Panel.FitShrink, иначе ряды листаются); витрины 1..TankSlots, потом ОДНА
+	    закрытая (Locked). Рыба (TankCards, разложена снизу: кнопка ≥ 44 px, над ней всегда
+	    видны полоска роста и «МАКС»): плашка цвета редкости (мифическая — радужная обводка,
+	    только пока открыта), имя заглавными (на карточке шире Panel.WideCard — полное, если
+	    влезает; при фишке мутации — правее её значка), сама рыба во ViewportFrame (создаётся
+	    при открытии, удаляется при закрытии), фишка мутации «👑 ×2», доход «+$4/с», полоска
+	    «×1.4» или золотое «МАКС», кнопка «💵 $45» («ПРОДАТЬ $45» — на широких карточках, если
+	    так влезает самая длинная цена рыб панели: одна подпись на всю панель, решается при
+	    раскладке и когда легла рыба дороже): Leaf дома, Gold у ларька, Berry «ТОЧНО?» с
+	    ringTimer при подтверждении, Slate «⏳» — ждём сервер. Пустая — стекло (на телефоне
+	    плотнее), 🎣, «ПУСТО», «Поймай рыбу!»; закрытая — Slate, 🔒, «ЕЩЁ МЕСТО», «Скоро в
 	    магазине» (тексты — TankConfig.Texts).
 	  • Числа — из атрибутов своих витрин (RemoteNames, «Состояние садка») и SellRatePct, одна
 	    цепочка task.delay раз в Panel.Tick секунд, пока открыта (цены, полоски, сумма садка в
 	    шапке «💵 $2 783 ▲»; ▲ — пока хоть одна рыба дорожает); покадровой работы при открытой
 	    панели в покое — нет. Витрина перечитывается только по её Event (и State), одним
 	    task.defer на витрину. Шапка: «4/6» (TankCount / TankSlots; полный садок — фишка Gold),
-	    «+$42/с» (Income).
+	    «+$42/с» (Income). Шапка — по ширине своих текстов (fitHeader): не влезает до ✕ —
+	    сперва прячется «+$42/с» (он же — в кошельке), потом фишка рынка короче («💰 +50%»),
+	    потом слово «САДОК».
 	  • Рынок: SellRatePct > 100 (атрибут сервера — единственный источник) — фишка «РЫНОК +50%»
 	    выскакивает, цены — по ставке ларька (подпрыгивают), кнопки — Gold (до ≈ 2 с после
 	    прихода к ларьку: сервер ждёт MarketDwell проверок). TankEvent "Open" с ларька (или у
 	    аквариума) только открывает панель.
 	  • Продажа — каждая рыба в два нажатия: первое — «ТОЧНО?» + ringTimer ConfirmTime с и Rate
-	    карточки красным «−$4/с»; второе раньше ConfirmArm не считается; 0.4–3 с — TankSell(uid),
+	    карточки красным «−$4/с»; нажатие раньше ConfirmArm после ПРЕДЫДУЩЕГО не считается и
+	    начинает отсчёт заново (кнопка качается: «барабанить» не продаёт — продаёт только нажатие
+	    после паузы ≥ ConfirmArm, пока идут 3 с) — TankSell(uid),
 	    на кнопке ⏳ до ответа (нет ответа Panel.SellWait с — кнопка возвращается); через 3 с —
 	    назад; нажатие на другую карточку отменяет первую. "Sold" — карточка сжимается, рыба
 	    уходит, из карточки поднимается золотое «+$45», на её месте выскакивает пустая карточка с
@@ -47,7 +59,8 @@
 	    подсказка — Text сервера (NotifyController.Show, «warning»; колонка уведомлений — над
 	    листом, Sheet).
 	  • Открытие: лист поднимается снизу (Sheet; без перелёта — он у самых краёв своего места) +
-	    лесенка карточек и «кивок» 🐠 / закрытие — сжимается (для рыбалки — сразу). Пока CounterHold (рыба летит в
+	    лесенка карточек и «кивок» 🐠 / закрытие — только сжимается (Quad In; для рыбалки —
+	    сразу). Пока CounterHold (рыба летит в
 	    кнопку) — открытие откладывается до прилёта; во время поклёвки, мини-игры, открытой
 	    карточки улова — отказ (Open → false; качает кнопку TankButtonController). Закрывается
 	    САМА (Sheet), когда FishingState становится "Bite" или "Reeling", появляется
@@ -106,6 +119,8 @@ local BOTTOM = 0.03 -- под рядом карточек — столько и�
 local RING_Z = 8 -- кольцо «ТОЧНО?» — над лицом и подписью кнопки (Theme.SZ.Top 6 + 2)
 local FLOAT_Z = 40 -- «+$45» продажи — над листом (ZIndex 30)
 local CHIP_OUT = 0.18 -- фишка рынка уходит за столько секунд
+local HEAD_SLACK = 1.08 -- запас к оценке ширины текста шапки (UiFx.textWidth, наклон, обводка)
+local BONUS = EconomyConfig.MarketRatePct - 100
 
 -- Всё состояние модуля — в одной таблице (свободные регистры верхнего уровня: compile_limits).
 local S = {
@@ -133,7 +148,9 @@ local S = {
 	pending = nil :: any, -- отложенное открытие (true или uid рыбы)
 	pendingConn = nil :: RBXScriptConnection?,
 	cell = Vector2.new(112, 160),
-	wide = false,
+	tall = false, -- HUD ≥ Panel.TallFrom: ряды карточек, лист — Night (иначе — стекло)
+	wide = false, -- карточки ≥ Panel.WideCard: полные имена (где влезают)
+	wideSell = false, -- подпись кнопок «ПРОДАТЬ $X» на всю панель (TankCards.sellStyle), иначе «💵 $X»
 	cols = 1,
 	gap = 0,
 	side = 0,
@@ -142,6 +159,8 @@ local S = {
 	sellEvent = nil :: RemoteEvent?,
 	market = false, -- фишка «РЫНОК +50%» показана
 	chipHide = nil :: thread?,
+	headSize = Vector2.zero, -- шапка, px (Sheet: ширина до ✕, высота)
+	lastTotal = "", -- текст суммы садка, под который разложена шапка
 }
 
 local TankPanelController = {}
@@ -250,6 +269,8 @@ end
 
 local clearCards: () -> ()
 local buildCards: () -> ()
+local stopConfirm: (revert: boolean) -> ()
+local fitHeader: () -> ()
 
 local function onPlace(fit: Sheet.Fit)
 	local frame, grid, padding = S.cardsFrame, S.grid, S.padding
@@ -262,9 +283,13 @@ local function onPlace(fit: Sheet.Fit)
 	local ch = cardHeight(fit.cards.Y, tall)
 	local cw = ch * aspectFor(tall)
 	if tall then
-		-- в несколько рядов все столбцы — в окне (не листается): иначе карточки мельче
-		cw = math.min(cw, windowW / (cols + (cols - 1) * PANEL.Gap + 2 * PANEL.Side))
-		ch = cw / aspectFor(tall)
+		-- в несколько рядов все столбцы — в окне (не листается), если карточки для этого мельче
+		-- не больше чем до FitShrink (Sheet уже сделал лист ниже — по ним); иначе ряды листаются
+		local fitAll = windowW / (cols + (cols - 1) * PANEL.Gap + 2 * PANEL.Side)
+		if fitAll >= PANEL.FitShrink * cw then
+			cw = math.min(cw, fitAll)
+			ch = cw / aspectFor(tall)
+		end
 	end
 	local gap, side = PANEL.Gap * cw, PANEL.Side * cw
 	local top, bottom = PANEL.Overhang * ch, BOTTOM * ch
@@ -279,22 +304,103 @@ local function onPlace(fit: Sheet.Fit)
 	local innerW, innerH = math.max(canvasW - 2 * side, 1), math.max(windowH - top - bottom, 1)
 	grid.CellSize = UDim2.fromScale(cw / innerW, ch / innerH)
 	grid.CellPadding = UDim2.fromScale(gap / innerW, gap / innerH)
-	if S.head.Rate then
-		S.head.Rate.Visible = fit.headerWidth >= PANEL.RateFrom
-	end
+	S.headSize = Vector2.new(fit.headerWidth, fit.header)
+	fitHeader()
 	local wide = cw >= PANEL.WideCard
-	local relabel = wide ~= S.wide and next(S.cards) ~= nil
+	-- карточки уже есть, а ячейка другая (сменился экран): их раскладка в px, имена и подписи —
+	-- под старый размер, карточки заново
+	local resized = next(S.cards) ~= nil
+		and (wide ~= S.wide or tall ~= S.tall or math.abs(cw - S.cell.X) > 0.5 or math.abs(ch - S.cell.Y) > 0.5)
 	S.cell, S.wide, S.cols, S.gap, S.side = Vector2.new(cw, ch), wide, cols, gap, side
+	S.tall = tall
 	S.canvasW, S.windowW = canvasW, windowW
 	frame.CanvasPosition = Vector2.new(math.min(frame.CanvasPosition.X, math.max(canvasW - windowW, 0)), 0)
-	if relabel then
-		buildCards() -- имена и подписи кнопок другой длины: карточки заново
+	if resized then
+		buildCards()
 	end
 end
 
 --------------------------------------------------------------------------------
 -- Шапка, цены, рынок
 --------------------------------------------------------------------------------
+
+--[[
+	Шапка — по ширине своих текстов (px, записанные долями шапки; UIListLayout ставит их в ряд):
+	фишка «4/6», «+$42/с», «💵 $2 783 ▲», фишка рынка (её значок свисает влево — запас у суммы),
+	слово «САДОК». Не влезает до ✕ (узкий экран; полный садок у ларька) — сперва прячется
+	«+$42/с» (тот же доход — в кошельке над листом), потом фишка рынка короче («💰 +50%»), потом
+	слово «САДОК» (🐠 остаётся). Зовётся при раскладке, при смене текстов шапки и фишки — не каждый
+	кадр.
+]]
+fitHeader = function()
+	local head = S.head
+	local W, H = S.headSize.X, S.headSize.Y
+	local title, count, countLabel, rate, total = head.Title, head.Count, head.CountLabel, head.Rate, head.Total
+	local chip, chipLabel, chipIcon = head.Market, head.MarketLabel, head.MarketIcon
+	if W <= 0 or H <= 0 or not (title and count and countLabel and rate and total and chip and chipLabel) then
+		return
+	end
+	local function ink(text: string, tier: string): number
+		return UiFx.textWidth(text, UiFx.textSize(tier)) * HEAD_SLACK + 4
+	end
+	local list = head.List
+	local gap = if list then list.Padding.Scale * W + list.Padding.Offset else 0
+	local icon: GuiObject? = head.Icon
+	local iconW = if icon then icon.Size.X.Scale * H else 0 -- (RelativeYY)
+	local titleW = ink(title.Text, "Title")
+	local chipH = chip.Size.Y.Scale * H
+	local countW = math.max(ink(countLabel.Text, "Small") / math.max(countLabel.Size.X.Scale, 0.5), chipH * 1.4)
+	local rateW = ink(rate.Text, "Body")
+	local totalW = ink(total.Text, "Body")
+	local market = chip.Visible
+	local badge = if chipIcon then chipIcon.Size.X.Scale * chipH else chipH -- значок (RelativeYY)
+	local hang = if chipIcon then chipIcon.AnchorPoint.X * badge else 0 -- … свисает влево
+	local inner = badge - hang + 2 -- надпись — правее значка
+	local cap = 0.3 * chipH -- и до круглого правого края
+	local texts = {
+		TextUtil.fill(TEXTS.MarketChip, { bonus = BONUS }),
+		TextUtil.fill(TEXTS.MarketShort, { bonus = BONUS }),
+	}
+	local showRate, showTitle, chipText = true, true, texts[1]
+	local function width(): number
+		local sum, n = iconW + countW + totalW, 3
+		if showTitle then
+			sum += titleW
+			n += 1
+		end
+		if showRate then
+			sum += rateW
+			n += 1
+		end
+		if market then
+			sum += hang + inner + ink(chipText, "Small") + cap
+			n += 1
+		end
+		return sum + gap * (n - 1)
+	end
+	if width() > W then
+		showRate = false
+	end
+	if market and width() > W then
+		chipText = texts[2]
+	end
+	if width() > W then
+		showTitle = false
+	end
+	title.Visible = showTitle
+	title.Size = UDim2.fromScale(titleW / H, title.Size.Y.Scale)
+	count.Size = UDim2.fromScale(countW / W, count.Size.Y.Scale)
+	rate.Visible = showRate
+	rate.Size = UDim2.fromScale(rateW / W, rate.Size.Y.Scale)
+	total.Size = UDim2.fromScale((totalW + (if market then hang else 0)) / W, total.Size.Y.Scale)
+	local labelW = ink(chipText, "Small")
+	local chipW = inner + labelW + cap
+	chip.Size = UDim2.fromScale(chipW / W, chip.Size.Y.Scale)
+	chipLabel.Text = chipText
+	chipLabel.Position = UDim2.fromScale((chipW - cap) / chipW, chipLabel.Position.Y.Scale)
+	chipLabel.Size = UDim2.fromScale(labelW / chipW, chipLabel.Size.Y.Scale)
+	S.lastTotal = total.Text
+end
 
 local function updateHeader()
 	local head = S.head
@@ -315,6 +421,7 @@ local function updateHeader()
 	if head.Rate then
 		head.Rate.Text = TankRules.FormatRate(math.round((numberAttr("Income") or 0) * 10))
 	end
+	fitHeader()
 end
 
 -- Цены, полоски, сумма садка (раз в Panel.Tick с, пока открыта; и сразу после изменений).
@@ -323,14 +430,18 @@ local function tick()
 	local rate = ratePct()
 	local total, growing = 0, false
 	for _, card in S.cards do
-		local price, grows = TankCards.update(card, now, rate, S.wide)
+		local price, grows = TankCards.update(card, now, rate, S.wideSell)
 		total += price
 		growing = growing or grows
 	end
-	if S.head.Total then
-		S.head.Total.Text = TextUtil.fill(if growing then TEXTS.Total else TEXTS.TotalDone, {
+	local label = S.head.Total
+	if label then
+		label.Text = TextUtil.fill(if growing then TEXTS.Total else TEXTS.TotalDone, {
 			money = TankRules.FormatMoney(total),
 		})
+		if label.Text ~= S.lastTotal then
+			fitHeader() -- (сумма стала другой длины: шапка — под неё)
+		end
 	end
 end
 
@@ -354,6 +465,7 @@ local function applyRate(animate: boolean)
 		if market then
 			chip.Visible = true
 			UiFx.scaleOf(chip).Scale = 1
+			fitHeader()
 			if animate then
 				UiFx.popIn(chip, { from = 0.3, rotate = -8 })
 				UiFx.rimFlash(chip, { delay = 0.2 })
@@ -364,15 +476,17 @@ local function applyRate(animate: boolean)
 				S.chipHide = nil
 				chip.Visible = false
 				UiFx.scaleOf(chip).Scale = 1
+				fitHeader() -- (место фишки — снова доходу и слову «САДОК»)
 			end)
 		else
 			chip.Visible = false
+			fitHeader()
 		end
 	end
 	local look = lookFor()
 	for _, card in S.cards do
 		if card.kind == "fish" and (card.look == "home" or card.look == "market") then
-			TankCards.setLook(card, look, S.wide)
+			TankCards.setLook(card, look, S.wideSell)
 			if animate and card.caption then
 				UiFx.punch(card.caption, { from = 0.7, peak = 1.2 })
 			end
@@ -388,14 +502,18 @@ end
 local onSell: (card: Card) -> ()
 
 local function makeCard(slot: number, info: Info?): Card
-	local card = TankCards.make(S.templates, if info then "fish" else "empty", slot, info, S.cell, S.wide, onSell)
+	local kind = if info then "fish" else "empty"
+	local card = TankCards.make(S.templates, kind, slot, info, S.cell, S.wide, onSell, not S.tall)
 	if card.kind == "fish" then
-		TankCards.setLook(card, lookFor(), S.wide)
+		TankCards.setLook(card, lookFor(), S.wideSell)
 	end
 	return card
 end
 
 clearCards = function()
+	if S.confirm then
+		stopConfirm(false) -- (кольцо «ТОЧНО?» уходит вместе с карточкой)
+	end
 	for slot, card in S.cards do
 		TankCards.destroy(card)
 		S.cards[slot] = nil
@@ -409,8 +527,19 @@ end
 
 buildCards = function()
 	clearCards()
+	-- подпись кнопок — одна на всю панель: по самой длинной цене её рыб (TankCards.sellStyle)
+	local infos: { [number]: Info } = {}
+	local reach = 0
 	for slot = 1, S.slots do
-		S.cards[slot] = makeCard(slot, (readSlot(slot)))
+		local info = readSlot(slot)
+		if info then
+			infos[slot] = info
+			reach = math.max(reach, TankCards.reach(info))
+		end
+	end
+	S.wideSell = TankCards.sellStyle(S.templates.fish, S.cell, S.wide, reach)
+	for slot = 1, S.slots do
+		S.cards[slot] = makeCard(slot, infos[slot])
 	end
 	if S.slots < MAX_SLOTS then
 		S.locked = TankCards.make(S.templates, "locked", S.slots + 1, nil, S.cell, S.wide)
@@ -424,7 +553,7 @@ local function rarityColor(info: Info?): Color3
 end
 
 -- Подтверждение кончилось (время вышло, другая карточка, продажа, закрытие).
-local function stopConfirm(revert: boolean)
+stopConfirm = function(revert: boolean)
 	local card = S.confirm
 	S.confirm = nil
 	local ring = S.ring
@@ -435,7 +564,7 @@ local function stopConfirm(revert: boolean)
 	cancel(S.confirmEnd)
 	S.confirmEnd = nil
 	if card and revert and card.look == "confirm" then
-		TankCards.setLook(card, lookFor(), S.wide)
+		TankCards.setLook(card, lookFor(), S.wideSell)
 		TankCards.showLoss(card, false)
 	end
 end
@@ -451,7 +580,7 @@ local function endSelling(revert: boolean)
 	end
 	local card = S.cards[selling.slot]
 	if card and card.look == "busy" and card.info and card.info.uid == selling.uid then
-		TankCards.setLook(card, lookFor(), S.wide)
+		TankCards.setLook(card, lookFor(), S.wideSell)
 	end
 end
 
@@ -465,7 +594,7 @@ onSell = function(card: Card)
 		stopConfirm(true)
 		S.confirm = card
 		S.confirmAt = os.clock()
-		TankCards.setLook(card, "confirm", S.wide)
+		TankCards.setLook(card, "confirm", S.wideSell)
 		TankCards.showLoss(card, true)
 		if card.rate then
 			UiFx.punch(card.rate, { from = 0.8, peak = 1.2 })
@@ -485,12 +614,18 @@ onSell = function(card: Card)
 		return
 	end
 	if os.clock() - S.confirmAt < TankConfig.ConfirmArm then
-		return -- двойной тап: второе нажатие слишком рано
+		-- Слишком рано (двойной тап или «барабанит» по кнопке): отсчёт ConfirmArm — заново от этого
+		-- нажатия, кнопка качнётся «ещё нет». Продаёт только нажатие после паузы ≥ ConfirmArm.
+		S.confirmAt = os.clock()
+		if card.sell then
+			UiFx.wiggle(card.sell, 4, 2, 0.24)
+		end
+		return
 	end
 	-- Второе нажатие: продать. Кнопка ждёт ответа сервера (⏳).
 	stopConfirm(false)
 	TankCards.showLoss(card, false)
-	TankCards.setLook(card, "busy", S.wide)
+	TankCards.setLook(card, "busy", S.wideSell)
 	endSelling(true)
 	S.selling = { uid = info.uid, slot = card.slot }
 	local event = S.sellEvent
@@ -508,6 +643,15 @@ local function replace(slot: number, info: Info?, loud: boolean)
 	local old = S.cards[slot]
 	if S.confirm == old then
 		stopConfirm(false)
+	end
+	if info and S.wideSell and not TankCards.sellStyle(S.templates.fish, S.cell, S.wide, TankCards.reach(info)) then
+		-- рыба дороже, чем влезает «ПРОДАТЬ $X»: вся панель — «💵 $X» (назад — только при раскладке)
+		S.wideSell = false
+		for _, other in S.cards do
+			if other.kind == "fish" then
+				TankCards.setLook(other, other.look, false)
+			end
+		end
 	end
 	local card = makeCard(slot, info)
 	S.cards[slot] = card
@@ -856,6 +1000,7 @@ function TankPanelController.Stats(): { [string]: any }
 		selling = if S.selling then S.selling.uid else nil,
 		pending = S.pending ~= nil,
 		wide = S.wide,
+		wideSell = S.wideSell,
 		cell = S.cell,
 	}
 end
@@ -874,13 +1019,18 @@ function TankPanelController:Start(hud: ScreenGui)
 		S.templates[kind] = cards:WaitForChild(name) :: GuiObject
 	end
 	local count = header:FindFirstChild("Count")
+	local market = header:FindFirstChild("Market")
 	S.head = {
+		List = header:FindFirstChildOfClass("UIListLayout"),
 		Icon = header:FindFirstChild("Icon"),
+		Title = header:FindFirstChild("Title"),
 		Count = count,
 		CountLabel = if count then count:FindFirstChild("Label") else nil,
 		Rate = header:FindFirstChild("Rate"),
 		Total = header:FindFirstChild("Total"),
-		Market = header:FindFirstChild("Market"),
+		Market = market,
+		MarketLabel = if market then market:FindFirstChild("Label") else nil,
+		MarketIcon = if market then market:FindFirstChild("Icon") else nil,
 	}
 	S.sellEvent = Net.Event("TankSell")
 	S.sheet = Sheet.new(hud, root, {

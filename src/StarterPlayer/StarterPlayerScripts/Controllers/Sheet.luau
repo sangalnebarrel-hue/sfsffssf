@@ -10,7 +10,7 @@
 	Что делает лист:
 	  • Open — плашка поднимается снизу на место (без перелёта: она у самых краёв своего места —
 	    кнопка прыжка, колонка, стопка статуса; лесенку карточек делает владелец), Close — сжимается
-	    к середине (UiFx.popOut без «вдоха»), потом корень прячется; "fishing" — прячется сразу
+	    к середине (Quad In: только меньше, ни на миг не больше), потом корень прячется; "fishing" — прячется сразу
 	    (поклёвке, мини-игре и карточке улова — весь экран и вся заливка). opts.onClose(reason) —
 	    сразу (владелец останавливает свои таймеры), opts.onClosed(reason) — когда спрятан
 	    (владелец убирает карточки). Открыли снова, пока уходит, — уход отменён, onClosed не
@@ -19,10 +19,13 @@
 	    (UDim2.fromScale: «UDim2 через scale»): слева Margin px, справа min(левый край видимых
 	    кнопок HUD.RightButtons, левый край кнопки прыжка Roblox на тач-экране —
 	    FishingLayout.jumpCircle) − Margin, сверху низ видимых плашек HUD.Status + Margin (без
-	    тач-экрана — не выше ChatBottom: окно чата Roblox слева вверху), снизу HUD − Margin; лист —
-	    не больше MaxWidth × MaxHeight и не шире, чем нужно карточкам (opts.contentWidth), по
-	    центру этого места. Так он никогда не закрывает кошелёк (стопка статуса) и кнопку
-	    «САДОК» (колонка справа); может закрыть кнопку действия и зону джойстика (модальный лист).
+	    тач-экрана — не выше ChatBottom: окно чата Roblox слева вверху), снизу HUD − Margin; на
+	    тач-экране — ещё и не на джойстике Roblox (правее него + Margin или выше него − Margin: где
+	    лист теряет меньшую долю места; телефон — правее): кто хочет идти, жмёт туда, а не в
+	    кнопку продажи. Лист — не больше MaxWidth × MaxHeight и не шире, чем нужно карточкам
+	    (opts.contentWidth; в несколько рядов чуть не хватает ширины — карточкам до FitShrink — и
+	    ниже, по карточкам), по центру этого места. Так он никогда не закрывает кошелёк (стопка статуса), кнопку «САДОК»
+	    (колонка справа) и джойстик; может закрыть кнопку действия (модальный лист).
 	    Внутри: шапка — Header доли высоты, HeaderMin..HeaderMax px; ✕ — на правом верхнем углу
 	    (не меньше 44 px); окно карточек — под шапкой до низа с отступом Inset; всё — масштабом
 	    плашки. opts.onPlace(fit) — владелец раскладывает карточки под это окно.
@@ -41,7 +44,7 @@
 	API:
 	  Sheet.new(hud, root, opts) -> Sheet
 	    opts = { Layout: { Margin, MaxWidth, MaxHeight, ChatRight, ChatBottom, Header, HeaderMin,
-	             HeaderMax, Inset, InsetMin, InsetMax, TallFrom } (TankConfig.Panel),
+	             HeaderMax, Inset, InsetMin, InsetMax, TallFrom, FitShrink } (TankConfig.Panel),
 	             Token: string? (плашка на высоком экране, "Night"),
 	             contentWidth: ((cardsHeight: number, tall: boolean) -> number)?,
 	             onPlace: ((fit: Fit) -> ())?, onClose / onClosed: ((reason: string) -> ())? }
@@ -88,6 +91,7 @@ export type Layout = {
 	InsetMin: number,
 	InsetMax: number,
 	TallFrom: number,
+	FitShrink: number,
 }
 
 export type Options = {
@@ -113,12 +117,16 @@ export type Sheet = {
 local player = Players.LocalPlayer
 local BUSY_STATES: { [string]: boolean } = { Bite = true, Reeling = true }
 local FISHING_WIDGETS = { "BiteAlert", "Minigame", "CatchCard" }
-local CLOSE_TIME = 0.14 -- уход плашки (сжимается к середине, без «вдоха»), с
+local CLOSE_TIME = 0.14 -- уход плашки (сжимается к середине: Quad In — только меньше, без «вдоха»), с
 local RISE = 18 -- плашка поднимается на место снизу на столько px …
 local RISE_TIME = 0.2 -- … за столько секунд (без перелёта: она у самых краёв места)
 local CENTRE = UDim2.fromScale(0.5, 0.5) -- Panel: AnchorPoint (0.5, 0.5) в середине корня
 local CLOSE_SHARE = 0.7 -- ✕ (AnchorPoint X 0.7) заходит на лист этой долей своей ширины
 local SMALL_JUMP = 500 -- короткая сторона экрана ≤ этого — кнопка прыжка маленькая (FishingLayout)
+-- Джойстик Roblox на тач-экране (зеркало кнопки прыжка, как FishingController.thumbstickBox):
+-- правый край в right px от левого края HUD, верх — в top px от низа.
+local STICK_SMALL = { right = 95, top = 90 }
+local STICK_BIG = { right = 180, top = 210 }
 local INK = 0.3 -- надпись (эмодзи, обводка, наклон) рисуется на столько своей высоты ниже коробки
 
 local Sheet = {}
@@ -225,17 +233,35 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 		if columnLeft then
 			right = math.min(right, columnLeft - m)
 		end
+		local camera = Workspace.CurrentCamera
+		local view = if camera then camera.ViewportSize else size
+		local small = math.min(view.X, view.Y) <= SMALL_JUMP
+		local chrome = m + 1 -- (до кнопок Roblox — с запасом на округление обводки)
 		if touch then
-			local camera = Workspace.CurrentCamera
-			local view = if camera then camera.ViewportSize else size
-			local jump, r = FishingLayout.jumpCircle(size, math.min(view.X, view.Y) <= SMALL_JUMP)
-			right = math.min(right, jump.X - r - m)
+			local jump, r = FishingLayout.jumpCircle(size, small)
+			right = math.min(right, jump.X - r - chrome)
 		end
 		local top = (statusBottom or 0) + m
 		if not touch and m < cfg.ChatRight then
 			top = math.max(top, cfg.ChatBottom + m - cfg.Margin)
 		end
 		local left, bottom = m, H - m
+		if touch then
+			-- Джойстик: лист его не закрывает (ребёнок, который хочет идти, жмёт туда — и попал бы в
+			-- кнопку продажи). Лист начинается правее него или кончается выше — где теряет меньшую
+			-- долю своего места (телефон — правее, низкий экран не отдаст высоту).
+			local stick = if small then STICK_SMALL else STICK_BIG
+			local stickTop, stickRight = H - stick.top - chrome, stick.right + chrome
+			if bottom > stickTop and left < stickRight then
+				local lossW = (stickRight - left) / math.max(right - left, 1)
+				local lossH = (bottom - stickTop) / math.max(bottom - top, 1)
+				if lossW <= lossH then
+					left = stickRight
+				else
+					bottom = stickTop
+				end
+			end
+		end
 		local boxW, boxH = math.max(right - left, 0), math.max(bottom - top, 0)
 		local tall = H >= cfg.TallFrom
 
@@ -247,6 +273,14 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 		local cardsH = math.max(plateH - cardsTop - inset * 0.6, 0)
 		local want = if opts.contentWidth then opts.contentWidth(cardsH, tall) + 2 * side else math.huge
 		local plateW = math.min(boxW, cfg.MaxWidth, want)
+		local shrink = math.max(plateW - 2 * side, 0) / math.max(want - 2 * side, 1)
+		if tall and shrink < 1 and shrink >= cfg.FitShrink and cardsH > 0 then
+			-- В несколько рядов карточкам чуть не хватает ширины (владелец сделает их мельче, но не
+			-- меньше FitShrink — иначе они листаются): лист ниже — по ним, без пустой полосы внизу
+			-- (ширина под карточки растёт с высотой окна линейно).
+			plateH = math.min(plateH, cardsTop + cardsH * shrink + inset * 0.6)
+			cardsH = math.max(plateH - cardsTop - inset * 0.6, 0)
+		end
 		local x = left + (boxW - plateW) / 2
 		local y = top + (boxH - plateH) / 2
 
@@ -329,7 +363,9 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 			finishHide(why) -- поклёвка или улов: экран им сразу, без анимации
 			return
 		end
-		UiFx.popOut(panel, { time = CLOSE_TIME, swell = false })
+		-- (Quad In: только сжимается — у UiFx.popOut даже без «вдоха» Back In сперва чуть растёт,
+		-- и лист на миг заходил на кнопку прыжка, колонку и окно чата)
+		UiFx.tween(UiFx.scaleOf(panel), CLOSE_TIME, { Scale = 0 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 		hiding = task.delay(CLOSE_TIME + 0.02, finishHide, why)
 	end
 

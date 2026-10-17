@@ -18,15 +18,20 @@
 	    total);
 	  • values tick on one 1 s chain (no frame job, no frame connection); the header total grows;
 	  • market mode on SellRatePct only (not on TankEvent "Open"'s RatePct);
-	  • confirm on every sale: the first tap fires nothing; +0.15 s fires nothing; +0.5 s fires
-	    TankSell(uid) once; a 3 s timeout reverts; the red «−$X/с»; another card cancels;
+	  • confirm on every sale: the first tap fires nothing; a tap sooner than ConfirmArm after the
+	    previous one fires nothing and restarts the arm (+0.15 s, +0.5 s: nothing; mashing every
+	    0.2 s for 2 s: nothing); a tap after a pause ≥ ConfirmArm fires TankSell(uid) once; a 3 s
+	    timeout reverts; the red «−$X/с»; another card cancels;
 	  • after "Sold": the card turns empty, MoneyController.Celebrate(Amount, card, { Rate = "down" })
 	    exactly once (and with no flight when the panel is closed); the juice ends (activeJobs 0);
 	    "Denied" → the button is back, a warning toast over the sheet;
 	  • slot events while open ("in", "swap") refresh only their card;
 	  • the layout is scale-based, never over the Wallet (status stack) or the right column, ≥ 16 px
-	    from Jump on touch screens and the screen edges, on phone / phone_small / tablet / desktop,
-	    and survives a ViewportSize change; sell buttons ≥ 44 px tall;
+	    from Jump and off the thumbstick on touch screens and the screen edges, on phone /
+	    phone_small / tablet / desktop, and survives a ViewportSize change; sell buttons ≥ 44 px
+	    tall; on every card the growth row and «МАКС» clear of the sell button and the rate row;
+	    the header before the ✕ (also at a stall with a full tank: the chip sized to its text);
+	    one sell label style per panel; a name right of its mutation chip; ✕ only shrinks;
 	  • Open(uid) scrolls to the fish and rings it; the «!» on «САДОК» hides on open;
 	  • nothing is left running after close (connections back to the baseline, no clones);
 	  • phone fill ≤ 2.5× with 6 cards and the teaser (the quads the HUD draws, like
@@ -519,8 +524,18 @@ tests["open / close: Toggle, TankEvent Open, ✕; refused during a bite or the c
 	tankEvent(sim, p, "Open", { Place = "Market", RatePct = 150, Name = "Рыбный рынок" })
 	sim:Advance(0.4)
 	t.ok(panel.IsOpen(), "TankEvent Open opens it")
+	local scale = root.Panel:FindFirstChildOfClass("UIScale")
 	sim:Click(p, root.Panel.Close)
-	sim:Advance(0.4)
+	local biggest = 0
+	for _ = 1, 8 do
+		sim:Advance(0.02)
+		scale = scale or root.Panel:FindFirstChildOfClass("UIScale")
+		if scale and root.Visible then
+			biggest = math.max(biggest, scale.Scale)
+		end
+	end
+	t.ok(biggest <= 1 + 1e-6, `the close only shrinks the sheet (largest UIScale {biggest})`)
+	sim:Advance(0.3)
 	t.ok(not panel.IsOpen() and not root.Visible, "✕ closes it")
 
 	-- a bite: refused; open → closes at once
@@ -660,6 +675,25 @@ tests["wide labels: full names and «ПРОДАТЬ $X» only on wide cards and 
 		t.ok(UiFx.textWidth(caption.Text, px) <= caption.AbsoluteSize.X + 0.5, `Card{slot}: «{caption.Text}» fits`)
 	end
 	t.ok(full >= 1, `some desktop cards show the full name ({full})`)
+	-- one sell label style for the whole panel (TankCards.sellStyle)
+	local styles = {}
+	for slot = 1, 6 do
+		local caption = card(p, slot).Sell.Caption.Text
+		styles[if string.sub(caption, 1, 4) == "💵" then "phone" else "wide"] = true
+	end
+	t.ok(not (styles.phone and styles.wide), "every sell button of the panel has the same label style")
+	t.eq(styles.wide == true, panel.Stats().wideSell, "… the one the panel chose (wideSell) for its longest price")
+	-- a mutation chip: the name starts right of its icon
+	for slot = 1, 6 do
+		local c = card(p, slot)
+		if c.Mutation.Visible then
+			local icon = rectOf(c.Mutation.Icon)
+			t.ok(
+				rectOf(c.NameLabel).x0 >= icon.x1 - 0.5,
+				`Card{slot}: the name {fmt(rectOf(c.NameLabel))} starts right of the chip's icon {fmt(icon)}`
+			)
+		end
+	end
 	t.ok(
 		colorNear(faceTop(hudOf(p).TankPanel.Panel.Header.Count), UIConfig.Palette.Gold.Top),
 		"6/6: the chip turns Gold"
@@ -686,6 +720,71 @@ tests["wide labels: full names and «ПРОДАТЬ $X» only on wide cards and 
 	end
 	sim:AssertNoErrors({ warnings = true })
 	sim2:AssertNoErrors({ warnings = true })
+end
+
+tests["the header fits before the ✕ at a stall with a full tank: «+$X/с» gives way first, the chip sizes to its text"] = function(
+	t
+)
+	for i, spec in
+		{
+			{ device = "desktop" },
+			{ device = "tablet" },
+			{ device = "phone", viewport = Vector2.new(667, 375), name = "phone_small" },
+		}
+	do
+		local sim = boot(t)
+		local p = addPlayer(sim, i, spec.device, spec.viewport)
+		local fake = Fake.new(sim, p)
+		fake:mount(sixTank(fake))
+		local panel = panelOf(sim, p)
+		call(sim, p, function()
+			return panel.Toggle()
+		end)
+		sim:Advance(0.6)
+		local what = spec.name or spec.device
+		local header = hudOf(p).TankPanel.Panel.Header
+		local close = rectOf(hudOf(p).TankPanel.Panel.Close)
+		t.ok(header.Rate.Visible or what ~= "desktop", `{what}: at home the income fits (desktop)`)
+		p:SetAttribute("SellRatePct", 150)
+		sim:Advance(1)
+		t.ok(header.Market.Visible, `{what}: the market chip shows`)
+		local UiFx = uifx(sim, p)
+		local px = call(sim, p, function()
+			return UiFx.textSize("Small")
+		end)
+		local label = header.Market.Label
+		t.ok(
+			UiFx.textWidth(label.Text, px) <= label.AbsoluteSize.X + 0.5,
+			`{what}: «{label.Text}» fits its chip at {px} px`
+		)
+		for _, item in header:GetChildren() do
+			if item:IsA("GuiObject") and item.Visible then
+				local b = rectOf(item)
+				t.ok(b.x1 <= close.x0 + 0.5, `{what}: {item.Name} {fmt(b)} left of the ✕ {fmt(close)}`)
+			end
+		end
+		local market = rectOf(header.Market)
+		local total = rectOf(header.Total)
+		t.ok(market.x0 >= total.x1 - 0.5, `{what}: the chip comes after the total`)
+		local shown = {}
+		for _, name in { "Title", "Count", "Total", "Market" } do
+			if header[name].Visible then
+				table.insert(shown, name)
+			end
+		end
+		t.ok(
+			header.Count.Visible and header.Total.Visible,
+			`{what}: the count and the total always show ({table.concat(shown, ", ")})`
+		)
+		if header.Rate.Visible then
+			t.ok(header.Title.Visible, `{what}: «+$X/с» only shows when everything else fits`)
+		end
+		p:SetAttribute("SellRatePct", 100)
+		sim:Advance(1)
+		t.ok(not header.Market.Visible, `{what}: back home: no chip`)
+		t.ok(header.Title.Visible, `{what}: «САДОК» is back`)
+		sim:AssertNoErrors({ warnings = true })
+	end
 end
 
 tests["values tick on one 1 s chain while open: prices, bars, the header total; no frame job, no frame connection"] = function(
@@ -761,7 +860,7 @@ end
 -- Selling
 --------------------------------------------------------------------------------
 
-tests["confirm on every sale: the first tap and +0.15 s fire nothing, +0.5 s fires TankSell(uid) once; 3 s reverts; red «−$X/с»; another card cancels"] = function(
+tests["confirm on every sale: the first tap and a tap < ConfirmArm after the previous one fire nothing (each restarts the arm); a tap after a pause fires TankSell(uid) once; 3 s reverts; red «−$X/с»; another card cancels"] = function(
 	t
 )
 	local sim, p, fake = opened(t, "phone")
@@ -779,10 +878,14 @@ tests["confirm on every sale: the first tap and +0.15 s fire nothing, +0.5 s fir
 	sim:Advance(0.15)
 	tapSell(sim, p, 1)
 	t.eq(#sellsOf(sim, p), 0, "a second tap at +0.15 s (double tap) fires nothing")
-	sim:Advance(0.35)
+	sim:Advance(0.33)
+	tapSell(sim, p, 1)
+	t.eq(#sellsOf(sim, p), 0, "+0.5 s is only 0.35 s after the previous tap: the arm restarted, nothing")
+	t.eq(c1.Sell.Caption.Text, TEXTS.Confirm, "still «ТОЧНО?»")
+	sim:Advance(TankConfig.ConfirmArm + 0.05)
 	tapSell(sim, p, 1)
 	local sells = sellsOf(sim, p)
-	t.eq(#sells, 1, "a second tap at +0.5 s sells")
+	t.eq(#sells, 1, "a tap after a pause ≥ ConfirmArm sells")
 	t.eq(sells[1] and sells[1].args[1], fake.fish[1].Uid, "TankSell(uid) — only the uid")
 	t.eq(sells[1] and sells[1].args.n, 1, "no amount, no price, no slot")
 	t.eq(c1.Sell.Caption.Text, TEXTS.Busy, "⏳ until the answer")
@@ -815,6 +918,35 @@ tests["confirm on every sale: the first tap and +0.15 s fire nothing, +0.5 s fir
 	t.eq(card(p, 2).Sell.Caption.Text, TEXTS.Confirm, "… and asks on the new one")
 	t.eq(#sellsOf(sim, p), 1, "nothing sold")
 	t.ok(price ~= "", "(phone caption)")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["mashing the sell button never sells: taps every 0.2 s for 2 s fire nothing; a deliberate tap after a pause does"] = function(
+	t
+)
+	local sim, p, fake = opened(t, "phone")
+	sim:Advance(0.6)
+	local c1 = card(p, 1)
+	for _ = 1, 10 do
+		tapSell(sim, p, 1)
+		sim:Advance(0.2 - 1 / 60)
+	end
+	t.eq(#sellsOf(sim, p), 0, "10 taps 0.2 s apart (a kid mashing): nothing sold")
+	t.eq(c1.Sell.Caption.Text, TEXTS.Confirm, "«ТОЧНО?» still asks")
+	-- taps at 0, 0.2, 0.45 (the critic's case) on another card
+	tapSell(sim, p, 3)
+	sim:Advance(0.2 - 1 / 60)
+	tapSell(sim, p, 3)
+	sim:Advance(0.25 - 1 / 60)
+	tapSell(sim, p, 3)
+	t.eq(#sellsOf(sim, p), 0, "taps at 0, 0.2, 0.45 s: nothing sold")
+	sim:Advance(TankConfig.ConfirmArm + 0.1)
+	tapSell(sim, p, 3)
+	local sells = sellsOf(sim, p)
+	t.eq(#sells, 1, "a tap after a pause ≥ ConfirmArm sells")
+	t.eq(sells[1] and sells[1].args[1], fake.fish[3].Uid, "… that card's fish")
+	sim:Advance(1)
+	t.eq(uifx(sim, p).activeJobs(), 0, "the wiggles are over")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -973,12 +1105,45 @@ local function checkLayout(t: any, sim: any, p: any, viewport: any, touch: boole
 			`{what}: ≥ {m} px left of the Jump button ({r.x1} vs {jumpLeft(viewport)})`
 		)
 	end
+	if touch then
+		-- the thumbstick (bottom-left, like gui/backdrop.py): the sheet starts right of it or ends above it
+		local small = math.min(viewport.X, viewport.Y) <= 500
+		local stickRight, stickTop = if small then 95 else 180, viewport.Y - (if small then 90 else 210)
+		t.ok(
+			r.x0 >= stickRight + m - 0.5 or r.y1 <= stickTop - m + 0.5,
+			`{what}: the sheet {fmt(r)} keeps ≥ {m} px off the thumbstick (to x {stickRight}, from y {stickTop})`
+		)
+	end
 	local close = rectOf(root.Panel.Close)
 	t.ok(close.x1 - close.x0 >= 44 - 0.5, `{what}: ✕ ≥ 44 px`)
+	-- the header: everything before the ✕
+	for _, item in root.Panel.Header:GetChildren() do
+		if item:IsA("GuiObject") and item.Visible then
+			local b = rectOf(item)
+			t.ok(b.x1 <= close.x0 + 0.5, `{what}: header {item.Name} {fmt(b)} left of the ✕ {fmt(close)}`)
+		end
+	end
+	local function edgeOf(gui: any): number
+		return gui.Lip:FindFirstChildOfClass("UIStroke").Thickness
+	end
 	for _, c in root.Panel.Cards:GetChildren() do
 		local sell = c:FindFirstChild("Sell")
 		if c:IsA("GuiObject") and c.Visible and sell then
 			t.ok(sell.AbsoluteSize.Y >= 44 - 0.5, `{what}: {c.Name}'s sell button ≥ 44 px tall`)
+			-- the growth row and «МАКС» (with its outline) above the sell button's outline; «МАКС»
+			-- under the rate row
+			local s, g, stamp = rectOf(sell), rectOf(c.Growth), rectOf(c.Growth.Max)
+			local top = s.y0 - edgeOf(sell)
+			t.ok(g.y1 <= top + 0.5, `{what}: {c.Name}'s growth row {fmt(g)} above the sell outline (y {top})`)
+			t.ok(
+				stamp.y1 + edgeOf(c.Growth.Max) <= top + 0.5,
+				`{what}: {c.Name}'s «МАКС» {fmt(stamp)} + outline above the sell outline (y {top})`
+			)
+			t.ok(
+				rectOf(c.Rate).y1 <= stamp.y0 - edgeOf(c.Growth.Max) + 0.5,
+				`{what}: {c.Name}'s «МАКС» + outline under the rate row`
+			)
+			t.ok(rectOf(c.Viewport).y1 - rectOf(c.Viewport).y0 >= 20, `{what}: {c.Name}'s fish ≥ 20 px tall`)
 		end
 	end
 end

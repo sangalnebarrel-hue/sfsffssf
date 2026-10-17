@@ -3,7 +3,8 @@
 	them after gui_scenarios.luau and gui_scenarios_tank.luau; the same scenario format, part of
 	the standard set `--all`): HUD.TankPanel (TankPanelController on the sheet shell
 	Controllers/Sheet, cards by Controllers/TankCards) — design §7.8 «tank_panel_home»,
-	«tank_panel_full», «tank_panel_market», «tank_sell_confirm», «tank_sell», «panel_bite_yield».
+	«tank_panel_full», «tank_panel_market», «tank_sell_confirm», «tank_sell», «panel_bite_yield»; plus
+	«tank_panel_market_full» (the crowded header at a stall) and «tank_panel_close» (the ✕ shrink).
 
 	The stage 3 services are stubs in the preview sim: `h:tank` writes the displays' attributes like
 	TankService, `h:tankEvent` plays its TankEvent answers. Until Wave 2 C's MoneyController /
@@ -11,8 +12,9 @@
 	only shows what is still hidden: their texts from the same attributes), so the panel's place
 	under the status stack and left of the right column can be judged.
 
-	  gui_render.py --scenario tank_panel_home,tank_panel_full,tank_panel_market,tank_sell_confirm,\
-	      tank_sell,panel_bite_yield --devices phone,phone_small,phone_notch,tablet,desktop --out DIR
+	  gui_render.py --scenario tank_panel_home,tank_panel_full,tank_panel_market,tank_panel_market_full,\
+	      tank_panel_close,tank_sell_confirm,tank_sell,panel_bite_yield \
+	      --devices phone,phone_small,phone_notch,tablet,desktop --out DIR
 ]]
 
 local roblox = require("@lune/roblox")
@@ -172,6 +174,34 @@ return {
 				Amount = price,
 				RatePct = 100,
 			})
+		end,
+	},
+	{
+		name = "tank_panel_market_full",
+		desc = "At a stall with a full tank (6/6, a 5-digit total ▲): the header still fits before the ✕ — «+$X/с» gives way first (the Wallet above shows it), then the chip shortens to «💰 +50%»",
+		still = 0.9,
+		run = function(h: any)
+			local written = h:tank(FULL)
+			local income10 = 0
+			for _, fish in written do
+				income10 += fish.Income10
+			end
+			h:money(98765, income10)
+			showChrome(h)
+			h.player:SetAttribute("SellRatePct", 150)
+			h.player:SetAttribute("SellPlace", "Market")
+			h:tankEvent("Open", { Place = "Market", RatePct = 150, Name = "Рыбный рынок" })
+		end,
+	},
+	{
+		name = "tank_panel_close",
+		desc = "✕: the sheet only shrinks to its middle (Quad In, never bigger than at rest), then hides",
+		still = { 0.05, 0.1 },
+		sheet = { from = 0, to = 0.2, fps = 30, roi = PANEL_ROI, margin = 0.03 },
+		run = function(h: any)
+			openWith(h, FULL, 98765)
+			h:advance(1)
+			h:click("HUD.TankPanel.Panel.Close")
 		end,
 	},
 	{

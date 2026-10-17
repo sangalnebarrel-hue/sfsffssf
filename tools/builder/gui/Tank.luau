@@ -8,33 +8,43 @@
 
 	Names are a contract (TankPanelController, tests and the preview scenarios find them):
 	  TankPanel                (hidden, ZIndex 30)
-	    Panel.Header.{Icon, Title, Count, Rate, Total, Market}
+	    Panel.Header.{Icon, Title, Count, Rate, Total, Market} — the client sizes each item to its
+	              text (px written as scales of the header) and drops what does not fit before the
+	              ✕: first Rate, then the Market chip's long text, then the Title (🐠 stays)
 	      Count   a Cream chip «0/6» (Label; italic dark digits; Gold when the tank is full)
-	      Rate    «+$0/с» green italic (UIConfig.MoneyText; hidden on a header narrower than
-	              TankConfig.Panel.RateFrom px — the Wallet right above shows the same income)
+	      Rate    «+$0/с» green italic (UIConfig.MoneyText; the Wallet right above shows the same
+	              income, so it is the first to go)
 	      Total   «💵 $0 ▲» — the tank's total value now (it grows: «дорожает, чем дольше лежит»)
-	      Market  a Gold chip «💰 РЫНОК +50%» (Icon TankConfig.Texts.MarketIcon, Label), hidden:
-	              only while SellRatePct > 100
+	      Market  a Gold chip «💰 РЫНОК +50%» (Icon TankConfig.Texts.MarketIcon, Label; short
+	              «💰 +50%» — Texts.MarketShort — when the header is crowded), hidden: only while
+	              SellRatePct > 100
 	    Panel.Strip            the Night band under the header (phones: the plate is glass there)
 	    Panel.Close            the round Berry «✕»
 	    Panel.Cards            ScrollingFrame + UIGridLayout with three hidden templates:
 	      CardTemplate  a fish: a sim plate in the rarity's colours (Common here; no shine, gloss
-	                    or shadow) — NameLabel (Small tier, CAPS ShortName; design §6.4 calls it
+	                    or shadow); the client lays its rows out FROM THE BOTTOM in px written as
+	                    scales (TankConfig.Panel.Card: the sell button ≥ 44 px, the growth row and
+	                    «МАКС» always clear above it, the fish gets what is left) —
+	                    NameLabel (Small tier, CAPS ShortName; design §6.4 calls it
 	                    "Name", but a child named Name is shadowed by Instance.Name: card.Name is
 	                    "CardTemplate" — so NameLabel, like CatchCard.NameLabel), Viewport (the
 	                    fish model), Mutation (a chip «👑 ×2» over the top-left corner, tilted,
 	                    hidden: Icon = the mutation's emoji, Label), Rate («+$4/с», Body tier,
 	                    green italic; «−$4/с» red while a sale waits for «ТОЧНО?»),
-	                    Growth.{Track.Fill, Label «×1.4», Max «МАКС» — a Gold stamp, hidden},
-	                    Sell (a Leaf button: Caption «💵 $45» on phones, «ПРОДАТЬ $45» on cards ≥
-	                    TankConfig.Panel.WideCard px; Gold at a stall, Berry «ТОЧНО?» while
+	                    Growth.{Track.Fill, Label «×1.4», Max «МАКС» — a Gold stamp inside the
+	                    row's height, hidden},
+	                    Sell (a Leaf button: Caption «💵 $45»; «ПРОДАТЬ $45» on cards ≥
+	                    TankConfig.Panel.WideCard px when the panel's longest price fits — one
+	                    style for the whole panel; Gold at a stall, Berry «ТОЧНО?» while
 	                    confirming, Slate «⏳» while the server answers)
-	      EmptyTemplate an empty slot: a glass plate — Icon (a faint 🎣), Title «ПУСТО», Hint
+	      EmptyTemplate an empty slot: a glass plate (darker on a phone, where the sheet is glass
+	                    too: TankConfig.Panel.EmptyAlpha) — Icon (a faint 🎣), Title «ПУСТО», Hint
 	                    «Поймай рыбу!»
 	      LockedTemplate a locked slot (the stage 5 teaser): a Slate plate — Icon 🔒, Title «ЕЩЁ
 	                    МЕСТО», Hint «Скоро в магазине»
-	Sizes are scales of the card (phone ≈ 112 × 160 px: every text fits its box at its tier —
-	tests/stage3_rules), the sell button ≥ 44 px tall on a phone.
+	Sizes are scales of the card (phone ≈ 100 × 145 px: every text fits its box at its tier —
+	tests/stage3_rules), the sell button ≥ 44 px tall on a phone; the fish card's rows below are
+	the phone's defaults until the client lays them out for the real card.
 ]]
 
 local Theme = require("./Theme")
@@ -147,7 +157,7 @@ local function buildCard(cards: any)
 		Position = UDim2.fromScale(0.5, 0.045),
 		Size = UDim2.fromScale(0.94, 0.12),
 		Text = "КАРАСИК",
-		ZIndex = SZ.Content,
+		ZIndex = SZ.Content + 1, -- (over the fish: the viewport reaches under the name and the rate)
 		Tier = "Small",
 	})
 	U.new("ViewportFrame", {
@@ -184,7 +194,7 @@ local function buildCard(cards: any)
 		Text = "+$1/с",
 		TextColor3 = MONEY,
 		Italic = true,
-		ZIndex = SZ.Content,
+		ZIndex = SZ.Content + 1,
 		Tier = "Body",
 	})
 
@@ -223,13 +233,20 @@ local function buildCard(cards: any)
 		ZIndex = SZ.Content,
 		Tier = "Small",
 	})
+	-- (the stamp stays inside the row's height: the client keeps the row clear of the sell button
+	-- by both outlines and the stamp's tilt — TankCards; its text fills the chip: ≥ 12 px on a phone)
 	chip(growth, "Max", "Gold", TEXTS.Max, {
 		Visible = false,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.6),
-		Size = UDim2.fromScale(0.7, 1.15),
-		Rotation = -4,
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.7, 1),
+		Rotation = -2,
 		ZIndex = SZ.Top,
+		LabelProps = {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.9, 0.92),
+		},
 	})
 
 	-- Sell: a Leaf button across the card's foot (≥ 44 px tall on a phone).
@@ -255,6 +272,7 @@ local function buildSlotCard(cards: any, name: string, glass: boolean, emoji: st
 		Size = UDim2.fromScale(1, 1),
 	}, cards)
 	if glass then
+		-- (on a phone, where the sheet is glass too, the client makes it darker: TankConfig.Panel.EmptyAlpha)
 		Theme.glass(card, { radius = UI.Sim.Radius, shine = false })
 	else
 		Theme.sim(card, "Slate", { radius = UI.Sim.Radius, shine = false, rim = false })
