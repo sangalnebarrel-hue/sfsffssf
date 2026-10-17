@@ -105,6 +105,7 @@ local HOME_RATE = EconomyConfig.HomeRatePct
 local BOTTOM = 0.03 -- под рядом карточек — столько их высоты (обводка не обрезается)
 local RING_Z = 8 -- кольцо «ТОЧНО?» — над лицом и подписью кнопки (Theme.SZ.Top 6 + 2)
 local FLOAT_Z = 40 -- «+$45» продажи — над листом (ZIndex 30)
+local CHIP_OUT = 0.18 -- фишка рынка уходит за столько секунд
 
 -- Всё состояние модуля — в одной таблице (свободные регистры верхнего уровня: compile_limits).
 local S = {
@@ -139,6 +140,8 @@ local S = {
 	canvasW = 0,
 	windowW = 0,
 	sellEvent = nil :: RemoteEvent?,
+	market = false, -- фишка «РЫНОК +50%» показана
+	chipHide = nil :: thread?,
 }
 
 local TankPanelController = {}
@@ -344,19 +347,26 @@ end
 local function applyRate(animate: boolean)
 	local chip = S.head.Market
 	local market = ratePct() > HOME_RATE
-	if chip then
-		if market and not chip.Visible then
+	if chip and market ~= S.market then
+		S.market = market
+		cancel(S.chipHide) -- (ушёл и сразу вернулся: уход отменён)
+		S.chipHide = nil
+		if market then
 			chip.Visible = true
+			UiFx.scaleOf(chip).Scale = 1
 			if animate then
 				UiFx.popIn(chip, { from = 0.3, rotate = -8 })
 				UiFx.rimFlash(chip, { delay = 0.2 })
 			end
-		elseif not market and chip.Visible then
-			if animate then
-				UiFx.popOut(chip, { hide = true })
-			else
+		elseif animate then
+			UiFx.popOut(chip, { time = CHIP_OUT })
+			S.chipHide = task.delay(CHIP_OUT + 0.02, function()
+				S.chipHide = nil
 				chip.Visible = false
-			end
+				UiFx.scaleOf(chip).Scale = 1
+			end)
+		else
+			chip.Visible = false
 		end
 	end
 	local look = lookFor()
@@ -776,6 +786,7 @@ function TankPanelController.Open(focusUid: string?): boolean
 	buildCards()
 	watchSlots()
 	updateHeader()
+	S.market = not (ratePct() > HOME_RATE) -- (открытие: фишка — как велит ставка, без анимации)
 	applyRate(false)
 	local items: { GuiObject } = {}
 	for slot = 1, S.slots do
