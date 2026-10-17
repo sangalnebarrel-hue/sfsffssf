@@ -1195,6 +1195,10 @@ tests["chrome micro-life: rare, one widget at a time, only when calm; timers onl
 	t.ok(distinct >= 2, "different widgets take turns")
 	t.eq(UiFx.activeJobs(), 0, "no frame work")
 	t.eq(sim:CountConnections(p), idle, "no connections added")
+	-- The 40 s window can end mid-swing (the schedule is random): let the last one settle.
+	sim:WaitFor(function()
+		return #moving() == 0
+	end, 1.5)
 	t.near(flag.Rotation, rest.flag, 0.5, "the flag back at rest")
 	t.near(fish.Rotation, rest.fish, 0.5, "the fish back at rest")
 	sim:AssertNoErrors({ warnings = true })
