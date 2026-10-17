@@ -110,7 +110,7 @@ local TankConfig = {
 			stored = "В САДОК!",
 			replaced = "ЗАМЕНА!",
 			sold = "ПРОДАНА",
-		},
+		} :: { [string]: string },
 		-- Уведомления (клиент, NotifyController)
 		FirstFish = "Твоя рыба приносит $ каждую секунду!", -- первая рыба за всё время
 		Replaced = "Замена! «{new}» вместо «{old}» +{price}", -- рыба сильнее заменила слабую
@@ -126,7 +126,7 @@ local TankConfig = {
 			nobase = "Сначала дождись своей базы",
 			missing = "Этой рыбы уже нет",
 			locked = "Эту рыбу сейчас не продать",
-		},
+		} :: { [string]: string },
 	},
 }
 

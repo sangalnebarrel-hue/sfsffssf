@@ -39,6 +39,10 @@
 	    карточки); floatSpot — куда вылетает «+N 💰» у карточки сбоку от рыбака: над баннером или у
 	    внешнего края, а не на окно с рыбой (и не в ряд верхней панели Roblox, и не на наклейку
 	    «НОВИНКА!»; места нет — не вылетает).
+	  • tankStamp (Этап 3) — штамп садка под ценой (CatchCard.TankStamp): что стало с рыбой по
+	    Tank из "Caught" — «В САДОК!» (Water), «ЗАМЕНА!» (Leaf), «ПРОДАНА» (Gold); тексты —
+	    TankConfig.Texts.Stamp; без Tank (садок её не принял) — nil, штамп спрятан. Чистая функция:
+	    это НЕ stampText (тот — подгонка штампа мутации).
 	Всё, что живёт дольше вызова, отменяется уборкой trove (карточка закрылась — хвостов нет).
 ]]
 
@@ -46,6 +50,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local UIConfig = require(Shared:WaitForChild("Config"):WaitForChild("UIConfig"))
+local TankConfig = require(Shared:WaitForChild("Config"):WaitForChild("TankConfig"))
 local UiFx = require(Shared:WaitForChild("UiFx"))
 local Trove = require(Shared:WaitForChild("Util"):WaitForChild("Trove"))
 local TextUtil = require(Shared:WaitForChild("TextUtil"))
@@ -268,6 +273,20 @@ function CatchFx.stampMin(stamp: GuiObject, width: number)
 	local full = rest :: Vector2
 	local w = math.clamp(width * CatchFx.STAMP_SHARE, math.min(CatchFx.STAMP_MIN, full.X), full.X)
 	cap.MinSize = Vector2.new(math.round(w), math.round(w * full.Y / math.max(full.X, 1)))
+end
+
+-- Штамп садка (Этап 3): цвет плашки (UIConfig.Palette) по исходу TankResult.Result.
+CatchFx.TANK_STAMP = { stored = "Water", replaced = "Leaf", sold = "Gold" } :: { [string]: string }
+
+-- Штамп садка под ценой: (текст, токен цвета) по Tank из "Caught"; без Tank / незнакомый исход —
+-- nil (штамп спрятан).
+function CatchFx.tankStamp(result: any): (string?, string?)
+	local kind = if type(result) == "table" then result.Result else nil
+	local token = if type(kind) == "string" then CatchFx.TANK_STAMP[kind] else nil
+	if not token then
+		return nil, nil
+	end
+	return TankConfig.Texts.Stamp[kind], token
 end
 
 -- Подсказка «закрыть» по устройству; на узкой широкой карточке (width — её ширина, px) — короткая.

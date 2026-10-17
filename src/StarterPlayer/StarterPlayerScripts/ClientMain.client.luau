@@ -12,6 +12,12 @@
 	Контроллеры:
 	  NotifyController     — всплывающие уведомления (сервер и другие контроллеры);
 	  HudController        — плашка базы, кнопка «Домой» (Этап 1);
+	  MoneyController      — кошелёк: деньги и доход «+$/с», праздник продажи (Этап 3);
+	  TankButtonController — кнопка «САДОК» с фишкой «4/6», прилёт улова в садок (Этап 3);
+	  TankPanelController  — панель садка: карточки рыб, продажа в два нажатия (Этап 3; лист
+	                         открывает помощник Sheet — модуль, не контроллер);
+	  TankWorldController  — рыбы в витринах двора, надписи над ними, слово садка у ведра на
+	                         пирсе, слово рынка (Этап 3);
 	  FishingController    — рыбалка своего игрока: кнопка действия, мини-игра, карточка улова (Этап 2);
 	  FishingFxController  — поплавки и лески всех игроков, переливы радужных рыб (Этап 2); тень
 	                         рыбы, живая рыба над головой (помощники FishingLine, FishShadow,
@@ -30,10 +36,15 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local controllers = script.Parent:WaitForChild("Controllers")
 
--- NotifyController первым: остальные могут показывать через него уведомления.
+-- NotifyController первым: остальные могут показывать через него уведомления. Контроллеры садка
+-- и денег — после HudController и до FishingController (рыбалка летит улов в их кнопки).
 local ORDER = {
 	"NotifyController",
 	"HudController",
+	"MoneyController",
+	"TankButtonController",
+	"TankPanelController",
+	"TankWorldController",
 	"FishingController",
 	"FishingFxController",
 	"FisherAnimController",
