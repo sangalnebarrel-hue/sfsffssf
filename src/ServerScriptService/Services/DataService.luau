@@ -43,9 +43,11 @@
 	     повтор с rec.Strict = true (то же плохое значение второй раз не уходит).
 	  4. Очередь ключа: одна FIFO на UserId (на уровне модуля, переживает запись игрока; поток
 	     живёт, только пока в очереди есть запросы); запрос начинается, когда кончился прошлый (с
-	     повторами). Перед КАЖДОЙ попыткой UpdateAsync — ждать до lastRequest + MinWriteGap +
-	     GapEpsilon; lastRequest ставится, когда pcall ВЕРНУЛСЯ (успех, ошибка, отмена). Пустая
-	     очередь и lastRequest удаляются, когда пауза прошла.
+	     повторами). Последнее сохранение ушедшего игрока всегда раньше загрузки его повторного
+	     входа (оно ставится при выходе, а рождённое из обычного в пути — в НАЧАЛО очереди):
+	     загрузка видит уже отпущенный замок. Перед КАЖДОЙ попыткой UpdateAsync — ждать до
+	     lastRequest + MinWriteGap + GapEpsilon; lastRequest ставится, когда pcall ВЕРНУЛСЯ (успех,
+	     ошибка, отмена). Пустая очередь и lastRequest удаляются, когда пауза прошла.
 	  5. Автосохранение: ОДИН цикл раз в секунду на весь сервер (никаких потоков и task.delay на
 	     игрока): Ready-записи с now ≥ NextSave. Первое — загрузка + пауза + random() · (AutoSave −
 	     пауза), дальше + AutoSave; обновляет Session.T. Бюджет UpdateAsync < BudgetMin → отложить
@@ -58,9 +60,11 @@
 	     rec.Committed = снимок и сигнал Committed(player, seq) (и у отпускания).
 	  7. Выход (PlayerRemoving): сразу Leaving (CanWrite = false; ждущие WaitLoaded получают
 	     nil), последнее сохранение с отпусканием (ждущее в очереди автосохранение им и
-	     становится — одна запись, не две), повторы, пока не вышло или не прошло LeaveSaveWindow с
-	     выхода (первая попытка — всегда, новых после окна нет); потом Released и запись удаляется
-	     (если это всё ещё она). Memory — запись удаляется сразу.
+	     становится — одна запись, не две; обычное в пути — им же перед своей следующей попыткой,
+	     а если попыток больше нет — последнее идёт сразу после него, в начало очереди), повторы,
+	     пока не вышло или не прошло LeaveSaveWindow с выхода (первая попытка — всегда, новых
+	     после окна нет); потом Released и запись удаляется (если это всё ещё она). Memory —
+	     запись удаляется сразу; ушёл, пока ждал проверку доступа, — тоже.
 	  8. BindToClose: СРАЗУ, до любого ожидания, closing = true и все Ready → Leaving (тогда
 	     PlayerRemoving симулятора, пришедший после, ничего не пишет второй раз — одна последняя
 	     запись на ключ); Memory / Broken — выход сразу; pending — набор записей с операцией в пути
@@ -356,14 +360,19 @@ local function runQueue(userId: number, queue: Queue)
 	queue.Running = false
 end
 
-local function enqueue(request: Request)
+-- front: в начало очереди (последнее сохранение ушедшего — раньше загрузки повторного входа).
+local function enqueue(request: Request, front: boolean?)
 	local userId = request.Rec.UserId
 	local queue = queues[userId]
 	if not queue then
 		queue = { Items = {}, Running = false }
 		queues[userId] = queue
 	end
-	table.insert(queue.Items, request)
+	if front then
+		table.insert(queue.Items, 1, request)
+	else
+		table.insert(queue.Items, request)
+	end
 	if not queue.Running then
 		queue.Running = true
 		task.spawn(runQueue, userId, queue)
@@ -409,6 +418,10 @@ end
 -- Данные без DataStore (Memory / Broken): шаблон, можно играть, ничего не пишется.
 local function becomeMemory(rec: Record)
 	if rec.State ~= "Loading" then
+		return
+	end
+	if rec.Left then
+		release(rec) -- (ушёл, пока ждал проверку: играть некому, запись не остаётся)
 		return
 	end
 	local data = PlayerData.Template()
@@ -579,9 +592,12 @@ local function processSave(request: Request)
 	request.Result = result
 
 	if rec.FinalPending and result ~= "lost" then
-		-- Игрок ушёл, пока шла попытка обычного сохранения: последнее — следом.
+		-- Игрок ушёл, пока шла попытка обычного сохранения: последнее — следом, В НАЧАЛО очереди.
+		-- В хвосте его обогнала бы загрузка быстрого повторного входа: она увидела бы свой же
+		-- замок с живой Leaving-записью как чужой, ждала бы ≈ 24 с и забирала его, а это
+		-- сохранение (единственное, где всё, что было до выхода) нашло бы замок потерянным.
 		rec.FinalPending = false
-		enqueue(newRequest("save", rec, true, rec.FinalClose))
+		enqueue(newRequest("save", rec, true, rec.FinalClose), true)
 		return
 	end
 	if result == "lost" then
@@ -842,7 +858,8 @@ local function startFinal(rec: Record, close: boolean)
 		queued.Close = close
 		rec.Queued = nil
 	elseif rec.InFlight then
-		-- Обычное сохранение в пути: до своей попытки оно само станет последним (иначе — следом).
+		-- Обычное сохранение в пути: до своей попытки оно само станет последним (иначе — следом,
+		-- в начало очереди).
 		rec.FinalPending = true
 		rec.FinalClose = close
 	else

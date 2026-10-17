@@ -8,9 +8,10 @@
 	    once; the lock lost mid-session → the next save is cancelled and the player kicked;
 	  • the holes of critique_backend: B-1 (a released or deleted key is «lost», never
 	    recreated), B-2 (an old record of a same-server rejoin cannot overwrite the new session),
-	    B-3 (a same-server fast rejoin behind a retrying final save), B-5 (runtime junk is dropped
-	    with one warn; a forced 104 → one strict retry), B-6 (future content survives load →
-	    play → leave);
+	    B-3 (a same-server fast rejoin behind a retrying final save; behind a save in flight —
+	    succeeding or failing its last attempt — the final save still goes first: no lock wait,
+	    no steal, the money at leave), B-5 (runtime junk is dropped with one warn; a forced
+	    104 → one strict retry), B-6 (future content survives load → play → leave);
 	  • cadence: no two writes to a key closer than the write gap (from the call log), no
 	    "added to queue" warning; coalescing (SaveSoon while queued is dropped, after the
 	    snapshot → exactly one follow-up), Committed in order;
@@ -20,7 +21,8 @@
 	  • shutdown: one final write per key, every lock released, well inside CloseBudget; a player
 	    mid-load at shutdown → the lock is released (B-13);
 	  • modes: Memory (Studio without API access) — one warn, DataMode "Memory", zero writes, an
-	    instant shutdown; Broken (an error in Start) — plays, never writes;
+	    instant shutdown, a player gone before the probe answered leaves no record; Broken (an
+	    error in Start) — plays, never writes;
 	  • hygiene: a garbage save is sanitized (warns expected); nothing left behind after leave.
 	Every test that leaves data checks the ledger (Money == StartMoney + Earned − Spent).
 
@@ -526,6 +528,73 @@ tests["B-3: a same-server fast rejoin while the old final save retries → the n
 	sim:AssertNoErrors({ warnings = true })
 end
 
+-- A same-server fast rejoin while a normal save of the old session is in flight: the old
+-- session's final save goes first (the front of the key's queue), so the rejoin finds the lock
+-- released — no lock wait, no steal, no «lost» final save.
+local function rejoinDuringInFlightSave(t: any, failures: number)
+	local sim = boot(t)
+	local data = service(sim, "DataService")
+	local first = addPlayer(sim, 1)
+	local tank = service(sim, "TankService")
+	local rules = sim:Require(sim:Find("ReplicatedStorage.Shared.FishingRules"))
+	local value, income = rules.Price("Perch", 1, nil)
+	sim:Run(function()
+		tank:AddFish(first, { Id = "Perch", Rarity = "Common", Kg = 1, Value = value, Income = income }, "catch")
+	end)
+	setMoney(sim, first, 100)
+	sim:Advance(GAP + 1, COARSE)
+	sim.DataStore:SetLatency(3)
+	if failures > 0 then
+		sim.DataStore:FailNext(failures, nil, { "UpdateAsync" })
+	end
+	local before = writes(sim, 1)
+	sim:Run(function()
+		data:SaveSoon(first)
+	end)
+	-- The save's last attempt has started (its call is logged) and is in flight.
+	sim:WaitFor(function()
+		return writes(sim, 1) == before + math.max(1, failures)
+	end, 30, COARSE)
+	sim:Advance(1)
+	t.ok(data._recordFor(first).InFlight, "the save is in flight")
+	setMoney(sim, first, 777)
+	local left = sim:Time()
+	sim:RemovePlayer(first)
+	sim:Advance(0.5)
+	local second = join(sim, 1)
+	sim.DataStore:SetLatency(0.05)
+	t.eq(waitMode(sim, second, 60), "Ready", "the rejoin loads")
+	local waited = sim:Time() - left
+	t.ok(
+		waited < DataConfig.LockWait.Tries * DataConfig.LockWait.Every,
+		`loaded {waited} s after the leave: no lock wait (the final save went first)`
+	)
+	t.eq(data:Get(second).Money, 777, "the money at leave (written by the final save)")
+	t.eq(#data:Get(second).Tank, 1, "the fish")
+	t.eq(takeWarnings(sim, "занята другим сервером"), 0, "no steal")
+	t.eq(takeWarnings(sim, "потерян"), 0, "the final save was not lost")
+	t.eq(
+		takeWarnings(sim, "сохранение игрока 1 не удалось"),
+		failures,
+		"only the forced failures"
+	)
+	t.eq(writes(sim, 1), before + math.max(1, failures) + 2, "the save, the final save, the rejoin's load")
+	finish(t, sim)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["B-3b: a same-server fast rejoin while a save is in flight (latency 3 s) → the final save goes first, no lock wait, no warnings"] = function(
+	t
+)
+	rejoinDuringInFlightSave(t, 0)
+end
+
+tests["B-3c: … and that in-flight save is its last attempt and fails → the final save still writes the money at leave"] = function(
+	t
+)
+	rejoinDuringInFlightSave(t, DataConfig.Retry.Save)
+end
+
 tests["B-5: runtime junk in the live table → the save still commits a valid value with one warn; a forced 104 → one strict retry"] = function(
 	t
 )
@@ -902,6 +971,36 @@ tests["Memory mode (Studio without API access): one warn, DataMode Memory, zero 
 	local closed = sim:Shutdown()
 	t.ok(closed.completed and closed.elapsed < 0.5, `an instant shutdown ({closed.elapsed} s)`)
 	t.eq(sim.DataStore:CountCalls("UpdateAsync"), 0)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["Memory mode: a player who leaves while the probe is still out (latency 2 s) leaves nothing behind"] = function(t)
+	local sim = boot(t, nil, {
+		before = function(s: any)
+			s.DataStore:SetLatency(2)
+			s.DataStore:FailNext(
+				1,
+				"502: API Services rejected request with error. HTTP 403 (Forbidden) - Studio access to APIs is not allowed.",
+				{ "GetAsync" }
+			)
+		end,
+	})
+	local data = service(sim, "DataService")
+	local p = join(sim, 1)
+	sim:Advance(0.5)
+	t.eq(p:GetAttribute("DataMode"), "Loading", "waiting for the probe")
+	sim:RemovePlayer(p)
+	sim:Advance(2, COARSE)
+	t.eq(data:Mode(), "Memory")
+	t.eq(takeWarnings(sim, DataConfig.Texts.MemoryWarn), 1)
+	for _, name in { "DataService", "TankService", "EconomyService", "MarketService" } do
+		for k, size in service(sim, name)._debugSizes() do
+			t.eq(size, 0, `{name}._debugSizes().{k}`)
+		end
+	end
+	local q = addPlayer(sim, 2)
+	t.eq(q:GetAttribute("DataMode"), "Memory", "the next player plays")
+	t.eq(sim.DataStore:CountCalls("UpdateAsync"), 0, "zero writes")
 	sim:AssertNoErrors({ warnings = true })
 end
 
