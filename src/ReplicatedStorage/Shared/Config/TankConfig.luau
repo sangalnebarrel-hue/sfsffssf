@@ -20,6 +20,8 @@
 	имена рыб (FishConfig.ShortName), {price} и {money} — суммы TankRules.FormatMoney («$24»),
 	{bonus} — надбавка рынка в процентах (EconomyConfig.MarketRatePct − 100).
 	Каждое число времени — на своей строке: тесты подменяют его в тексте модуля (boot с patches).
+	Кто дописывает (волны Этапа 3): Display и Pier — мир (TankWorldController, волна 1 B: новые
+	числа эффектов — туда же), Panel и тексты панели — панель (TankPanelController, волна 2 D).
 	Модуль «чистый» (без require), его читает и сборщик места (tools/builder/gui/Tank.luau).
 ]]
 
@@ -77,13 +79,39 @@ local TankConfig = {
 		EventRange = 120, -- всплески и искры событий витрин — только у баз ближе этого
 		CheckEvery = 0.5, -- проверка расстояний, с (цепочка task.delay)
 		GlassOccupied = 0.8, -- прозрачность стекла витрины с рыбой (шаблон — 0.66)
+		TagEvery = 1, -- значения надписей витрин — раз в столько секунд (один таймер)
+		MarketWordRange = 200, -- слово «РЫНОК +50%!» над рынком острова видно до стольких studs
+		-- Тихая жизнь (ближе LifeRange): один зацикленный твин CFrame корня рыбы — Sine InOut,
+		-- Reverses, бесконечно, случайная фаза; длина твина — случайно TimeMin..TimeMax секунд.
+		Life = {
+			Bob = 0.12, -- вверх-вниз ±, studs
+			Turn = 6, -- поворот ±, градусов
+			TimeMin = 2.4,
+			TimeMax = 3.2,
+		},
+		-- Надпись витрины FxTankTag: Attachment на FishPoint + (0, Lift, 0) — над стеклом и ниже
+		-- потолка галереи (13.15); BillboardGui Width × Height studs.
+		Tag = {
+			Lift = 3.6,
+			Width = 5.5,
+			Height = 1.8,
+		},
+		-- Эффекты событий витрин ("in" / "sold" / "swap").
+		Fx = {
+			Shrink = 0.25, -- "sold" / "swap": рыба сжимается до нуля за столько секунд
+			MaxEmitters = 2, -- ParticleEmitter одновременно на игрока — не больше
+		},
 	},
 
 	-- Слово садка над ведром у места рыбалки (только своя база).
 	Pier = {
 		Range = 40, -- видно до стольких studs
 		PopRange = 30, -- «+$13» дохода всплывает, только если свой персонаж ближе этого к ведру …
-		PopEvery = 5, -- … раз в столько секунд
+		PopEvery = 5, -- … раз в столько секунд,
+		Rise = 2.5, -- поднимается над словом на столько studs …
+		PopTime = 1.2, -- … за столько секунд и тает
+		Width = 4, -- BillboardGui слова, studs
+		Height = 1.4,
 	},
 
 	-- Панель садка (TankPanelController).
