@@ -1,7 +1,7 @@
 --[[
-	gui_scenarios_panel.luau — stage 3 tank panel states for the GUI previews (gui_dump.luau loads
-	them after gui_scenarios.luau and gui_scenarios_tank.luau; the same scenario format, part of
-	the standard set `--all`): HUD.TankPanel (TankPanelController on the sheet shell
+	gui_scenarios_panel.luau — stage 3 tank panel states for the GUI previews (gui_dump.luau lists
+	them after gui_scenarios.luau and its built-in states; the same scenario format, part of the
+	standard set `--all`): HUD.TankPanel (TankPanelController on the sheet shell
 	Controllers/Sheet, cards by Controllers/TankCards) — design §7.8 «tank_panel_home»,
 	«tank_panel_full», «tank_panel_market», «tank_sell_confirm», «tank_sell», «panel_bite_yield»; plus
 	«tank_panel_market_full» (the crowded header at a stall) and «tank_panel_close» (the ✕ shrink).

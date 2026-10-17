@@ -431,8 +431,6 @@ def layout_findings(objects, W, H, chrome, min_gap=MIN_GAP):
     found = []
     for i, a in enumerate(names):
         for b in names[i + 1:]:
-            if _exempt(a, b):
-                continue
             res = _closest(ws[a]["parts"], ws[b]["parts"], min_gap)
             if res and res[0] < min_gap:
                 found.append({"a": a, "b": b, "gap": round(res[0], 1), "p": res[1], "q": res[2], "kind": "widget"})
@@ -447,6 +445,8 @@ def layout_findings(objects, W, H, chrome, min_gap=MIN_GAP):
                 res = _closest(ws[a]["fx"], [rr], 0)
                 if res and res[0] < 0:
                     found.append({"a": a, "b": cname, "gap": round(res[0], 1), "p": res[1], "q": res[2], "kind": "fx"})
+    # (two widgets of one sheet, or a sheet over what it may cover: not judged — SHEETS)
+    found = [f for f in found if f["kind"] != "widget" or not _exempt(f["a"], f["b"])]
     found.sort(key=lambda f: f["gap"])
     return found, ws
 
