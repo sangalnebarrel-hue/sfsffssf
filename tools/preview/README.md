@@ -745,7 +745,11 @@ faded out), `h:waitFor`, `h:waitVisible`, `h:click`, `h:press`, `h:serverSays(st
 (stage 3: `tank` is the TankResult the server sends with the catch), and stage 3's
 `h:money(n, income10?)` (Player `Money` / `Income`), `h:tank(list, opts?)` (the own base's
 display attributes, the tank model's and the player's, written like TankService: fish fields →
-`State` → `Event` last) and `h:tankEvent(kind, data)` (TankEvent to this client). In the stub
+`State` → `Event` last; `list` is the whole tank after the change; `opts.event` is `"mount"` —
+every display gets `"<n>|mount|"` — or `"in"` / `"swap"` / `"sold"` on the display `opts.at`
+only, with the third field filled: the FishId for `"in"`, the price for `"swap"` / `"sold"`
+from `opts.price` or the SellPrice of `opts.gone`, the fish that left) and
+`h:tankEvent(kind, data)` (TankEvent to this client). In the stub
 sim DataService, EconomyService, MarketService and TankService are switched off like
 FishingService, and every player joins with the stage 3 defaults (`DataMode = "Ready"`,
 `Money = 0`, `Income = 0`, `TankSlots = 6`, `TankCount = 0`, `SellRatePct = 100`,

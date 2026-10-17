@@ -49,8 +49,14 @@
 	player joins with DataMode "Ready", Money 0, Income 0, TankSlots 6, TankCount 0, SellRatePct 100):
 	  h:money(n, income10?)            Player Money (and Income = income10 / 10 $/s)
 	  h:tank(list, opts?)              the own base's displays as TankService writes them:
-	                                   list = { { Id, Kg?, Mutation?, Age?, Slot?, Uid? } },
-	                                   opts = { slots = unlocked (6), event = "mount" }
+	                                   list = { { Id, Kg?, Mutation?, Age?, Slot?, Uid? } } (the
+	                                   whole tank after the change), opts = { slots = unlocked
+	                                   (6), event = "mount" (every display) | "in" | "swap" |
+	                                   "sold" (only display at: "<n>|in|<FishId>",
+	                                   "<n>|swap|<price>", "<n>|sold|<price>"), at = slot (default:
+	                                   the last fish in list; required for "sold"), price = coins
+	                                   or gone = { Id, Kg?, Mutation?, Age? } (the fish that left:
+	                                   its SellPrice at home) }
 	  h:tankEvent(kind, data?)         TankEvent ("Open" | "Sold" | "Stored" | "Denied") to this client
 ]]
 

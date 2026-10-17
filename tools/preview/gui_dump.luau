@@ -1233,14 +1233,23 @@ function Harness:money(n: number, income10: number?)
 	self:simStep(FRAME)
 end
 
--- The own base's tank, written like TankService does: list = { { Id, Kg?, Mutation?, Age?,
--- Slot?, Uid? } } (Slot defaults to the position in the list, Age to 0 s in the tank). Every
--- display Slot_1..MaxSlots gets its fish fields (FishUid, FishId, Rarity, Mutation, Kg, Value,
--- Income, GrowFrom = TankRules.AttrTime(now − Age)), then State ("fish" | "empty" | "locked"
--- beyond opts.slots), then Event "<n>|<opts.event or 'mount'>|" LAST; the tank model gets Count /
--- Slots / Income and the player TankCount / TankSlots / Income. Returns the fish as written
--- ({ Uid, Slot, Id, Rarity, Value, Income10, … }).
+-- The own base's tank, written like TankService does. list = { { Id, Kg?, Mutation?, Age?,
+-- Slot?, Uid? } } is the WHOLE tank after the change (Slot defaults to the position in the list,
+-- Age to 0 s in the tank). Every display Slot_1..MaxSlots gets its fish fields (FishUid, FishId,
+-- Rarity, Mutation, Kg, Value, Income, GrowFrom = TankRules.AttrTime(now − Age); all nil on
+-- "empty" / "locked"), then State ("fish" | "empty" | "locked" beyond opts.slots), then Event
+-- LAST, in RemoteNames' «Состояние садка» format:
+--   opts.event "mount" (default) — every display gets "<n>|mount|" (the tank mounting on a base);
+--   "in" | "swap" | "sold" — only the display opts.at gets an Event (as on the server, which
+--   writes just the slot that changed): "<n>|in|<its FishId>", "<n>|swap|<price>" (a new fish in
+--   place of a sold one) or "<n>|sold|<price>" (the display is empty now). opts.at defaults to
+--   the slot of the LAST fish in list for "in" / "swap" and is required for "sold"; price =
+--   opts.price, else TankRules.SellPrice(value, Age, HomeRatePct) of opts.gone = { Id, Kg?,
+--   Mutation?, Age? } (the fish that left).
+-- The tank model gets Count / Slots / Income and the player TankCount / TankSlots / Income.
+-- Returns the fish as written ({ Uid, Slot, Id, Rarity, Value, Income10, … }).
 local slotEventSerial = 0
+local SLOT_EVENTS = { mount = true, ["in"] = true, swap = true, sold = true }
 function Harness:tank(list: { { [string]: any } }, opts: { [string]: any }?): { { [string]: any } }
 	local base = self:base()
 	local written = {}
@@ -1254,9 +1263,32 @@ function Harness:tank(list: { { [string]: any } }, opts: { [string]: any }?): { 
 	local tankRules = self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.TankRules"))
 	local unlocked = math.min(o.slots or cfg.StartSlots, cfg.MaxSlots)
 	local now = self.sim.workspace:GetServerTimeNow()
+	local event = o.event or "mount"
+	if not SLOT_EVENTS[event] then
+		self:warn(`h:tank: unknown event «{event}» (mount | in | swap | sold)`)
+		event = "mount"
+	end
 	local bySlot = {}
+	local lastSlot = nil
 	for i, spec in list do
 		bySlot[spec.Slot or i] = spec
+		lastSlot = spec.Slot or i
+	end
+	local at = o.at or (if event == "in" or event == "swap" then lastSlot else nil)
+	if event ~= "mount" and not (at and at >= 1 and at <= cfg.MaxSlots) then
+		self:warn(`h:tank: event «{event}» needs opts.at (the display it happened on)`)
+	end
+	local price = o.price
+	if (event == "sold" or event == "swap") and price == nil then
+		local gone = o.gone
+		if gone and rules.GetFish(gone.Id) then
+			local def = rules.GetFish(gone.Id)
+			local value = rules.Price(gone.Id, gone.Kg or (def.MinKg + def.MaxKg) / 2, gone.Mutation)
+			price = tankRules.SellPrice(value, gone.Age or 0, self:config("EconomyConfig").HomeRatePct)
+		else
+			self:warn(`h:tank: event «{event}» needs opts.price or opts.gone (the fish that left)`)
+			price = 0
+		end
 	end
 	local fields = { "FishUid", "FishId", "Rarity", "Mutation", "Kg", "Value", "Income", "GrowFrom" }
 	local count, income10 = 0, 0
@@ -1300,8 +1332,23 @@ function Harness:tank(list: { { [string]: any } }, opts: { [string]: any }?): { 
 			end
 		end
 		slot:SetAttribute("State", state)
-		slotEventSerial += 1
-		slot:SetAttribute("Event", `{slotEventSerial}|{o.event or "mount"}|`)
+		local detail = nil
+		if event == "mount" then
+			detail = ""
+		elseif index == at then
+			if event == "in" then
+				detail = if spec then spec.Id else ""
+				if not spec then
+					self:warn(`h:tank: event «in» on Slot_{index}, but list has no fish there`)
+				end
+			else
+				detail = string.format("%d", price)
+			end
+		end
+		if detail ~= nil then
+			slotEventSerial += 1
+			slot:SetAttribute("Event", `{slotEventSerial}|{event}|{detail}`)
+		end
 	end
 	base.Tank:SetAttribute("Count", count)
 	base.Tank:SetAttribute("Slots", unlocked)
