@@ -841,7 +841,18 @@ tests["Sold: the card turns empty, Celebrate(Amount, card, Rate down) once, the 
 		"from the card (💵 fly into the Wallet)"
 	)
 	t.eq(calls[1] and calls[1].opts and calls[1].opts.Rate, "down", "the Wallet's rate rolls down")
-	sim:Advance(0.6)
+	local peak = 0
+	for _ = 1, 12 do
+		local live = 0
+		for _, d in p.PlayerGui:GetDescendants() do
+			if string.sub(d.Name, 1, 2) == "Fx" and d.Name ~= "FxScale" then
+				live += 1
+			end
+		end
+		peak = math.max(peak, live)
+		sim:Advance(0.05)
+	end
+	t.ok(peak <= 60, `≤ 60 temporary GUI objects during the sale's juice ({peak})`)
 	local after = card(p, 1)
 	t.ok(after ~= nil and after.Title and after.Title.Text == TEXTS.Empty, "the card turned into an empty card")
 	t.ok(before.Parent == nil, "the fish card is gone (its viewport with it)")
