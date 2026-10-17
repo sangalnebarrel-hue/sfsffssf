@@ -115,8 +115,9 @@ local function fishTemplate(info: Info): Model?
 end
 
 -- Рыба во ViewportFrame: центр габаритов в нуле, вполоборота; камера вписывает её один раз
--- (по высоте — высоту, по ширине — диагональ X, Z) в окно aspect = ширина / высота (по размеру
--- карточки: AbsoluteSize ячейки сетки сразу после копии ещё не готов). Ничего не двигается.
+-- (по высоте — высоту, по ширине — диагональ X, Z, с запасом 5 %: окно и так заходит под имя и
+-- доход) в окно aspect = ширина / высота (по размеру карточки: AbsoluteSize ячейки сетки сразу
+-- после копии ещё не готов). Ничего не двигается.
 local function showFish(card: Card, viewport: ViewportFrame, info: Info, aspect: number)
 	local template = fishTemplate(info)
 	if not template then
@@ -131,7 +132,7 @@ local function showFish(card: Card, viewport: ViewportFrame, info: Info, aspect:
 	local hTan = vTan * math.max(aspect, 0.1)
 	local halfLen = Vector2.new(size.X, size.Z).Magnitude / 2
 	local halfH = size.Y / 2
-	local distance = math.max(halfH * 1.15 / vTan, halfLen * 1.05 / hTan, 0.5)
+	local distance = math.max(halfH * 1.05 / vTan, halfLen * 1.05 / hTan, 0.5)
 	local camera = card.trove:Add(Instance.new("Camera"))
 	camera.FieldOfView = FOV
 	camera.CFrame = CFrame.lookAt(Vector3.new(0, halfH * 0.3, distance), Vector3.zero)
