@@ -1625,10 +1625,11 @@ local DEFAULT_BEATS = {
 		name = "mutation",
 		appear = { "HUD.Fishing.CatchCard.MutationLabel", "HUD.Fishing.CatchCard.MutationStamp" },
 	},
+	{ name = "stamp", appear = "HUD.Fishing.CatchCard.TankStamp" },
 	{ name = "pillar", event = "PillarCore" },
 	{ name = "close", disappear = "HUD.Fishing.CatchCard" },
 	{ name = "fly", appearNamed = "FxFly" },
-	{ name = "+1", change = "HUD.Status.CatchCounter.Label" },
+	{ name = "+1", change = "HUD.RightButtons.TankButton.Count.Label" },
 	{ name = "held gone", event = "HeldFish", kind = "disappear" },
 	-- the rest of the loop (bursts of bites, hits and misses)
 	{ name = "bite", state = "Bite" },

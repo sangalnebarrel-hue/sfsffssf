@@ -1,31 +1,33 @@
 --[[
 	Hud — the HUD chrome in the UI v5 «Симулятор» style (the reference for the other builders:
 	chunky gradient buttons with a thick outline in a dark shade of their hue, outlined emoji,
-	panel-less big italic numbers and outlined titles): the status stack (base badge, catch
-	counter), the right button column (Home), the toast column, the base-assignment banner (built
+	panel-less big italic numbers and outlined titles): the status stack (base badge, the Wallet),
+	the right button column (САДОК, Home), the toast column, the base-assignment banner (built
 	with the status stack: it flies into the badge) and the off-screen trophy chip. Controllers:
-	HudController (badge, banner, catch counter, Home), NotifyController (toasts, trophy chip).
+	HudController (badge, banner, Home, the chrome's micro-life), MoneyController (the Wallet),
+	TankButtonController (САДОК), NotifyController (toasts, trophy chip).
 	Layout rules: tools/builder/Gui.luau; look and API: tools/builder/gui/STYLE.md.
 
 	Names are a contract (controllers and tests find them): Status.BaseBadge.{Swatch, Label,
-	FlagSocket.Flag}, Status.CatchCounter.{Icon, Label}, RightButtons.HomeButton.{Icon, Caption,
-	Cooldown, CooldownText, Badge}, Toasts.ToastTemplate.{Label, IconSocket.Icon}, BaseBanner.{Caption,
-	NameLabel, FlagSocket.Flag}, TrophyPointer.{Body.IconSocket.Icon, Tip, BaseRing.Stroke}
-	(NotifyController: the chip pointing at someone else's off-screen light pillar); stage 3 (all
-	hidden until their controllers show them): Status.Wallet.{Money.{Icon, Label, Back}, Rate}
-	(MoneyController), RightButtons.TankButton.{Icon, Caption, Count.Label, Badge}
-	(TankButtonController). Everything else (Lip, Rim, Shine, NameLabelShadow, …) is decoration.
+	FlagSocket.Flag}, Status.Wallet.{Money.{Icon, Label, Back}, Rate} (MoneyController),
+	RightButtons.TankButton.{Icon, Caption, Count.Label, Badge} (TankButtonController),
+	RightButtons.HomeButton.{Icon, Caption, Cooldown, CooldownText, Badge},
+	Toasts.ToastTemplate.{Label, IconSocket.Icon}, BaseBanner.{Caption, NameLabel,
+	FlagSocket.Flag}, TrophyPointer.{Body.IconSocket.Icon, Tip, BaseRing.Stroke} (NotifyController:
+	the chip pointing at someone else's off-screen light pillar). Everything else (Lip, Rim, Shine,
+	NameLabelShadow, …) is decoration. Stage 3: the catch counter is gone — its row is the Wallet.
 
 	The widgets (Theme.sim and friends; content at Theme.SZ.Content):
 	  BaseBadge     a label plate in the base colour (Theme.plate shape), the 🚩 overhanging its
 	                left end, the name in CAPS («ЛАЗУРНАЯ БАЗА», Title tier);
-	  CatchCounter  a panel-less stat like the reference's «👟 10»: 🐟 + a big italic white number;
+	  Wallet        the reference's panel-less «💵 $0»: an outlined 💵 at −8° and a big italic
+	                MoneyText-green number with the display outline, the income «+$42/с» beside it
+	                (smaller italic green); a glass «$…» pill while the data loads (Money.Back);
+	                MoneyController sizes the row to its text so the group stays centred;
+	  TankButton    a square aqua button above Home: 🐠 «САДОК», the chip «0/6» on its top-left
+	                shoulder, a hidden red «!» (the first fish ever: open me);
 	  HomeButton    a square purple button: 🏠 big in the middle, «ДОМОЙ» on its bottom edge, a
 	                hidden red «!» badge (the shop stage);
-	  Wallet        (stage 3) the reference's panel-less «💵 $0»: a big italic green number and the
-	                income «+$42/с» beside it, on the catch counter's row;
-	  TankButton    (stage 3) a square aqua button above Home: 🐠 «САДОК», the chip «0/6» on its
-	                top-left shoulder, a hidden red «!»;
 	  ToastTemplate a label plate in the kind's colour with the kind's emoji overhanging its left end;
 	  BaseBanner    the reference title: «ТВОЯ БАЗА» over a huge outlined «ЛАЗУРНАЯ!» in the base
 	                colours with a drop shadow, a waving 🚩, no panel;
@@ -116,8 +118,8 @@ local function buildStatus(hud: any)
 	-- "Your base" badge: a label plate in the base colour (HudController paints it with the base's
 	-- swatch, UIConfig.BaseSwatches; the face is named Swatch), the 🚩 overhanging its left end
 	-- (a transparent holder, tilted like a sticker; 60 % of it hangs off the plate with a thick
-	-- contour, so the red 🚩 still reads on the red base's plate). LayoutOrder 20 leaves room above
-	-- it for the money counter (Stage 3) and below it for the shield timer (Stage 4).
+	-- contour, so the red 🚩 still reads on the red base's plate). LayoutOrder 20; the Wallet
+	-- (30) is the row under it; the Stage 4 shield timer docks at the badge's right end.
 	local badge = U.new("Frame", {
 		Name = "BaseBadge",
 		LayoutOrder = 20,
@@ -142,26 +144,16 @@ local function buildStatus(hud: any)
 		Tier = "Title",
 	})
 
-	-- Catch counter (stage 2): fish caught this session — the reference's panel-less stat «🐟 12»
-	-- (an outlined 🐟 and a big italic white number), hidden until the first catch. HudController
-	-- owns its text (the number) and visibility (Player attribute FishCaught; HUD attribute
-	-- CounterHold). The 🐟 "Icon" is a direct child (contract).
-	Theme.stat(status, "CatchCounter", "🐟", {
-		LayoutOrder = 30,
-		Visible = false,
-		Size = UDim2.fromScale(0.5, 0.38),
-		Text = "0",
-		MaxTextSize = 48,
-		MinTextSize = 16,
-	})
-
-	-- Wallet (stage 3; it takes the catch counter's row when the counter goes): the reference's
-	-- panel-less «💵 $0» — Money is a Theme.stat (the outlined 💵 at −8° and a big italic number in
-	-- MoneyText green with the display outline), Rate the income «+$42/с» in a smaller italic green
-	-- beside it (Button tier; hidden while the income is 0). One centred row (UIListLayout) 0.94 of
-	-- the stack wide: Money 0.64, Rate 0.34 — the stack does not grow (phones have no room under
-	-- it). Money.Back is a hidden glass pill: while the player's data loads longer than 3 s the
-	-- money shows on glass with «$…». Hidden until the data is loaded (MoneyController).
+	-- Wallet (stage 3, the catch counter's old row): the reference's panel-less «💵 $0» — Money
+	-- is a Theme.stat (the outlined 💵 at −8° and a big italic number in MoneyText green with the
+	-- display outline), Rate the income «+$42/с» in a smaller italic green beside it (Button tier;
+	-- hidden while the income is 0). One centred row (UIListLayout) 0.94 of the stack wide; the
+	-- stack does not grow (phones have no room under it). Money 0.64 / Rate 0.34 are the builder's
+	-- shares: MoneyController fits the row to its text (the 💵, the number, a gap, the rate — the
+	-- group stays centred under the badge; the number shrinks only when the row is full) and
+	-- re-fits it when the screen or the digit count changes. Money.Back is a hidden glass pill:
+	-- while the player's data loads longer than 3 s the money shows on glass with «$…». Hidden
+	-- until the data is loaded (MoneyController).
 	local wallet = U.new("Frame", {
 		Name = "Wallet",
 		LayoutOrder = 30,

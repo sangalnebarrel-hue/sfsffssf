@@ -9,8 +9,9 @@
 
 	Модуль «чистый» (без require, только Color3): его читают и клиент (контроллеры, UiFx), и сборщик
 	интерфейса (tools/builder/gui/Theme.luau) — все цвета и числа интерфейса заданы в одном месте.
-	Здесь же шкала размеров текста (Type), время карточки улова по редкости (CatchCardTime) и
-	цвета баз (BaseSwatches, swatchFor).
+	Здесь же шкала размеров текста (Type), время карточки улова по редкости (CatchCardTime),
+	цвета баз (BaseSwatches, swatchFor) и числа HUD Этапа 3: кошелёк (Wallet) и кнопка «САДОК»
+	(TankButton).
 
 	Палитра: у каждого цвета (токена) есть
 	  Top    — верх лицевой стороны (светлее),
@@ -406,6 +407,71 @@ local UIConfig = {
 		Guide = Color3.fromRGB(255, 214, 80), -- луч-подсказка к месту рыбалки
 		ZoneGlow = hex("#B8FF9A"), -- свечение зелёной зоны
 		TimeBar = { hex("#BFEFFF"), hex("#FFD23F"), hex("#FF4D5E") }, -- время мини-игры: полно → мало
+	},
+
+	--[[
+		Кошелёк (Этап 3, MoneyController: HUD.Status.Wallet — «💵 $1 234» и «+$42/с»):
+		  LoadingAfter — данные игрока грузятся дольше стольких секунд: кошелёк на «стекле» с «$…»;
+		  IntroGap     — появления после баннера базы: плашка → кошелёк → «САДОК», через столько с
+		                 (кнопку «САДОК» выпускает TankButtonController через 2 × IntroGap);
+		  IntroWait    — баннера базы так и не было (нет данных о базе) — не ждать дольше стольких с;
+		  PopFrom, PopTime, IconSpin — появление: масштаб от PopFrom за PopTime, 💵 вкручивается
+		                 с IconSpin°;
+		  FloatEvery   — «+$13» дохода (в секунду) всплывает справа от числа раз в столько секунд
+		                 (при доходе > 0; цепочка таймеров), FloatTime — за сколько тает, FloatRise —
+		                 на какую долю высоты строки поднимается, FloatSize — его высота (доля строки);
+		  Count        — праздник денег (Celebrate): число «набегает» от Min до Max секунд — дольше
+		                 у больших сумм (до CountBig монет); Coins — сколько 💵 летит (Min..Max, по сумме);
+		  RateRoll     — доход «+$/с» катится к новому числу за столько секунд;
+		  HoldRelease  — замена при улове: TankButtonController зовёт Celebrate после своего прилёта;
+		                 не позвал за столько секунд после снятия CounterHold — монеты отпускаются
+		                 (надпись не застревает);
+		  RowGap       — промежуток между числом и доходом (доля высоты строки); IconShare — сколько
+		                 ширины строки занимает 💵 (в высотах строки); TextFill — текст числа от высоты
+		                 строки; MinMoney — число не мельче стольких px (длинная строка — сжимается
+		                 до него, потом прячется доход).
+	]]
+	Wallet = {
+		LoadingAfter = 3,
+		IntroGap = 0.3,
+		IntroWait = 6,
+		PopFrom = 0.3,
+		PopTime = 0.4,
+		IconSpin = -180,
+		FloatEvery = 5,
+		FloatTime = 1.1,
+		FloatRise = 0.7,
+		FloatSize = 0.62,
+		Count = { Min = 0.6, Max = 1.0 },
+		CountBig = 2000,
+		Coins = { Min = 3, Max = 8 },
+		RateRoll = 0.5,
+		HoldRelease = 2.5,
+		RowGap = 0.22,
+		IconShare = 1.0,
+		TextFill = 1.0,
+		MinMoney = 22,
+	},
+
+	--[[
+		Кнопка «САДОК» (Этап 3, TankButtonController: HUD.RightButtons.TankButton, фишка «4/6»):
+		  Bump, RarityBump — прилёт рыбы в садок: подпрыгивание кнопки (в цветах редкости — выше);
+		  Ring         — кольцо цвета редкости от кнопки: масштаб, толщина px, время;
+		  Squash       — 🐠 «плющится» до этого масштаба и пружинит (Elastic) за SquashTime;
+		  OpenAfter    — нажали во время полёта: панель открывается через столько секунд после
+		                 прилёта (кольцо успело разойтись);
+		  ToastAfter   — уведомление о первой рыбе / замене — через столько секунд после прилёта;
+		  ArrivalWait  — улов без CounterHold (нет карточки): прилёт через столько секунд.
+	]]
+	TankButton = {
+		Bump = 1.3,
+		RarityBump = 1.45,
+		Ring = { Scale = 1.6, Thickness = 5, Time = 0.55 },
+		Squash = 1.35,
+		SquashTime = 0.45,
+		OpenAfter = 0.3,
+		ToastAfter = 0.35,
+		ArrivalWait = 0.05,
 	},
 
 	-- Лимиты и ритм эффектов (UiFx).

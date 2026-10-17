@@ -814,9 +814,10 @@ object the HUD hides. The composite's header lists `n·name time`. Default beats
 | `new`, `chips` | `CatchCard.NewStamp` («НОВИНКА!»), `CatchCard.InfoLabel.Weight` shown (the card's beats are ≥ 0.25 s apart: tests/fishing_ui_style "catch card beats") |
 | `price` | `CatchCard.InfoLabel.Price.Label` stopped changing (the count-up landed) |
 | `mutation` | `CatchCard.MutationLabel` or `CatchCard.MutationStamp` shown |
+| `stamp` | `Fishing.CatchCard.TankStamp` appears (stage 3: «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА») |
 | `close` | `CatchCard` hidden again |
-| `fly` | an `FxFly` is shown (the 🐟 flying into the counter) |
-| `+1` | `Status.CatchCounter.Label` changed |
+| `fly` | an `FxFly` is shown (the 🐟 flying into «САДОК», or 💵 into the Wallet) |
+| `+1` | `RightButtons.TankButton.Count.Label` changed (the chip «1/6»: the fish arrived in the tank) |
 | `bite`, `zone`, `lost` | the client got FishingState "Bite" / "Zone" (a hit) / "Lost" |
 | `word` | an `FxFloat` is shown (the hit word) |
 | `miss ghost` | `FxMinigameMiss` is shown |
