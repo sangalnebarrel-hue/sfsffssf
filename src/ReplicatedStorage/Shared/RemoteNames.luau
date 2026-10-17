@@ -96,7 +96,8 @@
 	    Mutation (нет — без мутации или незнакомая), Kg, Value (цена ×1), Income (Income10 / 10),
 	    GrowFrom (= TankRules.AttrTime(workspace:GetServerTimeNow() − Age): цена сейчас —
 	    TankRules.CurrentValue(Value, GetServerTimeNow() − GrowFrom)); Event — что случилось:
-	    "<n>|in|<FishId>" (легла), "<n>|mount|" (база заняла витрины: тихо, без всплеска),
+	    "<n>|in|<FishId>" (легла), "<n>|mount|" (садок занял или освободил витрины базы: тихо,
+	    без всплеска),
 	    "<n>|sold|<цена>" (продана), "<n>|swap|<цена>" (заменена другой), Этап 4: "<n>|stolen|".
 	    Порядок записи: поля рыбы → State → Event ПОСЛЕДНИМ; у "empty" и "locked" все поля рыбы —
 	    nil. n растёт у базы всё время работы сервера (не сбрасывается — новая строка всегда

@@ -5,8 +5,9 @@
 	    Locked and Dormant skipped, never a higher-income fish), the Uid format, FormatMoney /
 	    FormatRate (incl. NaN / inf), AttrTime (exact through a sim attribute);
 	  • PlayerData: the template, Reconcile (dictionaries only, unknown fields kept), Migrate,
-	    every Sanitize rule (money, slots, uids, a dictionary Tank, re-pack / dormant), future
-	    content kept verbatim (nothing dropped, nothing sold), the ledger, Layout;
+	    every Sanitize rule (money, slots, uids — NextUid at the Uid length limit too — a
+	    dictionary Tank, re-pack / dormant), future content kept verbatim (nothing dropped,
+	    nothing sold), the ledger, Layout;
 	  • Serialize: JSON-safe output, "_" keys and runtime junk dropped (with issues), unknown
 	    JSON-safe fields kept (dropped under strict), skipUid, Stats.Species counts, a fish with
 	    a bad Uid kept for Sanitize to renumber, 12 fish < 4 KB;
@@ -549,6 +550,33 @@ tests["PlayerData: Sanitize repairs what is provably invalid (money, slots, uids
 	t.ok(hasIssue(uidIssues, "NextUid"), "NextUid reported")
 	t.ok(hasIssue(uidIssues, "Tank[2].Uid"), "the duplicate reported")
 	t.eq(clean({ NextUid = 0 / 0, Tank = {} }).NextUid, 1)
+	-- NextUid (or a fish's number) at the Uid length limit — only corruption: the whole tank is
+	-- renumbered from f1, so every fish and every new catch stays sellable (TankRules.UidNumber).
+	local limit = 10 ^ (TankConfig.Uid.MaxLength - #TankConfig.Uid.Prefix) - 1
+	local topUid = TankConfig.Uid.Prefix .. string.format("%d", limit)
+	t.eq(#topUid, TankConfig.Uid.MaxLength, "the highest number still fits")
+	for _, case in
+		{
+			{ NextUid = 1e300, Tank = { fish("f5", "Perch", 1), fish("f2", "Perch", 2) } },
+			{ NextUid = limit + 1, Tank = { fish("f5", "Perch", 1), fish("f2", "Perch", 2) } },
+			{ NextUid = 7, Tank = { fish(topUid, "Perch", 1), fish("f2", "Perch", 2) } },
+		}
+	do
+		local was = case.NextUid
+		local fixed, fixIssues = clean(case)
+		t.eq({ fixed.Tank[1].Uid, fixed.Tank[2].Uid, fixed.NextUid }, { "f1", "f2", 3 }, `NextUid {was}: renumbered`)
+		t.ok(hasIssue(fixIssues, "NextUid") and hasIssue(fixIssues, "Tank[1].Uid"), "reported")
+		local uid = D.NewUid(fixed)
+		t.eq(uid, "f3")
+		t.ok(env(t).TankRules.UidNumber(uid) ~= nil, "a new catch gets a sellable uid")
+	end
+	local edge = clean({ NextUid = limit, Tank = { fish("f3", "Perch", 1) } })
+	t.eq(edge.NextUid, limit, "the last valid NextUid is kept")
+	t.eq(D.NewUid(edge), topUid, "… and gives the last valid uid")
+	-- NewUid past the limit (live data only): the lowest free number, NextUid unchanged.
+	local over = { NextUid = 1e300, Tank = { fish("f1", "Perch", 1), fish("f2", "Perch", 2), fish("f4", "Perch", 3) } }
+	t.eq(D.NewUid(over), "f3", "the lowest free number")
+	t.eq(over.NextUid, 1e300, "NextUid unchanged (the next load renumbers)")
 
 	-- Slots: a known fish keeps a free whole slot 1..cap; duplicates / out of range → the lowest
 	-- free; none free → dormant, Slot unchanged. An unknown fish takes no slot.
