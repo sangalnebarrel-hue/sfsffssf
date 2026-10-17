@@ -19,7 +19,12 @@
 	     стартует мини-игра "Minigame". Нажатия (FishingTap) сервер проверяет по той же стрелке
 	     FishingRules.Needle, что рисует клиент: попал — "Zone" (зона переехала) или "Caught",
 	     промах — "Lost" miss, не успел за MinigameTimeout — "Lost" timeout.
-	  5. Поймал: атрибут FishCaught + 1, рыба в улове сессии (GetCatch), сигнал FishCaught,
+	  5. Поймал: атрибут FishCaught + 1, рыба в улове сессии (GetCatch — последние CATCH_KEEP рыб),
+	     статистика в данных игрока (Этап 3, за DataService:CanWrite: Stats.Caught + 1,
+	     Stats.Species[Id] + 1, у рыбы New = первый улов вида за всё время), рыба уходит в садок
+	     (приёмник SetCatchSink — TankService, синхронно: Uid и TankResult — в "Caught"; садок
+	     полон — рыбалка всё равно не блокируется), легендарная и мифическая — ещё и
+	     DataService:SaveSoon; сигнал FishCaught,
 	     о легендарной и мифической рыбе узнают остальные игроки (Notify с kind = редкость, через
 	     LeapTime — вместе со столбом света: «Рыбак (Лазурная база): мифическая радужная рыба
 	     «Рыба-дракон» ×5!» — база рыбака, мутация и её множитель). Рыба выпрыгивает из воды
@@ -33,6 +38,12 @@
 	     отошёл дальше KeepRadius ("moved"), база освободилась ("base"), игрок смотал леску
 	     (FishingStop → "stop"). Любой конец рыбалки → FishingState = "Idle" и кулдаун
 	     CastCooldown до следующего заброса.
+	  7. Данные игрока (Этап 3, DataService): пока они грузятся, заброс — "Denied" "loading"
+	     («Загружаем твой садок…»: улов некуда положить). DataService.Loaded: удочка в игре —
+	     data.RodId, если RodConfig её знает, иначе стартовая (сохранённый RodId здесь не
+	     переписывается — его меняет только SetRod). DataService — только через Loaded, Get,
+	     CanWrite, IsLoaded и SaveSoon, каждый за проверкой type(...) (заглушки сервисов в тестах
+	     клиента: без DataService сохранения просто нет).
 
 	Защита: у каждой рыбалки своя сессия с номером (Token); отложенные шаги (поклёвка,
 	опоздание, тайм-аут) проверяют, что их сессия всё ещё текущая, и отменяются при её конце.
@@ -52,10 +63,12 @@
 
 	API для других сервисов:
 	  FishingService.FishCaught                 -- Signal (player, fish: FishData)
-	  FishingService:GetCatch(player) -> { FishData }   -- улов за эту игру (живая таблица:
-	                                                     -- Этап 3 забирает рыбу в садок)
+	  FishingService.SetCatchSink(fn)           -- (Этап 3) fn(player, fish) -> TankResult?: куда
+	                                            -- ложится улов (TankService); синхронно, без ожиданий
+	  FishingService:GetCatch(player) -> { FishData }   -- последние CATCH_KEEP рыб этой игры
 	  FishingService:GetRodId(player) -> string
-	  FishingService:SetRod(player, rodId) -> boolean   -- сменить удочку (магазин, Этап 5)
+	  FishingService:SetRod(player, rodId) -> boolean   -- сменить удочку (магазин, Этап 5): пишет
+	                                                     -- data.RodId (за CanWrite, иначе false)
 	  FishingService:StopFishing(player, reason?)       -- закончить рыбалку ("Idle", по умолчанию "stop")
 ]]
 
@@ -75,6 +88,7 @@ local Signal = require(Shared.Util.Signal)
 local Trove = require(Shared.Util.Trove)
 local Notify = require(ServerScriptService.Lib.Notify)
 local BaseService = require(ServerScriptService.Services.BaseService)
+local DataService = require(ServerScriptService.Services.DataService)
 
 type FishData = FishingRules.FishData
 type Base = BaseService.Base
@@ -89,8 +103,10 @@ local REQUEST_RATE = 10
 -- Нажатие «из будущего» (elapsed больше, чем прошло на сервере) честный клиент прислать
 -- не может: такое нажатие игнорируется (допуск — пара кадров на округление).
 local FUTURE_SLACK = 0.05
--- О каких редкостях объявлять всему серверу.
+-- О каких редкостях объявлять всему серверу (и сохранять сразу: DataService:SaveSoon).
 local ANNOUNCED_RARITIES = { Legendary = true, Mythic = true }
+-- Сколько последних рыб помнит GetCatch (список не растёт без конца).
+local CATCH_KEEP = 50
 
 -- Тексты для игрока по коду причины — общие с клиентом (FishingConfig.Texts).
 local DENIED_TEXT = FishingConfig.Texts.Denied
@@ -147,6 +163,8 @@ local states: { [Player]: PlayerState } = {}
 local active: { [Player]: PlayerState } = {} -- игроки, которые сейчас рыбачат
 local rng = Random.new()
 local stateRemote = Net.Event("FishingState")
+-- Куда ложится улов (TankService, Этап 3): (player, fish) -> TankResult?
+local catchSink: ((Player, FishData) -> any)? = nil
 
 local rodAssets: Instance
 local fishAssets: Instance
@@ -186,6 +204,22 @@ local function finiteNumber(value: unknown): number?
 		return nil
 	end
 	return number
+end
+
+-- Данные игрока (Этап 3) можно менять? Без DataService (заглушка в тестах клиента) — да.
+local function canWrite(player: Player): boolean
+	if type(DataService.CanWrite) ~= "function" then
+		return true
+	end
+	return DataService:CanWrite(player)
+end
+
+-- Живые данные игрока, если их можно менять (иначе nil).
+local function writableData(player: Player): any
+	if type(DataService.Get) ~= "function" or not canWrite(player) then
+		return nil
+	end
+	return DataService:Get(player)
 end
 
 -- Лимит запросов: true — запрос можно обработать.
@@ -484,11 +518,30 @@ local function catch(player: Player, state: PlayerState, session: Session)
 	local fish = session.Fish :: FishData
 	state.Caught += 1
 	table.insert(state.Catch, fish)
+	if #state.Catch > CATCH_KEEP then
+		table.remove(state.Catch, 1)
+	end
 	player:SetAttribute("FishCaught", state.Caught)
+	-- Этап 3: статистика в данных и садок (синхронно, до "Caught": в нём — что стало с рыбой).
+	local sent = table.clone(fish)
+	local data = writableData(player)
+	if data then
+		local stats = data.Stats
+		stats.Caught += 1
+		local before = stats.Species[fish.Id]
+		stats.Species[fish.Id] = (before or 0) + 1
+		sent.New = before == nil
+	end
+	local sink = catchSink
+	local tank = if sink then sink(player, fish) else nil
+	sent.Uid = if tank then tank.Uid else nil
 	broadcastFx(player, state, "caught", fish) -- до "Idle": рыба прыгает от поплавка на воде
-	endSession(player, state, "Caught", { Fish = fish, Total = state.Caught })
+	endSession(player, state, "Caught", { Fish = sent, Total = state.Caught, Tank = tank })
 	holdFishAfterLeap(state, session.Character, fish)
 	announce(player, fish)
+	if ANNOUNCED_RARITIES[fish.Rarity] and type(DataService.SaveSoon) == "function" then
+		DataService:SaveSoon(player) -- редкая рыба — в DataStore сразу (с паузой ключа)
+	end
 	FishingService.FishCaught:Fire(player, fish)
 end
 
@@ -604,6 +657,9 @@ local function castProblem(player: Player, state: PlayerState): string?
 	local base = BaseService:GetBase(player)
 	if not base or base.Owner ~= player then
 		return "nobase"
+	end
+	if not canWrite(player) then
+		return "loading" -- данные ещё грузятся: улов некуда положить
 	end
 	local character = player.Character
 	local tool = state.Tool
@@ -753,6 +809,45 @@ end
 -- Игроки и персонажи
 --------------------------------------------------------------------------------
 
+-- Удочка есть в RodConfig и в Assets.Rods.
+local function knownRod(rodId: any): boolean
+	return type(rodId) == "string" and FishingRules.GetRod(rodId).Id == rodId and rodTemplate(rodId) ~= nil
+end
+
+-- Удочка в игре: текущая рыбалка заканчивается, старая удочка заменяется новой
+-- (если старая была в руке — новая тоже окажется в руке). Данные не трогает.
+local function switchRod(player: Player, state: PlayerState, rodId: string)
+	if state.Session then
+		stop(player, state, "unequipped")
+	end
+	local character = player.Character
+	local old = state.Tool
+	local wasEquipped = old ~= nil and character ~= nil and old.Parent == character
+	if old then
+		old:Destroy()
+		state.Tool = nil
+	end
+	state.RodId = rodId
+	player:SetAttribute("RodId", rodId)
+	local tool = if character and isAlive(character) then giveRod(player, state, character) else nil
+	if tool and wasEquipped then
+		tool.Parent = character
+	end
+end
+
+-- Данные загрузились: удочка в игре — сохранённая, если её знает RodConfig (иначе стартовая;
+-- сохранённый RodId не переписывается).
+local function onDataLoaded(player: Player, data: any)
+	local state = states[player]
+	if not state or type(data) ~= "table" then
+		return
+	end
+	local rodId = if knownRod(data.RodId) then data.RodId else RodConfig.StartRod
+	if rodId ~= state.RodId then
+		switchRod(player, state, rodId)
+	end
+end
+
 local function onCharacterRemoving(player: Player, state: PlayerState, character: Model)
 	local session = state.Session
 	if session and session.Character == character then
@@ -849,6 +944,10 @@ local function onPlayerAdded(player: Player)
 	if character then
 		task.spawn(onCharacterAdded, player, state, character)
 	end
+	-- Данные уже загружены (Studio: игрок успел раньше скрипта; Memory) — их удочка.
+	if type(DataService.IsLoaded) == "function" and DataService:IsLoaded(player) then
+		onDataLoaded(player, DataService:Get(player))
+	end
 end
 
 local function onPlayerRemoving(player: Player)
@@ -907,30 +1006,23 @@ function FishingService:GetRodId(player: Player): string
 	return if state then state.RodId else RodConfig.StartRod
 end
 
--- Сменить удочку: текущая рыбалка заканчивается, старая удочка заменяется новой
--- (если старая была в руке — новая тоже окажется в руке).
+-- Сменить удочку (Этап 5, магазин): пишет data.RodId — только за CanWrite.
 function FishingService:SetRod(player: Player, rodId: string): boolean
 	local state = states[player]
-	if not state or FishingRules.GetRod(rodId).Id ~= rodId or not rodTemplate(rodId) then
+	if not state or not knownRod(rodId) or not canWrite(player) then
 		return false
 	end
-	if state.Session then
-		stop(player, state, "unequipped")
+	local data = writableData(player)
+	if data then
+		data.RodId = rodId
 	end
-	local character = player.Character
-	local old = state.Tool
-	local wasEquipped = old ~= nil and character ~= nil and old.Parent == character
-	if old then
-		old:Destroy()
-		state.Tool = nil
-	end
-	state.RodId = rodId
-	player:SetAttribute("RodId", rodId)
-	local tool = if character and isAlive(character) then giveRod(player, state, character) else nil
-	if tool and wasEquipped then
-		tool.Parent = character
-	end
+	switchRod(player, state, rodId)
 	return true
+end
+
+-- Куда ложится улов (TankService): fn(player, fish) -> TankResult?, синхронно.
+function FishingService.SetCatchSink(fn: ((Player, FishData) -> any)?)
+	catchSink = fn
 end
 
 -- Закончить рыбалку игрока (если он рыбачит): "Idle" с причиной reason.
@@ -962,6 +1054,10 @@ function FishingService:Start()
 	Players.PlayerRemoving:Connect(onPlayerRemoving)
 	for _, player in Players:GetPlayers() do
 		task.spawn(onPlayerAdded, player)
+	end
+
+	if type(DataService.Loaded) == "table" then
+		DataService.Loaded:Connect(onDataLoaded)
 	end
 
 	BaseService.BaseReleased:Connect(function(player: Player, base: Base)
