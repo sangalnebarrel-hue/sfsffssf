@@ -706,6 +706,24 @@ plop; burst 0..1.6 s), `fx_wait` (the slack line, the fish shadow swimming in an
 fixed part of the screen — `{ frac = { x0, y0, x1, y1 } }` (fractions of the screen; world FX
 have no GUI path) — and may be mixed with GUI paths.
 
+Stage 3 world views (`tools/preview/gui_scenarios_tank.luau`, loaded by `gui_dump.luau` after
+`gui_scenarios.luau`, `world = true`, not in `--all`; by name): `tank_court` (the court of base 1
+from the gate side: six display fish, the locked rows, the big tank's sign), `tank_aisle` (the
+follow camera in the west aisle: the tags over the displays), `tank_display` / `tank_rainbow`
+(display close-ups), `tank_sign` (the big tank's sign from the spawn), `tank_events` (a catch
+landing on a display, a sale, a replacement: the slot FX over the glass), `pier_tank_word` /
+`pier_tank_wait` (`server = true`: the real cast) / `pier_tank_arrival` (the fishing camera: the
+pier word over the bucket, idle, waiting, a catch landing in the tank), `market_word` (the hub
+market from the plaza). The stage 3 services are stubs there: `h:tank` writes the attributes,
+the scenario file paints the displays like TankService (design §5.2) and the world capture draws
+those parts from the sim (`capture:addLive(part)`: left out of the backdrop); the court views
+set their own camera (`capture:setCamera(eye, focus, fov?)`, world coordinates — the backdrop is
+rendered from it too) and freeze the display fish's life (`TankWorldController.SetLife(false)`:
+RbxSim does not carry welded parts with a tweened Body). The world capture also walks the
+client's `Workspace.TankWorld` (TankWorldController's fish, words and FX; its fish get no x-ray
+boxes) and draws the pedestal labels (`Pedestal.LabelGui`) of the bases within 60 studs of the
+camera. Render them HUD-less: `gui_render.py --scenario tank_court,tank_aisle --no-hud …`.
+
 Scenarios find widgets by name only (`HUD.Fishing.ActionArea.ActionButton`, `HUD.Fishing.CatchCard`,
 `HUD.RightButtons.HomeButton`, ...), so they survive restyles; a missing or hidden widget is a
 warning, not a crash (clicks are forced). A scenario is

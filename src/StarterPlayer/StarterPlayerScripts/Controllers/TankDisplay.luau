@@ -28,6 +28,7 @@
 	          (BillboardYellow);
 	  sign  — над большим аквариумом (FxTankSign): «+$42/с» крупно зелёным, «🐠 4/6» белым;
 	  pier  — над ведром у места рыбалки (FxPierTank): «🐠 4/6» белым, «+$42/с» зелёным;
+	  lock  — над закрытой витриной (FxTankLock): «🔒 Закрыто» светло-серым (Palette.Slate);
 	  market — над рынком острова (FxMarketWord): «РЫНОК +50%!» (BillboardYellow);
 	  rise  — всплывающая сумма (FxTankPop): выскакивает, поднимается на lift studs за time с и
 	          тает, потом удаляется сама (task.delay).
@@ -47,6 +48,7 @@
 	  TankDisplay.word(plate, name, text, box, look, outline, italic?) -> TextLabel
 	  TankDisplay.tag(parent) -> Tag;   TankDisplay.setTag(tag, rateText, valueText, maxed)
 	  TankDisplay.sign(parent) -> Pair; TankDisplay.pier(parent) -> Pair; TankDisplay.setPair(pair, a, b)
+	  TankDisplay.lock(parent, text) -> BillboardGui                  -- «🔒 Закрыто» (FxTankLock)
 	  TankDisplay.market(parent, text) -> BillboardGui
 	  TankDisplay.rise(parent, text, look, size, lift, time, maxDistance) -> BillboardGui
 	  TankDisplay.emitter(parent, kind, colors?) -> ParticleEmitter;  TankDisplay.emit(emitter, count)
@@ -409,6 +411,16 @@ function TankDisplay.setPair(pair: Pair, topText: string, bottomText: string)
 	if pair.bottom.Text ~= bottomText then
 		pair.bottom.Text = bottomText
 	end
+end
+
+-- Тусклое слово над закрытой витриной (светло-серое, как плашка «нет базы»), мельче надписи рыбы.
+function TankDisplay.lock(parent: Instance, text: string): BillboardGui
+	local spec = DISPLAY.Tag
+	local size =
+		UDim2.new(spec.Width, spec.PixelsX, spec.Height * spec.LockShare, math.round(spec.PixelsY * spec.LockShare))
+	local gui, plate = TankDisplay.billboard(parent, "FxTankLock", size, DISPLAY.TagRange)
+	TankDisplay.word(plate, "Locked", text, { 0, 0, 1, 1 }, UIConfig.Palette.Slate, spec.Outline)
+	return gui
 end
 
 function TankDisplay.market(parent: Instance, text: string): BillboardGui

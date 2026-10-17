@@ -381,6 +381,7 @@ tests["display fish: one per occupied display, centred on FishPoint, inside the 
 	standFrom(sim, p, base, (DISPLAY.LifeRange + DISPLAY.Range) / 2 + 20)
 	sim:Advance(1)
 	t.eq(world.Stats().life, 0, "no life tweens out here")
+	t.eq(world.Stats().locks, TankConfig.MaxSlots - 6, "a dim «🔒 Закрыто» over every locked display")
 	for index = 1, TankConfig.MaxSlots do
 		local fish = world.GetFish(base, index)
 		local slot = slotModel(base, index)
@@ -702,7 +703,14 @@ tests["pier word: own base only, hidden on Bite / Reeling / CounterHold / HeldFi
 	-- over the bucket of the OWN base
 	local bucket = base.Platform.Bucket
 	local at = word.Parent.WorldPosition
-	t.near(Vector3.new(at.X, 0, at.Z), Vector3.new(bucket.Position.X, 0, bucket.Position.Z), 0.01, "over the bucket")
+	local flat = Vector3.new(at.X - bucket.Position.X, 0, at.Z - bucket.Position.Z)
+	t.near(flat.Magnitude, PIER.Out, 0.01, "over the bucket (Pier.Out beyond its centre)")
+	local spot = base.FishingSpot.Position
+	local fromSpot = Vector3.new(at.X - spot.X, 0, at.Z - spot.Z).Magnitude
+	t.ok(
+		fromSpot > Vector3.new(bucket.Position.X - spot.X, 0, bucket.Position.Z - spot.Z).Magnitude,
+		"… on its far side from the spot"
+	)
 	t.ok(at.Y > bucket.Position.Y + 1, "above it")
 	fake:mount({ fake:record("Perch"), fake:record("Puffer") })
 	sim:Advance(0.1)
@@ -1055,6 +1063,7 @@ tests["budget and leaks: no frame connections from the tank scripts; a released 
 	sim:Advance(0.6)
 	t.eq(world.Stats().fish, 0, "released: no fish")
 	t.eq(world.Stats().tags, 0, "released: no tags")
+	t.eq(world.Stats().locks, 0, "released: no lock words (a free base is all empty)")
 	local sign = world.GetSign(base)
 	t.ok(sign == nil or not sign.Enabled, "released: no sign")
 	local fishLeft = 0

@@ -101,6 +101,9 @@ local Sim = require("../sim")
 local SimMembers = require("../sim/members")
 local SimPlayers = require("../sim/players")
 local scenarios = require("./gui_scenarios")
+-- Stage 3 world views (TankWorldController: the court, the displays, the pier word): their own
+-- file, the same scenario format, not in the standard set.
+local tankScenarios = require("./gui_scenarios_tank")
 local WorldCapture = require("./gui/world_capture")
 
 local Enum = roblox.Enum
@@ -2043,6 +2046,9 @@ end
 local function allScenarios(): { any }
 	local list = table.clone(scenarios)
 	for _, s in BUILTIN do
+		table.insert(list, s)
+	end
+	for _, s in tankScenarios do
 		table.insert(list, s)
 	end
 	return list

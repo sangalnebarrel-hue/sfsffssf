@@ -40,7 +40,9 @@
 	    MaxDistance TagRange, без света и AlwaysOnTop: «+$4/с» (BillboardGreen) и «$45 ▲» /
 	    «$135 МАКС» (BillboardYellow; Texts.TagValue / TagMax), стиль STYLE §3 «надписи в мире»;
 	    цена — TankRules.CurrentValue(Value, AgeAt(GrowFrom, GetServerTimeNow())) раз в TagEvery
-	    с (та же цепочка) и только у надписей ближе TagRange.
+	    с (та же цепочка) и только у надписей ближе TagRange. Над закрытой витриной ("locked") на
+	    том же месте — тусклое «🔒 Закрыто» (FxTankLock, Texts.SlotLocked, светло-серым Slate):
+	    из прохода табличку на тумбе не прочесть.
 	  • Надпись садка FxTankSign над передним краем Tank.Glass (выше таблички «АКВАРИУМ»),
 	    MaxDistance SignRange: «+$42/с» крупно зелёным, «🐠 4/6» мельче белым (Texts.TankCount) — из
 	    атрибутов садка Count / Slots / Income; у свободной базы и до подключения садка (нет Count)
@@ -87,7 +89,7 @@
 	  TankWorldController.GetPierWord() -> BillboardGui?
 	  TankWorldController.IsBuilt(base) -> boolean
 	  TankWorldController.IsAlive(base, slotIndex) -> boolean         -- твин жизни идёт
-	  TankWorldController.Stats() -> { bases, fish, tags, life, emitters, lastBuilds, folder }
+	  TankWorldController.Stats() -> { bases, fish, tags, life, locks, emitters, lastBuilds, folder }
 	  TankWorldController.SetLife(enabled)   -- превью: RbxSim не двигает приваренные детали за Body
 ]]
 
@@ -145,6 +147,7 @@ type Slot = {
 	busyUntil: number, -- рыба растёт (os.clock): жизнь не начинаем
 	tag: TankDisplay.Tag?,
 	tagHolder: Attachment?,
+	lockHolder: Attachment?, -- «🔒 Закрыто» над закрытой витриной
 	lastEvent: string?,
 	pending: boolean, -- отложенное перечитывание уже ждёт
 	queued: boolean, -- ждёт тихой постройки
@@ -307,12 +310,21 @@ local function burst(at: Vector3, kind: string, colors: { Color3 }?, count: numb
 end
 
 -- Всплывающая сумма над точкой at (мир): поднимается на lift studs за time с, потом удаляется.
-local function riseAt(at: Vector3, text: string, look: TankDisplay.Look, lift: number, time: number, range: number)
+type RiseSize = { Width: number, Height: number, PixelsX: number, PixelsY: number }
+
+local function riseAt(
+	at: Vector3,
+	text: string,
+	look: TankDisplay.Look,
+	spec: RiseSize,
+	lift: number,
+	time: number,
+	range: number
+)
 	local point = holder("FxPop", CFrame.new(at))
 	if not point then
 		return
 	end
-	local spec = FX.RiseSize
 	local size = UDim2.new(spec.Width, spec.PixelsX, spec.Height, spec.PixelsY)
 	TankDisplay.rise(point, text, look, size, lift, time, range)
 	task.delay(time + 0.1, function()
@@ -354,12 +366,23 @@ local function headOf(index: number): number
 	return if index % 4 < 2 then 1 else -1
 end
 
+-- Над верхом витрины и перед лицевой гранью стекла (из прохода — не сквозь стекло).
 local function topOf(slot: Slot): Vector3?
 	local display = slot.display
 	if not display then
 		return nil
 	end
-	return (display.CFrame * CFrame.new(0, display.Size.Y / 2 + FX.Above, 0)).Position
+	local size = display.Size
+	return (display.CFrame * CFrame.new(0, size.Y / 2 + FX.Above, -(size.Z / 2 + FX.Forward))).Position
+end
+
+-- Где надпись витрины: FishPoint + (0, Tag.Lift, −Tag.Forward) в осях витрины.
+local function tagPoint(slot: Slot): Vector3?
+	local point = slot.fishPoint
+	if not point then
+		return nil
+	end
+	return (point.WorldCFrame * CFrame.new(0, DISPLAY.Tag.Lift, -DISPLAY.Tag.Forward)).Position
 end
 
 local function updateTag(slot: Slot)
@@ -399,8 +422,8 @@ local function dropFish(base: Base, slot: Slot, animate: boolean)
 	slot.tag, slot.tagHolder = nil, nil
 	if tagHolder then
 		if animate and tag then
-			UiFx.popOut(tag.plate, { time = FX.Shrink })
-			task.delay(FX.Shrink + 0.05, function()
+			UiFx.popOut(tag.plate, { time = FX.TagOut })
+			task.delay(FX.TagOut + 0.05, function()
 				tagHolder:Destroy()
 			end)
 		else
@@ -450,9 +473,8 @@ local function showFish(base: Base, slot: Slot, grow: boolean, delay: number)
 	model.Parent = root
 	slot.fish, slot.uid, slot.fishId, slot.mutation = model, info.uid, info.fishId, info.mutation
 	slot.busyUntil = 0
-	local fishPoint = slot.fishPoint :: Attachment
-	local at = fishPoint.WorldCFrame * CFrame.new(0, DISPLAY.Tag.Lift, -DISPLAY.Tag.Forward)
-	local tagHolder = holder("FxTankTag", CFrame.new(at.Position))
+	local tagAt = tagPoint(slot) :: Vector3
+	local tagHolder = holder("FxTankTag", CFrame.new(tagAt))
 	if tagHolder then
 		slot.tagHolder = tagHolder
 		slot.tag = TankDisplay.tag(tagHolder)
@@ -495,14 +517,31 @@ end
 
 -- Рыбу продали / заменили: золотые искры и «+$45» над витриной.
 local function saleFx(slot: Slot, price: number?)
-	local top = topOf(slot)
-	if not top then
+	local top, tag = topOf(slot), tagPoint(slot)
+	if not top or not tag then
 		return
 	end
 	burst(top, "sparkle", { Color3.new(1, 1, 1), UIConfig.Palette.Gold.Top, UIConfig.Palette.Gold.Bottom }, FX.Sparkle)
 	if price and price > 0 then
+		-- (с места надписи витрины: она в этот миг уходит)
 		local text = TextUtil.fill(TEXTS.Pop, { amount = TankRules.FormatMoney(price) })
-		riseAt(top, text, UIConfig.BillboardYellow, FX.Rise, FX.RiseTime, DISPLAY.EventRange)
+		riseAt(tag, text, UIConfig.BillboardYellow, FX.RiseSize, FX.Rise, FX.RiseTime, DISPLAY.EventRange)
+	end
+end
+
+-- Закрытая витрина (Этап 5 откроет её): тусклое слово «🔒 Закрыто» на месте надписи витрины.
+local function setLocked(slot: Slot, locked: boolean)
+	local current = slot.lockHolder
+	if locked and not current then
+		local at = tagPoint(slot)
+		local point = at and holder("FxTankLock", CFrame.new(at))
+		if point then
+			slot.lockHolder = point
+			TankDisplay.lock(point, TEXTS.SlotLocked)
+		end
+	elseif not locked and current then
+		slot.lockHolder = nil
+		current:Destroy()
 	end
 end
 
@@ -524,6 +563,7 @@ local function refresh(base: Base, slot: Slot)
 		and slot.fishId == info.fishId
 		and slot.mutation == info.mutation
 	slot.info = if wanted then info else nil
+	setLocked(slot, info.state == "locked")
 	if same then
 		updateTag(slot)
 		return
@@ -683,6 +723,7 @@ local function build(model: Model, distance: number): Base?
 			busyUntil = 0,
 			tag = nil,
 			tagHolder = nil,
+			lockHolder = nil,
 			lastEvent = nil,
 			pending = false,
 			queued = false,
@@ -711,6 +752,7 @@ local function build(model: Model, distance: number): Base?
 	base.trove:Add(function()
 		for _, slot in base.slots do
 			dropFish(base, slot, false)
+			setLocked(slot, false)
 			slot.info, slot.queued = nil, false
 		end
 		for leaving in base.leaving do
@@ -822,7 +864,13 @@ local function setupPier()
 		top = math.max(top, topY(tail))
 	end
 	local p = bucket.Position
-	local point = holder("FxPierTank", CFrame.new(p.X, top + PIER.Lift + PIER.Height / 2, p.Z))
+	-- чуть дальше от места рыбалки, чем ведро (с камеры рыбалки — правее лески и поплавка)
+	local spot = (base :: Instance):FindFirstChild("FishingSpot")
+	local away = if spot and spot:IsA("BasePart")
+		then Vector3.new(p.X - spot.Position.X, 0, p.Z - spot.Position.Z)
+		else Vector3.zero
+	away = if away.Magnitude > 1e-3 then away.Unit * PIER.Out else Vector3.zero
+	local point = holder("FxPierTank", CFrame.new(p.X + away.X, top + PIER.Lift + PIER.Height / 2, p.Z + away.Z))
 	if not point then
 		return
 	end
@@ -871,14 +919,8 @@ local function popIncome()
 		return
 	end
 	local text = TextUtil.fill(TEXTS.Pop, { amount = amountOf(income10) })
-	riseAt(
-		at.WorldPosition + Vector3.new(0, PIER.Height * 0.4, 0),
-		text,
-		UIConfig.BillboardGreen,
-		PIER.Rise,
-		PIER.PopTime,
-		PIER.Range
-	)
+	local from = at.WorldPosition + Vector3.new(0, PIER.Height * 0.5, 0)
+	riseAt(from, text, UIConfig.BillboardGreen, PIER.PopSize, PIER.Rise, PIER.PopTime, PIER.Range)
 end
 
 --------------------------------------------------------------------------------
@@ -1105,13 +1147,14 @@ function TankWorldController.SetLife(enabled: boolean)
 end
 
 function TankWorldController.Stats(): { [string]: any }
-	local count = { bases = 0, fish = 0, tags = 0, life = 0 }
+	local count = { bases = 0, fish = 0, tags = 0, life = 0, locks = 0 }
 	for _, base in bases do
 		count.bases += 1
 		for _, slot in base.slots do
 			count.fish += if slot.fish then 1 else 0
 			count.tags += if slot.tag then 1 else 0
 			count.life += if slot.life then 1 else 0
+			count.locks += if slot.lockHolder then 1 else 0
 		end
 	end
 	return {
@@ -1119,6 +1162,7 @@ function TankWorldController.Stats(): { [string]: any }
 		fish = count.fish,
 		tags = count.tags,
 		life = count.life,
+		locks = count.locks,
 		emitters = #emitters,
 		lastBuilds = lastBuilds,
 		folder = folder,
