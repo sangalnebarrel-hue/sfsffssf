@@ -1114,6 +1114,23 @@ local function checkLayout(t: any, sim: any, p: any, viewport: any, touch: boole
 			`{what}: the sheet {fmt(r)} keeps ≥ {m} px off the thumbstick (to x {stickRight}, from y {stickTop})`
 		)
 	end
+	if hud.AbsoluteSize.Y >= PANEL.TallFrom then
+		-- several rows fill by columns ([1, 2] [3, 4] [5, 6] [🔒]): at rest every fish card is fully
+		-- in the window — only the teaser's column may peek past its edge
+		local window = rectOf(root.Panel.Cards)
+		local one, two, three = rectOf(card(p, 1)), rectOf(card(p, 2)), rectOf(card(p, 3))
+		t.ok(math.abs(two.x0 - one.x0) < 1 and two.y0 > one.y1, `{what}: Card2 {fmt(two)} under Card1 {fmt(one)}`)
+		t.ok(three.x0 > one.x1 and math.abs(three.y0 - one.y0) < 1, `{what}: Card3 {fmt(three)} right of Card1`)
+		for _, c in root.Panel.Cards:GetChildren() do
+			if c:IsA("GuiObject") and c.Visible and c:GetAttribute("FishUid") then
+				local r = rectOf(c)
+				t.ok(
+					r.x0 >= window.x0 - 1 and r.x1 <= window.x1 + 1 and r.y0 >= window.y0 - 1 and r.y1 <= window.y1 + 1,
+					`{what}: fish {c.Name} {fmt(r)} fully in the window {fmt(window)}`
+				)
+			end
+		end
+	end
 	local close = rectOf(root.Panel.Close)
 	t.ok(close.x1 - close.x0 >= 44 - 0.5, `{what}: ✕ ≥ 44 px`)
 	-- the header: everything before the ✕

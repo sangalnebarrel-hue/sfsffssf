@@ -15,8 +15,9 @@
 	    на планшете и ПК — не больше 900 × 560 и не шире карточек, по центру этого места. Не
 	    закрывает ни кошелёк, ни кнопку «САДОК», ни джойстик (кто хочет идти, не попадёт в кнопку
 	    продажи); без затемнения. Ячейки сетки, отступы и ширина холста (CanvasSize) — тоже
-	    масштабом (TankConfig.Panel: Aspect, Gap, Overhang, Side); при смене размера ячейки
-	    карточки собираются заново (их строки разложены в px).
+	    масштабом (TankConfig.Panel: Aspect, Gap, Overhang, Side); в несколько рядов сетка
+	    заполняется по столбцам ([1, 2] [3, 4] [5, 6] [🔒]: листается — за краем закрытая, не рыба);
+	    при смене размера ячейки карточки собираются заново (их строки разложены в px).
 	  • Фон: на телефоне — «стекло» с тёмной полосой Night под шапкой, на планшете и ПК — Night;
 	    карточки — Theme.sim без блика, глянца и тени.
 	  • Карточки: на телефоне один ряд (ScrollingFrame, явный CanvasSize), на HUD ≥ TankConfig.Panel
@@ -151,7 +152,6 @@ local S = {
 	tall = false, -- HUD ≥ Panel.TallFrom: ряды карточек, лист — Night (иначе — стекло)
 	wide = false, -- карточки ≥ Panel.WideCard: полные имена (где влезают)
 	wideSell = false, -- подпись кнопок «ПРОДАТЬ $X» на всю панель (TankCards.sellStyle), иначе «💵 $X»
-	cols = 1,
 	gap = 0,
 	side = 0,
 	canvasW = 0,
@@ -304,6 +304,10 @@ local function onPlace(fit: Sheet.Fit)
 	local innerW, innerH = math.max(canvasW - 2 * side, 1), math.max(windowH - top - bottom, 1)
 	grid.CellSize = UDim2.fromScale(cw / innerW, ch / innerH)
 	grid.CellPadding = UDim2.fromScale(gap / innerW, gap / innerH)
+	-- в несколько рядов — по столбцам ([1, 2] [3, 4] [5, 6] [🔒]): если ряды листаются, за краем
+	-- окна — последний столбец (закрытая), а не рыба; один ряд — слева направо
+	grid.FillDirection = if tall then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal
+	grid.FillDirectionMaxCells = if tall then rowsFor(tall) else 0
 	S.headSize = Vector2.new(fit.headerWidth, fit.header)
 	fitHeader()
 	local wide = cw >= PANEL.WideCard
@@ -311,7 +315,7 @@ local function onPlace(fit: Sheet.Fit)
 	-- под старый размер, карточки заново
 	local resized = next(S.cards) ~= nil
 		and (wide ~= S.wide or tall ~= S.tall or math.abs(cw - S.cell.X) > 0.5 or math.abs(ch - S.cell.Y) > 0.5)
-	S.cell, S.wide, S.cols, S.gap, S.side = Vector2.new(cw, ch), wide, cols, gap, side
+	S.cell, S.wide, S.gap, S.side = Vector2.new(cw, ch), wide, gap, side
 	S.tall = tall
 	S.canvasW, S.windowW = canvasW, windowW
 	frame.CanvasPosition = Vector2.new(math.min(frame.CanvasPosition.X, math.max(canvasW - windowW, 0)), 0)
@@ -763,7 +767,7 @@ local function focus(uid: string?)
 	end
 	for slot, card in S.cards do
 		if card.info and card.info.uid == uid then
-			local col = (slot - 1) % math.max(S.cols, 1)
+			local col = (slot - 1) // rowsFor(S.tall) -- (сетка в несколько рядов — по столбцам)
 			local x = col * (S.cell.X + S.gap)
 			frame.CanvasPosition = Vector2.new(math.clamp(x, 0, math.max(S.canvasW - S.windowW, 0)), 0)
 			UiFx.punch(card.frame, { delay = 0.15 })

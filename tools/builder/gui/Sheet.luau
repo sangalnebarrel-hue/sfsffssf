@@ -21,7 +21,8 @@
 	                  owner adds its own chips after them (LayoutOrder 3+)
 	      Close       a round Berry «✕» button (≥ 44 px) overhanging the plate's top-right corner
 	      Cards       a ScrollingFrame (it clips; no scroll bar: the cut-off last card says "more")
-	                  with a UIGridLayout (horizontal fill) and a UIPadding — the client sets the
+	                  with a UIGridLayout (horizontal fill here; the client fills several rows by
+	                  columns, FillDirectionMaxCells = the rows) and a UIPadding — the client sets the
 	                  cell size, the padding and an explicit CanvasSize, all as scales (no
 	                  AutomaticCanvasSize: RbxSim and the preview do not know it); the owner puts
 	                  its templates there (hidden)
