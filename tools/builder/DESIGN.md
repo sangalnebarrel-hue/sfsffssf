@@ -203,6 +203,60 @@ lays its own floor/paths/borders on top (slab tops at y ≈ 0.2; nothing coplana
 * `Accent = true` attribute → painted with the base colour; optional number attribute
   `AccentShade` in [−1, 1]: > 0 lerps towards white by that amount, < 0 towards black.
 
+### Tank slots at runtime (stage 3 contract: TankService writes, TankWorldController reads)
+
+The template only builds the court; at runtime the server writes **attributes and property
+changes, never new parts**, and each client draws its own display fish and words (design
+`docs/stage3_design.md` §4.6, §5). Needs `StreamingEnabled = false` (tools/build.luau): a client
+must see every base's displays and attributes.
+
+* **`Base_N.Tank`** (Model): `Count` (active fish), `Slots` (open displays), `Income` ($/s, one
+  decimal) — written on change, `nil` while no tank is mounted (a free base, the owner's data
+  still loading). The server's ProximityPrompt `"TankPrompt"` sits on `Tank.Glass.PromptAttachment`
+  (enabled while mounted); every client hides it **locally** on bases that are not its own.
+* **`Base_N.Tank.Slots.Slot_K`** (Model): `State` = `"empty"` | `"fish"` | `"locked"` (a free
+  base: all `"empty"`); with `"fish"` the fish fields `FishUid`, `FishId`, `Rarity`, `Mutation`
+  (absent = none / unknown), `Kg`, `Value` (×1 price), `Income` (Income10 / 10) and `GrowFrom`
+  (`TankRules.AttrTime(GetServerTimeNow() − Age)`: whole numbers get +1/1024 s — Lune stores
+  whole attribute values as float32); and `Event` = `"<n>|<kind>|<detail>"`: `in|<FishId>`,
+  `mount|`, `sold|<price>`, `swap|<price>` (a replacement: State stays `"fish"`, `FishUid`
+  changes), stage 4 `stolen|`.
+* **Write order:** the fish fields → `State` → **`Event` last**. `"empty"` / `"locked"` set every
+  fish field to `nil` (no stale `FishId` / `Value`). `n` is monotonic per base for the server's
+  lifetime (never reset on unmount: a new owner's first event never repeats an old string).
+  Only the last `Event` of a frame reaches clients, so one change = one event (`swap`, not
+  `sold` + `in`).
+* **Refresh contract (clients):** a slot is re-read only on its `Event` (TankWorldController
+  also listens to `State` and to the base's `OwnerUserId`, for an unmount that writes no
+  `Event`), with one coalesced `task.defer` per slot that reads every field; plus one read when
+  a base comes into range. A new `Event` string plays its FX (bases within
+  `TankConfig.Display.EventRange`); `mount` and unknown kinds are quiet.
+* **The server look per slot** (TankService, on change): `"empty"` — label «Пусто», the
+  template's LightBar (AquaGlow Neon, SurfaceLight on) and glass (T 0.66); `"fish"` — the label
+  is the fish's name in its rarity colour (FishConfig), the LightBar takes the rarity colour
+  (`UIConfig.Rarity[r].Bottom`, Mythic `UIConfig.Rainbow[6]`), the glass
+  `Display.GlassOccupied` (0.8); `"locked"` — «🔒 Закрыто», the LightBar SmoothPlastic in
+  `Slate.Bottom` with its SurfaceLight off, the glass as the template.
+* **What the client draws** (TankWorldController + TankDisplay, all in the client folder
+  `Workspace.TankWorld`, bases within `Display.Range` of the camera or the own character, torn
+  down beyond `DropRange`): a copy of `Assets.Fish.<FishId>.<Mutation | Normal>` per `"fish"`
+  display, scaled to `Display.Fit` (≤ `MaxScale`), its bounding box centred on
+  `Display.FishPoint`, the head along the display's ±X (`SlotIndex % 4 < 2`: towards the weed),
+  yawed `Display.Yaw` towards the aisle (−Z), ≤ 20 parts, no collisions / queries / touches /
+  shadows; the tag at `FishPoint + (0, Tag.Lift, −Tag.Forward)` — in front of the glass's face
+  (transparent glass hides billboards and particles behind it), at the `LightBar`'s height so
+  the bar runs between its two lines, its top under the arcade ceiling (13.15) up to
+  `Display.TagShow`: keep the LightBar at FishPoint + 3.1 … 3.4 and the ceiling where they are;
+  «🔒 Закрыто» on a locked display's glass at `FishPoint + (0, Tag.LockLift, −Tag.Forward)`; slot
+  FX over the display's top, in front of its face; the tank sign over the front of `Tank.Glass`;
+  the pier word over `Platform.Bucket` (and its `BucketFish`), `Pier.Out` further from
+  `FishingSpot` (from the fishing camera: right of the rod, above «СМОТАТЬ»), of the own base
+  only. Names relied on:
+  `Tank.Glass`, `Tank.Slots.Slot_K.{Display, Display.FishPoint, LightBar}`, `Platform.Bucket`,
+  `Platform.BucketFish`, `FishingSpot` — keep them. The parts budget reserve for the display
+  fish is `MapConfig.PartBudget.RuntimeReserve.TankFish` (12 × 8 × ≤ 20, the worst case; in
+  practice only the bases near the camera have fish).
+
 ### Per-base variants and the micro-kits (v3 detail)
 
 * **Variants:** a template instance (Model or BasePart) with number attributes `Variant = k` and

@@ -840,14 +840,21 @@ tests["configs: DataService's boot invariants, patchable knobs, ShortName, share
 	t.ok(TankConfig.Display.Range < TankConfig.Display.DropRange, "hysteresis")
 	-- §5.3's world numbers live in TankConfig too (Wave 1 B owns Display / Pier).
 	local display, pier = TankConfig.Display, TankConfig.Pier
-	t.eq({ display.TagEvery, display.MarketWordRange, display.Life, display.Tag, display.Fx }, {
+	local tag, fx = display.Tag, display.Fx
+	t.eq({
+		display.TagEvery,
+		display.MarketWordRange,
+		display.Life,
+		{ tag.Lift, tag.Forward, tag.Width, tag.Height, tag.PixelsX, tag.PixelsY },
+		{ fx.Shrink, fx.Grow, fx.MaxEmitters, fx.EmitterLife },
+	}, {
 		1,
 		200,
 		{ Bob = 0.12, Turn = 6, TimeMin = 2.4, TimeMax = 3.2 },
-		{ Lift = 3.6, Width = 5.5, Height = 1.8 },
-		{ Shrink = 0.25, MaxEmitters = 2 },
+		{ 3.3, 3.6, 5.6, 1.9, 44, 16 },
+		{ 0.25, 0.35, 2, 1.2 },
 	}, "Display: the tag timer, the hub word, the calm life, the slot tag, the event FX")
-	t.eq({ pier.Rise, pier.PopTime, pier.Width, pier.Height }, { 2.5, 1.2, 4, 1.4 }, "Pier: the pop and the word")
+	t.eq({ pier.Rise, pier.PopTime, pier.Width, pier.Height }, { 2.5, 1.2, 4.4, 1.6 }, "Pier: the pop and the word")
 	t.ok(display.Life.TimeMin <= display.Life.TimeMax, "the bob period range")
 	t.ok(pier.PopRange < pier.Range, "income pops only where the word is visible")
 	t.ok(EconomyConfig.HomeRatePct < EconomyConfig.MarketRatePct, "the stall pays more")

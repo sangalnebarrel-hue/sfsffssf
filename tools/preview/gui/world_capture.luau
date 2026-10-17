@@ -72,6 +72,13 @@
 	Roblox's follow camera): FishingController's own-character keep-out sees the fisher where
 	the drawing shows him.
 
+	Stage 3 (TankWorldController): the client's Workspace.TankWorld folder is walked like
+	FishingFx (display fish as solids — no x-ray marks —, the words over the displays, the tank
+	and the pier bucket, the slot FX), and the pedestal labels (Pedestal.LabelGui) of the bases
+	near the camera are SurfaceGui items. A scenario may set its own camera (setCamera: the court,
+	an aisle, a display close-up) and restyle parts the backdrop has at rest (addLive: a display's
+	LightBar and glass as TankService writes them — drawn from the sim, left out of the backdrop).
+
 	API (used by gui_dump.luau):
 	  Capture.installHooks()                   before Sim.new: ParticleEmitter:Emit recorder
 	  Capture.new(opts) -> capture             opts = { sim, player, W, H, spot (BasePart), look
@@ -81,6 +88,8 @@
 	  capture:step(dt)                         call after every sim step of the capture window
 	  capture:frame() -> { cam, items, solids, movers, marks }   the world now (JSON-ready)
 	  capture:camera() -> { eye, focus, fov }  the base camera (no offset), spot frame
+	  capture:setCamera(eye?, focus?, fov?)    a scenario's own camera (world coordinates; nil: back)
+	  capture:addLive(part)                    draw this part from the sim, not from the backdrop
 	  capture:scene() -> { base, waterY, movers, exclude }   static data (gui/solids.py)
 	  capture:begin()                          time 0 of the scenario (after `run`)
 	  capture:observe()                        presence tracking during `run` (every step)
@@ -107,6 +116,8 @@ local MAX_EMIT = 200 -- per Emit() call
 local MARK_PREFIXES = { "PillarCore", "PillarBeam", "Halo", "Pop", "Nameplate" }
 local FISH_NAMES = { HeldFish = true, Leap = true, Dive = true }
 local AMBIENT_FOLDER = "Ambient (client)" -- AmbientController's own parts
+local TANK_FOLDER = "TankWorld" -- TankWorldController's own parts, words and FX (stage 3)
+local LABEL_RANGE = 60 -- the display labels (Pedestal.LabelGui, MaxDistance 60) drawn this near
 -- Map movers (AmbientWorld): kinds and how far from the spot they are drawn moving, studs.
 -- Farther ones (and the Drift clouds) stay in the backdrop at rest: their motion is a pixel.
 local MOVER_KINDS = { "Sway", "Bob", "Spin", "Pulse" }
@@ -347,6 +358,8 @@ function Capture.new(opts: any): any
 		movers = {}, -- { part, id } (map parts AmbientWorld moves, within MOVER_RANGE)
 		moverInfo = {}, -- static data per mover id (scene().movers)
 		exclude = {}, -- their rest geometry in world coordinates (scene().exclude)
+		live = {}, -- parts a scenario restyled (addLive): drawn from the sim
+		override = nil :: any, -- a scenario's own camera (setCamera), spot frame
 		waterY = 0,
 	}, Capture)
 	self.ambient = not self.avatarOnly and opts.ambient ~= false
@@ -534,6 +547,23 @@ end
 -- Camera of the current frame: { eye, focus, fov } in the spot frame, and world vectors.
 function Capture:cameraNow(): any
 	local cam = Capture.CAMERA
+	local override = self.override
+	if override then
+		local eyeW, focusW = self:toWorld(override.eye), self:toWorld(override.focus)
+		local f = (focusW - eyeW).Unit
+		local r = f:Cross(Vector3.new(0, 1, 0)).Unit
+		return {
+			eye = override.eye,
+			focus = override.focus,
+			offset = Vector3.zero,
+			eyeW = eyeW,
+			f = f,
+			r = r,
+			u = r:Cross(f),
+			fov = override.fov,
+			fp = (self.H / 2) / math.tan(math.rad(override.fov) / 2),
+		}
+	end
 	local offset = Vector3.zero
 	local character = self.player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -561,11 +591,49 @@ function Capture:cameraNow(): any
 		f = f,
 		r = r,
 		u = u,
+		fov = cam.fov,
 		fp = (self.H / 2) / math.tan(math.rad(cam.fov) / 2),
 	}
 end
 
+-- A scenario's own camera (world coordinates; world mode): it replaces the follow camera for
+-- the frames, the backdrop and the client's Workspace.CurrentCamera (stage 3 court views).
+-- Without arguments — back to the follow camera.
+function Capture:setCamera(eye: any?, focus: any?, fov: number?)
+	if eye and focus then
+		self.override = { eye = self:toLocal(eye), focus = self:toLocal(focus), fov = fov or Capture.CAMERA.fov }
+	else
+		self.override = nil
+	end
+end
+
+-- A part whose look the scenario changes (a display's LightBar and glass: what TankService
+-- writes): drawn every frame from the sim, and its rest geometry is left out of the backdrop.
+function Capture:addLive(part: any)
+	if table.find(self.live, part) then
+		return
+	end
+	table.insert(self.live, part)
+	local p = part.Position
+	table.insert(self.exclude, {
+		rn(p.X, 100),
+		rn(p.Y, 100),
+		rn(p.Z, 100),
+		rn(part.Size.X, 100),
+		rn(part.Size.Y, 100),
+		rn(part.Size.Z, 100),
+	})
+end
+
 function Capture:camera(): any
+	local override = self.override
+	if override then
+		return {
+			eye = { override.eye.X, override.eye.Y, override.eye.Z },
+			focus = { override.focus.X, override.focus.Y, override.focus.Z },
+			fov = override.fov,
+		}
+	end
 	local cam = Capture.CAMERA
 	local p = math.rad(cam.pitch)
 	local focus = Vector3.new(0, cam.focusHeight, 0)
@@ -630,15 +698,18 @@ end
 -- instance to consider (avatar mode: only the own character).
 function Capture:scan(): { any }
 	local out = {}
-	local function walk(inst: any, fish: any?, character: any?, ambient: boolean?)
+	local function walk(inst: any, fish: any?, character: any?, ambient: boolean?, quiet: boolean?)
 		for _, c in inst:GetChildren() do
 			local f = fish
 			if not f and isFishModel(c) then
 				f = c
-				table.insert(out, { inst = c, fish = c, top = true, character = character, ambient = ambient })
+				table.insert(
+					out,
+					{ inst = c, fish = c, top = true, character = character, ambient = ambient, quiet = quiet }
+				)
 			end
-			table.insert(out, { inst = c, fish = f, character = character, ambient = ambient })
-			walk(c, f, character, ambient)
+			table.insert(out, { inst = c, fish = f, character = character, ambient = ambient, quiet = quiet })
+			walk(c, f, character, ambient, quiet)
 		end
 	end
 	if self.avatarOnly then
@@ -658,6 +729,12 @@ function Capture:scan(): { any }
 			walk(own, nil, nil, true)
 		end
 	end
+	-- Stage 3: this client's tank world (TankWorldController: the display fish, the words over the
+	-- displays, the tank and the pier bucket, the slot FX) — no x-ray marks for its fish
+	local tankWorld = self:clientFolder(TANK_FOLDER)
+	if tankWorld then
+		walk(tankWorld, nil, nil, nil, true)
+	end
 	for _, plr in self.sim:GetPlayers() do
 		local character = plr.Character
 		if character then
@@ -666,6 +743,7 @@ function Capture:scan(): { any }
 	end
 	-- The bases' words in the world (UI v5): the owner sign over each flag (BillboardGui) and
 	-- the gate board's two faces (SurfaceGui) — found directly, the base models are not walked.
+	local eye = self:cameraNow().eyeW
 	local bases = self.sim.workspace:FindFirstChild("Bases")
 	for _, base in if bases then bases:GetChildren() else {} do
 		local node = base
@@ -681,6 +759,20 @@ function Capture:scan(): { any }
 			local face = board and board:FindFirstChild(name)
 			if face then
 				table.insert(out, { inst = face })
+			end
+		end
+		-- the display labels on the pedestals («Пусто», a fish name, «🔒 Закрыто»: TankService),
+		-- only near the camera (their SurfaceGui is drawn within 60 studs)
+		local tank = base:FindFirstChild("Tank")
+		local slots = tank and tank:FindFirstChild("Slots")
+		local glass = tank and tank:FindFirstChild("Glass")
+		if slots and glass and (glass.Position - eye).Magnitude < LABEL_RANGE + 70 then
+			for _, slot in slots:GetChildren() do
+				local pedestal = slot:FindFirstChild("Pedestal")
+				local label = pedestal and pedestal:FindFirstChild("LabelGui")
+				if label and (pedestal.Position - eye).Magnitude <= LABEL_RANGE then
+					table.insert(out, { inst = label })
+				end
 			end
 		end
 	end
@@ -897,7 +989,7 @@ function Capture:_step(dt: number)
 	-- fish paths (screen centres, for the x-ray arc)
 	local cam = self:cameraNow()
 	for _, entry in scan do
-		if entry.top and entry.fish and not entry.ambient then
+		if entry.top and entry.fish and not entry.ambient and not entry.quiet then
 			local ok, box = pcall(function()
 				return entry.fish:GetBoundingBox()
 			end)
@@ -1411,12 +1503,12 @@ function Capture:_frame(): any
 		local inst = entry.inst
 		local character = entry.character
 		if entry.top and entry.fish then
-			if not entry.ambient and not self.avatarOnly then
+			if not entry.ambient and not entry.quiet and not self.avatarOnly then
 				self:fishMark(cam, entry.fish, marks)
 			end
 		elseif inst:IsA("BasePart") then
 			local visible = true
-			if entry.ambient then
+			if entry.ambient or entry.quiet then
 				local pos = inst.Position
 				visible = (pos - cam.eyeW).Magnitude < AMBIENT_RANGE and self:inView(cam, pos, inst.Size.Magnitude / 2)
 			end
@@ -1479,6 +1571,15 @@ function Capture:_frame(): any
 	if self.avatarOnly then
 		return { solids = solids }
 	end
+	-- live parts (a scenario changed their look: drawn from the sim, left out of the backdrop)
+	for _, part in self.live do
+		if part.Parent then
+			local solid = self:solidOf(part)
+			if solid then
+				table.insert(solids, solid)
+			end
+		end
+	end
 	-- particles of emitters that are gone already
 	local seen = {}
 	for _, entry in self:scan() do
@@ -1509,7 +1610,7 @@ function Capture:_frame(): any
 		cam = {
 			eye = { cam.eye.X, cam.eye.Y, cam.eye.Z },
 			focus = { cam.focus.X, cam.focus.Y, cam.focus.Z },
-			fov = Capture.CAMERA.fov,
+			fov = cam.fov,
 		},
 		items = items,
 		solids = solids,
