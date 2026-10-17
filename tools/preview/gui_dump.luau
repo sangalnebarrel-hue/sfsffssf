@@ -104,6 +104,8 @@ local scenarios = require("./gui_scenarios")
 -- Stage 3 world views (TankWorldController: the court, the displays, the pier word): their own
 -- file, the same scenario format, not in the standard set.
 local tankScenarios = require("./gui_scenarios_tank")
+-- Stage 3 tank panel (TankPanelController): its own file, in the standard set.
+local panelScenarios = require("./gui_scenarios_panel")
 local WorldCapture = require("./gui/world_capture")
 
 local Enum = roblox.Enum
@@ -2049,6 +2051,9 @@ local function allScenarios(): { any }
 		table.insert(list, s)
 	end
 	for _, s in tankScenarios do
+		table.insert(list, s)
+	end
+	for _, s in panelScenarios do
 		table.insert(list, s)
 	end
 	return list

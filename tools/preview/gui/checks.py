@@ -44,8 +44,15 @@ FILL_WARN_VIEWPORTS = {(844, 390), (667, 375)}
 MIN_GAP = 16
 TEXT_FLOOR = 12
 FULLSCREEN_SHARE = 0.45
-# ScreenGui children that are containers of widgets rather than widgets themselves.
-CONTAINERS = {"HUD": {"Fishing"}}
+# ScreenGui children that are containers of widgets rather than widgets themselves; a dotted
+# entry is a container inside one (the tank sheet's plate: its header, ✕, card strip and its own
+# outline / face / strip are the widgets, though the sheet covers >= 45 % of a phone screen).
+CONTAINERS = {"HUD": {"Fishing", "TankPanel", "TankPanel.Panel"}}
+# Sheets (modal panels on the sheet shell, Controllers/Sheet): their widgets are checked against
+# the rest of the HUD and the CoreGui, but not against each other (a sheet packs its rows tighter
+# than 16 px) and not against what a modal sheet may cover (design §6.4: the idle action button
+# and the thumbstick zone); never dropped as a full-screen layer.
+SHEETS = {"HUD.TankPanel": {"HUD.Fishing.ActionArea", "Thumbstick"}}
 # Screen layers (dims, ray holders) that are never widgets, whatever their size.
 LAYERS = {"HUD.Fishing.CatchDim", "HUD.Fishing.CatchRays"}
 
@@ -324,7 +331,14 @@ def widget_of(path):
     parts = path.split(".")
     if len(parts) < 2:
         return None, None
-    depth = 3 if parts[1] in CONTAINERS.get(parts[0], ()) else 2
+    containers = CONTAINERS.get(parts[0], ())
+    if ".".join(parts[1:]) in containers:
+        return None, None  # a container itself
+    depth = 2
+    for d in range(len(parts) - 1, 1, -1):  # the deepest container the path is in
+        if ".".join(parts[1:d]) in containers:
+            depth = d + 1
+            break
     if len(parts) < depth:
         return None, None  # a container itself
     root = ".".join(parts[:depth])
@@ -363,9 +377,30 @@ def widgets(objects, W, H):
         y1 = max(p[3] for p in w["parts"])
         w["box"] = (x0, y0, x1, y1)
         vis = (min(x1, W) - max(x0, 0)) * (min(y1, H) - max(y0, 0))
-        if vis >= FULLSCREEN_SHARE * W * H:
+        if vis >= FULLSCREEN_SHARE * W * H and not sheet_of(name):
             del out[name]  # a full-screen layer (dim, rays), not a widget
     return out
+
+
+def sheet_of(widget):
+    """The sheet (a SHEETS key) a widget path belongs to, or None."""
+    for sheet in SHEETS:
+        if widget == sheet or widget.startswith(sheet + "."):
+            return sheet
+    return None
+
+
+def _exempt(a, b):
+    """True when the pair is not judged: two widgets of one sheet, or a sheet over what it may
+    cover (SHEETS)."""
+    sa, sb = sheet_of(a), sheet_of(b)
+    if sa and sa == sb:
+        return True
+    if sa and b in SHEETS[sa]:
+        return True
+    if sb and a in SHEETS[sb]:
+        return True
+    return False
 
 
 def _closest(parts_a, parts_b, limit):
@@ -395,10 +430,14 @@ def layout_findings(objects, W, H, chrome, min_gap=MIN_GAP):
     found = []
     for i, a in enumerate(names):
         for b in names[i + 1:]:
+            if _exempt(a, b):
+                continue
             res = _closest(ws[a]["parts"], ws[b]["parts"], min_gap)
             if res and res[0] < min_gap:
                 found.append({"a": a, "b": b, "gap": round(res[0], 1), "p": res[1], "q": res[2], "kind": "widget"})
         for cname, shape in chrome.items():
+            if _exempt(a, cname):
+                continue
             rr = shape_rrect(shape)
             res = _closest(ws[a]["parts"], [rr], min_gap)
             if res and res[0] < min_gap:
@@ -486,6 +525,17 @@ def selftest():
     assert widget_of("HUD.Fishing.BiteAlert.FxRays.Ray1") == ("HUD.Fishing.BiteAlert", None)
     assert widget_of("HUD.FxConfetti.Piece") == (None, None)
     assert widget_of("HUD.Fishing") == (None, None)
+    # the tank sheet: its plate is a container of widgets (header, ✕, card strip, its outline)
+    assert widget_of("HUD.TankPanel") == (None, None)
+    assert widget_of("HUD.TankPanel.Panel") == (None, None)
+    assert widget_of("HUD.TankPanel.Panel.Header.Title") == ("HUD.TankPanel.Panel.Header", "solid")
+    assert widget_of("HUD.TankPanel.Panel.Cards.Card1.Sell.Face") == ("HUD.TankPanel.Panel.Cards", "solid")
+    assert widget_of("HUD.TankPanel.Panel.Lip") == ("HUD.TankPanel.Panel.Lip", "solid")
+    assert sheet_of("HUD.TankPanel.Panel.Close") == "HUD.TankPanel" and sheet_of("HUD.Status") is None
+    assert _exempt("HUD.TankPanel.Panel.Header", "HUD.TankPanel.Panel.Close")
+    assert _exempt("HUD.TankPanel.Panel.Cards", "Thumbstick")
+    assert not _exempt("HUD.TankPanel.Panel.Cards", "Jump")
+    assert not _exempt("HUD.TankPanel.Panel.Header", "HUD.Status")
     assert widget_of("HUD.Status.BaseBadge") == ("HUD.Status", "solid")
     objs = [
         {"path": "HUD.Fishing.CatchDim", "x": 0, "y": 0, "w": 100, "h": 100, "bgT": 0.3},
