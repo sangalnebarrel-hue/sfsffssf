@@ -171,7 +171,9 @@ local function buildStatus(hud: any)
 		LayoutOrder = 1,
 		Size = UDim2.fromScale(0.64, 1),
 		Text = "$0",
-		IconScale = 0.95, -- (the bill about as tall as the digits, like the reference; toasts hang below)
+		-- (the bill about as tall as the digits, like the reference; its emoji box — a line tall —
+		-- keeps 16 px to the toasts below and to a minigame docked beside the row on small phones)
+		IconScale = 0.85,
 		Color = UI.MoneyText,
 		MaxTextSize = 48,
 		MinTextSize = 16,

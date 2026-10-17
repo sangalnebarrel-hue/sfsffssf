@@ -37,6 +37,12 @@ local FULL = {
 	{ Id = "Swordfish", Age = 80 },
 }
 
+-- New money on a Wallet that is already shown is a jump: it waits for its celebration
+-- (UIConfig.Wallet.SaleWait) and then counts up — let it land before the stills.
+local function moneyLanded(h: any)
+	h:advance(2)
+end
+
 -- Rod in hand at the own fishing spot.
 local function readyAtSpot(h: any)
 	h:standAtSpot()
@@ -89,12 +95,12 @@ end
 return {
 	{
 		name = "wallet_idle",
-		desc = "Wallet: «💵 $1 234» + «+$19/с» panel-less under the badge; every 5 s a small «+$19» floats off it",
-		still = { 0.6, 5.35 },
+		desc = "Wallet: «💵 $1 234» + «+$20/с» panel-less under the badge; every 5 s a small «+$20» floats off it",
+		still = { 0.6, 1.6 },
 		run = function(h: any)
 			h:tank({ { Id = "Perch", Age = 60 }, { Id = "Puffer", Age = 20 }, { Id = "Swordfish", Age = 200 } })
 			h:money(1234)
-			h:advance(0.2)
+			moneyLanded(h)
 		end,
 	},
 	{
@@ -117,7 +123,7 @@ return {
 		still = 0.6,
 		run = function(h: any)
 			h:money(999999, 12340)
-			h:advance(0.2)
+			moneyLanded(h)
 		end,
 	},
 	{
@@ -127,6 +133,7 @@ return {
 		run = function(h: any)
 			h:tank({ { Id = "Crucian" }, { Id = "Perch" }, { Id = "Puffer" }, { Id = "Swordfish" } })
 			h:money(86)
+			moneyLanded(h)
 			readyAtSpot(h)
 		end,
 	},
@@ -137,6 +144,7 @@ return {
 		run = function(h: any)
 			h:tank(FULL)
 			h:money(4321)
+			moneyLanded(h)
 			readyAtSpot(h)
 		end,
 	},

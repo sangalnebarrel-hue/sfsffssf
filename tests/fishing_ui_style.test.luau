@@ -2609,10 +2609,10 @@ tests["minigame on a phone: beside the own bobber when it would cover it (world 
 	end, p)
 	local left, right = mini.AbsolutePosition.X, mini.AbsolutePosition.X + mini.AbsoluteSize.X
 	t.ok(point.X < left or point.X > right, `the panel ({left}..{right}) is beside the bobber (x {point.X})`)
-	-- (Stage 3: the Wallet row is always under the badge — the docked panel starts below it, as it
-	-- did beside the catch counter after the first catch; its text stays ≥ 12 px: gui_render checks.)
+	-- (Stage 3: the Wallet row under the badge counts only by its content — «💵 $0» beside the
+	-- panel does not push it down; FishingController dockBand.)
 	t.ok(
-		mini.AbsoluteSize.X >= 240,
+		mini.AbsoluteSize.X >= 280,
 		`still readable ({mini.AbsoluteSize.X} px wide at {left}..{right}, bobber x {point.X})`
 	)
 	p:SetAttribute("FishingState", "Idle")

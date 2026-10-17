@@ -1203,13 +1203,32 @@ do
 
 	-- Верх полосы слева (px корня) для виджета, прижатого слева до x1: под видимыми плашками
 	-- статуса над ним (с зазором COLUMN_GAP); низ — над джойстиком (тач-экран). edge — сколько
-	-- его обводка и «аура» выступают за него (не меньше OUTLINE; на планшете толще).
+	-- его обводка и «аура» выступают за него (не меньше OUTLINE; на планшете толще). Ряд по
+	-- центру (кошелёк Этапа 3: «💵 $0 +$4/с» в широкой рамке) мешает только своим содержимым.
 	local function dockBand(origin: Vector2, height: number, x1: number, edge: number): (number, number)
 		local top = 8 + edge
 		for _, item in ui.status:GetChildren() do
 			if item:IsA("GuiObject") and item.Visible then
 				local at = item.AbsolutePosition - origin
-				if at.X < x1 and at.X + item.AbsoluteSize.X > Layout.EDGE then
+				local left, right = at.X, at.X + item.AbsoluteSize.X
+				local row = item:FindFirstChildOfClass("UIListLayout")
+				if
+					row
+					and row.FillDirection == Enum.FillDirection.Horizontal
+					and row.HorizontalAlignment == Enum.HorizontalAlignment.Center
+				then
+					local width, count = 0, 0
+					for _, child in item:GetChildren() do
+						if child:IsA("GuiObject") and child.Visible then
+							width += child.AbsoluteSize.X
+							count += 1
+						end
+					end
+					width += math.max(count - 1, 0) * (row.Padding.Scale * item.AbsoluteSize.X + row.Padding.Offset)
+					local middle = (left + right) / 2
+					left, right = middle - width / 2, middle + width / 2
+				end
+				if left < x1 and right > Layout.EDGE then
 					top = math.max(top, at.Y + item.AbsoluteSize.Y + Layout.EDGE + edge)
 				end
 			end
