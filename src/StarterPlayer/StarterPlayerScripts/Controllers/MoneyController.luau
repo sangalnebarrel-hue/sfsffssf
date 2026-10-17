@@ -195,7 +195,7 @@ end
 local lastFit = ""
 local floatOnHud: (text: string, at: Vector2, size: Vector2, o: { [string]: any }) -> ()
 -- Строка, как её разложил layout (px от левого края кошелька): где кончается число и вся группа.
-local fitted = { labelRight = 0, rowRight = 0 }
+local fitted = { rowLeft = 0, labelRight = 0, rowRight = 0 }
 
 local function setScale(gui: GuiObject, prop: string, value: UDim2)
 	local now = (gui :: any)[prop] :: UDim2
@@ -242,6 +242,7 @@ local function layout(force: boolean?)
 	end
 	local moneyW = labelX + textW
 	local left = (W - moneyW - gap - rateW) / 2 -- UIListLayout ставит группу по центру
+	fitted.rowLeft = left
 	fitted.labelRight = left + moneyW
 	fitted.rowRight = left + moneyW + gap + rateW
 	setScale(money, "Size", UDim2.fromScale(moneyW / W, 1))
@@ -380,8 +381,14 @@ end
 
 local function floatIncome()
 	local tenths = income10()
-	if tenths <= 0 or not wallet.Visible or state ~= "ready" or os.clock() - lastParty < WALLET.FloatQuiet then
-		return
+	if
+		tenths <= 0
+		or not wallet.Visible
+		or state ~= "ready"
+		or catchHold
+		or os.clock() - lastParty < WALLET.FloatQuiet
+	then
+		return -- (и пока ждут или летят 💵 улова — праздник не перебивать)
 	end
 	local text = TankRules.FormatRate(tenths)
 	text = string.sub(text, 1, #text - #EconomyConfig.Format.Rate) -- «+$13/с» → «+$13»
@@ -450,15 +457,15 @@ function floatOnHud(text: string, at: Vector2, size: Vector2, o: { [string]: any
 	})
 end
 
--- Золотое «+$1 234» над числом (уровень Button).
+-- Золотое «+$1 234» слева от 💵 (уровень Button; над строкой — плашка базы, туда не поднимается).
 local function floatAmount(amount: number)
 	local text = "+" .. TankRules.FormatMoney(amount)
 	local H = math.max(wallet.AbsoluteSize.Y, 1)
 	local px = math.max(UiFx.textSize("Button"), H * 0.7)
 	local w = textWidth(text, px)
-	floatOnHud(text, Vector2.new(fitted.labelRight - w * 0.3, H * 0.1), Vector2.new(w, px), {
+	floatOnHud(text, Vector2.new(fitted.rowLeft - w * 0.5 - H * 0.15, H * 0.5), Vector2.new(w, px), {
 		colors = { Palette.Gold.Top, Palette.Sun.Bottom },
-		rise = H * 0.9,
+		rise = H * WALLET.FloatRise,
 		time = 1.0,
 		rotate = -4,
 	})
@@ -483,6 +490,7 @@ function MoneyController.Celebrate(amount: number, from: GuiObject?, _opts: Cele
 	local extra = math.min(whole - mine, free)
 	held += extra
 	mine += extra
+	lastParty = os.clock() -- (пока 💵 летят, «+$13» дохода не всплывает)
 	local landed = false
 	local function land()
 		if landed then

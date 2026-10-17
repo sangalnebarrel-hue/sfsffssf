@@ -179,8 +179,7 @@ return {
 			h:tank(FULL)
 			h:money(500)
 			catchCard(h, FISH.Common, { Result = "sold", Count = 6, Slots = 6, Price = 11 }, 511)
-		end,
-		during = closeLater(2.6),
+		end, -- a Common card closes by itself (UIConfig.CatchCardTime)
 	},
 	{
 		name = "tank_button_badge",

@@ -47,8 +47,10 @@ MIN_GAP = 16
 TEXT_FLOOR = 12
 # Widget pairs that are one designed stack of passive (never tapped) widgets: the toast column
 # hangs right under the status stack (STYLE.md §3; stage 3: the Wallet row is always shown), so
-# they may sit closer than MIN_GAP — only an overlap of what they draw is reported.
-STACKED = {("HUD.Status", "HUD.Toasts"): 0}
+# they may sit closer than MIN_GAP — only an overlap of what they draw is reported, beyond a few
+# pixels: the Wallet's 💵 and the toast's icon are emoji whose text boxes are a line tall (the
+# glyph is ~0.8 of it), and both bump / pop for a moment when a sale lands and its toast comes in.
+STACKED = {("HUD.Status", "HUD.Toasts"): -4}
 FULLSCREEN_SHARE = 0.45
 # ScreenGui children that are containers of widgets rather than widgets themselves.
 CONTAINERS = {"HUD": {"Fishing"}}

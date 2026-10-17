@@ -323,7 +323,7 @@ local function lineWidth(text: string, px: number): number
 end
 
 -- Ряд под ценой (после placeCard: подсказка уже на месте своей раскладки, card — размер карточки
--- в px): штамп садка справа, подсказка — на остальном. Штамп спрятан (его показывает его доля).
+-- в px): штамп садка справа, подсказка — на остальном (штамп показывает его доля).
 -- Без штампа подсказка — во весь ряд (tapHint). Возвращает, виден ли текст подсказки.
 -- wide — ширина широкой карточки (px; nil — квадратная): подсказка без штампа, как tapHint.
 function CatchFx.tankRow(
@@ -334,7 +334,7 @@ function CatchFx.tankRow(
 	touch: boolean,
 	wide: number?
 ): boolean
-	stamp.Visible = false
+	-- (видимость штампа не трогает: прячет его fillCard, а раскладку зовут и на поворот экрана)
 	local text, token = CatchFx.tankStamp(tank)
 	local rowW = hint.Size.X.Scale * card.X
 	if not text or not token then

@@ -5,18 +5,21 @@
 	  • the chrome is the reference's simulator look: sim plates and buttons (a Top → Bottom
 	    gradient face, a thick outline in the dark shade of the hue on the Lip, a light rim inside,
 	    a hidden Shine), outlined emoji, Montserrat Heavy text with thick outlines, the CAPS badge
-	    «ЛАЗУРНАЯ БАЗА», the counter a panel-less italic number «🐟 12», the base banner a huge
-	    outlined title with a drop shadow and no panel, the red «!» badge on Home (hidden); and no
-	    stud anywhere in the GUI (the LEGO look belongs to the map);
+	    «ЛАЗУРНАЯ БАЗА», the Wallet a panel-less italic money stat «💵 $1 234», the «САДОК» button
+	    a square like Home with its «0/6» chip, the base banner a huge outlined title with a drop
+	    shadow and no panel, the red «!» badges (hidden); and no stud anywhere in the GUI (the LEGO
+	    look belongs to the map);
 	  • the layout still fits on a phone, a tablet and a desktop: nothing overlaps, everything is
-	    on screen, the Home button stays above the Jump button on touch screens;
-	  • the runtime juice: base swatch on the badge and the base banner flying into it, «+N» over
-	    the catch counter (held while the HUD has CounterHold), the draining Home cooldown («ЖДИ»),
+	    on screen, the right column («САДОК» over «ДОМОЙ») stays above the Jump button on touch
+	    screens;
+	  • the runtime juice: base swatch on the badge and the base banner flying into it, the «САДОК»
+	    chip (frozen while the HUD has CounterHold, rolling on arrival), the draining Home cooldown («ЖДИ»),
 	    toasts by kind (colour, icon, width, slots, queue while fishing widgets are up — and while
 	    a hit word or a minigame ghost rises into the column, Legendary / Mythic broadcasts), the
 	    chip pointing at someone else's off-screen light pillar, the type scale (UiFx.fitText), no
-	    frame connection at idle; UI v4: the counter rolls like an odometer, the chrome stirs now and
-	    then (one widget at a time, only when calm, timers only).
+	    frame connection at idle; the chrome stirs now and then (one widget at a time, only when
+	    calm, timers only). The stage 3 HUD in depth (the Wallet's tick and floats, the stamps, the
+	    sold / replaced flights, the onboarding «!»): stage3_hud.test.luau.
 
 	The sim ignores UIListLayout alignment, so this file computes rectangles itself (rectOf).
 
@@ -251,8 +254,14 @@ tests["names: every widget the controllers and tests use is still there"] = func
 		"Status.BaseBadge.Swatch",
 		"Status.BaseBadge.Label",
 		"Status.BaseBadge.FlagSocket.Flag",
-		"Status.CatchCounter.Icon",
-		"Status.CatchCounter.Label",
+		"Status.Wallet.Money.Icon",
+		"Status.Wallet.Money.Label",
+		"Status.Wallet.Money.Back",
+		"Status.Wallet.Rate",
+		"RightButtons.TankButton.Icon",
+		"RightButtons.TankButton.Caption",
+		"RightButtons.TankButton.Count.Label",
+		"RightButtons.TankButton.Badge.Mark",
 		"RightButtons.HomeButton.Icon",
 		"RightButtons.HomeButton.Caption",
 		"RightButtons.HomeButton.Cooldown",
@@ -282,16 +291,21 @@ tests["names: every widget the controllers and tests use is still there"] = func
 		"Fishing.CatchCard.MutationLabel",
 		"Fishing.CatchCard.InfoLabel",
 		"Fishing.CatchCard.TapHint",
+		"Fishing.CatchCard.TankStamp.Label",
 	}
 	for _, path in paths do
 		t.ok(sim:Gui(p, `HUD.{path}`), `HUD.{path}`)
 	end
 	t.ok(sim:Gui(p, "HUD.RightButtons.HomeButton"):IsA("GuiButton"), "Home is a button")
+	t.ok(sim:Gui(p, "HUD.RightButtons.TankButton"):IsA("GuiButton"), "«САДОК» is a button")
+	t.eq(p.PlayerGui.HUD.Status:FindFirstChild("CatchCounter"), nil, "stage 3: no catch counter")
 	t.ok(sim:Gui(p, "HUD.Status.BaseBadge.Label"):IsA("TextLabel"))
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["sim: badge, counter (stat), Home, banner (title), toasts — the reference's look, no studs"] = function(t)
+tests["sim: badge, Wallet (stat), «САДОК», Home, banner (title), toasts — the reference's look, no studs"] = function(
+	t
+)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "desktop")
 	local hud = p.PlayerGui.HUD
@@ -302,16 +316,39 @@ tests["sim: badge, counter (stat), Home, banner (title), toasts — the referenc
 	checkSim(t, hud.RightButtons.HomeButton, "Grape", "HomeButton")
 	t.eq(hud.RightButtons.HomeButton:GetAttribute("CandyRadius"), UIConfig.Sim.Radius, "a chunky square button")
 	t.ok(hud.RightButtons.HomeButton:FindFirstChildOfClass("UIAspectRatioConstraint"), "… square")
+	checkSim(t, hud.RightButtons.TankButton, "Water", "TankButton")
+	t.eq(
+		hud.RightButtons.TankButton:GetAttribute("CandyRadius"),
+		UIConfig.Sim.Radius,
+		"«САДОК»: the Home recipe"
+	)
+	t.ok(hud.RightButtons.TankButton:FindFirstChildOfClass("UIAspectRatioConstraint"), "… square")
+	local chip = hud.RightButtons.TankButton.Count
+	t.eq(chip:GetAttribute("CandyStyle"), "sim", "the «0/6» chip is a sim plate")
+	t.ok(colorNear(capTop(chip[chip:GetAttribute("CandyFace")].Fill), UIConfig.Palette.Cream.Top), "… Cream")
+	t.ok(colorNear(chip.Label.TextColor3, UIConfig.Ink), "… dark digits")
+	t.eq(chip.Label.FontFace.Style, Enum.FontStyle.Italic, "… italic")
+	t.ok(chip.Label.TextSize >= 12 or chip.Label.TextScaled, "… readable")
 	checkSim(t, hud.Toasts.ToastTemplate, "Sky", "ToastTemplate")
 	checkSim(t, hud.TrophyPointer.Body, "Gold", "TrophyPointer.Body")
 	t.eq(hud.TrophyPointer.Body:GetAttribute("CandyRadius"), 0.5, "a round chip")
-	-- The counter: a panel-less stat like the reference's «10» (no plate behind the number).
-	local counter = hud.Status.CatchCounter
-	t.eq(counter:GetAttribute("CandyFace"), nil, "no panel behind the counter")
-	t.eq(counter:FindFirstChild("Lip"), nil)
-	t.eq(counter.Label.FontFace.Style, Enum.FontStyle.Italic, "a big italic number")
-	t.eq(counter.Label.TextXAlignment, Enum.TextXAlignment.Left, "… right of its icon")
-	t.ok(counter.Label:FindFirstChild("TextFill"), "… tinted on a rarity arrival")
+	-- The Wallet: a panel-less stat like the reference's «$0» (no plate behind the number), the
+	-- money green with the thick Ink outline; the rate a smaller italic green label after it.
+	local money = hud.Status.Wallet.Money
+	t.eq(money:GetAttribute("CandyFace"), nil, "no panel behind the money")
+	t.eq(money:FindFirstChild("Lip"), nil)
+	t.eq(money.Label.FontFace.Style, Enum.FontStyle.Italic, "a big italic number")
+	t.eq(money.Label.TextXAlignment, Enum.TextXAlignment.Left, "… right of its icon")
+	t.ok(colorNear(money.Label.TextColor3, UIConfig.MoneyText), "… in the money green")
+	t.eq(money.Label.FontFace.Weight, Enum.FontWeight.Heavy, "… Montserrat Heavy")
+	t.ok(colorNear(money.Label.Outline.Color, UIConfig.Ink), "… with an Ink outline")
+	t.ok(money.Label.Outline:GetAttribute("BaseThickness") >= 2.5, "… a thick one")
+	t.eq(money.Back.Visible, false, "the «$…» glass is hidden while the data is there")
+	t.eq(money.Back:GetAttribute("CandyStyle"), "glass", "… a glass pill")
+	local rate = hud.Status.Wallet.Rate
+	t.eq(rate.FontFace.Style, Enum.FontStyle.Italic, "the rate in italics")
+	t.ok(colorNear(rate.TextColor3, UIConfig.MoneyText), "… green too")
+	t.eq(rate:GetAttribute("TextTier"), "Button", "… at the Button tier")
 	-- The banner: the reference's huge outlined title, no panel, a drop-shadow twin.
 	local banner = hud.BaseBanner
 	t.eq(banner:GetAttribute("CandyFace"), nil, "no panel behind the banner")
@@ -329,7 +366,7 @@ tests["sim: badge, counter (stat), Home, banner (title), toasts — the referenc
 	for _, label in
 		{
 			hud.Status.BaseBadge.Label,
-			hud.Status.CatchCounter.Label,
+			hud.RightButtons.TankButton.Caption,
 			hud.RightButtons.HomeButton.Caption,
 			hud.Toasts.ToastTemplate.Label,
 			hud.BaseBanner.NameLabel,
@@ -351,10 +388,19 @@ tests["sim: badge, counter (stat), Home, banner (title), toasts — the referenc
 	local TextUtil = sim:Require(sim:Find("ReplicatedStorage.Shared.TextUtil"), p)
 	local badgeText = hud.Status.BaseBadge.Label.Text
 	t.eq(badgeText, TextUtil.upper(badgeText), "the badge in CAPS")
-	t.eq(counter.Icon.Text, "🐟")
+	t.eq(money.Icon.Text, "💵")
+	t.eq(hud.RightButtons.TankButton.Icon.Text, "🐠")
+	t.eq(hud.RightButtons.TankButton.Caption.Text, "САДОК")
 	t.eq(hud.RightButtons.HomeButton.Icon.Text, "🏠")
 	-- Icons: emoji with a dark Ink contour, like the reference's black-outlined icons.
-	for _, icon in { counter.Icon, hud.RightButtons.HomeButton.Icon, hud.Status.BaseBadge.FlagSocket.Flag } do
+	for _, icon in
+		{
+			money.Icon,
+			hud.RightButtons.TankButton.Icon,
+			hud.RightButtons.HomeButton.Icon,
+			hud.Status.BaseBadge.FlagSocket.Flag,
+		}
+	do
 		local outline = icon:FindFirstChild("Outline")
 		t.ok(outline and colorNear(outline.Color, UIConfig.Ink), `{icon:GetFullName()}: an Ink contour`)
 		t.eq(icon:FindFirstChild("Sticker"), nil, `{icon:GetFullName()}: no white sticker rim`)
@@ -370,9 +416,9 @@ tests["sim: badge, counter (stat), Home, banner (title), toasts — the referenc
 	t.eq(hud.RightButtons.HomeButton.Caption:GetAttribute("TextTier"), "Small")
 	t.eq(hud.Status.BaseBadge.Label:GetAttribute("TextTier"), "Title")
 	t.eq(hud.Toasts.ToastTemplate.Label:GetAttribute("TextTier"), "Body")
-	-- The counter is a currency display: its number is box-driven, at least the Title tier.
-	local number = counter.Label
-	t.eq(number:GetAttribute("TextTier"), nil, "the counter's number is display text")
+	-- The Wallet is a currency display: its number is box-driven, at least the Title tier.
+	local number = money.Label
+	t.eq(number:GetAttribute("TextTier"), nil, "the Wallet's number is display text")
 	t.ok(number:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize > UIConfig.Type.Title, "… big")
 	-- No stud anywhere in the GUI (HUD chrome and the fishing widgets): the map keeps them.
 	local studs = studsUnder(hud)
@@ -423,7 +469,22 @@ tests["layout: the chrome fits on phone, tablet and desktop without overlaps"] =
 	end
 	for _, device in devices do
 		local p = players[device]
-		p:SetAttribute("FishCaught", 7) -- shows the catch counter
+		p:SetAttribute("Money", 123456) -- a long Wallet row
+		p:SetAttribute("Income", 1234)
+		p:SetAttribute("TankCount", 4)
+	end
+	sim:WaitFor(function() -- the base banners have flown into the badges, the Wallet and «САДОК» are in
+		for _, device in devices do
+			local hud = players[device].PlayerGui.HUD
+			if not (hud.Status.Wallet.Visible and hud.RightButtons.TankButton.Visible) then
+				return false
+			end
+		end
+		return true
+	end, 10)
+	sim:Advance(1)
+	for _, device in devices do
+		local p = players[device]
 		notify(sim, p, "Вася: мифическая рыба «Рыба-дракон» ×5!", "Mythic")
 		notify(sim, p, "Сейчас нельзя вернуться домой", "warning")
 		notify(sim, p, "Ура!", "success")
@@ -438,9 +499,13 @@ tests["layout: the chrome fits on phone, tablet and desktop without overlaps"] =
 			return rectOf(sim, p, gui)
 		end
 		local badge = r(hud.Status.BaseBadge)
-		local counter = r(hud.Status.CatchCounter)
+		local money = r(hud.Status.Wallet.Money)
+		local rate = r(hud.Status.Wallet.Rate)
+		local tank = r(hud.RightButtons.TankButton)
 		local home = r(hud.RightButtons.HomeButton)
-		t.ok(hud.Status.CatchCounter.Visible, `{device}: counter shown`)
+		t.ok(hud.Status.Wallet.Visible, `{device}: Wallet shown`)
+		t.ok(hud.Status.Wallet.Rate.Visible, `{device}: the rate shown (income > 0)`)
+		t.ok(hud.RightButtons.TankButton.Visible, `{device}: «САДОК» shown`)
 		t.ok(hud.RightButtons.HomeButton.Visible, `{device}: Home shown`)
 		local toasts = {}
 		for _, c in hud.Toasts:GetChildren() do
@@ -454,14 +519,15 @@ tests["layout: the chrome fits on phone, tablet and desktop without overlaps"] =
 			else UIConfig.MaxToastsTouch
 		t.eq(#toasts, cap, `{device}: {cap} toasts (the device cap)`)
 
-		local rects: { [string]: Rect } = { badge = badge, counter = counter, home = home }
+		local rects: { [string]: Rect } = { badge = badge, money = money, rate = rate, tank = tank, home = home }
 		for i, toast in toasts do
 			rects[`toast{i}`] = r(toast)
 		end
 		-- Everything on screen, below the top bar.
 		local decorations = {
 			flag = r(hud.Status.BaseBadge.FlagSocket),
-			fish = r(hud.Status.CatchCounter.Icon),
+			bill = r(hud.Status.Wallet.Money.Icon),
+			chip = r(hud.RightButtons.TankButton.Count),
 		}
 		for name, rect in rects do
 			t.ok(rect.x >= 0 and rect.x + rect.w <= vp.X, `{device}: {name} {fmt(rect)} inside the width`)
@@ -484,21 +550,32 @@ tests["layout: the chrome fits on phone, tablet and desktop without overlaps"] =
 			end
 		end
 		-- Decorations overhang their own pill, never the neighbours.
-		t.eq(overlap(decorations.fish, badge, 1), 0, `{device}: the counter fish stays off the badge`)
+		t.eq(overlap(decorations.bill, badge, 1), 0, `{device}: the Wallet's 💵 stays off the badge`)
 		for name, rect in rects do
 			if string.sub(name, 1, 5) == "toast" then
 				t.eq(overlap(decorations.flag, rect), 0, `{device}: flag vs {name}`)
-				t.eq(overlap(decorations.fish, rect), 0, `{device}: fish vs {name}`)
+				t.eq(overlap(decorations.bill, rect), 0, `{device}: 💵 vs {name}`)
 			end
 		end
-		-- Big enough to tap, above the Jump button on touch screens.
+		-- The «0/6» chip stays inside its button's outline (nothing of it sticks out of the column;
+		-- on a phone its 40 px minimum may reach a pixel or two into the outline).
+		local chip = decorations.chip
+		local edge = 3
+		t.ok(
+			chip.x >= tank.x - edge and chip.y >= tank.y - edge and chip.x + chip.w <= tank.x + tank.w + edge,
+			`{device}: the chip {fmt(chip)} inside «САДОК» {fmt(tank)}`
+		)
+		t.ok(chip.h >= 20, `{device}: the chip {fmt(chip)} big enough for «12/12» at 12 px`)
+		-- Big enough to tap, «САДОК» over «ДОМОЙ», above the Jump button on touch screens.
 		t.ok(home.w >= 44 and home.h >= 44, `{device}: Home is at least 44 px ({fmt(home)})`)
+		t.ok(tank.w >= 44 and tank.h >= 44, `{device}: «САДОК» is at least 44 px ({fmt(tank)})`)
+		t.ok(tank.y + tank.h <= home.y, `{device}: «САДОК» {fmt(tank)} above Home {fmt(home)}`)
 		if device ~= "desktop" then
 			local jumpTop = if vp.Y > 500 then vp.Y - 170 else vp.Y - 95
 			t.ok(home.y + home.h <= jumpTop, `{device}: Home {fmt(home)} above the Jump button (y {jumpTop})`)
 		end
-		-- Readable text on a phone: the counter pill is at least 20 px tall.
-		t.ok(counter.h >= 20, `{device}: counter {fmt(counter)} tall enough`)
+		-- Readable money on a phone: the number's row is at least 20 px tall.
+		t.ok(money.h >= 20, `{device}: Wallet {fmt(money)} tall enough`)
 	end
 	sim:AssertNoErrors({ warnings = true })
 end
@@ -585,7 +662,7 @@ tests["strokes: thinner on a phone, thicker on a desktop (fitted to the screen h
 	local toast = phone.PlayerGui.HUD.Toasts:FindFirstChild("Toast")
 	t.eq(toast.Lip:FindFirstChildOfClass("UIStroke").Thickness, lipStroke(phone).Thickness)
 	-- Text outlines never go below 2 px (white on Gold/Leaf/Sun reads only thanks to them).
-	t.ok(phone.PlayerGui.HUD.Status.CatchCounter.Label.Outline.Thickness >= 2, "text outline floor 2 px")
+	t.ok(phone.PlayerGui.HUD.Status.Wallet.Money.Label.Outline.Thickness >= 2, "text outline floor 2 px")
 	t.ok(toast.Label.Outline.Thickness >= 2, "… also on toasts cloned later")
 	sim:AssertNoErrors({ warnings = true })
 end
@@ -634,88 +711,90 @@ tests["type scale: tiered labels share one size per tier, scaled from phone to d
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["catch counter: «+N» floats up when FishCaught grows, the fish wiggles"] = function(t)
+-- The «САДОК» button of a fresh player, once it has popped in after the base banner.
+local function tankButtonOf(sim: any, p: any): any
+	local button = p.PlayerGui.HUD.RightButtons.TankButton
+	sim:WaitFor(function()
+		return button.Visible
+	end, 10)
+	sim:Advance(1.5) -- (its pop-in, delayed after the Wallet's, is over)
+	return button
+end
+
+tests["«САДОК» chip: a fish stored without a card rolls «N/6»; a full tank turns it gold"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "desktop")
-	sim:Advance(5)
-	local counter = p.PlayerGui.HUD.Status.CatchCounter
-	local restTilt = counter.Icon.Rotation -- (the stat's 🐟 is tilted like a sticker)
-	p:SetAttribute("FishCaught", 1)
+	local button = tankButtonOf(sim, p)
+	local chip = button.Count
+	local restTilt = button.Icon.Rotation
+	t.eq(chip.Label.Text, `0/{p:GetAttribute("TankSlots")}`, "the chip reads the attributes")
+	-- Stage 4 "Stored" (no catch card): the same arrival, a beat after the attribute.
+	p:SetAttribute("TankCount", 1)
 	sim:Advance(0.1)
-	t.eq(counter.Visible, true, "FishingController shows the counter")
-	t.eq(counter.Label.Text, "1", "and writes the number")
-	local float = counter:FindFirstChild("FxFloat")
-	t.ok(float, "+1 floats over the counter")
-	t.eq(float.Text, "+1")
-	t.eq(float.FontFace.Style, Enum.FontStyle.Italic, "an italic «+1»")
-	t.ok(math.abs(counter.Icon.Rotation - restTilt) > 0.5, "the fish wiggles")
-	t.ok(counter.Icon.FxScale.Scale ~= 1, "… and squashes")
-	t.ok(counter:FindFirstChild("FxBurst"), "sparks burst out of the counter")
-	p:SetAttribute("FishCaught", 3)
-	sim:Advance(0.1)
-	local texts = {}
-	for _, c in counter:GetChildren() do
-		if c.Name == "FxFloat" then
-			table.insert(texts, c.Text)
-		end
-	end
-	t.ok(table.find(texts, "+2"), "+2 for two fish at once")
+	t.eq(chip.Label.Text, "0/6", "a beat later (a «Caught» may still follow the attribute)")
+	sim:Advance(UIConfig.TankButton.StoredWait + 0.05)
+	t.eq(chip.Label.Text, "1/6", "the new count")
+	local ghost = chip:FindFirstChild("FxSwap")
+	t.ok(ghost and ghost.Text == "0/6", "the old count rolls away like an odometer")
+	t.ok(math.abs(button.Icon.Rotation - restTilt) > 0.5, "🐠 wiggles")
+	local ring = button:FindFirstChild("FxRing")
+	t.ok(ring, "a ring around «САДОК»")
+	t.ok(
+		colorNear(ring:FindFirstChildOfClass("UIStroke").Color, UIConfig.Palette.Water.Top),
+		"… in Water (no rarity)"
+	)
 	sim:Advance(1.5)
-	t.eq(counter:FindFirstChild("FxFloat"), nil, "floats removed")
-	t.near(counter.Icon.Rotation, restTilt, 1e-3, "the fish is back at rest")
-	t.near(counter.Icon.FxScale.Scale, 1, 1e-3)
-	t.eq(counter:FindFirstChild("FxBurst"), nil, "the sparks are gone")
-	p:SetAttribute("FishCaught", 3)
+	t.eq(chip:FindFirstChild("FxSwap"), nil, "the odometer copy is gone")
+	t.eq(button:FindFirstChild("FxRing"), nil, "the ring is gone")
+	t.near(button.Icon.Rotation, restTilt, 1e-3, "🐠 back at rest")
+	t.near(button.FxScale.Scale, 1, 1e-3)
+	-- Full: the chip turns Gold; a sale brings it back to Cream (the count just swaps).
+	p:SetAttribute("TankCount", 6)
+	sim:Advance(UIConfig.TankButton.StoredWait + 0.1)
+	local face = chip[chip:GetAttribute("CandyFace")]
+	t.eq(chip.Label.Text, "6/6")
+	t.ok(colorNear(capTop(face.Fill), UIConfig.Palette.Gold.Top), "a full tank: the chip is gold")
+	p:SetAttribute("TankCount", 5)
 	sim:Advance(0.1)
-	t.eq(counter:FindFirstChild("FxFloat"), nil, "no float without a new catch")
+	t.eq(chip.Label.Text, "5/6", "a sale: the count follows at once")
+	t.ok(colorNear(capTop(face.Fill), UIConfig.Palette.Cream.Top), "… Cream again")
+	sim:Advance(1)
+	t.eq(button:FindFirstChild("FxRing"), nil, "a sale plays no arrival")
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["catch counter: CounterHold keeps the old number; clearing it plays the arrival"] = function(t)
+tests["«САДОК» chip: frozen while the HUD has CounterHold; the release plays the arrival in rarity colours"] = function(
+	t
+)
 	local sim = boot(t)
-	local p = addPlayer(sim, 1, "desktop")
-	sim:Advance(5)
+	local p = addPlayer(sim, 1, "phone")
+	local button = tankButtonOf(sim, p)
 	local hud = p.PlayerGui.HUD
-	local counter = hud.Status.CatchCounter
-	p:SetAttribute("FishCaught", 2)
-	sim:Advance(1.5)
-	t.eq(counter.Label.Text, "2")
-	-- The catch card opens: it holds the previous total until its 🐟 flies into the counter.
+	local chip = button.Count
+	t.eq(chip.Label.Text, "0/6")
+	-- The catch card is up: its fish has not flown into «САДОК» yet.
 	sim:Run(function()
-		hud:SetAttribute("CounterHold", 2)
+		hud:SetAttribute("CounterHold", 0)
 	end, p)
-	p:SetAttribute("FishCaught", 3)
-	sim:Advance(0.2)
-	t.eq(counter.Label.Text, "2", "held at the old total")
-	t.eq(counter:FindFirstChild("FxFloat"), nil, "no +1 while held")
-	-- (FishingController still bumps the counter on FishCaught in this wave; the next wave drops that.)
+	p:SetAttribute("TankCount", 1)
+	sim:Advance(1)
+	t.eq(chip.Label.Text, "0/6", "held at the old count while the fish flies")
+	t.eq(chip:FindFirstChild("FxSwap"), nil, "no roll while held")
+	t.eq(button:FindFirstChild("FxRing"), nil)
+	-- The card closes on an Epic (CounterIncoming), the 🐟 lands: CounterHold goes.
 	sim:Run(function()
+		hud:SetAttribute("CounterIncoming", "Epic")
 		hud:SetAttribute("CounterHold", nil)
 	end, p)
 	sim:Advance(0.05)
-	t.eq(counter.Label.Text, "3", "the new total on arrival")
-	t.ok(counter.FxScale.Scale > 1.05, "bump on arrival")
-	local float = counter:FindFirstChild("FxFloat")
-	t.ok(float and float.Text == "+1", "+1 floats on arrival")
+	t.eq(chip.Label.Text, "1/6", "the new count on arrival")
+	t.ok(chip:FindFirstChild("FxSwap"), "… rolling in")
+	t.ok(button.FxScale.Scale > 1.05, "«САДОК» jumps")
+	local ring = button:FindFirstChild("FxRing")
+	t.ok(ring and colorNear(ring:FindFirstChildOfClass("UIStroke").Color, UIConfig.Rarity.Epic.Top), "an Epic ring")
 	sim:Advance(1.5)
-	t.eq(counter:FindFirstChild("FxFloat"), nil)
-	t.near(counter.FxScale.Scale, 1, 1e-3)
-	-- The first catch of the session while held at 0: the counter stays hidden until arrival.
-	local q = addPlayer(sim, 2, "desktop")
-	sim:Advance(5)
-	local qhud = q.PlayerGui.HUD
-	sim:Run(function()
-		qhud:SetAttribute("CounterHold", 0)
-	end, q)
-	q:SetAttribute("FishCaught", 1)
-	sim:Advance(0.2)
-	t.eq(qhud.Status.CatchCounter.Visible, false, "hidden while the first fish is held")
-	sim:Run(function()
-		qhud:SetAttribute("CounterHold", nil)
-	end, q)
-	sim:Advance(0.05)
-	t.eq(qhud.Status.CatchCounter.Visible, true, "appears when the fish arrives")
-	t.eq(qhud.Status.CatchCounter.Label.Text, "1")
+	t.near(button.FxScale.Scale, 1, 1e-3, "settled")
+	t.eq(chip:FindFirstChild("FxSwap"), nil)
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -1063,10 +1142,12 @@ tests["trophy chip: someone else's Legendary pillar off-screen — a small chip 
 	t.eq(chip.Body.IconSocket.Icon.Text, "🌟", "Legendary: 🌟")
 	t.ok(chip.AbsolutePosition.X > vp.X / 2, `on the right edge (x {chip.AbsolutePosition.X})`)
 	t.ok(vp.X - (chip.AbsolutePosition.X + chip.AbsoluteSize.X * 1.42) >= 16 - 1, "≥ 16 px from the screen edge")
-	local chipRect, homeRect = rectOf(sim, p, chip), rectOf(sim, p, hud.RightButtons.HomeButton)
+	-- (stage 3: «САДОК» over «ДОМОЙ» — the top of the taller column)
+	t.ok(hud.RightButtons.TankButton.Visible, "«САДОК» is on screen")
+	local chipRect, topRect = rectOf(sim, p, chip), rectOf(sim, p, hud.RightButtons.TankButton)
 	t.ok(
-		chipRect.y + chipRect.h * 1.1 + 16 <= homeRect.y + 1,
-		`above the right button column, ≥ 16 px (chip {chipRect.y}+{chipRect.h}, Home {homeRect.y})`
+		chipRect.y + chipRect.h * 1.1 + 16 <= topRect.y + 1,
+		`above the right button column, ≥ 16 px (chip {chipRect.y}+{chipRect.h}, «САДОК» {topRect.y})`
 	)
 	t.ok(chip.AbsoluteSize.Y >= 44, `big enough to see (≥ 44 px: {chip.AbsoluteSize.Y})`)
 	local baseColor = other:GetAttribute("BaseColor")
@@ -1106,36 +1187,15 @@ tests["trophy chip: someone else's Legendary pillar off-screen — a small chip 
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["catch counter: the number rolls like an odometer on arrival"] = function(t)
-	local sim = boot(t)
-	local p = addPlayer(sim, 1, "phone")
-	sim:Advance(5)
-	local counter = p.PlayerGui.HUD.Status.CatchCounter
-	p:SetAttribute("FishCaught", 2)
-	sim:Advance(1)
-	local rest = counter.Label.Position
-	p:SetAttribute("FishCaught", 3)
-	sim:Advance(0.05)
-	t.eq(counter.Label.Text, "3", "the label holds the new number at once (the contract)")
-	local ghost = counter:FindFirstChild("FxOdometer")
-	t.ok(ghost and ghost.Text == "2", "the old number rolls away as a copy")
-	t.ok(ghost and ghost.Position.Y.Scale < rest.Y.Scale, "… upwards")
-	t.ok(counter.Label.Position.Y.Scale > rest.Y.Scale, "the new number rises from below")
-	sim:Advance(0.5)
-	t.eq(counter:FindFirstChild("FxOdometer"), nil, "the copy is gone")
-	t.eq(counter.Label.Position, rest, "the number is back at rest")
-	sim:AssertNoErrors({ warnings = true })
-end
-
 tests["chrome micro-life: rare, one widget at a time, only when calm; timers only"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "phone")
-	p:SetAttribute("FishCaught", 1) -- the counter is on screen
 	sim:Advance(6) -- the base banner has flown into the badge, the welcome toast is gone
 	local hud = p.PlayerGui.HUD
+	t.ok(hud.RightButtons.TankButton.Visible, "«САДОК» is on screen")
 	local UiFx = sim:Require(sim:Find("ReplicatedStorage.Shared.UiFx"), p)
 	local flag = hud.Status.BaseBadge.FlagSocket
-	local fish = hud.Status.CatchCounter.Icon
+	local fish = hud.RightButtons.TankButton.Icon
 	local home = hud.RightButtons.HomeButton.Icon
 	local rest = { flag = flag.Rotation, fish = fish.Rotation, home = home.AnchorPoint }
 	local function moving(): { string }
@@ -1213,9 +1273,10 @@ tests["idle HUD: no frame effects and no connection churn"] = function(t)
 	local idle = sim:CountConnections(p)
 	sim:Advance(10) -- several shine loops on the badge and Home
 	t.eq(sim:CountConnections(p), idle, "the idle shine loops add no connections")
-	-- A toast and a catch add no lasting connections either.
+	-- A toast and a fish in the tank add no lasting connections either.
 	notify(sim, p, "Привет!", "success")
-	p:SetAttribute("FishCaught", 1)
+	p:SetAttribute("TankCount", 1)
+	p:SetAttribute("Money", 40)
 	sim:Advance(6)
 	t.eq(sim:CountConnections(p), idle, "back to the idle count")
 	t.eq(UiFx.activeJobs(), 0)

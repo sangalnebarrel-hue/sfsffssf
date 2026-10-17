@@ -1,7 +1,7 @@
 --!strict
 --[[
 	TankButtonController — кнопка «САДОК» (Этап 3): HUD.RightButtons.TankButton — квадратная
-	бирюзовая (Water) кнопка 🐠 «САДОК» над «ДОМОЙ», фишка «4/6» (Count) на левом плече и
+	бирюзовая (Water) кнопка 🐠 «САДОК» над «ДОМОЙ», фишка «4/6» (Count) в левом верхнем углу и
 	красный «!» (Badge). Стиль — tools/builder/gui/STYLE.md, числа — UIConfig.TankButton.
 
 	Что делает:
@@ -285,13 +285,8 @@ function TankButtonController:Start(hud: ScreenGui)
 
 	hud.AttributeChanged:Connect(function(name: string)
 		if name == "CounterHold" then
-			if not holding() and pending then
-				arrive()
-			elseif not holding() then
-				-- (снят без улова — фишка догоняет атрибуты)
-				shownCount = math.floor(number(player:GetAttribute("TankCount")))
-				shownSlots = math.floor(number(player:GetAttribute("TankSlots")))
-				render()
+			if not holding() then
+				arrive() -- (и без "Caught": фишка догоняет атрибуты, выросла — тот же прилёт)
 			end
 		elseif name == "CounterIncoming" then
 			local value = hud:GetAttribute("CounterIncoming")
