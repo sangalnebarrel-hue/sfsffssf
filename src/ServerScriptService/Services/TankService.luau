@@ -36,8 +36,10 @@
 	       новой больше → слабейшую продать по SellPrice(…, HomeRatePct), новая на её место →
 	       "replaced"; иначе новую продать сразу по SellPrice(Value, 0, HomeRatePct) → "sold".
 	     Возвращает TankResult { Result, Slot?, Uid?, Count, Slots, Replaced?, Price?, First? }
-	     (First — Stats.Caught == 1: первое уведомление и «!»). Рыба не из улова (Этап 4: кража) —
-	     ещё и TankEvent("Stored", результат + { Fish }).
+	     (First — Stats.Caught == 1: первое уведомление и «!»). Price — ВСЕГДА монеты, которые
+	     зачислил этот AddFish (клиент празднует именно их): "replaced" — Price == Replaced.Price
+	     (цена проданной слабейшей), "sold" — цена новой рыбы, "stored" — nil. Рыба не из улова
+	     (Этап 4: кража) — ещё и TankEvent("Stored", результат + { Fish }).
 	  6. Продажа TankSell(uid) — проверки по порядку из шапки RemoteNames (uid, лимит запросов
 	     TankConfig.Requests — из него же каждый ответ, CanWrite, база, своя активная рыба, не
 	     Locked, конечная цена), потом без ожиданий: возраст сейчас и цена
@@ -124,6 +126,7 @@ export type TankResult = {
 	Count: number,
 	Slots: number,
 	Replaced: SoldFish?,
+	-- монеты, зачисленные этим AddFish: "replaced" — == Replaced.Price, "sold" — цена новой, "stored" — nil
 	Price: number?,
 	First: boolean?,
 }

@@ -75,9 +75,13 @@
 	  TankResult = { Result: "stored" | "replaced" | "sold", Slot: number?, Uid: string?,
 	    Count: number, Slots: number, Replaced: { Uid, Id, Rarity, Mutation?, Price }?, Price: number?,
 	    First: boolean? } — "stored": легла в свободную витрину Slot; "replaced": садок был полон,
-	    она заменила рыбу послабее (Replaced — та, что продана за Price); "sold": садок полон и она
-	    слабее всех — сразу продана за Price; Count / Slots — рыб в садке / открыто витрин после
-	    этого; First — первая рыба за всё время (уведомление и «!» на кнопке «САДОК»).
+	    она легла в витрину Slot вместо рыбы послабее (Replaced — та, что продана, Replaced.Price —
+	    за сколько); "sold": садок полон и она слабее всех — сразу продана; Count / Slots — рыб в
+	    садке / открыто витрин после этого; First — первая рыба за всё время (уведомление и «!» на
+	    кнопке «САДОК»). Price — ВСЕГДА монеты, которые этот улов зачислил (их и празднует клиент:
+	    MoneyController.Celebrate(Price, …)): "replaced" — Price == Replaced.Price (продана старая),
+	    "sold" — цена самой новой рыбы, "stored" — nil (ничего не продано). Деньги уже в атрибуте
+	    Money, когда приходит "Caught" (порядок сервера: зачисление → атрибуты → remote'ы).
 	Нет RemoteFunction и InvokeClient.
 
 	Состояние садка и денег (атрибуты; StreamingEnabled = false — tools/build.luau):
