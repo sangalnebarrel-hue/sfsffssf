@@ -27,22 +27,28 @@
 	    центр ГАБАРИТА — на Display.FishPoint (Body смещён до 0.88), голова по ±X витрины
 	    (SlotIndex % 4 < 2 — к водоросли, она в заднем углу: хвост уходит в пустой угол), поворот
 	    Yaw° к проходу; CanCollide, CanQuery, CanTouch, CastShadow — false; атрибуты FishId,
-	    Rarity, Mutation, Kg, Value, FishUid, BaseIndex, SlotIndex (радужные переливаются сами:
-	    тег RainbowFish, FishingFxController). Не больше 20 деталей (рыба-дракон).
-	  • Тихая жизнь — только зацикленные твины (без покадрового Lua): ближе LifeRange — детали
-	    приварены к закреплённому Body и один твин его CFrame (покачивание ±Life.Bob stud и
-	    ±Life.Turn° вокруг центра рыбы, Sine InOut, Life.TimeMin..TimeMax с, Reverses, бесконечно,
-	    случайная фаза); дальше — твин снят, сварки убраны, рыба замерла. Рыба не «шлёпает».
+	    Rarity, Mutation, Kg, Value, FishUid, BaseIndex, SlotIndex; у радужной тег RainbowFish
+	    шаблона снят (атрибут Rainbow = true — см. жизнь). Не больше 20 деталей (рыба-дракон).
+	  • Тихая жизнь — только зацикленные твины (без своего покадрового Lua), с запасом: ближе
+	    LifeRange рыба оживает — детали приварены к закреплённому Body и один твин его CFrame
+	    (покачивание ±Life.Bob stud и ±Life.Turn° вокруг центра рыбы, Sine InOut,
+	    Life.TimeMin..TimeMax с, Reverses, бесконечно, случайная фаза), — замирает только дальше
+	    LifeDrop (твин снят, сварки убраны; без дребезга, когда камера кружит у границы). Рыба не
+	    «шлёпает». Радужная переливается, только пока жива: на это время ей возвращают тег
+	    RainbowFish, и FishingFxController перекрашивает её покадрово (его Heartbeat) — дальше
+	    LifeDrop тег снят, цвета застывают, Heartbeat отпущен.
 	  • Надпись витрины FxTankTag — BillboardGui на FishPoint + (0, Tag.Lift, −Tag.Forward) в осях
 	    витрины: над стеклом и ПЕРЕД его лицевой гранью, ниже потолка галереи (из прохода взгляд на
 	    неё не идёт сквозь стекло — стекло прячет надписи за собой; отступление от «прямо над
 	    центром» дизайна), Tag.Width × Tag.Height studs + Tag.PixelsX × Tag.PixelsY px,
-	    MaxDistance TagRange, без света и AlwaysOnTop: «+$4/с» (BillboardGreen) и «$45 ▲» /
+	    MaxDistance TagShow (дальше надписи соседних витрин прохода сливаются в кашу), без света
+	    и AlwaysOnTop: «+$4/с» (BillboardGreen) и «$45 ▲» /
 	    «$135 МАКС» (BillboardYellow; Texts.TagValue / TagMax), стиль STYLE §3 «надписи в мире»;
 	    цена — TankRules.CurrentValue(Value, AgeAt(GrowFrom, GetServerTimeNow())) раз в TagEvery
-	    с (та же цепочка) и только у надписей ближе TagRange. Над закрытой витриной ("locked") на
-	    том же месте — тусклое «🔒 Закрыто» (FxTankLock, Texts.SlotLocked, светло-серым Slate):
-	    из прохода табличку на тумбе не прочесть.
+	    с (та же цепочка) и только у надписей ближе TagRange (≥ TagShow: показалась — уже свежая).
+	    Над закрытой витриной ("locked") на том же месте — тусклое «🔒 Закрыто» (FxTankLock,
+	    Texts.SlotLocked, светло-серым Slate; MaxDistance LockRange — видно и от ворот двора, слово
+	    не меняется): из прохода табличку на тумбе не прочесть.
 	  • Надпись садка FxTankSign над передним краем Tank.Glass (выше таблички «АКВАРИУМ»),
 	    MaxDistance SignRange: «+$42/с» крупно зелёным, «🐠 4/6» мельче белым (Texts.TankCount) — из
 	    атрибутов садка Count / Slots / Income; у свободной базы и до подключения садка (нет Count)
@@ -76,7 +82,9 @@
 	ChildRemoved: HeldFish); у HUD — AttributeChanged (CounterHold); FishingState и TankEvent;
 	у каждой построенной базы — по одному AttributeChanged на витрину, садок и модель базы и
 	кнопка "TankPrompt" (Enabled). В покое ни одного покадрового соединения (только цепочка
-	проверок и зацикленные твины рыб вблизи).
+	проверок и зацикленные твины рыб вблизи); единственное исключение — живая радужная рыба
+	рядом (ближе LifeDrop): её перекрашивает Heartbeat FishingFxController. С места рыбалки
+	(≈ 155 studs до своего садка) ни одна рыба не жива.
 	Атрибуты витрин требуют StreamingEnabled = false (tools/build.luau). Стекло с прозрачностью
 	прячет частицы и надписи за собой — эффекты и надписи только над стеклом или снаружи.
 
@@ -1053,12 +1061,15 @@ local function check()
 			end
 			local model, point = slot.fish, slot.fishPoint
 			if model and point then
-				local near = lifeEnabled and distanceFrom(point.WorldPosition, cam, body) <= DISPLAY.LifeRange
-				if near and not slot.life and now >= slot.busyUntil then
+				-- с запасом: оживает ближе LifeRange, замирает только дальше LifeDrop
+				local d = distanceFrom(point.WorldPosition, cam, body)
+				if slot.life then
+					if not lifeEnabled or d > DISPLAY.LifeDrop then
+						stopLife(slot)
+					end
+				elseif lifeEnabled and d <= DISPLAY.LifeRange and now >= slot.busyUntil then
 					cancelTweens(slot)
 					slot.life = TankDisplay.startLife(model, rng)
-				elseif not near and slot.life then
-					stopLife(slot)
 				end
 			end
 			local tagHolder = slot.tagHolder

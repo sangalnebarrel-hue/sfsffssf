@@ -11,13 +11,15 @@
 	раскладываются от центра ГАБАРИТА шаблона (Body смещён от него до 0.88), центр — точно на
 	Display.FishPoint; голова — по +X или −X витрины (head = 1 / −1), повернута на Yaw° к проходу
 	(−Z витрины); все детали закреплены (Anchored), без столкновений, запросов, касаний и теней;
-	атрибуты модели FishId, Rarity, Mutation, Kg, Value (тег RainbowFish шаблона копируется —
-	радужную перекрашивает FishingFxController). Сварок в покое нет.
+	атрибуты модели FishId, Rarity, Mutation, Kg, Value. Тег RainbowFish шаблона с копии СНЯТ
+	(вместо него атрибут Rainbow = true): радужную перекрашивает FishingFxController — покадрово
+	(Heartbeat), пока есть хоть одна модель с тегом, — поэтому тег стоит только пока рыба жива
+	(startLife / stopLife), дальше цвета застывают. Сварок в покое нет.
 	  • Тихая жизнь (life): детали привариваются (WeldConstraint) к закреплённому Body, остальные
 	    откреплены — и ОДИН зацикленный твин CFrame у Body (покачивание ±Life.Bob stud и поворот
 	    ±Life.Turn° вокруг центра рыбы, Sine InOut, Reverses, бесконечно; длина TimeMin..TimeMax и
-	    фаза — случайные). stopLife — твин снят, Body на месте покоя, детали снова закреплены,
-	    сварки убраны. Покадрового Lua нет.
+	    фаза — случайные); у радужной — тег RainbowFish. stopLife — твин снят, Body на месте покоя,
+	    детали снова закреплены, сварки и тег убраны. Своего покадрового Lua нет.
 	  • Появление / уход (scaleParts): у закреплённых деталей твины Size и CFrame к центру рыбы и
 	    обратно (≤ 20 твинов на рыбу, без соединений); ушедшая рыба удаляется по окончании.
 	Слова над миром (word / billboard): BillboardGui без плашки — буквы Montserrat Heavy (у чисел —
@@ -74,6 +76,7 @@ local FONT = Font.new(UIConfig.Font.Family, Enum.FontWeight.Heavy)
 local FONT_ITALIC = Font.new(UIConfig.Font.Family, Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
 local SPARKLE_TEXTURE = "rbxasset://textures/particles/sparkles_main.dds"
 local SPLASH_TEXTURE = "rbxasset://textures/particles/smoke_main.dds" -- (читается как брызги)
+local RAINBOW_TAG = "RainbowFish" -- (FishingFxController перекрашивает модели с этим тегом)
 
 export type Look = { Top: Color3, Bottom: Color3, Lip: Color3 }
 -- Белые буквы с тёмной обводкой (как имя владельца на табличке базы).
@@ -189,6 +192,11 @@ function TankDisplay.buildFish(template: Model, fishPoint: Attachment, head: num
 		part.CastShadow = false
 	end
 	model.Name = "DisplayFish"
+	-- (копия ещё не в мире: снятие тега никого не будит; вернёт его startLife)
+	if model:HasTag(RAINBOW_TAG) then
+		model:RemoveTag(RAINBOW_TAG)
+		model:SetAttribute("Rainbow", true)
+	end
 	for key, value in attrs do
 		model:SetAttribute(key, value)
 	end
@@ -238,6 +246,9 @@ function TankDisplay.startLife(model: Model, rng: Random): Life?
 		{ CFrame = lifePose(rest, centre, sign) }
 	)
 	local life: Life = { model = model, body = body, rest = rest, welds = welds, tween = tween, start = nil }
+	if model:GetAttribute("Rainbow") == true then
+		model:AddTag(RAINBOW_TAG) -- переливается, только пока жива (вблизи)
+	end
 	-- случайная фаза: соседние рыбы не качаются в такт
 	life.start = task.delay(rng:NextNumber() * time, function()
 		life.start = nil
@@ -255,6 +266,9 @@ function TankDisplay.stopLife(life: Life)
 	if life.tween then
 		life.tween:Cancel()
 		life.tween = nil
+	end
+	if life.model:HasTag(RAINBOW_TAG) then
+		life.model:RemoveTag(RAINBOW_TAG) -- FishingFxController отпускает её (и свой Heartbeat)
 	end
 	-- Body на место покоя (приваренные детали едут с ним), потом все детали снова закреплены
 	life.body.CFrame = life.rest
@@ -372,7 +386,7 @@ end
 
 function TankDisplay.tag(parent: Instance): Tag
 	local spec = DISPLAY.Tag
-	local gui, plate = TankDisplay.billboard(parent, "FxTankTag", sizeOf(spec), DISPLAY.TagRange)
+	local gui, plate = TankDisplay.billboard(parent, "FxTankTag", sizeOf(spec), DISPLAY.TagShow)
 	local rate = TankDisplay.word(plate, "Rate", "", { 0, 0, 1, 0.52 }, UIConfig.BillboardGreen, spec.Outline, true)
 	local value =
 		TankDisplay.word(plate, "Value", "", { 0.04, 0.54, 0.92, 0.44 }, UIConfig.BillboardYellow, spec.Outline, true)
@@ -418,7 +432,7 @@ function TankDisplay.lock(parent: Instance, text: string): BillboardGui
 	local spec = DISPLAY.Tag
 	local size =
 		UDim2.new(spec.Width, spec.PixelsX, spec.Height * spec.LockShare, math.round(spec.PixelsY * spec.LockShare))
-	local gui, plate = TankDisplay.billboard(parent, "FxTankLock", size, DISPLAY.TagRange)
+	local gui, plate = TankDisplay.billboard(parent, "FxTankLock", size, DISPLAY.LockRange)
 	TankDisplay.word(plate, "Locked", text, { 0, 0, 1, 1 }, UIConfig.Palette.Slate, spec.Outline)
 	return gui
 end

@@ -11,8 +11,9 @@
 	    (≤ 0.1) and inside the 6.2 cube, the right species / mutation, ≤ 20 parts, no collisions /
 	    queries / touches / shadows; removed on "empty"; a swap (State stays "fish", FishUid
 	    changes) replaces the model; nothing beyond Display.Range, torn down only beyond
-	    DropRange (hysteresis); ≤ BuildPerCheck quiet builds per check; the life tween only within
-	    LifeRange (the Body moves), cancelled beyond (the fish rests);
+	    DropRange (hysteresis); ≤ BuildPerCheck quiet builds per check; the life tween starts only
+	    within LifeRange (the Body moves) and stops only beyond LifeDrop (the fish rests); a Rainbow
+	    fish carries the RainbowFish tag (FishingFxController's repaint) only while it lives;
 	  • words: the tags «+$4/с» / «$45 ▲» ticking to «МАКС»; the tank sign «+$42/с» / «🐠 4/6» on
 	    an owned, mounted tank only; the pier word «🐠 4/6» / «+$42/с» on the own base only,
 	    hidden on Bite / Reeling / CounterHold / HeldFish, a splash on a stored arrival, income
@@ -21,8 +22,10 @@
 	    «+$45») and clean them up; "mount" makes none; ≤ Fx.MaxEmitters emitters at once;
 	  • other players' TankPrompt hidden on this client (the server's stays enabled), the own one
 	    untouched; the market word over the hub market, coins at a stall on "Sold";
-	  • budgets and leaks: no RenderStepped / Heartbeat / Stepped connections from the tank
-	    scripts, nothing left of a released base, nothing at all after the base is left behind.
+	  • budgets and leaks: no RenderStepped / Heartbeat / Stepped connection while idle at the
+	    fishing spot with a Rainbow fish on display (one — FishingFxController's repaint — only
+	    beside a living Rainbow fish), nothing left of a released base, nothing at all after the
+	    base is left behind, the client's connections back to where they were.
 
 	Run: lune run tools/run_tests.luau stage3_world
 ]]
@@ -352,14 +355,26 @@ local function frameConnections(sim: any, player: any): number
 	end)
 end
 
-local function tankConnections(sim: any, player: any): number
+-- Every connection of the player's client context (RbxSim books a module's connections to the
+-- running Script, ClientMain — so all of them, measured around a build / tear-down).
+local function clientConnections(sim: any, player: any): number
 	local ctx = sim:ContextName(player)
 	return sim:CountConnections(function(conn: any): boolean
-		local script = conn.script
 		return conn.ctx.name == ctx
-			and script ~= nil
-			and (script.Name == "TankWorldController" or script.Name == "TankDisplay")
 	end)
+end
+
+-- The own fishing spot with the fishing camera behind the fisher (the tank ≈ 155 studs away).
+local function atSpot(sim: any, player: any, base: any)
+	local spot = base.FishingSpot.Position
+	sim:Teleport(player, spot + Vector3.new(0, 3, 0))
+	setCamera(sim, CFrame.lookAt(spot + Vector3.new(0, 8, -13), spot))
+end
+
+-- In front of a display, in the aisle (camera far).
+local function inFront(sim: any, player: any, base: any, index: number)
+	setCamera(sim, FAR)
+	sim:Teleport(player, (slotModel(base, index).Display.CFrame * CFrame.new(0, -4, -9)).Position)
 end
 
 local tests = {}
@@ -429,7 +444,9 @@ tests["display fish: one per occupied display, centred on FishPoint, inside the 
 		local longest = math.max(size.X, size.Y, size.Z)
 		t.ok(longest >= 3, `Slot_{index}: not tiny ({longest})`)
 		if spec.Mutation == "Rainbow" then
-			t.ok(fish:HasTag("RainbowFish"), "the rainbow fish keeps its RainbowFish tag")
+			-- (FishingFxController repaints tagged models every frame: only while it lives)
+			t.ok(not fish:HasTag("RainbowFish"), "the resting rainbow fish has no RainbowFish tag")
+			t.eq(fish:GetAttribute("Rainbow"), true, "… but the Rainbow attribute")
 		end
 	end
 	-- the head alternates (SlotIndex % 4 < 2: +X of the display)
@@ -544,14 +561,23 @@ tests["range: built within Display.Range, kept until DropRange, ≤ BuildPerChec
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["life: one looped Body tween within LifeRange (the fish bobs), none beyond (it rests)"] = function(t)
+tests["life: starts within LifeRange (the fish bobs), kept until LifeDrop, stops beyond (it rests); the rainbow tag only while alive"] = function(
+	t
+)
 	local sim = boot(t)
 	local p = addPlayer(sim, 4)
 	local fake = Fake.new(sim, p)
 	local base = fake.base
-	fake:mount(sixFish(fake))
-	settle(sim)
 	local world = controller(sim, p)
+	-- far from every fish (beyond LifeDrop), the base within Range: built, nothing alive
+	standFrom(sim, p, base, DISPLAY.LifeDrop + 60)
+	fake:mount(sixFish(fake, { [6] = "Rainbow" }))
+	settle(sim)
+	t.ok(world.IsBuilt(base), "built")
+	t.eq(world.Stats().fish, 6, "six fish")
+	t.eq(world.Stats().life, 0, "nothing alive out here")
+	local rainbow = world.GetFish(base, 6)
+	t.ok(not rainbow:HasTag("RainbowFish"), "the resting rainbow fish: no RainbowFish tag")
 	-- the character at the gate end of the tank, camera far: some fish within LifeRange
 	standFrom(sim, p, base, 30)
 	sim:Advance(1.2)
@@ -569,6 +595,7 @@ tests["life: one looped Body tween within LifeRange (the fish bobs), none beyond
 		end
 	end
 	t.ok(alive >= 2, `some fish live ({alive})`)
+	t.eq(rainbow:HasTag("RainbowFish"), world.IsAlive(base, 6), "the rainbow tag follows the rainbow fish's life")
 	-- a living fish's Body moves (bob + yaw), within ±Bob of its rest
 	local live = nil
 	for index = 1, 6 do
@@ -586,14 +613,29 @@ tests["life: one looped Body tween within LifeRange (the fish bobs), none beyond
 	end
 	t.ok(hi - lo > DISPLAY.Life.Bob * 0.5, `the living Body bobs ({hi - lo})`)
 	t.ok(hi - lo <= DISPLAY.Life.Bob * 2 + 0.05, `… gently (≤ ±Bob: {hi - lo})`)
-	-- away beyond LifeRange (still within Range): the tweens stop and the fish rests
-	standFrom(sim, p, base, DISPLAY.LifeRange + 50)
+	-- hysteresis: between LifeRange and LifeDrop it keeps living, beyond LifeDrop it rests
+	local point = slotModel(base, live).Display.FishPoint.WorldPosition
+	local back = -base.Tank.Glass.CFrame.LookVector
+	local away = Vector3.new(back.X, 0, back.Z).Unit
+	sim:Teleport(p, point + away * ((DISPLAY.LifeRange + DISPLAY.LifeDrop) / 2))
 	sim:Advance(1)
-	t.eq(world.Stats().life, 0, "beyond LifeRange: no life tweens")
+	t.ok(world.IsAlive(base, live), `Slot_{live} between LifeRange and LifeDrop: still alive`)
+	sim:Teleport(p, point + away * (DISPLAY.LifeDrop + 8))
+	sim:Advance(1)
+	t.ok(not world.IsAlive(base, live), `Slot_{live} beyond LifeDrop: resting`)
+	-- away from the whole court (still within Range): every tween stops and the fish rest
+	standFrom(sim, p, base, DISPLAY.LifeDrop + 60)
+	sim:Advance(1)
+	t.eq(world.Stats().life, 0, "beyond LifeDrop: no life tweens")
+	t.ok(not rainbow:HasTag("RainbowFish"), "… and the rainbow fish untagged again")
 	local rest = body.CFrame
 	sim:Advance(1.5)
 	t.near(body.CFrame.Position, rest.Position, 1e-4, "the resting fish does not move")
 	t.ok(world.IsBuilt(base), "still built (within Range)")
+	-- in front of the rainbow fish: it lives and is tagged
+	inFront(sim, p, base, 6)
+	sim:Advance(1)
+	t.ok(world.IsAlive(base, 6) and rainbow:HasTag("RainbowFish"), "beside the rainbow fish: alive and tagged")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -619,7 +661,8 @@ tests["tags: «+$X/с» and the value ticking to «МАКС» in front of the gl
 	local tag1 = world.GetTag(base, 1)
 	t.ok(tag1, "Slot_1 has a tag")
 	t.eq(tag1.Name, "FxTankTag")
-	t.eq(tag1.MaxDistance, DISPLAY.TagRange, "MaxDistance = TagRange")
+	t.eq(tag1.MaxDistance, DISPLAY.TagShow, "MaxDistance = TagShow (beyond it the aisle's tags would pile up)")
+	t.ok(DISPLAY.TagShow <= DISPLAY.TagRange, "a tag is refreshed before it comes into view")
 	t.eq(tag1.LightInfluence, 0)
 	t.eq(tag1.AlwaysOnTop, false)
 	local plate = tag1.Plate
@@ -1043,7 +1086,7 @@ tests["market: «РЫНОК +50%!» over the hub market; coins at a stall's scal
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["budget and leaks: no frame connections from the tank scripts; a released base leaves nothing; tear-down restores the connections"] = function(
+tests["budget and leaks: no frame connection while idle with a Rainbow fish on display; a released base leaves nothing; tear-down restores the client's connections"] = function(
 	t
 )
 	local sim = boot(t)
@@ -1051,20 +1094,35 @@ tests["budget and leaks: no frame connections from the tank scripts; a released 
 	local world = controller(sim, p)
 	local fake = Fake.new(sim, p)
 	local base = fake.base
-	-- leave the yard so the base is torn down, measure the baseline
+	-- leave the yard so the base is torn down: the client's connections then
 	standFrom(sim, p, base, DISPLAY.DropRange + 30)
 	sim:Advance(1)
 	t.ok(not world.IsBuilt(base), "torn down")
+	local conns0 = clientConnections(sim, p)
+	-- the kid fishes at the own spot (the empty court built, ≈ 155 studs away): the baseline
+	atSpot(sim, p, base)
+	sim:Advance(1)
+	t.ok(world.IsBuilt(base), "the own court is built from the fishing spot (within Range)")
 	local frames0 = frameConnections(sim, p)
-	local tank0 = tankConnections(sim, p)
-	-- back in: six non-rainbow fish, living, tags, the sign
-	fake:mount(sixFish(fake, { [3] = "Gold", [5] = "Neon" }))
-	standFrom(sim, p, base, 30)
+	-- six fish arrive, a Rainbow one among them: nothing per-frame while the kid stays at the spot
+	fake:mount(sixFish(fake, { [3] = "Gold", [5] = "Neon", [6] = "Rainbow" }))
 	settle(sim)
 	t.eq(world.Stats().fish, 6, "six fish")
-	t.ok(world.Stats().life > 0, "some living")
+	t.eq(world.Stats().life, 0, "none alive from the spot")
+	local rainbow = world.GetFish(base, 6)
+	t.ok(not rainbow:HasTag("RainbowFish"), "the rainbow fish is not tagged (no repaint far away)")
 	sim:Advance(3)
-	t.eq(frameConnections(sim, p), frames0, "no RenderStepped / Heartbeat / Stepped connection added")
+	t.eq(frameConnections(sim, p), frames0, "idle at the spot: no RenderStepped / Heartbeat / Stepped connection added")
+	-- beside the living rainbow fish: FishingFxController's one repaint Heartbeat (the exception)
+	inFront(sim, p, base, 6)
+	sim:Advance(1.2)
+	t.ok(world.IsAlive(base, 6), "the rainbow fish lives")
+	t.ok(frameConnections(sim, p) <= frames0 + 1, "beside it: at most the one repaint connection")
+	-- back at the spot: it rests, the repaint connection is gone
+	atSpot(sim, p, base)
+	sim:Advance(1.2)
+	t.eq(world.Stats().life, 0, "back at the spot: none alive")
+	t.eq(frameConnections(sim, p), frames0, "… and no frame connection left")
 	local total = 0
 	for index = 1, 6 do
 		total += #partsOf(world.GetFish(base, index))
@@ -1086,10 +1144,11 @@ tests["budget and leaks: no frame connections from the tank scripts; a released 
 		end
 	end
 	t.eq(fishLeft, 0, "no fish model in the folder")
-	-- torn down: the tank scripts' connections are back to the baseline
+	-- torn down again: the client's connections are back where they were
 	standFrom(sim, p, base, DISPLAY.DropRange + 30)
 	sim:Advance(1.5)
-	t.eq(tankConnections(sim, p), tank0, "connections back to the baseline after the tear-down")
+	t.ok(not world.IsBuilt(base), "torn down again")
+	t.eq(clientConnections(sim, p), conns0, "the client's connections back to the torn-down count")
 	sim:AssertNoErrors({ warnings = true })
 end
 
