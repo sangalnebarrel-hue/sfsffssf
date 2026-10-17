@@ -89,17 +89,60 @@ local TankConfig = {
 			TimeMin = 2.4,
 			TimeMax = 3.2,
 		},
-		-- Надпись витрины FxTankTag: Attachment на FishPoint + (0, Lift, 0) — над стеклом и ниже
-		-- потолка галереи (13.15); BillboardGui Width × Height studs.
+		-- Надпись витрины FxTankTag: Attachment на FishPoint + (0, Lift, −Forward) в осях витрины —
+		-- над стеклом, перед его лицевой гранью (3.1 от центра) и ниже потолка галереи (13.15):
+		-- из прохода взгляд на неё не идёт сквозь стекло (стекло прячет надписи за собой);
+		-- BillboardGui Width × Height studs + PixelsX × PixelsY px (вблизи растёт с миром, у
+		-- TagRange ещё читается), обводка букв Outline px.
 		Tag = {
 			Lift = 3.6,
-			Width = 5.5,
-			Height = 1.8,
+			Forward = 3.6,
+			Width = 4.6,
+			Height = 1.5,
+			PixelsX = 40,
+			PixelsY = 14,
+			Outline = 2,
+		},
+		-- Надпись садка FxTankSign: над передним краем Tank.Glass (Inset studs от него вглубь,
+		-- Lift studs над верхом стекла — выше таблички «АКВАРИУМ»).
+		Sign = {
+			Lift = 2.6,
+			Inset = 4,
+			Width = 9,
+			Height = 3.4,
+			PixelsX = 110,
+			PixelsY = 42,
+			Outline = 2.5,
+		},
+		-- Слово «РЫНОК +50%!» (FxMarketWord): над вывеской «РЫБНЫЙ РЫНОК» — от точки кнопки
+		-- ларька (SellPromptAttachment) на Up studs вверх и на Forward studs к покупателям.
+		MarketWord = {
+			Up = 20.5,
+			Forward = 9,
+			Width = 22,
+			Height = 4.2,
+			PixelsX = 120,
+			PixelsY = 24,
+			Outline = 3,
 		},
 		-- Эффекты событий витрин ("in" / "sold" / "swap").
 		Fx = {
 			Shrink = 0.25, -- "sold" / "swap": рыба сжимается до нуля за столько секунд
+			Grow = 0.35, -- "in" / "swap": новая рыба вырастает из точки за столько секунд
+			From = 0.15, -- … начиная с такой доли своего размера
 			MaxEmitters = 2, -- ParticleEmitter одновременно на игрока — не больше
+			Above = 0.4, -- искры и брызги — на столько studs над ВЕРХОМ витрины (не внутри стекла)
+			Splash = 14, -- "in": брызг …
+			Sparkle = 12, -- … и искр цвета редкости; "sold" / "swap": золотых искр
+			Coins = 16, -- "Sold" у ларька: монеток у его весов
+			FlashRange = 10, -- вспышка света у LightBar: радиус, studs …
+			FlashBrightness = 4, -- … яркость …
+			FlashTime = 0.6, -- … и сколько секунд вспыхивает и гаснет
+			Rise = 2.5, -- «+$45» продажи поднимается на столько studs …
+			RiseTime = 1.2, -- … за столько секунд и тает
+			RiseOutline = 2,
+			RiseSize = { Width = 3.2, Height = 0.85, PixelsX = 40, PixelsY = 14 }, -- studs + px
+			EmitterLife = 1.2, -- столько секунд живёт временный ParticleEmitter (его частицы — до 1.1 с)
 		},
 	},
 
@@ -110,8 +153,13 @@ local TankConfig = {
 		PopEvery = 5, -- … раз в столько секунд,
 		Rise = 2.5, -- поднимается над словом на столько studs …
 		PopTime = 1.2, -- … за столько секунд и тает
-		Width = 4, -- BillboardGui слова, studs
+		Width = 4, -- BillboardGui слова, studs …
 		Height = 1.4,
+		PixelsX = 30, -- … + px (с камеры рыбалки, ≈ 13 studs, — ≈ 115 × 45 px на телефоне)
+		PixelsY = 14,
+		Lift = 1.8, -- низ слова — на столько studs над верхом ведра
+		Outline = 2,
+		Splash = 12, -- прилёт рыбы в садок: брызг у края ведра
 	},
 
 	-- Панель садка (TankPanelController).
@@ -144,9 +192,15 @@ local TankConfig = {
 		Replaced = "Замена! «{new}» вместо «{old}» +{price}", -- рыба сильнее заменила слабую
 		FullSold = "Садок полон — лови рыбу получше!", -- слабая продана сразу (раз за игру)
 		Milestone = "Уже {money}! 🎉", -- (P2) рубежи EconomyConfig.Milestones
-		-- Мир (TankService — таблички витрин, TankWorldController — слово рынка)
+		-- Мир (TankService — таблички витрин, TankWorldController — надписи над витринами и садком,
+		-- слово у ведра, всплывающие суммы, слово рынка; {price} / {amount} — TankRules.FormatMoney,
+		-- {rate} — TankRules.FormatRate)
 		SlotEmpty = "Пусто",
 		SlotLocked = "🔒 Закрыто",
+		TagValue = "{price} ▲", -- над витриной: цена сейчас, ещё растёт …
+		TagMax = "{price} {max}", -- … и выросла до конца ({max} — Max, «МАКС»)
+		TankCount = "🐠 {count}/{slots}", -- над большим аквариумом и над ведром
+		Pop = "+{amount}", -- всплывающие суммы: продажа над витриной, доход над ведром
 		MarketWord = "РЫНОК +{bonus}%!",
 		-- Отказ продажи (TankEvent "Denied" { Reason, Text })
 		Denied = {
