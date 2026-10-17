@@ -3,14 +3,19 @@
 	retries, the coalescing and the per-key queue together. Headless players, the built
 	Place1.rbxl, the sim DataStore failing 30 % of all requests:
 	  1. three players, 10 virtual minutes of catches (TankService:AddFish, like the catch sink),
-	     sales (TankSell), SaveSoon and income; two leaves and rejoins on the same server (a
-	     player kicked by a failed load or a lost lock rejoins too); then Shutdown();
+	     sales (TankSell), SaveSoon and income; the latency jumps between 0.05 s and 1–3 s; two
+	     leaves, each while a save's UpdateAsync is in flight (latency 2.5 s), and a fast rejoin
+	     on the same server 1–4 s later (a player kicked by a failed load rejoins too); then
+	     Shutdown();
 	  2. a restart on that DataStore with no failures; every player rejoins;
 	  3. no duplicate Uids; the ledger holds; every lock is released after the final shutdown
-	     (a lock the chaos left behind is taken over by the rejoin); each player's money is ≥ the
-	     last value seen in the store at a confirmed Committed and ≤ the money in memory at the
-	     last leave; no two writes to a key closer than the write gap and no "added to queue"
-	     warning (only the expected failure warnings).
+	     (a lock the chaos left behind is taken over by the rejoin); each player's money — at
+	     every same-server rejoin and after the restart — is ≥ the last value seen in the store at
+	     a confirmed Committed and ≤ the money in memory at the last leave; no two writes to a key
+	     closer than the write gap and no "added to queue" warning. Warnings: on the chaos server
+	     only the failure ones (a lock wait / steal or a «lost» lock there would be a bug: one
+	     server never waits for itself); after the restart only one steal per lock the chaos
+	     left behind (fresh, not stale).
 
 	Run: lune run tools/run_tests.luau stage3_data_chaos
 ]]
@@ -41,14 +46,14 @@ local GAP = DataConfig.MinWriteGap + DataConfig.GapEpsilon
 local IDS = { 1, 2, 3 }
 local MINUTES = 10
 
--- Failure warnings the chaos is allowed to produce (anything else fails the test).
-local EXPECTED_WARNINGS = {
+-- Failure warnings the chaos server is allowed to produce (anything else fails the test).
+local CHAOS_WARNINGS = {
 	"не удалась (попытка",
 	"не удалось (попытка",
-	"занята другим сервером — забираю",
-	"замок игрока",
 	"проверка DataStore не удалась",
 }
+local STEAL_WARNING = "занята другим сервером — забираю"
+local LEAVE_LATENCY = 2.5
 
 local function lcg(seed: number): (lo: number, hi: number) -> number
 	local state = seed
@@ -87,11 +92,11 @@ local function peek(sim: any, id: number): any
 	return sim.DataStore:Peek(STORE, `Player_{id}`)
 end
 
-local function filterWarnings(t: any, sim: any)
+local function filterWarnings(t: any, sim: any, expected: { string })
 	local unexpected = {}
 	for _, w in sim.Warnings do
 		local ok = false
-		for _, text in EXPECTED_WARNINGS do
+		for _, text in expected do
 			if string.find(w.message, text, 1, true) then
 				ok = true
 				break
@@ -137,10 +142,23 @@ tests["chaos: 30 % failures, 10 minutes, leaves and rejoins, shutdown, restart �
 	local lastCommitted: { [number]: number } = {}
 	local atLeave: { [number]: number } = {}
 	local sessions: { [number]: number } = {}
+	local leftBy: { [number]: boolean } = {} -- the last session ended with leave() (not a kick)
+	-- Same-server rejoins after leave(): the money loaded and its bounds at that moment.
+	local rejoins: { { id: number, money: number, low: number, high: number } } = {}
 	data.Committed:Connect(function(player, _seq)
 		local saved = peek(sim, player.UserId)
 		if type(saved) == "table" then
 			lastCommitted[player.UserId] = saved.Money
+		end
+	end)
+	data.Loaded:Connect(function(player, loaded)
+		local id = player.UserId
+		if leftBy[id] then
+			leftBy[id] = false
+			table.insert(
+				rejoins,
+				{ id = id, money = loaded.Money, low = lastCommitted[id] or 0, high = atLeave[id] or 0 }
+			)
 		end
 	end)
 	local function money(player: any): number?
@@ -155,8 +173,24 @@ tests["chaos: 30 % failures, 10 minutes, leaves and rejoins, shutdown, restart �
 		local p = players[id]
 		if p and inGame(sim, p) then
 			atLeave[id] = money(p) or atLeave[id]
+			leftBy[id] = true
 			sim:RemovePlayer(p)
 		end
+	end
+	-- Is a save's UpdateAsync of this player on the wire right now (latency LEAVE_LATENCY)?
+	local function onTheWire(id: number): boolean
+		local p = players[id]
+		local rec = p and data._recordFor(p)
+		if not (rec and rec.InFlight) then
+			return false
+		end
+		local last = nil
+		for _, call in sim.DataStore.Calls do
+			if call.op == "UpdateAsync" and call.key == `Player_{id}` then
+				last = call.time
+			end
+		end
+		return last ~= nil and sim:Time() - last < LEAVE_LATENCY - 0.2
 	end
 	for _, id in IDS do
 		enter(id)
@@ -168,13 +202,34 @@ tests["chaos: 30 % failures, 10 minutes, leaves and rejoins, shutdown, restart �
 	end
 	local leaves = { [math.floor(MINUTES * 60 * 0.3)] = 1, [math.floor(MINUTES * 60 * 0.6)] = 2 }
 	local away: { [number]: number } = {}
+	local leaving: { [number]: number } = {} -- who → the deadline of the leave
+	local wireLeaves = 0
 	for second = 1, MINUTES * 60 do
 		sim:Advance(1, COARSE)
-		-- Leaves (rejoin a few seconds later: a same-server fast rejoin behind the final save).
+		-- The latency jumps now and then (not while a leave waits for its save on the wire).
+		if second % 20 == 0 and next(leaving) == nil then
+			sim.DataStore:SetLatency(if random(1, 3) == 1 then random(10, 30) / 10 else 0.05)
+		end
+		-- A leave: a SaveSoon on a slow wire, the leave while its UpdateAsync is in flight, a
+		-- rejoin a few seconds later (a same-server fast rejoin behind the in-flight save).
 		local who = leaves[second]
-		if who then
-			leave(who)
-			away[who] = second + random(1, 4)
+		if who and players[who] and inGame(sim, players[who]) then
+			sim.DataStore:SetLatency(LEAVE_LATENCY)
+			leaving[who] = second + 20
+			sim:Run(function()
+				data:SaveSoon(players[who])
+			end)
+		end
+		for id, deadline in leaving do
+			local wire = onTheWire(id)
+			if wire or second >= deadline or not (players[id] and inGame(sim, players[id])) then
+				leaving[id] = nil
+				if wire then
+					wireLeaves += 1
+				end
+				leave(id)
+				away[id] = second + random(1, 4)
+			end
 		end
 		for _, id in IDS do
 			local p = players[id]
@@ -211,6 +266,21 @@ tests["chaos: 30 % failures, 10 minutes, leaves and rejoins, shutdown, restart �
 			end
 		end
 	end
+	-- One more catch each (the random sales may have emptied a tank: the uid checks need fish).
+	local perch = FishConfig.Fish[1]
+	local perchValue, perchIncome = rules.Price(perch.Id, perch.MinKg, nil)
+	for _, id in IDS do
+		local p = players[id]
+		if p and inGame(sim, p) and data:CanWrite(p) then
+			sim:Run(function()
+				tank:AddFish(
+					p,
+					{ Id = perch.Id, Rarity = perch.Rarity, Kg = perch.MinKg, Value = perchValue, Income = perchIncome },
+					"catch"
+				)
+			end)
+		end
+	end
 	for _, id in IDS do
 		local p = players[id]
 		if p and inGame(sim, p) then
@@ -228,6 +298,14 @@ tests["chaos: 30 % failures, 10 minutes, leaves and rejoins, shutdown, restart �
 		end
 	end
 	t.ok(writes >= 30 and failed >= 8, `{writes} writes, {failed} of them failed`)
+	t.eq(wireLeaves, 2, "both leaves happened while a save was on the wire")
+	t.ok(#rejoins >= 2, `{#rejoins} same-server rejoins after a leave`)
+	for _, r in rejoins do
+		t.ok(
+			r.money >= r.low and r.money <= r.high,
+			`player {r.id} rejoined with {r.money} (last committed {r.low}, at leave {r.high})`
+		)
+	end
 	for _, id in IDS do
 		local live = players[id] and data:Get(players[id])
 		if live then
@@ -237,7 +315,7 @@ tests["chaos: 30 % failures, 10 minutes, leaves and rejoins, shutdown, restart �
 	local result = sim:Shutdown()
 	t.ok(result.completed, "the chaos shutdown completed")
 	assertGaps(t, sim)
-	filterWarnings(t, sim)
+	filterWarnings(t, sim, CHAOS_WARNINGS)
 	sim:AssertNoErrors()
 	t.ok(sessions[1] >= 2 and sessions[2] >= 2, "two leaves and rejoins happened")
 
@@ -248,6 +326,15 @@ tests["chaos: 30 % failures, 10 minutes, leaves and rejoins, shutdown, restart �
 		seed = 7,
 	})
 	local laterData = service(later, "DataService")
+	-- Locks the chaos left behind (its final saves failed): each one is waited for and stolen.
+	local now = math.floor(later.workspace:GetServerTimeNow())
+	local leftLocks = 0
+	for _, id in IDS do
+		local session = peek(later, id).Session
+		if session and now - session.T < DataConfig.LockStale then
+			leftLocks += 1
+		end
+	end
 	-- The money each player loads with (income goes on while the others wait for their locks).
 	local loadedMoney: { [number]: number } = {}
 	laterData.Loaded:Connect(function(player, loaded)
@@ -291,7 +378,14 @@ tests["chaos: 30 % failures, 10 minutes, leaves and rejoins, shutdown, restart �
 		t.ok(ok, `player {id}: the stored ledger holds`)
 	end
 	assertGaps(t, later)
-	filterWarnings(t, later)
+	local steals = 0
+	for _, w in later.Warnings do
+		if string.find(w.message, STEAL_WARNING, 1, true) then
+			steals += 1
+		end
+	end
+	t.eq(steals, leftLocks, "one steal per fresh lock the chaos left behind")
+	filterWarnings(t, later, { STEAL_WARNING })
 	later:AssertNoErrors({ warnings = true })
 end
 
