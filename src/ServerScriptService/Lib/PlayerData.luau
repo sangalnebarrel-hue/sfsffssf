@@ -45,7 +45,11 @@
 	                                      новее), только если они JSON-совместимы: строки, логические,
 	                                      конечные числа, плотные массивы и словари со строковыми
 	                                      ключами, не глубже DataConfig.Limits.MaxDepth; остальное
-	                                      выброшено + issue. opts.skipUid(uid) → true: рыбу не
+	                                      выброшено + issue; ключи с «_» не пишутся нигде (и в
+	                                      Stats.Species, где счётчики — целые ≥ 0). Рыба без Id или
+	                                      Kg выброшена, а с плохим Uid — сохранена (строка ≤ MaxString
+	                                      — как есть, иначе без Uid; + issue): номер ей даст Sanitize
+	                                      при загрузке. opts.skipUid(uid) → true: рыбу не
 	                                      сохранять (Этап 4, «в пути» при краже); opts.strict —
 	                                      без незнакомых полей вовсе (повтор после ошибки 103/104/105)
 	  NewUid(data) -> string              номер новой рыбы ("f" .. NextUid; NextUid += 1)
@@ -659,11 +663,7 @@ function PlayerData.Serialize(data: any, opts: SerializeOptions?): ({ [string]: 
 				table.insert(issues, `{path}: {describe(fish)} → выброшено`)
 				continue
 			end
-			if TankRules.UidNumber(fish.Uid) == nil then
-				table.insert(issues, `{path}.Uid: {describe(fish.Uid)} → рыба выброшена`)
-				continue
-			end
-			if skipUid and skipUid(fish.Uid) then
+			if skipUid and type(fish.Uid) == "string" and skipUid(fish.Uid) then
 				continue -- (Этап 4: рыба «в пути» — её сохранит другой ключ)
 			end
 			if not text(fish.Id, LIMITS.MaxString) or fish.Id == "" then
@@ -674,7 +674,19 @@ function PlayerData.Serialize(data: any, opts: SerializeOptions?): ({ [string]: 
 				table.insert(issues, `{path}.Kg: {describe(fish.Kg)} → рыба выброшена`)
 				continue
 			end
-			local copy: { [string]: any } = { Uid = fish.Uid, Id = fish.Id, Kg = fish.Kg }
+			local copy: { [string]: any } = { Id = fish.Id, Kg = fish.Kg }
+			-- Плохой Uid рыбу не губит: Sanitize при загрузке даст ей новый номер.
+			if text(fish.Uid, LIMITS.MaxString) then
+				copy.Uid = fish.Uid
+				if TankRules.UidNumber(fish.Uid) == nil then
+					table.insert(
+						issues,
+						`{path}.Uid: {describe(fish.Uid)} → как есть (новый при загрузке)`
+					)
+				end
+			else
+				table.insert(issues, `{path}.Uid: {describe(fish.Uid)} → нет (новый при загрузке)`)
+			end
 			if fish.Mutation ~= nil then
 				if text(fish.Mutation, LIMITS.MaxString) then
 					copy.Mutation = fish.Mutation
@@ -713,10 +725,14 @@ function PlayerData.Serialize(data: any, opts: SerializeOptions?): ({ [string]: 
 	local species = {}
 	if type(source.Species) == "table" then
 		for key, count in source.Species do
-			if type(key) == "string" and finite(count) then
-				species[key] = count
-			else
+			if type(key) ~= "string" then
 				table.insert(issues, `Stats.Species[{describe(key)}]: {describe(count)} → выброшено`)
+			elseif not startsWithUnderscore(key) then
+				local whole = math.floor(num(count, 0, 0)) -- (как Sanitize: целое ≥ 0)
+				if whole ~= count then
+					table.insert(issues, `Stats.Species.{key}: {describe(count)} → {whole}`)
+				end
+				species[key] = whole
 			end
 		end
 	else

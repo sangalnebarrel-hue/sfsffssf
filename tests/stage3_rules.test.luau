@@ -8,9 +8,10 @@
 	    every Sanitize rule (money, slots, uids, a dictionary Tank, re-pack / dormant), future
 	    content kept verbatim (nothing dropped, nothing sold), the ledger, Layout;
 	  • Serialize: JSON-safe output, "_" keys and runtime junk dropped (with issues), unknown
-	    JSON-safe fields kept (dropped under strict), skipUid, 12 fish < 4 KB;
-	  • config invariants (DataService's boot asserts, patchable timing knobs, ShortName, the
-	    shared «Загружаем твой садок…»);
+	    JSON-safe fields kept (dropped under strict), skipUid, Stats.Species counts, a fish with
+	    a bad Uid kept for Sanitize to renumber, 12 fish < 4 KB;
+	  • config invariants (DataService's boot asserts, patchable timing knobs, the §5.3 world
+	    numbers, ShortName, the shared «Загружаем твой садок…»);
 	  • text widths (UiFx.textWidth): every toast ≤ 300 px at 12 px, every card / header string
 	    fits its box at its tier on a phone card (112 × 160) and panel (717 × 221),
 	    CatchFx.tankStamp and its stamp box;
@@ -704,6 +705,55 @@ tests["Serialize: a validating whitelist — JSON-safe, '_' keys and runtime jun
 	t.eq(#data.Tank, 2, "the live tank still has it")
 end
 
+tests["Serialize: a fish with a bad Uid is kept for Sanitize to renumber; Species counts whole, no '_' keys"] = function(
+	t
+)
+	local D = env(t).PlayerData
+	local data = D.Template()
+	data.Tank = {
+		fish("f1", "Perch", 1),
+		fish("oops", "Crucian", 2), -- a string, but not a uid
+		fish("f1", "Puffer", 3), -- a duplicate (Sanitize's job, kept as is)
+		fish(string.rep("x", 80), "Swordfish", 4), -- longer than any string field may be
+		fish("f2", "SharkPup", 5),
+	}
+	data.Tank[5].Uid = 7 :: any -- not a string at all
+	data.NextUid = 3
+	data.Stats.Species = { Perch = 2, Crucian = -1, Puffer = 2.7, Swordfish = 0 / 0, _Seen = 1 }
+	local seen: { any } = {}
+	local out, issues = D.Serialize(data, {
+		skipUid = function(uid: any): boolean
+			table.insert(seen, uid)
+			return false
+		end,
+	})
+	t.eq(#out.Tank, 5, "no fish is dropped for its Uid")
+	t.eq(out.Tank[2].Uid, "oops", "a bad string uid is written as is …")
+	t.ok(hasIssue(issues, "Tank[2].Uid"), "… with an issue")
+	t.eq(out.Tank[3].Uid, "f1", "a duplicate is written as is (Sanitize dedupes on load)")
+	t.eq(out.Tank[4].Uid, nil, "an over-long uid is left out …")
+	t.ok(hasIssue(issues, "Tank[4].Uid"), "… with an issue")
+	t.eq(out.Tank[5].Uid, nil, "a number uid is left out …")
+	t.eq(out.Tank[5].Id, "SharkPup", "… the fish is kept")
+	t.ok(hasIssue(issues, "Tank[5].Uid"), "… with an issue")
+	t.eq(seen, { "f1", "oops", "f1", string.rep("x", 80) }, "skipUid only ever sees string uids")
+	t.eq(out.Stats.Species, { Perch = 2, Crucian = 0, Puffer = 2, Swordfish = 0 }, "whole counts ≥ 0, no '_' key")
+	t.ok(hasIssue(issues, "Stats.Species.Crucian"), "a negative count reported")
+	t.ok(hasIssue(issues, "Stats.Species.Puffer"), "a fractional count reported")
+	t.ok(hasIssue(issues, "Stats.Species.Swordfish"), "a NaN count reported")
+	t.ok(not hasIssue(issues, "Stats.Species._Seen"), "a '_' key is runtime state: skipped quietly")
+	-- The next load repairs every uid: unique, valid, past the highest, nothing dropped.
+	local loaded, loadIssues = D.Sanitize(serde.decode("json", serde.encode("json", out)))
+	t.eq(#loaded.Tank, 5, "all five fish come back")
+	local uids = {}
+	for i, f in loaded.Tank do
+		uids[i] = f.Uid
+	end
+	t.eq(uids, { "f1", "f3", "f4", "f5", "f6" }, "renumbered past the highest")
+	t.eq(loaded.NextUid, 7)
+	t.ok(hasIssue(loadIssues, "Tank[2].Uid") and hasIssue(loadIssues, "Tank[5].Uid"), "Sanitize reports them")
+end
+
 tests["Serialize: 12 maxed fish with full stats < 4 KB of JSON"] = function(t)
 	local D = env(t).PlayerData
 	local data = D.Template()
@@ -760,6 +810,18 @@ tests["configs: DataService's boot invariants, patchable knobs, ShortName, share
 	t.ok(TankConfig.StartSlots <= TankConfig.MaxSlots)
 	t.ok(TankConfig.ConfirmArm < TankConfig.ConfirmTime, "the double-tap guard is shorter than the confirm window")
 	t.ok(TankConfig.Display.Range < TankConfig.Display.DropRange, "hysteresis")
+	-- §5.3's world numbers live in TankConfig too (Wave 1 B owns Display / Pier).
+	local display, pier = TankConfig.Display, TankConfig.Pier
+	t.eq({ display.TagEvery, display.MarketWordRange, display.Life, display.Tag, display.Fx }, {
+		1,
+		200,
+		{ Bob = 0.12, Turn = 6, TimeMin = 2.4, TimeMax = 3.2 },
+		{ Lift = 3.6, Width = 5.5, Height = 1.8 },
+		{ Shrink = 0.25, MaxEmitters = 2 },
+	}, "Display: the tag timer, the hub word, the calm life, the slot tag, the event FX")
+	t.eq({ pier.Rise, pier.PopTime, pier.Width, pier.Height }, { 2.5, 1.2, 4, 1.4 }, "Pier: the pop and the word")
+	t.ok(display.Life.TimeMin <= display.Life.TimeMax, "the bob period range")
+	t.ok(pier.PopRange < pier.Range, "income pops only where the word is visible")
 	t.ok(EconomyConfig.HomeRatePct < EconomyConfig.MarketRatePct, "the stall pays more")
 	for _, key in { "SellScalePct", "HomeRatePct", "MarketRatePct" } do
 		t.ok(EconomyConfig[key] % 1 == 0, `{key}: an integer percent`)
@@ -778,7 +840,18 @@ tests["configs: DataService's boot invariants, patchable knobs, ShortName, share
 			"ProbeTimeout = 5,",
 			"BudgetDelay = 10,",
 		},
-		[`{CONFIG}/TankConfig.luau`] = { "Time = 300,", "ConfirmTime = 3,", "ConfirmArm = 0.4,", "PopEvery = 5," },
+		[`{CONFIG}/TankConfig.luau`] = {
+			"Time = 300,",
+			"ConfirmTime = 3,",
+			"ConfirmArm = 0.4,",
+			"CheckEvery = 0.5,",
+			"TagEvery = 1,",
+			"TimeMin = 2.4,",
+			"TimeMax = 3.2,",
+			"Shrink = 0.25,",
+			"PopEvery = 5,",
+			"PopTime = 1.2,",
+		},
 		[`{CONFIG}/EconomyConfig.luau`] = { "IncomeTick = 1,", "MaxCatchUp = 3,", "MarketDwell = 2," },
 	}
 	for path, list in anchors do
