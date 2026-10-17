@@ -171,6 +171,7 @@ local function buildStatus(hud: any)
 		LayoutOrder = 1,
 		Size = UDim2.fromScale(0.64, 1),
 		Text = "$0",
+		IconScale = 0.95, -- (the bill about as tall as the digits, like the reference; toasts hang below)
 		Color = UI.MoneyText,
 		MaxTextSize = 48,
 		MinTextSize = 16,
@@ -204,7 +205,7 @@ local function buildRightButtons(hud: any)
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.fromScale(0.99, 0.64), -- bottom edge; the column grows upwards
-		Size = UDim2.fromScale(0.18, 0.6), -- 3 square buttons (0.54H) + gaps fit in 0.6H
+		Size = UDim2.fromScale(0.18, 0.6), -- 3 square buttons (0.84 of it) + gaps fit in 0.6H
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 	}, hud)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(104, 380) }, right)
@@ -213,7 +214,9 @@ local function buildRightButtons(hud: any)
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		VerticalAlignment = Enum.VerticalAlignment.Bottom,
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		Padding = UDim.new(0.05, 0), -- (≈ 0.15 of a button: the reference's column rhythm)
+		-- (≈ 0.12 of a button: the reference's column rhythm; stage 3: two buttons — the
+		-- off-screen trophy chip above them keeps 16 px on a notched phone)
+		Padding = UDim.new(0.035, 0),
 	}, right)
 
 	-- "Home": a square purple button (Grape: never the green «ЛОВИ!» nor the blue «ЗАБРОСИТЬ»),
@@ -221,7 +224,7 @@ local function buildRightButtons(hud: any)
 	-- ours keep the word for kids), shown once the player has a base.
 	local home = Theme.simButton(right, "HomeButton", "Grape", {
 		LayoutOrder = 100, -- bottom of the column; Shop/Shield go above it later
-		Size = UDim2.fromScale(1, 0.3),
+		Size = UDim2.fromScale(1, 0.28), -- (stage 3: two buttons in the column — the trophy chip above keeps 16 px)
 		Visible = false,
 		Layout = "square",
 		Icon = "🏠",
@@ -271,7 +274,7 @@ local function buildRightButtons(hud: any)
 	-- ever: open me). Hidden until the base and the data are there (TankButtonController).
 	local tank = Theme.simButton(right, "TankButton", "Water", {
 		LayoutOrder = 90,
-		Size = UDim2.fromScale(1, 0.3),
+		Size = UDim2.fromScale(1, 0.28),
 		Visible = false,
 		Layout = "square",
 		Icon = "🐠",
@@ -279,10 +282,13 @@ local function buildRightButtons(hud: any)
 		Tier = "Small",
 		SimOpts = { stroke = 5 },
 	})
+	-- (the chip sits in the top-left corner, inside the button's outline: nothing of it sticks
+	-- out of the column — the trophy chip above it, a wide toast and «СМОТАТЬ» beside it keep
+	-- their 16 px)
 	local count = Theme.plate(tank, "Count", "Cream", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.14, 0.12),
-		Size = UDim2.fromScale(0.7, 0.32),
+		Position = UDim2.fromScale(0.33, 0.18),
+		Size = UDim2.fromScale(0.58, 0.28),
 		ZIndex = SZ.Top + 1,
 		Text = "0/6",
 		Italic = true,
@@ -307,14 +313,15 @@ local function buildToasts(hud: any)
 	-- Width follows the screen WIDTH (RelativeXY), so the column never reaches the corners.
 	-- No UIListLayout: NotifyController stacks the toasts itself (slots of 0.28 + 0.08 of the
 	-- column height; big rarity toasts are taller), sizes each to its text and lets them slide.
-	-- The column starts right under the status stack (0.23 of the HUD): on a phone one toast
-	-- ends above the avatar's head. Without a touch screen NotifyController narrows it to
-	-- 512 px, clear of the Roblox chat window in the top-left corner.
+	-- The column starts right under the status stack (0.26 of the HUD: stage 3, under the
+	-- Wallet row, which is always shown): on a phone one toast ends above the avatar's head.
+	-- Without a touch screen NotifyController narrows it to 512 px, clear of the Roblox chat
+	-- window in the top-left corner.
 	local toasts = U.new("Frame", {
 		Name = "Toasts",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.23),
+		Position = UDim2.fromScale(0.5, 0.26),
 		Size = UDim2.fromScale(0.56, 0.34),
 	}, hud)
 	U.new("UISizeConstraint", { MaxSize = Vector2.new(640, 190) }, toasts)

@@ -5064,7 +5064,11 @@ do
 				z = 13,
 			}))
 			-- «+N 💰»: когда фишка «села» — вылетает из неё на свободное место (floatPrice).
-			local share = if reveal.Float > 0 then reveal.Float elseif mutated then CARD.New.Float else 0
+			-- (Этап 3: рыба, проданная сразу, — всегда золотое «+$15»: её деньги)
+			local share = if reveal.Float > 0
+				then reveal.Float
+				elseif mutated or CatchFx.isSold(cardTank) then CARD.New.Float
+				else 0
 			if share > 0 then
 				later(cardTrove, CARD.PriceFloat.Delay, function()
 					floatPrice(amount, share)

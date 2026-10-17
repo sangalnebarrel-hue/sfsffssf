@@ -418,8 +418,9 @@ local UIConfig = {
 		  PopFrom, PopTime, IconSpin — появление: масштаб от PopFrom за PopTime, 💵 вкручивается
 		                 с IconSpin°;
 		  FloatEvery   — «+$13» дохода (в секунду) всплывает справа от числа раз в столько секунд
-		                 (при доходе > 0; цепочка таймеров), FloatTime — за сколько тает, FloatRise —
-		                 на какую долю высоты строки поднимается, FloatSize — его высота (доля строки);
+		                 (при доходе > 0; цепочка таймеров; не в FloatQuiet с после праздника денег),
+		                 FloatTime — за сколько тает, FloatRise — на какую долю высоты строки
+		                 поднимается (не выше строки: над ней плашка базы), FloatSize — его высота;
 		  Count        — праздник денег (Celebrate): число «набегает» от Min до Max секунд — дольше
 		                 у больших сумм (до CountBig монет); Coins — сколько 💵 летит (Min..Max, по сумме);
 		  RateRoll     — доход «+$/с» катится к новому числу за столько секунд;
@@ -440,8 +441,9 @@ local UIConfig = {
 		IconSpin = -180,
 		FloatEvery = 5,
 		FloatTime = 1.1,
-		FloatRise = 0.7,
-		FloatSize = 0.62,
+		FloatRise = 0.3,
+		FloatSize = 0.55,
+		FloatQuiet = 2,
 		Count = { Min = 0.6, Max = 1.0 },
 		CountBig = 2000,
 		Coins = { Min = 3, Max = 8 },
@@ -460,8 +462,11 @@ local UIConfig = {
 		  Squash       — 🐠 «плющится» до этого масштаба и пружинит (Elastic) за SquashTime;
 		  OpenAfter    — нажали во время полёта: панель открывается через столько секунд после
 		                 прилёта (кольцо успело разойтись);
-		  ToastAfter   — уведомление о первой рыбе / замене — через столько секунд после прилёта;
-		  ArrivalWait  — улов без CounterHold (нет карточки): прилёт через столько секунд.
+		  ToastAfter   — уведомление о первой рыбе — через столько секунд после прилёта, о замене —
+		                 через ReplacedToastAfter (монеты уже долетели в кошелёк);
+		  ArrivalWait  — улов без CounterHold (нет карточки): прилёт через столько секунд;
+		  StoredWait   — TankCount вырос без улова на экране (Этап 4: рыба легла не из улова): прилёт
+		                 через столько секунд, если за это время не пришёл "Caught".
 	]]
 	TankButton = {
 		Bump = 1.3,
@@ -471,7 +476,9 @@ local UIConfig = {
 		SquashTime = 0.45,
 		OpenAfter = 0.3,
 		ToastAfter = 0.35,
+		ReplacedToastAfter = 1.1,
 		ArrivalWait = 0.05,
+		StoredWait = 0.3,
 	},
 
 	-- Лимиты и ритм эффектов (UiFx).

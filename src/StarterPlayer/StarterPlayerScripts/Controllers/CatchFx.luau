@@ -419,6 +419,11 @@ function CatchFx.flyTarget(button: GuiObject, wallet: GuiObject, tank: any): Gui
 	return if column and column:IsA("GuiObject") then column else button
 end
 
+-- Рыба продана сразу (садок полон, она слабее всех).
+function CatchFx.isSold(tank: any): boolean
+	return type(tank) == "table" and tank.Result == "sold"
+end
+
 -- Что летит с карточкой: 💵 — рыба продана сразу (монеты в кошелёк), иначе 🐟.
 function CatchFx.flyIcon(tank: any): string
 	return if type(tank) == "table" and tank.Result == "sold" then "💵" else "🐟"

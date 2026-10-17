@@ -92,9 +92,9 @@ local player = Players.LocalPlayer
 local WALLET = UIConfig.Wallet
 local Palette = UIConfig.Palette
 
--- Ширина знаков сумм в долях размера текста (Montserrat Heavy = Black, курсив; сняты со шрифта
--- tools/preview/fonts): цифры у жирного шрифта шире средней UiFx.textWidth, а строка кошелька
--- стоит по центру — ошибка в ширине сдвинула бы группу.
+-- Ширина знаков сумм в em (Montserrat Heavy = Black, курсив; сняты со шрифта tools/preview/fonts;
+-- TextSize — высота строки = LINE em): узкие «1», «/», пробел у UiFx.textWidth шире, а строка
+-- кошелька стоит по центру — ошибка в ширине сдвинула бы группу.
 local GLYPHS: { [string]: number } = {
 	["0"] = 0.692,
 	["1"] = 0.418,
@@ -121,9 +121,10 @@ local GLYPHS: { [string]: number } = {
 	["…"] = 0.922,
 	["−"] = 0.62,
 }
+local LINE = 1.219 -- высота строки Montserrat в em (ascent + descent)
 local ITALIC_SLACK = 1.06 -- наклон букв выступает вправо за их ширину
 local ICON_GAP = 0.08 -- между 💵 и числом, высот строки
-local LABEL_TALL = 1.05 -- коробка числа выше строки (как у Theme.stat)
+local LABEL_TALL = 0.92 -- коробка числа — почти вся строка (уведомления — сразу под ней)
 
 local MoneyController = {}
 
@@ -147,6 +148,7 @@ local startedAt = 0
 local memoryToast = false -- уведомление «прогресс не сохраняется» уже было
 local soldToast = false -- «Садок полон…» уже было за эту игру
 local floatChain = 0 -- поколение цепочки «+$13»
+local lastParty = -math.huge -- os.clock() последнего праздника денег (Celebrate)
 
 -- Придержка улова "replaced" / "sold" (до прилёта рыбы и Celebrate этой суммы).
 type CatchHold = { amount: number, held: number, result: string }
@@ -183,7 +185,7 @@ local function textWidth(text: string, px: number): number
 		local ch = utf8.char(code)
 		units += GLYPHS[ch] or 0.68
 	end
-	return units * px * ITALIC_SLACK
+	return units * px / LINE * ITALIC_SLACK
 end
 
 --------------------------------------------------------------------------------
@@ -191,6 +193,7 @@ end
 --------------------------------------------------------------------------------
 
 local lastFit = ""
+local floatOnHud: (text: string, at: Vector2, size: Vector2, o: { [string]: any }) -> ()
 -- Строка, как её разложил layout (px от левого края кошелька): где кончается число и вся группа.
 local fitted = { labelRight = 0, rowRight = 0 }
 
@@ -217,7 +220,7 @@ local function layout(force: boolean?)
 		return
 	end
 	lastFit = key
-	local iconSize = H * (icon.Size.Y.Scale > 0 and icon.Size.Y.Scale or 1.2)
+	local iconSize = H * (if icon.Size.Y.Scale > 0 then icon.Size.Y.Scale else 1)
 	local labelX = iconSize * WALLET.IconShare + H * ICON_GAP
 	local fit = label:FindFirstChildOfClass("UITextSizeConstraint")
 	local maxPx = if fit then fit.MaxTextSize else 48
@@ -377,24 +380,20 @@ end
 
 local function floatIncome()
 	local tenths = income10()
-	if tenths <= 0 or not wallet.Visible or state ~= "ready" then
+	if tenths <= 0 or not wallet.Visible or state ~= "ready" or os.clock() - lastParty < WALLET.FloatQuiet then
 		return
 	end
 	local text = TankRules.FormatRate(tenths)
 	text = string.sub(text, 1, #text - #EconomyConfig.Format.Rate) -- «+$13/с» → «+$13»
 	-- Справа от строки (от правого края дохода), чуть выше середины; поднимается и тает.
-	local W = math.max(wallet.AbsoluteSize.X, 1)
 	local H = math.max(wallet.AbsoluteSize.Y, 1)
 	local h = H * WALLET.FloatSize
 	local w = textWidth(text, h)
-	UiFx.floatText(wallet, text, {
-		position = UDim2.fromScale((fitted.rowRight + w * 0.5 + H * 0.12) / W, 0.35),
-		size = UDim2.fromScale(w / W, WALLET.FloatSize),
+	floatOnHud(text, Vector2.new(fitted.rowRight + w * 0.5 + H * 0.12, H * 0.35), Vector2.new(w, h), {
 		color = UIConfig.MoneyText,
-		rise = WALLET.FloatRise,
+		rise = WALLET.FloatRise * H,
 		time = WALLET.FloatTime,
 		rotate = 6,
-		z = 8,
 	})
 end
 
@@ -428,21 +427,40 @@ local function countTime(amount: number): number
 	return spec.Min + (spec.Max - spec.Min) * math.clamp(amount / WALLET.CountBig, 0, 1)
 end
 
+-- Всплывающая надпись у кошелька: на слое HUD (в самом кошельке её поставил бы в ряд его
+-- UIListLayout); at — середина надписи в px от левого верхнего угла кошелька, rise — px.
+function floatOnHud(text: string, at: Vector2, size: Vector2, o: { [string]: any })
+	local area = hud.AbsoluteSize
+	local W, Hh = math.max(area.X, 1), math.max(area.Y, 1)
+	-- (кошелёк стоит по центру стопки статуса: x — от её середины, так и в RbxSim, который
+	-- выравнивание UIListLayout не считает)
+	local status = wallet.Parent :: GuiObject
+	local left = status.AbsolutePosition.X + (status.AbsoluteSize.X - wallet.AbsoluteSize.X) / 2
+	local origin = Vector2.new(left, wallet.AbsolutePosition.Y) - hud.AbsolutePosition
+	local center = origin + at
+	UiFx.floatText(hud, text, {
+		position = UDim2.fromScale(center.X / W, center.Y / Hh),
+		size = UDim2.fromScale(size.X / W, size.Y / Hh),
+		color = o.color,
+		colors = o.colors,
+		rise = (o.rise or 0) / Hh,
+		time = o.time,
+		rotate = o.rotate,
+		z = 9,
+	})
+end
+
 -- Золотое «+$1 234» над числом (уровень Button).
 local function floatAmount(amount: number)
 	local text = "+" .. TankRules.FormatMoney(amount)
-	local W = math.max(wallet.AbsoluteSize.X, 1)
 	local H = math.max(wallet.AbsoluteSize.Y, 1)
 	local px = math.max(UiFx.textSize("Button"), H * 0.7)
 	local w = textWidth(text, px)
-	UiFx.floatText(wallet, text, {
-		position = UDim2.fromScale(math.clamp((fitted.labelRight - w * 0.3) / W, 0, 1), 0.1),
-		size = UDim2.fromScale(w / W, px / H),
+	floatOnHud(text, Vector2.new(fitted.labelRight - w * 0.3, H * 0.1), Vector2.new(w, px), {
 		colors = { Palette.Gold.Top, Palette.Sun.Bottom },
-		rise = 0.9,
+		rise = H * 0.9,
 		time = 1.0,
 		rotate = -4,
-		z = 9,
 	})
 end
 
@@ -471,6 +489,7 @@ function MoneyController.Celebrate(amount: number, from: GuiObject?, _opts: Cele
 			return
 		end
 		landed = true
+		lastParty = os.clock()
 		held = math.max(0, held - mine)
 		if state ~= "ready" then
 			tick()

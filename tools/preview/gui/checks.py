@@ -25,7 +25,9 @@ widgets(objects, W, H) / layout_findings(...)  (RND-02)
     towards the fisher, under half the screen, but still no widget). Every pair of widgets
     and every widget against the CoreGui chrome (gui/backdrop.chrome_shapes: Jump, thumbstick,
     hotbar, top-bar buttons, desktop chat/player list) closer than MIN_GAP (16 px) is reported
-    with the gap (negative = overlap depth) and the two closest points. Glow rings (FxRing)
+    with the gap (negative = overlap depth) and the two closest points; a designed stack of
+    passive widgets (STACKED: the status stack and the toast column under it) only when they
+    overlap. Glow rings (FxRing)
     are reported separately when they reach into Jump or the thumbstick ("fx").
 
 text_floor(objects)
@@ -43,6 +45,10 @@ FILL_WARN = 2.5
 FILL_WARN_VIEWPORTS = {(844, 390), (667, 375)}
 MIN_GAP = 16
 TEXT_FLOOR = 12
+# Widget pairs that are one designed stack of passive (never tapped) widgets: the toast column
+# hangs right under the status stack (STYLE.md §3; stage 3: the Wallet row is always shown), so
+# they may sit closer than MIN_GAP — only an overlap of what they draw is reported.
+STACKED = {("HUD.Status", "HUD.Toasts"): 0}
 FULLSCREEN_SHARE = 0.45
 # ScreenGui children that are containers of widgets rather than widgets themselves.
 CONTAINERS = {"HUD": {"Fishing"}}
@@ -395,8 +401,9 @@ def layout_findings(objects, W, H, chrome, min_gap=MIN_GAP):
     found = []
     for i, a in enumerate(names):
         for b in names[i + 1:]:
+            need = STACKED.get((a, b), STACKED.get((b, a), min_gap))
             res = _closest(ws[a]["parts"], ws[b]["parts"], min_gap)
-            if res and res[0] < min_gap:
+            if res and res[0] < need:
                 found.append({"a": a, "b": b, "gap": round(res[0], 1), "p": res[1], "q": res[2], "kind": "widget"})
         for cname, shape in chrome.items():
             rr = shape_rrect(shape)

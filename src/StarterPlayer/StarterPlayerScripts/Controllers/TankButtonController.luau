@@ -23,7 +23,8 @@
 	    "sold" — на кнопке НИЧЕГО (призрак улетел в кошелёк, сумму празднует сам MoneyController).
 	    Нет Tank в "Caught" (садок не принял рыбу) — фишка не меняется, кнопка лишь чуть
 	    подпрыгивает. Без CounterHold (нет карточки; Этап 4: "Stored") — тот же прилёт через
-	    ArrivalWait после события / через кадр после изменения TankCount.
+	    ArrivalWait после события / через StoredWait после роста TankCount (если "Caught" не
+	    пришёл следом: он мог отстать от атрибутов на кадр).
 	  • «!» новичка: после прилёта первой рыбы за всё время (Tank.First) — UiFx.badgeBob(Badge) и
 	    уведомление TankConfig.Texts.FirstFish (Water 🐠); панель садка открылась (HUD.TankPanel
 	    стала видна — кнопкой, кнопкой у аквариума или у ларька) — UiFx.badgeHide (на сессию, без
@@ -219,7 +220,7 @@ function TankButtonController:Start(hud: ScreenGui)
 			local gone = catch.replaced
 			local newDef = FishingRules.GetFish(catch.fishId)
 			local oldDef = if gone and typeof(gone.Id) == "string" then FishingRules.GetFish(gone.Id) else nil
-			task.delay(SPEC.ToastAfter, function()
+			task.delay(SPEC.ReplacedToastAfter, function()
 				NotifyController.Show(
 					TextUtil.fill(TankConfig.Texts.Replaced, {
 						new = if newDef then newDef.ShortName else catch.fishId,
@@ -314,7 +315,13 @@ function TankButtonController:Start(hud: ScreenGui)
 			return
 		end
 		if count > shownCount and button.Visible then
-			arrive() -- без карточки (Этап 4: "Stored") — тот же прилёт
+			-- Рыба легла без карточки (Этап 4: "Stored") — тот же прилёт, но чуть погодя: "Caught"
+			-- мог отстать от атрибутов на кадр (тогда прилёт сыграет карточка).
+			task.delay(SPEC.StoredWait, function()
+				if not holding() and not pending and number(player:GetAttribute("TankCount")) > shownCount then
+					arrive()
+				end
+			end)
 			return
 		end
 		local before = chipText(shownCount, shownSlots)

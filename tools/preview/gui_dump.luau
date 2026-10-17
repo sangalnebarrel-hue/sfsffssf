@@ -104,6 +104,9 @@ local scenarios = require("./gui_scenarios")
 -- Stage 3 world views (TankWorldController: the court, the displays, the pier word): their own
 -- file, the same scenario format, not in the standard set.
 local tankScenarios = require("./gui_scenarios_tank")
+-- Stage 3 HUD states (the Wallet, «САДОК», catch → tank, the stage 3 toasts): their own file, in
+-- the standard set.
+local hudScenarios = require("./gui_scenarios_hud3")
 local WorldCapture = require("./gui/world_capture")
 
 local Enum = roblox.Enum
@@ -2050,6 +2053,9 @@ local function allScenarios(): { any }
 		table.insert(list, s)
 	end
 	for _, s in tankScenarios do
+		table.insert(list, s)
+	end
+	for _, s in hudScenarios do
 		table.insert(list, s)
 	end
 	return list
