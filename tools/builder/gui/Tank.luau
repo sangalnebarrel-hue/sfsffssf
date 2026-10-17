@@ -23,26 +23,29 @@
 	    Panel.Cards            ScrollingFrame + UIGridLayout with three hidden templates:
 	      CardTemplate  a fish: a sim plate in the rarity's colours (Common here; no shine, gloss
 	                    or shadow); the client lays its rows out FROM THE BOTTOM in px written as
-	                    scales (TankConfig.Panel.Card: the sell button ≥ 44 px, the growth row and
-	                    «МАКС» always clear above it, the fish gets what is left) —
+	                    scales (TankConfig.Panel.Card: the sell button ≥ 44 px, the income and
+	                    growth row with «МАКС» always clear above it, the fish gets what is
+	                    left) —
 	                    NameLabel (Small tier, CAPS ShortName; design §6.4 calls it
 	                    "Name", but a child named Name is shadowed by Instance.Name: card.Name is
 	                    "CardTemplate" — so NameLabel, like CatchCard.NameLabel), Viewport (the
 	                    fish model), Mutation (a chip «👑 ×2» over the top-left corner, tilted,
-	                    hidden: Icon = the mutation's emoji, Label), Rate («+$4/с», Body tier,
-	                    green italic; «−$4/с» red while a sale waits for «ТОЧНО?»),
-	                    Growth.{Track.Fill, Label «×1.4», Max «МАКС» — a Gold stamp inside the
-	                    row's height, hidden},
+	                    hidden: Icon = the mutation's emoji, Label); one row above the sell
+	                    button: Rate on its left («+$4/с», Body tier, green italic, as wide as
+	                    its text; «−$4/с» red while a sale waits for «ПРОДАТЬ?») and Growth on
+	                    its right ({Track.Fill — a glass pill, Label «×1.4» drawn on it, Max
+	                    «МАКС» — a Gold stamp over it, inside the row's height, hidden}),
 	                    Sell (a Leaf button: Caption «💵 $45»; «ПРОДАТЬ $45» on cards ≥
 	                    TankConfig.Panel.WideCard px when the panel's longest price fits — one
-	                    style for the whole panel; Gold at a stall, Berry «ТОЧНО?» while
-	                    confirming, Slate «⏳» while the server answers)
+	                    style for the whole panel; Gold at a stall, Berry «ПРОДАТЬ?» while
+	                    confirming («ТОЧНО?» on a card too narrow for it), Slate «⏳» while the
+	                    server answers)
 	      EmptyTemplate an empty slot: a glass plate (darker on a phone, where the sheet is glass
 	                    too: TankConfig.Panel.EmptyAlpha) — Icon (a faint 🎣), Title «ПУСТО», Hint
 	                    «Поймай рыбу!»
 	      LockedTemplate a locked slot (the stage 5 teaser): a Slate plate — Icon 🔒, Title «ЕЩЁ
 	                    МЕСТО», Hint «Скоро в магазине»
-	Sizes are scales of the card (phone ≈ 100 × 145 px: every text fits its box at its tier —
+	Sizes are scales of the card (phone ≈ 110 × 141 px: every text fits its box at its tier —
 	tests/stage3_rules), the sell button ≥ 44 px tall on a phone; the fish card's rows below are
 	the phone's defaults until the client lays them out for the real card.
 ]]
@@ -154,18 +157,18 @@ local function buildCard(cards: any)
 	})
 	label(card, "NameLabel", {
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.045),
+		Position = UDim2.fromScale(0.5, 0.03),
 		Size = UDim2.fromScale(0.94, 0.12),
 		Text = "КАРАСИК",
-		ZIndex = SZ.Content + 1, -- (over the fish: the viewport reaches under the name and the rate)
+		ZIndex = SZ.Content + 1, -- (over the fish: the viewport reaches under the name)
 		Tier = "Small",
 	})
 	U.new("ViewportFrame", {
 		Name = "Viewport",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.165),
-		Size = UDim2.fromScale(0.92, 0.29),
+		Position = UDim2.fromScale(0.5, 0.09),
+		Size = UDim2.fromScale(0.92, 0.47),
 		Ambient = rgb(200, 200, 210),
 		LightColor = rgb(255, 250, 240),
 		LightDirection = Vector3.new(-1, -1.4, -0.8),
@@ -187,32 +190,35 @@ local function buildCard(cards: any)
 			Size = UDim2.fromScale(0.62, 0.8),
 		},
 	})
+	-- One row above the sell button: the income on the left (Rate, sized to its text by the
+	-- client), the growth on the right (Growth: a glass pill with the fill ×1 → ×3 and «×1.4» drawn
+	-- on it; a Gold «МАКС» stamp over it when the value is maxed). The fish gets the freed row.
+	-- (the defaults hold the longest «−$1 125/с» at full size on a 112 px card — tests/stage3_rules;
+	-- the client gives the rate only its own text's width and the pill the rest)
 	label(card, "Rate", {
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.455),
-		Size = UDim2.fromScale(0.94, 0.11),
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.fromScale(0.04, 0.575),
+		Size = UDim2.fromScale(0.7, 0.11),
 		Text = "+$1/с",
 		TextColor3 = MONEY,
+		TextXAlignment = Enum.TextXAlignment.Left,
 		Italic = true,
 		ZIndex = SZ.Content + 1,
 		Tier = "Body",
 	})
-
-	-- Growth: a thin glass groove with the fill (×1 → ×3), the multiplier on its right; a Gold
-	-- «МАКС» stamp over the whole row when the value is maxed.
 	local growth = U.new("Frame", {
 		Name = "Growth",
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.575),
-		Size = UDim2.fromScale(0.88, 0.1),
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(0.96, 0.575),
+		Size = UDim2.fromScale(0.42, 0.11),
 		ZIndex = SZ.Content,
 	}, card)
 	local track = U.new("Frame", {
 		Name = "Track",
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.fromScale(0.58, 0.5),
+		Size = UDim2.fromScale(1, 0.66),
 		ZIndex = SZ.Content,
 	}, growth)
 	Theme.glass(track, { radius = 0.5, shine = false })
@@ -224,13 +230,14 @@ local function buildCard(cards: any)
 		ZIndex = SZ.Content,
 	}, track)
 	Theme.sim(fillBar, "Leaf", { round = true, stroke = 0, rim = false, shine = false })
+	-- «×1.4» on the pill (outlined white, over the fill)
 	label(growth, "Label", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.fromScale(1, 0.5),
-		Size = UDim2.fromScale(0.38, 1),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.9, 1),
 		Text = TextUtil.fill(TEXTS.Growth, { mult = 1 }),
 		Italic = true,
-		ZIndex = SZ.Content,
+		ZIndex = SZ.Content + 1,
 		Tier = "Small",
 	})
 	-- (the stamp stays inside the row's height: the client keeps the row clear of the sell button
@@ -239,7 +246,7 @@ local function buildCard(cards: any)
 		Visible = false,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(0.7, 1),
+		Size = UDim2.fromScale(1, 1),
 		Rotation = -2,
 		ZIndex = SZ.Top,
 		LabelProps = {

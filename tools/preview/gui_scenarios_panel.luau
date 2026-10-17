@@ -134,7 +134,7 @@ return {
 	},
 	{
 		name = "tank_sell_confirm",
-		desc = "The first tap on «💵 $X»: Berry «ТОЧНО?» with its 3 s ring, the card's income red «−$X/с» (a second tap counts only after 0.4 s)",
+		desc = "The first tap on «💵 $X»: Berry «ПРОДАТЬ?» with its 3 s ring, the card's income red «−$X/с» (a second tap counts only after 0.4 s)",
 		still = { 0.3, 1.6 },
 		sheet = { from = 0, to = 0.6, fps = 15, roi = PANEL_ROI, margin = 0.03 },
 		run = function(h: any)

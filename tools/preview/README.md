@@ -732,7 +732,7 @@ standard set): `tank_panel_home` (3/6: a Gold Perch, a maxed Puffer, a young Cru
 cards, the locked teaser; the open's rise and card pops at 0.12 s), `tank_panel_full` (6/6 with a
 Rainbow Dragon, the Gold count chip), `tank_panel_market` (TankEvent "Open" from the hub market,
 then `SellRatePct` 150: the «РЫНОК +50%» chip pops in, the prices jump, the buttons turn Gold),
-`tank_sell_confirm` (the first tap: Berry «ТОЧНО?» with its ring, the red «−$X/с»), `tank_sell`
+`tank_sell_confirm` (the first tap: Berry «ПРОДАТЬ?» with its ring, the red «−$X/с»), `tank_sell`
 (the second tap, then the stub server's answer — the display empties with "sold", TankEvent
 "Sold": the card squashes, «+$X» rises, an empty card pops in), `tank_panel_market_full` (at a
 stall with a full tank: the crowded header drops «+$X/с», then shortens the chip, never runs under

@@ -18,7 +18,7 @@
 	    total);
 	  • values tick on one 1 s chain (no frame job, no frame connection); the header total grows;
 	  • market mode on SellRatePct only (not on TankEvent "Open"'s RatePct);
-	  • confirm on every sale: the first tap fires nothing; a tap sooner than ConfirmArm after the
+	  • confirm on every sale: the first tap fires nothing («ПРОДАТЬ?»); a tap sooner than ConfirmArm after the
 	    previous one fires nothing and restarts the arm (+0.15 s, +0.5 s: nothing; mashing every
 	    0.2 s for 2 s: nothing); a tap after a pause ≥ ConfirmArm fires TankSell(uid) once; a 3 s
 	    timeout reverts; the red «−$X/с»; another card cancels;
@@ -29,9 +29,12 @@
 	  • the layout is scale-based, never over the Wallet (status stack) or the right column, ≥ 16 px
 	    from Jump and off the thumbstick on touch screens and the screen edges, on phone /
 	    phone_small / tablet / desktop, and survives a ViewportSize change; sell buttons ≥ 44 px
-	    tall; on every card the growth row and «МАКС» clear of the sell button and the rate row;
-	    the header before the ✕ (also at a stall with a full tank: the chip sized to its text);
-	    one sell label style per panel; a name right of its mutation chip; ✕ only shrinks;
+	    tall; on every card the income and the growth pill («МАКС») share one row clear of the
+	    sell button, and the fish window (the freed row) is ≥ 36 % of the card; several rows fill
+	    by columns, every fish card in the window at rest; the first tap says «ПРОДАТЬ?»; the
+	    header before the ✕ (also at a stall with a full tank: the chip sized to its text; at a
+	    stall with 3/6 on a desktop the income stays); one sell label style per panel; a name
+	    right of its mutation chip; ✕ only shrinks;
 	  • Open(uid) scrolls to the fish and rings it; the «!» on «САДОК» hides on open;
 	  • nothing is left running after close (connections back to the baseline, no clones);
 	  • phone fill ≤ 2.5× with 6 cards and the teaser (the quads the HUD draws, like
@@ -870,7 +873,7 @@ tests["confirm on every sale: the first tap and a tap < ConfirmArm after the pre
 	local price = c1.Sell.Caption.Text
 	tapSell(sim, p, 1)
 	t.eq(#sellsOf(sim, p), 0, "the first tap fires nothing")
-	t.eq(c1.Sell.Caption.Text, TEXTS.Confirm, "«ТОЧНО?»")
+	t.eq(c1.Sell.Caption.Text, TEXTS.Confirm, "«ПРОДАТЬ?»: the button says what the second tap does")
 	t.ok(colorNear(faceTop(c1.Sell), UIConfig.Palette.Berry.Top), "Berry")
 	t.ok(c1.Sell:FindFirstChild("FxRingTimer"), "the 3 s ring timer")
 	t.eq(c1.Rate.Text, R.FormatRate(-fake.fish[1].Income10), "the card's income flashes «−$X/с»")
@@ -881,7 +884,7 @@ tests["confirm on every sale: the first tap and a tap < ConfirmArm after the pre
 	sim:Advance(0.33)
 	tapSell(sim, p, 1)
 	t.eq(#sellsOf(sim, p), 0, "+0.5 s is only 0.35 s after the previous tap: the arm restarted, nothing")
-	t.eq(c1.Sell.Caption.Text, TEXTS.Confirm, "still «ТОЧНО?»")
+	t.eq(c1.Sell.Caption.Text, TEXTS.Confirm, "still «ПРОДАТЬ?»")
 	sim:Advance(TankConfig.ConfirmArm + 0.05)
 	tapSell(sim, p, 1)
 	local sells = sellsOf(sim, p)
@@ -914,7 +917,7 @@ tests["confirm on every sale: the first tap and a tap < ConfirmArm after the pre
 	t.eq(#sellsOf(sim, p), 1, "a tap after the timeout is a first tap again")
 	-- another card cancels the first
 	tapSell(sim, p, 2)
-	t.eq(c3.Sell.Caption.Text ~= TEXTS.Confirm, true, "tapping another card cancels the first «ТОЧНО?»")
+	t.eq(c3.Sell.Caption.Text ~= TEXTS.Confirm, true, "tapping another card cancels the first «ПРОДАТЬ?»")
 	t.eq(card(p, 2).Sell.Caption.Text, TEXTS.Confirm, "… and asks on the new one")
 	t.eq(#sellsOf(sim, p), 1, "nothing sold")
 	t.ok(price ~= "", "(phone caption)")
@@ -932,7 +935,7 @@ tests["mashing the sell button never sells: taps every 0.2 s for 2 s fire nothin
 		sim:Advance(0.2 - 1 / 60)
 	end
 	t.eq(#sellsOf(sim, p), 0, "10 taps 0.2 s apart (a kid mashing): nothing sold")
-	t.eq(c1.Sell.Caption.Text, TEXTS.Confirm, "«ТОЧНО?» still asks")
+	t.eq(c1.Sell.Caption.Text, TEXTS.Confirm, "«ПРОДАТЬ?» still asks")
 	-- taps at 0, 0.2, 0.45 (the critic's case) on another card
 	tapSell(sim, p, 3)
 	sim:Advance(0.2 - 1 / 60)
@@ -1147,20 +1150,38 @@ local function checkLayout(t: any, sim: any, p: any, viewport: any, touch: boole
 		local sell = c:FindFirstChild("Sell")
 		if c:IsA("GuiObject") and c.Visible and sell then
 			t.ok(sell.AbsoluteSize.Y >= 44 - 0.5, `{what}: {c.Name}'s sell button ≥ 44 px tall`)
-			-- the growth row and «МАКС» (with its outline) above the sell button's outline; «МАКС»
-			-- under the rate row
-			local s, g, stamp = rectOf(sell), rectOf(c.Growth), rectOf(c.Growth.Max)
+			-- one row above the sell button's outline: the income on the left, the growth pill (and
+			-- «МАКС» with its outline) on the right, side by side
+			local s, g, stamp, rate = rectOf(sell), rectOf(c.Growth), rectOf(c.Growth.Max), rectOf(c.Rate)
 			local top = s.y0 - edgeOf(sell)
-			t.ok(g.y1 <= top + 0.5, `{what}: {c.Name}'s growth row {fmt(g)} above the sell outline (y {top})`)
+			t.ok(g.y1 <= top + 0.5, `{what}: {c.Name}'s growth pill {fmt(g)} above the sell outline (y {top})`)
+			t.ok(rate.y1 <= top + 0.5, `{what}: {c.Name}'s income {fmt(rate)} above the sell outline (y {top})`)
 			t.ok(
 				stamp.y1 + edgeOf(c.Growth.Max) <= top + 0.5,
 				`{what}: {c.Name}'s «МАКС» {fmt(stamp)} + outline above the sell outline (y {top})`
 			)
+			t.ok(math.abs(rate.y0 - g.y0) < 1, `{what}: {c.Name}'s income and growth share a row`)
 			t.ok(
-				rectOf(c.Rate).y1 <= stamp.y0 - edgeOf(c.Growth.Max) + 0.5,
-				`{what}: {c.Name}'s «МАКС» + outline under the rate row`
+				rate.x1 <= stamp.x0 - edgeOf(c.Growth.Max) + 0.5,
+				`{what}: {c.Name}'s income {fmt(rate)} left of «МАКС» + outline {fmt(stamp)}`
 			)
-			t.ok(rectOf(c.Viewport).y1 - rectOf(c.Viewport).y0 >= 20, `{what}: {c.Name}'s fish ≥ 20 px tall`)
+			local UiFx = uifx(sim, p)
+			local least = call(sim, p, function()
+				return UiFx.textSize("Body")
+			end) - 2
+			t.ok(
+				UiFx.textWidth(c.Rate.Text, least) <= rate.x1 - rate.x0 + 0.5,
+				`{what}: {c.Name}'s «{c.Rate.Text}» fits its box at {least} px`
+			)
+			-- the fish is the card's biggest piece: the freed row is its (design: ≥ 40 % «aim»; the
+			-- smallest phone's card is 131 px tall and its texts are a phone's)
+			local fish, cardRect = rectOf(c.Viewport), rectOf(c)
+			local share = (fish.y1 - fish.y0) / (cardRect.y1 - cardRect.y0)
+			t.ok(
+				share >= 0.36,
+				`{what}: {c.Name}'s fish window {string.format("%.0f", share * 100)} % of the card ≥ 36 %`
+			)
+			t.ok(fish.y1 <= rate.y0 + 0.5, `{what}: {c.Name}'s fish {fmt(fish)} above the income row`)
 		end
 	end
 end
@@ -1182,6 +1203,20 @@ tests["layout: scale-based, under the Wallet, left of the right column and Jump,
 		local viewport = spec.viewport or sim.players.state[sim:Unwrap(p)].viewport
 		local touch = spec.device ~= "desktop"
 		checkLayout(t, sim, p, viewport, touch, spec.name)
+		-- the first tap names the action: «ПРОДАТЬ?» fits every device's card (it falls back to
+		-- «ТОЧНО?» only on a card too narrow for it)
+		tapSell(sim, p, 1)
+		local caption = card(p, 1).Sell.Caption
+		t.eq(caption.Text, TEXTS.Confirm, `{spec.name}: «{TEXTS.Confirm}» on the first tap`)
+		local UiFx = uifx(sim, p)
+		local least = call(sim, p, function()
+			return UiFx.textSize("Small")
+		end) - 2
+		t.ok(
+			UiFx.textWidth(caption.Text, least) <= caption.AbsoluteSize.X + 0.5,
+			`{spec.name}: «{caption.Text}» fits its button at {least} px`
+		)
+		sim:Advance(TankConfig.ConfirmTime + 0.2)
 		local plate = rectOf(hudOf(p).TankPanel)
 		if spec.device ~= "phone" then
 			t.ok(

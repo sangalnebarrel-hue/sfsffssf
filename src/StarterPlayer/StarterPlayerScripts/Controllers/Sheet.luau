@@ -23,9 +23,10 @@
 	    тач-экране — ещё и не на джойстике Roblox (правее него + Margin или выше него − Margin: где
 	    лист теряет меньшую долю места; телефон — правее): кто хочет идти, жмёт туда, а не в
 	    кнопку продажи. Лист — не больше MaxWidth × MaxHeight и не шире, чем нужно карточкам
-	    (opts.contentWidth; в несколько рядов чуть не хватает ширины — карточкам до FitShrink — и
-	    ниже, по карточкам), по центру этого места. Так он никогда не закрывает кошелёк (стопка статуса), кнопку «САДОК»
-	    (колонка справа) и джойстик; может закрыть кнопку действия (модальный лист).
+	    (opts.contentWidth: их ширина и самая большая — владелец может сделать их шире; в
+	    несколько рядов чуть не хватает ширины — карточкам до FitShrink — и ниже, по карточкам),
+	    по центру этого места. Так он никогда не закрывает кошелёк (стопка статуса), кнопку
+	    «САДОК» (колонка справа) и джойстик; может закрыть кнопку действия (модальный лист).
 	    Внутри: шапка — Header доли высоты, HeaderMin..HeaderMax px; ✕ — на правом верхнем углу
 	    (не меньше 44 px); окно карточек — под шапкой до низа с отступом Inset; всё — масштабом
 	    плашки. opts.onPlace(fit) — владелец раскладывает карточки под это окно.
@@ -46,7 +47,7 @@
 	    opts = { Layout: { Margin, MaxWidth, MaxHeight, ChatRight, ChatBottom, Header, HeaderMin,
 	             HeaderMax, Inset, InsetMin, InsetMax, TallFrom, FitShrink } (TankConfig.Panel),
 	             Token: string? (плашка на высоком экране, "Night"),
-	             contentWidth: ((cardsHeight: number, tall: boolean) -> number)?,
+	             contentWidth: ((cardsHeight: number, tall: boolean) -> (number, number?))?,
 	             onPlace: ((fit: Fit) -> ())?, onClose / onClosed: ((reason: string) -> ())? }
 	  sheet:Open() -> boolean          -- false: сейчас нельзя (Busy)
 	  sheet:Close(reason: string?)     -- "close" (✕) | "toggle" | "fishing" | "api" …
@@ -97,7 +98,7 @@ export type Layout = {
 export type Options = {
 	Layout: Layout,
 	Token: string?,
-	contentWidth: ((cardsHeight: number, tall: boolean) -> number)?,
+	contentWidth: ((cardsHeight: number, tall: boolean) -> (number, number?))?,
 	onPlace: ((fit: Fit) -> ())?,
 	onClose: ((reason: string) -> ())?,
 	onClosed: ((reason: string) -> ())?,
@@ -271,8 +272,14 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 		local side = inset * 0.6
 		local cardsTop = headerH + inset * 0.4
 		local cardsH = math.max(plateH - cardsTop - inset * 0.6, 0)
-		local want = if opts.contentWidth then opts.contentWidth(cardsH, tall) + 2 * side else math.huge
-		local plateW = math.min(boxW, cfg.MaxWidth, want)
+		-- карточкам нужно want px при своей ширине и wantMax, если они шире (владелец: в несколько
+		-- рядов, когда все столбцы встают); лист — не шире wantMax
+		local want, wantMax = math.huge, math.huge
+		if opts.contentWidth then
+			local least, most = opts.contentWidth(cardsH, tall)
+			want, wantMax = least + 2 * side, math.max(most or least, least) + 2 * side
+		end
+		local plateW = math.min(boxW, cfg.MaxWidth, wantMax)
 		local shrink = math.max(plateW - 2 * side, 0) / math.max(want - 2 * side, 1)
 		if tall and shrink < 1 and shrink >= cfg.FitShrink and cardsH > 0 then
 			-- В несколько рядов карточкам чуть не хватает ширины (владелец сделает их мельче, но не

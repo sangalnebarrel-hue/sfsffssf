@@ -30,8 +30,8 @@
 	    при открытии, удаляется при закрытии), фишка мутации «👑 ×2», доход «+$4/с», полоска
 	    «×1.4» или золотое «МАКС», кнопка «💵 $45» («ПРОДАТЬ $45» — на широких карточках, если
 	    так влезает самая длинная цена рыб панели: одна подпись на всю панель, решается при
-	    раскладке и когда легла рыба дороже): Leaf дома, Gold у ларька, Berry «ТОЧНО?» с
-	    ringTimer при подтверждении, Slate «⏳» — ждём сервер. Пустая — стекло (на телефоне
+	    раскладке и когда легла рыба дороже): Leaf дома, Gold у ларька, Berry «ПРОДАТЬ?» («ТОЧНО?»,
+	    если не влезает) с ringTimer при подтверждении, Slate «⏳» — ждём сервер. Пустая — стекло (на телефоне
 	    плотнее), 🎣, «ПУСТО», «Поймай рыбу!»; закрытая — Slate, 🔒, «ЕЩЁ МЕСТО», «Скоро в
 	    магазине» (тексты — TankConfig.Texts).
 	  • Числа — из атрибутов своих витрин (RemoteNames, «Состояние садка») и SellRatePct, одна
@@ -46,7 +46,7 @@
 	    выскакивает, цены — по ставке ларька (подпрыгивают), кнопки — Gold (до ≈ 2 с после
 	    прихода к ларьку: сервер ждёт MarketDwell проверок). TankEvent "Open" с ларька (или у
 	    аквариума) только открывает панель.
-	  • Продажа — каждая рыба в два нажатия: первое — «ТОЧНО?» + ringTimer ConfirmTime с и Rate
+	  • Продажа — каждая рыба в два нажатия: первое — «ПРОДАТЬ?» + ringTimer ConfirmTime с и Rate
 	    карточки красным «−$4/с»; нажатие раньше ConfirmArm после ПРЕДЫДУЩЕГО не считается и
 	    начинает отсчёт заново (кнопка качается: «барабанить» не продаёт — продаёт только нажатие
 	    после паузы ≥ ConfirmArm, пока идут 3 с) — TankSell(uid),
@@ -117,7 +117,7 @@ local TEXTS = TankConfig.Texts
 local MAX_SLOTS = TankConfig.MaxSlots
 local HOME_RATE = EconomyConfig.HomeRatePct
 local BOTTOM = 0.03 -- под рядом карточек — столько их высоты (обводка не обрезается)
-local RING_Z = 8 -- кольцо «ТОЧНО?» — над лицом и подписью кнопки (Theme.SZ.Top 6 + 2)
+local RING_Z = 8 -- кольцо «ПРОДАТЬ?» — над лицом и подписью кнопки (Theme.SZ.Top 6 + 2)
 local FLOAT_Z = 40 -- «+$45» продажи — над листом (ZIndex 30)
 local CHIP_OUT = 0.18 -- фишка рынка уходит за столько секунд
 local HEAD_SLACK = 1.08 -- запас к оценке ширины текста шапки (UiFx.textWidth, наклон, обводка)
@@ -261,10 +261,15 @@ local function cardHeight(cardsH: number, tall: boolean): number
 	return cardsH / (rows + (rows - 1) * PANEL.Gap * aspect + PANEL.Overhang + BOTTOM)
 end
 
-local function contentWidth(cardsH: number, tall: boolean): number
-	local cw = cardHeight(cardsH, tall) * aspectFor(tall)
+-- Ширина карточек в окне высотой cardsH: при своей ширине (Aspect / AspectTall) и самая большая —
+-- в несколько рядов карточки бывают шире, до AspectWide (Sheet: лист не шире второй). Просветы и
+-- поля — от своей ширины (unit): шире становятся только сами карточки.
+local function contentWidth(cardsH: number, tall: boolean): (number, number)
+	local ch = cardHeight(cardsH, tall)
+	local unit = ch * aspectFor(tall)
 	local cols = math.max(math.ceil(cardCount() / rowsFor(tall)), 1)
-	return 2 * PANEL.Side * cw + cols * cw + (cols - 1) * PANEL.Gap * cw
+	local rim = ((cols - 1) * PANEL.Gap + 2 * PANEL.Side) * unit
+	return cols * unit + rim, cols * ch * (if tall then PANEL.AspectWide else PANEL.Aspect) + rim
 end
 
 local clearCards: () -> ()
@@ -282,16 +287,21 @@ local function onPlace(fit: Sheet.Fit)
 	local windowW, windowH = math.max(fit.cards.X, 1), math.max(fit.cards.Y, 1)
 	local ch = cardHeight(fit.cards.Y, tall)
 	local cw = ch * aspectFor(tall)
+	local unit = cw -- (просветы и поля — от своей ширины карточки, не от расширенной)
 	if tall then
 		-- в несколько рядов все столбцы — в окне (не листается), если карточки для этого мельче
-		-- не больше чем до FitShrink (Sheet уже сделал лист ниже — по ним); иначе ряды листаются
+		-- не больше чем до FitShrink (Sheet уже сделал лист ниже — по ним), а есть место — шире, до
+		-- AspectWide (той же высоты: доходу и полоске просторнее); иначе ряды листаются
 		local fitAll = windowW / (cols + (cols - 1) * PANEL.Gap + 2 * PANEL.Side)
-		if fitAll >= PANEL.FitShrink * cw then
-			cw = math.min(cw, fitAll)
+		if fitAll < cw and fitAll >= PANEL.FitShrink * cw then
+			cw, unit = fitAll, fitAll
 			ch = cw / aspectFor(tall)
+		elseif fitAll >= cw then
+			local room = (windowW - ((cols - 1) * PANEL.Gap + 2 * PANEL.Side) * unit) / cols
+			cw = math.min(room, ch * PANEL.AspectWide)
 		end
 	end
-	local gap, side = PANEL.Gap * cw, PANEL.Side * cw
+	local gap, side = PANEL.Gap * unit, PANEL.Side * unit
 	local top, bottom = PANEL.Overhang * ch, BOTTOM * ch
 	local content = 2 * side + cols * cw + (cols - 1) * gap
 	-- (+1 px: сетка кладёт в ряд ровно cols карточек и с ошибкой округления)
@@ -516,7 +526,7 @@ end
 
 clearCards = function()
 	if S.confirm then
-		stopConfirm(false) -- (кольцо «ТОЧНО?» уходит вместе с карточкой)
+		stopConfirm(false) -- (кольцо «ПРОДАТЬ?» уходит вместе с карточкой)
 	end
 	for slot, card in S.cards do
 		TankCards.destroy(card)
@@ -594,7 +604,7 @@ onSell = function(card: Card)
 		return
 	end
 	if S.confirm ~= card then
-		-- Первое нажатие: «ТОЧНО?» с кольцом на ConfirmTime с, доход карточки — красным «−$4/с».
+		-- Первое нажатие: «ПРОДАТЬ?» с кольцом на ConfirmTime с, доход карточки — красным «−$4/с».
 		stopConfirm(true)
 		S.confirm = card
 		S.confirmAt = os.clock()

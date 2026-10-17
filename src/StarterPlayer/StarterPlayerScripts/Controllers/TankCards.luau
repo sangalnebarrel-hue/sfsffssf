@@ -12,19 +12,21 @@
 	    TankConfig.Panel.WideCard — полное, если влезает), сама рыба во ViewportFrame (копия
 	    ReplicatedStorage.Assets.Fish[FishId][мутация или Normal]; камера ставится один раз),
 	    фишка мутации над левым верхним углом («👑 ×2» в цветах мутации; имя тогда — правее её
-	    значка, полное — только если влезает и так), доход «+$4/с», полоска роста «×1.4» (или
-	    золотое «МАКС»), кнопка продажи.
+	    значка, полное — только если влезает и так), доход «+$4/с» и полоска роста с «×1.4» на
+	    ней (или золотое «МАКС») — в одной строке, кнопка продажи.
 	  • Раскладка карточки рыбы — снизу, в px карточки, записанных долями (TankConfig.Panel.Card):
-	    кнопка продажи (≥ SellMin px), над ней — с зазором под обводки и наклон штампа — полоска
-	    роста (штамп «МАКС» — в её строке), доход, сверху имя; рыбе — что осталось (на низкой
-	    карточке телефона мельче рыба, полоска и «МАКС» видны всегда).
+	    кнопка продажи (≥ SellMin px), над ней — с зазором под обводки и наклон штампа — одна
+	    строка: доход слева (по ширине своего текста), полоска справа (не уже штампа «МАКС»);
+	    сверху имя; рыбе — всё между ними (строка дохода ей уступлена; на низкой карточке
+	    телефона мельче рыба, а доход, полоска и «МАКС» видны всегда).
 	  • update(card, now, ratePct, wideSell) — раз в секунду (цепочка панели): возраст —
 	    TankRules.AgeAt(GrowFrom, now), полоска и «×N», цена продажи по ставке места
 	    TankRules.SellPrice; возвращает цену и растёт ли ещё.
 	  • setLook(card, look, wideSell) — вид кнопки продажи: "home" — Leaf «💵 $45» (wideSell —
 	    «ПРОДАТЬ $45»: одна подпись на всю панель, её решает sellStyle по самой длинной цене reach),
-	    "market" — то же Gold (ларёк, ×1.5), "confirm" — Berry «ТОЧНО?», "busy" — Slate «⏳»
-	    (ждём сервер). showLoss(card, on) — доход карточки красным «−$4/с» (пока ждём «ТОЧНО?»).
+	    "market" — то же Gold (ларёк, ×1.5), "confirm" — Berry «ПРОДАТЬ?» (что сделает второе
+	    нажатие; не влезает в кнопку карточки — «ТОЧНО?»), "busy" — Slate «⏳» (ждём сервер).
+	    showLoss(card, on) — доход карточки красным «−$4/с» (пока ждём второго нажатия).
 	  • Пустая (make "empty") — стекло (на стеклянном листе телефона — плотнее, Panel.EmptyAlpha:
 	    мир сквозь два слоя не читается частью карточки), бледная 🎣, «ПУСТО», «Поймай рыбу!»;
 	    закрытая (make "locked") — Slate, 🔒, «ЕЩЁ МЕСТО», «Скоро в магазине».
@@ -89,6 +91,7 @@ export type Card = {
 	look: string, -- "home" | "market" | "confirm" | "busy"
 	price: number,
 	wideSell: boolean, -- подпись кнопки «ПРОДАТЬ $45» (иначе «💵 $45»): одна на всю панель
+	confirmText: string, -- подпись «confirm»: «ПРОДАТЬ?» или, если не влезает, «ТОЧНО?»
 	gone: boolean?, -- продана: сжимается, вот-вот уступит место пустой карточке
 }
 
@@ -189,14 +192,25 @@ local function outline(gui: Instance?): number
 	return if edge then UiFx.strokeThickness(edge) else 0
 end
 
+-- «×1.4»: одна цифра после точки, «×3» без «.0».
+local function multText(growth: number): string
+	local tenths = math.floor(growth * 10 + 1e-6)
+	local text = if tenths % 10 == 0
+		then string.format("%d", tenths // 10)
+		else string.format("%d.%d", tenths // 10, tenths % 10)
+	return TextUtil.fill(TEXTS.Growth, { mult = text })
+end
+
 --[[
 	Карточка рыбы w × h px — СНИЗУ вверх (TankConfig.Panel.Card), всё записано долями карточки:
-	кнопка продажи (не ниже SellMin px) над Foot; полоска роста — над её обводкой, с зазором под
-	обводку и наклон штампа «МАКС» (он — внутри строки полоски по высоте); доход над полоской; имя
-	сверху; рыба — всё, что осталось между именем и доходом, и ещё Overlap их высоты (надписи — над
-	ней).
+	кнопка продажи (не ниже SellMin px) над Foot; над её обводкой — с зазором под обводку и наклон
+	штампа «МАКС» (он — внутри строки по высоте) — одна строка Row ширины карточки: слева доход
+	(Rate — по ширине самого длинного своего текста «+$4/с» / «−$4/с»), через RowGap — полоска роста
+	(Growth: «×1.4» на ней, «МАКС» поверх; не уже, чем нужно «МАКС» самым мелким размером); имя
+	сверху; рыба — всё между именем и строкой дохода и ещё Overlap высоты имени (имя — над ней).
+	Доход не помещается и самым мелким размером — уступает полоска (деньги важнее «×1.4»).
 ]]
-local function layout(frame: GuiObject, size: Vector2)
+local function layout(frame: GuiObject, size: Vector2, info: Info)
 	local w, h = math.max(size.X, 1), math.max(size.Y, 1)
 	local sell = child(frame, "Sell")
 	local growth = child(frame, "Growth")
@@ -217,30 +231,48 @@ local function layout(frame: GuiObject, size: Vector2)
 	local sellTop = h - foot - sellH
 	sell.Position = UDim2.fromScale(0.5, (h - foot) / h)
 	sell.Size = UDim2.fromScale(sell.Size.X.Scale, sellH / h)
-	-- штамп «МАКС»: его обводка и наклон (угол поднимается на половину ширины × sin) — снаружи
-	-- строки полоски и сверху, и снизу
+	-- ширины строки: доход — по своему тексту (полный размер, если влезает; иначе TextScaled ужмёт),
+	-- полоска — остальное, но не уже штампа «МАКС» (его надпись — доля Label ширины штампа)
+	local rowW, gap = CARD.Row * w, math.max(CARD.RowGap * w, 3)
+	local income10 = TankCards.income10(info)
+	local function rateInk(px: number): number
+		return math.max(
+			UiFx.textWidth(TankRules.FormatRate(income10), px),
+			UiFx.textWidth(TankRules.FormatRate(-income10), px)
+		) + 2
+	end
 	local stamp = child(growth, "Max")
-	local stampW = if stamp then stamp.Size.X.Scale * growth.Size.X.Scale * w else 0
-	local tilt = if stamp then stampW / 2 * math.abs(math.sin(math.rad(stamp.Rotation))) else 0
+	local stampLabel = if stamp then child(stamp, "Label") else nil
+	local labelShare = if stampLabel then stampLabel.Size.X.Scale else 0.9
+	local barMin = math.max(
+		UiFx.textWidth(TEXTS.Max, least("Small")) / labelShare + 2 * outline(stamp),
+		UiFx.textWidth(multText(CAP - 0.1), least("Small")) + 6
+	)
+	local rateW = math.min(rateInk(UiFx.textSize("Body")), rowW - gap - barMin)
+	rateW = math.max(rateW, math.min(rateInk(least("Body")), rowW - gap - barMin / 2))
+	local barW = math.max(rowW - gap - rateW, 0)
+	-- штамп «МАКС»: его обводка и наклон (угол поднимается на половину ширины × sin) — снаружи
+	-- строки и сверху, и снизу
+	local tilt = if stamp then barW / 2 * math.abs(math.sin(math.rad(stamp.Rotation))) else 0
 	local stampOut = outline(stamp) + tilt
-	local label = if stamp then child(stamp, "Label") else nil
-	local share = if label then label.Size.Y.Scale else 1
-	local growthH = math.max(CARD.GrowthShare * h, CARD.GrowthMin, least("Small") / share)
-	local growthTop = sellTop - edge - stampOut - 1 - growthH
-	growth.Position = UDim2.fromScale(0.5, growthTop / h)
-	growth.Size = UDim2.fromScale(growth.Size.X.Scale, growthH / h)
-	local rateH = math.max(CARD.RateShare * h, least("Body"))
-	local rateTop = growthTop - stampOut - rateH
-	rate.Position = UDim2.fromScale(0.5, rateTop / h)
-	rate.Size = UDim2.fromScale(rate.Size.X.Scale, rateH / h)
+	local share = if stampLabel then stampLabel.Size.Y.Scale else 1
+	local rowH = math.max(CARD.GrowthShare * h, CARD.GrowthMin, least("Small") / share, least("Body"))
+	local rowTop = sellTop - edge - stampOut - 1 - rowH
+	local left = (w - rowW) / 2
+	rate.AnchorPoint = Vector2.new(0, 0)
+	rate.Position = UDim2.fromScale(left / w, rowTop / h)
+	rate.Size = UDim2.fromScale(rateW / w, rowH / h)
+	growth.AnchorPoint = Vector2.new(1, 0)
+	growth.Position = UDim2.fromScale((left + rowW) / w, rowTop / h)
+	growth.Size = UDim2.fromScale(barW / w, rowH / h)
 	local nameTop = CARD.NameTop * h
 	local nameH = math.max(CARD.NameShare * h, least("Small"))
-	local nameBottom = nameTop + nameH
 	name.Position = UDim2.fromScale(0.5, nameTop / h)
 	name.Size = UDim2.fromScale(name.Size.X.Scale, nameH / h)
-	-- рыба заходит под имя и под доход на Overlap их высоты (надписи — поверх неё, с обводкой)
-	local fishTop = nameBottom - CARD.Overlap * nameH
-	local fishBottom = rateTop + CARD.Overlap * rateH
+	-- рыба заходит под имя на Overlap его высоты (имя — поверх неё, с обводкой) и до самой строки
+	-- дохода (наклонённый угол штампа «МАКС» — над ней)
+	local fishTop = nameTop + nameH - CARD.Overlap * nameH
+	local fishBottom = rowTop - 1
 	viewport.Position = UDim2.fromScale(0.5, fishTop / h)
 	viewport.Size = UDim2.fromScale(viewport.Size.X.Scale, math.max(fishBottom - fishTop, 0) / h)
 end
@@ -315,18 +347,9 @@ local function fillFish(card: Card, info: Info, wide: boolean, size: Vector2)
 	end
 end
 
--- «×1.4»: одна цифра после точки, «×3» без «.0».
-local function multText(growth: number): string
-	local tenths = math.floor(growth * 10 + 1e-6)
-	local text = if tenths % 10 == 0
-		then string.format("%d", tenths // 10)
-		else string.format("%d.%d", tenths // 10, tenths % 10)
-	return TextUtil.fill(TEXTS.Growth, { mult = text })
-end
-
 local function captionFor(card: Card): string
 	if card.look == "confirm" then
-		return TEXTS.Confirm
+		return card.confirmText
 	elseif card.look == "busy" then
 		return TEXTS.Busy
 	end
@@ -335,6 +358,21 @@ local function captionFor(card: Card): string
 		return TextUtil.fill(TEXTS.SellWide, { sell = TEXTS.Sell, price = money })
 	end
 	return TextUtil.fill(TEXTS.SellPhone, { price = money })
+end
+
+-- Подпись ожидания второго нажатия на карточке frame шириной width px: «ПРОДАТЬ?» (что сделает
+-- нажатие), если влезает в подпись кнопки хотя бы самым мелким размером её уровня (TextScaled
+-- ужмёт до него), иначе короткое «ТОЧНО?».
+local function confirmFor(frame: GuiObject, width: number): string
+	local sell = child(frame, "Sell")
+	local caption = sell and child(sell, "Caption")
+	if not caption then
+		return TEXTS.ConfirmShort
+	end
+	local tier = caption:GetAttribute("TextTier")
+	local least = UiFx.textSize(if typeof(tier) == "string" then tier else "Small") - 2
+	local fits = UiFx.textWidth(TEXTS.Confirm, least) <= boxWidth(caption, frame, width)
+	return if fits then TEXTS.Confirm else TEXTS.ConfirmShort
 end
 
 -- Самая длинная цена, до которой дорастёт рыба info: МАКС у ларька.
@@ -453,6 +491,7 @@ function TankCards.make(
 		look = "home",
 		price = 0,
 		wideSell = false,
+		confirmText = TEXTS.ConfirmShort,
 	}
 	card.trove:Add(frame)
 	frame:SetAttribute("Slot", slot)
@@ -461,12 +500,13 @@ function TankCards.make(
 	end
 	if kind == "fish" and info then
 		frame:SetAttribute("FishUid", info.uid)
-		layout(frame, size)
+		layout(frame, size, info)
 		card.rate = child(frame, "Rate")
 		local sell = child(frame, "Sell")
 		if sell and sell:IsA("GuiButton") then
 			card.sell = sell
 			card.caption = child(sell, "Caption")
+			card.confirmText = confirmFor(frame, size.X)
 			card.trove:Add(UiFx.press(sell, { sound = "click" }))
 			if onSell then
 				card.trove:Add(sell.Activated:Connect(function()
