@@ -1834,7 +1834,10 @@ The integrator merges, resolves `Place1.rbxl` by rebuilding, and re-runs the sui
 - **Sim:** S1–S4b, S6–S8 + README + selftests (S5 is a static test).
 - **Preview:** gui_dump stubs + harness helpers; `checks.py` `CONTAINERS` / `SHEETS` + the new sheet.
 - **Tests:** `tests/stage4_rules.test.luau` (incl. TheftChecks, CarryGuard and the fairness
-  invariants), `tests/stage4_kit.luau` (incl. `Kit.boot` with the Studio knob off and `Kit.drive`).
+  invariants), `tests/stage4_kit.luau` (incl. `Kit.boot` with the Studio knob off and `Kit.drive`),
+  `tests/stage4_kit_selftest.test.luau` (the kit against the merged sim) and
+  `tests/stage4_data_hooks.test.luau` (W0 review: `Released`, `AmendLeaving` / `FinalTaken` incl. a
+  failed final attempt, `OnClose` in both shutdown orders, `SetHomeGuard` with a CFrame).
 
 **Accept:** the suite is green; every name of §6.1 exists in the place; renders show no visible change
 except the hidden widgets; `compile_limits` is fine.
