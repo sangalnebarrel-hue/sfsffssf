@@ -115,7 +115,7 @@ return {
 	},
 	{
 		name = "tank_panel_market",
-		desc = "At a stall: TankEvent Open, then the server's SellRatePct 150 — the Gold «🏪 РЫНОК +50%» chip pops in, the prices jump ×1.5, the buttons turn Gold",
+		desc = "Opened by «САДОК» on the way, then at a stall the server's SellRatePct 150 — the Gold «🏪 РЫНОК +50%» chip pops in, the prices jump ×1.5, the buttons turn Gold (a stall's own prompt opens the panel at 150 already)",
 		still = { 0.1, 0.8 },
 		sheet = { from = 0, to = 0.8, fps = 15, roi = PANEL_ROI, margin = 0.03 },
 		run = function(h: any)
@@ -126,7 +126,7 @@ return {
 			end
 			h:money(5400, income10)
 			showChrome(h)
-			h:tankEvent("Open", { Place = "Market", RatePct = 100, Name = "Рыбный рынок" })
+			h:tankEvent("Open", { Place = "Tank", RatePct = 100, Name = "Садок" })
 			h:advance(1.2)
 			h.player:SetAttribute("SellRatePct", 150)
 			h.player:SetAttribute("SellPlace", "Market")

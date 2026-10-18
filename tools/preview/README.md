@@ -747,8 +747,9 @@ camera. Render them HUD-less: `gui_render.py --scenario tank_court,tank_aisle --
 Stage 3 tank panel (`tools/preview/gui_scenarios_panel.luau`, listed after the built-in states, in
 the standard set): `tank_panel_home` (3/6: a Gold Perch, a maxed Puffer, a young Crucian, empty
 cards, the locked teaser; the open's rise and card pops at 0.12 s), `tank_panel_full` (6/6 with a
-Rainbow Dragon, the Gold count chip), `tank_panel_market` (TankEvent "Open" from the hub market,
-then `SellRatePct` 150: the «РЫНОК +50%» chip pops in, the prices jump, the buttons turn Gold),
+Rainbow Dragon, the Gold count chip), `tank_panel_market` (opened by «САДОК» on the way, then
+`SellRatePct` 150 at a stall: the «РЫНОК +50%» chip pops in, the prices jump, the buttons turn Gold;
+a stall's own prompt opens the panel with 150 already, as in `tank_panel_market_full`),
 `tank_sell_confirm` (the first tap: Berry «ПРОДАТЬ?» with its ring, the red «−$X/с»), `tank_sell`
 (the second tap, then the stub server's answer — the display empties with "sold", TankEvent
 "Sold": the card squashes, «+$X» rises, an empty card pops in), `tank_panel_market_full` (at a
