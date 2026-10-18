@@ -31,7 +31,10 @@ widgets(objects, W, H) / layout_findings(...)  (RND-02)
     hotbar, top-bar buttons, desktop chat/player list) closer than MIN_GAP (16 px) is reported
     with the gap (negative = overlap depth) and the two closest points; a designed stack of
     passive widgets (STACKED: the status stack and the toast column under it) only when they
-    overlap. Glow rings (FxRing)
+    overlap; a widget in flight INTO another (LANDING: its root carries the dumped attribute
+    FxLandingIn = the target's name, set by its controller only for that flight — the base banner
+    shrinking into the badge) is not judged against that target meanwhile — an intended merge;
+    against everything else it still is. Glow rings (FxRing)
     are reported separately when they reach into Jump or the thumbstick ("fx").
 
 text_floor(objects)
@@ -466,12 +469,16 @@ def widget_of(path):
 
 
 def widgets(objects, W, H):
-    """{widget path: {"parts": [rrect...], "fx": [rrect...], "box": (x0, y0, x1, y1)}}."""
+    """{widget path: {"parts": [rrect...], "fx": [rrect...], "box": (x0, y0, x1, y1)[, "landing":
+    target widget path]}}."""
     out = {}
     for o in objects:
         root, kind = widget_of(o["path"])
         if not root or not kind:
             continue
+        if o["path"] == root and o.get("landing"):
+            # LANDING: the widget flies into a sibling widget of its container (the module doc)
+            out.setdefault(root, {"parts": [], "fx": []})["landing"] = root.rsplit(".", 1)[0] + "." + o["landing"]
         shapes = object_shapes(o)
         if not shapes:
             continue
@@ -541,6 +548,8 @@ def layout_findings(objects, W, H, chrome, min_gap=MIN_GAP):
     found = []
     for i, a in enumerate(names):
         for b in names[i + 1:]:
+            if ws[a].get("landing") == b or ws[b].get("landing") == a:
+                continue  # LANDING: one flies into the other (an intended merge)
             need = STACKED.get((a, b), STACKED.get((b, a), min_gap))
             res = _closest(ws[a]["parts"], ws[b]["parts"], min_gap)
             if res and res[0] < need:
@@ -682,4 +691,16 @@ def selftest():
     gaps = {(f["a"], f["b"]): f["gap"] for f in found}
     near(gaps[("HUD.Fishing.ActionArea", "HUD.Fishing.Hint")], 10)
     near(gaps[("HUD.Fishing.ActionArea", "Jump")], 5)
+    # LANDING: the banner flying into the badge is not judged against it — only while it says so,
+    # and only against its target
+    landing = [
+        {"path": "HUD.Status", "x": 40, "y": 0, "w": 20, "h": 10, "bgT": 0},
+        {"path": "HUD.BaseBanner", "x": 30, "y": 12, "w": 40, "h": 10, "bgT": 0, "landing": "Status"},
+        {"path": "HUD.RightButtons", "x": 75, "y": 30, "w": 10, "h": 10, "bgT": 0},
+    ]
+    pairs = {(f["a"], f["b"]) for f in layout_findings(landing, 100, 100, {})[0]}
+    assert pairs == {("HUD.BaseBanner", "HUD.RightButtons")}, pairs
+    del landing[1]["landing"]
+    pairs = {(f["a"], f["b"]) for f in layout_findings(landing, 100, 100, {})[0]}
+    assert ("HUD.BaseBanner", "HUD.Status") in pairs, pairs
     return True

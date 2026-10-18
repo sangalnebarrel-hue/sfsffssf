@@ -616,6 +616,13 @@ local function describe(inst: any, rect: Rect, T: Xf, clip: { number }?, alpha: 
 		bg = rgb(get(inst, "BackgroundColor3", roblox.Color3.new(1, 1, 1))),
 		bgT = r2(get(inst, "BackgroundTransparency", 0)),
 	}
+	-- A widget flying into another (HudController: the base banner landing in the status badge)
+	-- names its target while it flies: the layout check does not judge that pair then (checks.py
+	-- LANDING).
+	local landing = inst:GetAttribute("FxLandingIn")
+	if typeof(landing) == "string" then
+		o.landing = landing
+	end
 	local corner = childOfClass(inst, "UICorner")
 	if corner then
 		-- Lune's reflection database stores the four per-corner radii (CornerRadius sets all

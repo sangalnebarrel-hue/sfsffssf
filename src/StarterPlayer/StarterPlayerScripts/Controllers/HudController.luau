@@ -14,7 +14,8 @@
 	    было 16 px, но не ближе 16 px к строкам статуса — placeBanner): имя «влетает» (slam: растёт
 	    от своей нижней кромки и не крупнее, чем позволяют 16 px до плашек статуса, колонки кнопок и
 	    кнопки действия — nameSlamFrom) и вспыхивает, флажок машет, лучи, конфетти и «фанфара»;
-	    через 2 с надпись сжимается и влетает в плашку, плашка подпрыгивает, её ободок
+	    через 2 с надпись сжимается и влетает в плашку (в полёте — атрибут FxLandingIn = "Status"),
+	    плашка подпрыгивает, её ободок
 	    вспыхивает, блик (пока баннер виден, подсказка рыбалки ждёт — FishingController смотрит
 	    на его Visible). Если база досталась после ожидания в очереди — уведомление «Тебе
 	    досталась Лазурная база!» в цветах базы с 🚩. Над табличкой своей базы в мире (надпись над
@@ -207,10 +208,14 @@ function HudController:Start(hud: ScreenGui)
 		local squeeze =
 			UiFx.tween(scale, BANNER_FLY, { Scale = shrink }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 		UiFx.sound("swoosh", 0.35, 1.2)
+		-- (Пока летит — помечен: «влетает в Status», намеренное слияние с плашкой; проверка раскладки
+		-- превью эту пару в полёте не судит — tools/preview/gui/checks.py LANDING.)
+		live:SetAttribute("FxLandingIn", status.Name)
 		bannerTrove:Add(task.delay(BANNER_FLY, function()
 			move:Cancel() -- твины могли закончиться позже этого таймера — не дадим им перетереть сброс
 			squeeze:Cancel()
 			bannerTrove:Clean()
+			live:SetAttribute("FxLandingIn", nil)
 			live.Visible = false
 			live.Position = bannerRest
 			scale.Scale = 1
@@ -301,7 +306,7 @@ function HudController:Start(hud: ScreenGui)
 	end
 
 	-- Имя «ударяет» с NAME_SLAM, но не крупнее, чем есть места: растёт от своей нижней кромки (к
-	-- кнопке действия под баннером не опускается) и и в начале держит SLAM_CLEAR до соседей
+	-- кнопке действия под баннером не опускается) и уже в начале держит SLAM_CLEAR до соседей
 	-- (bannerNeighbours; V-02: на маленьком телефоне и планшете удар 1.8 доставал до «ДОМОЙ»).
 	-- Меряется до «выскока» баннера (масштаб 1).
 	local function nameSlamFrom(nameLabel: GuiObject): number
@@ -318,6 +323,7 @@ function HudController:Start(hud: ScreenGui)
 			return
 		end
 		bannerTrove:Clean()
+		live:SetAttribute("FxLandingIn", nil)
 		live.Visible = true
 		placeBanner(live, live:FindFirstChild("NameLabel") :: GuiObject?)
 		local caption = live:FindFirstChild("Caption")
