@@ -43,6 +43,11 @@ S.SHIELD = Kit.DefenceConfig.Shield
 S.DOG = Kit.DefenceConfig.Dog
 S.LOCK = Kit.DefenceConfig.Lock
 S.BASE_HOLD = Kit.DefenceConfig.Lock.BaseHold
+S.Vector3 = Vector3
+
+function S.Vector3up(y: number): any
+	return Vector3.new(0, y, 0)
+end
 
 function S.serverRun(sim: any, fn: () -> any): any
 	return sim:Run(fn)
@@ -171,6 +176,41 @@ function S.rowByOrigin(rows: { any }?, origin: string): any
 		end
 	end
 	return nil
+end
+
+-- A fish straight into a tank through the server (reason "catch" by default: FreshUntil set).
+function S.addFish(sim: any, p: any, id: string, kg: number?, reason: string?): any
+	local rules = Kit.shared(sim, "FishingRules")
+	local def = Kit.fishDef(id)
+	local weight = kg or def.MinKg
+	local value, income = rules.Price(id, weight, nil)
+	local tank = Kit.service(sim, "TankService")
+	return sim:Run(function()
+		return tank:AddFish(
+			p,
+			{ Id = id, Rarity = def.Rarity, Kg = weight, Value = value, Income = income },
+			reason or "catch"
+		)
+	end)
+end
+
+-- One hold attempt that the server should refuse: the Denied payload (nil — none came).
+function S.denied(t: any, sim: any, thief: any, owner: any, slot: number, opts: { [string]: any }?): any
+	local before = #Kit.theftEvents(sim, thief, "Denied")
+	local o = opts or {}
+	local prompt = S.prompt(sim, owner, slot)
+	if o.fire then
+		sim:FirePromptEvent(thief, prompt, "HoldBegan")
+		sim:Advance(S.FRAME)
+	else
+		local hold = S.hold(t, sim, thief, owner, slot, o.holdOpts or { ignoreEnabled = true })
+		if hold.active then
+			sim:ReleasePrompt(thief, prompt)
+		end
+	end
+	sim:Advance(S.FRAME)
+	local list = Kit.theftEvents(sim, thief, "Denied")
+	return if #list > before then list[#list].data else nil
 end
 
 -- Teleports a player's character (keeps the height).
