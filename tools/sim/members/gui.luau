@@ -1,7 +1,8 @@
 -- members/gui.luau: GUI members. Absolute sizes/positions are computed from
 -- UDim2 Size/Position, AnchorPoint, SizeConstraint, UIPadding, UISizeConstraint,
--- UIAspectRatioConstraint and basic UIListLayout/UIGridLayout stacking,
--- against the owning player's viewport (device profile).
+-- UIAspectRatioConstraint and basic UIListLayout/UIGridLayout stacking (a grid fills rows or,
+-- with FillDirection Vertical, columns; FillDirectionMaxCells caps a line), against the owning
+-- player's viewport (device profile).
 
 local roblox = require("@lune/roblox")
 
@@ -104,6 +105,39 @@ return function(M)
 		return items
 	end
 
+	-- A UIGridLayout in a parent of psize px: cell and padding px, cells per line (FillDirection
+	-- Horizontal — per row, by the width; Vertical — per column, by the height; FillDirectionMaxCells
+	-- caps it) and cell(idx) -> (column, row) of the idx-th (0-based) item.
+	local function gridOf(grid, psize)
+		local cell, cpad = grid.CellSize, grid.CellPadding
+		local cw = cell.X.Scale * psize.X + cell.X.Offset
+		local ch = cell.Y.Scale * psize.Y + cell.Y.Offset
+		local px = cpad.X.Scale * psize.X + cpad.X.Offset
+		local py = cpad.Y.Scale * psize.Y + cpad.Y.Offset
+		local vertical = readOr(grid, "FillDirection", Enum.FillDirection.Horizontal) == Enum.FillDirection.Vertical
+		local fit = if vertical
+			then math.max(1, math.floor((psize.Y + py) / math.max(ch + py, 1)))
+			else math.max(1, math.floor((psize.X + px) / math.max(cw + px, 1)))
+		local maxCells = readOr(grid, "FillDirectionMaxCells", 0)
+		if maxCells > 0 then
+			fit = math.min(fit, maxCells)
+		end
+		return {
+			cw = cw,
+			ch = ch,
+			px = px,
+			py = py,
+			vertical = vertical,
+			fit = fit,
+			cell = function(idx: number): (number, number)
+				if vertical then
+					return idx // fit, idx % fit
+				end
+				return idx % fit, idx // fit
+			end,
+		}
+	end
+
 	-- Position of `gui` inside a parent that has a UIListLayout / UIGridLayout.
 	local function layoutPosition(gui, parent, ppos, psize)
 		local list = parent:FindFirstChildOfClass("UIListLayout")
@@ -122,17 +156,11 @@ return function(M)
 		end
 		local grid = parent:FindFirstChildOfClass("UIGridLayout")
 		if grid then
-			local cell, cpad = grid.CellSize, grid.CellPadding
-			local cw = cell.X.Scale * psize.X + cell.X.Offset
-			local ch = cell.Y.Scale * psize.Y + cell.Y.Offset
-			local px = cpad.X.Scale * psize.X + cpad.X.Offset
-			local py = cpad.Y.Scale * psize.Y + cpad.Y.Offset
-			local perRow = math.max(1, math.floor((psize.X + px) / math.max(cw + px, 1)))
+			local g = gridOf(grid, psize)
 			for i, c in sortedSiblings(parent, grid) do
 				if c == gui then
-					local idx = i - 1
-					return ppos + Vector2.new((idx % perRow) * (cw + px), (idx // perRow) * (ch + py)),
-						Vector2.new(cw, ch)
+					local col, row = g.cell(i - 1)
+					return ppos + Vector2.new(col * (g.cw + g.px), row * (g.ch + g.py)), Vector2.new(g.cw, g.ch)
 				end
 			end
 		end
@@ -294,15 +322,11 @@ return function(M)
 		local _, psize = absRect(sim, parent)
 		local items = sortedSiblings(parent, layout)
 		if layout:IsA("UIGridLayout") then
-			local cell, cpad = layout.CellSize, layout.CellPadding
-			local cw = cell.X.Scale * psize.X + cell.X.Offset
-			local ch = cell.Y.Scale * psize.Y + cell.Y.Offset
-			local px = cpad.X.Scale * psize.X + cpad.X.Offset
-			local py = cpad.Y.Scale * psize.Y + cpad.Y.Offset
-			local perRow = math.max(1, math.floor((psize.X + px) / math.max(cw + px, 1)))
-			local rows = math.ceil(#items / perRow)
-			local cols = math.min(#items, perRow)
-			return Vector2.new(math.max(cols * (cw + px) - px, 0), math.max(rows * (ch + py) - py, 0))
+			local g = gridOf(layout, psize)
+			local lines, along = math.ceil(#items / g.fit), math.min(#items, g.fit)
+			local cols = if g.vertical then lines else along
+			local rows = if g.vertical then along else lines
+			return Vector2.new(math.max(cols * (g.cw + g.px) - g.px, 0), math.max(rows * (g.ch + g.py) - g.py, 0))
 		end
 		local vertical = readOr(layout, "FillDirection", Enum.FillDirection.Vertical) == Enum.FillDirection.Vertical
 		local pad = readOr(layout, "Padding", roblox.UDim.new(0, 0))
