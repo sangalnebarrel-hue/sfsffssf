@@ -828,7 +828,7 @@ end
 -- (Deliberate UI v2 changes against the v1 version of this test: a known Common fish has no dim
 -- and no confetti; the texts appear by beats; «НОВИНКА!» instead of «НОВАЯ!». Wave D: the name is
 -- born with the card, and a NEW Common species gets a small fanfare — a light dim, brighter rays
--- with gold and green, sparks + confetti + a ping at «НОВИНКА!», a «+N 💰»; the same species again
+-- with gold and green, sparks + confetti + a ping at «НОВИНКА!», a «+$4/с»; the same species again
 -- is calm. Stage 3: «цена $11» in the summary, and what flies out of the price is the fish's income
 -- «+$1.1/с».)
 tests["catch card: Common reveal — a new species gets a small fanfare, a known one stays calm"] = function(t)
@@ -3277,7 +3277,7 @@ tests["card dock on a tablet: the square card stands beside the projected fisher
 	end
 end
 
-tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticker, chips, rays and «+N 💰» keep clear"] = function(
+tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticker, chips, rays and «+$4/с» keep clear"] = function(
 	t
 )
 	-- SIMC-C1-02: a 667 x 375 phone, a giant Mythic trophy (x 148..396): the 128 px landscape
@@ -3359,7 +3359,7 @@ tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticke
 	t.eq(chip.Icon.Size, chip.Icon:GetAttribute("RestSize"), "a wide chip: the builder's icon")
 	t.eq(chip.Label.Size, chip.Label:GetAttribute("RestSize"), "…and label")
 
-	-- «+N 💰» beside a docked card: above the banner when there is room, else at the outer
+	-- «+$4/с» beside a docked card: above the banner when there is room, else at the outer
 	-- edge, else under the card, else the window's top strip (fading early) — never on the fish
 	-- in the window.
 	local function spot(cardTop: number, outer: number, tall: number?, extra: { [string]: any }?): any
@@ -3407,7 +3407,7 @@ tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticke
 		window = { x0 = 630, y0 = 90, x1 = 730, y1 = 190 },
 		sticker = { x0 = 625, y0 = 85, x1 = 715, y1 = 120 },
 	})
-	t.eq(narrow.c, nil, "a narrow window with the sticker: no «+N 💰» (not over the sticker)")
+	t.eq(narrow.c, nil, "a narrow window with the sticker: no «+$4/с» (not over the sticker)")
 	-- SIMC-C2-03: with its rise the float's top stays in the band the limits allow (the limits keep
 	-- it right of the Roblox Menu / Chat pills near the HUD top): above a high card it may not
 	-- climb into the top bar row.

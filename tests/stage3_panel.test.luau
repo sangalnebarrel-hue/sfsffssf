@@ -695,7 +695,7 @@ tests["cards: fish / empty / locked teaser; phone labels (ShortName, «💵 $45�
 	t.eq(
 		header.Total.Text,
 		TextFill(TEXTS.Total, { money = R.FormatMoney(total) }),
-		"«💵 $total ▲» (the Gold Perch still grows)"
+		"«💵 $total 📈» (the Gold Perch still grows)"
 	)
 	sim:AssertNoErrors({ warnings = true })
 end
@@ -909,11 +909,22 @@ tests["values tick on one 1 s chain while open: prices, bars, the header total; 
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["market mode follows SellRatePct only: chip, ×1.5 prices, Gold buttons — and back"] = function(t)
+-- The light rim's stroke of a sim button (Theme.sim: Face.Rim.UIStroke).
+local function rimOf(root: any): any
+	local face = root:FindFirstChild(root:GetAttribute("CandyFace") or "Face")
+	return face.Rim:FindFirstChildOfClass("UIStroke")
+end
+
+tests["market mode follows SellRatePct only: chip, ×1.5 prices, Gold buttons (Sun with a white rim on a Legendary card, ART-07) — and back"] = function(
+	t
+)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "phone")
 	local fake = Fake.new(sim, p)
-	fake:mount(homeTank(fake))
+	local list = homeTank(fake)
+	list[4] = fake:record("SharkPup", { age = 30 }) -- Legendary: a yellow → orange card
+	fake:mount(list)
+	local RIM = UIConfig.Sim.RimAlpha
 	local R = fake.tank
 	local panel = panelOf(sim, p)
 	tankEvent(sim, p, "Open", { Place = "Market", RatePct = 150, Name = "Рыбный рынок" })
@@ -929,10 +940,19 @@ tests["market mode follows SellRatePct only: chip, ×1.5 prices, Gold buttons �
 	t.eq(chip.Label.Text, TextFill(TEXTS.MarketChip, { bonus = EconomyConfig.MarketRatePct - 100 }))
 	t.eq(sell.Caption.Text, TextFill(TEXTS.SellPhone, { price = R.FormatMoney(fake:price(3, 150)) }), "×1.5 prices")
 	t.ok(colorNear(faceTop(sell), UIConfig.Palette.Gold.Top), "Gold sell buttons")
+	t.near(rimOf(sell).Transparency, RIM, 1e-3, "… with the usual light rim")
+	local legend = card(p, 4).Sell
+	t.ok(
+		colorNear(faceTop(legend), UIConfig.Palette.Sun.Top),
+		"on the Legendary card (the Gold button's own colours) the market button is darker: Sun"
+	)
+	t.eq(rimOf(legend).Transparency, 0, "… and its rim is solid white, so it pops off the card")
 	p:SetAttribute("SellRatePct", 100)
 	sim:Advance(0.5)
 	t.eq(chip.Visible, false, "back home: the chip pops out")
 	t.ok(colorNear(faceTop(sell), UIConfig.Palette.Leaf.Top), "Leaf again")
+	t.ok(colorNear(faceTop(legend), UIConfig.Palette.Leaf.Top), "Leaf on the Legendary card too")
+	t.near(rimOf(legend).Transparency, RIM, 1e-3, "… with the usual rim")
 	t.eq(
 		sell.Caption.Text,
 		TextFill(TEXTS.SellPhone, { price = R.FormatMoney(fake:price(3, 100)) }),

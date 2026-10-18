@@ -15,7 +15,7 @@
 	      Count   a Cream chip «0/6» (Label; italic dark digits; Gold when the tank is full)
 	      Rate    «+$0/с» green italic (UIConfig.MoneyText; the Wallet right above shows the same
 	              income, so it is the first to go)
-	      Total   «💵 $0 ▲» — the tank's total value now (it grows: «дорожает, чем дольше лежит»)
+	      Total   «💵 $0 📈» — the tank's total value now (it grows: «дорожает, чем дольше лежит»)
 	      Market  a Gold chip «💰 РЫНОК +50%» (Icon TankConfig.Texts.MarketIcon, Label; short
 	              «💰 +50%» — Texts.MarketShort — when the header is crowded), hidden: only while
 	              SellRatePct > 100

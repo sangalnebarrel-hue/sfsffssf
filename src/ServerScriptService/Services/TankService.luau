@@ -5,7 +5,7 @@
 	секунду, атрибуты витрин и садка, таблички и подсветка витрин, кнопка у большого аквариума,
 	remote'ы садка и хук сохранения. Правила и вид сумм — TankRules, числа — TankConfig /
 	EconomyConfig, данные — DataService (поля Tank, TankSlots, NextUid, Stats.Sold — его).
-	Подробно — scratchpad design.md, §3.3, §4.3, §4.5, §4.6, §5.2.
+	Подробно — docs/stage3_design.md, §3.3, §4.3, §4.5, §4.6, §5.2.
 
 	Что делает:
 	  1. Init: у каждой базы ссылки витрин Slot_1..12 — Pedestal, Display, Display.FishPoint,

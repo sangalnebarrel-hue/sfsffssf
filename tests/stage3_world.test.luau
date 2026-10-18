@@ -14,7 +14,7 @@
 	    DropRange (hysteresis); ≤ BuildPerCheck quiet builds per check; the life tween starts only
 	    within LifeRange (the Body moves) and stops only beyond LifeDrop (the fish rests); a Rainbow
 	    fish carries the RainbowFish tag (FishingFxController's repaint) only while it lives;
-	  • words: the tags «+$4/с» / «$45 ▲» ticking to «МАКС»; the tank sign «+$42/с» / «🐠 4/6» on
+	  • words: the tags «+$4/с» / «$45» ticking to «МАКС»; the tank sign «+$42/с» / «🐠 4/6» on
 	    an owned, mounted tank only; the pier word «🐠 4/6» / «+$42/с» on the own base only,
 	    hidden on Bite / Reeling / CounterHold / HeldFish, a splash on a stored arrival, income
 	    pops only within Pier.PopRange of the bucket, every Pier.PopEvery s;
@@ -1001,7 +1001,7 @@ tests["pier word: own base only, hidden on Bite / Reeling / CounterHold / HeldFi
 		hud:SetAttribute("CounterHold", nil)
 	end)
 	-- the trophy over the head: hidden while held and Pier.TrophyGap more (its nameplate fades at
-	-- the same spot — UX-03: the word and «Карасик 💰 12» mashed together)
+	-- the same spot — UX-03: the word and «Карасик 💵 $12» mashed together)
 	sim:Create("Model", { Name = "HeldFish" }, p.Character)
 	sim:Advance(0.05)
 	t.eq(word.Enabled, false, "HeldFish: hidden")

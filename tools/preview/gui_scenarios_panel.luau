@@ -98,7 +98,7 @@ end
 return {
 	{
 		name = "tank_panel_home",
-		desc = "The tank panel at home, 3/6: a Gold Perch (👑 ×2), a maxed Puffer («МАКС»), a young Crucian, 3 empty cards and the locked teaser; the header «🐠 САДОК · 3/6 · +$X/с · 💵 $Y ▲»",
+		desc = "The tank panel at home, 3/6: a Gold Perch (👑 ×2), a maxed Puffer («МАКС»), a young Crucian, 3 empty cards and the locked teaser; the header «🐠 САДОК · 3/6 · +$X/с · 💵 $Y 📈»",
 		still = { 0.12, 0.9 },
 		sheet = { from = 0, to = 0.7, fps = 15, roi = PANEL_ROI, margin = 0.03 },
 		run = function(h: any)
@@ -192,7 +192,7 @@ return {
 	},
 	{
 		name = "tank_panel_market_full",
-		desc = "At a stall with a full tank (6/6, a 5-digit total ▲): the header still fits before the ✕ — «+$X/с» gives way first (the Wallet above shows it), then the chip shortens to «💰 +50%»",
+		desc = "At a stall with a full tank (6/6, a 5-digit total 📈): the header still fits before the ✕ — «+$X/с» gives way first (the Wallet above shows it), then the chip shortens to «💰 +50%»",
 		still = 0.9,
 		run = function(h: any)
 			local written = h:tank(FULL)

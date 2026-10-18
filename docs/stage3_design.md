@@ -56,7 +56,7 @@ built, but every hook they need is named in §4.8.
    the kid opens the panel (K-8).
 5. Money ticks up every second (plain text, calm). Every 5 s a small green «+$13» floats off the
    Wallet, and, while the kid is within 30 studs of the bucket, the same «+$13» rises over the pier word.
-6. Every fish's value climbs to ×3 («МАКС»). The panel header shows the tank's total value «💵 $2 783 ▲».
+6. Every fish's value climbs to ×3 («МАКС»). The panel header shows the tank's total value «💵 $2 783 📈».
 7. Tap **«САДОК»** anywhere → the tank panel opens. If the kid taps it while a fish is flying in, the
    panel opens right after the arrival, on the new fish (K-9). It shows one card per slot (a 3D fish,
    «+$4/с», a growth bar, «💵 $45»), empty cards and one locked teaser card. A sale takes two taps:
@@ -961,21 +961,40 @@ client clones.
   Beyond 70 studs the tweens are cancelled (static fish). The fish never flops. *(P2: a tail wag on the
   tail weld's `C0`, K-16.)*
 - **Slot tag** `FxTankTag`:
-  - A BillboardGui on an Attachment at `FishPoint + (0, 3.6, 0)`: over the glass, under the arcade
-    ceiling at 13.15.
-  - Studs-sized ≈ 5.5 × 1.8, `MaxDistance` 45, LightInfluence 0, AlwaysOnTop false.
-  - Line 1 «+$4/с» in `BillboardGreen`; line 2 «$45 ▲» / «$135 МАКС» in `BillboardYellow`.
+  - A BillboardGui on an Attachment at `FishPoint + (0, Tag.Lift 3.3, −Tag.Forward 3.6)` in the display's
+    axes: in FRONT of the glass at the height of its LightBar (from the aisle the view never goes through
+    the glass, which hides billboards behind it; the bar runs between the two lines like a rule), under
+    the arcade ceiling at 13.15.
+  - 5.6 × 1.9 studs + 44 × 16 px, `MaxDistance` `TagShow` 28 (further the aisle's tags blur into mush),
+    LightInfluence 0, AlwaysOnTop false.
+  - **Letters capped in pixels** (ART-02): up close the tag grows with the world but its letters do not
+    (`UITextSizeConstraint`): line 1 is at most `Tag.TextShare` 0.056 of the screen height, clamped to
+    `TextMin..TextMax` 16..30 px (never louder than the Wallet's number), line 2 `ValueShare` 0.88 of it;
+    both lines hug the middle (the light bar), so a near tag no longer runs into the next one down the
+    aisle.
+  - Line 1 «+$4/с» in `BillboardGreen`; line 2 «$45» / «$135 МАКС» in `BillboardYellow` (no «▲»: in
+    italic Montserrat it fell back to an upright stray glyph; «МАКС» already says the price stopped).
   - STYLE §3 "words in the world": Montserrat Heavy, white → colour Fill, thin dark outline, no plate.
-  - Values refresh on one 1 s timer, only for tags within `TagRange`.
-- **Tank sign** `FxTankSign`: a BillboardGui over `Tank.Glass`, above the «АКВАРИУМ» plaque, MaxDistance
-  160. It shows «+$42/с» big green and «🐠 4/6» small white, from the Tank model attributes, and is hidden
-  on unowned bases. (The court income pops are dropped: nobody sees them while fishing, K-1/K-16.)
+  - Values refresh on one 1 s timer, only for tags within `TagRange` 45 (fresh by the time they show).
+- **Locked word** `FxTankLock` (ART-03): a dim Slate «🔒 Закрыто» on the empty glass, lower than the
+  aisle tags (`Tag.LockShare`, `LockLift`), `MaxDistance` `LockRange` 80 (seen from the court gate). It
+  is shown **once per arcade side**, over the first locked display next to the open rows, and follows
+  them when `TankSlots` grows; the other locked displays keep only their pedestal «🔒 Закрыто» and the
+  dim Slate LightBar (three identical words in perspective piled into «За🔒рыто»).
+- **Tank sign** `FxTankSign`: a BillboardGui over the front edge of `Tank.Glass` (`Sign.Inset` 4 studs in,
+  `Sign.Lift` 3 studs above the glass top: just over the frame and lanterns, above the «АКВАРИУМ»
+  plaque; from the gate at eye height it sits mid-frame, not in the Wallet's band), MaxDistance 160. It
+  shows «+$42/с» big green and «🐠 4/6» small white, from the Tank model attributes, and is hidden on
+  unowned bases. Its letters are capped like the tags': «+$42/с» ≤ `Sign.TextShare` 0.08 of the screen
+  height (22..44 px), «🐠 4/6» `CountShare` 0.6 of it. (The court income pops are dropped: nobody sees
+  them while fishing, K-1/K-16.)
 - **Pier word** `FxPierTank` (K-1), **own base only**:
   - A BillboardGui on a client Attachment just over `Platform.Bucket`: studs-sized ≈ 4 × 1.4,
     `MaxDistance` `Pier.Range` 40, LightInfluence 0, AlwaysOnTop false.
   - Line 1 «🐠 4/6» white, line 2 «+$42/с» `BillboardGreen`, from the Player attributes.
   - **Hidden** while `FishingState` is Bite or Reeling, while the HUD has `CounterHold`, and while the own
-    character holds `HeldFish` (the toasts' busy flags).
+    character holds `HeldFish` (the toasts' busy flags) — and `Pier.TrophyGap` 0.3 s longer: the
+    trophy's nameplate «Карасик 💵 $12» fades out right where the word stands (UX-03).
   - On a stored or replaced arrival (when `CounterHold` clears): one splash `Emit` at the bucket rim
     (within the two-emitter budget) and a punch of the word.
   - **Income pops:** while the own character is within `Pier.PopRange` 30 studs of the bucket, income is
@@ -988,6 +1007,14 @@ client clones.
   - `sold` / `swap`: the fish shrinks to 0 in 0.25 s, gold sparkles, and «+$45» rises.
   - `mount`: a quiet build, with no FX.
   - ≤ 2 emitters alive per player.
+- **Clear of the HUD** (ART-01, UX-02): the Wallet uses the same green italic, so a world «+$959/с»
+  drawn behind «💵 $0 +$959/с» read as one block. On the same `CheckEvery` chain (and at once when a
+  word shows up or a toast arrives, `Clear.ToastWait` 0.2 s later) every visible word — the tags, the
+  lock words, the tank sign, the pier word, the market word — is projected (`Camera:WorldToScreenPoint`
+  against the HUD's `AbsolutePosition`) and its text rect compared with the plates of `HUD.Status` (the
+  base badge; the Wallet by the extent of its row's content) and the toasts in `HUD.Toasts`: closer than
+  `Clear.Margin` 12 px → the word fades out in `Fade` 0.15 s; it comes back in `Show` 0.25 s only once it
+  is `Back` 18 px away (no flicker at the edge). The pier word under a catch toast fades the same way.
 - **Prompts:** hide `TankPrompt` on bases not owned by the local player (client-local `Enabled = false`);
   the server checks ownership anyway.
 - **Sell points:** one client BillboardGui word over the hub market, «РЫНОК +50%!» (BillboardYellow),
@@ -1087,7 +1114,9 @@ reuses both.
   - "stored" → an odometer roll on the chip, a bump of 1.3 (1.45 in rarity colours), a glow ring in the
     rarity colour, a 🐠 squash and wiggle, and a tick;
   - "replaced" → the chip stays, the 🐠 wiggles, a ring plays, then `MoneyController.Celebrate(price, TankButton)`;
-  - "sold" → **nothing on this button** (the ghost flew to the Wallet).
+  - "sold" → no arrival on this button (the ghost flew to the Wallet), but while the sold card is on
+    screen the Gold «6/6» chip **pulses** (`UIConfig.TankButton.SoldPulse` 1.22 every `SoldPeriod`
+    0.7 s): the sale is tied to the full tank (UX-01).
 
   Without `CounterHold` (a Stage 4 `"Stored"`), the same arrival plays one frame after `TankCount`
   changes.
@@ -1127,7 +1156,7 @@ reuses both.
     so its cards, header and ✕ are checked as widgets even though the sheet covers ≥ 45 % of the screen.
 - **Header row** (≈ 44 px on phones):
   - 🐠 «САДОК» (Title tier) · chip «4/6» · «+$42/с» (green italic);
-  - **«💵 $2 783 ▲»**: the tank's total current value at the current rate, ticking on the 1 s chain (K-2;
+  - **«💵 $2 783 📈»**: the tank's total current value at the current rate, ticking on the 1 s chain (K-2;
     it makes «дорожает, чем дольше лежит» visible);
   - the market chip «🏪 РЫНОК +50%» (Gold, only while `SellRatePct > 100`);
   - `Close`, a round Berry «✕» (≥ 44 px) overhanging the top-right corner.
@@ -1147,7 +1176,9 @@ reuses both.
     - `Growth`: a thin bar (Track/Fill) with «×1.4», or a gold «МАКС» stamp.
     - `Sell`: on phones **«💵 $45»** («💵 $60 750», the longest case, is 63 px at 14 px), on cards ≥ 150 px
       «ПРОДАТЬ $45». Leaf at home, Gold in market mode, Berry «ТОЧНО?» with a 3 s `ringTimer` in the
-      confirm state.
+      confirm state. On a Legendary card (a yellow → orange plate: the Gold button's own colours) the
+      market button is Sun with a solid white rim instead, so the most valuable fish keeps a strong call
+      to action (ART-07, `TankCards.lookToken`).
   - **Empty card**: a glass plate with a faint 🎣, «ПУСТО», «Поймай рыбу!».
   - **Locked card**: Slate, with 🔒, «ЕЩЁ МЕСТО», «Скоро в магазине».
 - **Live values:** one 1 s `task.delay` chain while open (prices, bars, the header total). The values come
@@ -1173,6 +1204,10 @@ reuses both.
     appears, or when `BiteAlert`/`Minigame`/`CatchCard` become visible. The fisher is never covered while
     fishing.
   - It also closes via ✕ or the TankButton.
+  - **The open sheet covers the fishing layer** (UX-04): while it is open, `HUD.Fishing` is hidden when
+    its ActionArea lies under the sheet or the screen is short (`Sheet` fit not tall) — «ВЗЯТЬ», its red
+    «!» and the hint never show through the glass as part of an empty card; it is back on close (the
+    panel is refused during a bite, the minigame or an open card anyway, so nothing is interrupted).
 - **Budgets:**
   - phone fill ≤ 2.5× with the panel open, measured by `gui_render.py`; if it still fails, phones swap
     the viewports for rarity emoji 🐟 🐠 🐡 🦈 🐉;
@@ -1187,13 +1222,20 @@ reuses both.
 2. `ghostCard` / `flyHome`: one `if` on `fish.Tank and fish.Tank.Result == "sold"` → the target is
    `ui.wallet` and the ghost's emoji is 💵. Otherwise the target is the TankButton. Drop the hidden-counter
    Status-list fallback; when no base exists, target the RightButtons frame centre.
-3. `fillCard`: `InfoLabel` «{kg} · цена $45» (`TankRules.FormatMoney`).
+3. `fillCard`: `InfoLabel` «{kg} · цена $45» (`TankRules.FormatMoney`). **One money notation**
+   (UX-06, ART-05): the price chip (icon 💵) counts up «$0 → $58» and the own trophy's nameplate reads
+   «💵 $518» — `CatchFx.money` = `TankRules.FormatMoney`, the Wallet's «$».
 4. `floatPrice`: «+$4/с» (`TankRules.FormatRate(Income10)`, MoneyText), or a gold «+$15» when the result is
    "sold" (K-4).
-5. **`TankStamp`**: `CatchFx.tankStamp(result) -> (text, token)` (new and pure; K-4). It returns «В
-   САДОК!» (Water), «ЗАМЕНА!» (Leaf) or «ПРОДАНА» (Gold), and `nil` without `Tank` (hidden). It is placed
-   under the price and fitted with `UiFx.textWidth` at ≥ 12 px. The existing `CatchFx.stampText` is the
-   mutation-stamp fitter and keeps its contract.
+5. **`TankStamp`**: `CatchFx.tankStamp(result) -> (text, token, sub)` (new and pure; K-4). It returns
+   «В САДОК!» (Water), «ЗАМЕНА!» (Leaf) or, for a fish sold on the spot, «ПРОДАНА» under «САДОК ПОЛОН»
+   (`sub`, Sun: the cause is named on the card, UX-01), and `nil` without `Tank` (hidden). It is a
+   sticker like «НОВИНКА!» (ART-04): tilted −8°, overhanging the card's bottom-right corner
+   (`CatchFx.tankRow`; the close hint keeps its row, left of it), its plate ≥ 26 px tall on the
+   smallest phone card with a ≥ 16 px line (the sold one ≥ 18 px), and it never covers the price chip.
+   A sold card closes itself no sooner than `CatchFx.SOLD_HOLD` 1.8 s after its stamp lands
+   (`CatchFx.cardTime`), so «САДОК ПОЛОН / ПРОДАНА» can be read. The
+   existing `CatchFx.stampText` is the mutation-stamp fitter and keeps its contract.
 6. `parseFish`/`onCaught`: read the optional `Fish.Uid`, `Fish.New` and `data.Tank` (the result is kept
    on the fish record). `openCard`: `isNew = if fish.New ~= nil then fish.New else not seenSpecies[fish.Id]`.
 7. `CLIMAX.ListLeft` / `ListBottom` are re-estimated for the wider desktop player list with two leaderstats
@@ -1219,13 +1261,16 @@ sets it.
 | first fish ever (`Tank.First`), after the arrival | «Твоя рыба приносит $ каждую секунду!» | 231 | Water 🐠 |
 | replaced | «Замена! «{new short}» вместо «{old short}» +$24» | ≤ 260 | Leaf 💵 |
 | sold on the spot — **first time per session only** | «Садок полон — лови рыбу получше!» | 206 | Sun 💵 |
+| sold on the spot, a **notable** fish (a new species, a mutation, or Epic+ — `SoldExplain`) — **every time** | «Садок полон: «{short}» слабее всех, +$58» | ≤ 300 | Sun 💵 |
 | denied | `Text` from the server | — | warning |
 | memory mode (once, after the base banner) | «💾 Studio: прогресс не сохраняется» | 212 | warning |
 | (P2) milestone | «Уже $10 000! 🎉» | — | Gold 💵 |
 
 The toasts follow the existing rules: none while the catch is on screen, queued, one at a time on phones.
-Names in quotes avoid Russian gender agreement. Later on-the-spot sales get no toast: just the «ПРОДАНА»
-stamp and the coins (K-4). A `stage3_rules` case checks every toast with the longest names and prices
+Names in quotes avoid Russian gender agreement. Later on-the-spot sales of ordinary fish get no toast:
+just the «САДОК ПОЛОН / ПРОДАНА» stamp, the pulsing «6/6» and the coins (K-4); a good fish never leaves
+silently (UX-01). The catch toasts wait for the own trophy to leave and then `UIConfig.Wallet.AfterTrophy`
+0.9 s more, so the pier word's «🐠 1/6» punch is seen before a toast lands on it (UX-03). A `stage3_rules` case checks every toast with the longest names and prices
 filled in: ≤ 300 px at 12 px (the `phone_small` column is 374 px, icon included) (K-7).
 
 ### 6.7 What moves on screen
@@ -1248,7 +1293,7 @@ None (kids don't need it). Only the memory-mode toast and the kick messages of �
 
 - **Panel:** «САДОК», «ПРОДАТЬ», «ТОЧНО?», «МАКС», «ПУСТО», «Поймай рыбу!», «ЕЩЁ МЕСТО»,
   «Скоро в магазине», «РЫНОК +50%».
-- **Card stamps:** «В САДОК!», «ЗАМЕНА!», «ПРОДАНА».
+- **Card stamps:** «В САДОК!», «ЗАМЕНА!», «ПРОДАНА» under «САДОК ПОЛОН».
 - **Toasts:** §6.6.
 - **World:**
   - «Пусто», «🔒 Закрыто»;
@@ -1423,8 +1468,12 @@ This is the one test that exercises the retry, coalescing and queue logic togeth
   - tweens only within `LifeRange`, cancelled beyond.
 - **Words:**
   - tags show «+$4/с», the value ticking, «МАКС»; the tank sign;
-  - **the pier word** on the own base only: hidden on Bite/Reeling/`CounterHold`/`HeldFish`; a splash on
-    arrival; income pops only within 30 studs of the bucket, every 5 s.
+  - **the pier word** on the own base only: hidden on Bite/Reeling/`CounterHold`/`HeldFish` (and
+    `TrophyGap` after it); a splash on arrival; income pops only within 30 studs of the bucket, every 5 s;
+  - the tags' and the sign's letters stay within their px caps up close (ART-02); one «🔒 Закрыто» per
+    arcade side, following the open rows (ART-03);
+  - **clear of the HUD** (ART-01, UX-02): a word projected onto the Wallet row or a toast fades, and comes
+    back once it is clear again.
 - **Slot events:** `in`, `sold`, `swap` create and clean their FX; `mount` creates none.
 - **Other:**
   - other players' tank prompts are hidden locally;
@@ -1455,8 +1504,11 @@ only `FishingService` keep the real Stage 3 services (they load from the sim Dat
 - idle with income flowing → `activeJobs() == 0`, stable connections, the 5 s float only;
 - the tick never fights a count-up (K-11);
 - the catch flight → the chip frozen under `CounterHold`, the arrival on release in rarity colours;
-- the stamps «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА»;
-- **sold** → the ghost to `Wallet.Money`, no toast after the first per session;
+- the stamps «В САДОК!» / «ЗАМЕНА!» / «САДОК ПОЛОН · ПРОДАНА» (a corner sticker, ≥ 16 / 18 px);
+- **sold** → the ghost to `Wallet.Money`, the «6/6» chip pulses while the card is up, no toast after the
+  first per session for an ordinary fish; a notable one (new, mutated, Epic+) gets «Садок полон: …» every
+  time;
+- the catch toasts wait for the trophy to leave plus `Wallet.AfterTrophy`;
 - **replaced** → coins from the TankButton + the toast after the hold;
 - the onboarding «!» after `First`, gone on the first open;
 - a tap during the flight → the panel opens after the arrival, on the new card;
@@ -1468,12 +1520,13 @@ only `FishingService` keep the real Stage 3 services (they load from the sim Dat
 - cards for fish/empty/locked;
 - phone labels (ShortName, «💵 $45») vs wide labels;
 - values tick (1 s chain, no frame job); the header total;
-- market mode on `SellRatePct` only;
+- market mode on `SellRatePct` only (on a Legendary card the market button is Sun with a white rim);
 - **confirm on every sale**: the first tap fires nothing; a second tap at +0.15 s fires nothing; at +0.5 s
   it fires `TankSell(uid)`; a 3 s timeout reverts; the red «−$X/с» flash;
 - after `Sold`, the Wallet rate rolls down;
 - juice ends (`activeJobs() == 0`);
 - closes on Bite / `CounterHold` / CatchCard; refuses to open during a bite;
+- while open it hides the fishing layer under it («ВЗЯТЬ» and its «!»), back on close (UX-04);
 - the layout is scale-based (`Size.X.Offset == 0` on the panel and cards) and survives a `ViewportSize`
   change;
 - phone fill ≤ 2.5×.

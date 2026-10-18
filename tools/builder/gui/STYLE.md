@@ -463,7 +463,8 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   fish's soft shadow, the column with an outlined ⭐, a darker base — it punches in under the fish
   0.5 → 1.12 → 1 while its rim flashes), the name white → rarity colours with an Ink outline
   (Mythic a rainbow along the letters), round chips — the weight grey with Ink CAPS, the price gold
-  with an overhanging outlined 💰 and italic display digits (they flash gold on the landing; on a
+  with an overhanging outlined 💵 and italic display digits in the Wallet's notation «$58»
+  (`CatchFx.money`; the own trophy's nameplate reads «💵 $518» too — one way to write money) (they flash gold on the landing; on a
   narrow chip, r2 SIMC-C1-05, the icon shrinks to ≥ 0.86 and the label starts 3 px right of it,
   its text floor at most 0.8 of its box — `CatchFx.fitChip`) —, an italic tap hint; the banner's rim flashes as it unrolls and its stars pop in one by one, the
   price chip's rim when it rises; the price bumps with every number. Legendary 1.05x and Mythic
@@ -492,7 +493,7 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   0.08 s later, the tick a little higher: `CatchFx.punchChips`) → price count-up (a soft ease-out
   that keeps running into the landing: 0.15 s before it ≤ ~92 %) and landing (the chip squashes
   1.25 × 0.85 and springs back, Elastic Out; the price itself is the card's biggest number; 0.12 s
-  later «+N 💰» flies OUT of the chip — Back Out to the free space right of the card, never over
+  later «+$4/с» flies OUT of the chip — Back Out to the free space right of the card, never over
   the price or «×N», smaller where tight, over the weight row only as a last resort; r2
   (SIMC-C1-03), a card beside the fisher: above its banner, else beside its outer edge (away
   from him) at the price's height, clear of the chat window and the player list and — with its
@@ -511,13 +512,18 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   white halo and rings); then everything calms down and a Mythic card breathes (grows upward, its
   bottom stays). A NEW species of a Common/Rare fish gets a small fanfare (the first catch of a
   new player is usually one): a light dim, brighter rays with gold and green, sparks + a handful
-  of confetti + a ping at «НОВИНКА!», a «+N 💰»; a known Common stays calm. On phones the card is
+  of confetti + a ping at «НОВИНКА!», a «+$4/с»; a known Common stays calm. On phones the card is
   never shorter than 165 px (the smallest phone's Common card) — 128 px when docked beside the
   fisher. Mythic's confetti comes in three
   volleys (landing, +1 s, the price) under the touch cap. A tap on the card skips to the end, a tap
   at least 0.6 s later closes; the action button (F / R2, the rod) never skips — it only closes
-  the settled card, and not while it is being mashed (< 0.3 s since the previous press). The card
-  closes by itself after `UIConfig.CatchCardTime` (at least 0.6 s after its last beat). Closing:
+  the settled card, and not while it is being mashed (< 0.3 s since the previous press). Stage 3's
+  tank stamp — «В САДОК!» (Water), «ЗАМЕНА!» (Leaf), «ПРОДАНА» under «САДОК ПОЛОН» (Sun: the cause
+  is named) — slaps on after the price lands as a sticker like «НОВИНКА!»: −8°, overhanging the
+  card's bottom-right corner (the close hint keeps its row, left of it), ≥ 26 px tall with a
+  ≥ 16 px line (18 px for the sale) on the smallest phone card, never over the price chip. The card
+  closes by itself after `UIConfig.CatchCardTime` (at least 0.6 s after its last beat; a fish sold
+  on the spot not sooner than 1.8 s after its stamp, `CatchFx.cardTime`). Closing:
   the card itself is the projectile — it flies into «САДОК» shrinking to a speck (stage 3: a fish
   sold on the spot — `Tank.Result` "sold", a full tank — flies into `Status.Wallet.Money` as a 💵
   instead; no base: the middle of the right column), a 🐟 leaves beside it and they land
@@ -630,7 +636,8 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   first fish ever: «open me»; out on the first open). The catch's arrival: the chip rolls like an
   odometer, the button bumps (1.45 in the rarity colours), a glow ring in the rarity colour, the
   🐠 squashes and wiggles, a tick; a replacement keeps the chip and sends coins to the Wallet; a
-  fish sold on the spot plays nothing here. A tap while the fish flies is remembered (no «no»
+  fish sold on the spot flies to the Wallet, and the Gold «6/6» chip pulses while its card is up
+  (`UIConfig.TankButton.SoldPulse` / `SoldPeriod`: the sale is tied to the full tank). A tap while the fish flies is remembered (no «no»
   wiggle) — the panel opens right after the arrival on the new fish's card with a ring; a tap
   during a bite, the minigame or an open card wiggles «no». Water and Sky («ЗАБРОСИТЬ» under it on
   phones) are close hues — the square shape, the 🐠 and the caption tell them apart (wave 2 C's
@@ -645,8 +652,9 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   who walks never hits a sell button). Phones: a glass plate (one quad — secondary info goes on
   glass) with a thin Night strip under the header; tablets and PCs: a Night sim plate. The
   header (≈ 44 px on phones, sized to its texts): 🐠 «САДОК» · the count chip «4/6» (Gold when
-  full) · «+$42/с» · «💵 $2 783 ▲» (the tank's value now, ticking — «дорожает, чем дольше лежит»;
-  no ▲ once every fish is at МАКС) · the Gold market chip «💰 РЫНОК +50%» (only while
+  full) · «+$42/с» · «💵 $2 783 📈» (the tank's value now, ticking — «дорожает, чем дольше лежит»;
+  no 📈 once every fish is at МАКС; an emoji, not «▲» — italic Montserrat has no ▲ and its
+  upright fallback read as a stray glyph) · the Gold market chip «💰 РЫНОК +50%» (only while
   `SellRatePct` > 100; «💰 +50%» when crowded) and a round Berry ✕ (≥ 44 px) overhanging the
   top-right corner; when the bare texts do not fit before the ✕, the rate goes first (the Wallet
   shows it), then the chip's long text, then the word «САДОК». Cards: a scale-sized grid —
@@ -659,7 +667,8 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   when it fits; right of a mutation chip «👑 ×2» that overhangs the top-left corner) and the fish
   — the card's hero — in a ViewportFrame in between (built on open, destroyed on close). The sell
   button: Leaf «💵 $45» at home («ПРОДАТЬ $45» on wide cards when the panel's longest price fits:
-  one style per panel), Gold at a stall, Berry «ПРОДАТЬ?» with a 3 s ring timer while it waits for
+  one style per panel), Gold at a stall (Sun with a solid white rim on a Legendary card, whose
+  yellow → orange plate is the Gold button's own colours — `TankCards.lookToken`), Berry «ПРОДАТЬ?» with a 3 s ring timer while it waits for
   the second tap («ТОЧНО?» where «ПРОДАТЬ?» does not fit) — the card's rate flashes red «−$4/с»
   meanwhile —, Slate ⏳ while the server answers. A tap sooner than 0.4 s after the previous one
   only restarts the arm (mashing never sells). Sold: the card squashes, a gold «+$45» rises out
@@ -669,7 +678,9 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   phone) with a faint 🎣, «ПУСТО», «Поймай рыбу!»; the one locked teaser is Slate — 🔒, «ЕЩЁ
   МЕСТО», «Скоро в магазине». Open: the rise + a stagger of the cards and a nod of the 🐠; the
   sheet closes itself the moment fishing needs the screen (a bite, the minigame, the catch card, a
-  fish flying in) — the fisher is never covered.
+  fish flying in) — the fisher is never covered. While open it hides `HUD.Fishing` when the
+  ActionArea lies under it (or the screen is short): «ВЗЯТЬ» with its red «!» never shows through
+  the glass as part of an empty card; back on close.
 - **The tank in the world** (stage 3; TankWorldController + its helper TankDisplay, client-only,
   nothing new on the server): the fish live in the court's 12 display aquariums — a real clone of
   `Assets.Fish[FishId][mutation]`, scaled to fit the 6.2-stud cube (≤ 1.6×), its bounding box
@@ -697,16 +708,27 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   its cream board, both faces) shows the same two lines in the same letters. They never move or animate (no per-frame work); the colours
   change only when the owner changes.
   Stage 3 words (TankDisplay, the same letters and thin outlines; LightInfluence 0, never
-  AlwaysOnTop, sized in studs + pixels; all client-side):
+  AlwaysOnTop, sized in studs + pixels; all client-side). Up close a word grows with the world but
+  its letters do not: a `UITextSizeConstraint` caps them at a share of the screen height (tags
+  16–30 px, the tank sign 22–44 px), so no world word is louder than the Wallet's number. And none
+  lies under the HUD: twice a second (and when a toast arrives) each visible word's rect on screen
+  is checked against the status stack (the Wallet by its row's content) and the toasts — closer
+  than 12 px, the word fades out (0.15 s) and comes back (0.25 s) only once 18 px clear
+  (`TankConfig.Display.Clear`; the Wallet's green italic and a world «+$959/с» read as one block):
   - **slot tag** `FxTankTag` — in FRONT of each display's glass at the height of its light bar
     (the bar runs between the lines like a rule; from the aisle the view never goes through the
-    glass, which hides billboards behind it): «+$4/с» in `BillboardGreen` over «$45 ▲» / «$135
+    glass, which hides billboards behind it): «+$4/с» in `BillboardGreen` over «$45» / «$135
     МАКС» in `BillboardYellow` (italic digits, the lines overlapping a little so the letters are
-    bigger); shown within 28 studs (`TagShow`; further the aisle's tags blur into mush), values
-    refreshed once a second within 45 (`TagRange`: fresh by the time it shows);
+    bigger); no «▲» after the price (italic Montserrat has no ▲: its upright fallback read as a
+    stray glyph; «МАКС» says the price stopped); shown within 28 studs (`TagShow`; further the
+    aisle's tags blur into mush), values refreshed once a second within 45 (`TagRange`: fresh by
+    the time it shows);
   - **locked word** `FxTankLock` — a dim slate «🔒 Закрыто» on the empty glass, lower than the aisle
-    tags, seen from the court gate (80 studs);
-  - **tank sign** `FxTankSign` — over the big show tank, above its «АКВАРИУМ» plaque: «+$42/с» big
+    tags, seen from the court gate (80 studs); ONE per arcade side, over the first locked display
+    next to the open rows (it moves when more open) — three identical words in perspective piled
+    into «За🔒рыто»; the other locked displays keep their pedestal «🔒 Закрыто» and dim bar;
+  - **tank sign** `FxTankSign` — over the big show tank, 3 studs above its glass (above the
+    «АКВАРИУМ» plaque, mid-frame from the gate rather than in the Wallet's band): «+$42/с» big
     green over «🐠 4/6» smaller white, from the Tank model's attributes, seen from 160 studs; hidden
     on a free base;
   - **pier word** `FxPierTank` (the «садок» at the pier end, K-1) — over the own base's bucket by
@@ -714,7 +736,8 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
     within 40; placed above the bucket and its fish tail, a little beyond it from the spot (from
     the fishing camera — right of the rod and the line, above «СМОТАТЬ»); HIDDEN while the bite
     or the minigame runs, while a catch is on screen (`CounterHold`) and while the own character
-    holds its trophy; back — it pops in (a punch after an arrival, with one splash at the
+    holds its trophy (and 0.3 s more, `Pier.TrophyGap`: the trophy's nameplate fades right where the
+    word stands); back — it pops in (a punch after an arrival, with one splash at the
     bucket's rim); every 5 s a small «+$13» rises 2.5 studs over it and fades, only while the kid
     stands within 30 studs. No ProximityPrompt at the bucket (a tap target 5 studs from the spot
     would land on the fishing screen);
@@ -1058,7 +1081,7 @@ RenderStepped connection for all running frame effects, disconnected when none r
   maxPx = …})` in a transparent holder behind the card (its ring placed in pixels by
   `CatchFx.aimRays`; the holder clips them beside the fisher) and `rays:settle()` after the last beat,
   `popIn(card, {rotate = -6})`, `confetti(hud, {count = …, origin = the held fish on screen})`,
-  a count-up with `FishingRules.FormatCoins`, `stamp(mutationBadge)`, Legendary/Mythic:
+  a count-up with `CatchFx.money` («$0 → $58», `TankRules.FormatMoney`), `stamp(mutationBadge)`, Legendary/Mythic:
   `shockwave(hud, origin)` + `cameraShake()` + `fovPunch()` at the landing (never a full-screen
   flash); on close `flyTo(hud, start, «САДОК» (or `Wallet.Money` with a 💵 for a fish sold on the
   spot), {onArrive = clear CounterHold and CounterIncoming})`

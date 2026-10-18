@@ -1045,7 +1045,15 @@ tests["text widths: card, header and stamp strings fit their boxes at their tier
 	local slots = TankConfig.MaxSlots
 	fits(t, UiFx, `{slots}/{slots}`, header.Count.Label, panel, sheet, "count")
 	fits(t, UiFx, R.FormatRate(big.tankIncome10), header.Rate, panel, sheet, "tank income")
-	fits(t, UiFx, "💵 " .. R.FormatMoney(big.tankValue) .. " ▲", header.Total, panel, sheet, "tank value")
+	fits(
+		t,
+		UiFx,
+		TextUtil.fill(TankConfig.Texts.Total, { money = R.FormatMoney(big.tankValue) }),
+		header.Total,
+		panel,
+		sheet,
+		"tank value"
+	)
 	fits(t, UiFx, header.Market.Label.Text, header.Market.Label, panel, sheet, "market chip")
 	-- The tank stamp on the catch card (ART-04 / UX-01): CatchFx.tankRow slaps it on the card's
 	-- bottom-right corner like «НОВИНКА!» — on the smallest docked card (phone_small) its plate is

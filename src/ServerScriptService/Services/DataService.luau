@@ -2,7 +2,7 @@
 --[[
 	DataService — сохранение прогресса игрока (Этап 3): единственный, кто трогает DataStore.
 	Схема данных и её починка — ServerScriptService.Lib.PlayerData, числа — DataConfig
-	(подробно — scratchpad design.md, §2.2).
+	(подробно — docs/stage3_design.md, §2.2).
 
 	Что делает:
 	  1. При старте одна проверка доступа (GetAsync("__probe"), не дольше ProbeTimeout; probed
