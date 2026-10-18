@@ -19,7 +19,8 @@
 	                                studio = true (keep the Studio knob), before(sim)
 	  Kit.restart(t, old, gap, opts?) a NEW server on the old one's DataStore (the knob off again)
 	  Kit.seed(sim, id, spec)       a save poked before the join (Kit.pokeSave): spec { tank = { { Id,
-	                                Kg?, Mutation?, Age?, Origin? } }, money, lock, upgrades, saveCount }
+	                                Kg?, Mutation?, Age?, Origin? } }, money, lock, upgrades, saveCount,
+	                                stats (merged over the template's: { Stolen = 2 } is enough) }
 	  Kit.stealPrompt(sim, owner, slot) the "StealPrompt" of the owner's display slot (or nil)
 	  Kit.standAt(sim, p, prompt)   puts the character 2 studs in front of the prompt, facing it
 	  Kit.steal(t, sim, thief, owner, slot, opts?) a whole theft as a player does it: walk up, hold
@@ -150,7 +151,12 @@ function Kit.seed(sim: any, id: number, spec: { [string]: any }?): { [string]: a
 		changes.SaveCount = s.saveCount
 	end
 	if s.stats ~= nil then
-		changes.Stats = s.stats
+		-- merged over the template's stats (Kit.template derives Earned, Caught and Species from them)
+		local stats: { [string]: any } = { Caught = 0, Sold = 0, Earned = 0, Spent = 0, Species = {} }
+		for k, v in s.stats do
+			stats[k] = v
+		end
+		changes.Stats = stats
 	end
 	return Base.pokeSave(sim, id, changes)
 end
