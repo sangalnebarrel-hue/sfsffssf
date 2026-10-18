@@ -456,7 +456,7 @@ tests["minigame: garbage payloads are ignored safely"] = function(t)
 end
 
 --------------------------------------------------------------------------------
--- Catch card and counter
+-- Catch card and the «САДОК» chip
 --------------------------------------------------------------------------------
 
 -- UI v2 (FUI-01): the card opens when the caught fish has landed over the head
@@ -476,8 +476,9 @@ end
 
 -- (UI v2: the card opens after the leap, not on "Caught"; a tap during its reveal skips to the
 -- end and the next one closes it; the counter keeps the previous number until the 🐟 flies in —
--- deliberate changes of the timing this test checked before.)
-tests["catch card: opens after the fish lands; rarity, name, mutation, info, turning model; counter held; tap skips, then closes"] = function(
+-- deliberate changes of the timing this test checked before. Stage 3: the catch counter is gone —
+-- the «САДОК» chip «N/6» is held the same way; the price reads «$35».)
+tests["catch card: opens after the fish lands; rarity, name, mutation, info, turning model; «САДОК» held; tap skips, then closes"] = function(
 	t
 )
 	local sim = boot(t)
@@ -485,21 +486,30 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	equipRod(sim, p)
 	local card = gui(sim, p, "CatchCard")
 	local hud = sim:Gui(p, "HUD")
-	local counter = sim:Gui(p, "HUD.Status.CatchCounter")
-	t.eq(counter.Visible, false, "no catches yet")
+	local chip = sim:Gui(p, "HUD.RightButtons.TankButton.Count.Label")
+	t.eq(chip.Text, "0/6", "an empty tank")
+	-- (Stage 3: the server puts the fish into the tank — the attributes first, then "Caught" with
+	-- the TankResult, like TankService.)
+	local function tankCatch(n: number, total: number, fish: { [string]: any })
+		p:SetAttribute("FishCaught", total)
+		p:SetAttribute("TankCount", n)
+		p:SetAttribute("TankSlots", 6)
+		serverSays(sim, p, "Caught", {
+			Fish = fish,
+			Total = total,
+			Tank = { Result = "stored", Slot = n, Uid = `f{n}`, Count = n, Slots = 6 },
+		})
+	end
 
 	serverSays(sim, p, "Minigame", MINIGAME)
-	p:SetAttribute("FishCaught", 1)
-	serverSays(sim, p, "Caught", {
-		Fish = { Id = "Perch", Rarity = "Common", Mutation = "Gold", Kg = 1.23, Value = 35, Income = 3.5 },
-		Total = 1,
-	})
+	tankCatch(1, 1, { Id = "Perch", Rarity = "Common", Mutation = "Gold", Kg = 1.23, Value = 35, Income = 3.5 })
 	t.eq(gui(sim, p, "Minigame").Visible, false, "minigame closed by the catch")
 	t.ok(gui(sim, p, "FxMinigameWin"), "…its copy plays the win")
 	t.eq(card.Visible, false, "no card yet: the fish leaps first (the world is shown first)")
 	t.eq(caption(sim, p), "ЖДЁМ…", "the action button is frozen meanwhile")
-	t.eq(hud:GetAttribute("CounterHold"), 0, "the counter holds the previous number")
-	t.eq(counter.Visible, false, "…so it stays hidden until the first 🐟 flies in")
+	t.eq(hud:GetAttribute("CounterHold"), 0, "«САДОК» holds its previous count")
+	sim:Advance(0.5)
+	t.eq(chip.Text, "0/6", "…until the 🐟 flies in")
 	pressF(sim, p)
 	t.eq(#sent(sim, p, "FishingCast"), 0, "the action does not cast while the catch is on screen")
 
@@ -511,7 +521,7 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	t.eq(card.MutationLabel.Visible, true)
 	t.eq(card.MutationLabel.Text, "Золотая мутация ×2")
 	t.ok(isCandy(card.MutationLabel, UIConfig.Mutations.Gold), "mutation stamp in the Gold style")
-	t.eq(card.InfoLabel.Text, "1,2 кг · цена 35 💰")
+	t.eq(card.InfoLabel.Text, "1,2 кг · цена $35")
 
 	local model = card.Viewport:FindFirstChildOfClass("Model")
 	t.ok(model, "fish model in the viewport")
@@ -537,23 +547,18 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	t.eq(card.Viewport:FindFirstChildOfClass("Model"), nil, "model removed")
 	sim:Advance(0.9)
 	t.eq(hud:GetAttribute("CounterHold"), nil, "the 🐟 flew in: the hold is released")
-	t.eq(counter.Visible, true, "counter shown")
-	t.eq(counter.Label.Text, "1")
+	t.eq(chip.Text, "1/6", "«САДОК» counts the fish")
 	t.eq(caption(sim, p), "ЗАБРОСИТЬ", "the button is back")
 	t.eq(keyChip(sim, p), "F", "…with its F key chip")
 
-	p:SetAttribute("FishCaught", 2)
-	serverSays(sim, p, "Caught", {
-		Fish = { Id = "DragonFish", Rarity = "Mythic", Kg = 14, Value = 2400, Income = 200 },
-		Total = 2,
-	})
+	tankCatch(2, 2, { Id = "DragonFish", Rarity = "Mythic", Kg = 14, Value = 2400, Income = 200 })
 	t.ok(waitCard(sim, p))
 	t.eq(card.Banner.RarityLabel.Text, "МИФИЧЕСКАЯ")
 	t.eq(card.NameLabel.Text, "Рыба-дракон")
 	t.eq(card.MutationLabel.Visible, false, "no mutation stamp without a mutation")
-	t.eq(card.InfoLabel.Text, "14 кг · цена 2400 💰")
+	t.eq(card.InfoLabel.Text, "14 кг · цена $2\u{00A0}400")
 	t.eq(card.Viewport:FindFirstChildOfClass("Model").Name, "Normal")
-	t.eq(counter.Label.Text, "1", "the counter still holds the previous number")
+	t.eq(chip.Text, "1/6", "«САДОК» still holds its previous count")
 	pressF(sim, p)
 	t.eq(card.Visible, true, "a trailing tap right after the card opens does nothing")
 	sim:Advance(0.5)
@@ -578,12 +583,11 @@ tests["catch card: opens after the fish lands; rarity, name, mutation, info, tur
 	t.eq(card.Visible, false, "…F after a pause closes the card")
 	t.eq(#sent(sim, p, "FishingCast"), 0, "...and does not cast")
 	sim:Advance(0.9)
-	t.eq(counter.Label.Text, "2", "+1 when the 🐟 arrives")
+	t.eq(chip.Text, "2/6", "+1 when the 🐟 arrives")
 
-	p:SetAttribute("FishCaught", 3)
-	serverSays(sim, p, "Caught", { Fish = { Id = "Crucian", Rarity = "Common", Kg = 0.5, Value = 9 }, Total = 3 })
+	tankCatch(3, 3, { Id = "Crucian", Rarity = "Common", Kg = 0.5, Value = 9 })
 	t.ok(waitCard(sim, p))
-	t.eq(card.InfoLabel.Text, "500 г · цена 9 💰")
+	t.eq(card.InfoLabel.Text, "500 г · цена $9")
 	-- Closes by itself: UIConfig.CatchCardTime per rarity, never sooner than CARD.Linger (0.6 s)
 	-- after its last beat (a new Common species: the 0.2 s ladder settles at ≈ 1.25 s, so 2.2 s).
 	sim:Advance(UIConfig.CatchCardTime.Common + 1.1)

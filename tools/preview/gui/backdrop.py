@@ -23,7 +23,8 @@ gradient, anything else is an image path (cover-fitted).
 Chrome (drawn over the HUD, semi-transparent, like CoreGui above PlayerGui); the shapes come
 from chrome_shapes(), which the layout-safety check (gui/checks.py) uses too:
   * top bar (58 px): the Roblox menu button and the chat/"more" pill at the top-left; on
-    desktop also the open chat window (top-left) and the player list (top-right);
+    desktop also the open chat window (top-left) and the player list (top-right; stage 3: two
+    leaderstats columns «Деньги» and «Доход/с», ≈ 300 px wide);
   * the hotbar: 60 px slots centred, 5..65 px above the bottom, one per tool (number + name,
     a white frame on the equipped one) — not drawn when the dump's frame says hotbar = false
     (the game switched the Backpack CoreGui off: StarterGui:SetCoreGuiEnabled);
@@ -409,7 +410,9 @@ def chrome_shapes(W, H, touch, tools, safe=(0, 0, 0), hotbar=True):
     }
     if not touch:
         out["ChatWindow"] = ("rrect", sl + 8, INSET + 4, sl + 368, INSET + 184, 8)
-        out["PlayerList"] = ("rrect", W - sr - 178, 4, W - sr - 8, 74, 8)
+        # Stage 3: two leaderstats columns («Деньги», «Доход/с») widen the list to ≈ 300 px
+        # (an estimate — verify in a real client; FishingController CLIMAX.ListLeft follows it).
+        out["PlayerList"] = ("rrect", W - sr - 308, 4, W - sr - 8, 74, 8)
     if hotbar:
         n = max(1, len(tools or []))
         total = n * HOTBAR_SLOT + (n - 1) * HOTBAR_GAP
@@ -465,8 +468,13 @@ def draw_chrome(canvas, W, H, ss, touch, tools, opacity=0.8, safe=(0, 0, 0), hot
         pl = shapes["PlayerList"]
         rr(pl[1:5], 8, fill=(30, 33, 40, A(0.5)))
         d.text(((pl[1] + 12) * s, 12 * s), "Игроки", font=_font(14 * s), fill=(255, 255, 255, A(0.75)))
+        # the leaderstats columns (EconomyConfig.Leaderstats): «Деньги» first, then «Доход/с»
+        for label, right in (("Деньги", 112), ("Доход/с", 16)):
+            d.text(((pl[3] - right - 70) * s, 12 * s), label, font=_font(13 * s), fill=(255, 255, 255, A(0.75)))
         rr((pl[1] + 6, 34, pl[3] - 6, 66), 6, fill=(255, 255, 255, A(0.12)))
         d.text(((pl[1] + 16) * s, 42 * s), "Рыбак", font=_font(15 * s), fill=(255, 255, 255, A(0.9)))
+        for value, right in (("0", 112), ("0", 16)):
+            d.text(((pl[3] - right - 70) * s, 42 * s), value, font=_font(15 * s), fill=(255, 255, 255, A(0.9)))
 
     # Hotbar (unless the game switched the Backpack CoreGui off).
     slot, gap = HOTBAR_SLOT, HOTBAR_GAP

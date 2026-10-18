@@ -104,6 +104,9 @@ local scenarios = require("./gui_scenarios")
 -- Stage 3 world views (TankWorldController: the court, the displays, the pier word): their own
 -- file, the same scenario format, not in the standard set.
 local tankScenarios = require("./gui_scenarios_tank")
+-- Stage 3 HUD states (the Wallet, «САДОК», catch → tank, the stage 3 toasts): their own file, in
+-- the standard set.
+local hudScenarios = require("./gui_scenarios_hud3")
 local WorldCapture = require("./gui/world_capture")
 
 local Enum = roblox.Enum
@@ -1625,10 +1628,11 @@ local DEFAULT_BEATS = {
 		name = "mutation",
 		appear = { "HUD.Fishing.CatchCard.MutationLabel", "HUD.Fishing.CatchCard.MutationStamp" },
 	},
+	{ name = "stamp", appear = "HUD.Fishing.CatchCard.TankStamp" },
 	{ name = "pillar", event = "PillarCore" },
 	{ name = "close", disappear = "HUD.Fishing.CatchCard" },
 	{ name = "fly", appearNamed = "FxFly" },
-	{ name = "+1", change = "HUD.Status.CatchCounter.Label" },
+	{ name = "+1", change = "HUD.RightButtons.TankButton.Count.Label" },
 	{ name = "held gone", event = "HeldFish", kind = "disappear" },
 	-- the rest of the loop (bursts of bites, hits and misses)
 	{ name = "bite", state = "Bite" },
@@ -2049,6 +2053,9 @@ local function allScenarios(): { any }
 		table.insert(list, s)
 	end
 	for _, s in tankScenarios do
+		table.insert(list, s)
+	end
+	for _, s in hudScenarios do
 		table.insert(list, s)
 	end
 	return list

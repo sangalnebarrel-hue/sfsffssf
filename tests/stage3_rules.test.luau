@@ -1042,15 +1042,26 @@ tests["text widths: card, header and stamp strings fit their boxes at their tier
 	fits(t, UiFx, R.FormatRate(big.tankIncome10), header.Rate, panel, sheet, "tank income")
 	fits(t, UiFx, "💵 " .. R.FormatMoney(big.tankValue) .. " ▲", header.Total, panel, sheet, "tank value")
 	fits(t, UiFx, header.Market.Label.Text, header.Market.Label, panel, sheet, "market chip")
-	-- The tank stamp on the catch card at its smallest (its UISizeConstraint MinSize), 12 px.
+	-- The tank stamp on the catch card (wave 2 C): CatchFx.tankRow sizes its plate to its words in
+	-- the close-hint row — on the smallest docked card (phone_small) the label is ≥ 12 px and holds
+	-- every stamp; the builder's label shares are the ones tankRow computes with.
 	local stamp = hud.Fishing.CatchCard.TankStamp
-	local min = stamp:FindFirstChildOfClass("UISizeConstraint").MinSize
-	local inner = Vector2.new(min.X * stamp.Label.Size.X.Scale, min.Y * stamp.Label.Size.Y.Scale)
-	t.ok(inner.Y >= 12, `the stamp's label box is {math.floor(inner.Y)} px tall`)
+	local CatchFx = s.CatchFx
+	t.ok(CatchFx.STAMP_TEXT >= 12, "the stamp is never under 12 px")
+	t.near(stamp.Label.Size.Y.Scale, CatchFx.STAMP_LABEL, 1e-6, "the label's height share (tankRow)")
+	t.near(stamp.Label.Size.X.Scale, CatchFx.STAMP_INNER, 1e-6, "the label's width share (tankRow)")
+	local smallest = Vector2.new(260, 165)
 	for _, result in { "stored", "replaced", "sold" } do
-		local text = s.CatchFx.tankStamp({ Result = result })
+		local text = CatchFx.tankStamp({ Result = result })
+		local plate, hint = stamp:Clone(), hud.Fishing.CatchCard.TapHint:Clone()
+		CatchFx.tankRow(plate, hint, { Result = result }, smallest, true, smallest.X)
+		local size = Vector2.new(plate.Size.X.Scale * smallest.X, plate.Size.Y.Scale * smallest.Y)
+		local inner = Vector2.new(size.X * plate.Label.Size.X.Scale, size.Y * plate.Label.Size.Y.Scale)
+		t.ok(inner.Y >= 12 - 1e-6, `stamp «{text}»: its label box is {math.floor(inner.Y)} px tall`)
 		local w = UiFx.textWidth(text, 12)
 		t.ok(w <= inner.X, `stamp «{text}»: {math.floor(w)} px fits {math.floor(inner.X)} px at 12 px`)
+		plate:Destroy()
+		hint:Destroy()
 	end
 end
 
@@ -1103,7 +1114,6 @@ tests["contract: every Stage 3 name (design §6.1, §4.5, §4.6) exists in the b
 		"Status.Wallet.Money.Label",
 		"Status.Wallet.Money.Back",
 		"Status.Wallet.Rate",
-		"Status.CatchCounter", -- kept until wave 2
 		"RightButtons.TankButton",
 		"RightButtons.TankButton.Icon",
 		"RightButtons.TankButton.Caption",

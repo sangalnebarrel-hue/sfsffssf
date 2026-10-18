@@ -98,6 +98,14 @@ local function toMinigame(h: any, rarity: string, extra: { [string]: any }?)
 	h:minigame(rarity, extra)
 end
 
+-- Stage 3: the server lays the n-th fish into the tank (TankService: the attributes, then "Caught"
+-- with this TankResult) — the card stamps «В САДОК!» and flies into «САДОК».
+local function storedIn(h: any, n: number): { [string]: any }
+	h.player:SetAttribute("TankCount", n)
+	h.player:SetAttribute("TankSlots", 6)
+	return { Result = "stored", Slot = n, Uid = `f{n}`, Count = n, Slots = 6 }
+end
+
 -- The winning moment of `fish`: time 0 = "Caught" (UI v2: the minigame's win morph, then the
 -- leap — here no leap runs, so the card opens LeapTime + 0.3 s + the rarity's hold later).
 local function caughtScenario(h: any, fish: { [string]: any })
@@ -106,7 +114,7 @@ local function caughtScenario(h: any, fish: { [string]: any })
 	h:click("HUD.Fishing.ActionArea.ActionButton", true)
 	h:advance(0.05)
 	h.player:SetAttribute("FishCaught", 1)
-	h:caught(fish, 1)
+	h:caught(fish, 1, storedIn(h, 1))
 end
 
 -- The catch card of `fish`: time 0 = the moment the card is on screen with its name (its beats
@@ -764,7 +772,7 @@ local scenarios = {
 	},
 	{
 		name = "catch_common",
-		desc = "Catch card: a NEW Common (Карасик) — a small fanfare: sparks + confetti at «НОВИНКА!», brighter rays, «+11 💰»",
+		desc = "Catch card: a NEW Common (Карасик) — a small fanfare: sparks + confetti at «НОВИНКА!», brighter rays, «+$1.1/с», «В САДОК!»",
 		still = { 0.45, 1.5 },
 		sheet = { from = 0, to = 2.2, fps = 10, roi = {}, margin = 0 },
 		run = function(h: any)
@@ -773,7 +781,7 @@ local scenarios = {
 	},
 	{
 		name = "catch_common_again",
-		desc = "Catch card: a known Common (the second Карасик) — calm: no dim, no confetti, no «+N 💰», 0.2 s beats",
+		desc = "Catch card: a known Common (the second Карасик) — calm: no dim, no confetti, no «+$X/с», 0.2 s beats",
 		still = 1.3,
 		sheet = { from = 0, to = 2.3, fps = 10, roi = {}, margin = 0 },
 		run = function(h: any)
@@ -784,13 +792,13 @@ local scenarios = {
 			h:click("HUD.Fishing.ActionArea.ActionButton", true)
 			h:advance(0.05)
 			h.player:SetAttribute("FishCaught", 2)
-			h:caught(CATCHES.Common, 2)
+			h:caught(CATCHES.Common, 2, storedIn(h, 2))
 			h:waitVisible("HUD.Fishing.CatchCard", 4)
 		end,
 	},
 	{
 		name = "catch_rare",
-		desc = "Catch card: Rare (Фугу-пуфик) — blue rays around the card, «+58 💰» flies out beside it",
+		desc = "Catch card: Rare (Фугу-пуфик) — blue rays around the card, its income «+$5.2/с» flies out beside it",
 		still = { 1.3, 2.0 },
 		run = function(h: any)
 			catchScenario(h, CATCHES.Rare)
@@ -861,7 +869,7 @@ local scenarios = {
 	},
 	{
 		name = "catch_close",
-		desc = "Closing the catch card (tap): the card itself flies into the counter, 🐟 ★ with it, the first «🐟 0» appears, +1",
+		desc = "Closing the catch card (tap): the card itself flies into «САДОК», 🐟 ★ with it, the chip rolls 0/6 → 1/6",
 		still = { 0.2, 0.36 },
 		sheet = { from = 0, to = 1.0, fps = 15, roi = {}, margin = 0 },
 		run = function(h: any)
@@ -1162,7 +1170,8 @@ local scenarios = {
 	{
 		name = "trophy_chip",
 		desc = "Someone else's Legendary catch on the next pier (off-screen): the broadcast and a 🌟 chip at the screen edge on the pillar's side",
-		-- (In --all since UI v5: its gap to the Home column is checked on every device.)
+		-- (In --all since UI v5: its gap to the right column — stage 3: «САДОК» over «ДОМОЙ», the
+		-- taller column — is checked on every device.)
 		world = true,
 		still = { 0.8, 2.0 },
 		sheet = { from = 0, to = 1.2, fps = 10, roi = {} },

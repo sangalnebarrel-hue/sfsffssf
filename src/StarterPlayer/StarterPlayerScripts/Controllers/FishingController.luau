@@ -150,13 +150,18 @@
 	    и всё успокаивается (мифическая «дышит»). Тап по карточке раньше последней доли
 	    показывает всё сразу, ещё через 0.6 с — может закрыть; сама карточка закрывается через
 	    UIConfig.CatchCardTime[редкость] (но не раньше 0.6 с после последней доли). Уходя, она
-	    сама летит снарядом в счётчик (сжимаясь почти в точку), рядом с ней — 🐟 со ★ цветов
-	    редкости; «+1» — когда долетели, а следом трофей над головой «вспыхивает» ещё раз
+	    сама летит снарядом в кнопку «САДОК» (сжимаясь почти в точку), рядом с ней — 🐟 со ★
+	    цветов редкости; прилёт — когда долетели, а следом трофей над головой «вспыхивает» ещё раз
 	    (FishingFxController.ReplayOwnTrophy; своя табличка с ценой выскакивает только теперь) —
-	    рыба висит дольше карточки. Счётчик улова
-	    (HUD.Status.CatchCounter) ведёт HudController: от "Caught" до прилёта 🐟 у HUD стоит
-	    атрибут CounterHold (прошлое число), пока 🐟 летит — CounterIncoming (её редкость:
-	    первый улов — счётчик появляется с «Улов: 0», прилёт — в цвете редкости).
+	    рыба висит дольше карточки. Этап 3 (design §6.5): "Caught" несёт Tank — что стало с рыбой
+	    в садке; на карточке — «цена $45», из фишки цены вылетает доход рыбы «+$4/с», под ценой
+	    своей долей шлёпается штамп «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА» (CatchFx.tankStamp /
+	    tankRow); рыба продана сразу (садок полон) — вылетает золотое «+$15», а карточка и 💵 летят
+	    в кошелёк (Status.Wallet.Money; кнопки нет — в середину колонки кнопок). «НОВИНКА!» —
+	    первый улов вида за всё время (Fish.New от сервера). Фишку «4/6» кнопки «САДОК» ведёт
+	    TankButtonController, кошелёк — MoneyController: от "Caught" до прилёта у HUD стоит
+	    атрибут CounterHold (прошлое число улова — «улов на экране»), пока рыба летит —
+	    CounterIncoming (её редкость: прилёт — в цвете редкости).
 	  • Подстраховка: сервер ставит атрибут FishingState = "Idle" раньше события; если события
 	    ("Caught" / "Lost" / "Idle") за полсекунды так и не было — рыбалка кончается сама.
 	  • Подсказка (Hint — «таблетка» таймера из образца: тёмное стекло 💡 с курсивом / солнечная ⚠️ /
@@ -371,7 +376,9 @@ type Ui = {
 	priceChip: Frame,
 	priceIcon: GuiObject,
 	priceLabel: TextLabel,
-	counter: Frame,
+	counter: GuiObject, -- Этап 3: кнопка «САДОК» (RightButtons.TankButton) — туда летит улов
+	wallet: GuiObject, -- … а рыба, проданная сразу, — 💵 в кошелёк (Status.Wallet.Money)
+	tankStamp: Frame, -- штамп садка под ценой «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА»
 	-- Баннер «ТВОЯ БАЗА» по центру (его ведёт HudController): пока он виден, подсказка по месту ждёт.
 	baseBanner: GuiObject?,
 
@@ -1196,13 +1203,32 @@ do
 
 	-- Верх полосы слева (px корня) для виджета, прижатого слева до x1: под видимыми плашками
 	-- статуса над ним (с зазором COLUMN_GAP); низ — над джойстиком (тач-экран). edge — сколько
-	-- его обводка и «аура» выступают за него (не меньше OUTLINE; на планшете толще).
+	-- его обводка и «аура» выступают за него (не меньше OUTLINE; на планшете толще). Ряд по
+	-- центру (кошелёк Этапа 3: «💵 $0 +$4/с» в широкой рамке) мешает только своим содержимым.
 	local function dockBand(origin: Vector2, height: number, x1: number, edge: number): (number, number)
 		local top = 8 + edge
 		for _, item in ui.status:GetChildren() do
 			if item:IsA("GuiObject") and item.Visible then
 				local at = item.AbsolutePosition - origin
-				if at.X < x1 and at.X + item.AbsoluteSize.X > Layout.EDGE then
+				local left, right = at.X, at.X + item.AbsoluteSize.X
+				local row = item:FindFirstChildOfClass("UIListLayout")
+				if
+					row
+					and row.FillDirection == Enum.FillDirection.Horizontal
+					and row.HorizontalAlignment == Enum.HorizontalAlignment.Center
+				then
+					local width, count = 0, 0
+					for _, child in item:GetChildren() do
+						if child:IsA("GuiObject") and child.Visible then
+							width += child.AbsoluteSize.X
+							count += 1
+						end
+					end
+					width += math.max(count - 1, 0) * (row.Padding.Scale * item.AbsoluteSize.X + row.Padding.Offset)
+					local middle = (left + right) / 2
+					left, right = middle - width / 2, middle + width / 2
+				end
+				if left < x1 and right > Layout.EDGE then
 					top = math.max(top, at.Y + item.AbsoluteSize.Y + Layout.EDGE + edge)
 				end
 			end
@@ -1907,6 +1933,7 @@ type Place = {
 -- Наружу из раздела (блок do … end, см. «Устройство файла» в шапке):
 local minigameShownAt = -math.huge
 local cardReveal: Reveal
+local cardTank: any = nil -- Этап 3: TankResult улова на экране (штамп, «+$/с», куда летит; nil — нет)
 local offset, placeCard, winGhost, tapCard, beginCatch, onOwnFishLanded, parseFish
 do
 	--[[
@@ -2175,7 +2202,8 @@ do
 		TopbarRight = 172,
 		ChatRight = 384, -- без тач-экрана слева вверху окно чата Roblox (до x 368 + 16 px зазора) …
 		ChatBottom = 201, -- … и до этой высоты HUD (низ окна — y 184 HUD + 16 px + 1 на округление): ниже
-		ListLeft = 202, -- без тач-экрана справа вверху список игроков (от края 8…186 px + 16 px) …
+		ListLeft = 324, -- без тач-экрана справа вверху список игроков (Этап 3: с колонками «Деньги» и
+		-- «Доход/с» ≈ 8…308 px от края + 16 px; оценка, как tools/preview/gui/backdrop.py) …
 		ListBottom = 33, -- … и до этой высоты HUD (низ списка — y 16 HUD + 16 px + 1 на округление)
 		TitleSide = 24,
 		TitleBeside = 1.25,
@@ -2503,7 +2531,8 @@ do
 	end
 
 	--------------------------------------------------------------------------------
-	-- Счётчик улова держит прошлое число, пока 🐟 не прилетит (договор с HudController)
+	-- Улов на экране: CounterHold (прошлое число улова), пока 🐟 не прилетит в «САДОК» — по нему
+	-- фишка кнопки (TankButtonController), кошелёк (MoneyController), уведомления, слово у ведра
 	--------------------------------------------------------------------------------
 
 	local function holdCounter(serial: number, total: number)
@@ -2513,7 +2542,7 @@ do
 		end
 	end
 
-	-- 🐟 прилетела: счётчик показывает новое число и «встречает» её (в цвете CounterIncoming).
+	-- 🐟 прилетела: кнопка «САДОК» показывает новое число и «встречает» её (в цвете CounterIncoming).
 	local function releaseCounter(serial: number)
 		if heldSerial == serial then
 			heldSerial = 0
@@ -3175,6 +3204,15 @@ do
 			applyPlace(gui, place)
 		end
 		CatchFx.stampMin(ui.newStamp, size.X) -- (UI v5: на узкой карточке наклейка уже)
+		-- Этап 3: ряд под ценой — штамп садка справа, подсказка «закрыть» слева (CatchFx.tankRow).
+		CatchFx.tankRow(
+			ui.tankStamp,
+			ui.tapHint,
+			cardTank,
+			size,
+			UserInputService.TouchEnabled,
+			if wide then size.X else nil
+		)
 		cardBox = {
 			center = center,
 			size = size,
@@ -3363,7 +3401,7 @@ do
 				stampRoom
 			)
 			else ""
-		ui.tapHint.Text = CatchFx.tapHint(UserInputService.TouchEnabled, wideBox)
+		ui.tankStamp.Visible = false -- (его доля — после цены; подсказку и штамп ставит placeCard)
 		ui.priceMult.Text = if mutation then `×{mutation.Multiplier}` else ""
 		ui.priceMult.Visible = false
 		if mutationStyle then
@@ -3379,7 +3417,7 @@ do
 
 		local kg = FishingRules.FormatKg(fish.Kg)
 		local value = math.round(fish.Value)
-		ui.infoLabel.Text = `{kg} · цена {value} 💰`
+		ui.infoLabel.Text = CatchFx.infoText(kg, value)
 		ui.weightLabel.Text = upper(kg) -- «2,1 КГ»: фишки — заглавными
 		ui.priceLabel.Text = "0"
 		-- Цена — главное число карточки: «витринное», по своей коробке (≈ 0.8 лица фишки) — до
@@ -3658,7 +3696,10 @@ do
 		if bandY and bandH then
 			middle, height = bandY, bandH
 		end
-		local left, right = sideLimits(rootSize, middle - height / 2, middle + height / 2)
+		-- (Полоса слова — с запасом 16 px сверху и снизу: кнопка колонки или прыжка чуть ниже
+		-- слова тоже его сужает, а не встаёт вплотную под буквы.)
+		local left, right =
+			sideLimits(rootSize, middle - height / 2 - CARD_SIDE_GAP, middle + height / 2 + CARD_SIDE_GAP)
 		left = math.max(left, clearLeft)
 		-- (Ещё 10 px с каждой стороны: обводка букв и их «выскок» Back Out выходят за рамку.)
 		local room = 2 * math.max(math.min(centerX - left, right - centerX) - 10, 40)
@@ -3669,7 +3710,8 @@ do
 			-- буквы в CLIMAX.TitleBeside раз крупнее.
 			local sideY = math.max(wantY, Layout.EDGE + wantH / 2)
 			-- (у колонки справа мешают только показанные кнопки: её пустой верх свободен)
-			left, right = sideLimits(rootSize, sideY - wantH / 2, sideY + wantH / 2, true)
+			left, right =
+				sideLimits(rootSize, sideY - wantH / 2 - CARD_SIDE_GAP, sideY + wantH / 2 + CARD_SIDE_GAP, true)
 			if not UserInputService.TouchEnabled and sideY - wantH / 2 < CLIMAX.ChatBottom then
 				left = math.max(left, CLIMAX.ChatRight) -- (окно чата слева вверху)
 			end
@@ -4106,12 +4148,11 @@ do
 		UiFx.bump(ui.card, 1.06, 0.25)
 	end
 
-	-- Карточка уходит: она сама — снаряд. Её копия летит в счётчик (Quad In: на CARD.Reach пути,
-	-- сжимаясь до CARD.Shrink, чуть поворачиваясь) и тает в самом конце; через CARD.Fly рядом с
-	-- ней вылетают 🐟 и ★ (flyHome) — долетают вместе. Цель — середина счётчика; первый улов:
-	-- счётчик ещё не показан (его покажет HudController по CounterIncoming) и список Status не
-	-- дал ему места — место считаем сами, как разложит UIListLayout (по центру, под видимыми
-	-- плашками выше него).
+	-- Карточка уходит: она сама — снаряд. Её копия летит в кнопку «САДОК» (Этап 3; Quad In: на
+	-- CARD.Reach пути, сжимаясь до CARD.Shrink, чуть поворачиваясь) и тает в самом конце; через
+	-- CARD.Fly рядом с ней вылетают 🐟 и ★ (flyHome) — долетают вместе. Рыба продана сразу (садок
+	-- полон, Tank.Result "sold") — в кошелёк, и летит 💵; кнопки нет (нет базы) — в середину
+	-- колонки кнопок (CatchFx.flyTarget).
 	local function ghostCard(): GuiObject
 		local ghost = ui.card:Clone()
 		ghost.Name = "FxCardOut"
@@ -4131,20 +4172,8 @@ do
 		end
 		ghost.Parent = ui.card.Parent
 		local origin = ui.fishing.AbsolutePosition
-		local counter, status = ui.counter, ui.status
-		local target = counter.AbsolutePosition + counter.AbsoluteSize / 2 - origin
-		if not counter.Visible then
-			local size = status.AbsoluteSize
-			local list = status:FindFirstChildOfClass("UIListLayout")
-			local gap = if list then list.Padding.Scale * size.Y + list.Padding.Offset else 0
-			local y = (counter.Size.Y.Scale * size.Y + counter.Size.Y.Offset) / 2
-			for _, item in status:GetChildren() do
-				if item:IsA("GuiObject") and item.Visible and item.LayoutOrder < counter.LayoutOrder then
-					y += item.AbsoluteSize.Y + gap
-				end
-			end
-			target = status.AbsolutePosition + Vector2.new(size.X / 2, y) - origin
-		end
+		local aim = CatchFx.flyTarget(ui.counter, ui.wallet, cardTank)
+		local target = aim.AbsolutePosition + aim.AbsoluteSize / 2 - origin
 		local box = cardBox
 		local from = if box then box.center else ghost.AbsolutePosition + ghost.AbsoluteSize / 2 - origin
 		local to = from:Lerp(target, CARD.Reach)
@@ -4163,7 +4192,7 @@ do
 		return ghost
 	end
 
-	-- 🐟 прилетела: счётчик +1 (CounterHold снят), через 0.15 с кнопка снова «ЗАБРОСИТЬ», ещё
+	-- 🐟 прилетела: рыба в садке (CounterHold снят), через 0.15 с кнопка снова «ЗАБРОСИТЬ», ещё
 	-- через CLIMAX.Trophy свой трофей над головой «вспыхивает» ещё раз — карточка его больше не
 	-- закрывает, а «+1» уже встал (два удара не в один миг): FishingFxController.ReplayOwnTrophy
 	-- (шар, ореол, табличка выскакивает впервые — до того её прятала карточка, искры).
@@ -4195,16 +4224,17 @@ do
 		refreshContextHint()
 	end
 
-	-- 🐟 вылетает из летящей карточки (рядом с местом, откуда она стартовала) в счётчик улова,
-	-- следом — ★ цветов редкости (мифическая — радуга); на месте счётчик «встречает» её
-	-- (HudController, цвет — CounterIncoming). Откуда — запоминается один раз: невидимая «точка
+	-- 🐟 (рыба продана сразу — 💵) вылетает из летящей карточки (рядом с местом, откуда она
+	-- стартовала) в кнопку «САДОК» (или в кошелёк), следом — ★ цветов редкости (мифическая —
+	-- радуга); на месте кнопка «встречает» её (TankButtonController, цвет — CounterIncoming;
+	-- кошелёк считает монеты — MoneyController). Откуда — запоминается один раз: невидимая «точка
 	-- старта» FxFlyFrom живёт, пока не вылетит последняя ★ (сама карточка к тому времени уже
 	-- удалена — её Absolute* устарели бы).
 	local function flyHome(from: GuiObject, reveal: Reveal, serial: number)
 		local hud = ui.hud
 		local height = math.max(hud.AbsoluteSize.Y, 1)
 		local fishPx = math.max(28, height * 0.075) -- 🐟 ≈ 28 px на телефоне, крупнее на больших
-		local counter = ui.counter
+		local counter = CatchFx.flyTarget(ui.counter, ui.wallet, cardTank)
 		local start = Instance.new("Frame")
 		start.Name = "FxFlyFrom"
 		start.BackgroundTransparency = 1
@@ -4217,12 +4247,12 @@ do
 		start.Parent = hud
 		celebrationTrove:Add(start)
 		celebrationTrove:Add(UiFx.flyTo(hud, start, counter, {
-			text = "🐟",
+			text = CatchFx.flyIcon(cardTank),
 			time = CARD.FishTime,
 			size = fishPx / height,
 			arc = 0.12,
 			onArrive = function()
-				releaseCounter(serial) -- счётчик +1 (его «прилёт» играет HudController)
+				releaseCounter(serial) -- рыба в садке (её «прилёт» играет TankButtonController)
 				UiFx.sound("pop", 0.35, 1.2)
 				task.delay(0.15, finishCatch, serial, true)
 			end,
@@ -4280,8 +4310,8 @@ do
 				dim.Visible = false
 			end
 		end)
-		-- Счётчик — цель полёта: плашки статуса возвращаются сразу, а первый улов за игру — счётчик
-		-- появляется с «Улов: 0» (HudController по CounterIncoming), пока карточка к нему летит.
+		-- Цель полёта — кнопка «САДОК» (или кошелёк): плашки статуса возвращаются сразу, кнопка
+		-- знает, что к ней летит (CounterIncoming — редкость: прилёт в её цветах).
 		-- Через CARD.Fly за ней — 🐟 (трофей над головой «вспыхнет», когда она долетит: finishCatch).
 		unfadeGroup(ui.status, STATUS_FADE)
 		if heldSerial == serial then
@@ -4575,7 +4605,8 @@ do
 		local mutation = if fish.Mutation then FishingRules.GetMutation(fish.Mutation) else nil
 		local mutated = mutationStyle ~= nil and mutation ~= nil -- штамп мутации и пересчёт цены
 		local card = ui.card
-		local isNew = not seenSpecies[fish.Id]
+		-- (Этап 3: «НОВИНКА!» — первый улов вида за всё время, Fish.New от сервера; нет — за игру)
+		local isNew = if fish.New ~= nil then fish.New else not seenSpecies[fish.Id]
 		seenSpecies[fish.Id] = true
 		-- Новый вид обычной или редкой рыбы (первый улов новичка чаще всего такой) — маленький
 		-- праздник (CARD.New): лучи ярче, с зеленью и золотом, лёгкое затемнение, «+N 💰», у штампа
@@ -4911,10 +4942,11 @@ do
 			этой высоте); тесно — надпись меньше (не меньше MinTitle × Title), совсем тесно — быстро
 			вверх, над строкой веса (на имя). Back Out за Fly, потом поднимается и тает.
 		]]
-		local function floatPrice(amount: number, share: number)
+		local function floatPrice(_amount: number, share: number)
 			local spec = CARD.PriceFloat
 			local root = ui.fishing.AbsoluteSize
-			local text = `+{FishingRules.FormatCoins(amount)} 💰`
+			-- Этап 3: доход рыбы «+$4/с» (зелёный) или, если её сразу продали, золотое «+$15».
+			local text, floatColors = CatchFx.priceFloat(fish.Income, cardTank)
 			local perHeight = (utf8.len(text) or 6) * 0.6 -- ширина надписи в её высотах
 			local chipPos, chipSize = cardRect(ui.priceChip)
 			-- Вылетает из верхнего края фишки (чуть правее середины): само число не закрывает.
@@ -5005,7 +5037,7 @@ do
 				to = UDim2.fromScale(at.X / w, at.Y / h),
 				travel = spec.Fly,
 				size = UDim2.fromScale(height * perHeight / w, height / h),
-				colors = { Palette.Gold.Top, Palette.Sun.Bottom },
+				colors = floatColors,
 				rise = spec.Rise,
 				time = life,
 				rotate = -5,
@@ -5055,7 +5087,11 @@ do
 				z = 13,
 			}))
 			-- «+N 💰»: когда фишка «села» — вылетает из неё на свободное место (floatPrice).
-			local share = if reveal.Float > 0 then reveal.Float elseif mutated then CARD.New.Float else 0
+			-- (Этап 3: рыба, проданная сразу, — всегда золотое «+$15»: её деньги)
+			local share = if reveal.Float > 0
+				then reveal.Float
+				elseif mutated or CatchFx.isSold(cardTank) then CARD.New.Float
+				else 0
 			if share > 0 then
 				later(cardTrove, CARD.PriceFloat.Delay, function()
 					floatPrice(amount, share)
@@ -5174,6 +5210,18 @@ do
 		-- Последняя доля: подсказка «Тапни — забрать!», кнопка — «ЗАБРАТЬ!», всё успокаивается
 		-- (лучи, свечение, звёзды реже); мифическая «дышит» и покачивается.
 		local last = finish + beat
+		if CatchFx.tankStamp(cardTank) then
+			-- Этап 3: штамп садка шлёпается своей долей, когда цена встала (CatchFx.showTankStamp).
+			local stampAt = last
+			last += beat
+			addBeat(stampAt, function(instant: boolean)
+				local root = ui.fishing.AbsoluteSize
+				local pos, size = cardRect(ui.tankStamp)
+				local center = pos + size / 2
+				local at = Vector2.new(center.X / math.max(root.X, 1), center.Y / math.max(root.Y, 1))
+				CatchFx.showTankStamp(ui.tankStamp, ui.fishing, at, cardTrove, instant)
+			end)
+		end
 		addBeat(last, function(instant: boolean)
 			cardSettled = true
 			stopGlow()
@@ -5489,6 +5537,8 @@ do
 			Kg = number(value.Kg, 0),
 			Value = number(value.Value, 0),
 			Income = number(value.Income, 0),
+			Uid = if typeof(value.Uid) == "string" then value.Uid else nil,
+			New = if typeof(value.New) == "boolean" then value.New else nil,
 		}
 	end
 end
@@ -6959,6 +7009,8 @@ do
 		end
 		if fish then
 			catchScreen = true -- кнопка сразу «замирает» (без промежуточного «ЖДЁМ…» с выскоком)
+			-- Этап 3: что стало с рыбой в садке (штамп, «+$/с», куда полетит карточка).
+			cardTank = if typeof(data.Tank) == "table" then data.Tank else nil
 		end
 		endSessionByServer()
 		if fish then
@@ -7146,7 +7198,7 @@ local function collectUi(hud: ScreenGui): Ui
 	local info = child(card, "InfoLabel")
 	local weight = child(info, "Weight")
 	local price = child(info, "Price")
-	local counter = child(child(hud, "Status"), "CatchCounter")
+	local counter = child(child(hud, "RightButtons"), "TankButton")
 
 	local pips: { Frame } = {}
 	for index = 1, 5 do
@@ -7203,6 +7255,8 @@ local function collectUi(hud: ScreenGui): Ui
 		priceIcon = child(price, "Icon"),
 		priceLabel = child(price, "Label"),
 		counter = counter,
+		wallet = child(child(child(hud, "Status"), "Wallet"), "Money"),
+		tankStamp = child(card, "TankStamp"),
 		baseBanner = hud:FindFirstChild("BaseBanner") :: GuiObject?,
 
 		-- Улов, UI v2 (FUI-01…12).

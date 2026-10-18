@@ -1041,7 +1041,7 @@ local function buildCatch(root: any)
 		MinTextSize = 12,
 	})
 
-	-- Weight and price chips; InfoLabel.Text is the summary «1,2 кг · цена 35 💰» (the value),
+	-- Weight and price chips; InfoLabel.Text is the summary «1,2 кг · цена $35» (the value),
 	-- Price.Label counts up from 0: the hero number in italic white digits with a display outline,
 	-- a tall label (0.8 of the chip) that FishingController turns into display text (box-driven,
 	-- up to 1.4 × Title, never under Button − 2). Weight is a light grey round chip with Ink text
@@ -1102,9 +1102,11 @@ local function buildCatch(root: any)
 
 	-- Stage 3: the tank stamp under the price — what happened to the fish in the tank (K-4):
 	-- «В САДОК!» (Water), «ЗАМЕНА!» (Leaf), «ПРОДАНА» (Gold) — CatchFx.tankStamp gives the text
-	-- and the colour, FishingController fits it with UiFx.textWidth (never under 12 px) and
-	-- shows it; a small tilted sim plate like «НОВИНКА!», hidden (no Tank in "Caught": no stamp).
-	local tankStamp = Theme.plate(card, "TankStamp", "Water", {
+	-- and the colour; CatchFx.tankRow places it at the right end of the close hint's row (the
+	-- hint takes the rest, shorter when tight), sized to its word by UiFx.textWidth (never under
+	-- 12 px), and its own beat slaps it in after the price; a small tilted sim plate like
+	-- «НОВИНКА!», hidden (no Tank in "Caught": no stamp).
+	Theme.plate(card, "TankStamp", "Water", {
 		Visible = false,
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.74, 0.84),
@@ -1123,8 +1125,6 @@ local function buildCatch(root: any)
 			MinTextSize = 12,
 		},
 	})
-	-- (never so small that its word drops under 12 px on one line)
-	U.new("UISizeConstraint", { MinSize = Vector2.new(84, 22) }, tankStamp)
 
 	-- The close hint, named like the button's «ЗАБРАТЬ!»: muted italic on the plate (the
 	-- reference's hint text), Body tier (≥ 14 px on the smallest phone); hidden until the last

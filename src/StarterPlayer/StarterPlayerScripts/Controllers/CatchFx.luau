@@ -42,7 +42,14 @@
 	  • tankStamp (Этап 3) — штамп садка под ценой (CatchCard.TankStamp): что стало с рыбой по
 	    Tank из "Caught" — «В САДОК!» (Water), «ЗАМЕНА!» (Leaf), «ПРОДАНА» (Gold); тексты —
 	    TankConfig.Texts.Stamp; без Tank (садок её не принял) — nil, штамп спрятан. Чистая функция:
-	    это НЕ stampText (тот — подгонка штампа мутации).
+	    это НЕ stampText (тот — подгонка штампа мутации). tankRow — ряд под ценой: штамп справа (не
+	    мельче STAMP_TEXT px), подсказка «закрыть» слева (короче, если тесно; не влезает и короткая
+	    — штамп важнее, подсказки нет); showTankStamp — штамп шлёпается (slap) своей долей.
+	  • Этап 3, копия и цель карточки (design §6.5): infoText — «1,2 кг · цена $35» (значение
+	    InfoLabel); priceFloat — что вылетает из фишки цены: доход рыбы «+$4/с» (зелёный) или
+	    золотое «+$15», если она сразу продана; flyTarget / flyIcon — куда летит карточка и что
+	    летит с ней: «sold» — 💵 в кошелёк (Wallet.Money), иначе 🐟 в кнопку «САДОК», её нет (нет
+	    базы) — в середину колонки кнопок.
 	Всё, что живёт дольше вызова, отменяется уборкой trove (карточка закрылась — хвостов нет).
 ]]
 
@@ -54,6 +61,7 @@ local TankConfig = require(Shared:WaitForChild("Config"):WaitForChild("TankConfi
 local UiFx = require(Shared:WaitForChild("UiFx"))
 local Trove = require(Shared:WaitForChild("Util"):WaitForChild("Trove"))
 local TextUtil = require(Shared:WaitForChild("TextUtil"))
+local TankRules = require(Shared:WaitForChild("TankRules"))
 
 local CatchFx = {}
 
@@ -287,6 +295,138 @@ function CatchFx.tankStamp(result: any): (string?, string?)
 		return nil, nil
 	end
 	return TankConfig.Texts.Stamp[kind], token
+end
+
+-- Штамп садка не мельче стольких px (на самой маленькой карточке), его плашка — ряда подсказки
+-- в высоту (не выше STAMP_TALL px), между ним и подсказкой — STAMP_GAP её высот.
+CatchFx.STAMP_TEXT = 12
+CatchFx.STAMP_TALL = 34
+CatchFx.STAMP_GAP = 0.3
+CatchFx.STAMP_LABEL = 0.72 -- надпись штампа — такая доля высоты плашки (Fishing.luau)
+CatchFx.STAMP_INNER = 0.88 -- … и ширины
+
+-- Видно ли на экране (сам и все предки-GuiObject).
+local function shown(gui: Instance?): boolean
+	local node: Instance? = gui
+	while node and node:IsA("GuiObject") do
+		if not node.Visible then
+			return false
+		end
+		node = node.Parent
+	end
+	return gui ~= nil
+end
+
+-- Ширина строки Montserrat Heavy (UiFx.textWidth) с запасом на обводку.
+local function lineWidth(text: string, px: number): number
+	return UiFx.textWidth(text, px) * 1.08 + 4
+end
+
+-- Ряд под ценой (после placeCard: подсказка уже на месте своей раскладки, card — размер карточки
+-- в px): штамп садка справа, подсказка — на остальном (штамп показывает его доля).
+-- Без штампа подсказка — во весь ряд (tapHint). Возвращает, виден ли текст подсказки.
+-- wide — ширина широкой карточки (px; nil — квадратная): подсказка без штампа, как tapHint.
+function CatchFx.tankRow(
+	stamp: GuiObject,
+	hint: TextLabel,
+	tank: any,
+	card: Vector2,
+	touch: boolean,
+	wide: number?
+): boolean
+	-- (видимость штампа не трогает: прячет его fillCard, а раскладку зовут и на поворот экрана)
+	local text, token = CatchFx.tankStamp(tank)
+	local rowW = hint.Size.X.Scale * card.X
+	if not text or not token then
+		hint.Text = CatchFx.tapHint(touch, wide)
+		return true
+	end
+	local label = stamp:FindFirstChild("Label")
+	if label and label:IsA("TextLabel") then
+		label.Text = text
+	end
+	UiFx.setCandy(stamp, token)
+	-- Плашка штампа: ряда в высоту (не выше STAMP_TALL), надпись не мельче STAMP_TEXT px.
+	local rowH = hint.Size.Y.Scale * card.Y
+	local plateH = math.clamp(rowH, CatchFx.STAMP_TEXT / CatchFx.STAMP_LABEL, CatchFx.STAMP_TALL)
+	local px = plateH * CatchFx.STAMP_LABEL
+	local plateW = lineWidth(text, px) / CatchFx.STAMP_INNER + CatchFx.outline(stamp) * 2
+	local gap = rowH * CatchFx.STAMP_GAP
+	-- Подсказка — на остальном ряду: полная, короткая или никакой (штамп важнее).
+	local room = rowW - plateW - gap
+	local bodyPx = UiFx.textSize("Body") - 2 -- (fitText: Min = Max − 2)
+	local full, short = CatchFx.tapHint(touch, nil), CatchFx.tapHint(touch, 0)
+	local hintText = if lineWidth(full, bodyPx) <= room
+		then full
+		elseif lineWidth(short, bodyPx) <= room then short
+		else ""
+	local x0 = hint.Position.X.Scale - hint.AnchorPoint.X * hint.Size.X.Scale -- левый край ряда (доля)
+	local y = hint.Position.Y.Scale + (0.5 - hint.AnchorPoint.Y) * hint.Size.Y.Scale -- его середина
+	local x1 = x0 + rowW / card.X
+	if hintText == "" then
+		-- Только штамп — посередине ряда.
+		stamp.Position = UDim2.fromScale((x0 + x1) / 2, y)
+	else
+		stamp.Position = UDim2.fromScale(x1 - plateW / 2 / card.X, y)
+		local hintW = math.max(room, 1) / card.X
+		hint.AnchorPoint = Vector2.new(0, hint.AnchorPoint.Y)
+		hint.Position = UDim2.new(x0, 0, hint.Position.Y.Scale, hint.Position.Y.Offset)
+		hint.Size = UDim2.fromScale(hintW, hint.Size.Y.Scale)
+	end
+	stamp.AnchorPoint = Vector2.new(0.5, 0.5)
+	stamp.Size = UDim2.fromScale(plateW / card.X, plateH / card.Y)
+	hint.Text = hintText
+	return hintText ~= ""
+end
+
+-- Штамп садка шлёпается (доля карточки): наклейкой с доворотом (slap; instant — сразу на месте);
+-- at — его середина в долях слоя layer (искры).
+function CatchFx.showTankStamp(stamp: GuiObject, layer: GuiBase2d, at: Vector2, trove: Trove.Trove, instant: boolean)
+	stamp.Visible = true
+	if instant then
+		UiFx.scaleOf(stamp).Scale = 1
+		return
+	end
+	trove:Add(CatchFx.slap(stamp, layer, at, trove, CatchFx.SLAP_DOCKED))
+	UiFx.sound("swoosh", 0.3, 1.3)
+end
+
+-- Сводка карточки (значение InfoLabel.Text): «1,2 кг · цена $35».
+function CatchFx.infoText(kg: string, value: number): string
+	return `{kg} · цена {TankRules.FormatMoney(value)}`
+end
+
+-- Что вылетает из фишки цены: (текст, цвета сверху вниз) — доход рыбы «+$4/с» в цвете денег или,
+-- если её сразу продали (садок полон), золотое «+$15» (её цена).
+function CatchFx.priceFloat(income: number, tank: any): (string, { Color3 })
+	if type(tank) == "table" and tank.Result == "sold" and typeof(tank.Price) == "number" and tank.Price > 0 then
+		return "+" .. TankRules.FormatMoney(tank.Price), { UIConfig.Palette.Gold.Top, UIConfig.Palette.Sun.Bottom }
+	end
+	return TankRules.FormatRate(TankRules.Income10(income)),
+		{ WHITE:Lerp(UIConfig.MoneyText, 0.55), UIConfig.MoneyText }
+end
+
+-- Куда летит карточка: рыба сразу продана — в кошелёк (Wallet.Money, если виден), иначе — в
+-- кнопку «САДОК»; её нет (нет базы) — в середину колонки кнопок справа.
+function CatchFx.flyTarget(button: GuiObject, wallet: GuiObject, tank: any): GuiObject
+	if type(tank) == "table" and tank.Result == "sold" and shown(wallet) then
+		return wallet
+	end
+	if shown(button) then
+		return button
+	end
+	local column = button.Parent
+	return if column and column:IsA("GuiObject") then column else button
+end
+
+-- Рыба продана сразу (садок полон, она слабее всех).
+function CatchFx.isSold(tank: any): boolean
+	return type(tank) == "table" and tank.Result == "sold"
+end
+
+-- Что летит с карточкой: 💵 — рыба продана сразу (монеты в кошелёк), иначе 🐟.
+function CatchFx.flyIcon(tank: any): string
+	return if type(tank) == "table" and tank.Result == "sold" then "💵" else "🐟"
 end
 
 -- Подсказка «закрыть» по устройству; на узкой широкой карточке (width — её ширина, px) — короткая.
