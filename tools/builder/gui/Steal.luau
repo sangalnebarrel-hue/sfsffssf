@@ -18,8 +18,9 @@
 	    Title        Title tier, CAPS («КРАДЁШЬ: ОКУНЬ», «БЕГИ ЗА ОГРАДУ!»; the hint — sentence case)
 	    Time         italic Small «1,8 с» at the right end of the title row
 	    Sub          Small «Не отходи!» / «Не попадись хозяину» (the hint's second line)
-	    Bar          the progress bar: Track (a glass groove) and Track.Fill (a Berry sim pill whose
-	                 X scale is the progress)
+	    Bar          the progress bar (§6.1 Bar.{Track, Fill}): Track — a glass groove over the
+	                 whole bar; Fill — its sibling over it (a Berry sim pill whose X scale is the
+	                 progress, ZIndex above the Track)
 	    DogChip      a Sun plate «🐕 СОБАКА!» under the plate's right end (hidden: while Slowed)
 	  TheftTitle     (hidden) the slam over the top band — Title (Theme.title: «ДОБЫЧА!» in Gold →
 	                 Leaf, «СОРВАЛОСЬ!»), Sub (Small: «Окунь — в твоём садке · +$4/с» / the reason)
@@ -123,6 +124,7 @@ local function buildBar(hud: any)
 		ZIndex = 4,
 	}, bar)
 	Theme.glass(track, { radius = 0.5, shine = false })
+	-- The fill is the Track's sibling (§6.1 Bar.{Track, Fill}), over the same box.
 	local fill = U.new("Frame", {
 		Name = "Fill",
 		BackgroundTransparency = 1,
@@ -130,7 +132,7 @@ local function buildBar(hud: any)
 		Position = UDim2.fromScale(0, 0.5),
 		Size = UDim2.fromScale(0, 1), -- X = the progress (0 → 1 holding; 1 → 0 carrying)
 		ZIndex = 5,
-	}, track)
+	}, bar)
 	Theme.sim(fill, "Berry", { round = true, stroke = 0, rim = false, shine = false })
 
 	-- «🐕 СОБАКА!» under the plate's right end (while the dog slows the thief).

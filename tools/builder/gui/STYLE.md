@@ -1052,7 +1052,7 @@ RenderStepped connection for all running frame effects, disconnected when none r
   `RightButtons.DefenceButton` (`Icon`, `Caption`, `Badge`, `Cooldown.Drain`, `CooldownText`; the
   column's 3rd square, Guard) and `Status.BaseBadge.ShieldChip` (`Icon`, `Label`) —
   DefenceController; `HUD.TheftBar` (`Plate`, `Icon.Icon`, `Title`, `Time`, `Sub`,
-  `Bar.Track.Fill`, `DogChip`) and `HUD.TheftTitle` (`Title`, `Sub`) — TheftController;
+  `Bar.{Track, Fill}`, `DogChip`) and `HUD.TheftTitle` (`Title`, `Sub`) — TheftController;
   `HUD.TheftAlert` (`Plate`, `Icon.Icon`, `Text.{Title, Sub}`, `Buttons.{Shield, Home}`,
   `Compact.{Label, Shield, Home}`) — AlertController; `HUD.DefencePanel` on the sheet shell
   (`Panel.Header.{Icon, Title, Money}`, `Cards.{ShieldCard, DogCard, AlarmCard, LockCard}` each
