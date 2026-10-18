@@ -85,8 +85,9 @@
 	    этой глубине + px; HUD.IgnoreGuiInset = false, как у AbsolutePosition) сравнивается с
 	    видимыми плашками HUD.Status (Этап 4 — и фишкой щита Status.BaseBadge.ShieldChip, там, где
 	    стопка ставит плашку базы), видимыми частями полосы вора HUD.TheftBar и тревоги хозяина
-	    HUD.TheftAlert и уведомлениями HUD.Toasts (слово «КРАДУТ!» — тоже): ближе Clear.Margin px — буквы и
-	    обводка тают за Clear.Fade с (TextTransparency / Transparency — Visible, Enabled и
+	    HUD.TheftAlert и уведомлениями HUD.Toasts (слово «КРАДУТ!» — тоже): ближе Clear.Margin px — буквы,
+	    обводки и плашки (диск и кольцо «КРАДУТ!») тают за Clear.Fade с (TextTransparency /
+	    Transparency / BackgroundTransparency, своя — в атрибуте FadeBase; Visible, Enabled и
 	    UIScale слова у других), снова проявляются за Clear.Show с, только когда слово отошло на
 	    Clear.Back px. Слово за камерой, дальше своего MaxDistance или выключенное — как было.
 	  • События витрин (базы ближе EventRange; дальше — тихо): "in" — новая рыба вырастает из точки
@@ -605,15 +606,35 @@ local function near(r: Rect, list: { Rect }, margin: number): boolean
 	return false
 end
 
--- Буквы и обводка слова тают (out) или проявляются (Visible, Enabled и UIScale — у других).
-local function fadeWord(gui: BillboardGui, out: boolean)
+-- Слово тает (out) или проявляется целиком: буквы, обводки и плашки (диск и кольцо-таймер
+-- «КРАДУТ!») — твином прозрачности к 1 и обратно к своей; своя запоминается в атрибуте FadeBase
+-- при первом таянии (то, что уже прозрачно, не трогаем). Visible, Enabled и UIScale — у других.
+-- instant — сразу (новые части уже скрытого слова: кольцо-таймер новой фазы).
+local function fadeWord(gui: BillboardGui, out: boolean, instant: boolean?)
 	local time = if out then CLEAR.Fade else CLEAR.Show
-	local alpha = if out then 1 else 0
 	for _, item in gui:GetDescendants() do
-		if item:IsA("TextLabel") then
-			UiFx.tween(item, time, { TextTransparency = alpha })
-		elseif item:IsA("UIStroke") then
-			UiFx.tween(item, time, { Transparency = alpha })
+		local prop = if item:IsA("TextLabel")
+			then "TextTransparency"
+			elseif item:IsA("UIStroke") then "Transparency"
+			elseif item:IsA("Frame") then "BackgroundTransparency"
+			else nil
+		if not prop then
+			continue
+		end
+		local base = item:GetAttribute("FadeBase")
+		if typeof(base) ~= "number" then
+			local now = (item :: any)[prop]
+			if not out or typeof(now) ~= "number" or now >= 1 then
+				continue
+			end
+			base = now
+			item:SetAttribute("FadeBase", now)
+		end
+		local target = if out then 1 else base
+		if instant then
+			(item :: any)[prop] = target
+		else
+			UiFx.tween(item, time, { [prop] = target })
 		end
 	end
 end
@@ -1064,6 +1085,9 @@ local function stealLook(slot: Slot, steal: Steal, text: string, endAt: number?)
 		local left = if endAt then endAt - Workspace:GetServerTimeNow() else 0
 		if left > 0.05 then
 			steal.ringStop = UiFx.ringTimer(word.ring, left)
+			if faded[word.gui] then
+				fadeWord(word.gui, true, true) -- (слово под HUD: новое кольцо — тоже скрыто)
+			end
 		end
 	end
 end

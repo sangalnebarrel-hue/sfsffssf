@@ -1114,7 +1114,7 @@ tests["carried fish: the head weld alive, «🥷 Окунь $45» over it (+ «�
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["HUD: a world word under the ShieldChip, the TheftBar or the TheftAlert fades (TankWorldController.hudRects)"] = function(
+tests["HUD: a world word under the ShieldChip, the TheftBar or the TheftAlert fades (TankWorldController.hudRects); «КРАДУТ!» fades whole (disc, ring timer) and comes back"] = function(
 	t
 )
 	local sim = boot(t)
@@ -1188,6 +1188,38 @@ tests["HUD: a world word under the ShieldChip, the TheftBar or the TheftAlert fa
 		aimAt((found.x0 + found.x1) / 2, (found.y0 + found.y1) / 2)
 		sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Fade + 0.1)
 		t.ok(world.IsFaded(tag), "under the ShieldChip: faded")
+		-- «КРАДУТ!» there fades whole — its letters, its ring's disc and the ring timer (made
+		-- after the fade) — and comes back with the disc's own transparency
+		local tankWorld = folder(sim, owner, "TankWorld")
+		fake:steal(3, "hold", { UserId = 999 }, 6)
+		sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Fade + 0.1)
+		local word = wordIn(tankWorld, "FxTankSteal", WORDS.Stealing)
+		t.ok(word and world.IsFaded(word), "«КРАДУТ!» under the ShieldChip: faded")
+		if word then
+			local disc = word:FindFirstChild("Ring", true)
+			t.ok(disc and #named(disc, "FxRingTimer") == 1, "… its ring with the timer")
+			local base0 = disc:GetAttribute("FadeBase")
+			t.ok(typeof(base0) == "number" and base0 < 1, "… the disc's own transparency kept")
+			t.eq(disc.BackgroundTransparency, 1, "… the disc hidden")
+			local function hidden(): boolean
+				for _, d in word:GetDescendants() do
+					if
+						(d:IsA("UIStroke") and d.Transparency < 1)
+						or (d:IsA("TextLabel") and d.TextTransparency < 1)
+					then
+						return false
+					end
+				end
+				return true
+			end
+			t.ok(hidden(), "… every stroke (the ring timer's too) and letter hidden")
+			aimAt(view.X / 2, view.Y * 0.65)
+			sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Show + 0.1)
+			t.eq(world.IsFaded(word), false, "away from the HUD: back")
+			t.near(disc.BackgroundTransparency, base0, 1e-3, "… the disc at its own transparency")
+			t.eq(word:FindFirstChild("Word", true).TextTransparency, 0, "… the letters back")
+		end
+		fake:unsteal(3)
 	end
 	sim:AssertNoErrors({ warnings = true })
 end

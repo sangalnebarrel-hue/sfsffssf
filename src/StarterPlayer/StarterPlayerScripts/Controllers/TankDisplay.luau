@@ -68,7 +68,7 @@
 	  TankDisplay.setRig(rig, body);  TankDisplay.tweenRig(rig, body, info) -> { Tween }
 	      (твин CFrame у каждой детали, ≤ 20: без сварок — так же в эмуляторе тестов и в превью)
 	  TankDisplay.stealWord(parent, text, cap, maxDistance) -> StealWord   -- «КРАДУТ!» (FxTankSteal):
-	      тёмный диск Ring с 🥷 (на нём кольцо-таймер у вызывающего) и слово Berry
+	      светлый диск Ring со значком Steal.Icon (на нём кольцо-таймер у вызывающего) и слово Berry
 	  TankDisplay.pulseLight(parent, color) -> PointLight   -- красный пульс у LightBar (FxStealPulse)
 	  TankDisplay.signDefence(sign, cap) -> Defence;  TankDisplay.setSignDefence(sign, row, protect?, owned?)
 	  TankDisplay.capDefence(row, cap);  TankDisplay.cap(label, max)   -- потолок букв любого слова
@@ -602,8 +602,8 @@ function TankDisplay.market(parent: Instance, text: string): BillboardGui
 	return gui
 end
 
--- «КРАДУТ!» / «УНОСЯТ!» над витриной (FxTankSteal, Этап 4): тёмный диск с 🥷 слева (на нём
--- кольцо-таймер до конца удержания / выноса — UiFx.ringTimer у вызывающего) и красное слово;
+-- «КРАДУТ!» / «УНОСЯТ!» над витриной (FxTankSteal, Этап 4): светлый диск с Steal.Icon слева (на
+-- нём кольцо-таймер до конца удержания / выноса — UiFx.ringTimer у вызывающего) и красное слово;
 -- буквы не крупнее cap (потолок надписей витрин).
 function TankDisplay.stealWord(parent: Instance, text: string, cap: number, maxDistance: number): StealWord
 	local spec = DISPLAY.Steal.Word
@@ -614,8 +614,8 @@ function TankDisplay.stealWord(parent: Instance, text: string, cap: number, maxD
 	ring.Position = UDim2.fromScale(0.02, 0.5)
 	ring.Size = UDim2.fromScale(0.8, 0.8)
 	ring.SizeConstraint = Enum.SizeConstraint.RelativeYY
-	ring.BackgroundColor3 = UIConfig.Palette.Night.Bottom
-	ring.BackgroundTransparency = 0.2
+	ring.BackgroundColor3 = UIConfig.Palette.Cream.Top -- (тёмный ниндзя читается на светлом)
+	ring.BackgroundTransparency = 0.1
 	ring.BorderSizePixel = 0
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0.5, 0)
@@ -625,7 +625,7 @@ function TankDisplay.stealWord(parent: Instance, text: string, cap: number, maxD
 	icon.BackgroundTransparency = 1
 	icon.Position = UDim2.fromScale(0.18, 0.18)
 	icon.Size = UDim2.fromScale(0.64, 0.64)
-	icon.Text = "🥷"
+	icon.Text = DISPLAY.Steal.Icon
 	icon.TextScaled = true
 	icon.FontFace = FONT
 	icon.ZIndex = 2

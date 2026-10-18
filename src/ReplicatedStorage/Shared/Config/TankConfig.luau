@@ -217,6 +217,7 @@ local TankConfig = {
 			PulseBrightness = 4,
 			PulseRange = 10,
 			Word = { Width = 4.4, Height = 1.3, PixelsX = 40, PixelsY = 14, Outline = 3 },
+			Icon = "🥷", -- на светлом диске слева от «КРАДУТ!» / «УНОСЯТ!» (вокруг диска — кольцо-таймер)
 			ArcTime = 0.35,
 			ArcOut = 0.3,
 			ArcTop = 4.5,
