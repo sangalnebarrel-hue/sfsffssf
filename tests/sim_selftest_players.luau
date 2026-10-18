@@ -364,6 +364,47 @@ tests["ProximityPrompt holds: trigger, range, death, disable, HoldDuration"] = f
 	sim:AssertNoErrors()
 end
 
+-- (The full Stage 4 prompt cases, S1–S8, are in sim_selftest_stage4.test.luau.)
+tests["ProximityPrompt holds read the holding client's view: a locally hidden prompt cannot be held there"] = function(
+	t
+)
+	local sim = build(t, {
+		{
+			"StarterPlayer.StarterPlayerScripts",
+			"LocalScript",
+			"Hide",
+			[[
+			-- the owner's client hides the prompt the way TheftController does (Stage 4 §5.1)
+			if game.Players.LocalPlayer.Name ~= "Owner" then return end
+			workspace:WaitForChild("Slot"):WaitForChild("StealPrompt").MaxActivationDistance = 0
+		]],
+		},
+	})
+	local slot = sim:Create("Part", { Name = "Slot", Anchored = true, CFrame = CFrame.new(0, 2, 0) }, sim.workspace)
+	local prompt =
+		sim:Create("ProximityPrompt", { Name = "StealPrompt", HoldDuration = 1, MaxActivationDistance = 6 }, slot)
+	sim:StartServer()
+	local owner = sim:AddPlayer({ Name = "Owner" })
+	local thief = sim:AddPlayer({ Name = "Thief" })
+	sim:Advance(0.2)
+	sim:Teleport(owner, Vector3.new(2, 3, 0))
+	sim:Teleport(thief, Vector3.new(-2, 3, 0))
+	local ok, why = sim:HoldPrompt(owner, prompt)
+	t.eq(ok, false)
+	t.match(why, "out of range")
+	t.ok(sim:HoldPrompt(thief, prompt), "the thief's client did not hide it")
+	-- a server Enabled toggle replicates Enabled only: the owner's MaxActivationDistance 0 stays
+	prompt.Enabled = false
+	sim:Step()
+	prompt.Enabled = true
+	sim:Step()
+	ok, why = sim:HoldPrompt(owner, prompt)
+	t.eq(ok, false)
+	t.match(why, "out of range")
+	t.eq(prompt.MaxActivationDistance, 6, "the server's value is untouched")
+	sim:AssertNoErrors()
+end
+
 tests["tools from StarterPack: equip, activate on server and client"] = function(t)
 	local sim = t.sim()
 	local tool = sim:Create("Tool", { Name = "Rod", RequiresHandle = false }, sim:Find("StarterPack"))

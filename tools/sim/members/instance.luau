@@ -61,8 +61,12 @@ return function(M)
 			local new = real:GetAttribute(name)
 			if old ~= new and not (old ~= old and new ~= new) then
 				local proxy = sim.proxy
-				proxy:fire(real, "attr:" .. name)
-				proxy:fire(real, "AttributeChanged", name)
+				-- the change replicates over every client-local value of this attribute
+				local seen = proxy:replicateOver(real, "@" .. name)
+				proxy:fireReplicated(seen, new, function(filter)
+					proxy:fireFiltered(real, "attr:" .. name, filter)
+					proxy:fireFiltered(real, "AttributeChanged", filter, name)
+				end)
 			end
 		end),
 

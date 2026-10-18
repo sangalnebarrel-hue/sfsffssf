@@ -96,6 +96,8 @@ end
 	opts.strictReplication  error on client writes that would not replicate
 	opts.destroyPlayerOnLeave  Destroy() Player objects on leave (default false)
 	opts.instantMoveTo  Humanoid:MoveTo teleports instead of walking at WalkSpeed
+	opts.removingOrder "fifo" (default: Players.PlayerRemoving handlers in connection order) or
+	                  "reverse" (last connected first; Roblox guarantees no order)
 	opts.verbose      echo logs to stdout (also SIM_VERBOSE=1)
 ]=]
 function Sim.new(opts)
@@ -103,6 +105,9 @@ function Sim.new(opts)
 	local self = setmetatable({}, Sim)
 	self.opts = opts
 	opts.remoteLatency = opts.remoteLatency or 0
+	if opts.removingOrder ~= nil and opts.removingOrder ~= "fifo" and opts.removingOrder ~= "reverse" then
+		error('RbxSim: removingOrder must be "fifo" or "reverse", got ' .. tostring(opts.removingOrder), 2)
+	end
 	self.verbose = opts.verbose == true or verboseFromEnv()
 	self.frameTime = opts.frameTime or 1 / 60
 	self.util = Util
@@ -663,10 +668,26 @@ function Sim:Require(module, who)
 end
 
 -- Runs BindToClose callbacks (and kicks players) like a server shutdown.
+-- opts.order: "closeFirst" (default: the BindToClose callbacks start, then every player is
+-- removed) or "playersFirst" (every player is removed, firing PlayerRemoving, before the
+-- callbacks start; Roblox guarantees neither order).
 function Sim:Shutdown(opts)
 	opts = opts or {}
 	local timeout = opts.timeout or 30
+	local order = opts.order or "closeFirst"
+	if order ~= "closeFirst" and order ~= "playersFirst" then
+		error('RbxSim: Shutdown order must be "closeFirst" or "playersFirst", got ' .. tostring(order), 2)
+	end
+	if order == "playersFirst" and opts.kickPlayers == false then
+		error('RbxSim: Shutdown order "playersFirst" removes the players; kickPlayers = false contradicts it', 2)
+	end
 	local sched = self.sched
+	if order == "playersFirst" then
+		for _, p in table.clone(self.players.order) do
+			self.players:remove(p)
+		end
+		sched:flush()
+	end
 	local pending = 0
 	for _, cb in table.clone(self.bindToClose) do
 		pending += 1
@@ -682,7 +703,7 @@ function Sim:Shutdown(opts)
 		sched:tag(co, cb.ctx, cb.script)
 		sched:resume(co)
 	end
-	if opts.kickPlayers ~= false then
+	if order == "closeFirst" and opts.kickPlayers ~= false then
 		for _, p in table.clone(self.players.order) do
 			self.players:remove(p)
 		end
@@ -1022,8 +1043,8 @@ function Sim:ReleasePrompt(player, prompt)
 	return self.input:releaseHold(self:_playerReal(player), self.proxy:toReal(prompt))
 end
 
--- Holds a prompt for `seconds` (default HoldDuration + one frame) while time advances.
--- Returns (triggered, cancelReason). opts.release=false keeps holding afterwards.
+-- Holds a prompt for `seconds` (default the client's HoldDuration + one frame) while time
+-- advances. Returns (triggered, cancelReason). opts.release=false keeps holding afterwards.
 function Sim:HoldPrompt(player, prompt, seconds: number?, opts)
 	opts = opts or {}
 	local promptReal = self.proxy:toReal(prompt)
@@ -1031,13 +1052,27 @@ function Sim:HoldPrompt(player, prompt, seconds: number?, opts)
 	if not hold.active then
 		return false, hold.cancelReason
 	end
-	local duration = seconds or (promptReal.HoldDuration + self.frameTime)
+	local duration = seconds or (self.input:holdDurationFor(hold.player, promptReal) + self.frameTime)
 	self:Advance(duration, opts.step)
 	local triggered = hold.triggered
 	if hold.active and opts.release ~= false then
 		self.input:releaseHold(hold.player, hold.prompt)
 	end
 	return triggered, hold.cancelReason
+end
+
+-- Sends one prompt event to the server as the player's client would, with no validation (the
+-- exploit's fireproximityprompt, a HoldBegan from across the map, a HoldEnded before its
+-- Triggered): kind = "HoldBegan" | "HoldEnded" | "Triggered" | "TriggerEnded". Only server
+-- handlers (the prompt's and ProximityPromptService's) get it, after remoteLatency like a real
+-- one, in call order. It never starts or ends a sim hold. A player who left may still send
+-- one (an event in flight when he disconnected).
+function Sim:FirePromptEvent(player, prompt, kind: string)
+	local real = self.proxy:toReal(prompt)
+	if real == nil then
+		error("RbxSim: ProximityPrompt expected", 2)
+	end
+	self.input:firePromptEvent(self:_playerReal(player), real, kind)
 end
 
 -- Tools / physics ------------------------------------------------------------------------------------------

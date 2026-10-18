@@ -7,6 +7,8 @@
 --   * emulate engine members (events, Position, Humanoid, remotes, services ...)
 --   * fire Changed / AttributeChanged / ChildAdded ... at write time (no polling)
 --   * emulate Roblox Destroy semantics (Lune's Destroy makes instances unreadable)
+--   * keep client-local values (overlays) of writes a client cannot replicate; a replicated
+--     write that changes the value overwrites them, as in Roblox (replicateOver)
 -- One proxy exists per raw instance, so proxies are stable table keys.
 
 local Util = require("./util")
@@ -510,6 +512,86 @@ function Proxy:get(real, key: string)
 	return real[key]
 end
 
+-- A raw property (or an attribute, key "@Name") as one context sees it: that context's
+-- client-local value, else the replicated one. ctx nil = the replicated value.
+function Proxy:viewOf(ctx, real, key: string)
+	if ctx and self.overlayCount > 0 then
+		local o = self:overlayFor(ctx, real, false)
+		local v = o and o[key]
+		if v ~= nil then
+			if v == NIL then
+				return nil
+			end
+			return v
+		end
+	end
+	if string.sub(key, 1, 1) == "@" then
+		return real:GetAttribute(string.sub(key, 2))
+	end
+	return real[key]
+end
+
+-- True when some client holds a client-local value of this key.
+function Proxy:isShadowed(real, key: string): boolean
+	if self.overlayCount == 0 then
+		return false
+	end
+	for _, per in self.overlays do
+		local o = per[real]
+		if o and o[key] ~= nil then
+			return true
+		end
+	end
+	return false
+end
+
+-- A replicated write that CHANGED a value overwrites every client-local value of that key
+-- (Roblox replicates the change over it; an unchanged value does not replicate, so a write of
+-- the same value leaves the local ones alone). Drops the key from those overlays and returns
+-- { [ctx] = the value that context saw before } (nil when no client had one): callers fire the
+-- change to the other contexts as usual and to each of these only if its own view changed.
+function Proxy:replicateOver(real, key: string)
+	if self.overlayCount == 0 then
+		return nil
+	end
+	local seen = nil
+	for ctx, per in self.overlays do
+		local o = per[real]
+		local v = o and o[key]
+		if v ~= nil then
+			o[key] = nil
+			if next(o) == nil then
+				per[real] = nil
+				self.overlayCount -= 1
+			end
+			seen = seen or {}
+			seen[ctx] = v
+		end
+	end
+	return seen
+end
+
+-- Fires a replicated change: fire(filter) is called once for the contexts that had no
+-- client-local value (all of them when `seen` is nil) and once per context in `seen` whose view
+-- changed (its old local value ~= newValue).
+function Proxy:fireReplicated(seen, newValue, fire)
+	if seen == nil then
+		fire(nil)
+		return
+	end
+	fire(function(c)
+		return seen[c] == nil
+	end)
+	for ctx, before in seen do
+		local was = if before == NIL then nil else before
+		if was ~= newValue then
+			fire(function(c)
+				return c == ctx
+			end)
+		end
+	end
+end
+
 function Proxy:dropOverlays(ctx)
 	local per = self.overlays[ctx]
 	if per then
@@ -585,8 +667,9 @@ function Proxy:setProperty(real, key: string, value)
 		return
 	end
 	local watched = self:isWatched(real, key)
+	local shadowed = self:isShadowed(real, key)
 	local old
-	if watched then
+	if watched or shadowed then
 		local ok, v = pcall(rawGet, real, key)
 		if ok then
 			old = v
@@ -599,10 +682,16 @@ function Proxy:setProperty(real, key: string, value)
 			self:_checkWaiters(parent, real)
 		end
 	end
-	if watched then
+	if watched or shadowed then
 		local okNew, nv = pcall(rawGet, real, key)
 		if okNew and nv ~= old then
-			self:emitChanged(real, key, nv)
+			-- the change replicates over every client-local value of this property
+			local seen = if shadowed then self:replicateOver(real, key) else nil
+			if watched then
+				self:fireReplicated(seen, nv, function(filter)
+					self:emitChanged(real, key, nv, filter)
+				end)
+			end
 		end
 	end
 end

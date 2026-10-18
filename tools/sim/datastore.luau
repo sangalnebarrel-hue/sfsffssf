@@ -1,5 +1,6 @@
 -- datastore.luau: in-memory DataStoreService backend with virtual latency,
--- Roblox-like validation, write throttling and failure injection.
+-- Roblox-like validation, write throttling and failure injection (global or per key,
+-- before the request or after its write landed: an ambiguous commit).
 -- Exposed to tests as `sim.DataStore`.
 
 local roblox = require("@lune/roblox")
@@ -32,7 +33,9 @@ function DataStore.new(sim, snapshot)
 		end
 	end
 	self.latency = 0.05
+	self.keyLatency = {} -- key -> seconds (SetKeyLatency), overrides `latency` for that key
 	self.failQueue = {}
+	self.keyFails = {} -- key -> list of { remaining, message, ops?, after } (FailKey)
 	self.failRate = 0
 	self.failRateMessage = DEFAULT_FAILURE
 	self.enabled = true
@@ -58,6 +61,63 @@ function DataStore:FailNext(count: number?, message: string?, ops: { string }?)
 	for _ = 1, count or 1 do
 		table.insert(self.failQueue, { message = message or DEFAULT_FAILURE, ops = set })
 	end
+end
+
+local OPS = { GetAsync = true, SetAsync = true, UpdateAsync = true, RemoveAsync = true, IncrementAsync = true }
+
+-- Makes the next `count` requests on one key fail (any store; count 0 clears that key's
+-- failures; math.huge = until cleared). `opts` lists the operations it applies to (array part:
+-- { "UpdateAsync" }, or opts.ops) and opts.after = true makes it an ambiguous commit: the
+-- request completes (the write lands) and then the call errors.
+function DataStore:FailKey(key: string, count: number?, message: string?, opts)
+	if type(key) ~= "string" or key == "" then
+		error("RbxSim: FailKey(key, count?, message?, opts?) expects a key string", 2)
+	end
+	local n = if count == nil then 1 else count
+	if type(n) ~= "number" or n ~= n then
+		error("RbxSim: FailKey count must be a number", 2)
+	end
+	if n <= 0 then
+		self.keyFails[key] = nil
+		return
+	end
+	local set, after = nil, false
+	if opts ~= nil then
+		if type(opts) ~= "table" then
+			error("RbxSim: FailKey opts must be a table ({ ops..., after = true })", 2)
+		end
+		local function add(op)
+			if not OPS[op] then
+				error("RbxSim: FailKey: unknown DataStore operation " .. tostring(op), 3)
+			end
+			set = set or {}
+			set[op] = true
+		end
+		for _, op in ipairs(opts) do
+			add(op)
+		end
+		for _, op in opts.ops or {} do
+			add(op)
+		end
+		after = opts.after == true
+	end
+	local list = self.keyFails[key]
+	if list == nil then
+		list = {}
+		self.keyFails[key] = list
+	end
+	table.insert(list, { remaining = n, message = message or DEFAULT_FAILURE, ops = set, after = after })
+end
+
+-- Latency of every request on one key (any store) instead of SetLatency's; nil clears it.
+function DataStore:SetKeyLatency(key: string, seconds: number?)
+	if type(key) ~= "string" or key == "" then
+		error("RbxSim: SetKeyLatency(key, seconds?) expects a key string", 2)
+	end
+	if seconds ~= nil and (type(seconds) ~= "number" or seconds < 0) then
+		error("RbxSim: SetKeyLatency seconds must be a number >= 0 (nil clears it)", 2)
+	end
+	self.keyLatency[key] = seconds
 end
 
 function DataStore:SetFailRate(p: number, message: string?)
@@ -210,7 +270,30 @@ local function checkKey(key)
 	return key
 end
 
--- Common request path: logging, latency, throttling and failure injection.
+-- Takes the first FailKey entry for this key and operation (nil if none).
+function DataStore:_takeKeyFailure(key: string, op: string)
+	local list = self.keyFails[key]
+	if list == nil then
+		return nil
+	end
+	for i, f in list do
+		if f.ops == nil or f.ops[op] then
+			f.remaining -= 1
+			if f.remaining <= 0 then
+				table.remove(list, i)
+				if #list == 0 then
+					self.keyFails[key] = nil
+				end
+			end
+			return f
+		end
+	end
+	return nil
+end
+
+-- Common request path: logging, latency, throttling and failure injection. Returns the
+-- store info and, for an ambiguous commit (FailKey after = true), the error to raise once
+-- the request has completed.
 function DataStore:_request(op: string, real, key: string, isWrite: boolean)
 	local sim = self.sim
 	local sched = sim.sched
@@ -228,8 +311,9 @@ function DataStore:_request(op: string, real, key: string, isWrite: boolean)
 		)
 	end
 	local canYield = sched:inSimThread()
-	if canYield and self.latency > 0 then
-		sched:taskWait(self.latency)
+	local latency = self.keyLatency[key] or self.latency
+	if canYield and latency > 0 then
+		sched:taskWait(latency)
 	end
 	if isWrite and self.writeCooldown > 0 then
 		local wkey = info.id .. "\0" .. key
@@ -247,6 +331,15 @@ function DataStore:_request(op: string, real, key: string, isWrite: boolean)
 			end
 		end
 		self.lastWrite[wkey] = sched.clock
+	end
+	local keyFailure = self:_takeKeyFailure(key, op)
+	if keyFailure then
+		call.failed = true
+		if keyFailure.after then
+			call.landed = true
+			return info, keyFailure.message
+		end
+		error(keyFailure.message, 0)
 	end
 	for i, f in self.failQueue do
 		if f.ops == nil or f.ops[op] then
@@ -273,9 +366,12 @@ end
 
 function DataStore:getAsync(real, key)
 	key = checkKey(key)
-	local info = self:_request("GetAsync", real, key, false)
+	local info, afterErr = self:_request("GetAsync", real, key, false)
 	local entries = self.data[info.id]
 	local e = entries and entries[key]
+	if afterErr then
+		error(afterErr, 0)
+	end
 	if e == nil then
 		return nil, nil
 	end
@@ -285,12 +381,15 @@ end
 function DataStore:setAsync(real, key, value, userIds, options)
 	key = checkKey(key)
 	local json = encode(value)
-	local info = self:_request("SetAsync", real, key, true)
+	local info, afterErr = self:_request("SetAsync", real, key, true)
 	local metadata = nil
 	if type(options) == "table" and options.GetMetadata then
 		metadata = options:GetMetadata()
 	end
 	local e = self:_write(info.id, key, json, userIds, metadata)
+	if afterErr then
+		error(afterErr, 0)
+	end
 	return tostring(e.version)
 end
 
@@ -299,7 +398,7 @@ function DataStore:updateAsync(real, key, transform)
 	if type(transform) ~= "function" then
 		error("Argument 2 missing or nil", 0)
 	end
-	local info = self:_request("UpdateAsync", real, key, true)
+	local info, afterErr = self:_request("UpdateAsync", real, key, true)
 	local entries = self.data[info.id]
 	local e = entries and entries[key]
 	local old = e and serde.decode("json", e.json) or nil
@@ -314,22 +413,33 @@ function DataStore:updateAsync(real, key, transform)
 	end
 	local new = r[2]
 	if new == nil then
+		if afterErr then
+			error(afterErr, 0)
+		end
 		return nil, nil -- update cancelled
 	end
 	local json = encode(new)
 	local written = self:_write(info.id, key, json, r[3], r[4])
+	if afterErr then
+		error(afterErr, 0) -- the write landed; the caller only sees the error
+	end
 	return serde.decode("json", json), self:_keyInfo(written)
 end
 
 function DataStore:removeAsync(real, key)
 	key = checkKey(key)
-	local info = self:_request("RemoveAsync", real, key, true)
+	local info, afterErr = self:_request("RemoveAsync", real, key, true)
 	local entries = self.data[info.id]
 	local e = entries and entries[key]
+	if e ~= nil then
+		entries[key] = nil
+	end
+	if afterErr then
+		error(afterErr, 0)
+	end
 	if e == nil then
 		return nil, nil
 	end
-	entries[key] = nil
 	return serde.decode("json", e.json), self:_keyInfo(e)
 end
 
@@ -339,7 +449,7 @@ function DataStore:incrementAsync(real, key, delta)
 	if type(delta) ~= "number" or delta % 1 ~= 0 then
 		error("IncrementAsync: delta must be an integer", 0)
 	end
-	local info = self:_request("IncrementAsync", real, key, true)
+	local info, afterErr = self:_request("IncrementAsync", real, key, true)
 	local entries = self.data[info.id]
 	local e = entries and entries[key]
 	local current = 0
@@ -351,6 +461,9 @@ function DataStore:incrementAsync(real, key, delta)
 	end
 	local new = current + delta
 	self:_write(info.id, key, serde.encode("json", new), nil, nil)
+	if afterErr then
+		error(afterErr, 0)
+	end
 	return new
 end
 
