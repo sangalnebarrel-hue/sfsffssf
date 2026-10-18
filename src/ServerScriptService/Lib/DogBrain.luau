@@ -25,6 +25,13 @@
 	                                                      -- DogPos — только после сдвига больше
 	                                                      -- MoveEpsilon (BE-23); смена состояния —
 	                                                      -- сразу; пусто — ничего
+	    Значения Pending — НЕ готовые значения атрибутов (запись — writeAttributes ниже):
+	      • ключа нет — атрибут не трогать;
+	      • false — снять атрибут: SetAttribute(name, nil) (DogTarget = false — вора больше нет;
+	        у Reset все три false). В атрибут false не пишется никогда;
+	      • DogPos — точка БАЗЫ (y = 0, как Brain.Pos), а атрибут DogPos — Vector3 МИРА: перед
+	        записью pivot * pos, pivot = base.Model:GetPivot() (обратное StealRules.LocalOf);
+	      • DogState — строка состояния, DogTarget — UserId вора (число) — как есть.
 	  DogBrain.Mark(brain, pending, now)                  -- записано то, что вернул Pending (его
 	                                                      -- следующий ответ — от этой записи)
 	Собаки баз (сервер; наблюдатель StealService тикает их раз в StealConfig.Tick, только пока
@@ -33,7 +40,9 @@
 	  DogBrain.Return(base)
 	  DogBrain.Step(base, dt, thief: Vector3?) -> boolean -- шаг собаки базы (+ атрибуты)
 	  DogBrain.Reset(base)                                -- отключение садка (BE-27): домой, Sleep,
-	                                                      -- атрибуты сняты, записи нет
+	                                                      -- атрибуты сняты (все три — nil: Pending
+	                                                      -- { DogState = false, DogPos = false,
+	                                                      -- DogTarget = false }), записи нет
 	  DogBrain.AnyAwake() -> boolean
 	  DogBrain.Get(base) -> Brain?                        -- тесты
 	  DogBrain._debugSizes() -> { Brains }
@@ -164,7 +173,9 @@ function DogBrain.Mark(brain: Brain, pending: { [string]: any }, now: number)
 	end
 end
 
--- Записать в атрибуты Base_N.Dog то, что вернул Pending (DogPos — в координаты мира: pivot базы).
+-- Записать в атрибуты Base_N.Dog то, что вернул Pending, — по правилам шапки: каждый ключ
+-- pending — одна запись base.Dog:SetAttribute(name, value); value == false → nil (снять);
+-- DogPos — base.Model:GetPivot() * pos (точка базы → мир); DogState / DogTarget — как есть.
 -- Волна 0: заглушка — атрибуты пишет Wave 1 A (здесь только помечается, что «записано»).
 local function writeAttributes(_base: any, brain: Brain, pending: { [string]: any }, now: number)
 	DogBrain.Mark(brain, pending, now)

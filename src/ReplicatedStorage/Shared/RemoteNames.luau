@@ -142,7 +142,8 @@
 	            базе отменена (удержание) или рыба вернулась (вынос), DefenceEvent("Shield").
 	  DefenceBuy     клиент → сервер: (item: "Dog" | "Alarm" | "Lock") — купить защиту. Проверки по
 	            порядку: 1) строка и знакомый предмет (иначе молча); 2) лимит; 3) CanWrite
-	            ("loading"); 4) своя база ("nobase"); 5) Dog / Alarm уже есть — "owned"; Lock на
+	            ("loading"); 4) своя база ("nobase"); 5) Dog / Alarm уже есть (PlayerData.Owned:
+	            true или число > 0 — уровень сервера новее) — "owned"; Lock на
 	            #Levels — "max", на Lock.SaleMax — "soon"; 6) цена только из DefenceConfig,
 	            EconomyService:SpendMoney(…, "defence:<item>") не вышел — "money"; 7) купить
 	            (Upgrades или уровень замка), атрибуты, SaveSoon, DefenceEvent("Bought").

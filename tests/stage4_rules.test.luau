@@ -14,7 +14,8 @@
 	  • DogBrain's pure steps (Sleep → Alert → Chase → bite → Return → Sleep, the Pending throttle),
 	    Lib/Speed (the factor stack, Slowed, the expiry, Allowed's history) and Lib/Bucket;
 	  • PlayerData §3.1: Stats.Stolen / Lost (template, reconcile, sanitize, serialize), the typed
-	    Upgrades keys (bad Dog / Alarm / ShieldReadyAt removed, a future key kept), LockLevel 9 kept,
+	    Upgrades keys (bad Dog / Alarm / ShieldReadyAt removed, a newer server's number ≥ 0 and a
+	    future key kept), PlayerData.Owned (true or a number > 0), LockLevel 9 kept,
 	    the Origin dedupe, an 11-digit UserId + 12-character uid Origin survives (OriginMax 32);
 	  • config invariants (lock, prompt reach, carry timeout and speed budget, shield, lamp, dog
 	    speed) and the fairness rules of DC-21 (VictimMax, FreshCatch, the dog's arrival to every
@@ -729,6 +730,23 @@ tests["PlayerData: Stats.Stolen / Lost, typed Upgrades keys, LockLevel 9, Origin
 		t.ok(hasIssue(badIssues, `Upgrades.{key}`), `an issue for Upgrades.{key}`)
 	end
 	t.eq(clean({ Upgrades = { Dog = -1 } }).Upgrades, {}, "a negative Dog removed")
+	-- Owned: the one ownership predicate (§3.1, §4.12; W0-02) — a newer server's level counts.
+	for _, case in
+		{
+			{ true, true, "true" },
+			{ 2, true, "a newer server's level 2" },
+			{ 0.5, true, "any number > 0" },
+			{ false, false, "false" },
+			{ 0, false, "level 0" },
+			{ -1, false, "a negative number" },
+			{ 0 / 0, false, "NaN" },
+			{ nil, false, "missing" },
+			{ "yes", false, "a string" },
+			{ { 1 }, false, "a table" },
+		}
+	do
+		t.eq(D.Owned(case[1]), case[2], `Owned: {case[3]}`)
+	end
 	t.eq(clean({ Upgrades = { ShieldReadyAt = -50 } }).Upgrades.ShieldReadyAt, 0, "ShieldReadyAt ≥ 0")
 	local saved, saveIssues = D.Serialize(clean({ Upgrades = { Dog = true, Future = { Level = 3 } } }))
 	t.eq(saved.Upgrades, { Dog = true, Future = { Level = 3 } }, "Serialize keeps the upgrades")

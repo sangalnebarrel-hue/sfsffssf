@@ -12,9 +12,9 @@
 	    LockLevel = 0,         уровень замка (Этап 4, DefenceService); 0 — нет; уровень выше
 	                           DefenceConfig.Lock.Levels (сервер новее) хранится как есть
 	    Upgrades = {},         покупки Этапов 4–5 (DefenceService): Dog, Alarm — true (купил; число —
-	                           уровень сервера новее, тоже как есть), ShieldReadyAt — os.time(), когда
-	                           щит снова готов (целое ≥ 0); остальные ключи (Этап 5, сервер новее) —
-	                           как есть; ключи — строки
+	                           уровень сервера новее, тоже как есть; «есть ли» — только Owned(v)),
+	                           ShieldReadyAt — os.time(), когда щит снова готов (целое ≥ 0);
+	                           остальные ключи (Этап 5, сервер новее) — как есть; ключи — строки
 	    Tank = {               ПЛОТНЫЙ массив рыб, порядок не важен:
 	      { Uid = "f7", Id = "Perch", Kg = 1.23, Mutation = "Gold", Age = 212.4, Slot = 2,
 	        CaughtAt = 1700000123 },   (+ Этап 4: Origin = "<UserId жертвы>:<uid>" у краденой)
@@ -70,6 +70,11 @@
 	  KeyFor(userId) -> string            "Player_<UserId>"
 	  Ledger(data) -> (ok, expected)      Money == StartMoney + Stats.Earned − Stats.Spent?
 	                                      (не чинится никогда: расхождение — признак дюпа или ошибки)
+	  Owned(value) -> boolean             куплено ли Upgrades.Dog / Alarm (Этап 4, §4.12): true или
+	                                      число > 0 (уровень сервера новее). DefenceService так и
+	                                      только так читает HasDog / HasAlarm и проверку "owned"
+	                                      покупки: с «== true» он продал бы уровень 2 ещё раз и
+	                                      затёр бы его значением true
 	issues — список строк «путь: что было → что стало» (DataService пишет их в warn; одно
 	предупреждение на путь за сессию).
 
@@ -877,6 +882,12 @@ end
 
 function PlayerData.KeyFor(userId: number): string
 	return DataConfig.KeyPrefix .. string.format("%d", userId)
+end
+
+-- Upgrades.Dog / Alarm куплено? true — да (Этап 4); число > 0 — уровень сервера новее (Этап 5
+-- может сделать их уровнями): тоже куплено, и покупка его не перезапишет. Остальное — нет.
+function PlayerData.Owned(value: any): boolean
+	return value == true or (type(value) == "number" and value > 0)
 end
 
 function PlayerData.Ledger(data: any): (boolean, number)

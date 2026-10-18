@@ -472,8 +472,8 @@ rev. 1's $40/s (untouched: $180/s). Stage 5 may rescale every price; the table l
 | field | type / rule | owner (DataService header field list) |
 |---|---|---|
 | `LockLevel` | exists: an integer ≥ 0, unknown high levels kept verbatim | **DefenceService** |
-| `Upgrades.Dog` | boolean (anything else → removed, issue) | DefenceService |
-| `Upgrades.Alarm` | boolean (the same) | DefenceService |
+| `Upgrades.Dog` | boolean, or a finite number ≥ 0 (a newer server's level), kept verbatim; anything else → removed, issue. **Owned = `PlayerData.Owned(v)`** = `v == true or (number and v > 0)`, the only predicate DefenceService uses (HasDog, the attribute, the `owned` check), so a newer server's level is never sold again or overwritten with `true` (Stage 3 B-6; W0-02) | DefenceService |
+| `Upgrades.Alarm` | the same as `Upgrades.Dog` | DefenceService |
 | `Upgrades.ShieldReadyAt` | integer `os.time()` ≥ 0 (non-finite → removed); DefenceService clamps it at load | DefenceService |
 | other `Upgrades.*` keys | kept verbatim (Stage 5 / newer servers) | — |
 | `Stats.Stolen` / `Stats.Lost` | integers ≥ 0, in `STAT_NUMBERS` / `KNOWN_STATS` / Template; a return or a void takes them back (floor 0; BE-4) | TankService (`StealFish`) |
@@ -571,7 +571,7 @@ would renumber a duplicate uid into a second real fish, not drop it). A return t
 | F7 | the victim's save **never lands** (lost lock → kick; the final save fails for 15 s) | `Released(victim, committed < Seq)` → **void**: remove the escrowed fish from the thief (data, runtime, slot Event `"<n>\|void\|"`, quiet), toast «Рыба вернулась к хозяину» | the victim's store still has it ✔ (the thief keeps the coins of his own weakest fish, if one was replaced). **If the last write landed but its reply was lost** (`quiet`, or an error after the write) → one fish lost (BE-6), never two |
 | F8a | the **thief leaves during the escrow**, the victim can still write | TankService `PlayerRemoving(thief)`, synchronously: **return** each escrowed fish to the victim (the original uid; the original slot if free, else the lowest free, else **dormant**, so it shows again on the next load), `SaveSoon(victim)`, the toast «Вор ушёл — рыба вернулась!»; **strip** it from the thief's live `data.Tank`; the entry is gone first. The final save's transform always runs after a yield, so it cannot see the fish | the victim has it ✔ |
 | F8b | the same, but the victim is already `Leaving` and his final snapshot is not taken | `DataService:AmendLeaving(victim, reinsert)` puts the row back into the victim's live `data.Tank` (BE-1); strip from the thief | the victim has it ✔ |
-| F8c | the same, but the victim's final snapshot is already taken | strip | **one fish lost**. The window runs from the victim's final transform to its reply: about one request |
+| F8c | the same, but the victim's final snapshot is already taken | strip | **one fish lost**. The window runs from the victim's final transform to its reply: about one request (a failed attempt clears `FinalTaken`, so the retries do not widen it; §4.6) |
 | F9 | **shutdown**, BindToClose first | `DataService:OnClose(fn)` hooks run **synchronously at the very start** of the close callback, before any record goes `Leaving`; TankService returns every escrow as in F8a, then the close saves run | the victim has it ✔ |
 | F9' | shutdown with the **players removed first** (Roblox guarantees no order) | per pair: F8a, F8b or F8c, in the order Roblox removes them | as F8a/b/c |
 | F10 | a **hard server crash** (no BindToClose) between the victim's commit and the thief's commit | nothing can run | **one fish lost**, never two. The window is the thief's key gap: ≈ 6–7 s per theft |
@@ -894,7 +894,10 @@ Changes inside:
   **first**, synchronously, each in `pcall`, before any record goes `Leaving`.
 - `DataService:AmendLeaving(player, fn) -> boolean` (BE-1): runs `fn(rec.Data)` synchronously only
   while `rec.State == "Leaving"` and `not rec.FinalTaken`, and returns whether it ran. `saveOnce`'s
-  transform sets `rec.FinalTaken = true` where it takes the snapshot of a `releaseLock` save. It is the
+  transform sets `rec.FinalTaken = true` where it takes the snapshot of a `releaseLock` save, and a
+  **failed** release attempt clears it again before the retry (that snapshot is void; the retry takes a
+  new one, with the amendment; W0 review). A lost reply cannot duplicate: the retry finds `Session` empty
+  and writes nothing ("quiet"), which is the F8c loss again, never a second copy. It is the
   **only** write allowed past `CanWrite`; only TankService calls it, and only on `Tank`. The header
   says so. Why it cannot duplicate: the thief's copy is stripped and its entry dropped in the same
   synchronous step, and the victim's store either never committed the removal (it still has the fish)
@@ -1020,7 +1023,7 @@ Per-player maps keyed by `Player` (cleaned on PlayerRemoving): `loadInfo`, the b
 | the shop page | `HUD.DefencePanel` on the sheet shell = the shop's «ЗАЩИТА» tab; `RightButtons.DefenceButton` becomes «МАГАЗИН» (the 3rd column slot is now used, so the shop **replaces** this button; a 4th square does not fit in 0.6 H) |
 | prices rescale | every price in `DefenceConfig`; `EconomyConfig.IncomeScale` |
 | the shield in the shop | the Shield card + `ShieldActivate`; the alert quick action stays |
-| more defence levels (dog speed, alarm range) | `Upgrades` accepts any JSON; `DefenceService` reads `Upgrades.Dog` as boolean today (a number later is a migration-free change: `== true or (number and > 0)`) |
+| more defence levels (dog speed, alarm range) | `Upgrades` accepts any JSON; `Upgrades.Dog / Alarm` keep a newer server's number ≥ 0 (§3.1), and `DefenceService` reads ownership only through `PlayerData.Owned(v)` = `v == true or (number and v > 0)` already today, so levels are a migration-free change (W0-02) |
 
 ---
 
@@ -1156,7 +1159,7 @@ They are driven by the slot's `StealPhase`, read on its change and on the first 
 |---|---|---|
 | `HUD.RightButtons.DefenceButton` (`Theme.simButton` "square", token **Guard**, Icon 🛡️, Caption «ЗАЩИТА», Tier Small, LayoutOrder 80 (above «САДОК» 90), `SimOpts.stroke 5`) → `Badge` («!», hidden), `Cooldown` + `Drain` + `CooldownText` (Home's veil recipe) | `gui/Hud.luau` | `DefenceController` |
 | `HUD.Status.BaseBadge.ShieldChip` (glass stadium overhanging the badge's right end, Small tier) → `Icon` 🛡️, `Label` «0:42» (italic) | `gui/Hud.luau` | `DefenceController` (the badge itself stays HudController's) |
-| `HUD.TheftBar` (top centre, under Status) → `Plate` (sim, Night / Berry / glass), `Icon` (socket 🥷/🏃/⏳), `Title`, `Bar.{Track, Fill}`, `Time` (italic), `Sub`, `DogChip` (Sun «🐕 СОБАКА!», hidden) | new `gui/Steal.luau` | `TheftController` |
+| `HUD.TheftBar` (top centre, under Status) → `Plate` (sim, Night / Berry / glass), `Icon` (socket 🥷/🏃/⏳), `Title`, `Bar.{Track, Fill}` (siblings: Fill drawn over Track), `Time` (italic), `Sub`, `DogChip` (Sun «🐕 СОБАКА!», hidden) | new `gui/Steal.luau` | `TheftController` |
 | `HUD.TheftTitle` (top band) → `Title` («ДОБЫЧА!» / «СОРВАЛОСЬ!», `Theme.title`), `Sub` | `gui/Steal.luau` | `TheftController` |
 | `HUD.TheftAlert` (toast slot) → `Plate` (Berry sim), `Icon` 🚨, `Text.{Title, Sub}`, `Buttons.{Shield (Guard «🛡️ ЩИТ», the largest target), Home (Grape «🏠 ДОМОЙ»)}`, `Compact` (pill variant: `Label`, `Shield`, `Home`) | new `gui/Alert.luau` | `AlertController` |
 | `HUD.DefencePanel` on the sheet shell → `Panel.{Strip, Header.{Icon 🛡️, Title «ЗАЩИТА», Money}, Close, Cards.{ShieldCard, DogCard, AlarmCard, LockCard}}`; each card: `Icon` (sim disc), `Name`, `Effect`, `State`, `Buy` (button: `Label`, `Price`). (No lock pips in Stage 4: the levelled lock is Stage 5's.) | `gui/Sheet.luau` (shell, unchanged) + new `gui/Defence.luau` | `DefenceController` + `Controllers/Sheet` |
@@ -1483,7 +1486,7 @@ Studio). Note: RbxSim answers `RunService:IsStudio() == true`, so the stage 4 ki
   "speed" within 3 s; a 2× hack; a 1.2 s and a 1.5 s stall + catch-up → "ok"; a 30-stud hop → "speed";
   `CanCredit()` false right after an overdraft.
 - **PlayerData:** `Stats.Stolen/Lost` template, reconcile and serialize; `Upgrades` typed keys (bad
-  Dog/Alarm types removed, a future key kept); `LockLevel` 9 kept; **Origin dedupe**; an Origin with an
+  Dog/Alarm types removed, a newer server's number ≥ 0 kept, a future key kept; `PlayerData.Owned`); `LockLevel` 9 kept; **Origin dedupe**; an Origin with an
   11-digit UserId and a 12-character uid survives (`OriginMax` 32).
 - **Config invariants:**
   - lock holds strictly increase, prices strictly increase, `Hold ≤ 10`, `1 ≤ SaleMax ≤ #Levels`;
@@ -2113,3 +2116,14 @@ different number or shape (the why says what); **P2** = accepted, but moved out 
 | §H the corrected failure table | **accepted** | §3.3 (F8 split into a/b/c, F9', F14; F10 narrowed to the crash case). |
 | §I "50 buys → one purchase" fails for Lock | **resolved by DC-11** | Every Stage 4 item is a one-time buy; a `SaleMax`-patched test uses "≤ Burst levels, each paid" (§4.10). No per-item cooldown needed. |
 | §I optional: no after-theft immunity for a weak loot | **P2** | R11; only matters for alt farming, which creates no money. |
+
+### 11.3 Wave 0 contract review (W0-nn; applied to this document and the code)
+
+| item | decision | where / why |
+|---|---|---|
+| W0-01 `HUD.TheftBar.Bar.Fill` missing (the builder had `Bar.Track.Fill`) | **accepted (a)** | `gui/Steal.luau`: `Fill` is the `Track`'s sibling inside `Bar`, drawn over it (ZIndex above; the HUD is `ZIndexBehavior.Sibling`), so the §6.1 path is the built one. `tests/hud_style` pins `Bar.Track` and `Bar.Fill`; STYLE.md §6.5 lists `Bar.{Track, Fill}`. |
+| W0-02 `Upgrades.Dog/Alarm` keep numbers, but §3.1 said boolean only | **accepted** | §3.1 and §4.12 now say what the code does (a newer server's number ≥ 0 is kept, B-6). Ownership is one pure predicate, `PlayerData.Owned(v)` = `v == true or (number and v > 0)` (tested in `stage4_rules`); the DefenceService and RemoteNames headers say HasDog / HasAlarm, the attributes and the `owned` check use it and nothing else. |
+| W0-03 DogBrain `Pending` conventions not in its header | **accepted (documented)** | The DogBrain header states them: a missing key = untouched, `false` = `SetAttribute(name, nil)` (Reset clears all three), `DogPos` is base-local and is written as `base.Model:GetPivot() * pos` (world, §2.1, §4.11). The writes stay Wave 1 A's (§8). |
+| note: `FinalTaken` stays set after a failed final attempt | **accepted** | §4.6 and F8c: a failed release attempt clears it, so a retry writes an amendment made between the attempts (`tests/stage4_data_hooks`). |
+| note: `Serialize` does not clamp a negative `ShieldReadyAt` | **rejected** | `Serialize` checks types (finite) for every number and clamps none (Money, LockLevel alike); `Sanitize` clamps on load and DefenceService clamps at load (§3.1). Only DefenceService writes it, always `os.time() + …`. |
+| note: `PreviewAdd` and `_debugSizes` miss Steal/Escrow | **Wave 1 A** | `FishRt.Steal` and `FishRt.Escrow` do not exist before `SetSteal` / `StealFish` (§4.5); A adds them to the `Locked` candidate rule and `Escrows` to `_debugSizes`. |

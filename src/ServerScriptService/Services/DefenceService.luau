@@ -29,6 +29,10 @@
 	     забыты (ShieldReadyAt не возвращается), уведомление «Твоя защита снята…».
 	  6. Покупки (DefenceBuy): цена только из DefenceConfig, EconomyService:SpendMoney(…,
 	     "defence:<item>"), Upgrades / SetLockLevel, атрибуты, SaveSoon, DefenceEvent("Bought").
+	     Есть ли собака / сигнализация — ТОЛЬКО PlayerData.Owned(Upgrades.Dog / Alarm): true или
+	     число > 0 (уровень сервера новее, §4.12). Так читают HasDog / HasAlarm, атрибуты и
+	     проверку "owned"; с «== true» уровень 2 продался бы снова и затёрся бы значением true
+	     (откат, запрещённый правилом Этапа 3 B-6). Покупка пишет true, только если не Owned.
 	     Собака показана на базе владельца (все детали видны, будка твёрдая, Dog.Pup:PivotTo на
 	     Dog.Rest), снята при отключении (вид шаблона и его pivot щенка).
 	  7. Гость во дворе (сигнализация): цикл раз в Alarm.IntruderEvery с, только пока есть база с
@@ -53,8 +57,8 @@
 	  DefenceService:IsProtected(player) -> (kind?, until?)   -- защита его базы сейчас
 	  DefenceService:EndProtection(player, reason)            -- снять все виды и забыть его losses
 	  DefenceService:GiveAfterTheft(victim)                   -- after 90 с, rest на 2-й краже за 600 с
-	  DefenceService:HasDog(player) -> boolean
-	  DefenceService:HasAlarm(player) -> boolean
+	  DefenceService:HasDog(player) -> boolean                -- PlayerData.Owned(Upgrades.Dog)
+	  DefenceService:HasAlarm(player) -> boolean              -- PlayerData.Owned(Upgrades.Alarm)
 	  DefenceService:LockLevel(player) -> number              -- в игре — min(LockLevel, #Levels)
 	  DefenceService:HoldTime(player) -> number               -- StealRules.HoldTime(LockLevel)
 	  DefenceService:SetLockLevel(player, n) -> boolean       -- за CanWrite; атрибуты; LockChanged

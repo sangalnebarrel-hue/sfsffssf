@@ -59,7 +59,8 @@
 	     взят, Dirty > SnapshotSeq) — ровно ОДНО следующее после записи. После успешной записи
 	     rec.Committed = снимок и сигнал Committed(player, seq) (и у отпускания). Снимок
 	     последнего сохранения (с отпусканием) ставит rec.FinalTaken = true: после него
-	     AmendLeaving больше ничего не меняет (Этап 4).
+	     AmendLeaving больше ничего не меняет (Этап 4); попытка не вышла — флаг снят до повтора
+	     (повтор снимет снимок заново, с правкой).
 	  7. Выход (PlayerRemoving): сразу Leaving (CanWrite = false; ждущие WaitLoaded получают
 	     nil), последнее сохранение с отпусканием (ждущее в очереди автосохранение им и
 	     становится — одна запись, не две; обычное в пути — им же перед своей следующей попыткой,
@@ -599,6 +600,13 @@ local function processSave(request: Request)
 		result = status
 		if status ~= "failed" then
 			break
+		end
+		-- Этап 4: попытка не вышла — её снимок не в счёт; следующая снимет новый, так что до
+		-- него AmendLeaving снова можно (окно F8c — одна попытка, не все повторы). Записалось и
+		-- лишь ответ потерялся — повтор найдёт Session пустым («quiet») и не запишет ничего:
+		-- как и без сброса, рыба не задвоится.
+		if request.Release then
+			rec.FinalTaken = false
 		end
 		local err = info and info.err
 		if badValue(err) and not strictRetried then
