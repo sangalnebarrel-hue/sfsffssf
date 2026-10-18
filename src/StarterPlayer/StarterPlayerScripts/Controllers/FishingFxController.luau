@@ -185,6 +185,7 @@ local MapConfig = require(Config:WaitForChild("MapConfig"))
 local RodConfig = require(Config:WaitForChild("RodConfig"))
 local UIConfig = require(Config:WaitForChild("UIConfig"))
 local FishingRules = require(Shared:WaitForChild("FishingRules"))
+local TankRules = require(Shared:WaitForChild("TankRules"))
 local Net = require(Shared:WaitForChild("Net"))
 local Util = Shared:WaitForChild("Util")
 local Signal = require(Util:WaitForChild("Signal"))
@@ -2588,7 +2589,8 @@ local function nameplate(tracker: Tracker, held: Model, rarity: string, event: F
 		tag.TextColor3 = mutationStyle.Top
 	end
 	if value then
-		local price = plateLabel(plate, "Price", `💰 {FishingRules.FormatCoins(value)}`, priceBox, 2, true)
+		-- (💵 «$518» — как кошелёк и карточка: одна запись денег, UX-06)
+		local price = plateLabel(plate, "Price", `💵 {TankRules.FormatMoney(value)}`, priceBox, 2, true)
 		price.TextColor3 = UIConfig.BillboardYellow.Top
 	end
 	gui.Parent = parent

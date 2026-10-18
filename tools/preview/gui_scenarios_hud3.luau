@@ -13,7 +13,8 @@
 
 	  gui_render.py --scenario wallet_idle,wallet_loading,wallet_big,tank_button --devices \
 	      phone,phone_small,phone_notch,tablet,desktop --out DIR
-	  gui_render.py --scenario catch_to_tank,catch_replaced,catch_sold --devices phone,desktop --out DIR
+	  gui_render.py --scenario catch_to_tank,catch_replaced,catch_sold,catch_sold_notable --devices \
+	      phone,desktop --out DIR
 	  gui_render.py --scenario tank_button_badge,first_fish_toast,data_memory_toast --out DIR
 ]]
 
@@ -25,6 +26,8 @@ local FISH = {
 	Common = { Id = "Crucian", Rarity = "Common", Kg = 0.84, Value = 11, Income = 1.1 },
 	Rare = { Id = "Puffer", Rarity = "Rare", Kg = 2.1, Value = 58, Income = 5.2 },
 	Epic = { Id = "Swordfish", Rarity = "Epic", Kg = 63.5, Value = 182, Income = 15.6 },
+	-- a NEW Gold Perch (Common, ×2) — weaker than every fish of a full tank of better ones
+	GoldPerch = { Id = "Perch", Rarity = "Common", Mutation = "Gold", Kg = 1.1, Value = 35, Income = 3.2, New = true },
 }
 
 -- A full starting tank (StartSlots = 6): its weakest fish is the Crucian (h:tank list).
@@ -200,6 +203,16 @@ return {
 			h:money(500)
 			catchCard(h, FISH.Common, { Result = "sold", Count = 6, Slots = 6, Price = 11 }, 511)
 		end, -- a Common card closes by itself (UIConfig.CatchCardTime)
+	},
+	{
+		name = "catch_sold_notable",
+		desc = "A full tank of better fish, a NEW Gold Perch is weaker: «САДОК ПОЛОН» over «ПРОДАНА» (Sun) slapped on the card's corner, the gold «6/6» pulses on «САДОК», the card stays ≥ 1.5 s after the stamp; then «Садок полон: «Окунь» слабее всех, +$35» — every time for a notable fish (new, mutated, Epic+)",
+		still = { 2.6, 3.4, 5.4 },
+		run = function(h: any)
+			h:tank(FULL)
+			h:money(500)
+			catchCard(h, FISH.GoldPerch, { Result = "sold", Count = 6, Slots = 6, Price = 35 }, 535)
+		end, -- (it closes by itself: CatchFx.cardTime holds a sold card SOLD_HOLD after its stamp)
 	},
 	{
 		name = "tank_button_badge",

@@ -44,15 +44,20 @@
 	    «прямо над центром» дизайна), Tag.Width × Tag.Height studs + Tag.PixelsX × Tag.PixelsY px,
 	    обводка Tag.Outline (толще обычной: буквы на неоне), MaxDistance TagShow (дальше надписи
 	    соседних витрин прохода сливаются в кашу), без света и AlwaysOnTop: «+$4/с»
-	    (BillboardGreen) и «$45 ▲» / «$135 МАКС» (BillboardYellow; Texts.TagValue / TagMax), стиль
-	    STYLE §3 «надписи в мире»;
+	    (BillboardGreen) и «$45» / «$135 МАКС» (BillboardYellow; Texts.TagValue / TagMax), стиль
+	    STYLE §3 «надписи в мире»; буквы не крупнее TankDisplay.tagCap(высота экрана) — вблизи
+	    растёт рамка, а не буквы (надпись не громче кошелька; потолок пересчитывается, когда
+	    меняется размер экрана);
 	    цена — TankRules.CurrentValue(Value, AgeAt(GrowFrom, GetServerTimeNow())) раз в TagEvery
 	    с (та же цепочка) и только у надписей ближе TagRange (≥ TagShow: показалась — уже свежая).
-	    На закрытой витрине ("locked") — тусклое «🔒 Закрыто» (FxTankLock, Texts.SlotLocked,
-	    светло-серым Slate) перед пустым стеклом, на FishPoint + (0, Tag.LockLift, −Tag.Forward) —
-	    как табличка на витрине магазина, ниже надписей прохода (с ними не сливается);
-	    MaxDistance LockRange — видно и от ворот двора (слово не меняется, обновлять нечего): из
-	    прохода табличку на тумбе не прочесть.
+	    Закрытые витрины ("locked") — тусклое «🔒 Закрыто» (FxTankLock, Texts.SlotLocked,
+	    светло-серым Slate) ОДНО на галерею: над первой закрытой витриной (её SlotIndex — самый
+	    младший из закрытых этой стороны двора, рядом с открытыми рядами; сторона — знак X витрины
+	    в осях Tank.Glass), перед пустым стеклом, на FishPoint + (0, Tag.LockLift, −Tag.Forward) —
+	    как табличка на витрине магазина, ниже надписей прохода; MaxDistance LockRange — видно и
+	    от ворот двора. Остальным закрытым хватает таблички «🔒 Закрыто» на тумбе и тусклой планки
+	    (три одинаковых слова в перспективе прохода сливались в «За🔒рыто»); Этап 5 открыл витрину
+	    — слово переходит на следующую.
 	  • Надпись садка FxTankSign над передним краем Tank.Glass (выше таблички «АКВАРИУМ»),
 	    MaxDistance SignRange: «+$42/с» крупно зелёным, «🐠 4/6» мельче белым (Texts.TankCount) — из
 	    атрибутов садка Count / Slots / Income; у свободной базы и до подключения садка (нет Count)
@@ -63,13 +68,24 @@
 	    Pier.Height studs + px, MaxDistance Pier.Range: «🐠 4/6» белым и «+$42/с» (BillboardGreen) из атрибутов
 	    игрока TankCount / TankSlots / Income; нет TankSlots (данные не загружены) — нет слова.
 	    Спрятано, пока FishingState — Bite или Reeling, пока у HUD CounterHold и пока свой
-	    персонаж держит HeldFish (как уведомления); снова видно — выскакивает. Прилёт "stored" /
+	    персонаж держит HeldFish (как уведомления) и ещё Pier.TrophyGap с после (табличка
+	    трофея тает там же); снова видно — выскакивает. Прилёт "stored" /
 	    "replaced" (FishingState "Caught" с Tank.Result; когда снят CounterHold, а не было его —
 	    через ARRIVAL_WAIT с; Этап 4 — TankEvent "Stored" сразу) — один всплеск брызг у края
 	    ведра, а слово, когда снова видно, — «удар» (UiFx.punch). Ближе PopRange к ведру (свой
 	    персонаж), при доходе > 0 и видимом слове раз в PopEvery с над словом всплывает «+$13»
 	    (доход в секунду, Texts.Pop; на Pier.Rise studs за Pier.PopTime с, тает). Кнопки
 	    ProximityPrompt у ведра нет (тап в 5 studs от точки рыбалки попал бы в экран рыбалки).
+	  • Слова не под HUD (Display.Clear): кошелёк — тем же зелёным курсивом, и слова мира рядом с
+	    ним читались одной кашей («+$0$959/с»). В той же цепочке проверок (и сразу, когда слово
+	    появилось, и через Clear.ToastWait с после нового уведомления) прямоугольник каждого
+	    видимого слова — надписи витрин (буквы — по потолку), «🔒 Закрыто», надпись садка, слово у
+	    ведра, слово рынка — на экране (Camera:WorldToScreenPoint; размер — studs × px на stud на
+	    этой глубине + px; HUD.IgnoreGuiInset = false, как у AbsolutePosition) сравнивается с
+	    видимыми плашками HUD.Status и уведомлениями HUD.Toasts: ближе Clear.Margin px — буквы и
+	    обводка тают за Clear.Fade с (TextTransparency / Transparency — Visible, Enabled и
+	    UIScale слова у других), снова проявляются за Clear.Show с, только когда слово отошло на
+	    Clear.Back px. Слово за камерой, дальше своего MaxDistance или выключенное — как было.
 	  • События витрин (базы ближе EventRange; дальше — тихо): "in" — новая рыба вырастает из точки
 	    (Fx.From → 1 за Fx.Grow с), брызги и искры цвета редкости (Emit на временном Attachment на
 	    Fx.Above над ВЕРХОМ витрины, не внутри стекла), вспышка света у LightBar (свой PointLight,
@@ -84,7 +100,8 @@
 	    TankEvent "Sold" у ларька (Place — Id из EconomyConfig.SellPoints) — горсть монет у его
 	    весов (если ближе EventRange).
 	Соединения: на игрока — AttributeChanged, CharacterAdded (на персонажа — ChildAdded /
-	ChildRemoved: HeldFish); у HUD — AttributeChanged (CounterHold); FishingState и TankEvent;
+	ChildRemoved: HeldFish); у HUD — AttributeChanged (CounterHold), у HUD.Toasts — ChildAdded
+	(новое уведомление); FishingState и TankEvent;
 	у каждой построенной базы — по одному AttributeChanged на витрину, садок и модель базы и
 	кнопка "TankPrompt" (Enabled). В покое ни одного покадрового соединения (только цепочка
 	проверок и зацикленные твины рыб вблизи); единственное исключение — живая радужная рыба
@@ -102,7 +119,10 @@
 	  TankWorldController.GetPierWord() -> BillboardGui?
 	  TankWorldController.IsBuilt(base) -> boolean
 	  TankWorldController.IsAlive(base, slotIndex) -> boolean         -- твин жизни идёт
-	  TankWorldController.Stats() -> { bases, fish, tags, life, locks, emitters, lastBuilds, folder }
+	  TankWorldController.Stats() -> { bases, fish, tags, life, locks, emitters, lastBuilds, folder,
+	                                   faded, tagCap, signCap }  -- faded: слов под HUD (тают)
+	  TankWorldController.IsFaded(gui) -> boolean    -- слово ушло из-под HUD (Display.Clear)
+	  TankWorldController.Lock(base, slotIndex) -> BillboardGui?     -- «🔒 Закрыто» витрины
 	  TankWorldController.SetLife(enabled)   -- превью: RbxSim не двигает приваренные детали за Body
 ]]
 
@@ -125,6 +145,7 @@ local TankDisplay = require(script.Parent:WaitForChild("TankDisplay"))
 local DISPLAY = TankConfig.Display
 local PIER = TankConfig.Pier
 local FX = DISPLAY.Fx
+local CLEAR = DISPLAY.Clear
 local TEXTS = TankConfig.Texts
 local RATE_SUFFIX = EconomyConfig.Format.Rate
 local FOLDER_NAME = "TankWorld"
@@ -160,7 +181,10 @@ type Slot = {
 	busyUntil: number, -- рыба растёт (os.clock): жизнь не начинаем
 	tag: TankDisplay.Tag?,
 	tagHolder: Attachment?,
-	lockHolder: Attachment?, -- «🔒 Закрыто» над закрытой витриной
+	locked: boolean, -- витрина закрыта (State "locked")
+	side: number, -- галерея: знак X витрины в осях Tank.Glass (−1 / 1)
+	lockHolder: Attachment?, -- «🔒 Закрыто» над первой закрытой витриной галереи …
+	lockGui: BillboardGui?, -- … и само слово
 	lastEvent: string?,
 	pending: boolean, -- отложенное перечитывание уже ждёт
 	queued: boolean, -- ждёт тихой постройки
@@ -198,6 +222,13 @@ local lastBuilds = 0
 local lifeEnabled = true
 local warned: { [string]: boolean } = {}
 local sellPoints: { [string]: Attachment } = {}
+local marketWords: { BillboardGui } = {}
+-- Слова, ушедшие из-под HUD (тают; Display.Clear), и потолок букв надписей витрин (px).
+local faded: { [BillboardGui]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+local tagCap, signCap = TankDisplay.tagCap(390), TankDisplay.signCap(390)
+local tagCapHeight = 0 -- высота экрана, по которой они посчитаны
+-- Надпись садка у потолка букв: «+$1 234/с» ≈ SIGN_W потолков в ширину, две строки ≈ SIGN_H.
+local SIGN_W, SIGN_H = 7, 1.8
 -- Слово у ведра своей базы.
 local pier = {
 	baseIndex = 0,
@@ -211,6 +242,7 @@ local pier = {
 	arrival = nil :: { held: boolean }?,
 	nextPop = 0,
 	heldFish = false,
+	heldGen = 0, -- поколение «трофей убран» (Pier.TrophyGap)
 	characterTrove = Trove.new(),
 }
 
@@ -343,6 +375,203 @@ local function riseAt(
 	task.delay(time + 0.1, function()
 		point:Destroy()
 	end)
+end
+
+--------------------------------------------------------------------------------
+-- Слова не под HUD (Display.Clear)
+--------------------------------------------------------------------------------
+
+type Rect = { x0: number, y0: number, x1: number, y1: number }
+
+local function rectOf(gui: GuiObject): Rect?
+	local p, size = gui.AbsolutePosition, gui.AbsoluteSize
+	if size.X <= 0 or size.Y <= 0 then
+		return nil
+	end
+	return { x0 = p.X, y0 = p.Y, x1 = p.X + size.X, y1 = p.Y + size.Y }
+end
+
+-- Доля выравнивания UIListLayout: Left / Top — 0, Center — 0.5, Right / Bottom — 1.
+local function alignShare(name: string): number
+	return if name == "Center" then 0.5 elseif name == "Right" or name == "Bottom" then 1 else 0
+end
+
+-- Видимые дети рамки с UIListLayout там, где их ставит раскладка, в прямоугольнике рамки box: по
+-- своей оси — подряд (LayoutOrder) через Padding, группа и каждый поперёк — по выравниванию. Не
+-- по AbsolutePosition детей: так же и в эмуляторе тестов (его раскладка не выравнивает).
+local function listItems(frame: Instance, list: UIListLayout, box: Rect, visit: (GuiObject, Rect) -> ())
+	local vertical = list.FillDirection == Enum.FillDirection.Vertical
+	local w, h = box.x1 - box.x0, box.y1 - box.y0
+	local items: { GuiObject } = {}
+	for _, child in frame:GetChildren() do
+		if child:IsA("GuiObject") and child.Visible then
+			table.insert(items, child)
+		end
+	end
+	table.sort(items, function(a: GuiObject, b: GuiObject)
+		return a.LayoutOrder < b.LayoutOrder
+	end)
+	local gap = list.Padding.Scale * (if vertical then h else w) + list.Padding.Offset
+	local total = 0
+	for i, item in items do
+		local s = item.AbsoluteSize
+		total += (if vertical then s.Y else s.X) + (if i > 1 then gap else 0)
+	end
+	local main = alignShare(if vertical then list.VerticalAlignment.Name else list.HorizontalAlignment.Name)
+	local cross = alignShare(if vertical then list.HorizontalAlignment.Name else list.VerticalAlignment.Name)
+	local at = ((if vertical then h else w) - total) * main
+	for _, item in items do
+		local s = item.AbsoluteSize
+		local side = (if vertical then w - s.X else h - s.Y) * cross
+		local x0 = box.x0 + (if vertical then side else at)
+		local y0 = box.y0 + (if vertical then at else side)
+		visit(item, { x0 = x0, y0 = y0, x1 = x0 + s.X, y1 = y0 + s.Y })
+		at += (if vertical then s.Y else s.X) + gap
+	end
+end
+
+-- Что на экране HUD не уступает словам мира (px, как AbsolutePosition): видимые плашки стопки
+-- статуса — плашка базы и строка кошелька по её содержимому (💵 с числом и доход: MoneyController
+-- подгоняет их под текст, а сама строка шире), — и уведомления.
+local function hudRects(): { Rect }
+	local out: { Rect } = {}
+	local hud = hudGui
+	if not hud or not hud.Enabled then
+		return out
+	end
+	local status = hud:FindFirstChild("Status")
+	local stack = status and status:FindFirstChildOfClass("UIListLayout")
+	local box = if status and status:IsA("GuiObject") and status.Visible then rectOf(status) else nil
+	if status and stack and box then
+		listItems(status, stack, box, function(item: GuiObject, r: Rect)
+			local row = if item.Name == "Wallet" then item:FindFirstChildOfClass("UIListLayout") else nil
+			if row then
+				listItems(item, row, r, function(_, part: Rect)
+					table.insert(out, part)
+				end)
+			else
+				table.insert(out, r)
+			end
+		end)
+	end
+	local toasts = hud:FindFirstChild("Toasts")
+	if toasts and toasts:IsA("GuiObject") and toasts.Visible then
+		for _, item in toasts:GetChildren() do
+			local r = if item.Name == "Toast" and item:IsA("GuiObject") and item.Visible then rectOf(item) else nil
+			if r then
+				table.insert(out, r)
+			end
+		end
+	end
+	return out
+end
+
+-- Прямоугольник слова на экране (px) или nil — его не видно (выключено, за камерой, дальше
+-- MaxDistance). cap — потолок букв надписи витрины / садка (строки у середины рамки): не шире
+-- cap × capW и не выше cap × capH.
+local function wordRect(gui: BillboardGui, camera: Camera, cap: number?, capW: number?, capH: number?): Rect?
+	local point = gui.Parent
+	if not gui.Enabled or not (point and point:IsA("Attachment")) then
+		return nil
+	end
+	local at = point.WorldPosition
+	if (at - camera.CFrame.Position).Magnitude > gui.MaxDistance then
+		return nil
+	end
+	local screen = camera:WorldToScreenPoint(at)
+	if screen.Z <= 0.05 then
+		return nil
+	end
+	local perStud = camera.ViewportSize.Y / (2 * screen.Z * math.tan(math.rad(camera.FieldOfView) / 2))
+	local size = gui.Size
+	local limit = cap or math.huge
+	local w: number = math.min(size.X.Scale * perStud + size.X.Offset, limit * (capW or 6))
+	local h: number = math.min(size.Y.Scale * perStud + size.Y.Offset, limit * (capH or 2.2))
+	return { x0 = screen.X - w / 2, y0 = screen.Y - h / 2, x1 = screen.X + w / 2, y1 = screen.Y + h / 2 }
+end
+
+local function near(r: Rect, list: { Rect }, margin: number): boolean
+	for _, o in list do
+		if r.x0 < o.x1 + margin and r.x1 > o.x0 - margin and r.y0 < o.y1 + margin and r.y1 > o.y0 - margin then
+			return true
+		end
+	end
+	return false
+end
+
+-- Буквы и обводка слова тают (out) или проявляются (Visible, Enabled и UIScale — у других).
+local function fadeWord(gui: BillboardGui, out: boolean)
+	local time = if out then CLEAR.Fade else CLEAR.Show
+	local alpha = if out then 1 else 0
+	for _, item in gui:GetDescendants() do
+		if item:IsA("TextLabel") then
+			UiFx.tween(item, time, { TextTransparency = alpha })
+		elseif item:IsA("UIStroke") then
+			UiFx.tween(item, time, { Transparency = alpha })
+		end
+	end
+end
+
+-- Одно слово: у HUD — тает, отошло на Back — проявляется; не видно — как было. cap, capW, capH —
+-- как у wordRect.
+local function clearWord(gui: BillboardGui?, rects: { Rect }?, cap: number?, capW: number?, capH: number?)
+	local camera = Workspace.CurrentCamera
+	if not gui or not camera then
+		return
+	end
+	local r = wordRect(gui, camera, cap, capW, capH)
+	if not r then
+		return
+	end
+	local was = faded[gui] == true
+	local hide = near(r, rects or hudRects(), if was then CLEAR.Back else CLEAR.Margin)
+	if hide ~= was then
+		faded[gui] = if hide then true else nil
+		fadeWord(gui, hide)
+	end
+end
+
+-- Все слова (цепочка проверок, новое уведомление).
+local function clearHud()
+	if not Workspace.CurrentCamera then
+		return
+	end
+	local rects = hudRects()
+	for _, base in bases do
+		clearWord(base.sign and base.sign.gui, rects, signCap, SIGN_W, SIGN_H)
+		for _, slot in base.slots do
+			clearWord(slot.tag and slot.tag.gui, rects, tagCap)
+			clearWord(slot.lockGui, rects)
+		end
+	end
+	clearWord(pier.word and pier.word.gui, rects)
+	for _, gui in marketWords do
+		clearWord(gui, rects)
+	end
+end
+
+-- Потолки букв надписей витрин и садка — по высоте экрана (пересчёт, когда она сменилась).
+local function refreshCap()
+	local camera = Workspace.CurrentCamera
+	local height = if camera then camera.ViewportSize.Y else 0
+	if height <= 0 or height == tagCapHeight then
+		return
+	end
+	tagCapHeight = height
+	tagCap = TankDisplay.tagCap(height)
+	signCap = TankDisplay.signCap(height)
+	for _, base in bases do
+		local sign = base.sign
+		if sign then
+			TankDisplay.capSign(sign, signCap)
+		end
+		for _, slot in base.slots do
+			local tag = slot.tag
+			if tag then
+				TankDisplay.capTag(tag, tagCap)
+			end
+		end
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -490,8 +719,11 @@ local function showFish(base: Base, slot: Slot, grow: boolean, delay: number)
 	local tagHolder = holder("FxTankTag", CFrame.new(tagAt))
 	if tagHolder then
 		slot.tagHolder = tagHolder
-		slot.tag = TankDisplay.tag(tagHolder)
+		refreshCap()
+		local tag = TankDisplay.tag(tagHolder, tagCap)
+		slot.tag = tag
 		updateTag(slot)
+		clearWord(tag.gui, nil, tagCap)
 	end
 	if grow then
 		-- (при замене новая рыба ждёт крошкой, пока старая сжимается)
@@ -543,21 +775,41 @@ local function saleFx(slot: Slot, price: number?)
 	end
 end
 
--- Закрытая витрина (Этап 5 откроет её): тусклое слово «🔒 Закрыто» на месте надписи витрины.
-local function setLocked(slot: Slot, locked: boolean)
+local function dropLock(slot: Slot)
 	local current = slot.lockHolder
-	if locked and not current then
-		local fishPoint = slot.fishPoint
-		local at = fishPoint
-			and (fishPoint.WorldCFrame * CFrame.new(0, DISPLAY.Tag.LockLift, -DISPLAY.Tag.Forward)).Position
-		local point = at and holder("FxTankLock", CFrame.new(at))
-		if point then
-			slot.lockHolder = point
-			TankDisplay.lock(point, TEXTS.SlotLocked)
-		end
-	elseif not locked and current then
-		slot.lockHolder = nil
+	slot.lockHolder, slot.lockGui = nil, nil
+	if current then
 		current:Destroy()
+	end
+end
+
+-- Закрытые витрины (Этап 5 открывает их по порядку): тусклое слово «🔒 Закрыто» — одно на
+-- галерею, над первой закрытой (самый младший SlotIndex этой стороны — рядом с открытыми
+-- рядами); у остальных закрытых — только табличка на тумбе и тусклая планка (сервер).
+local function updateLocks(base: Base)
+	local first: { [number]: Slot } = {}
+	for _, slot in base.slots do
+		local best = first[slot.side]
+		if slot.locked and (best == nil or slot.index < best.index) then
+			first[slot.side] = slot
+		end
+	end
+	for _, slot in base.slots do
+		local want = slot.locked and first[slot.side] == slot
+		if want and not slot.lockHolder then
+			local fishPoint = slot.fishPoint
+			local at = fishPoint
+				and (fishPoint.WorldCFrame * CFrame.new(0, DISPLAY.Tag.LockLift, -DISPLAY.Tag.Forward)).Position
+			local point = at and holder("FxTankLock", CFrame.new(at))
+			if point then
+				slot.lockHolder = point
+				local gui = TankDisplay.lock(point, TEXTS.SlotLocked)
+				slot.lockGui = gui
+				clearWord(gui)
+			end
+		elseif not want and slot.lockHolder then
+			dropLock(slot)
+		end
 	end
 end
 
@@ -579,7 +831,11 @@ local function refresh(base: Base, slot: Slot)
 		and slot.fishId == info.fishId
 		and slot.mutation == info.mutation
 	slot.info = if wanted then info else nil
-	setLocked(slot, info.state == "locked")
+	local locked = info.state == "locked"
+	if locked ~= slot.locked then
+		slot.locked = locked
+		updateLocks(base)
+	end
 	if same then
 		updateTag(slot)
 		return
@@ -632,7 +888,10 @@ local function updateSign(base: Base)
 		local point = holder("FxTankSign", CFrame.new(at.Position))
 		if point then
 			base.trove:Add(point)
-			base.sign = TankDisplay.sign(point)
+			refreshCap()
+			local sign = TankDisplay.sign(point, signCap)
+			base.sign = sign
+			clearWord(sign.gui, nil, signCap, SIGN_W, SIGN_H)
 		end
 	end
 	local sign = base.sign
@@ -723,6 +982,10 @@ local function build(model: Model, distance: number): Base?
 		local display = slotModel:FindFirstChild("Display")
 		local fishPoint = display and display:FindFirstChild("FishPoint")
 		local bar = slotModel:FindFirstChild("LightBar")
+		-- галерея: по какую сторону двора от большого аквариума (знак X в его осях)
+		local across = if display and display:IsA("BasePart")
+			then glass.CFrame:PointToObjectSpace(display.Position).X
+			else 0
 		local slot: Slot = {
 			index = index,
 			model = slotModel,
@@ -739,7 +1002,10 @@ local function build(model: Model, distance: number): Base?
 			busyUntil = 0,
 			tag = nil,
 			tagHolder = nil,
+			locked = false,
+			side = if across < 0 then -1 else 1,
 			lockHolder = nil,
+			lockGui = nil,
 			lastEvent = nil,
 			pending = false,
 			queued = false,
@@ -768,8 +1034,8 @@ local function build(model: Model, distance: number): Base?
 	base.trove:Add(function()
 		for _, slot in base.slots do
 			dropFish(base, slot, false)
-			setLocked(slot, false)
-			slot.info, slot.queued = nil, false
+			dropLock(slot)
+			slot.info, slot.queued, slot.locked = nil, false, false
 		end
 		for leaving in base.leaving do
 			leaving:Destroy()
@@ -829,6 +1095,7 @@ local function refreshPier()
 	pier.visible = show
 	word.gui.Enabled = show
 	if show then
+		clearWord(word.gui) -- (уведомление на его месте — сразу тает, не мелькает)
 		if pier.punch then
 			pier.punch = false
 			UiFx.punch(word.plate, { from = 0.5, peak = 1.22 })
@@ -907,11 +1174,23 @@ local function watchCharacter(character: Model?)
 		refreshPier()
 		return
 	end
+	-- (трофей убран — слово ждёт ещё Pier.TrophyGap: его табличка тает там же)
 	local function update()
 		local held = character:FindFirstChild("HeldFish") ~= nil
-		if held ~= pier.heldFish then
-			pier.heldFish = held
-			refreshPier()
+		pier.heldGen += 1
+		if held then
+			if not pier.heldFish then
+				pier.heldFish = true
+				refreshPier()
+			end
+		elseif pier.heldFish then
+			local gen = pier.heldGen
+			task.delay(PIER.TrophyGap, function()
+				if pier.heldGen == gen and pier.heldFish then
+					pier.heldFish = false
+					refreshPier()
+				end
+			end)
 		end
 	end
 	pier.characterTrove:Connect(character.ChildAdded, update)
@@ -968,7 +1247,7 @@ local function setupMarket()
 			local at = cf.Position + Vector3.new(0, spec.Up, 0) + look * spec.Forward
 			local word = holder("FxMarketWord", CFrame.new(at))
 			if word then
-				TankDisplay.market(word, TextUtil.fill(TEXTS.MarketWord, { bonus = bonus }))
+				table.insert(marketWords, TankDisplay.market(word, TextUtil.fill(TEXTS.MarketWord, { bonus = bonus })))
 			end
 		end
 	end
@@ -1013,6 +1292,7 @@ end
 --------------------------------------------------------------------------------
 
 local function check()
+	refreshCap()
 	local cam, body = viewers()
 	local basesFolder = Workspace:FindFirstChild("Bases")
 	-- снятые со сцены базы
@@ -1094,6 +1374,8 @@ local function check()
 		pier.nextPop = now + PIER.PopEvery
 		popIncome()
 	end
+	-- слова не под HUD
+	clearHud()
 end
 
 local function loop()
@@ -1165,6 +1447,15 @@ function TankWorldController.SetLife(enabled: boolean)
 	end
 end
 
+function TankWorldController.Lock(base: Instance, index: number): BillboardGui?
+	local slot = slotOf(base, index)
+	return slot and slot.lockGui
+end
+
+function TankWorldController.IsFaded(gui: BillboardGui): boolean
+	return faded[gui] == true
+end
+
 function TankWorldController.Stats(): { [string]: any }
 	local count = { bases = 0, fish = 0, tags = 0, life = 0, locks = 0 }
 	for _, base in bases do
@@ -1176,6 +1467,10 @@ function TankWorldController.Stats(): { [string]: any }
 			count.locks += if slot.lockHolder then 1 else 0
 		end
 	end
+	local fadedCount = 0
+	for gui in faded do
+		fadedCount += if gui.Parent then 1 else 0
+	end
 	return {
 		bases = count.bases,
 		fish = count.fish,
@@ -1185,6 +1480,9 @@ function TankWorldController.Stats(): { [string]: any }
 		emitters = #emitters,
 		lastBuilds = lastBuilds,
 		folder = folder,
+		faded = fadedCount,
+		tagCap = tagCap,
+		signCap = signCap,
 	}
 end
 
@@ -1236,6 +1534,15 @@ function TankWorldController:Start(hud: ScreenGui)
 	end)
 	player.CharacterAdded:Connect(watchCharacter)
 	watchCharacter(player.Character)
+	-- новое уведомление: слова под ним тают, как только оно въехало (не ждать цепочку проверок)
+	local toasts = hud:FindFirstChild("Toasts")
+	if toasts then
+		toasts.ChildAdded:Connect(function(child: Instance)
+			if child.Name == "Toast" then
+				task.delay(CLEAR.ToastWait, clearHud)
+			end
+		end)
+	end
 	Net.Event("FishingState").OnClientEvent:Connect(onFishingState)
 	Net.Event("TankEvent").OnClientEvent:Connect(onTankEvent)
 	setupMarket()

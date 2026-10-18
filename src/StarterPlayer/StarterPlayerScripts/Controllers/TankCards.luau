@@ -24,7 +24,8 @@
 	    TankRules.SellPrice; возвращает цену и растёт ли ещё.
 	  • setLook(card, look, wideSell) — вид кнопки продажи: "home" — Leaf «💵 $45» (wideSell —
 	    «ПРОДАТЬ $45»: одна подпись на всю панель, её решает sellStyle по самой длинной цене reach),
-	    "market" — то же Gold (ларёк, ×1.5), "confirm" — Berry «ПРОДАТЬ?» (что сделает второе
+	    "market" — то же Gold (ларёк, ×1.5; на легендарной карточке того же цвета — Sun со
+	    сплошным белым ободком, lookToken), "confirm" — Berry «ПРОДАТЬ?» (что сделает второе
 	    нажатие; не влезает в кнопку карточки — «ТОЧНО?»), "busy" — Slate «⏳» (ждём сервер).
 	    showLoss(card, on) — доход карточки красным «−$4/с» (пока ждём второго нажатия).
 	  • Пустая (make "empty") — стекло (на стеклянном листе телефона — плотнее, Panel.EmptyAlpha:
@@ -39,6 +40,7 @@
 	                                                -- имена); onGlass: лист — стекло (телефон)
 	  TankCards.update(card, now, ratePct, wideSell) -> (price: number, growing: boolean)
 	  TankCards.setLook(card, look, wideSell)
+	  TankCards.lookToken(card, look) -> (token, clash) -- токен кнопки; clash — ободок белый
 	  TankCards.reach(info) -> number               -- самая длинная цена рыбы: МАКС у ларька
 	  TankCards.sellStyle(template, size, wide, reach) -> boolean -- «ПРОДАТЬ $reach» влезает?
 	  TankCards.showLoss(card, on)
@@ -397,6 +399,21 @@ function TankCards.sellStyle(template: GuiObject, size: Vector2, wide: boolean, 
 end
 
 local LOOK_TOKENS: { [string]: string } = { home = "Leaf", market = "Gold", confirm = "Berry", busy = "Slate" }
+-- Кнопка того же цвета, что и карточка (жёлтая Gold рынка на жёлто-оранжевой легендарной), сливалась
+-- с ней — их разделяла одна тёмная обводка, у самой дорогой рыбы был самый слабый призыв (ART-07):
+-- лицо — темнее (Sun), светлый ободок — сплошной белый.
+local CLASH: { [string]: { [string]: string } } = { Legendary = { market = "Sun" } }
+
+-- Токен кнопки продажи этой карточки в виде look и сливается ли он с карточкой.
+function TankCards.lookToken(card: Card, look: string): (string, boolean)
+	local info = card.info
+	local clash = if info then CLASH[info.rarity] else nil
+	local token = clash and clash[look]
+	if token then
+		return token, true
+	end
+	return LOOK_TOKENS[look] or "Leaf", false
+end
 
 function TankCards.setLook(card: Card, look: string, wideSell: boolean)
 	local sell = card.sell
@@ -407,7 +424,13 @@ function TankCards.setLook(card: Card, look: string, wideSell: boolean)
 	card.look = look
 	card.wideSell = wideSell
 	if changed then
-		UiFx.recolor(sell, LOOK_TOKENS[look] or "Leaf")
+		local token, clash = TankCards.lookToken(card, look)
+		UiFx.recolor(sell, token) -- (ободок — снова UIConfig.Sim.RimAlpha)
+		local rim = if clash then UiFx.faceOf(sell):FindFirstChild("Rim") else nil
+		local ring = if rim then rim:FindFirstChildOfClass("UIStroke") else nil
+		if ring then
+			ring.Transparency = 0
+		end
 	end
 	if card.caption then
 		card.caption.Text = captionFor(card)

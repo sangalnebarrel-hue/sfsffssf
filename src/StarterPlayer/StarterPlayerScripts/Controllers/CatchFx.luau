@@ -36,16 +36,20 @@
 	    достают; спицы сцены слова уходят копией в середину карточки, а за ней вырастают её
 	    собственные лучи.
 	  • fitChip — подпись фишки начинается правее её значка (узкие фишки маленькой квадратной
-	    карточки); floatSpot — куда вылетает «+N 💰» у карточки сбоку от рыбака: над баннером или у
+	    карточки); floatSpot — куда вылетает «+$4/с» у карточки сбоку от рыбака: над баннером или у
 	    внешнего края, а не на окно с рыбой (и не в ряд верхней панели Roblox, и не на наклейку
 	    «НОВИНКА!»; места нет — не вылетает).
-	  • tankStamp (Этап 3) — штамп садка под ценой (CatchCard.TankStamp): что стало с рыбой по
-	    Tank из "Caught" — «В САДОК!» (Water), «ЗАМЕНА!» (Leaf), «ПРОДАНА» (Gold); тексты —
-	    TankConfig.Texts.Stamp; без Tank (садок её не принял) — nil, штамп спрятан. Чистая функция:
-	    это НЕ stampText (тот — подгонка штампа мутации). tankRow — ряд под ценой: штамп справа (не
-	    мельче STAMP_TEXT px), подсказка «закрыть» слева (короче, если тесно; не влезает и короткая
-	    — штамп важнее, подсказки нет); showTankStamp — штамп шлёпается (slap) своей долей.
-	  • Этап 3, копия и цель карточки (design §6.5): infoText — «1,2 кг · цена $35» (значение
+	  • tankStamp (Этап 3) — штамп садка (CatchCard.TankStamp): что стало с рыбой по Tank из
+	    "Caught" — «В САДОК!» (Water), «ЗАМЕНА!» (Leaf), «САДОК ПОЛОН» над «ПРОДАНА» (Sun: рыба
+	    продана сразу — причина названа на карточке); тексты — TankConfig.Texts.Stamp; без Tank
+	    (садок её не принял) — nil, штамп спрятан. Чистая функция: это НЕ stampText (тот — подгонка
+	    штампа мутации). tankRow — наклейка штампа на правом нижнем углу карточки (как «НОВИНКА!»:
+	    наклон, свисает за угол; строка не мельче STAMP_TEXT px, у проданной — SOLD_TEXT,
+	    stampSize), подсказка «закрыть» — на ряду левее неё (короче, если тесно; не влезает и
+	    короткая — штамп важнее, подсказки нет); showTankStamp — штамп шлёпается (slap) своей
+	    долей; cardTime — карточку с проданной рыбой видно ещё SOLD_HOLD с после штампа.
+	  • Этап 3, копия и цель карточки (design §6.5): money — цена на фишке «$58» (TankRules.FormatMoney,
+	    как в кошельке); infoText — «1,2 кг · цена $35» (значение
 	    InfoLabel); priceFloat — что вылетает из фишки цены: доход рыбы «+$4/с» (зелёный) или
 	    золотое «+$15», если она сразу продана; flyTarget / flyIcon — куда летит карточка и что
 	    летит с ней: «sold» — 💵 в кошелёк (Wallet.Money), иначе 🐟 в кнопку «САДОК», её нет (нет
@@ -283,27 +287,51 @@ function CatchFx.stampMin(stamp: GuiObject, width: number)
 	cap.MinSize = Vector2.new(math.round(w), math.round(w * full.Y / math.max(full.X, 1)))
 end
 
--- Штамп садка (Этап 3): цвет плашки (UIConfig.Palette) по исходу TankResult.Result.
-CatchFx.TANK_STAMP = { stored = "Water", replaced = "Leaf", sold = "Gold" } :: { [string]: string }
+-- Штамп садка (Этап 3): цвет плашки (UIConfig.Palette) по исходу TankResult.Result. Рыба продана
+-- сразу — Sun (как уведомление «Садок полон…»), не золото: золотая надпись под золотой фишкой
+-- цены не читалась (UX-01).
+CatchFx.TANK_STAMP = { stored = "Water", replaced = "Leaf", sold = "Sun" } :: { [string]: string }
 
--- Штамп садка под ценой: (текст, токен цвета) по Tank из "Caught"; без Tank / незнакомый исход —
--- nil (штамп спрятан).
-function CatchFx.tankStamp(result: any): (string?, string?)
+-- Штамп садка на карточке: (текст, токен цвета, строка причины над ним или nil) по Tank из
+-- "Caught"; рыба продана сразу — причина «САДОК ПОЛОН» над «ПРОДАНА» (ребёнок видит, ПОЧЕМУ
+-- хорошая рыба ушла); без Tank / незнакомый исход — nil (штамп спрятан).
+function CatchFx.tankStamp(result: any): (string?, string?, string?)
 	local kind = if type(result) == "table" then result.Result else nil
 	local token = if type(kind) == "string" then CatchFx.TANK_STAMP[kind] else nil
 	if not token then
-		return nil, nil
+		return nil, nil, nil
 	end
-	return TankConfig.Texts.Stamp[kind], token
+	local stamp = TankConfig.Texts.Stamp
+	return stamp[kind], token, if kind == "sold" then stamp.full else nil
 end
 
--- Штамп садка не мельче стольких px (на самой маленькой карточке), его плашка — ряда подсказки
--- в высоту (не выше STAMP_TALL px), между ним и подсказкой — STAMP_GAP её высот.
-CatchFx.STAMP_TEXT = 12
-CatchFx.STAMP_TALL = 34
+-- Штамп садка — наклейка, как «НОВИНКА!» на окне рыбы (ART-04): шлёпается на правый нижний угол
+-- карточки, наклон STAMP_TILT, свисает за правый край на OVER_X своей ширины и за нижний — на
+-- OVER_Y своей высоты (широкая карточка телефона — OVER_WIDE: так наклейка не ложится на фишку
+-- цены над ней; квадратная — ниже лишь чуть-чуть: под ней на планшете джойстик), ряду подсказки
+-- «закрыть» остаётся место левее. Строка надписи — STAMP_SHARE высоты карточки, но не мельче
+-- STAMP_TEXT px (плашка ≥ 26 px) и не крупнее STAMP_MAX; надпись в одну строку — STAMP_LABEL
+-- высоты плашки. Рыба продана сразу — две строки: «ПРОДАНА» SOLD_TEXT..SOLD_MAX px (MAIN2
+-- высоты плашки, внизу; выше — наклейка легла бы на фишку цены), над ней причина «САДОК ПОЛОН»
+-- (SUB2 высоты). По ширине надписи —
+-- STAMP_INNER плашки. Между подсказкой и штампом — STAMP_GAP высоты ряда.
+CatchFx.STAMP_TEXT = 19
+CatchFx.SOLD_TEXT = 19
+CatchFx.SOLD_MAX = 22
+CatchFx.STAMP_MAX = 26
+CatchFx.STAMP_SHARE = 0.11
+CatchFx.STAMP_TILT = -8
+CatchFx.STAMP_LABEL = 0.72 -- надпись штампа в одну строку — такая доля высоты плашки (Fishing.luau)
+CatchFx.STAMP_MAIN2 = 0.42 -- … в две: «ПРОДАНА» (её низ — на 0.9 плашки) …
+CatchFx.STAMP_SUB2 = 0.34 -- … и причина над ней (её верх — на 0.08 плашки)
+CatchFx.STAMP_INNER = 0.88 -- … и такая доля ширины
+CatchFx.OVER_X = 0.12
+CatchFx.OVER_Y = 0.15
+CatchFx.OVER_WIDE = 0.45
 CatchFx.STAMP_GAP = 0.3
-CatchFx.STAMP_LABEL = 0.72 -- надпись штампа — такая доля высоты плашки (Fishing.luau)
-CatchFx.STAMP_INNER = 0.88 -- … и ширины
+-- Рыба продана сразу: карточка сама закрывается не раньше, чем через SOLD_HOLD с после доли
+-- штампа (шлепок ≈ 0.3 с + полторы секунды его читать).
+CatchFx.SOLD_HOLD = 1.8
 
 -- Видно ли на экране (сам и все предки-GuiObject).
 local function shown(gui: Instance?): boolean
@@ -322,10 +350,27 @@ local function lineWidth(text: string, px: number): number
 	return UiFx.textWidth(text, px) * 1.08 + 4
 end
 
--- Ряд под ценой (после placeCard: подсказка уже на месте своей раскладки, card — размер карточки
--- в px): штамп садка справа, подсказка — на остальном (штамп показывает его доля).
--- Без штампа подсказка — во весь ряд (tapHint). Возвращает, виден ли текст подсказки.
--- wide — ширина широкой карточки (px; nil — квадратная): подсказка без штампа, как tapHint.
+-- Размер наклейки штампа (px) на карточке высотой cardH: (ширина, высота, px надписи, px строки
+-- причины) для надписи text и причины sub (или nil — одна строка); outline — обводка плашки, px.
+function CatchFx.stampSize(text: string, sub: string?, cardH: number, outline: number): (number, number, number, number)
+	local least = if sub then CatchFx.SOLD_TEXT else CatchFx.STAMP_TEXT
+	local most = if sub then CatchFx.SOLD_MAX else CatchFx.STAMP_MAX
+	local px = math.clamp(cardH * CatchFx.STAMP_SHARE, least, math.max(most, least))
+	local plateH = px / (if sub then CatchFx.STAMP_MAIN2 else CatchFx.STAMP_LABEL)
+	local subPx = if sub then plateH * CatchFx.STAMP_SUB2 else 0
+	local lineW = lineWidth(text, px)
+	if sub then
+		lineW = math.max(lineW, lineWidth(sub, subPx))
+	end
+	return lineW / CatchFx.STAMP_INNER + outline * 2, plateH, px, subPx
+end
+
+-- Штамп садка и подсказка «закрыть» (после placeCard: подсказка уже на месте своей раскладки,
+-- card — размер карточки в px): наклейка штампа на правом нижнем углу карточки, свисает за него
+-- (OVER_X / OVER_Y), наклон STAMP_TILT; подсказка — на ряду левее неё: полная, короткая или
+-- никакой (штамп важнее). Без штампа подсказка — во весь ряд (tapHint). Возвращает, виден ли
+-- текст подсказки. wide — ширина широкой карточки (px; nil — квадратная): подсказка без штампа,
+-- как tapHint. Рыба продана сразу — две строки: Sub «САДОК ПОЛОН» над Label «ПРОДАНА».
 function CatchFx.tankRow(
 	stamp: GuiObject,
 	hint: TextLabel,
@@ -335,48 +380,67 @@ function CatchFx.tankRow(
 	wide: number?
 ): boolean
 	-- (видимость штампа не трогает: прячет его fillCard, а раскладку зовут и на поворот экрана)
-	local text, token = CatchFx.tankStamp(tank)
+	local text, token, sub = CatchFx.tankStamp(tank)
 	local rowW = hint.Size.X.Scale * card.X
 	if not text or not token then
 		hint.Text = CatchFx.tapHint(touch, wide)
 		return true
 	end
 	local label = stamp:FindFirstChild("Label")
+	local subLabel = stamp:FindFirstChild("Sub")
 	if label and label:IsA("TextLabel") then
 		label.Text = text
+		-- одна строка — посередине плашки; две — «ПРОДАНА» внизу (низ на 0.9), причина над ней
+		label.Position = UDim2.fromScale(0.5, if sub then 0.9 - CatchFx.STAMP_MAIN2 / 2 else 0.5)
+		label.Size = UDim2.fromScale(CatchFx.STAMP_INNER, if sub then CatchFx.STAMP_MAIN2 else CatchFx.STAMP_LABEL)
+	end
+	if subLabel and subLabel:IsA("TextLabel") then
+		subLabel.Visible = sub ~= nil
+		subLabel.Text = sub or ""
+		subLabel.Position = UDim2.fromScale(0.5, 0.08 + CatchFx.STAMP_SUB2 / 2)
+		subLabel.Size = UDim2.fromScale(CatchFx.STAMP_INNER, CatchFx.STAMP_SUB2)
 	end
 	UiFx.setCandy(stamp, token)
-	-- Плашка штампа: ряда в высоту (не выше STAMP_TALL), надпись не мельче STAMP_TEXT px.
+	local plateW, plateH = CatchFx.stampSize(text, sub, card.Y, CatchFx.outline(stamp))
+	-- Наклейка на углу: середина — на (1 − OVER) её размера внутрь от угла.
+	local overY = if wide then CatchFx.OVER_WIDE else CatchFx.OVER_Y
+	local cx = card.X - plateW * (0.5 - CatchFx.OVER_X)
+	local cy = card.Y - plateH * (0.5 - overY)
+	stamp.AnchorPoint = Vector2.new(0.5, 0.5)
+	stamp.Position = UDim2.fromScale(cx / card.X, cy / card.Y)
+	stamp.Size = UDim2.fromScale(plateW / card.X, plateH / card.Y)
+	stamp.Rotation = CatchFx.STAMP_TILT
+	-- Подсказка — на ряду левее наклейки (её ряд — у нижнего края, наклейка заходит на него).
 	local rowH = hint.Size.Y.Scale * card.Y
-	local plateH = math.clamp(rowH, CatchFx.STAMP_TEXT / CatchFx.STAMP_LABEL, CatchFx.STAMP_TALL)
-	local px = plateH * CatchFx.STAMP_LABEL
-	local plateW = lineWidth(text, px) / CatchFx.STAMP_INNER + CatchFx.outline(stamp) * 2
 	local gap = rowH * CatchFx.STAMP_GAP
-	-- Подсказка — на остальном ряду: полная, короткая или никакой (штамп важнее).
-	local room = rowW - plateW - gap
+	local x0 = hint.Position.X.Scale - hint.AnchorPoint.X * hint.Size.X.Scale -- левый край ряда (доля)
+	local rowTop = (hint.Position.Y.Scale - hint.AnchorPoint.Y * hint.Size.Y.Scale) * card.Y
+	local stampTop = cy - plateH / 2
+	local stampLeft = cx - plateW / 2
+	local room = if rowTop + rowH <= stampTop then rowW else math.min(rowW, stampLeft - gap - x0 * card.X)
 	local bodyPx = UiFx.textSize("Body") - 2 -- (fitText: Min = Max − 2)
 	local full, short = CatchFx.tapHint(touch, nil), CatchFx.tapHint(touch, 0)
 	local hintText = if lineWidth(full, bodyPx) <= room
 		then full
 		elseif lineWidth(short, bodyPx) <= room then short
 		else ""
-	local x0 = hint.Position.X.Scale - hint.AnchorPoint.X * hint.Size.X.Scale -- левый край ряда (доля)
-	local y = hint.Position.Y.Scale + (0.5 - hint.AnchorPoint.Y) * hint.Size.Y.Scale -- его середина
-	local x1 = x0 + rowW / card.X
-	if hintText == "" then
-		-- Только штамп — посередине ряда.
-		stamp.Position = UDim2.fromScale((x0 + x1) / 2, y)
-	else
-		stamp.Position = UDim2.fromScale(x1 - plateW / 2 / card.X, y)
-		local hintW = math.max(room, 1) / card.X
+	if hintText ~= "" and room < rowW then
 		hint.AnchorPoint = Vector2.new(0, hint.AnchorPoint.Y)
 		hint.Position = UDim2.new(x0, 0, hint.Position.Y.Scale, hint.Position.Y.Offset)
-		hint.Size = UDim2.fromScale(hintW, hint.Size.Y.Scale)
+		hint.Size = UDim2.fromScale(math.max(room, 1) / card.X, hint.Size.Y.Scale)
 	end
-	stamp.AnchorPoint = Vector2.new(0.5, 0.5)
-	stamp.Size = UDim2.fromScale(plateW / card.X, plateH / card.Y)
 	hint.Text = hintText
 	return hintText ~= ""
+end
+
+-- Когда карточка закрывается сама (с от её появления): base (по редкости и последней доле), но
+-- рыбу, проданную сразу, — не раньше SOLD_HOLD с после доли штампа stampAt: «САДОК ПОЛОН /
+-- ПРОДАНА» успевают прочесть (UX-01; обычная карточка закрылась бы через ≈ 1 с после него).
+function CatchFx.cardTime(base: number, stampAt: number, tank: any): number
+	if CatchFx.isSold(tank) then
+		return math.max(base, stampAt + CatchFx.SOLD_HOLD)
+	end
+	return base
 end
 
 -- Штамп садка шлёпается (доля карточки): наклейкой с доворотом (slap; instant — сразу на месте);
@@ -389,6 +453,12 @@ function CatchFx.showTankStamp(stamp: GuiObject, layer: GuiBase2d, at: Vector2, 
 	end
 	trove:Add(CatchFx.slap(stamp, layer, at, trove, CatchFx.SLAP_DOCKED))
 	UiFx.sound("swoosh", 0.3, 1.3)
+end
+
+-- Цена на фишке цены карточки (и её набегание): «$58» — тем же видом, что кошелёк, панель и
+-- всплывающие суммы (TankRules.FormatMoney; был голый «58» рядом с «+$5.2/с», UX-06).
+function CatchFx.money(value: number): string
+	return TankRules.FormatMoney(value)
 end
 
 -- Сводка карточки (значение InfoLabel.Text): «1,2 кг · цена $35».
@@ -555,7 +625,7 @@ function CatchFx.ghostRays(rays: GuiObject, layer: GuiObject, to: Vector2, trove
 end
 
 --------------------------------------------------------------------------------
--- Наклейка, фишки, «+N 💰» у карточки сбоку от рыбака (UI v5, SIMC-C1-02 / 03 / 05)
+-- Наклейка, фишки, «+$4/с» у карточки сбоку от рыбака (UI v5, SIMC-C1-02 / 03 / 05)
 --------------------------------------------------------------------------------
 
 -- Наклейка «НОВИНКА!» на карточке сбоку от рыбака шлёпается не крупнее стольких своих размеров.
@@ -677,14 +747,14 @@ export type FloatSpot = {
 }
 
 --[[
-	Куда вылетает «+N 💰» у карточки сбоку от рыбака (SIMC-C1-03: не на окно с рыбой — ребёнок как
+	Куда вылетает «+$4/с» у карточки сбоку от рыбака (SIMC-C1-03: не на окно с рыбой — ребёнок как
 	раз смотрит на свою рыбу): над баннером, если там помещается надпись не ниже least (по X — над
 	карточкой, не за край рыбака; с подъёмом rise — не выше верха HUD и, у верхней панели Roblox, не
 	левее её кнопок: limits); иначе — у внешнего края карточки (от рыбака) на высоте цены, иначе —
 	под карточкой; нет и там — на верхнюю полоску окна у его правого края (центр — 0.18 его высоты,
 	высота — не больше 0.3 окна) правее наклейки «НОВИНКА!» (sticker; SIMC-C2-02: на узком окне
 	телефона надпись иначе ложилась на неё) и тает раньше (третье — true). Возвращает центр и
-	высоту надписи; nil — места нет нигде (тогда «+N 💰» не вылетает: фишка цены и так пружинит и
+	высоту надписи; nil — места нет нигде (тогда «+$4/с» не вылетает: фишка цены и так пружинит и
 	сыплет искры, а цена — самое крупное число карточки).
 ]]
 function CatchFx.floatSpot(o: FloatSpot): (Vector2?, number, boolean)

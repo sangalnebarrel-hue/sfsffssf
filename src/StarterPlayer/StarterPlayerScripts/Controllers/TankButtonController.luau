@@ -21,7 +21,9 @@
 	    держит сумму до этого вызова; кнопка спрятана — всё равно позвать, с from = nil) и
 	    уведомление «Замена! «Меч-рыба» вместо «Карасик» +$24» (TankConfig.Texts.Replaced, Leaf 💵;
 	    через ReplacedToastAfter с, MoneyController.CatchToast — когда трофей над головой ушёл);
-	    "sold" — на кнопке НИЧЕГО (призрак улетел в кошелёк, сумму празднует сам MoneyController).
+	    "sold" — фишка «6/6» пульсирует, пока карточка на экране (UIConfig.TankButton.SoldPulse:
+	    продажа связана с полным садком), на прилёте — НИЧЕГО (призрак улетел в кошелёк, сумму
+	    празднует сам MoneyController).
 	    Нет Tank в "Caught" (садок не принял рыбу) — фишка не меняется, кнопка лишь чуть
 	    подпрыгивает. Без CounterHold (нет карточки; Этап 4: "Stored") — тот же прилёт через
 	    ArrivalWait после события / через StoredWait после роста TankCount (если "Caught" не
@@ -36,7 +38,8 @@
 	    (TankPanelController.Open(uid)); нажатие во время поклёвки, мини-игры или открытой
 	    карточки улова — качание «нет» (wiggle).
 	  • Цвет: Water (#6FF2FF → #13B8D6) близок к Sky («ЗАБРОСИТЬ» под ней на телефоне) — проверено
-	    рендером tank_button (scratchpad wave2_C): кнопку отличают квадратная форма, 🐠 и подпись.
+	    рендером tank_button (tools/preview, сценарий tank_button): кнопку отличают квадратная
+	    форма, 🐠 и подпись.
 	    «Жизнь» HUD (HudController) вместо 🐟 счётчика качает 🐠 этой кнопки.
 	Атрибуты, которые читает: Player — TankCount, TankSlots, DataMode, BaseIndex, FishingState; HUD
 	— CounterHold, CounterIncoming, IntroAt. Remote: FishingState "Caught" (Tank). Соединения — один
@@ -115,6 +118,7 @@ function TankButtonController:Start(hud: ScreenGui)
 	local pending: Pending? = nil
 	local incoming: string? = nil -- редкость рыбы, что летит (CounterIncoming)
 	local wantsOpen = false -- нажали во время полёта: открыть после прилёта
+	local stopPulse: (() -> ())? = nil -- пульс фишки «6/6», пока на экране карточка проданной рыбы
 	local onboarding = false -- «!» новичка на кнопке
 	local shownOnce = false
 
@@ -197,8 +201,17 @@ function TankButtonController:Start(hud: ScreenGui)
 		callPanel("Open", uid)
 	end
 
+	local function endPulse()
+		local stop = stopPulse
+		stopPulse = nil
+		if stop then
+			stop()
+		end
+	end
+
 	-- Рыба долетела (CounterHold снят) или пришла без карточки.
 	local function arrive()
+		endPulse()
 		local catch = pending
 		pending = nil
 		local rarity = incoming or (if catch then catch.rarity else nil)
@@ -279,6 +292,12 @@ function TankButtonController:Start(hud: ScreenGui)
 			replaced = if tank and typeof(tank.Replaced) == "table" then tank.Replaced else nil,
 		}
 		pending = catch
+		-- Продана сразу (садок полон): пока её карточка на экране, полная фишка пульсирует —
+		-- ребёнок связывает «ПРОДАНА» с «6/6» (до прилёта / снятия CounterHold).
+		endPulse()
+		if catch.result == "sold" and button.Visible then
+			stopPulse = UiFx.pulse(chip, SPEC.SoldPulse, SPEC.SoldPeriod)
+		end
 		-- (FishingController ставит CounterHold на этот же "Caught" — до нас или после)
 		task.delay(SPEC.ArrivalWait, function()
 			if pending == catch and not holding() then

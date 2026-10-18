@@ -19,7 +19,8 @@
 	    the leave save retried within LeaveSaveWindow; a release retry that finds no lock stops
 	    quietly;
 	  • shutdown: one final write per key, every lock released, well inside CloseBudget; a player
-	    mid-load at shutdown → the lock is released (B-13);
+	    mid-load at shutdown → the lock is released (B-13); a failed save waiting for the gap
+	    becomes the close save with all its Retry.Close tries (BE-01);
 	  • modes: Memory (Studio without API access) — one warn, DataMode "Memory", zero writes, an
 	    instant shutdown, a player gone before the probe answered leaves no record; Broken (an
 	    error in Start) — plays, never writes;
@@ -937,6 +938,43 @@ tests["shutdown (B-13): a player mid-load → the lock is released"] = function(
 	local saved = peek(sim, 1)
 	t.ok(saved ~= nil, "the load took the lock")
 	t.eq(saved.Session, nil, "and released it during the shutdown")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- BE-01: a normal save failed once and waits for the gap when the server closes — it becomes the
+-- close save with its own Retry.Close tries (the failed normal try does not use one up).
+tests["shutdown (BE-01): a failed save waiting for the gap becomes the close save with all Retry.Close tries → the lock released"] = function(
+	t
+)
+	t.eq(DataConfig.Retry.Close, 2, "this test assumes Retry.Close = 2")
+	local sim = boot(t)
+	local data = service(sim, "DataService")
+	local p = addPlayer(sim, 1)
+	setMoney(sim, p, 55)
+	sim:Advance(GAP + 0.5, COARSE)
+	sim.DataStore:ClearCalls()
+	sim.DataStore:SetLatency(2)
+	-- The normal try and the first close try fail; the second close try lands.
+	sim.DataStore:FailNext(2, nil, { "UpdateAsync" })
+	sim:Run(function()
+		data:SaveSoon(p)
+	end)
+	sim:WaitFor(function()
+		return writes(sim, 1) == 1
+	end, 10, COARSE)
+	sim:Advance(2.5) -- the try came back failed: backoff, then the write gap
+	t.ok(data._recordFor(p).InFlight, "the failed save waits to try again")
+	t.eq(writes(sim, 1), 1, "one try so far")
+	local result = sim:Shutdown()
+	t.ok(result.completed, "completed")
+	t.ok(result.elapsed < DataConfig.CloseBudget, `inside CloseBudget ({result.elapsed} s)`)
+	local saved = peek(sim, 1)
+	t.eq(saved.Session, nil, "the lock released by the second close try")
+	t.eq(saved.Money, 55)
+	ledgerHolds(t, sim, saved, "player 1")
+	t.eq(writes(sim, 1), 1 + DataConfig.Retry.Close, "the normal try + Retry.Close close tries")
+	t.eq(takeWarnings(sim, "сохранение игрока 1 не удалось"), 2, "the two forced failures")
+	assertGaps(t, sim)
 	sim:AssertNoErrors({ warnings = true })
 end
 

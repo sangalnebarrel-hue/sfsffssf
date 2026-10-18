@@ -1908,7 +1908,7 @@ export type FloatOptions = {
 }
 
 -- «ОТЛИЧНО!», «+1 🐟»: жирный наклонный текст с толстой обводкой выскакивает (0.4 → 1, Back Out),
--- поднимается и тает; с `to` — сперва вылетает из position туда (растёт по пути: «+N 💰» из
+-- поднимается и тает; с `to` — сперва вылетает из position туда (растёт по пути: «+$4/с» из
 -- фишки цены). Возвращает надпись (удалится сама).
 function UiFx.floatText(container: GuiBase2d, text: string, opts: FloatOptions?): TextLabel
 	local o: FloatOptions = opts or {}

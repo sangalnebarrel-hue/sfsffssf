@@ -39,6 +39,10 @@
 	    «hold» — рыба летит в кнопку: открыть можно сразу после прилёта).
 	  • Пока лист открыт, колонка уведомлений (HUD.Toasts) — над ним (ZIndex листа + 1), чтобы
 	    подсказки («Этой рыбы уже нет») было видно; закрыт — её ZIndex прежний.
+	  • Пока лист открыт и кнопка действия HUD.Fishing.ActionArea под ним (на телефоне лист —
+	    стекло: всегда), весь слой рыбалки HUD.Fishing спрятан — «ВЗЯТЬ» с красным «!» и подсказка
+	    не просвечивают сквозь лист частью карточки (UX-04); виджеты рыбалки в это время в покое,
+	    их собственный Visible лист слушает как прежде; закрыт — слой снова виден.
 	  • Всё, что живёт, пока лист открыт (соединения: камера, атрибуты, виджеты рыбалки), — в его
 	    Trove: закрыт — соединений как до открытия; закрытый лист ничего не делает.
 
@@ -149,6 +153,7 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 
 	local open = false
 	local trove = Trove.new()
+	local coverFishing: () -> ()
 	local hiding: thread? = nil
 	local lastFit: Fit? = nil
 	local toastsZ: number? = nil
@@ -323,6 +328,31 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 		end
 	end
 
+	-- Модальный лист закрывает слой рыбалки (UX-04): кнопка действия «ВЗЯТЬ» с красным «!» и её
+	-- подсказка просвечивали сквозь стекло листа телефона частью пустой карточки. Пока лист открыт
+	-- и кнопка действия под ним (или лист — стекло), весь HUD.Fishing спрятан; его виджеты в
+	-- покое (на поклёвке, мини-игре и карточке улова лист закрывается сам — их собственный Visible
+	-- он слушает как прежде). Закрыли лист (trove) — слой снова виден таким, каким его оставил
+	-- FishingController.
+	function coverFishing()
+		local area = widget("ActionArea")
+		local fit = lastFit
+		if not (fishing and fishing:IsA("GuiObject") and fishing.Visible and area and fit) then
+			return
+		end
+		local a0, a1 = area.AbsolutePosition, area.AbsolutePosition + area.AbsoluteSize
+		local r0, r1 = root.AbsolutePosition, root.AbsolutePosition + root.AbsoluteSize
+		local under = a0.X < r1.X and a1.X > r0.X and a0.Y < r1.Y and a1.Y > r0.Y
+		if not (under or not fit.tall) then
+			return
+		end
+		local layer = fishing
+		layer.Visible = false
+		trove:Add(function()
+			layer.Visible = true
+		end)
+	end
+
 	local function finishHide(reason: string)
 		hiding = nil
 		root.Visible = false
@@ -405,6 +435,7 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 			toastsZ = toasts.ZIndex
 			toasts.ZIndex = root.ZIndex + 1
 		end
+		coverFishing()
 		local function check()
 			if open and busy() then
 				self:Close("fishing")

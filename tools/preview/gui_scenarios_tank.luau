@@ -108,7 +108,7 @@ end
 return {
 	{
 		name = "tank_court",
-		desc = "The court of base 1 from the gate side: six fish in their displays (rows 1–3 of both arcades), the locked rows 4–6 dim with «🔒 Закрыто», the tags «+$X/с · $Y ▲», the big tank's sign «+$/с · 🐠 6/6»",
+		desc = "The court of base 1 from the gate side: six fish in their displays (rows 1–3 of both arcades), the locked rows 4–6 dim with «🔒 Закрыто», the tags «+$X/с · $Y», the big tank's sign «+$/с · 🐠 6/6»",
 		world = true,
 		standard = false,
 		still = { 0.4 },

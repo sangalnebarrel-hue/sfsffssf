@@ -749,7 +749,7 @@ tests["catch stored: «В САДОК!», «САДОК» and the Wallet's «+$/с
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["catch sold: «ПРОДАНА», the card flies into Wallet.Money as 💵, the money counts up then; «Садок полон…» once"] = function(
+tests["catch sold: «САДОК ПОЛОН» over «ПРОДАНА», the card flies into Wallet.Money as 💵, the money counts up then; an ordinary fish — «Садок полон…» once"] = function(
 	t
 )
 	local sim = boot(t)
@@ -760,14 +760,19 @@ tests["catch sold: «ПРОДАНА», the card flies into Wallet.Money as 💵,
 	local card = hud.Fishing.CatchCard
 	local wallet = hud.Status.Wallet.Money
 	local button = hud.RightButtons.TankButton
+	-- (an ordinary fish: a known Common without a mutation — the server says it is not new)
+	local ordinary = table.clone(CATCHES.Common)
+	ordinary.New = false
 	for round = 1, 2 do
 		local money = 500 + 11 * round
-		catchTank(sim, p, CATCHES.Common, round, { Result = "sold", Count = 6, Slots = 6, Price = 11 }, money)
+		catchTank(sim, p, ordinary, round, { Result = "sold", Count = 6, Slots = 6, Price = 11 }, money)
 		t.ok(openCard(sim, p))
 		t.ok(sim:WaitFor(function()
 			return card.TankStamp.Visible
 		end, 3) == true, `{round}: stamped`)
 		t.eq(card.TankStamp.Label.Text, TankConfig.Texts.Stamp.sold)
+		t.ok(card.TankStamp.Sub.Visible, `{round}: the cause over it`)
+		t.eq(card.TankStamp.Sub.Text, TankConfig.Texts.Stamp.full, `{round}: «САДОК ПОЛОН»`)
 		t.eq(wallet.Label.Text, `${money - 11}`, `{round}: the Wallet holds the sale while the card is up`)
 		local closed = closeCard(sim, p)
 		local ghost = hud.Fishing:FindFirstChild("FxCardOut")
@@ -795,6 +800,92 @@ tests["catch sold: «ПРОДАНА», the card flies into Wallet.Money as 💵,
 		)
 		sim:Advance(2)
 	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["catch sold, notable (UX-01): the card names the full tank and stays SOLD_HOLD after its stamp, «6/6» pulses while it is up, and a NEW / mutated / Epic+ fish is explained every time"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = join(sim, 1, { device = "phone", money = 500, count = 6 })
+	t.ok(chromeIn(sim, p))
+	ready(sim, p)
+	local hud = hudOf(p)
+	local card = hud.Fishing.CatchCard
+	local button = hud.RightButtons.TankButton
+	local chipScale = function(): number
+		local scale = button.Count:FindFirstChild("FxScale")
+		return if scale then scale.Scale else 1
+	end
+	local CatchFx = sim:Require(sim:Find("Controllers.CatchFx", p:FindFirstChildOfClass("PlayerScripts")), p)
+	local gold = { Id = "Perch", Rarity = "Common", Mutation = "Gold", Kg = 1.1, Value = 35, Income = 3.2, New = false }
+	local epic = table.clone(CATCHES.Epic)
+	epic.New = false
+	local fresh = table.clone(CATCHES.Rare)
+	fresh.New = true
+	local cases = {
+		{ fish = gold, price = 35, name = "Окунь", what = "a Gold mutation" },
+		{ fish = epic, price = 182, name = "Меч-рыба", what = "an Epic" },
+		{ fish = fresh, price = 58, name = "Фугу", what = "a NEW species" },
+		{ fish = gold, price = 35, name = "Окунь", what = "the same Gold Perch again" },
+	}
+	local money = 500
+	for round, case in cases do
+		money += case.price
+		catchTank(sim, p, case.fish, round, { Result = "sold", Count = 6, Slots = 6, Price = case.price }, money)
+		t.ok(openCard(sim, p), `{case.what}: the card`)
+		-- the full chip pulses while the sold card is up
+		local scales = {}
+		local stampedAt = nil
+		for _ = 1, 120 do
+			sim:Advance(1 / 30)
+			table.insert(scales, chipScale())
+			if card.TankStamp.Visible and not stampedAt then
+				stampedAt = sim:Time()
+			end
+			if stampedAt then
+				break
+			end
+		end
+		t.ok(stampedAt, `{case.what}: stamped`)
+		t.eq(card.TankStamp.Sub.Text, TankConfig.Texts.Stamp.full)
+		local lo, hi = math.huge, -math.huge
+		for _ = 1, 24 do
+			sim:Advance(1 / 30)
+			lo, hi = math.min(lo, chipScale()), math.max(hi, chipScale())
+		end
+		t.ok(hi - lo > 0.05, `{case.what}: «6/6» pulses while the card is up ({lo}..{hi})`)
+		t.eq(button.Count.Label.Text, "6/6")
+		-- no tap: the card closes by itself, but not before SOLD_HOLD after the stamp
+		local closed = sim:WaitFor(function()
+			return not card.Visible
+		end, 8, 1 / 30)
+		t.ok(closed, `{case.what}: closes by itself`)
+		local held = sim:Time() - (stampedAt :: number)
+		t.ok(held >= CatchFx.SOLD_HOLD - 0.15, `{case.what}: the stamp stayed {held} s (≥ {CatchFx.SOLD_HOLD})`)
+		t.ok(arrived(sim, p))
+		sim:Advance(0.1)
+		t.near(chipScale(), 1, 1e-3, `{case.what}: the pulse is over once the 💵 landed`)
+		local seen = watchToasts(sim, p, 4)
+		local want = string.gsub(
+			string.gsub(TankConfig.Texts.SoldNotable, "{name}", case.name),
+			"{price}",
+			(string.gsub(`${case.price}`, "%%", "%%%%"))
+		)
+		t.eq(seen[want], 1, `{case.what}: «{want}» (every time for a notable fish)`)
+		t.eq(seen[TankConfig.Texts.FullSold], nil, `{case.what}: not the generic «Садок полон…»`)
+		sim:Advance(1)
+	end
+	-- an ordinary one after that: nothing more to say
+	local ordinary = table.clone(CATCHES.Common)
+	ordinary.New = false
+	catchTank(sim, p, ordinary, 9, { Result = "sold", Count = 6, Slots = 6, Price = 11 }, money + 11)
+	t.ok(openCard(sim, p))
+	closeCard(sim, p)
+	t.ok(arrived(sim, p))
+	local seen = watchToasts(sim, p, 4)
+	t.eq(next(seen), nil, "an ordinary sale after an explained one: no toast")
+	t.eq(uiFx(sim, p).activeJobs(), 0)
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -958,6 +1049,9 @@ tests["catch toasts wait for the held trophy (a tablet: the column is over the h
 			t.eq(hud.Status.Wallet.Money.Label.Text, "$524", `{round.what}: the coins are counted meanwhile`)
 		end
 		held:Destroy()
+		-- (and Wallet.AfterTrophy more: the pier word punches first, UX-03)
+		local soon = watchToasts(sim, p, UIConfig.Wallet.AfterTrophy - 0.15)
+		t.eq(next(soon), nil, `{round.what}: the trophy just left — the pier word's beat first`)
 		local seen = watchToasts(sim, p, 1)
 		t.eq(seen[round.text], 1, `{round.what}: the trophy is gone — «{round.text}»`)
 		sim:Advance(UIConfig.ToastDuration + 1)

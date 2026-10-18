@@ -14,7 +14,7 @@
 	    DropRange (hysteresis); ≤ BuildPerCheck quiet builds per check; the life tween starts only
 	    within LifeRange (the Body moves) and stops only beyond LifeDrop (the fish rests); a Rainbow
 	    fish carries the RainbowFish tag (FishingFxController's repaint) only while it lives;
-	  • words: the tags «+$4/с» / «$45 ▲» ticking to «МАКС»; the tank sign «+$42/с» / «🐠 4/6» on
+	  • words: the tags «+$4/с» / «$45» ticking to «МАКС»; the tank sign «+$42/с» / «🐠 4/6» on
 	    an owned, mounted tank only; the pier word «🐠 4/6» / «+$42/с» on the own base only,
 	    hidden on Bite / Reeling / CounterHold / HeldFish, a splash on a stored arrival, income
 	    pops only within Pier.PopRange of the bucket, every Pier.PopEvery s;
@@ -36,6 +36,7 @@ local roblox = require("@lune/roblox")
 
 local Vector3 = roblox.Vector3
 local CFrame = roblox.CFrame
+local Enum = roblox.Enum
 
 local PLACE = "Place1.rbxl"
 local STUBBED = { "FishingService", "DataService", "EconomyService", "MarketService", "TankService" }
@@ -371,6 +372,13 @@ local function atSpot(sim: any, player: any, base: any)
 	setCamera(sim, CFrame.lookAt(spot + Vector3.new(0, 8, -13), spot))
 end
 
+-- The player's screen (the camera's ViewportSize in the client's context: the device's).
+local function viewOf(sim: any, player: any): any
+	return sim:Run(function()
+		return sim.workspace.CurrentCamera.ViewportSize
+	end, player)
+end
+
 -- In front of a display, in the aisle (camera far).
 local function inFront(sim: any, player: any, base: any, index: number)
 	setCamera(sim, FAR)
@@ -396,21 +404,35 @@ tests["display fish: one per occupied display, centred on FishPoint, inside the 
 	standFrom(sim, p, base, (DISPLAY.LifeRange + DISPLAY.Range) / 2 + 20)
 	sim:Advance(1)
 	t.eq(world.Stats().life, 0, "no life tweens out here")
-	t.eq(world.Stats().locks, TankConfig.MaxSlots - 6, "a dim «🔒 Закрыто» on every locked display")
-	-- the lock word: in front of the empty glass (at FishPoint height + LockLift), seen from the gate
-	local display7 = slotModel(base, 7).Display
-	local want = (display7.FishPoint.WorldCFrame * CFrame.new(0, DISPLAY.Tag.LockLift, -DISPLAY.Tag.Forward)).Position
-	local lockCount, nearest = 0, math.huge
+	-- ART-03: ONE dim «🔒 Закрыто» per arcade, over its first locked display (rows 4: Slot_7 west,
+	-- Slot_8 east — next to the open rows); three identical words in the aisle's perspective
+	-- piled into «За🔒рыто»
+	t.eq(world.Stats().locks, 2, "one lock word per arcade")
+	local lockCount = 0
 	for _, d in folderOf(sim, p):GetDescendants() do
 		if d:IsA("BillboardGui") and d.Name == "FxTankLock" then
 			lockCount += 1
 			t.eq(d.MaxDistance, DISPLAY.LockRange, "the lock word's MaxDistance = LockRange")
-			nearest = math.min(nearest, (d.Parent.WorldPosition - want).Magnitude)
 		end
 	end
-	t.ok(nearest < 0.01, `Slot_7's lock word at FishPoint + (0, LockLift, −Forward) ({nearest})`)
+	t.eq(lockCount, 2, "two FxTankLock in the folder")
+	for index = 7, TankConfig.MaxSlots do
+		local lock = world.Lock(base, index)
+		t.eq(lock ~= nil, index <= 8, `Slot_{index}: a lock word only on the first locked display of its arcade`)
+	end
+	-- the lock word: in front of the empty glass (at FishPoint height + LockLift), seen from the gate
+	local display7 = slotModel(base, 7).Display
+	local want = (display7.FishPoint.WorldCFrame * CFrame.new(0, DISPLAY.Tag.LockLift, -DISPLAY.Tag.Forward)).Position
+	local at7 = world.Lock(base, 7).Parent.WorldPosition
+	t.ok((at7 - want).Magnitude < 0.01, `Slot_7's lock word at FishPoint + (0, LockLift, −Forward) ({at7})`)
 	t.ok(display7.CFrame:PointToObjectSpace(want).Z < -display7.Size.Z / 2, "… on the aisle side of the glass")
-	t.eq(lockCount, TankConfig.MaxSlots - 6, "one lock word per locked display")
+	local glass = base.Tank.Glass.CFrame
+	t.ok(
+		glass:PointToObjectSpace(world.Lock(base, 7).Parent.WorldPosition).X
+				* glass:PointToObjectSpace(world.Lock(base, 8).Parent.WorldPosition).X
+			< 0,
+		"… the two on opposite arcades"
+	)
 	for index = 1, TankConfig.MaxSlots do
 		local fish = world.GetFish(base, index)
 		local slot = slotModel(base, index)
@@ -686,9 +708,23 @@ tests["tags: «+$X/с» and the value ticking to «МАКС» in front of the gl
 		local template = if tank.IsMaxed(age) then TankConfig.Texts.TagMax else TankConfig.Texts.TagValue
 		return (string.gsub(string.gsub(template, "{price}", price), "{max}", TankConfig.Texts.Max))
 	end
-	t.eq(plate.Value.Text, valueText(young, 0), "line 2: the value now «$X ▲»")
-	t.match(plate.Value.Text, "▲$")
+	t.eq(plate.Value.Text, valueText(young, 0), "line 2: the value now «$X»")
+	t.eq(
+		plate.Value.Text,
+		tank.FormatMoney(young.Value),
+		"… the bare price (no «▲»: it read as a stray glyph, ART-06)"
+	)
 	t.match(world.GetTag(base, 2).Plate.Value.Text, TankConfig.Texts.Max .. "$")
+	-- ART-02: up close the tag's box grows with the world, its letters do not — a TextSize cap
+	-- (UITextSizeConstraint "Cap") from the screen height, the lines hugging the middle (the bar)
+	local height = viewOf(sim, p).Y
+	local cap = math.clamp(math.round(height * DISPLAY.Tag.TextShare), DISPLAY.Tag.TextMin, DISPLAY.Tag.TextMax)
+	t.eq(world.Stats().tagCap, cap, `the cap on a {height} px screen`)
+	t.eq(plate.Rate.Cap.MaxTextSize, cap, "the income line ≤ the cap")
+	t.eq(plate.Value.Cap.MaxTextSize, math.round(cap * DISPLAY.Tag.ValueShare), "the value line ≤ ValueShare of it")
+	t.ok(cap <= DISPLAY.Tag.TextMax and DISPLAY.Tag.TextMax < 48, "never as loud as the Wallet's number (≤ 48 px)")
+	t.eq(plate.Rate.TextYAlignment, Enum.TextYAlignment.Bottom, "the income hugs the middle from above")
+	t.eq(plate.Value.TextYAlignment, Enum.TextYAlignment.Top, "the value hugs it from below")
 	-- where: over the glass, in front of its face, under the arcade ceiling
 	local holder = tag1.Parent
 	local rel = d1.CFrame:PointToObjectSpace(holder.WorldPosition)
@@ -718,6 +754,149 @@ tests["tags: «+$X/с» and the value ticking to «МАКС» in front of the gl
 	sim:AssertNoErrors({ warnings = true })
 end
 
+-- The camera turned like `look` and moved so that the world point `at` lands on the player's
+-- screen point (sx, sy) at `depth` studs (RbxSim projects with the camera's FieldOfView, in the
+-- client's viewport).
+local function aimAt(sim: any, player: any, at: any, sx: number, sy: number, look: any, depth: number)
+	sim:Run(function()
+		local camera = sim.workspace.CurrentCamera
+		camera.CFrame = look.Rotation
+		local dir = camera:ScreenPointToRay(sx, sy).Direction.Unit
+		local along = look.LookVector:Dot(dir)
+		camera.CFrame = CFrame.new(at - dir * (depth / along)) * look.Rotation
+	end, player)
+end
+
+-- The centre of a HUD widget laid out by its parent's centred UIListLayout (RbxSim's list layout
+-- does not centre: the controller computes the same).
+local function statusCentre(hud: any, name: string): (number, number)
+	local status = hud.Status
+	local item = status[name]
+	local x = status.AbsolutePosition.X + status.AbsoluteSize.X / 2
+	return x, item.AbsolutePosition.Y + item.AbsoluteSize.Y / 2
+end
+
+local function faded(gui: any): boolean
+	for _, d in gui:GetDescendants() do
+		if d:IsA("TextLabel") and d.TextTransparency < 0.99 then
+			return false
+		end
+	end
+	return true
+end
+
+local function opaque(gui: any): boolean
+	for _, d in gui:GetDescendants() do
+		if d:IsA("TextLabel") and d.TextTransparency > 0.01 then
+			return false
+		end
+	end
+	return true
+end
+
+tests["clear of the HUD: a world word under the status stack or a toast fades, and comes back once it is clear (ART-01, UX-02/03)"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 15)
+	local world = controller(sim, p)
+	local fake = Fake.new(sim, p)
+	local base = fake.base
+	local hud = p.PlayerGui.HUD
+	fake:mount(sixFish(fake))
+	settle(sim)
+	local d3 = slotModel(base, 3).Display
+	-- the kid in the aisle in front of Slot_3, the follow camera looking at it
+	sim:Teleport(p, (d3.CFrame * CFrame.new(0, -4, -9)).Position)
+	local look = CFrame.lookAt(Vector3.zero, d3.CFrame.LookVector)
+	local view = viewOf(sim, p)
+	local tag = world.GetTag(base, 3)
+	t.ok(tag, "Slot_3 has a tag")
+	local point = tag.Parent.WorldPosition
+	-- clear: the tag low in the middle of the screen
+	aimAt(sim, p, point, view.X / 2, view.Y * 0.65, look, 12)
+	sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Show + 0.1)
+	t.ok(opaque(tag), "clear of the HUD: the tag is drawn")
+	t.eq(world.IsFaded(tag), false)
+	-- right behind the base badge (the top of the status stack): it fades
+	local bx, by = statusCentre(hud, "BaseBadge")
+	aimAt(sim, p, point, bx, by, look, 12)
+	sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Fade + 0.1)
+	t.ok(world.IsFaded(tag), "under the status stack: faded")
+	t.ok(faded(tag), "… its letters and outline transparent")
+	t.ok(tag.Enabled, "… the BillboardGui itself untouched (others own Enabled / Visible / UIScale)")
+	t.ok(world.Stats().faded >= 1, "Stats counts it")
+	-- a little below the stack but within Back: it stays faded (no flicker at the edge)
+	local status = hud.Status
+	local bottom = status.BaseBadge.AbsolutePosition.Y + status.BaseBadge.AbsoluteSize.Y
+	local wallet = status.Wallet
+	if wallet.Visible then
+		bottom = wallet.AbsolutePosition.Y + wallet.AbsoluteSize.Y
+	end
+	-- the tag's own height on screen at 12 studs (capped letters: ≈ 2.2 caps)
+	local cap = world.Stats().tagCap
+	local half = cap * 1.1
+	aimAt(sim, p, point, view.X / 2, bottom + half + (DISPLAY.Clear.Margin + DISPLAY.Clear.Back) / 2, look, 12)
+	sim:Advance(DISPLAY.CheckEvery + 0.1)
+	t.ok(world.IsFaded(tag), "between Margin and Back: still faded")
+	-- well clear: back
+	aimAt(sim, p, point, view.X / 2, view.Y * 0.65, look, 12)
+	sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Show + 0.1)
+	t.eq(world.IsFaded(tag), false, "clear again: back")
+	t.ok(opaque(tag), "… drawn again")
+	-- a toast over it (the pier word under «Твоя рыба приносит $…» on a phone, UX-03): fades
+	local notify = sim:Require(sim:Find("Controllers.NotifyController", p:FindFirstChildOfClass("PlayerScripts")), p)
+	notify.Show("Проверка: слово под уведомлением", "info")
+	sim:Advance(1)
+	local toast = hud.Toasts:FindFirstChild("Toast")
+	t.ok(toast, "a toast is up")
+	-- (the tag's top over the toast's lower edge: the toast column hangs under the status stack,
+	-- this is far enough below it)
+	local tx = toast.AbsolutePosition.X + toast.AbsoluteSize.X / 2
+	local ty = toast.AbsolutePosition.Y + toast.AbsoluteSize.Y + half - 6
+	aimAt(sim, p, point, tx, ty, look, 12)
+	sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Fade + 0.1)
+	t.ok(world.IsFaded(tag), "under a toast: faded")
+	-- the toast leaves (its life): the word comes back
+	local ui = sim:Require(sim:Find("ReplicatedStorage.Shared.Config.UIConfig"))
+	sim:Advance(ui.ToastDuration + 1.5)
+	t.eq(hud.Toasts:FindFirstChild("Toast"), nil, "the toast is gone")
+	t.eq(world.IsFaded(tag), false, "the toast gone: back")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["locks follow the open rows: Stage 5 opens 7–8 → the arcades' words move to 9–10; all open → none"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 16)
+	local world = controller(sim, p)
+	local fake = Fake.new(sim, p)
+	local base = fake.base
+	fake:mount({ fake:record("Perch") })
+	settle(sim)
+	local function locked(): { number }
+		local list = {}
+		for index = 1, TankConfig.MaxSlots do
+			if world.Lock(base, index) then
+				table.insert(list, index)
+			end
+		end
+		return list
+	end
+	t.eq(table.concat(locked(), ","), "7,8", "StartSlots 6: the words on Slot_7 (west) and Slot_8 (east)")
+	-- SetSlots(8): displays 7–8 open ("mount" events), the rest stay locked
+	fake:mount({ fake:record("Perch") }, 8)
+	settle(sim, 0.6)
+	t.eq(table.concat(locked(), ","), "9,10", "8 open: the words moved to the next row")
+	t.eq(world.Stats().locks, 2)
+	fake:mount({ fake:record("Perch") }, TankConfig.MaxSlots)
+	settle(sim, 0.6)
+	t.eq(#locked(), 0, "all open: no lock word")
+	t.eq(countClass(folderOf(sim, p), "BillboardGui", "FxTankLock"), 0, "… none left in the folder")
+	sim:AssertNoErrors({ warnings = true })
+end
+
 tests["tank sign: «+$42/с» / «🐠 4/6» over the big tank of an owned, mounted base only"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 6)
@@ -736,9 +915,21 @@ tests["tank sign: «+$42/с» / «🐠 4/6» over the big tank of an owned, moun
 	local income10 = list[1].Income10 + list[2].Income10 + list[3].Income10 + list[4].Income10
 	t.eq(sign.Plate.Rate.Text, fake.tank.FormatRate(income10), "big green income")
 	t.eq(sign.Plate.Count.Text, "🐠 4/6", "the count")
+	-- its letters capped like the tags' (ART-01/02: up close it is not louder than the Wallet)
+	local height = viewOf(sim, p).Y
+	local cap = math.clamp(math.round(height * DISPLAY.Sign.TextShare), DISPLAY.Sign.TextMin, DISPLAY.Sign.TextMax)
+	t.eq(world.Stats().signCap, cap)
+	t.eq(sign.Plate.Rate.Cap.MaxTextSize, cap, "«+$/с» ≤ the cap")
+	t.eq(
+		sign.Plate.Count.Cap.MaxTextSize,
+		math.round(cap * DISPLAY.Sign.CountShare),
+		"«🐠 N/M» ≤ CountShare of it"
+	)
 	local glass = base.Tank.Glass
 	local rel = glass.CFrame:PointToObjectSpace(sign.Parent.WorldPosition)
 	t.ok(rel.Y > glass.Size.Y / 2, "above the glass")
+	t.near(rel.Y, glass.Size.Y / 2 + DISPLAY.Sign.Lift, 0.01, "Sign.Lift over its top (low: mid-screen from the gate)")
+	t.ok(DISPLAY.Sign.Lift <= 3.5, "lowered from 6: from the gate at eye height it is under the Wallet's band")
 	t.ok(rel.Z < 0, "over its front half (the «АКВАРИУМ» plaque side)")
 	-- a free base has none
 	local other = sim.workspace.Bases:FindFirstChild("Base_2")
@@ -809,11 +1000,16 @@ tests["pier word: own base only, hidden on Bite / Reeling / CounterHold / HeldFi
 	end, function()
 		hud:SetAttribute("CounterHold", nil)
 	end)
-	busy("HeldFish", function()
-		sim:Create("Model", { Name = "HeldFish" }, p.Character)
-	end, function()
-		p.Character.HeldFish:Destroy()
-	end)
+	-- the trophy over the head: hidden while held and Pier.TrophyGap more (its nameplate fades at
+	-- the same spot — UX-03: the word and «Карасик 💵 $12» mashed together)
+	sim:Create("Model", { Name = "HeldFish" }, p.Character)
+	sim:Advance(0.05)
+	t.eq(word.Enabled, false, "HeldFish: hidden")
+	p.Character.HeldFish:Destroy()
+	sim:Advance(PIER.TrophyGap * 0.5)
+	t.eq(word.Enabled, false, "the trophy just left: still hidden (its nameplate fades)")
+	sim:Advance(PIER.TrophyGap * 0.5 + 0.05)
+	t.eq(word.Enabled, true, "TrophyGap later: shown again")
 	-- a stored arrival: held by CounterHold → no splash; released → a splash at the bucket
 	hud:SetAttribute("CounterHold", 0)
 	sim:Advance(0.05)

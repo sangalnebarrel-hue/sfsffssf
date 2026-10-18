@@ -98,11 +98,25 @@ end
 return {
 	{
 		name = "tank_panel_home",
-		desc = "The tank panel at home, 3/6: a Gold Perch (👑 ×2), a maxed Puffer («МАКС»), a young Crucian, 3 empty cards and the locked teaser; the header «🐠 САДОК · 3/6 · +$X/с · 💵 $Y ▲»",
+		desc = "The tank panel at home, 3/6: a Gold Perch (👑 ×2), a maxed Puffer («МАКС»), a young Crucian, 3 empty cards and the locked teaser; the header «🐠 САДОК · 3/6 · +$X/с · 💵 $Y 📈»",
 		still = { 0.12, 0.9 },
 		sheet = { from = 0, to = 0.7, fps = 15, roi = PANEL_ROI, margin = 0.03 },
 		run = function(h: any)
 			openWith(h, HOME, 1234)
+		end,
+	},
+	{
+		name = "tank_panel_take",
+		desc = "Opened with the rod still in the backpack (the action button «ВЗЯТЬ» with its newcomer «!» and the «where to go» hint up): the open sheet hides the fishing layer, nothing shows through the phone's glass sheet (UX-04); ✕ brings «ВЗЯТЬ» back",
+		still = { 0.9, 1.6 },
+		run = function(h: any)
+			h:giveRod()
+			h:advance(1)
+			openWith(h, HOME, 1234)
+		end,
+		during = function(h: any)
+			h:advance(1.2)
+			h:click("HUD.TankPanel.Panel.Close")
 		end,
 	},
 	{
@@ -115,7 +129,7 @@ return {
 	},
 	{
 		name = "tank_panel_market",
-		desc = "At a stall: TankEvent Open, then the server's SellRatePct 150 — the Gold «🏪 РЫНОК +50%» chip pops in, the prices jump ×1.5, the buttons turn Gold",
+		desc = "Opened by «САДОК» on the way, then at a stall the server's SellRatePct 150 — the Gold «🏪 РЫНОК +50%» chip pops in, the prices jump ×1.5, the buttons turn Gold (a stall's own prompt opens the panel at 150 already)",
 		still = { 0.1, 0.8 },
 		sheet = { from = 0, to = 0.8, fps = 15, roi = PANEL_ROI, margin = 0.03 },
 		run = function(h: any)
@@ -126,7 +140,7 @@ return {
 			end
 			h:money(5400, income10)
 			showChrome(h)
-			h:tankEvent("Open", { Place = "Market", RatePct = 100, Name = "Рыбный рынок" })
+			h:tankEvent("Open", { Place = "Tank", RatePct = 100, Name = "Садок" })
 			h:advance(1.2)
 			h.player:SetAttribute("SellRatePct", 150)
 			h.player:SetAttribute("SellPlace", "Market")
@@ -178,7 +192,7 @@ return {
 	},
 	{
 		name = "tank_panel_market_full",
-		desc = "At a stall with a full tank (6/6, a 5-digit total ▲): the header still fits before the ✕ — «+$X/с» gives way first (the Wallet above shows it), then the chip shortens to «💰 +50%»",
+		desc = "At a stall with a full tank (6/6, a 5-digit total 📈): the header still fits before the ✕ — «+$X/с» gives way first (the Wallet above shows it), then the chip shortens to «💰 +50%»",
 		still = 0.9,
 		run = function(h: any)
 			local written = h:tank(FULL)

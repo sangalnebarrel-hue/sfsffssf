@@ -10,7 +10,7 @@
 	    turn, «НОВАЯ!», count-up, confetti; Legendary/Mythic: a crisp burst at the fish — no edge
 	    flash —, second ring, rainbow), the mutation badge effects and the hint pill by kind;
 	    stage 3: the fish's income «+$X/с» flies out of the price, the tank stamp «В САДОК!» /
-	    «ЗАМЕНА!» / «ПРОДАНА» lands after it, and the card flies into «САДОК» (a fish sold on the
+	    «ЗАМЕНА!» / «САДОК ПОЛОН · ПРОДАНА» lands after it, and the card flies into «САДОК» (a fish sold on the
 	    spot — as 💵 into the Wallet);
 	  • effects start and are cleaned up: no Fx* instances left after a full catch/close and after
 	    a miss, no frame effect (RenderStepped/Heartbeat) running while idle, connection counts
@@ -828,7 +828,7 @@ end
 -- (Deliberate UI v2 changes against the v1 version of this test: a known Common fish has no dim
 -- and no confetti; the texts appear by beats; «НОВИНКА!» instead of «НОВАЯ!». Wave D: the name is
 -- born with the card, and a NEW Common species gets a small fanfare — a light dim, brighter rays
--- with gold and green, sparks + confetti + a ping at «НОВИНКА!», a «+N 💰»; the same species again
+-- with gold and green, sparks + confetti + a ping at «НОВИНКА!», a «+$4/с»; the same species again
 -- is calm. Stage 3: «цена $11» in the summary, and what flies out of the price is the fish's income
 -- «+$1.1/с».)
 tests["catch card: Common reveal — a new species gets a small fanfare, a known one stays calm"] = function(t)
@@ -851,7 +851,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 	t.ok(isCandy(card.Banner, UIConfig.Rarity.Common), "the banner in the rarity gradient")
 	t.eq(card.InfoLabel.Text, "840 г · цена $11", "InfoLabel holds the summary at once")
 	t.eq(card.InfoLabel.Weight.Label.Text, "840 Г", "the weight chip in CAPS")
-	t.eq(price.Text, "0", "the price starts at 0")
+	t.eq(price.Text, "$0", "the price starts at $0 (TankRules.FormatMoney, UX-06)")
 	t.eq(card.Banner.FxScale.Scale, 0, "the rarity waits for its beat")
 	t.eq(card.NameLabel.FxScale.Scale, 1, "the name is born with the card (no blank right half)")
 	t.eq(card.NameLabel.TextTransparency, 0, "…readable at once")
@@ -872,7 +872,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 	t.ok(f:FindFirstChild("FxBurst"), "…and sparks from the stamp")
 	sim:Advance(0.45)
 	local partial = price.Text
-	t.ok(tonumber(partial) ~= nil, "the price is a number while counting")
+	t.ok(tonumber((string.gsub(partial, "^%$", ""))) ~= nil, "the price is «$N» while counting")
 	t.ok(
 		waitFor(sim, function()
 			return f:FindFirstChild("FxPriceFloat") ~= nil
@@ -881,7 +881,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 	)
 	t.eq(f.FxPriceFloat.Text, "+$1.1/с")
 	sim:Advance(0.5)
-	t.eq(price.Text, "11", "the price counted up to the value")
+	t.eq(price.Text, "$11", "the price counted up to the value")
 	t.near(card.NewStamp.FxScale.Scale, 1, 1e-3, "«НОВИНКА!» stamped")
 	t.ok(card.TapHint.TextTransparency < 0.5, "the close hint shows after the last beat")
 	t.ok(
@@ -913,7 +913,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 			or f:FindFirstChild("FxConfetti") ~= nil
 			or p.PlayerGui.HUD:FindFirstChild("FxConfetti") ~= nil
 	end
-	t.eq(price.Text, "11", "…the price lands")
+	t.eq(price.Text, "$11", "…the price lands")
 	t.eq(float, false, "…without «+$X/с»")
 	t.eq(confetti, false, "…and without confetti")
 	sim:AssertNoErrors({ warnings = true })
@@ -1084,7 +1084,7 @@ tests["mutation: stamped after the base price — «×N», recount, outline; Gol
 		-- before the stamp.
 		t.ok(
 			waitFor(sim, function()
-				return price.Text == tostring(CATCHES.Rare.Value)
+				return price.Text == `${CATCHES.Rare.Value}`
 			end, 2.5),
 			`{case[1]}: the base price first`
 		)
@@ -1094,7 +1094,7 @@ tests["mutation: stamped after the base price — «×N», recount, outline; Gol
 		sim:Advance(1.0)
 		t.near(badge.FxScale.Scale, 1, 0.02, `{case[1]}: stamped in`)
 		t.eq(card.InfoLabel.Price.Multiplier.Visible, true, `{case[1]}: «×N» slammed`)
-		t.eq(price.Text, tostring(fish.Value), `{case[1]}: recounted to the full price`)
+		t.eq(price.Text, `${fish.Value}`, `{case[1]}: recounted to the full price`)
 		t.ok(outline:FindFirstChild("FxRimFill"), `{case[1]}: the card outline in its colours`)
 		local float = fishing(p):FindFirstChild("FxPriceFloat")
 		local income = TankRules.FormatRate(TankRules.Income10(fish.Income))
@@ -1176,7 +1176,7 @@ tests["catch card beats: one at a time, ≥ 0.18 s (Common / Rare) or ≥ 0.25 s
 			{
 				name = "price",
 				shown = function()
-					return price.Text == tostring(case.base)
+					return price.Text == `${case.base}`
 				end,
 			},
 			{
@@ -1207,7 +1207,7 @@ tests["catch card beats: one at a time, ≥ 0.18 s (Common / Rare) or ≥ 0.25 s
 			table.insert(probes, at + 1, {
 				name = "full price",
 				shown = function()
-					return price.Text == tostring(case.fish.Value)
+					return price.Text == `${case.fish.Value}`
 				end,
 			})
 		end
@@ -1221,7 +1221,7 @@ tests["catch card beats: one at a time, ≥ 0.18 s (Common / Rare) or ≥ 0.25 s
 					found += 1
 				end
 			end
-			local value = tonumber((string.gsub(price.Text, "\u{00A0}", "")))
+			local value = tonumber((string.gsub(price.Text, "[%$\u{00A0}]", "")))
 			if value then
 				table.insert(shownPrice, { at = elapsed, value = value })
 			end
@@ -1293,11 +1293,11 @@ tests["mutation: a skip mid-stamp settles it — no recount from the base price 
 	sim:Advance(0.05)
 	sim:Click(p, card)
 	sim:Advance(1 / 60)
-	t.eq(price.Text, tostring(fish.Value), "the skip shows the full price")
+	t.eq(price.Text, `${fish.Value}`, "the skip shows the full price")
 	local dropped = false
 	for _ = 1, 45 do
 		sim:Advance(1 / 60)
-		if price.Text ~= tostring(fish.Value) then
+		if price.Text ~= `${fish.Value}` then
 			dropped = true
 		end
 	end
@@ -1349,7 +1349,7 @@ tests["closing: skip, then close — the card flies into «САДОК», 🐟 �
 	sim:Advance(0.02)
 	t.eq(card.Visible, true, "a tap during the reveal skips it")
 	t.near(card.Banner.FxScale.Scale, 1, 0.2, "…every beat at once")
-	t.eq(card.InfoLabel.Price.Label.Text, "58")
+	t.eq(card.InfoLabel.Price.Label.Text, "$58")
 	t.ok(card.TankStamp.Visible, "…the tank stamp too")
 	t.eq(card.TankStamp.Label.Text, "В САДОК!")
 	local button = f.ActionArea.ActionButton
@@ -1525,12 +1525,12 @@ tests["catch: mashing the action button never skips the reveal; «ЗАБРАТЬ
 	mash(1.5)
 	t.ok(opened ~= nil, "the card opened while the button was mashed")
 	t.eq(card.Visible, true, "open + 1.5 s: still up (the mashing neither skipped nor closed it)")
-	t.ok(midPrice ~= nil and midPrice ~= "590", `open + 1.2 s: the price still counting ({midPrice})`)
+	t.ok(midPrice ~= nil and midPrice ~= "$590", `open + 1.2 s: the price still counting ({midPrice})`)
 	t.ok(distinct >= 4, `the price counted up through {distinct} values`)
 	mash(2.6) -- the card settles at ≈ c + 1.84 (Legendary): keep mashing past it
 	t.ok(settledAt ~= nil, "the card settled by itself: «ЗАБРАТЬ!»")
 	t.eq(card.Visible, true, "…and the mashing does not close it")
-	t.eq(price.Text, "590")
+	t.eq(price.Text, "$590")
 	t.ok(
 		button.Ring.Transparency < 0.3,
 		`«ЗАБРАТЬ!» has its white halo 0.3 s after settling (Ring {button.Ring.Transparency})`
@@ -1562,7 +1562,7 @@ tests["rims: the Mythic price flare dies with the card; a rim restores the build
 	t.ok(openCard(sim, p))
 	t.ok(
 		waitFor(sim, function()
-			return price.Text == "2\u{00A0}400"
+			return price.Text == "$2\u{00A0}400"
 		end, 3),
 		"the Mythic price lands (its rim flares)"
 	)
@@ -2424,10 +2424,12 @@ tests["catch card layout: a landscape trophy card on phones, square on tablet / 
 	sim:AssertNoErrors({ warnings = true })
 end
 
--- Stage 3: what happened to the fish, stamped on the card after its price lands — «В САДОК!» (Water),
--- «ЗАМЕНА!» (Leaf), «ПРОДАНА» (Gold) — in the close-hint row (the hint shortens beside it or goes),
--- never under 12 px; a catch without a tank result keeps the whole row for the hint.
-tests["tank stamp: «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА» after the price, in the hint row, ≥ 12 px"] = function(
+-- Stage 3: what happened to the fish, slapped on the card after its price lands — «В САДОК!» (Water),
+-- «ЗАМЕНА!» (Leaf), «САДОК ПОЛОН» over «ПРОДАНА» (Sun) — a sticker on the card's bottom-right
+-- corner like «НОВИНКА!» (ART-04: overhanging it, its line ≥ 16 px, «ПРОДАНА» ≥ 18 px; UX-01), below
+-- the price chip, the close hint left of it (shorter or gone); a catch without a tank result keeps
+-- the whole row for the hint.
+tests["tank stamp: «В САДОК!» / «ЗАМЕНА!» / «САДОК ПОЛОН · ПРОДАНА» after the price, a corner sticker, ≥ 16 px"] = function(
 	t
 )
 	local sim = boot(t)
@@ -2452,7 +2454,7 @@ tests["tank stamp: «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА» a
 			"ЗАМЕНА!",
 			Palette.Leaf,
 		},
-		{ CATCHES.Common, { Result = "sold", Count = 6, Slots = 6, Price = 11 }, "ПРОДАНА", Palette.Gold },
+		{ CATCHES.Common, { Result = "sold", Count = 6, Slots = 6, Price = 11 }, "ПРОДАНА", Palette.Sun },
 	}
 	for index, case in cases do
 		for _, p in players do
@@ -2480,23 +2482,38 @@ tests["tank stamp: «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА» a
 			local card = fishing(p).CatchCard
 			local stamp = card.TankStamp
 			local what = `{case[3]} ({p.Name})`
-			t.eq(card.InfoLabel.Price.Label.Text, tostring(case[1].Value), `{what}: after the price landed`)
+			t.eq(card.InfoLabel.Price.Label.Text, `${case[1].Value}`, `{what}: after the price landed`)
 			t.eq(stamp.Label.Text, case[3])
 			t.ok(isCandy(stamp, case[4]), `{what}: its colour`)
 			local s0, s1 = stamp.AbsolutePosition, stamp.AbsolutePosition + stamp.AbsoluteSize
 			local c0, c1 = card.AbsolutePosition, card.AbsolutePosition + card.AbsoluteSize
+			local mid = (s0 + s1) / 2
 			t.ok(
-				s0.X >= c0.X and s0.Y >= c0.Y and s1.X <= c1.X and s1.Y <= c1.Y,
+				mid.X > c0.X and mid.X < c1.X and mid.Y > c0.Y and mid.Y < c1.Y,
 				`{what}: on the card ({s0} … {s1} in {c0} … {c1})`
 			)
-			t.ok(stamp.AbsoluteSize.Y * 0.72 >= 12 - 0.01, `{what}: ≥ 12 px ({stamp.AbsoluteSize.Y})`)
+			t.ok(s1.X > c1.X and s1.Y > c1.Y, `{what}: … overhanging its bottom-right corner`)
+			t.eq(stamp.Rotation, -8, `{what}: tilted like «НОВИНКА!»`)
+			local least = if case[3] == "ПРОДАНА" then 18 else 16
+			t.ok(
+				stamp.Label.AbsoluteSize.Y >= least - 0.01,
+				`{what}: its line ≥ {least} px ({stamp.Label.AbsoluteSize.Y})`
+			)
+			t.eq(stamp.Sub.Visible, case[3] == "ПРОДАНА", `{what}: the cause line only on a sale`)
+			if case[3] == "ПРОДАНА" then
+				t.eq(stamp.Sub.Text, "САДОК ПОЛОН")
+				t.ok(stamp.Sub.AbsoluteSize.Y >= 12, `{what}: «САДОК ПОЛОН» ≥ 12 px`)
+			end
 			local price = card.InfoLabel.Price
 			local p1 = price.AbsolutePosition + price.AbsoluteSize
 			t.ok(s0.Y >= p1.Y - 1 or s1.X <= price.AbsolutePosition.X, `{what}: below the price chip`)
 			local hint = card.TapHint
 			if hint.Text ~= "" then
 				local h0, h1 = hint.AbsolutePosition, hint.AbsolutePosition + hint.AbsoluteSize
-				t.ok(h1.X <= s0.X + 1 or h0.X >= s1.X - 1, `{what}: beside the close hint «{hint.Text}»`)
+				t.ok(
+					h1.X <= s0.X + 1 or h0.X >= s1.X - 1 or h1.Y <= s0.Y + 1,
+					`{what}: clear of the close hint «{hint.Text}»`
+				)
 			end
 		end
 		for _, p in players do
@@ -2935,7 +2952,8 @@ tests["card parts: the catch reward is built from the sim primitives — chunky 
 	t.ok(isCandy(weight, Palette.Slate) and isCandy(price, Palette.Gold), "grey weight, gold price")
 	t.eq(price.Label.FontFace.Style, Enum.FontStyle.Italic, "the price in italic digits")
 	t.ok(price.Label.Outline:GetAttribute("BaseThickness") >= 4.5, "…with a display outline")
-	t.ok(price.Icon:FindFirstChild("Outline"), "an outlined 💰")
+	t.ok(price.Icon:FindFirstChild("Outline"), "an outlined 💵")
+	t.eq(price.Icon.Text, "💵", "the Wallet's bill on the price chip (UX-06)")
 	t.eq(price.Multiplier.FontFace.Style, Enum.FontStyle.Italic, "«×N» italic")
 	-- The sticker, the name, the hint.
 	checkCandy(t, card.NewStamp, "NewStamp")
@@ -3259,7 +3277,7 @@ tests["card dock on a tablet: the square card stands beside the projected fisher
 	end
 end
 
-tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticker, chips, rays and «+N 💰» keep clear"] = function(
+tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticker, chips, rays and «+$4/с» keep clear"] = function(
 	t
 )
 	-- SIMC-C1-02: a 667 x 375 phone, a giant Mythic trophy (x 148..396): the 128 px landscape
@@ -3341,7 +3359,7 @@ tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticke
 	t.eq(chip.Icon.Size, chip.Icon:GetAttribute("RestSize"), "a wide chip: the builder's icon")
 	t.eq(chip.Label.Size, chip.Label:GetAttribute("RestSize"), "…and label")
 
-	-- «+N 💰» beside a docked card: above the banner when there is room, else at the outer
+	-- «+$4/с» beside a docked card: above the banner when there is room, else at the outer
 	-- edge, else under the card, else the window's top strip (fading early) — never on the fish
 	-- in the window.
 	local function spot(cardTop: number, outer: number, tall: number?, extra: { [string]: any }?): any
@@ -3389,7 +3407,7 @@ tests["card juice helpers: the spare slot shrinks to stay off the trophy; sticke
 		window = { x0 = 630, y0 = 90, x1 = 730, y1 = 190 },
 		sticker = { x0 = 625, y0 = 85, x1 = 715, y1 = 120 },
 	})
-	t.eq(narrow.c, nil, "a narrow window with the sticker: no «+N 💰» (not over the sticker)")
+	t.eq(narrow.c, nil, "a narrow window with the sticker: no «+$4/с» (not over the sticker)")
 	-- SIMC-C2-03: with its rise the float's top stays in the band the limits allow (the limits keep
 	-- it right of the Roblox Menu / Chat pills near the HUD top): above a high card it may not
 	-- climb into the top bar row.

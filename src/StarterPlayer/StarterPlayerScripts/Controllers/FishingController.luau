@@ -140,8 +140,8 @@
 	    рождается вместе с карточкой (въезжает справа, пока она встаёт на место). Дальше доли —
 	    по одной (обычная и редкая — бодро, не ближе 0.2 с; эпическая и выше — не ближе 0.27 с):
 	    редкость, «НОВИНКА!» (штамп; вид пойман впервые за игру — у обычной и редкой это ещё и
-	    маленький праздник: искры, конфетти, лучи ярче, «+N 💰»), вес и цена (поднимаются), цена
-	    набегает до самого «приземления» (фишка пружинит, из неё вылетает «+N 💰» — на свободное
+	    маленький праздник: искры, конфетти, лучи ярче, «+$4/с»), вес и цена (поднимаются), цена
+	    набегает до самого «приземления» (фишка пружинит, из неё вылетает «+$4/с» — на свободное
 	    место рядом с карточкой, у карточки сбоку от рыбака — над ней, у её внешнего края или под
 	    ней, и только если места нет — на верх окошка с рыбой; цену не закрывает; у легендарной и
 	    мифической — дождь 💰 по бокам (у карточки сбоку от рыбака — с её внешней стороны) и конфетти, у мифической — вспышка радужной обводки), у мутации цена сперва «дышит»
@@ -154,10 +154,12 @@
 	    цветов редкости; прилёт — когда долетели, а следом трофей над головой «вспыхивает» ещё раз
 	    (FishingFxController.ReplayOwnTrophy; своя табличка с ценой выскакивает только теперь) —
 	    рыба висит дольше карточки. Этап 3 (design §6.5): "Caught" несёт Tank — что стало с рыбой
-	    в садке; на карточке — «цена $45», из фишки цены вылетает доход рыбы «+$4/с», под ценой
-	    своей долей шлёпается штамп «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА» (CatchFx.tankStamp /
-	    tankRow); рыба продана сразу (садок полон) — вылетает золотое «+$15», а карточка и 💵 летят
-	    в кошелёк (Status.Wallet.Money; кнопки нет — в середину колонки кнопок). «НОВИНКА!» —
+	    в садке; на карточке — «цена $45», из фишки цены вылетает доход рыбы «+$4/с», своей долей
+	    на правый нижний угол карточки шлёпается наклейка «В САДОК!» / «ЗАМЕНА!» / «САДОК ПОЛОН»
+	    над «ПРОДАНА» (CatchFx.tankStamp / tankRow); рыба продана сразу (садок полон) — вылетает
+	    золотое «+$15», карточка висит не меньше CatchFx.SOLD_HOLD после наклейки (cardTime), а
+	    уходя, она и 💵 летят в кошелёк (Status.Wallet.Money; кнопки нет — в середину колонки
+	    кнопок). «НОВИНКА!» —
 	    первый улов вида за всё время (Fish.New от сервера). Фишку «4/6» кнопки «САДОК» ведёт
 	    TankButtonController, кошелёк — MoneyController: от "Caught" до прилёта у HUD стоит
 	    атрибут CounterHold (прошлое число улова — «улов на экране»), пока рыба летит —
@@ -378,7 +380,7 @@ type Ui = {
 	priceLabel: TextLabel,
 	counter: GuiObject, -- Этап 3: кнопка «САДОК» (RightButtons.TankButton) — туда летит улов
 	wallet: GuiObject, -- … а рыба, проданная сразу, — 💵 в кошелёк (Status.Wallet.Money)
-	tankStamp: Frame, -- штамп садка под ценой «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА»
+	tankStamp: Frame, -- наклейка садка на углу «В САДОК!» / «ЗАМЕНА!» / «САДОК ПОЛОН · ПРОДАНА»
 	-- Баннер «ТВОЯ БАЗА» по центру (его ведёт HudController): пока он виден, подсказка по месту ждёт.
 	baseBanner: GuiObject?,
 
@@ -412,7 +414,7 @@ type Ui = {
 	biteTapPad: GuiButton, -- касание плашки «КЛЮЁТ!» = подсечка (тач-экран)
 	hintSocket: Frame,
 	pedestal: Frame, -- подиум рыбы на карточке (в цвет редкости)
-	window: Frame, -- v3: окошко рыбы на карточке (туда летит «+N 💰», когда карточка сбоку от рыбака)
+	window: Frame, -- v3: окошко рыбы на карточке (туда летит «+$4/с», когда карточка сбоку от рыбака)
 }
 
 -- Исходные значения из шаблона HUD (возвращаются после анимаций).
@@ -1902,7 +1904,7 @@ type Reveal = {
 	ConfettiMid: number, -- мифическая: ещё залп через CARD.ConfettiMid с после приземления
 	Confetti2: number, -- залп, когда цена «приземлилась» (с мутацией — после пересчёта)
 	Coins: number, -- дождь 💰 тогда же (по бокам от карточки)
-	Float: number, -- «+N 💰» из цены: высота в долях экрана (0 — нет)
+	Float: number, -- «+$4/с» из цены: высота в долях экрана (0 — нет)
 	Sparkles: number, -- звёздочек вокруг рыбы в секунду
 	Beat: number, -- доли карточки — не ближе этого друг к другу, с
 	Count: number, -- сколько секунд набегает цена
@@ -1959,7 +1961,7 @@ do
 		  c+0 имя рождается с карточкой (въезжает справа), слово редкости влетает в баннер,
 		  c+0.26 баннер вырастает из него (без слова — c+0.18 баннер «раскатывается»), +B
 		  «НОВИНКА!», +B вес и цена, +0.12 цена набегает (REVEAL.Count, до самого конца) и
-		  «приземляется», ещё через 0.12 с из фишки вылетает «+N 💰»; у мутации +B штамп, «×N»,
+		  «приземляется», ещё через 0.12 с из фишки вылетает «+$4/с»; у мутации +B штамп, «×N»,
 		  пересчёт, +0.67 полная цена; +B последняя доля — «Тапни — забрать!», кнопка «ЗАБРАТЬ!»,
 		  лучи и рыба успокаиваются. B = REVEAL.Beat: обычная и редкая — 0.2 с (их ловят
 		  десятками: от тапа до «+1» быстро), эпическая и выше — 0.27 с (тест «catch card beats»).
@@ -2271,7 +2273,7 @@ do
 		               сдвигается: оба раза порог «сбоку» ниже на столько px — иначе на впритык
 		               помещающемся экране слово летит к середине, а карточка рождается сбоку.
 		  PriceText    цена на фишке — до стольких Title (крупное «витринное» число, по своей коробке).
-		  PriceFloat   «+N 💰»: через Delay после «приземления» цены (фишка уже пружинит) вылетает из
+		  PriceFloat   «+$4/с»: через Delay после «приземления» цены (фишка уже пружинит) вылетает из
 		               неё за Fly с (Back Out) на свободное место справа от карточки, Lift высоты экрана
 		               над ценой (или в 2 и 3.5 раза выше — где просторнее; Gap px от карточки); там
 		               тесно — меньше, но не меньше MinTitle × Title; совсем тесно — над строкой
@@ -2283,7 +2285,7 @@ do
 		               окно телефона, SIMC-C2-02) — не вылетает.
 		  New          новый вид обычной и редкой рыбы — маленький праздник: Confetti бумажек и
 		               Sparks искр из штампа «НОВИНКА!» цветами Colors, лучи не прозрачнее Alpha, не
-		               меньше Size (и MaxPx) и с зеленью и золотом, затемнение не светлее Dim, «+N 💰»
+		               меньше Size (и MaxPx) и с зеленью и золотом, затемнение не светлее Dim, «+$4/с»
 		               высотой Float.
 		  RefHeight    высота места под карточку на телефоне 844×390: лучи на тач-экране
 		               уменьшаются вместе с ним (маленький телефон — меньше заливки).
@@ -2650,7 +2652,7 @@ do
 		прыжка (тач-экран) или колонки кнопок справа («ДОМОЙ»), с зазором CARD_SIDE_GAP. Препятствие, которое целиком ниже (или
 		выше) полосы, не мешает: на телефоне джойстик и кнопка действия внизу, под карточкой.
 		Так же меряются карточка и огромное слово редкости; shown — у колонки справа мешают только
-		показанные кнопки (она растёт снизу вверх, её пустой верх свободен: туда вылетает «+N 💰»);
+		показанные кнопки (она растёт снизу вверх, её пустой верх свободен: туда вылетает «+$4/с»);
 		reach — кнопка действия и колонка мешают и полосе, которая кончается меньше чем в стольких
 		px над ними (UI v5: зазор по рисунку — с обводками).
 	]]
@@ -3204,7 +3206,7 @@ do
 			applyPlace(gui, place)
 		end
 		CatchFx.stampMin(ui.newStamp, size.X) -- (UI v5: на узкой карточке наклейка уже)
-		-- Этап 3: ряд под ценой — штамп садка справа, подсказка «закрыть» слева (CatchFx.tankRow).
+		-- Этап 3: наклейка садка на правом нижнем углу, подсказка «закрыть» левее (CatchFx.tankRow).
 		CatchFx.tankRow(
 			ui.tankStamp,
 			ui.tapHint,
@@ -3419,7 +3421,7 @@ do
 		local value = math.round(fish.Value)
 		ui.infoLabel.Text = CatchFx.infoText(kg, value)
 		ui.weightLabel.Text = upper(kg) -- «2,1 КГ»: фишки — заглавными
-		ui.priceLabel.Text = "0"
+		ui.priceLabel.Text = CatchFx.money(0)
 		-- Цена — главное число карточки: «витринное», по своей коробке (≈ 0.8 лица фишки) — до
 		-- CARD.PriceText × Title, не меньше Button − 2 (не уровень шкалы: fitText её не трогает).
 		ui.priceLabel:SetAttribute("TextTier", nil)
@@ -4362,7 +4364,7 @@ do
 	local function countPrice(from: number, to: number, time: number, pitchFrom: number, pitchTo: number): () -> ()
 		local label = ui.priceLabel
 		local shown = math.floor(from + 0.5)
-		label.Text = FishingRules.FormatCoins(shown)
+		label.Text = CatchFx.money(shown)
 		local elapsed = 0
 		local lastTick = -math.huge
 		return UiFx.schedule(function(dt: number): boolean
@@ -4372,7 +4374,7 @@ do
 			local value = math.floor(from + (to - from) * eased + 0.5)
 			if value ~= shown then
 				shown = value
-				label.Text = FishingRules.FormatCoins(value)
+				label.Text = CatchFx.money(value)
 				if elapsed - lastTick >= 1 / 12 then
 					-- Тик и «подскок» числа (1.06 → 1) — не чаще 12 раз в секунду: «число растёт».
 					lastTick = elapsed
@@ -4382,7 +4384,7 @@ do
 			end
 			return k < 1
 		end, function()
-			label.Text = FishingRules.FormatCoins(to)
+			label.Text = CatchFx.money(to)
 		end)
 	end
 
@@ -4584,7 +4586,7 @@ do
 		вырастает из него; без слова баннер «раскатывается» из середины) → «НОВИНКА!» (штамп, Back
 		Out — только штампы пружинят; новый вид обычной и редкой — искры, конфетти, «дзынь») → вес
 		и цена (поднимаются, Quad Out, цена на CARD.Chips позже) → цена набегает и «приземляется»
-		(фишка сплющивается и пружинит, Elastic; из неё вылетает «+N 💰» — CARD.PriceFloat; у
+		(фишка сплющивается и пружинит, Elastic; из неё вылетает «+$4/с» — CARD.PriceFloat; у
 		легендарной и мифической — дождь 💰 и конфетти, у мифической — радужные края экрана и
 		тряска) → мутация (через долю: штамп, «×N», пересчёт — праздник цены тогда у полной цены,
 		а первая «приземляется» тихо) → подсказка «Тапни — забрать!» и кнопка «ЗАБРАТЬ!»;
@@ -4609,7 +4611,7 @@ do
 		local isNew = if fish.New ~= nil then fish.New else not seenSpecies[fish.Id]
 		seenSpecies[fish.Id] = true
 		-- Новый вид обычной или редкой рыбы (первый улов новичка чаще всего такой) — маленький
-		-- праздник (CARD.New): лучи ярче, с зеленью и золотом, лёгкое затемнение, «+N 💰», у штампа
+		-- праздник (CARD.New): лучи ярче, с зеленью и золотом, лёгкое затемнение, «+$4/с», у штампа
 		-- «НОВИНКА!» — искры, конфетти и «дзынь». Знакомая обычная рыба — спокойная.
 		local fanfare = isNew and not reveal.Title
 		if fanfare then
@@ -4927,7 +4929,7 @@ do
 		local base = math.round(value / multiplier)
 		addBeat(countStart, function(instant: boolean)
 			if instant then
-				ui.priceLabel.Text = FishingRules.FormatCoins(base)
+				ui.priceLabel.Text = CatchFx.money(base)
 				return
 			end
 			local count = countPrice(0, base, reveal.Count, 1, 1.4)
@@ -4936,7 +4938,7 @@ do
 		end)
 
 		--[[
-			«+N 💰» — то самое «число растёт» — вылетает из фишки цены (она подпрыгивает: источник) на
+			«+$4/с» — то самое «число растёт» — вылетает из фишки цены (она подпрыгивает: источник) на
 			свободное место и не закрывает ни цену, ни «×N» (CARD.PriceFloat): справа от карточки на
 			высоте чуть выше цены (или в 2 и 3.5 раза выше — где просторнее: мешают только кнопки на
 			этой высоте); тесно — надпись меньше (не меньше MinTitle × Title), совсем тесно — быстро
@@ -4964,7 +4966,7 @@ do
 			local life = spec.Time
 			if box.dock and box.edge then
 				-- Карточка сбоку от рыбака (v3): по сторонам — он сам и край экрана. UI v5 (SIMC-C1-03):
-				-- «+N 💰» — не на окно с рыбой (на неё как раз смотрят), а над баннером или у внешнего
+				-- «+$4/с» — не на окно с рыбой (на неё как раз смотрят), а над баннером или у внешнего
 				-- края карточки (CatchFx.floatSpot); нет места и там — на верх окна, и тает раньше.
 				local windowPos, windowSize = cardRect(ui.window)
 				local half = box.size * Vector2.new(if box.wide then CARD.Span else CARD.SquareSpan, 1) / 2
@@ -5054,11 +5056,11 @@ do
 
 		-- Цена «приземлилась» по-настоящему (без мутации — сразу, с мутацией — после пересчёта):
 		-- фишка сплющивается и пружинит (Elastic Out, центр на месте), блик, искры, «дзынь»,
-		-- через CARD.PriceFloat.Delay из неё вылетает «+N 💰»; легендарная и мифическая — дождь 💰
+		-- через CARD.PriceFloat.Delay из неё вылетает «+$4/с»; легендарная и мифическая — дождь 💰
 		-- и залп конфетти, мифическая — ещё радужные края экрана и лёгкая тряска.
 		local function pricePop(amount: number, sparks: { Color3 })
 			local chip = ui.priceChip
-			ui.priceLabel.Text = FishingRules.FormatCoins(amount)
+			ui.priceLabel.Text = CatchFx.money(amount)
 			local w, h = rest.priceSize.X.Scale, rest.priceSize.Y.Scale
 			local anchor = chip.AnchorPoint
 			chip.Size = UDim2.new(w * 1.25, rest.priceSize.X.Offset, h * 0.85, rest.priceSize.Y.Offset)
@@ -5086,7 +5088,7 @@ do
 				power = 0.9,
 				z = 13,
 			}))
-			-- «+N 💰»: когда фишка «села» — вылетает из неё на свободное место (floatPrice).
+			-- «+$4/с»: когда фишка «села» — вылетает из неё на свободное место (floatPrice).
 			-- (Этап 3: рыба, проданная сразу, — всегда золотое «+$15»: её деньги)
 			local share = if reveal.Float > 0
 				then reveal.Float
@@ -5136,7 +5138,7 @@ do
 			if count then
 				count()
 			end
-			ui.priceLabel.Text = FishingRules.FormatCoins(base)
+			ui.priceLabel.Text = CatchFx.money(base)
 			if instant then
 				return
 			end
@@ -5161,7 +5163,7 @@ do
 				if instant then
 					UiFx.scaleOf(ui.mutationLabel).Scale = 1
 					UiFx.scaleOf(ui.priceMult).Scale = 1
-					ui.priceLabel.Text = FishingRules.FormatCoins(value)
+					ui.priceLabel.Text = CatchFx.money(value)
 					return
 				end
 				stampIn(ui.mutationLabel, 1.8, 12, 0.3)
@@ -5203,7 +5205,7 @@ do
 				if recount then
 					recount()
 				end
-				ui.priceLabel.Text = FishingRules.FormatCoins(value)
+				ui.priceLabel.Text = CatchFx.money(value)
 			end)
 		end
 
@@ -5253,7 +5255,7 @@ do
 			unfadeGroup(ui.actionButton, 0)
 			refreshButtons()
 			if style.Flash then
-				-- Блик по баннеру — когда «+N 💰» уже растаял (заливка на телефоне).
+				-- Блик по баннеру — когда «+$4/с» уже растаял (заливка на телефоне).
 				cardTrove:Add(UiFx.shineLoop(ui.banner, { interval = 2.4, delay = if instant then 0.4 else 0.9 }))
 			end
 			if style.Rainbow then
@@ -5286,8 +5288,13 @@ do
 		end)
 
 		-- Сама закроется: по редкости (UIConfig.CatchCardTime), но не раньше, чем через CARD.Linger
-		-- после последней доли.
-		local auto = math.max(UIConfig.CatchCardTime[fish.Rarity] or UIConfig.CatchCardTime.Common, last + CARD.Linger)
+		-- после последней доли; рыба продана сразу — не раньше CatchFx.SOLD_HOLD после доли штампа
+		-- (last − beat): «САДОК ПОЛОН / ПРОДАНА» успевают прочесть (CatchFx.cardTime).
+		local auto = CatchFx.cardTime(
+			math.max(UIConfig.CatchCardTime[fish.Rarity] or UIConfig.CatchCardTime.Common, last + CARD.Linger),
+			last - beat,
+			cardTank
+		)
 		later(cardTrove, auto, closeCard)
 		cardTrove:Add(function()
 			local count = stopPriceCount

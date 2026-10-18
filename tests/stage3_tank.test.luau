@@ -14,11 +14,16 @@
 	  • growth ×1 → ×3 (patched to 30 s), the price at the sale moment; GrowFrom exact on a
 	    whole-second mount (AttrTime);
 	  • selling: money, the empty display, Event sold, TankEvent Sold, stats, the ledger;
-	  • the stall rate from the server's own 1 Hz samples (dwell, a teleport resets it), the
-	    prompts (market, kiosk, the own tank; another player's tank prompt does nothing; spam is
-	    bounded by the request bucket), the exploits (junk uids, someone else's fish, a double
-	    sell, 100 sells in one frame);
-	  • rare catches save soon; dormant fish; the rod from data; two players; leave → clean.
+	  • the stall rate from the server's own 1 Hz samples (dwell; a teleport in waits
+	    MarketJump.Penalty more samples, the stall's prompt gives it nothing then), the prompts
+	    (market, kiosk, the own tank; a stall's prompt held after walking in counts as the dwell:
+	    SellRatePct 150 before "Open"; another player's tank prompt does nothing; spam is bounded
+	    by the request bucket), the exploits (junk uids, someone else's fish, a double sell, 100
+	    sells in one frame);
+	  • rare catches save soon; dormant fish; the rod from data; two players; leave → clean;
+	  • the Stage 4/5 hooks: RemoveFish «stolen» (one Event), AddFish(thief, fish, "stolen") with
+	    its Origin (data, FishAdded, "Stored"; junk Origins and catches without), SetLocked
+	    (Denied locked, never replaced), SetSlots(8).
 
 	Run: lune run tools/run_tests.luau stage3_tank
 ]]
@@ -784,6 +789,149 @@ tests["two players are independent: own displays, money, uids and sales"] = func
 	sim:AssertNoErrors({ warnings = true })
 end
 
+-- The Stage 4 / Stage 5 hooks (design §4.8), driven the way a later stage would drive them.
+local function entryOf(data: any, uid: string): any
+	for _, fish in data.Tank do
+		if fish.Uid == uid then
+			return fish
+		end
+	end
+	return nil
+end
+
+tests["Stage 4/5 hooks: RemoveFish «stolen» → one Event; AddFish(thief, fish, «stolen») keeps Origin (data, save, Stored once; junk dropped, a catch ignores it); SetLocked → Denied locked, never replaced; SetSlots(8) opens 7–8"] = function(
+	t
+)
+	local sim = boot(t)
+	local victim = addPlayer(sim, 1)
+	local thief = addPlayer(sim, 2)
+	local tank = service(sim, "TankService")
+	local data = service(sim, "DataService")
+	local removed, added = {}, {}
+	tank.FishRemoved:Connect(function(_, fish, reason)
+		table.insert(removed, { Uid = fish.Uid, Reason = reason })
+	end)
+	tank.FishAdded:Connect(function(_, fish, reason)
+		table.insert(added, { Uid = fish.Uid, Origin = fish.Origin, Reason = reason })
+	end)
+
+	-- 1. The victim loses a fish: one "stolen" Event on its display.
+	local prey = addFish(sim, victim, "Crucian", 0.5)
+	local slot = slotOf(sim, victim, prey.Slot)
+	local events = {}
+	slot:GetAttributeChangedSignal("Event"):Connect(function()
+		table.insert(events, slot:GetAttribute("Event"))
+	end)
+	local taken = sim:Run(function()
+		return tank:RemoveFish(victim, prey.Uid, "stolen")
+	end)
+	sim:Flush()
+	t.ok(taken and taken.Uid == prey.Uid and taken.Id == "Crucian", "RemoveFish returns the record")
+	t.eq(#events, 1, "one Event")
+	t.ok(string.find(events[1] or "", "|stolen|", 1, true) ~= nil, `Event «…|stolen|» ({events[1]})`)
+	t.eq(slot:GetAttribute("State"), "empty")
+	t.eq(slot:GetAttribute("FishId"), nil)
+	t.eq(#data:Get(victim).Tank, 0, "gone from the victim's data")
+	t.eq(removed[#removed].Reason, "stolen", "FishRemoved (…, «stolen»)")
+
+	-- 2. The thief gets it with its Origin (BE-03): in the data, the signal, "Stored" and the save.
+	local origin = `{victim.UserId}:{prey.Uid}`
+	local loot = fishData(sim, "Crucian", 0.5)
+	loot.Origin = origin
+	local storedBefore = #tankEvents(sim, thief, "Stored")
+	local got = sim:Run(function()
+		return tank:AddFish(thief, loot, "stolen")
+	end)
+	sim:Flush()
+	t.eq(got.Result, "stored")
+	t.eq(entryOf(data:Get(thief), got.Uid).Origin, origin, "Origin kept in the thief's tank")
+	t.eq(added[#added].Origin, origin, "FishAdded carries it")
+	t.eq(added[#added].Reason, "stolen")
+	local stored = tankEvents(sim, thief, "Stored")
+	t.eq(#stored, storedBefore + 1, "TankEvent Stored once")
+	t.eq(stored[#stored].Uid, got.Uid)
+	-- Junk Origins are dropped, a catch never carries one.
+	local long = fishData(sim, "Perch", 1)
+	long.Origin = string.rep("9", DataConfig.Limits.OriginMax + 1)
+	local number = fishData(sim, "Perch", 1)
+	number.Origin = 12
+	local caught = fishData(sim, "Perch", 1)
+	caught.Origin = "1:f9"
+	local plain = {}
+	for _, case in
+		{ { long, "stolen", "too long" }, { number, "stolen", "not a string" }, { caught, "catch", "a catch" } }
+	do
+		local r = sim:Run(function()
+			return tank:AddFish(thief, case[1], case[2])
+		end)
+		t.eq(entryOf(data:Get(thief), r.Uid).Origin, nil, `no Origin: {case[3]}`)
+		table.insert(plain, r.Uid)
+	end
+	-- The save keeps it (PlayerData serializes Origin).
+	sim:Run(function()
+		data:SaveSoon(thief)
+	end)
+	sim:Advance(DataConfig.MinWriteGap + 1, COARSE)
+	local savedNow = sim.DataStore:Peek(STORE, `Player_{thief.UserId}`)
+	t.eq(entryOf(savedNow, got.Uid).Origin, origin, "saved with its Origin")
+	for _, uid in plain do
+		t.eq(entryOf(savedNow, uid).Origin, nil, `{uid}: saved without one`)
+	end
+
+	-- 3. SetLocked: a sale answers Denied "locked", and the full-tank rule never replaces it.
+	for _ = 1, 2 do
+		addFish(sim, thief, "Perch", 1)
+	end
+	t.eq(thief:GetAttribute("TankCount"), TankConfig.StartSlots, "the thief's tank is full")
+	t.eq(
+		sim:Run(function()
+			return tank:SetLocked(thief, got.Uid, true)
+		end),
+		true
+	)
+	sell(sim, thief, got.Uid)
+	sim:Flush()
+	local denied = tankEvents(sim, thief, "Denied")
+	t.eq(denied[#denied].Reason, "locked", "a locked fish is not sold")
+	t.ok(entryOf(data:Get(thief), got.Uid) ~= nil, "still there")
+	local strong = addFish(sim, thief, "SharkPup", 20)
+	t.eq(strong.Result, "replaced", "a stronger catch replaces …")
+	t.ok(strong.Replaced.Uid ~= got.Uid, "… not the locked (weakest) Crucian")
+	t.ok(entryOf(data:Get(thief), got.Uid) ~= nil, "the locked fish stays")
+	t.eq(
+		sim:Run(function()
+			return tank:SetLocked(thief, got.Uid, false)
+		end),
+		true
+	)
+	sell(sim, thief, got.Uid)
+	sim:Flush()
+	t.eq(entryOf(data:Get(thief), got.Uid), nil, "unlocked: it sells")
+
+	-- 4. SetSlots(8): displays 7–8 open, 9+ stay locked; the next catch lands in 7.
+	t.eq(slotOf(sim, thief, 7):GetAttribute("State"), "locked")
+	t.eq(
+		sim:Run(function()
+			return tank:SetSlots(thief, 8)
+		end),
+		true
+	)
+	sim:Flush()
+	t.eq(thief:GetAttribute("TankSlots"), 8)
+	t.eq(slotOf(sim, thief, 7):GetAttribute("State"), "empty")
+	t.eq(slotOf(sim, thief, 8):GetAttribute("State"), "empty")
+	t.eq(slotOf(sim, thief, 9):GetAttribute("State"), "locked")
+	addFish(sim, thief, "Perch", 1) -- into the sold Crucian's display
+	t.eq(addFish(sim, thief, "Perch", 1).Slot, 7, "the next catch: display 7")
+
+	-- The final save: the slots; the sold stolen fish is gone.
+	local saved = peekAfterLeave(sim, thief)
+	t.eq(saved.TankSlots, 8)
+	t.eq(entryOf(saved, got.Uid), nil, "sold: not saved")
+	t.eq(#saved.Tank, TankConfig.StartSlots + 1)
+	sim:AssertNoErrors({ warnings = true })
+end
+
 tests["leave: displays «Пусто», fish and Tank attributes cleared, the prompt off; nothing left behind"] = function(
 	t
 )
@@ -828,15 +976,17 @@ end
 local MARKET_PATH = EconomyConfig.SellPoints[1].Path
 local KIOSK_PATH = EconomyConfig.SellPoints[2].Path
 
--- Out of the stall's range, then walks in (no teleport into range: the dwell counts).
+local PENALTY = EconomyConfig.MarketJump.Penalty
+
+-- Out of the stall's range (the teleport's hold waited out), then walks in: the dwell counts.
 local function walkInto(sim: any, player: any, attachment: any)
 	local spot = attachment.WorldPosition
 	sim:Teleport(player, spot + Vector3.new(0, 3, 24))
-	sim:Advance(1.2, COARSE)
+	sim:Advance((PENALTY + 1.2) * EconomyConfig.IncomeTick, COARSE)
 	sim:WalkTo(player, spot + Vector3.new(0, 3, 3))
 end
 
-tests["stall rate: ×1.5 after MarketDwell samples at the market or a kiosk; away ×1; a teleport in sells at ×1"] = function(
+tests["stall rate: ×1.5 after MarketDwell samples at the market or a kiosk; away ×1; a teleport in sells at ×1 for MarketJump.Penalty more samples"] = function(
 	t
 )
 	local sim = boot(t)
@@ -880,17 +1030,48 @@ tests["stall rate: ×1.5 after MarketDwell samples at the market or a kiosk; awa
 	t.eq(tankEvents(sim, p, "Sold")[2].RatePct, EconomyConfig.MarketRatePct)
 	t.eq(tankEvents(sim, p, "Sold")[2].Place, "Kiosk1")
 
-	-- Teleported straight to the market and selling at once: ×1 (the dwell starts over).
+	-- Height is not a jump (a fall from a roof is no teleport): 60 studs straight up (out of
+	-- range: ×1) and straight back down — the dwell alone brings ×1.5 back, no hold.
+	local here = sim:GetRoot(p).Position
+	sim:Teleport(p, here + Vector3.new(0, 60, 0))
+	sim:Advance(1.1 * EconomyConfig.IncomeTick, COARSE)
+	t.eq(p:GetAttribute("SellRatePct"), EconomyConfig.HomeRatePct, "60 studs up: out of the kiosk's range")
+	sim:Teleport(p, here)
+	sim:Advance((EconomyConfig.MarketDwell + 0.2) * EconomyConfig.IncomeTick, COARSE)
+	t.eq(p:GetAttribute("SellRatePct"), EconomyConfig.MarketRatePct, "back down: ×1.5 after the dwell only")
+
+	-- Teleported straight to the market and selling at once: ×1, and for Penalty more samples
+	-- (BE-02: a walk-in dwell of MarketDwell samples is not enough after a jump).
+	t.ok(PENALTY > EconomyConfig.MarketDwell, "the teleport hold is longer than the walk-in dwell")
 	sim:Teleport(p, baseOf(sim, p).SpawnPad.Position + Vector3.new(0, 3, 0))
 	sim:Advance(1.2, COARSE)
 	sim:Teleport(p, market.WorldPosition + Vector3.new(0, 3, 3))
+	local jumpedAt = sim:Time()
 	sell(sim, p, fish[3].Uid)
 	t.eq(tankEvents(sim, p, "Sold")[3].RatePct, EconomyConfig.HomeRatePct, "a teleport in sells at ×1")
 	sim:Advance(1.1, COARSE)
 	sell(sim, p, fish[4].Uid)
 	t.eq(tankEvents(sim, p, "Sold")[4].RatePct, EconomyConfig.HomeRatePct, "one sample after a jump is not a dwell")
-	sim:Advance(EconomyConfig.MarketDwell * EconomyConfig.IncomeTick, COARSE)
-	t.eq(p:GetAttribute("SellRatePct"), EconomyConfig.MarketRatePct, "staying there earns the rate")
+	-- The stall's prompt held there gives no shortcut either.
+	local prompt = market:FindFirstChild("SellPrompt")
+	local opens = #tankEvents(sim, p, "Open")
+	t.ok(sim:HoldPrompt(p, prompt), "the market prompt triggers")
+	t.eq(#tankEvents(sim, p, "Open"), opens + 1)
+	t.eq(tankEvents(sim, p, "Open")[opens + 1].RatePct, EconomyConfig.HomeRatePct, "the prompt after a jump: ×1")
+	sim:Advance((EconomyConfig.MarketDwell + 0.2) * EconomyConfig.IncomeTick, COARSE)
+	t.eq(
+		p:GetAttribute("SellRatePct"),
+		EconomyConfig.HomeRatePct,
+		`{sim:Time() - jumpedAt} s after the jump: still ×1 (before BE-02, MarketDwell samples gave ×1.5)`
+	)
+	t.ok(sim:WaitFor(function()
+		return p:GetAttribute("SellRatePct") == EconomyConfig.MarketRatePct
+	end, (PENALTY + 2) * EconomyConfig.IncomeTick, COARSE) == true, "staying there earns the rate")
+	local waited = sim:Time() - jumpedAt
+	t.ok(
+		waited >= (PENALTY - 0.05) * EconomyConfig.IncomeTick and waited <= (PENALTY + 1.1) * EconomyConfig.IncomeTick,
+		`after the hold: {waited} s ≈ Penalty samples`
+	)
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -923,7 +1104,23 @@ tests["prompts: a stall hold or the own tank prompt opens the panel; another pla
 	t.eq(#open, 1)
 	t.eq(open[1].Place, "Market")
 	t.eq(open[1].Name, "Рыбный рынок")
-	t.eq(open[1].RatePct, EconomyConfig.HomeRatePct, "just arrived: the panel opens, the rate comes with the dwell")
+	t.eq(open[1].RatePct, EconomyConfig.HomeRatePct, "teleported in: the panel opens at ×1")
+	t.eq(a:GetAttribute("SellRatePct"), EconomyConfig.HomeRatePct)
+
+	-- UX-05: walked in and held the prompt at once — the hold is the dwell: SellRatePct 150
+	-- before "Open", so the panel opens with the market prices (no ×1 on the first second).
+	walkInto(sim, a, kiosk)
+	t.eq(a:GetAttribute("SellRatePct"), EconomyConfig.HomeRatePct, "just arrived: no dwell yet")
+	t.ok(sim:HoldPrompt(a, kioskPrompt), "the kiosk prompt triggers")
+	open = tankEvents(sim, a, "Open")
+	t.eq(#open, 2)
+	t.eq(open[2].Place, "Kiosk1")
+	t.eq(open[2].Name, "Ларёк")
+	t.eq(open[2].RatePct, EconomyConfig.MarketRatePct, "walked in + held: ×1.5 at once")
+	t.eq(a:GetAttribute("SellRatePct"), EconomyConfig.MarketRatePct, "SellRatePct 150 with it")
+	t.eq(a:GetAttribute("SellPlace"), "Kiosk1")
+	sim:Advance(1.1 * EconomyConfig.IncomeTick, COARSE)
+	t.eq(a:GetAttribute("SellRatePct"), EconomyConfig.MarketRatePct, "the next sample keeps it")
 
 	local tankPrompt = baseOf(sim, a).Tank.Glass.PromptAttachment.TankPrompt
 	t.eq(tankPrompt.ActionText, TankConfig.Prompt.Action)
@@ -935,9 +1132,9 @@ tests["prompts: a stall hold or the own tank prompt opens the panel; another pla
 	sim:Teleport(a, near)
 	t.ok(sim:HoldPrompt(a, tankPrompt), "the own tank prompt triggers")
 	open = tankEvents(sim, a, "Open")
-	t.eq(#open, 2)
-	t.eq(open[2].Place, "Tank")
-	t.eq(open[2].Name, TankConfig.Prompt.Object)
+	t.eq(#open, 3)
+	t.eq(open[3].Place, "Tank")
+	t.eq(open[3].Name, TankConfig.Prompt.Object)
 
 	sim:Teleport(b, near)
 	sim:HoldPrompt(b, tankPrompt)
@@ -950,7 +1147,7 @@ tests["prompts: a stall hold or the own tank prompt opens the panel; another pla
 		sim:BeginHold(a, tankPrompt)
 		sim:ReleasePrompt(a, tankPrompt)
 	end
-	local answered = #tankEvents(sim, a, "Open") - 2
+	local answered = #tankEvents(sim, a, "Open") - 3
 	t.ok(answered >= 1 and answered <= TankConfig.Requests.Burst, `spam answered {answered} ≤ Burst times`)
 	sim:AssertNoErrors({ warnings = true })
 end
