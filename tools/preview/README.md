@@ -760,7 +760,8 @@ the thief is a second player (`h:extraPlayer`, gone at the scenario's end) and `
 base 1 back for the next scenario. The world capture walks the client's `Workspace.TheftWorld`
 and draws a Highlight (its parts' projected boxes filled + ringed; AlwaysOnTop over everything),
 a SpotLight (a glow + its lit ground patch) and a ForceField part (rim-lit, clear in the middle,
-not drawn from inside — Roblox culls back faces). The lamp, the shown dog and the kennel are
+not drawn from inside — Roblox culls back faces; a ForceField ball gets a finer sphere than
+render.py's 60 faces). The lamp, the shown dog and the kennel are
 drawn from the sim (`addLive`). World views HUD-less: `gui_render.py --scenario
 steal_hold_follow,… --devices phone --no-hud --sheets …`; the pier words with the HUD on phone and
 desktop.

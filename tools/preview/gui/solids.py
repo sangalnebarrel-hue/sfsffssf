@@ -51,6 +51,10 @@ GLOW_ALPHA = 0.45
 MAX_TRANSPARENT_FACES = 4000  # beyond this the farthest transparent faces are dropped
 WATER_CLEAR = 6.0  # studs of way under the water until it tints a part fully (shallow = clearer)
 FF_CORE, FF_RIM = 0.25, 1.6  # ForceField opacity x (facing the camera, at the silhouette)
+# A ForceField ball (the shield dome, 116 studs across) on render.py's coarse 60-face sphere
+# would be a faceted gem: it gets a finer one (its rim reads, the ground cuts it smoothly).
+FF_BALL = "BallFine"
+R.MESHES.setdefault(FF_BALL, R._sphere_mesh(18, 36))
 
 
 class Context:
@@ -124,6 +128,9 @@ def parts_of(world, scene, ctx):
             part["surfaces"] = dict(surfaces)
         if ff:
             part["ff"] = True
+            if shape == "Ball":
+                part["shape"] = FF_BALL
+                part["size"] = [float(min(size))] * 3  # (a Ball is a sphere of the smallest side)
         out.append(part)
     return out
 
