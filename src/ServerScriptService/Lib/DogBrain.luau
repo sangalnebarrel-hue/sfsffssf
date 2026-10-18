@@ -25,6 +25,8 @@
 	                                                      -- DogPos — только после сдвига больше
 	                                                      -- MoveEpsilon (BE-23); смена состояния —
 	                                                      -- сразу; пусто — ничего
+	  DogBrain.Mark(brain, pending, now)                  -- записано то, что вернул Pending (его
+	                                                      -- следующий ответ — от этой записи)
 	Собаки баз (сервер; наблюдатель StealService тикает их раз в StealConfig.Tick, только пока
 	хоть одна не спит):
 	  DogBrain.Wake(base, targetUserId)                   -- база: { Model, Dog } (BaseService.Base)
@@ -149,9 +151,7 @@ function DogBrain.Pending(brain: Brain, now: number): { [string]: any }
 	return out
 end
 
--- Записать в атрибуты Base_N.Dog то, что вернул Pending (DogPos — в координаты мира: pivot базы).
--- Волна 0: заглушка — атрибуты пишет Wave 1 A (здесь же помечается, что «записано»).
-local function writeAttributes(_base: any, brain: Brain, pending: { [string]: any }, now: number)
+function DogBrain.Mark(brain: Brain, pending: { [string]: any }, now: number)
 	if pending.DogState ~= nil then
 		brain.WrittenState = brain.State
 	end
@@ -162,6 +162,12 @@ local function writeAttributes(_base: any, brain: Brain, pending: { [string]: an
 		brain.WrittenPos = brain.Pos
 		brain.WrittenAt = now
 	end
+end
+
+-- Записать в атрибуты Base_N.Dog то, что вернул Pending (DogPos — в координаты мира: pivot базы).
+-- Волна 0: заглушка — атрибуты пишет Wave 1 A (здесь только помечается, что «записано»).
+local function writeAttributes(_base: any, brain: Brain, pending: { [string]: any }, now: number)
+	DogBrain.Mark(brain, pending, now)
 end
 
 function DogBrain.Wake(base: any, targetUserId: number?)

@@ -626,6 +626,26 @@ tests["base template: 12 display slots, tank prompt, alarm, dog (names the serve
 	t.ok(model.Dog:IsA("Model") and model.Dog.PrimaryPart ~= nil, "dog with PrimaryPart")
 	-- The guard dog is a stage 4 upgrade: hidden (not on display) until it is bought.
 	t.eq(model.Dog:GetAttribute("Unlocked"), false, "dog not unlocked")
+	-- Stage 4: the pup is its own sub-model (one PivotTo moves it, the kennel stays), and a fresh
+	-- base has it at the template's pivot (DefenceService restores exactly that on unmount).
+	local pup = model.Dog:FindFirstChild("Pup")
+	t.ok(pup and pup:IsA("Model") and pup.PrimaryPart and pup.PrimaryPart.Name == "Body", "Dog.Pup (PrimaryPart Body)")
+	t.ok(model.Dog.PrimaryPart == pup.PrimaryPart, "Dog.PrimaryPart is the pup's Body")
+	local pupParts = 0
+	for _, d in pup:GetDescendants() do
+		if d:IsA("BasePart") then
+			pupParts += 1
+		end
+	end
+	t.eq(pupParts, 13, "the pup's 13 parts")
+	t.ok(model.Dog:FindFirstChild("DogHouse"), "the kennel Dog.DogHouse")
+	local template = sim.game:GetService("ServerStorage"):FindFirstChild("BaseTemplate")
+	local function pupOffset(base: any): any
+		return base.PrimaryPart.CFrame:ToObjectSpace(base.Dog.Pup:GetPivot())
+	end
+	local want, got = pupOffset(template), pupOffset(model)
+	t.near(got.Position, want.Position, 1e-3, "the pup at its template pivot (position)")
+	t.near(got.LookVector, want.LookVector, 1e-3, "the pup at its template pivot (facing)")
 	for _, d in model.Dog:GetDescendants() do
 		if d:IsA("BasePart") then
 			t.eq(d.Transparency, 1, `{d.Name} invisible`)

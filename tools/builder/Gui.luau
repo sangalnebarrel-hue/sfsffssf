@@ -14,8 +14,8 @@
 	  Status        top-centre stack, two rows (it cannot grow on phones: toasts and the held
 	                trophy are right under it): the base badge (St.1) and, under it, the catch
 	                counter (St.2) — the Wallet (St.3: 💵 money + «+$/с» income) takes that row
-	                when the counter goes; the shield timer (St.4) is a glass chip docked at the
-	                right end of the badge. Top-left is the chat window, top-right the player
+	                when the counter goes; the shield timer (St.4, ShieldChip «🛡️ 0:42») is a glass
+	                chip docked at the right end of the badge. Top-left is the chat window, top-right the player
 	                list (with «Деньги» and «Доход/с» columns from St.3) — both CoreGui.
 	  Toasts        centred column from y = 0.23H, width from screen WIDTH (never reaches
 	                the corners; 512 px at most without touch: clear of the chat window); one
@@ -24,8 +24,11 @@
 	  RightButtons  column anchored at its BOTTOM (y = 0.64H) and growing upwards, so the
 	                bottom-right 0.36H stays free for the mobile Jump button (and the Stage 2
 	                cast button left of it). HudController moves it lower on non-touch screens.
-	                Bottom to top: Home (St.1), «САДОК» (St.3, TankButton), the third slot free
-	                for St.5 (then the trophy chip needs another place on phones).
+	                Bottom to top: Home (St.1), «САДОК» (St.3, TankButton), «ЗАЩИТА» (St.4,
+	                DefenceButton: the third slot is now USED; with 3 buttons on a HUD under 600 px
+	                the trophy chip goes left of the column). Note for Stage 5: a fourth square does
+	                not fit in the column on phones — the shop replaces «ЗАЩИТА» there (the sheet
+	                moves into the shop) or the column turns into a row; plan it before adding one.
 	  Fishing       (St.2) ActionArea bottom-right, LEFT of the mobile Jump button (phones: 70 px
 	                at 25..95 px from the right; screens over 500 px tall: 120 px at 50..170 px);
 	                the centre column — Hint, BiteAlert, Minigame (never shown together) — on one
@@ -41,15 +44,28 @@
 	                .. 16 px above the bottom (capped 900 × 560 and centred on big screens); never
 	                over the Wallet or «САДОК», no dim; it closes itself when the bite, the minigame
 	                or the catch card needs the screen (Controllers/Sheet.luau).
+	  TheftBar      (St.4, gui/Steal.luau) the thief's banner at the top of the toast column
+	                (NotifyController.Reserve("theft")), ZIndex 32; TheftTitle — the «ДОБЫЧА!» slam
+	                in the top band.
+	  TheftAlert    (St.4, gui/Alert.luau) the victim's plate at the top of the toast column
+	                (Reserve("alert"); under the TheftBar when both are up), ZIndex 32: text left,
+	                [🛡️ ЩИТ] (≥ 56 px, ≥ 35 % of the plate) and [🏠 ДОМОЙ] right; the Compact pill
+	                on phones when the plate would cover the own fisher.
+	  DefencePanel  (St.4, gui/Defence.luau) the «ЗАЩИТА» sheet on the same shell as TankPanel
+	                (one sheet at a time: Controllers/Sheet), four cards.
 	  (Stage 5)     the shop on the same sheet shell.
 
 	Controllers that use these names: HudController, NotifyController, FishingController,
-	MoneyController, TankButtonController, TankPanelController.
+	MoneyController, TankButtonController, TankPanelController; stage 4: DefenceController,
+	AlertController, TheftController.
 ]]
 local U = require("./Util")
 local Hud = require("./gui/Hud")
 local buildFishing = require("./gui/Fishing")
 local buildTank = require("./gui/Tank")
+local buildSteal = require("./gui/Steal")
+local buildAlert = require("./gui/Alert")
+local buildDefence = require("./gui/Defence")
 
 local Enum = U.Enum
 
@@ -69,6 +85,9 @@ return function(game: any)
 	buildFishing(hud)
 	Hud.buildToasts(hud)
 	buildTank(hud)
+	buildDefence(hud)
+	buildSteal(hud)
+	buildAlert(hud)
 
 	return hud
 end

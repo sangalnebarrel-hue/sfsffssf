@@ -195,7 +195,12 @@ lays its own floor/paths/borders on top (slab tops at y ≈ 0.2; nothing coplana
   model will float), `Pedestal.PromptAttachment` (Attachment for steal/collect prompts) and
   `Pedestal.LabelGui.Label` (SurfaceGui + TextLabel on the front, text "Пусто")
 * `Alarm.Lamp` (BasePart, Neon when lit), `Dog` (Model with PrimaryPart; invisible, attribute
-  `Unlocked = false`, until the stage-4 dog upgrade shows it)
+  `Unlocked = false`, until the stage-4 dog upgrade shows it): the kennel `Dog.DogHouse`
+  (`Walls`, `DoorHole`, two `Roof` wedges — they collide once the dog is shown) and the pup
+  `Dog.Pup` (Model, PrimaryPart `Body`, its 13 parts; `Dog.PrimaryPart` is the same `Body`) —
+  DefenceService and TheftWorldController move the pup with one `Pup:PivotTo` (to
+  `DefenceConfig.Dog.Rest` in the court, and back to its template pivot on unmount); 0 extra
+  parts (`docs/stage4_design.md` §2.1, §5.4)
 * `Flag.Pole.SignAttachment.OwnerSign.{OwnerLabel, BaseLabel, YoursLabel}` (BillboardGui
   TextLabels; `YoursLabel` «ТВОЯ БАЗА!» is hidden — only the owner's own client shows it)
 * any number of extra `OwnerLabel` / `BaseLabel` TextLabels elsewhere (e.g. the gate sign):

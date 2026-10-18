@@ -43,6 +43,12 @@
 	"Ready", Money 0, Income 0, TankSlots 6, TankCount 0, SellRatePct 100, SellPlace ""):
 	h:money(n, income10?), h:tank(list, opts?) (the own base's slot / tank / player attributes,
 	written like TankService), h:tankEvent(kind, data), h:caught(fish, total, tank?).
+	Stage 4 (StealService and DefenceService are stubbed too; the default join has NO protection,
+	no dog, alarm or lock and a ready shield, so the older scenarios do not change):
+	h:steal(phase, data?) (the thief: StealEvent "Hold" / "Carry" + Player.Stealing, nil = over),
+	h:alert(data?) (the victim: StealEvent "Alert"), h:shield(left, readyIn, kind?) (the own base's
+	protection, all five kinds), h:defence({ dog, alarm, lock }) (what the own base owns),
+	h:stealEvent(kind, data) (any StealEvent kind; documented where they are defined).
 	Every player is an R15 rig (RbxSim `rig = "R15"`) on base 1 (BaseConfig.RandomAssignment is
 	switched off: the backdrop is base 1's pier); while a Tool is equipped the Animator stand-in
 	holds the "toolnone" pose (FisherPoses.Hold), like Roblox's Animate script.
@@ -119,7 +125,15 @@ local FRAME = 1 / 60
 
 -- The stub sim switches these services off ("return {}", like the client tests): the harness
 -- plays the server (FishingState / Notify / TankEvent and the replicated attributes).
-local STUBBED_SERVICES = { "FishingService", "DataService", "EconomyService", "MarketService", "TankService" }
+local STUBBED_SERVICES = {
+	"FishingService",
+	"DataService",
+	"EconomyService",
+	"MarketService",
+	"TankService",
+	"DefenceService", -- stage 4: the harness plays the protections, the shield and the defences
+	"StealService", -- stage 4: … and the thefts (h:steal, h:alert, h:stealEvent)
+}
 -- Stage 3 state every stub-sim player joins with (what the real services would replicate once
 -- the data is loaded: RemoteNames, «Состояние садка и денег»; the numbers from the place's
 -- configs); scenarios change it with h:money / h:tank / player:SetAttribute.
@@ -134,6 +148,11 @@ local function stage3Defaults(sim: any): { [string]: any }
 		TankCount = 0,
 		SellRatePct = economy.HomeRatePct,
 		SellPlace = "",
+		-- Stage 4: no protection, no defences, the shield ready (ShieldReadyAt 0 = long ago).
+		ShieldReadyAt = 0,
+		HasDog = false,
+		HasAlarm = false,
+		LockLevel = 0,
 	}
 end
 
@@ -1378,6 +1397,199 @@ end
 -- TankEvent (kind, data) to this client: "Open" | "Sold" | "Stored" | "Denied" (RemoteNames).
 function Harness:tankEvent(kind: string, data: { [string]: any }?)
 	self.sim:Find("ReplicatedStorage.Remotes.TankEvent"):FireClient(self.player, kind, data or {})
+	self:simStep(FRAME)
+end
+
+--------------------------------------------------------------------------------
+-- Stage 4: thefts and defences. StealService and DefenceService are stubbed in the stub sim
+-- (STUBBED_SERVICES): the harness plays them through StealEvent / DefenceEvent and the
+-- replicated attributes (RemoteNames, «Кража и защита»; docs/stage4_design.md §4.10, §4.11).
+-- Every player joins with no protection (stage3Defaults), so the older scenarios do not change.
+--------------------------------------------------------------------------------
+
+-- The FishData-like fields of a fish for the theft payloads (Id defaults to the perch).
+function Harness:theftFish(id: string?): { [string]: any }
+	local rules = self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.FishingRules"))
+	local tankRules = self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.TankRules"))
+	local fishId = id or "Perch"
+	local def = rules.GetFish(fishId)
+	if not def then
+		self:warn(`h:theftFish: unknown fish «{fishId}»`)
+		return { FishId = fishId, Rarity = "Common", Short = fishId, Income10 = 0, Kg = 1, Value = 0 }
+	end
+	local kg = (def.MinKg + def.MaxKg) / 2
+	local value, income = rules.Price(fishId, kg, nil)
+	return {
+		FishId = fishId,
+		Id = fishId,
+		Rarity = def.Rarity,
+		Short = def.ShortName,
+		Kg = kg,
+		Value = value,
+		Income = income,
+		Income10 = tankRules.Income10(income),
+	}
+end
+
+-- StealEvent (kind, data) to this client: the thief's "Denied" | "Hold" | "Carry" | "Cancel" |
+-- "Done", the victim's "Alert" | "Saved" | "Lost" | "Intruder", both "Returned" (RemoteNames).
+function Harness:stealEvent(kind: string, data: { [string]: any }?)
+	self.sim:Find("ReplicatedStorage.Remotes.StealEvent"):FireClient(self.player, kind, data or {})
+	self:simStep(FRAME)
+end
+
+-- The thief's side, written like StealService: phase "hold" → StealEvent("Hold", { Slot,
+-- BaseIndex, Uid, FishId, Rarity, Mutation?, Short, Income10, End, Need }) then Player.Stealing
+-- = "hold" (written last); "carry" → StealEvent("Carry", { End }) then Stealing = "carry" (and
+-- Slowed = data.Slowed: the dog's «🐕 СОБАКА!»); nil → Stealing and Slowed cleared (the theft is
+-- over; play its "Done" / "Cancel" with h:stealEvent). data overrides the payload: FishId
+-- (default the perch), Slot (1), BaseIndex (the next base), Need (the hold seconds, default
+-- Lock.BaseHold), Left (seconds to End, default Need / the carry Timeout).
+function Harness:steal(phase: string?, data: { [string]: any }?)
+	local d = data or {}
+	local now = self.sim.workspace:GetServerTimeNow()
+	if phase == "hold" then
+		local fish = self:theftFish(d.FishId)
+		local need = d.Need or self:config("DefenceConfig").Lock.BaseHold
+		local own = self.player:GetAttribute("BaseIndex")
+		local payload = {
+			Slot = d.Slot or 1,
+			BaseIndex = d.BaseIndex or (if typeof(own) == "number" then own % 8 + 1 else 2),
+			Uid = d.Uid or "harness-1",
+			FishId = fish.FishId,
+			Rarity = fish.Rarity,
+			Mutation = d.Mutation,
+			Short = d.Short or fish.Short,
+			Income10 = d.Income10 or fish.Income10,
+			End = now + (d.Left or need),
+			Need = need,
+		}
+		self:stealEvent("Hold", payload)
+		self.player:SetAttribute("Stealing", "hold")
+	elseif phase == "carry" then
+		local timeout = self:config("StealConfig").Carry.Timeout
+		self:stealEvent("Carry", { End = now + (d.Left or timeout) })
+		self.player:SetAttribute("Slowed", if d.Slowed then true else nil)
+		self.player:SetAttribute("Stealing", "carry")
+	else
+		if phase ~= nil then
+			self:warn(`h:steal: unknown phase «{phase}» (hold | carry | nil)`)
+		end
+		self.player:SetAttribute("Slowed", nil)
+		self.player:SetAttribute("Stealing", nil)
+	end
+	self:simStep(FRAME)
+end
+
+-- The victim's alert, written like StealService: StealEvent("Alert", { Phase, Thief, Name, Slot,
+-- FishId, Rarity, Mutation?, Short, Income10, End, Quiet? }). data overrides it: Phase ("hold"
+-- default | "carry"), Name (the thief's display name, «Ника»), Thief (UserId), FishId, Slot,
+-- Left (seconds to End), Quiet. The own base gets AlarmState "theft" and Thief while it lasts
+-- (data = false clears them; the alert's end is h:stealEvent("Saved" | "Lost", …)).
+function Harness:alert(data: { [string]: any } | false | nil)
+	local base = self:base()
+	if data == false then
+		if base then
+			base:SetAttribute("AlarmState", nil)
+			base:SetAttribute("Thief", nil)
+		end
+		self:simStep(FRAME)
+		return
+	end
+	local d: { [string]: any } = if type(data) == "table" then data else {}
+	local fish = self:theftFish(d.FishId)
+	local phase = d.Phase or "hold"
+	local now = self.sim.workspace:GetServerTimeNow()
+	local left = d.Left
+	if left == nil then
+		left = if phase == "carry"
+			then self:config("StealConfig").Carry.Timeout
+			else self:config("DefenceConfig").Lock.BaseHold
+	end
+	local thief = d.Thief or 2002
+	if base then
+		base:SetAttribute("Thief", thief)
+		base:SetAttribute("AlarmState", "theft")
+	end
+	self:stealEvent("Alert", {
+		Phase = phase,
+		Thief = thief,
+		Name = d.Name or "Ника",
+		Slot = d.Slot or 1,
+		FishId = fish.FishId,
+		Rarity = fish.Rarity,
+		Mutation = d.Mutation,
+		Short = d.Short or fish.Short,
+		Income10 = d.Income10 or fish.Income10,
+		End = now + left,
+		Quiet = d.Quiet,
+	})
+end
+
+-- The own base's protection, written like DefenceService: left = seconds of protection left
+-- (nil / 0 = none: ProtectUntil and ProtectKind cleared), readyIn = seconds until the shield is
+-- ready again (nil / 0 = ready), kind = "shield" (default) | "join" | "newbie" | "after" |
+-- "rest". The base gets ProtectUntil / ProtectKind, the player ShieldUntil (the shield kind
+-- only) and ShieldReadyAt — all through TankRules.AttrTime.
+local PROTECT_KINDS = { shield = true, join = true, newbie = true, after = true, rest = true }
+function Harness:shield(left: number?, readyIn: number?, kind: string?)
+	local tankRules = self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.TankRules"))
+	local now = self.sim.workspace:GetServerTimeNow()
+	local k = kind or "shield"
+	if not PROTECT_KINDS[k] then
+		self:warn(`h:shield: unknown kind «{k}» (shield | join | newbie | after | rest)`)
+		k = "shield"
+	end
+	local base = self:base()
+	local untilAt = if left ~= nil and left > 0 then tankRules.AttrTime(now + left) else nil
+	if base then
+		base:SetAttribute("ProtectUntil", untilAt)
+		base:SetAttribute("ProtectKind", if untilAt then k else nil)
+	else
+		self:warn("h:shield: the player has no base")
+	end
+	self.player:SetAttribute("ShieldUntil", if untilAt and k == "shield" then untilAt else nil)
+	self.player:SetAttribute(
+		"ShieldReadyAt",
+		if readyIn ~= nil and readyIn > 0 then tankRules.AttrTime(now + readyIn) else 0
+	)
+	self:simStep(FRAME)
+end
+
+-- What the own base owns, written like DefenceService: { dog = bool?, alarm = bool?, lock =
+-- level? } (nil keeps the current value). Player and base get HasDog / HasAlarm / LockLevel, the
+-- base HoldTime (StealRules.HoldTime); a dog is shown (every Dog part opaque, Unlocked = true;
+-- the pup stays at its template pivot — the court spot is DefenceService's) or hidden again.
+function Harness:defence(owned: { [string]: any })
+	local base = self:base()
+	local steal = self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.StealRules"))
+	local function write(name: string, value: any)
+		self.player:SetAttribute(name, value)
+		if base then
+			base:SetAttribute(name, value)
+		end
+	end
+	if owned.dog ~= nil then
+		write("HasDog", owned.dog == true)
+		local dog = base and base:FindFirstChild("Dog")
+		if dog then
+			dog:SetAttribute("Unlocked", owned.dog == true)
+			for _, d in dog:GetDescendants() do
+				if d:IsA("BasePart") then
+					d.Transparency = if owned.dog then 0 else 1
+				end
+			end
+		end
+	end
+	if owned.alarm ~= nil then
+		write("HasAlarm", owned.alarm == true)
+	end
+	if owned.lock ~= nil then
+		write("LockLevel", owned.lock)
+		if base then
+			base:SetAttribute("HoldTime", steal.HoldTime(owned.lock))
+		end
+	end
 	self:simStep(FRAME)
 end
 

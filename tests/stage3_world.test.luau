@@ -39,7 +39,15 @@ local CFrame = roblox.CFrame
 local Enum = roblox.Enum
 
 local PLACE = "Place1.rbxl"
-local STUBBED = { "FishingService", "DataService", "EconomyService", "MarketService", "TankService" }
+local STUBBED = {
+	"FishingService",
+	"DataService",
+	"EconomyService",
+	"MarketService",
+	"TankService",
+	"DefenceService", -- stage 4 (no protection, no thefts: these tests play the state themselves)
+	"StealService",
+}
 
 -- Pure config modules straight from src/ (the same values the game uses).
 local function loadConfig(name: string): any

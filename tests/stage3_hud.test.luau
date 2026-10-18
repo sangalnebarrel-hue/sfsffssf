@@ -47,7 +47,15 @@ local Vector3 = roblox.Vector3
 
 local PLACE = "Place1.rbxl"
 local INSET = 58 -- RbxSim's top bar inset for ScreenGuis without IgnoreGuiInset
-local STUBBED = { "FishingService", "DataService", "EconomyService", "MarketService", "TankService" }
+local STUBBED = {
+	"FishingService",
+	"DataService",
+	"EconomyService",
+	"MarketService",
+	"TankService",
+	"DefenceService", -- stage 4 (no protection, no thefts: these tests play the state themselves)
+	"StealService",
+}
 
 local function loadConfig(name: string): any
 	local path = `src/ReplicatedStorage/Shared/Config/{name}.luau`

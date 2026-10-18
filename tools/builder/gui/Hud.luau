@@ -9,9 +9,11 @@
 	Layout rules: tools/builder/Gui.luau; look and API: tools/builder/gui/STYLE.md.
 
 	Names are a contract (controllers and tests find them): Status.BaseBadge.{Swatch, Label,
-	FlagSocket.Flag}, Status.Wallet.{Money.{Icon, Label, Back}, Rate} (MoneyController),
-	RightButtons.TankButton.{Icon, Caption, Count.Label, Badge} (TankButtonController),
-	RightButtons.HomeButton.{Icon, Caption, Cooldown, CooldownText, Badge},
+	FlagSocket.Flag, ShieldChip.{Icon, Label}}, Status.Wallet.{Money.{Icon, Label, Back}, Rate}
+	(MoneyController), RightButtons.TankButton.{Icon, Caption, Count.Label, Badge}
+	(TankButtonController), RightButtons.HomeButton.{Icon, Caption, Cooldown, CooldownText, Badge},
+	RightButtons.DefenceButton.{Icon, Caption, Badge, Cooldown.Drain, CooldownText} (stage 4,
+	DefenceController),
 	Toasts.ToastTemplate.{Label, IconSocket.Icon}, BaseBanner.{Caption, NameLabel,
 	FlagSocket.Flag}, TrophyPointer.{Body.IconSocket.Icon, Tip, BaseRing.Stroke} (NotifyController:
 	the chip pointing at someone else's off-screen light pillar). Everything else (Lip, Rim, Shine,
@@ -26,6 +28,11 @@
 	                MoneyController sizes the row to its text so the group stays centred;
 	  TankButton    a square aqua button above Home: 🐠 «САДОК», the chip «0/6» in its top-left
 	                corner, a hidden red «!» on its top-right one (the first fish ever: open me);
+	  DefenceButton (stage 4) the column's third square, above «САДОК»: royal-blue Guard, 🛡️
+	                «ЗАЩИТА» (the sheet; during a theft on the own base «ЩИТ!» — one tap raises the
+	                shield), Home's cooldown veil (the shield recharging), a hidden red «!»;
+	  ShieldChip    (stage 4) a glass stadium «🛡️ 0:42» overhanging the badge's right end (the
+	                Stage 3 K-19 spot): any protection of the own base; hidden;
 	  HomeButton    a square purple button: 🏠 big in the middle, «ДОМОЙ» on its bottom edge, a
 	                hidden red «!» badge (the shop stage);
 	  ToastTemplate a label plate in the kind's colour with the kind's emoji overhanging its left end;
@@ -51,6 +58,9 @@ local WHITE = Theme.WHITE
 local SIM = UI.Sim
 local corner = Theme.corner
 local label = Theme.label
+
+-- Stage 4 texts (a pure module, the same table the client reads).
+local DefenceConfig = U.loadPure("src/ReplicatedStorage/Shared/Config/DefenceConfig.luau")
 
 local function buildBaseBanner(hud: any)
 	-- The moment the base is assigned: the reference's huge centred title — small «ТВОЯ БАЗА» over
@@ -146,6 +156,27 @@ local function buildStatus(hud: any)
 		ZIndex = SZ.Content,
 		Tier = "Title",
 	})
+	-- Stage 4: the shield chip «🛡️ 0:42» docked at the badge's right end (Stage 3 K-19): a glass
+	-- stadium (the shield kind turns it into a solid Guard plate, DefenceController) with the 🛡️
+	-- over its left end and the italic time; a child of the badge (the Status stack cannot grow),
+	-- about as tall as the badge, ≤ UIConfig.Theft.ChipMax px wide. Hidden.
+	local chip = Theme.plate(badge, "ShieldChip", "Glass", {
+		Visible = false,
+		Glass = true,
+		AnchorPoint = Vector2.new(0.1, 0.5),
+		Position = UDim2.fromScale(1, 0.5),
+		Size = UDim2.fromScale(2.5, 0.9),
+		SizeConstraint = Enum.SizeConstraint.RelativeYY,
+		ZIndex = SZ.Content + 1,
+		Icon = "🛡️",
+		IconScale = 1.1,
+		Text = "0:42",
+		Italic = true,
+		Tier = "Small",
+		Radius = 0.5,
+		LabelProps = { Size = UDim2.fromScale(0.7, 0.8) },
+	})
+	U.new("UISizeConstraint", { MaxSize = Vector2.new(UI.Theft.ChipMax, 36) }, chip)
 
 	-- Wallet (stage 3, the catch counter's old row): the reference's panel-less «💵 $0» — Money
 	-- is a Theme.stat (the outlined 💵 at −8° and a big italic number in MoneyText green with the
@@ -204,6 +235,40 @@ local function buildStatus(hud: any)
 	buildBaseBanner(hud)
 end
 
+-- Cooldown: a dark veil over the whole button that drains downwards (the controller moves the
+-- hard edge of the "Drain" gradient: Offset.Y -0.5 = fully covered → 0.5 = clear), plus the
+-- seconds left in big italic digits (Home: HudController; «ЗАЩИТА»: DefenceController).
+local function cooldownVeil(button: any)
+	local cooldown = U.new("Frame", {
+		Name = "Cooldown",
+		BackgroundColor3 = INK,
+		BackgroundTransparency = 0.35,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		Visible = false,
+		ZIndex = SZ.Overlay,
+	}, button)
+	corner(cooldown, SIM.Radius)
+	U.new("UIGradient", {
+		Name = "Drain",
+		Rotation = 90,
+		Offset = Vector2.new(0, -0.5),
+		Transparency = Theme.numbers({ { 0, 1 }, { 0.495, 1 }, { 0.5, 0 }, { 1, 0 } }),
+	}, cooldown)
+	label(button, "CooldownText", {
+		Visible = false,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.42),
+		Size = UDim2.fromScale(0.8, 0.62),
+		Text = "",
+		Italic = true,
+		Outline = Theme.DISPLAY_OUTLINE,
+		ZIndex = SZ.Top,
+		MaxTextSize = 56,
+		TextGradient = { WHITE, P.Gold.Top },
+	})
+end
+
 local function buildRightButtons(hud: any)
 	local right = U.new("Frame", {
 		Name = "RightButtons",
@@ -238,37 +303,8 @@ local function buildRightButtons(hud: any)
 		-- (5 at 720, a little under the plates' 6: the column keeps 16 px to «СМОТАТЬ» on a tablet.)
 		SimOpts = { stroke = 5 },
 	})
-	-- Cooldown: a dark veil over the whole button that drains downwards (HudController moves the
-	-- hard edge of the "Drain" gradient: Offset.Y -0.5 = fully covered → 0.5 = clear), plus the
-	-- seconds left in big italic digits; «ДОМОЙ» reads «ЖДИ» over the veil.
-	local cooldown = U.new("Frame", {
-		Name = "Cooldown",
-		BackgroundColor3 = INK,
-		BackgroundTransparency = 0.35,
-		BorderSizePixel = 0,
-		Size = UDim2.fromScale(1, 1),
-		Visible = false,
-		ZIndex = SZ.Overlay,
-	}, home)
-	corner(cooldown, SIM.Radius)
-	U.new("UIGradient", {
-		Name = "Drain",
-		Rotation = 90,
-		Offset = Vector2.new(0, -0.5),
-		Transparency = Theme.numbers({ { 0, 1 }, { 0.495, 1 }, { 0.5, 0 }, { 1, 0 } }),
-	}, cooldown)
-	label(home, "CooldownText", {
-		Visible = false,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.42),
-		Size = UDim2.fromScale(0.8, 0.62),
-		Text = "",
-		Italic = true,
-		Outline = Theme.DISPLAY_OUTLINE,
-		ZIndex = SZ.Top,
-		MaxTextSize = 56,
-		TextGradient = { WHITE, P.Gold.Top },
-	})
+	-- Cooldown: the veil and the seconds (cooldownVeil); «ДОМОЙ» reads «ЖДИ» over the veil.
+	cooldownVeil(home)
 	-- The red «!» of the reference on the top-right corner: hidden (the shop stage lights it).
 	Theme.badge(home, "Badge")
 
@@ -324,6 +360,28 @@ local function buildRightButtons(hud: any)
 	-- screen's right edge (≈ 1 % of the width away), so the disc overhangs upwards, not out of
 	-- the screen — even at the top of its pop (1.25) on a tablet / desktop.
 	Theme.badge(tank, "Badge", {
+		Position = UDim2.fromScale(0.84, 0.1),
+		Size = UDim2.fromScale(0.4, 0.4),
+	})
+
+	-- «ЗАЩИТА» (stage 4): the column's third square, above «САДОК» (LayoutOrder 80), in royal-blue
+	-- Guard (never Sky «ЗАБРОСИТЬ», Water «САДОК» or Grape «ДОМОЙ»): 🛡️ in the middle, «ЗАЩИТА» on
+	-- its bottom edge; Home's cooldown veil (the shield recharging: «2:59») and a hidden red «!»
+	-- tucked in like «САДОК»'s. During a theft on the own base DefenceController turns it into the
+	-- one-tap «ЩИТ!». Hidden until the base and the data are there. The 3rd slot is now used: the
+	-- Stage 5 shop replaces this button (a 4th square does not fit in 0.6H — tools/builder/Gui.luau).
+	local defence = Theme.simButton(right, "DefenceButton", "Guard", {
+		LayoutOrder = 80,
+		Size = UDim2.fromScale(1, 0.28),
+		Visible = false,
+		Layout = "square",
+		Icon = "🛡️",
+		Caption = DefenceConfig.Texts.Button,
+		Tier = "Small",
+		SimOpts = { stroke = 5 },
+	})
+	cooldownVeil(defence)
+	Theme.badge(defence, "Badge", {
 		Position = UDim2.fromScale(0.84, 0.1),
 		Size = UDim2.fromScale(0.4, 0.4),
 	})

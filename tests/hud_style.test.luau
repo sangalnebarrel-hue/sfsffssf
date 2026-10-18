@@ -292,10 +292,66 @@ tests["names: every widget the controllers and tests use is still there"] = func
 		"Fishing.CatchCard.InfoLabel",
 		"Fishing.CatchCard.TapHint",
 		"Fishing.CatchCard.TankStamp.Label",
+		-- Stage 4 (docs/stage4_design.md §6.1; built hidden in wave 0, driven in wave 2)
+		"Status.BaseBadge.ShieldChip.Icon",
+		"Status.BaseBadge.ShieldChip.Label",
+		"RightButtons.DefenceButton.Icon",
+		"RightButtons.DefenceButton.Caption",
+		"RightButtons.DefenceButton.Badge.Mark",
+		"RightButtons.DefenceButton.Cooldown.Drain",
+		"RightButtons.DefenceButton.CooldownText",
+		"TheftBar.Plate",
+		"TheftBar.Icon.Icon",
+		"TheftBar.Title",
+		"TheftBar.Bar.Track.Fill",
+		"TheftBar.Time",
+		"TheftBar.Sub",
+		"TheftBar.DogChip.Label",
+		"TheftTitle.Title",
+		"TheftTitle.Sub",
+		"TheftAlert.Plate",
+		"TheftAlert.Icon.Icon",
+		"TheftAlert.Text.Title",
+		"TheftAlert.Text.Sub",
+		"TheftAlert.Buttons.Shield.Icon",
+		"TheftAlert.Buttons.Shield.Caption",
+		"TheftAlert.Buttons.Home.Icon",
+		"TheftAlert.Buttons.Home.Caption",
+		"TheftAlert.Compact.Label",
+		"TheftAlert.Compact.Shield",
+		"TheftAlert.Compact.Home",
+		"DefencePanel.Panel.Strip",
+		"DefencePanel.Panel.Header.Icon",
+		"DefencePanel.Panel.Header.Title",
+		"DefencePanel.Panel.Header.Money.Label",
+		"DefencePanel.Panel.Close",
 	}
+	for _, card in { "ShieldCard", "DogCard", "AlarmCard", "LockCard" } do
+		for _, part in { "Icon.Emoji", "Name", "Effect", "State", "Buy.Label", "Buy.Price" } do
+			table.insert(paths, `DefencePanel.Panel.Cards.{card}.{part}`)
+		end
+	end
 	for _, path in paths do
 		t.ok(sim:Gui(p, `HUD.{path}`), `HUD.{path}`)
 	end
+	-- Stage 4 roots are built hidden: nothing changes on screen until their controllers run.
+	for _, path in
+		{
+			"Status.BaseBadge.ShieldChip",
+			"RightButtons.DefenceButton",
+			"TheftBar",
+			"TheftTitle",
+			"TheftAlert",
+			"TheftAlert.Compact",
+			"DefencePanel",
+		}
+	do
+		t.eq(sim:Gui(p, `HUD.{path}`).Visible, false, `HUD.{path} hidden`)
+	end
+	t.ok(sim:Gui(p, "HUD.RightButtons.DefenceButton"):IsA("GuiButton"), "«ЗАЩИТА» is a button")
+	t.eq(sim:Gui(p, "HUD.RightButtons.DefenceButton").LayoutOrder, 80, "«ЗАЩИТА» above «САДОК» (90)")
+	t.ok(sim:Gui(p, "HUD.TheftAlert.Buttons.Shield"):IsA("GuiButton"), "ЩИТ is a button")
+	t.ok(sim:Gui(p, "HUD.DefencePanel.Panel.Cards.DogCard.Buy"):IsA("GuiButton"), "a card's Buy is a button")
 	t.ok(sim:Gui(p, "HUD.RightButtons.HomeButton"):IsA("GuiButton"), "Home is a button")
 	t.ok(sim:Gui(p, "HUD.RightButtons.TankButton"):IsA("GuiButton"), "«САДОК» is a button")
 	t.eq(p.PlayerGui.HUD.Status:FindFirstChild("CatchCounter"), nil, "stage 3: no catch counter")
@@ -576,6 +632,82 @@ tests["layout: the chrome fits on phone, tablet and desktop without overlaps"] =
 		end
 		-- Readable money on a phone: the number's row is at least 20 px tall.
 		t.ok(money.h >= 20, `{device}: Wallet {fmt(money)} tall enough`)
+	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- Stage 4 wave 0: the hidden widgets, shown by hand here (their controllers come in wave 2),
+-- fit where docs/stage4_design.md §6.9 puts them: «ЗАЩИТА» is the column's third square above
+-- «САДОК», the shield chip fits beside the badge, ЩИТ is the alert's largest target.
+tests["stage 4: «ЗАЩИТА» is the column's third square; the shield chip and ЩИТ keep their sizes"] = function(
+	t
+)
+	local sim = boot(t)
+	local devices = { "phone", "tablet", "desktop" }
+	local players = {}
+	for i, device in devices do
+		players[device] = addPlayer(sim, i, device)
+	end
+	sim:WaitFor(function()
+		for _, device in devices do
+			local hud = players[device].PlayerGui.HUD
+			if not (hud.Status.Wallet.Visible and hud.RightButtons.TankButton.Visible) then
+				return false
+			end
+		end
+		return true
+	end, 10)
+	sim:Advance(1)
+	local THEFT = UIConfig.Theft
+	for _, device in devices do
+		local p = players[device]
+		local hud = p.PlayerGui.HUD
+		local vp = sim.players.state[sim:Unwrap(p)].viewport
+		hud.RightButtons.DefenceButton.Visible = true
+		hud.Status.BaseBadge.ShieldChip.Visible = true
+		hud.TheftAlert.Visible = true
+		sim:Advance(0.1)
+		local function r(gui: any): Rect
+			return rectOf(sim, p, gui)
+		end
+		local defence, tank, home =
+			r(hud.RightButtons.DefenceButton), r(hud.RightButtons.TankButton), r(hud.RightButtons.HomeButton)
+		local badge, money, chip =
+			r(hud.Status.BaseBadge), r(hud.Status.Wallet.Money), r(hud.Status.BaseBadge.ShieldChip)
+		t.ok(defence.w >= 44 and defence.h >= 44, `{device}: «ЗАЩИТА» at least 44 px ({fmt(defence)})`)
+		t.ok(
+			defence.y + defence.h <= tank.y,
+			`{device}: «ЗАЩИТА» {fmt(defence)} above «САДОК» {fmt(tank)}`
+		)
+		t.ok(tank.y + tank.h <= home.y, `{device}: «САДОК» still above Home`)
+		t.ok(
+			defence.y >= INSET and defence.x + defence.w <= vp.X,
+			`{device}: «ЗАЩИТА» {fmt(defence)} on screen`
+		)
+		t.ok(math.abs(defence.w - tank.w) < 1, `{device}: the same square as «САДОК»`)
+		for name, rect in { badge = badge, money = money, chip = chip } do
+			t.eq(overlap(defence, rect), 0, `{device}: «ЗАЩИТА» {fmt(defence)} clear of the {name} {fmt(rect)}`)
+		end
+		t.ok(chip.w <= THEFT.ChipMax + 0.5, `{device}: the shield chip {fmt(chip)} ≤ {THEFT.ChipMax} px wide`)
+		t.ok(chip.x > badge.x + badge.w / 2, `{device}: the chip {fmt(chip)} at the badge's right end {fmt(badge)}`)
+		t.ok(chip.x + chip.w <= vp.X and chip.y >= INSET, `{device}: the chip on screen`)
+		local alert = r(hud.TheftAlert)
+		local shield, alertHome = r(hud.TheftAlert.Buttons.Shield), r(hud.TheftAlert.Buttons.Home)
+		t.ok(alert.w <= THEFT.WidthMax + 0.5, `{device}: the alert {fmt(alert)} ≤ {THEFT.WidthMax} px wide`)
+		t.ok(shield.h >= THEFT.ShieldMin - 0.5, `{device}: ЩИТ {fmt(shield)} ≥ {THEFT.ShieldMin} px tall`)
+		t.ok(
+			shield.w >= THEFT.ShieldShare * alert.w - 0.5,
+			`{device}: ЩИТ {fmt(shield)} ≥ {THEFT.ShieldShare} of the plate {fmt(alert)}`
+		)
+		t.ok(
+			alertHome.w >= THEFT.HomeMin and alertHome.h >= THEFT.HomeMin,
+			`{device}: ДОМОЙ {fmt(alertHome)} ≥ 44 px`
+		)
+		t.ok(shield.w * shield.h > alertHome.w * alertHome.h, `{device}: ЩИТ is the plate's largest target`)
+		t.eq(overlap(shield, alertHome), 0, `{device}: ЩИТ and ДОМОЙ apart`)
+		hud.RightButtons.DefenceButton.Visible = false
+		hud.Status.BaseBadge.ShieldChip.Visible = false
+		hud.TheftAlert.Visible = false
 	end
 	sim:AssertNoErrors({ warnings = true })
 end

@@ -82,10 +82,14 @@
 	The guard dog (Model "Dog", stage 4 upgrade) is NOT on display: the dog and its kennel
 	(Dog.DogHouse) have every part invisible (Transparency 1, CanCollide/CanQuery/CastShadow
 	false) and the model attribute Unlocked = false. All parts are opaque blocks: to show them
-	(dog bought) set every BasePart's Transparency to 0 and Unlocked = true.
+	(dog bought) set every BasePart's Transparency to 0 and Unlocked = true. The pup's 13 parts
+	are the sub-model Dog.Pup (PrimaryPart Body; Dog.PrimaryPart is the same Body): the server
+	and the client move the pup with one Pup:PivotTo (its court spot DefenceConfig.Dog.Rest,
+	the chase), the kennel stays at the front fence (docs/stage4_design.md §2.1).
 
 	Names the server code relies on (BaseService, DESIGN.md §2) — keep in sync:
 	  Root, SpawnPad, FishingSpot, Tank.Glass.PromptAttachment, Alarm.Lamp, Dog (PrimaryPart),
+	  Dog.Pup (PrimaryPart Body), Dog.DogHouse.{Walls, Roof},
 	  Tank.Slots.Slot_N.{Pedestal.PromptAttachment, Pedestal.LabelGui.Label, Display.FishPoint}
 	  (attribute SlotIndex), Flag.Pole.SignAttachment.OwnerSign.{OwnerLabel, BaseLabel, YoursLabel},
 	  Flag.Cloth (tests), Gate.Board.SignFront/SignBack.{OwnerLabel, BaseLabel}.
@@ -1716,9 +1720,11 @@ local DOG_X, DOG_Z = 36, 25 -- the kennel in the +X front corner (the dog lies b
 local HIDDEN = { Transparency = 1, CanCollide = false, CanQuery = false, CastShadow = false }
 
 -- Blocky shiba lying by its kennel; local -Z = where it looks. Hidden (see the header): every
--- part is invisible and takes no collisions, raycasts or shadows; Unlocked = false.
+-- part is invisible and takes no collisions, raycasts or shadows; Unlocked = false. The pup is
+-- its own sub-model Dog.Pup (0 extra parts), so it moves with one PivotTo and the kennel stays.
 local function buildDog(template: any)
 	local dog = U.model(template, "Dog")
+	local pup = U.model(dog, "Pup")
 	dog:SetAttribute("Unlocked", false)
 	-- the kennel (the door looks towards -X, the spawn rose)
 	local kennel = U.model(dog, "DogHouse")
@@ -1740,7 +1746,7 @@ local function buildDog(template: any)
 		sz: number,
 		color: any
 	): any
-		return box(dog, name, f, x * S, y * S, z * S, sx * S, sy * S, sz * S, color, HIDDEN)
+		return box(pup, name, f, x * S, y * S, z * S, sx * S, sy * S, sz * S, color, HIDDEN)
 	end
 	local body = piece("Body", 0, 1.35, 0.2, 1.6, 1.3, 2.4, C.Dog)
 	piece("Chest", 0, 1.25, -1.05, 1.2, 0.9, 0.3, C.DogCream)
@@ -1755,6 +1761,7 @@ local function buildDog(template: any)
 	piece("BackLegs", 0, 0.4, 1.0, 1.4, 0.8, 0.5, C.Dog)
 	piece("Tail", 0, 2.25, 1.45, 0.6, 0.9, 0.6, C.DogCream)
 	piece("Collar", 0, 1.95, -0.8, 1.75, 0.36, 1.2, 0)
+	pup.PrimaryPart = body
 	dog.PrimaryPart = body
 end
 

@@ -85,13 +85,14 @@ export type View = {
 	Now: number?,
 }
 
--- Строка: Test(view) → причина при провале, nil — прошла; Left(view) — сколько секунд ждать (для {t}).
+-- Строка: Test(view) → причина при провале, nil — прошла; Left(view, reason) — сколько секунд ждать
+-- (для {t}) при этой причине, nil — ждать нечего.
 export type Row = {
 	Id: string,
 	Client: boolean,
 	Reasons: { string },
 	Test: (view: View) -> string?,
-	Left: ((view: View) -> number?)?,
+	Left: ((view: View, reason: string) -> number?)?,
 }
 
 local PROMPT = StealConfig.Prompt
@@ -194,8 +195,8 @@ local Rows: { Row } = {
 			end
 			return nil
 		end,
-		Left = function(v: View): number?
-			return if positive(v.CooldownLeft) then v.CooldownLeft else v.TagLeft
+		Left = function(v: View, reason: string): number?
+			return if reason == "cooldown" then v.CooldownLeft else v.TagLeft
 		end,
 	},
 	{
@@ -209,7 +210,7 @@ local Rows: { Row } = {
 			end
 			return nil
 		end,
-		Left = function(v: View): number?
+		Left = function(v: View, _reason: string): number?
 			return v.ProtectLeft
 		end,
 	},
@@ -268,8 +269,8 @@ local Rows: { Row } = {
 			end
 			return nil
 		end,
-		Left = function(v: View): number?
-			return v.FreshLeft
+		Left = function(v: View, reason: string): number?
+			return if reason == "new" then v.FreshLeft else nil -- (missing / fresh: ждать нечего)
 		end,
 	},
 	{
@@ -331,7 +332,7 @@ function TheftChecks.Check(view: View, clientOnly: boolean?): (string?, boolean?
 		end
 		local reason = row.Test(view)
 		if reason then
-			local left = if row.Left then row.Left(view) else nil
+			local left = if row.Left then row.Left(view, reason) else nil
 			if Silent[reason] then
 				return reason, nil, nil
 			end

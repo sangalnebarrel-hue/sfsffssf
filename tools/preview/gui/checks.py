@@ -63,13 +63,14 @@ FULLSCREEN_SHARE = 0.45
 # ScreenGui children that are containers of widgets rather than widgets themselves; a dotted
 # entry is a container inside one (the tank sheet's plate: its header, ✕, card strip and its own
 # outline / face / strip are the widgets, though the sheet covers >= 45 % of a phone screen).
-CONTAINERS = {"HUD": {"Fishing", "TankPanel", "TankPanel.Panel"}}
+CONTAINERS = {"HUD": {"Fishing", "TankPanel", "TankPanel.Panel", "DefencePanel", "DefencePanel.Panel"}}
 # Sheets (modal panels on the sheet shell, Controllers/Sheet): their widgets are checked against
 # the rest of the HUD and the CoreGui, but not against each other (a sheet packs its rows tighter
 # than 16 px) and not against what a modal sheet may cover (design §6.4: the idle action button);
 # the thumbstick IS checked (the sheet keeps clear of it: a thumb that wants to walk would hit a
 # sell button); never dropped as a full-screen layer.
-SHEETS = {"HUD.TankPanel": {"HUD.Fishing.ActionArea"}}
+# Stage 4: the «ЗАЩИТА» sheet (HUD.DefencePanel) on the same shell, one sheet at a time.
+SHEETS = {"HUD.TankPanel": {"HUD.Fishing.ActionArea"}, "HUD.DefencePanel": {"HUD.Fishing.ActionArea"}}
 # Screen layers (dims, ray holders) that are never widgets, whatever their size.
 LAYERS = {"HUD.Fishing.CatchDim", "HUD.Fishing.CatchRays"}
 

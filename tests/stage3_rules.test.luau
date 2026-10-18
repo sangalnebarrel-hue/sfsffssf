@@ -1348,6 +1348,7 @@ tests["contract: every Stage 3 name (design §6.1, §4.5, §4.6) exists in the b
 			"|sold|",
 			"|swap|",
 			"|stolen|",
+			"|void|", -- (stage 4: a stolen fish that went home quietly)
 			"TankResult",
 			"Stored",
 			"Denied",
