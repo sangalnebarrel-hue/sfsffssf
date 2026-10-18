@@ -24,7 +24,9 @@
 	  3. Сам спаунит персонажей (Players.CharacterAutoLoads = false): персонаж появляется
 	     на площадке своей базы, после смерти — снова там через BaseConfig.RespawnDelay секунд.
 	     Если создать персонажа не удалось — пробует ещё несколько раз.
-	  4. Обрабатывает кнопку «Домой» (RemoteEvent RequestHome) с серверным кулдауном.
+	  4. Обрабатывает кнопку «Домой» (RemoteEvent RequestHome) с серверным кулдауном; Этап 4 — до
+	     кулдауна спрашивает сторожа (SetHomeGuard): вор с рыбой домой не прыгает, а хозяин во
+	     время кражи у себя встаёт на площадку лицом во двор.
 
 	Состояние для клиентов (атрибуты реплицируются автоматически):
 	  Player: BaseIndex (0 — ждёт базу), BaseColorName, BaseColor
@@ -35,7 +37,11 @@
 	  BaseService:GetBases() -> { Base }
 	  BaseService:GetBaseFromInstance(instance) -> Base?   -- по любой детали внутри базы
 	  BaseService:GetSpawnCFrame(base) -> CFrame
-	  BaseService:TeleportHome(player) -> boolean
+	  BaseService:TeleportHome(player, at?) -> boolean      -- at: CFrame вместо площадки (Этап 4)
+	  BaseService:SetHomeGuard(fn)                          -- (Этап 4) сторож «Домой»: fn(player) ->
+	                                                        -- (text?, cframe?) — до кулдауна: строка —
+	                                                        -- отказ (warning, кулдаун не тратится),
+	                                                        -- CFrame — телепорт туда (StealService)
 	  BaseService:RespawnPlayer(player)                     -- пересоздать персонажа (всегда через этот метод!)
 	  BaseService.BaseAssigned  -- Signal (player, base)
 	  BaseService.BaseReleased  -- Signal (player, base)
@@ -103,6 +109,8 @@ local baseByModel: { [Model]: Base } = {}
 local states: { [Player]: PlayerState } = {}
 local waitQueue: { Player } = {} -- игроки без базы, по порядку входа
 local homeCooldown = Cooldown.new(math.max(0, BaseConfig.HomeCooldown - HOME_COOLDOWN_SLACK))
+-- Сторож «Домой» (Этап 4, SetHomeGuard): (player) -> (отказ?, куда?)
+local homeGuard: ((player: Player) -> (string?, CFrame?))? = nil
 local rng = Random.new()
 
 local WHITE = Color3.new(1, 1, 1)
@@ -641,8 +649,9 @@ function BaseService:RespawnPlayer(player: Player)
 	task.spawn(spawnCharacter, player)
 end
 
--- Телепортирует живого персонажа на площадку его базы.
-function BaseService:TeleportHome(player: Player): boolean
+-- Телепортирует живого персонажа на площадку его базы (at — куда именно: Этап 4, сторож
+-- «ДОМОЙ» во время кражи у себя — на площадку лицом во двор).
+function BaseService:TeleportHome(player: Player, at: CFrame?): boolean
 	local base = self:GetBase(player)
 	local character = player.Character
 	if not base or not character or not character.Parent then
@@ -655,8 +664,14 @@ function BaseService:TeleportHome(player: Player): boolean
 	if humanoid.Sit then
 		humanoid.Sit = false
 	end
-	character:PivotTo(self:GetSpawnCFrame(base))
+	character:PivotTo(at or self:GetSpawnCFrame(base))
 	return true
+end
+
+-- Этап 4: сторож кнопки «Домой» (StealService): fn(player) -> (text?, cframe?) — строка: отказ
+-- (уведомление warning, телепорта нет, кулдаун не тратится); CFrame: телепорт туда. nil — снять.
+function BaseService:SetHomeGuard(fn: ((player: Player) -> (string?, CFrame?))?)
+	homeGuard = fn
 end
 
 --------------------------------------------------------------------------------
@@ -697,10 +712,27 @@ function BaseService:Start()
 
 	-- Аргументы от клиента не нужны и игнорируются.
 	Net.Event("RequestHome").OnServerEvent:Connect(function(player: Player)
-		if not states[player] or not homeCooldown:TryUse(player) then
+		if not states[player] then
 			return
 		end
-		if not self:TeleportHome(player) then
+		-- Этап 4: сторож «ДОМОЙ» (StealService) — до кулдауна: отказ кулдаун не тратит.
+		local at: CFrame? = nil
+		local guard = homeGuard
+		if guard then
+			local ok, text, cframe = pcall(guard, player)
+			if not ok then
+				warn(`[BaseService] сторож «Домой» упал: {text}`)
+			elseif type(text) == "string" then
+				Notify.Send(player, text, "warning")
+				return
+			elseif typeof(cframe) == "CFrame" then
+				at = cframe
+			end
+		end
+		if not homeCooldown:TryUse(player) then
+			return
+		end
+		if not self:TeleportHome(player, at) then
 			Notify.Send(player, "Сейчас нельзя вернуться домой", "warning")
 		end
 	end)

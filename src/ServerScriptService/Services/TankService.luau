@@ -103,12 +103,30 @@
 	n ≥ текущего; в игре — не больше MaxSlots: атрибуты, таблички) и будит «спящих» знакомых рыб
 	в новых витринах.
 
+	Этап 4 (кража, docs/stage4_design.md §3.2, §4.5) — волна 0 (контракт): подписи ниже; чтение
+	(PreviewAdd, SlotFish, ActiveCount, IsMounted) уже работает; SetSteal, StealFish, «в пути»
+	(EscrowCount), сигналы Mounted / Unmounted / SlotChanged и канал кражи витрин — Wave 1 A.
+	Краденая рыба «в пути» снимается ТОЛЬКО записью жертвы (DataService.Committed / Released),
+	никогда по таймеру.
+
 	API:
 	  TankService:AddFish(player, fish: FishData, reason) -> TankResult?
 	  TankService:RemoveFish(owner, uid, reason) -> PlayerData.Fish?
 	  TankService:SetLocked(owner, uid, locked) -> boolean
 	  TankService:SetSlots(player, n) -> boolean
 	  TankService.FishAdded, TankService.FishRemoved   -- Signal (player, fish, reason)
+	  Этап 4:
+	  TankService:SetSteal(owner, uid, token, phase: "hold" | "carry" | nil, info?) -> boolean
+	  TankService:StealFish(victim, thief, uid, token) -> (StealResult?, reason?)
+	  TankService:PreviewAdd(player, income10) -> "stored" | "replaced" | nil   -- ляжет ли добыча
+	  TankService:SlotFish(base, index) -> (owner?, view?)   -- view = { Uid, Id, ShortName, Rarity,
+	                                                   -- Mutation?, Value, Income10, Steal?, Escrow,
+	                                                   -- FreshUntil? }
+	  TankService:ActiveCount(player) -> number        -- активные рыбы (и та, что сейчас несут)
+	  TankService:IsMounted(player) -> boolean
+	  TankService:EscrowCount(player) -> number        -- тесты: рыб «в пути»
+	  TankService.Mounted, TankService.Unmounted       -- Signal (player, base): конец mount / unmount
+	  TankService.SlotChanged                          -- Signal (base, index): после записи витрины
 	  TankService._debugSizes()                        -- тесты: после выхода всех — нули
 	  TankService._runtimeFor(player)                  -- тесты: запись игрока (Ticks — тиков дохода)
 ]]
@@ -126,6 +144,7 @@ local UIConfig = require(Shared.Config.UIConfig)
 local FishingRules = require(Shared.FishingRules)
 local Net = require(Shared.Net)
 local Signal = require(Shared.Util.Signal)
+local StealRules = require(Shared.StealRules)
 local TankRules = require(Shared.TankRules)
 local PlayerData = require(ServerScriptService.Lib.PlayerData)
 local TankRequests = require(ServerScriptService.Lib.TankRequests)
@@ -227,6 +246,32 @@ local WARN_EVERY = 30 -- секунд между предупреждениям�
 local TankService = {
 	FishAdded = Signal.new(), -- (player, fish, reason)
 	FishRemoved = Signal.new(), -- (player, fish, reason)
+	-- Этап 4 (волна 0 — контракт; стреляют с Wave 1 A):
+	Mounted = Signal.new(), -- (player, base): садок подключён к базе
+	Unmounted = Signal.new(), -- (player, base): отключён
+	SlotChanged = Signal.new(), -- (base, index): витрина записана
+}
+
+-- Что вернёт StealFish (Этап 4, §3.2): TankResult вора, чистая FishData добычи, номера рыбы.
+export type StealResult = {
+	Result: TankResult,
+	Fish: FishData,
+	ThiefUid: string,
+	VictimUid: string,
+}
+
+-- Рыба витрины для кражи (SlotFish, Этап 4).
+export type SlotView = {
+	Uid: string,
+	Id: string,
+	ShortName: string,
+	Rarity: string,
+	Mutation: string?,
+	Value: number,
+	Income10: number,
+	Steal: { Token: number, Phase: string }?,
+	Escrow: boolean,
+	FreshUntil: number?,
 }
 
 local runtimes: { [Player]: Runtime } = {}
@@ -800,6 +845,91 @@ function TankService:SetSlots(player: Player, slots: number): boolean
 	end
 	refresh(rt)
 	return true
+end
+
+--------------------------------------------------------------------------------
+-- Этап 4: кража (волна 0 — контракт; SetSteal / StealFish — Wave 1 A)
+--------------------------------------------------------------------------------
+
+-- Держать рыбу для кражи (holder token) / отпустить (phase nil). Волна 0: ничего не держит.
+function TankService:SetSteal(_owner: Player, _uid: string, _token: number, _phase: string?, _info: any?): boolean
+	return false
+end
+
+-- Перенести рыбу жертвы вору (§3.2: план, «в пути», без ожиданий). Волна 0: всегда отказ.
+function TankService:StealFish(_victim: Player, _thief: Player, _uid: string, _token: number): (StealResult?, string?)
+	return nil, "busy"
+end
+
+-- Ляжет ли рыба с доходом income10 в садок игрока: "stored" (свободная витрина) | "replaced"
+-- (сильнее его слабейшей не Locked) | nil. Только чтение (StealRules.CanPlace).
+function TankService:PreviewAdd(player: Player, income10: number): ("stored" | "replaced")?
+	local rt = runtimes[player]
+	if not rt then
+		return nil
+	end
+	local cap = PlayerData.SlotCap(rt.Data)
+	local free = false
+	for index = 1, cap do
+		if rt.BySlot[index] == nil then
+			free = true
+			break
+		end
+	end
+	local now = Workspace:GetServerTimeNow()
+	local candidates: { TankRules.Candidate } = {}
+	for _, fish in rt.BySlot do
+		table.insert(candidates, {
+			Uid = fish.Uid,
+			Income10 = fish.Income10,
+			Value = fish.Value,
+			Age = ageOf(rt, fish, now),
+			Locked = fish.Locked,
+			Dormant = false,
+		})
+	end
+	return StealRules.CanPlace(candidates, free, income10)
+end
+
+-- Рыба в витрине index базы base: (хозяин, вид) или nil (свободная база, пусто, «спит»).
+function TankService:SlotFish(base: Base, index: number): (Player?, SlotView?)
+	local refs = baseRefs[base]
+	local rt = refs and refs.Owner
+	if not rt or not rt.Mounted then
+		return nil, nil
+	end
+	local fish = rt.BySlot[index]
+	if not fish then
+		return rt.Player, nil
+	end
+	local def = FishingRules.GetFish(fish.Rec.Id)
+	return rt.Player,
+		{
+			Uid = fish.Uid,
+			Id = fish.Rec.Id,
+			ShortName = if def then def.ShortName else fish.Rec.Id,
+			Rarity = fish.Rarity,
+			Mutation = fish.Mutation,
+			Value = fish.Value,
+			Income10 = fish.Income10,
+			Steal = nil,
+			Escrow = false,
+			FreshUntil = nil,
+		}
+end
+
+function TankService:ActiveCount(player: Player): number
+	local rt = runtimes[player]
+	return if rt then activeCount(rt) else 0
+end
+
+function TankService:IsMounted(player: Player): boolean
+	local rt = runtimes[player]
+	return rt ~= nil and rt.Mounted
+end
+
+function TankService:EscrowCount(_player: Player): number
+	return 0
 end
 
 --------------------------------------------------------------------------------

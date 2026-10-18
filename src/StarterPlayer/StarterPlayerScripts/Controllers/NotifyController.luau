@@ -52,6 +52,15 @@
 
 	Только твины и таймеры: ни одного покадрового соединения на уведомление.
 
+	Место сверху колонки (Этап 4): NotifyController.Reserve(key, px) — виджет, который стоит в
+	слоте уведомлений (полоса вора "theft" — TheftController, плашка тревоги "alert" —
+	AlertController), занимает px сверху колонки; уведомления едут ниже (каждой полосе — ещё
+	зазор GAP колонки); px = 0 или nil — место освобождено, ждущие выходят. Полосы стоят друг под
+	другом в порядке RESERVE_ORDER («theft», потом «alert»; незнакомые — следом, по имени):
+	NotifyController.Offset(key) — сколько px от верха колонки до полосы key (виджет ставит себя
+	туда). Если под полосами не помещается ни одно уведомление, они ждут в очереди (на телефоне
+	иначе легли бы на голову персонажа). NotifyController.Reserved() — сколько px занято (тесты).
+
 	Чужой легендарный / мифический улов (FishingFxController.OtherTrophy), чей столб света сейчас
 	не на экране (за спиной или за краем кадра): у края экрана с его стороны — маленький значок
 	(копия HUD.TrophyPointer, «TrophyChip»: 🌟 на золотой / 🌈 на радужной круглой кнопке в кольце
@@ -172,8 +181,60 @@ local function isPhone(): boolean
 		and hud.AbsoluteSize.Y < PHONE_HEIGHT
 end
 
--- Сколько уведомлений приоритета priority может быть на экране сейчас (см. шапку).
-local function capacity(priority: number?): number
+-- Этап 4: место сверху колонки под полосы (Reserve): px по ключу; порядок полос — RESERVE_ORDER.
+local RESERVE_ORDER = { "theft", "alert" }
+local reserved: { [string]: number } = {}
+
+local function columnHeight(): number
+	local column = container
+	return if column then column.AbsoluteSize.Y else 0
+end
+
+-- Ключи полос сверху вниз: сначала RESERVE_ORDER, потом незнакомые по имени.
+local function reserveKeys(): { string }
+	local keys = {}
+	for _, key in RESERVE_ORDER do
+		if reserved[key] then
+			table.insert(keys, key)
+		end
+	end
+	local others = {}
+	for key in reserved do
+		if not table.find(RESERVE_ORDER, key) then
+			table.insert(others, key)
+		end
+	end
+	table.sort(others)
+	for _, key in others do
+		table.insert(keys, key)
+	end
+	return keys
+end
+
+-- Доля высоты колонки, занятая полосами (у каждой — ещё зазор GAP).
+local function reservedShare(): number
+	local height = columnHeight()
+	if height <= 1 or next(reserved) == nil then
+		return 0
+	end
+	local share = 0
+	for _, px in reserved do
+		share += px / height + GAP
+	end
+	return share
+end
+
+-- Сколько уведомлений обычной высоты помещается под полосами (без полос — без предела).
+local function roomBelowReserve(): number
+	if next(reserved) == nil then
+		return math.huge
+	end
+	local free = 1 - reservedShare()
+	return math.max(0, math.floor((free + GAP) / (SLOT + GAP) + 1e-6))
+end
+
+-- Сколько уведомлений приоритета priority может быть на экране, если полос сверху нет.
+local function baseCapacity(priority: number?): number
 	local hud = container and container.Parent
 	if (cardWidget and cardWidget.Visible) or (hud and hud:GetAttribute("CounterHold") ~= nil) then
 		return 0 -- улов на экране: от "Caught" (прыжок, карточка) до прилёта 🐟 в счётчик
@@ -193,12 +254,17 @@ local function capacity(priority: number?): number
 	return if phone then UIConfig.MaxToastsPhone else UIConfig.MaxToastsTouch
 end
 
+-- Сколько уведомлений приоритета priority может быть на экране сейчас (см. шапку).
+local function capacity(priority: number?): number
+	return math.min(baseCapacity(priority), roomBelowReserve())
+end
+
 local function styleOf(kind: string): ToastKind
 	return UIConfig.ToastKinds[kind] or UIConfig.ToastKinds.info
 end
 
 local function slotPosition(index: number): UDim2
-	local y = 0
+	local y = reservedShare()
 	for i = 1, index - 1 do
 		local toast = active[i]
 		y += (if toast then toast.height else SLOT) + GAP
@@ -620,6 +686,52 @@ function NotifyController.Show(text: string, kind: string?, look: Look?)
 	while #queue > MAX_QUEUE do
 		table.remove(queue, 1)
 	end
+end
+
+-- Этап 4: занять px сверху колонки под полосу key ("theft" — вор, "alert" — тревога хозяина);
+-- px = 0 или nil — освободить. Уведомления переезжают ниже (или ждут, если места не осталось).
+function NotifyController.Reserve(key: string, px: number?)
+	local value = if type(px) == "number" and px == px and px > 0 then px else nil
+	if reserved[key] == value then
+		return
+	end
+	reserved[key] = value
+	if not container then
+		return -- (контроллер ещё не запущен: место учтётся при первом уведомлении)
+	end
+	-- Уведомления, которым под полосами больше нет места, уходят (снова в очередь).
+	local room = roomBelowReserve()
+	while #active > room do
+		local last = active[#active]
+		table.insert(queue, 1, last.item)
+		dismiss(last, true)
+	end
+	reflow()
+	drain()
+end
+
+-- Сколько px от верха колонки до полосы key (полосы — друг под другом в порядке RESERVE_ORDER;
+-- у каждой — зазор GAP колонки). Полосы key нет — где встала бы следующая.
+function NotifyController.Offset(key: string): number
+	local height = columnHeight()
+	local gap = if height > 1 then GAP * height else 0
+	local y = 0
+	for _, other in reserveKeys() do
+		if other == key then
+			return y
+		end
+		y += reserved[other] + gap
+	end
+	return y
+end
+
+-- Сколько px занято полосами сверху колонки (без зазоров; тесты).
+function NotifyController.Reserved(): number
+	local total = 0
+	for _, px in reserved do
+		total += px
+	end
+	return total
 end
 
 -- Рыбалка открыла/закрыла свой виджет: лишние уведомления уходят (кто не дожил и до половины

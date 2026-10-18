@@ -19,6 +19,11 @@
 	                         модули, не контроллеры);
 	  TankWorldController  — рыбы в витринах двора, надписи над ними, слово садка у ведра на
 	                         пирсе, слово рынка (Этап 3);
+	  DefenceController    — кнопка «ЗАЩИТА», фишка щита у плашки базы, лист «ЗАЩИТА» (Этап 4);
+	  AlertController      — тревога хозяина: плашка «ВОР В САДКЕ!» с кнопкой «ЩИТ» (Этап 4);
+	  TheftController      — вор: кнопки «Украсть», полоса «КРАДЁШЬ…», «ДОБЫЧА!» (Этап 4);
+	  TheftWorldController — кража в мире: лампа, сирена, купол щита, собака, рыба на голове
+	                         вора (Этап 4);
 	  FishingController    — рыбалка своего игрока: кнопка действия, мини-игра, карточка улова (Этап 2);
 	  FishingFxController  — поплавки и лески всех игроков, переливы радужных рыб (Этап 2); тень
 	                         рыбы, живая рыба над головой (помощники FishingLine, FishShadow,
@@ -38,7 +43,9 @@ local player = Players.LocalPlayer
 local controllers = script.Parent:WaitForChild("Controllers")
 
 -- NotifyController первым: остальные могут показывать через него уведомления. Контроллеры садка
--- и денег — после HudController и до FishingController (рыбалка летит улов в их кнопки).
+-- и денег — после HudController и до FishingController (рыбалка летит улов в их кнопки);
+-- контроллеры кражи и защиты (Этап 4) — после садка и до рыбалки (тревога закрывает карточку
+-- улова через FishingController.HurryCard — функцию модуля, не зависящую от порядка Start).
 local ORDER = {
 	"NotifyController",
 	"HudController",
@@ -46,6 +53,10 @@ local ORDER = {
 	"TankButtonController",
 	"TankPanelController",
 	"TankWorldController",
+	"DefenceController",
+	"AlertController",
+	"TheftController",
+	"TheftWorldController",
 	"FishingController",
 	"FishingFxController",
 	"FisherAnimController",

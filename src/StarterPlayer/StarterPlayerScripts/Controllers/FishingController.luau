@@ -207,6 +207,11 @@
 	упавшее в настоящем Roblox — красная ошибка с именем шага, а кнопка остаётся. Недостающий
 	элемент HUD (child) — через 5 с ошибка с путём, а не вечное ожидание (ClientMain тогда
 	запускает остальные контроллеры).
+
+	API для других контроллеров: GetPhase() — состояние; HurryCard() (Этап 4, DC-02) — тревога
+	кражи важнее карточки улова: AlertController просит закрыть карточку её обычным путём (как
+	«ЗАБРАТЬ!»: полёт в «САДОК» доигрывает), карточку в паузе перед ней — как только встанет
+	(волна 0 — контракт: пока ничего не делает; тело — Wave 2 C).
 ]]
 
 local ContextActionService = game:GetService("ContextActionService")
@@ -7404,6 +7409,9 @@ end
 function FishingController.GetPhase(): string
 	return phase
 end
+
+-- Этап 4 (DC-02): закрыть карточку улова обычным путём — тревога кражи важнее. Волна 0: пусто.
+function FishingController.HurryCard() end
 
 function FishingController:Start(hud: ScreenGui)
 	ui = collectUi(hud)

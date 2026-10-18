@@ -17,8 +17,9 @@ local Services = ServerScriptService:WaitForChild("Services")
 
 -- Порядок важен: карта → базы → данные игроков (DataService) → деньги (EconomyService, ему
 -- нужны данные) → ларьки (MarketService) → рыбалка (ей нужны базы и данные) → садок
--- (TankService: ему нужны все, он подключается к улову рыбалки) →
--- (следующие этапы: кража, магазин).
+-- (TankService: ему нужны все, он подключается к улову рыбалки) → защита базы (DefenceService,
+-- Этап 4: щит, собака, сигнализация, замок; StealService не требует — спрашивает его через
+-- SetStealProbe) → кража (StealService: ей нужны садок и защита) → (Этап 5: магазин).
 local ORDER = {
 	"MapService",
 	"BaseService",
@@ -27,6 +28,8 @@ local ORDER = {
 	"MarketService",
 	"FishingService",
 	"TankService",
+	"DefenceService",
+	"StealService",
 }
 
 local loaded = {}

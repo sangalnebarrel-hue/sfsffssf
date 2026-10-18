@@ -9,15 +9,22 @@
 	    RodId = "RodBamboo",   удочка («уровень удочки» — её Tier в RodConfig); Этап 5 добавит
 	                           купленные удочки
 	    TankSlots = 6,         открытых витрин (≥ TankConfig.StartSlots; в игре — не больше MaxSlots)
-	    LockLevel = 0,         уровень замка (Этап 4); 0 — нет
-	    Upgrades = {},         покупки Этапов 4–5 (Dog, Alarm, Shield, …): ключи — строки
+	    LockLevel = 0,         уровень замка (Этап 4, DefenceService); 0 — нет; уровень выше
+	                           DefenceConfig.Lock.Levels (сервер новее) хранится как есть
+	    Upgrades = {},         покупки Этапов 4–5 (DefenceService): Dog, Alarm — true (купил; число —
+	                           уровень сервера новее, тоже как есть), ShieldReadyAt — os.time(), когда
+	                           щит снова готов (целое ≥ 0); остальные ключи (Этап 5, сервер новее) —
+	                           как есть; ключи — строки
 	    Tank = {               ПЛОТНЫЙ массив рыб, порядок не важен:
 	      { Uid = "f7", Id = "Perch", Kg = 1.23, Mutation = "Gold", Age = 212.4, Slot = 2,
 	        CaughtAt = 1700000123 },   (+ Этап 4: Origin = "<UserId жертвы>:<uid>" у краденой)
 	    },
 	    NextUid = 8,           номер следующей рыбы ("f8"); номера не повторяются
-	    Stats = { Caught = 0, Sold = 0, Earned = 0, Spent = 0, Species = { [FishId] = поймано } },
-	                           всегда Money == StartMoney + Earned − Spent (Ledger — ловушка дюпа)
+	    Stats = { Caught = 0, Sold = 0, Earned = 0, Spent = 0, Stolen = 0, Lost = 0,
+	              Species = { [FishId] = поймано } },
+	                           всегда Money == StartMoney + Earned − Spent (Ledger — ловушка дюпа);
+	                           Stolen / Lost — украл / украли (Этап 4, TankService:StealFish; возврат
+	                           рыбы забирает их обратно, не ниже 0)
 	    Created = 0, LastOnline = 0, SaveCount = 0,   os.time() первой загрузки и последнего
 	                           сохранения (на будущее: доход офлайн), число сохранений
 	    Session = { Id, Server, Job, T },   замок сессии (DataService); nil — свободно
@@ -71,13 +78,16 @@
 	  • числа — num(x, по умолчанию, min, max): не число, NaN и ±inf → по умолчанию, потом обрезка
 	    (math.clamp(NaN, a, b) в Luau — NaN); Money — целое 0..MaxMoney; TankSlots — целое, обрезается
 	    только снизу (StartSlots: 16 слотов сервера новее остаются 16); LockLevel — целое ≥ 0;
-	  • Upgrades — словарь со строковыми ключами (иначе {}); RodId — строка, незнакомая остаётся как
+	  • Upgrades — словарь со строковыми ключами (иначе {}); Этап 4: Dog / Alarm — логическое или
+	    число ≥ 0 (иначе ключ убран), ShieldReadyAt — целое ≥ 0 (не конечное — убран), остальные
+	    ключи — как есть; RodId — строка, незнакомая остаётся как
 	    есть (в игре — стартовая удочка; сохранённую меняет только FishingService:SetRod);
 	  • Tank — словарь или массив с дырами переупаковывается плотно; рыба без строкового Id или без
 	    конечного Kg > 0 выбрасывается; незнакомый Id и незнакомая мутация остаются как есть (в игре
 	    — «спит» / без мутации); Age — 0..Growth.Time; плохой или повторный Uid — новый (NewUid);
 	    NextUid ≥ 1 + самый большой номер; NextUid (или номер рыбы) у предела длины Uid
-	    (TankConfig.Uid.MaxLength) — весь садок перенумерован с f1;
+	    (TankConfig.Uid.MaxLength) — весь садок перенумерован с f1; Этап 4: две рыбы с одним
+	    Origin — первая остаётся, остальные выброшены (след дюпа; по замыслу его не бывает);
 	  • витрины: знакомая рыба сохраняет целый Slot 1..SlotCap, если он ни у кого раньше; рыбы с
 	    повторным или неверным слотом встают в самые младшие свободные; свободных нет — «спит»,
 	    Slot не меняется (вернётся, когда витрина освободится: проверка при каждой загрузке).
@@ -112,6 +122,8 @@ export type Stats = {
 	Sold: number,
 	Earned: number,
 	Spent: number,
+	Stolen: number,
+	Lost: number,
 	Species: { [string]: number },
 }
 
@@ -165,8 +177,14 @@ local KNOWN = {
 }
 -- Числовые поля верхнего уровня (Serialize: конечное число, иначе — по шаблону).
 local NUMBERS = { "V", "Money", "TankSlots", "LockLevel", "NextUid", "Created", "LastOnline", "SaveCount" }
-local STAT_NUMBERS = { "Caught", "Sold", "Earned", "Spent" }
-local KNOWN_STATS = { Caught = true, Sold = true, Earned = true, Spent = true, Species = true }
+local STAT_NUMBERS = { "Caught", "Sold", "Earned", "Spent", "Stolen", "Lost" }
+local KNOWN_STATS =
+	{ Caught = true, Sold = true, Earned = true, Spent = true, Stolen = true, Lost = true, Species = true }
+-- Счётчики Этапа 4: их может не быть в сохранении старше (это 0, не порча — без issue).
+local NEW_STATS = { Stolen = true, Lost = true }
+-- Ключи Upgrades, которые знает Этап 4 (DefenceService): их значение проверяется (upgradeProblem);
+-- остальные — как есть.
+local FLAG_UPGRADES = { Dog = true, Alarm = true }
 local KNOWN_FISH = {
 	Uid = true,
 	Id = true,
@@ -249,6 +267,21 @@ end
 
 local function startsWithUnderscore(key: string): boolean
 	return string.sub(key, 1, 1) == "_"
+end
+
+-- Значение известного ключа Upgrades неверно? Dog / Alarm — логическое (купил) или число ≥ 0
+-- (уровень сервера новее: Этап 5 может сделать их уровнями — старый сервер их не теряет);
+-- ShieldReadyAt — конечное число (os.time). Возвращает, почему плохо, или nil.
+local function upgradeProblem(key: string, value: any): string?
+	if FLAG_UPGRADES[key] then
+		if type(value) == "boolean" or (finite(value) and value >= 0) then
+			return nil
+		end
+		return "не логическое"
+	elseif key == "ShieldReadyAt" then
+		return if finite(value) then nil else "не конечное число"
+	end
+	return nil
 end
 
 -- JSON-совместимая копия чужого значения (или false + issue): строки, логические, конечные
@@ -356,7 +389,7 @@ function PlayerData.Template(): Data
 		Upgrades = {},
 		Tank = {},
 		NextUid = 1,
-		Stats = { Caught = 0, Sold = 0, Earned = 0, Spent = 0, Species = {} },
+		Stats = { Caught = 0, Sold = 0, Earned = 0, Spent = 0, Stolen = 0, Lost = 0, Species = {} },
 		Created = 0,
 		LastOnline = 0,
 		SaveCount = 0,
@@ -484,10 +517,15 @@ function PlayerData.Sanitize(data: any): (Data, { string })
 		report("Upgrades", data.Upgrades, "{}")
 		data.Upgrades = {}
 	else
-		for key in table.clone(data.Upgrades) do
+		for key, value in table.clone(data.Upgrades) do
 			if type(key) ~= "string" then
 				report(`Upgrades[{describe(key)}]`, key, nil)
 				data.Upgrades[key] = nil
+			elseif upgradeProblem(key, value) then
+				report(`Upgrades.{key}`, value, nil) -- (Этап 4: известный ключ с чужим значением)
+				data.Upgrades[key] = nil
+			elseif key == "ShieldReadyAt" then
+				wholeField(data.Upgrades, "Upgrades.ShieldReadyAt", key, 0, 0)
 			end
 		end
 	end
@@ -499,6 +537,9 @@ function PlayerData.Sanitize(data: any): (Data, { string })
 	end
 	local stats = data.Stats
 	for _, key in STAT_NUMBERS do
+		if NEW_STATS[key] and stats[key] == nil then
+			continue -- (сохранение старше Этапа 4: Reconcile дописывает 0, это не порча)
+		end
 		wholeField(stats, `Stats.{key}`, key, 0, 0)
 	end
 	if type(stats.Species) ~= "table" then
@@ -565,6 +606,28 @@ function PlayerData.Sanitize(data: any): (Data, { string })
 		table.insert(fishes, fish)
 		table.insert(paths, path)
 	end
+
+	-- Этап 4: одна рыба с одним Origin («<UserId жертвы>:<uid>»): вторая такая же — след дюпа
+	-- (по замыслу невозможен, §3.3 F13) — первая остаётся, остальные выброшены.
+	local origins: { [string]: boolean } = {}
+	local unique: { any } = {}
+	local uniquePaths: { string } = {}
+	for i, fish in fishes do
+		local origin = fish.Origin
+		if origin ~= nil and origins[origin] then
+			table.insert(
+				issues,
+				`{paths[i]}.Origin: {describe(origin)} повторяется → рыба выброшена`
+			)
+			continue
+		end
+		if origin ~= nil then
+			origins[origin] = true
+		end
+		table.insert(unique, fish)
+		table.insert(uniquePaths, paths[i])
+	end
+	fishes, paths = unique, uniquePaths
 	data.Tank = fishes
 
 	-- Номера: первый владелец номера его сохраняет, плохие и повторные получают новые
@@ -676,9 +739,16 @@ function PlayerData.Serialize(data: any, opts: SerializeOptions?): ({ [string]: 
 	end
 
 	-- Upgrades: словарь со строковыми ключами, значения — JSON-совместимые
-	local upgrades = {}
+	local upgrades: { [string]: any } = {}
 	if type(data.Upgrades) == "table" then
 		copyUnknown(data.Upgrades, upgrades, {}, "Upgrades", false, issues)
+		for key, value in table.clone(upgrades) do
+			local problem = upgradeProblem(key, value)
+			if problem then
+				table.insert(issues, `Upgrades.{key}: {describe(value)} → выброшено ({problem})`)
+				upgrades[key] = nil
+			end
+		end
 	else
 		table.insert(issues, "Upgrades: " .. describe(data.Upgrades) .. " → {}")
 	end
@@ -754,7 +824,11 @@ function PlayerData.Serialize(data: any, opts: SerializeOptions?): ({ [string]: 
 		source = template.Stats
 	end
 	for _, key in STAT_NUMBERS do
-		stats[key] = number(source, key, 0, `Stats.{key}`)
+		if NEW_STATS[key] and source[key] == nil then
+			stats[key] = 0 -- (нет — значит 0: сохранение старше Этапа 4, не порча)
+		else
+			stats[key] = number(source, key, 0, `Stats.{key}`)
+		end
 	end
 	local species = {}
 	if type(source.Species) == "table" then

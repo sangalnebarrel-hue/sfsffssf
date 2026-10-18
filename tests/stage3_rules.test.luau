@@ -397,7 +397,7 @@ tests["PlayerData: the template, names, NewUid, Migrate, the ledger"] = function
 		Upgrades = {},
 		Tank = {},
 		NextUid = 1,
-		Stats = { Caught = 0, Sold = 0, Earned = 0, Spent = 0, Species = {} },
+		Stats = { Caught = 0, Sold = 0, Earned = 0, Spent = 0, Stolen = 0, Lost = 0, Species = {} }, -- (Stolen / Lost: Stage 4)
 		Created = 0,
 		LastOnline = 0,
 		SaveCount = 0,
@@ -441,7 +441,11 @@ tests["PlayerData: Reconcile fills dictionaries only, copies Tank only when miss
 	local data = { Money = 50, Stats = { Caught = 3 }, Future = { a = 1 }, Tank = { only } }
 	D.Reconcile(data)
 	t.eq(data.Money, 50)
-	t.eq(data.Stats, { Caught = 3, Sold = 0, Earned = 0, Spent = 0, Species = {} }, "Stats deep-filled")
+	t.eq(
+		data.Stats,
+		{ Caught = 3, Sold = 0, Earned = 0, Spent = 0, Stolen = 0, Lost = 0, Species = {} },
+		"Stats deep-filled"
+	)
 	t.eq(data.Upgrades, {})
 	t.eq(data.TankSlots, TankConfig.StartSlots)
 	t.eq(data.Future, { a = 1 }, "an unknown field stays")
@@ -493,7 +497,10 @@ tests["PlayerData: Sanitize repairs what is provably invalid (money, slots, uids
 	local stats = clean({
 		Stats = { Caught = -2, Sold = 1.9, Earned = 0 / 0, Spent = 3, Species = { Perch = 2.5, [5] = 1, Crucian = -1 } },
 	}).Stats
-	t.eq(stats, { Caught = 0, Sold = 1, Earned = 0, Spent = 3, Species = { Perch = 2, Crucian = 0 } })
+	t.eq(
+		stats,
+		{ Caught = 0, Sold = 1, Earned = 0, Spent = 3, Stolen = 0, Lost = 0, Species = { Perch = 2, Crucian = 0 } }
+	) -- (Stolen / Lost: Stage 4, filled by Reconcile)
 	t.eq(clean({ Stats = 5 }).Stats, D.Template().Stats, "Stats not a table → the template")
 
 	-- Tank: a dictionary or a sparse table is re-packed densely; entries without Id / Kg dropped.

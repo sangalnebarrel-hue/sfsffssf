@@ -57,7 +57,9 @@
 	  6. Слияние: SaveSoon увеличивает rec.Dirty и возвращает его; запрос, пока сохранение ключа
 	     ЖДЁТ в очереди, — отбрасывается (оно и так запишет свежее); пока сохранение В ПУТИ (снимок
 	     взят, Dirty > SnapshotSeq) — ровно ОДНО следующее после записи. После успешной записи
-	     rec.Committed = снимок и сигнал Committed(player, seq) (и у отпускания).
+	     rec.Committed = снимок и сигнал Committed(player, seq) (и у отпускания). Снимок
+	     последнего сохранения (с отпусканием) ставит rec.FinalTaken = true: после него
+	     AmendLeaving больше ничего не меняет (Этап 4).
 	  7. Выход (PlayerRemoving): сразу Leaving (CanWrite = false; ждущие WaitLoaded получают
 	     nil), последнее сохранение с отпусканием (ждущее в очереди автосохранение им и
 	     становится — одна запись, не две; обычное в пути — им же перед своей следующей попыткой,
@@ -66,7 +68,9 @@
 	     (первая попытка — всегда, новых после окна нет); потом Released и запись удаляется
 	     (если это всё ещё она). Memory — запись удаляется сразу; ушёл, пока ждал проверку
 	     доступа, — тоже.
-	  8. BindToClose: СРАЗУ, до любого ожидания, closing = true и все Ready → Leaving (тогда
+	  8. BindToClose: сначала, синхронно, хуки OnClose (каждый в pcall; Этап 4 — TankService
+	     возвращает краденые рыбы «в пути» хозяевам), до того как хоть одна запись станет Leaving;
+	     потом СРАЗУ, до любого ожидания, closing = true и все Ready → Leaving (тогда
 	     PlayerRemoving симулятора, пришедший после, ничего не пишет второй раз — одна последняя
 	     запись на ключ); Memory / Broken — выход сразу; pending — набор записей с операцией в пути
 	     (последние сохранения всех Leaving и все Loading: загрузка, взявшая замок при closing,
@@ -74,6 +78,10 @@
 	     пуст, не дольше CloseBudget; сохранения при закрытии — Retry.Close попытки.
 	  9. Кики: только после возврата UpdateAsync, запись — Released ДО Kick (Kick симулятора
 	     сразу вызывает PlayerRemoving); после Kick запись могла исчезнуть.
+	  10. Released (Этап 4): сигнал Released(player, committed) — ровно один раз на запись, при
+	     любом её конце (выход, кик, потерянный замок, Memory), до того как запись удалена;
+	     committed — последний записанный снимок (rec.Committed). Повторный release той же записи
+	     (recover после process) ничего не делает.
 
 	Состояния записи игрока (DataService:CanWrite — единственные ворота записи):
 	  состояние | загрузка                      | сохранение                 | CanWrite | доход
@@ -95,12 +103,17 @@
 	    проверяет «records[player] == rec» перед удалением (EconomyService, TankService,
 	    MarketService — так же);
 	  • поля живой таблицы: EconomyService — Money, Stats.Earned, Stats.Spent; TankService — Tank,
-	    TankSlots, NextUid, Stats.Sold; FishingService — RodId, Stats.Caught, Stats.Species;
-	    DataService — V, Session, Created, LastOnline, SaveCount. Каждый меняет своё сразу, за
-	    CanWrite; DataService сохраняет то, что лежит;
+	    TankSlots, NextUid, Stats.Sold, Stats.Stolen, Stats.Lost (Этап 4); FishingService — RodId,
+	    Stats.Caught, Stats.Species; DefenceService (Этап 4) — LockLevel, Upgrades.Dog,
+	    Upgrades.Alarm, Upgrades.ShieldReadyAt; DataService — V, Session, Created, LastOnline,
+	    SaveCount. Каждый меняет своё сразу, за CanWrite; DataService сохраняет то, что лежит;
+	  • единственная запись мимо CanWrite — AmendLeaving (Этап 4, только TankService и только Tank:
+	    вернуть краденую рыбу «в пути» уходящей жертве, пока её последний снимок не снят);
 	  • SaveSoon — на редкие моменты: легендарная и мифическая рыба, кража (обе стороны, Этап 4),
-	    покупки (Этап 5). Никаких RBXScriptConnection на игрока здесь: ожидание — запись или
-	    поток; ждущие WaitLoaded получают nil при выходе и по тайм-ауту.
+	    покупки защиты (Этап 4) и магазина (Этап 5). Никаких RBXScriptConnection на игрока здесь:
+	    ожидание — запись или поток; ждущие WaitLoaded получают nil при выходе и по тайм-ауту;
+	  • краденая рыба «в пути» (Этап 4, TankService) снимается только записью жертвы (Committed /
+	    Released), НИКОГДА по таймеру: таймер — единственный путь, который может удвоить рыбу.
 	Личность: TOKEN = HttpService:GenerateGUID(false) — один на запуск сервера (не JobId: в Studio
 	он "", в симуляторе — постоянный); rec.LoadId — один на загрузку (и на все её повторы).
 
@@ -118,8 +131,13 @@
 	  DataService:SaveSoon(player) -> number            -- seq: слитое сохранение с паузой ключа
 	  DataService:CommittedSeq(player) -> number
 	  DataService.Committed                             -- Signal (player, seq): записан снимок со всеми SaveSoon до seq
+	  DataService.Released                              -- Signal (player, committed): запись кончилась (раз на запись)
 	  DataService:OnSerialize(fn: (player, data) -> skipUid?)   -- один хук (TankService); внутри
 	                                                    -- transform сохранения, не ждёт
+	  DataService:OnClose(fn: () -> ())                 -- (Этап 4) хуки BindToClose: синхронно, первыми
+	  DataService:AmendLeaving(player, fn: (data) -> ()) -> boolean   -- (Этап 4) fn(rec.Data) сразу,
+	                                                    -- только пока запись Leaving и снимок её
+	                                                    -- последнего сохранения не снят (FinalTaken)
 	  DataService.Token, DataService.StoreName          -- только для чтения (тесты)
 	  DataService._debugSizes(), _recordFor(player), _saveRecordForTest(rec)   -- для тестов
 	                                                    -- (_saveRecordForTest ждёт и отдаёт итог:
@@ -167,6 +185,7 @@ type Record = {
 	InFlight: boolean, -- сохранение идёт
 	FinalPending: boolean, -- игрок ушёл, пока шло обычное сохранение: оно станет последним
 	FinalClose: boolean, -- … при закрытии сервера (Retry.Close)
+	FinalTaken: boolean, -- снимок последнего сохранения (с отпусканием) снят: AmendLeaving — нельзя
 	Strict: boolean, -- без незнакомых полей (после ошибки 103/104/105)
 	Waiters: { Waiter },
 	Warned: { [string]: boolean }, -- пути полей, о которых уже предупреждали
@@ -192,6 +211,7 @@ local TEXTS = DataConfig.Texts
 local DataService = {
 	Loaded = Signal.new(), -- (player, data)
 	Committed = Signal.new(), -- (player, seq)
+	Released = Signal.new(), -- (player, committed) — Этап 4: запись кончилась (один раз на запись)
 	Token = "", -- GUID этого запуска сервера (Init)
 	StoreName = PlayerData.StoreNameFor(RunService:IsStudio()),
 }
@@ -206,6 +226,7 @@ local probeWaiters: { thread } = {}
 local closing = false
 local store: DataStore? = nil
 local serializeHook: SerializeHook? = nil
+local closeHooks: { () -> () } = {}
 local TOKEN = ""
 
 --------------------------------------------------------------------------------
@@ -397,10 +418,15 @@ end
 -- Конец записи
 --------------------------------------------------------------------------------
 
--- Released: запись больше ничего не пишет и удаляется (если это всё ещё она).
+-- Released: запись больше ничего не пишет и удаляется (если это всё ещё она). Сигнал Released —
+-- один раз на запись (recover может прийти сюда после process), до удаления.
 local function release(rec: Record)
+	if rec.State == "Released" then
+		return
+	end
 	rec.State = "Released"
 	pending[rec] = nil
+	DataService.Released:Fire(rec.Player, rec.Committed)
 	if records[rec.Player] == rec then
 		records[rec.Player] = nil
 	end
@@ -482,6 +508,9 @@ local function saveOnce(rec: Record, releaseLock: boolean, isRetry: boolean): (S
 			return nil
 		end
 		snapshot = rec.Dirty
+		if releaseLock then
+			rec.FinalTaken = true -- (Этап 4: после этого снимка AmendLeaving ничего не меняет)
+		end
 		local skip = nil
 		local hook = serializeHook
 		if hook and rec.Announced then
@@ -832,6 +861,7 @@ local function newRecord(player: Player): Record
 		InFlight = false,
 		FinalPending = false,
 		FinalClose = false,
+		FinalTaken = false,
 		Strict = false,
 		Waiters = {},
 		Warned = {},
@@ -978,6 +1008,14 @@ local function probe()
 end
 
 local function onClose()
+	-- Этап 4: хуки — первыми, синхронно, пока ни одна запись не Leaving (TankService возвращает
+	-- краденые рыбы «в пути» жертвам — их последние сохранения возьмут рыбу с собой).
+	for _, hook in closeHooks do
+		local ok, err = pcall(hook)
+		if not ok then
+			warn(`[DataService] хук OnClose упал: {err}`)
+		end
+	end
 	closing = true
 	for _, rec in table.clone(records) do
 		if not rec.Left then
@@ -1093,6 +1131,24 @@ end
 
 function DataService:OnSerialize(fn: SerializeHook)
 	serializeHook = fn
+end
+
+-- Хук BindToClose (Этап 4): вызывается синхронно в самом начале закрытия, до того как хоть одна
+-- запись станет Leaving.
+function DataService:OnClose(fn: () -> ())
+	table.insert(closeHooks, fn)
+end
+
+-- Единственная запись мимо CanWrite (Этап 4, только TankService и только Tank): fn(rec.Data)
+-- сразу — только пока запись Leaving и снимок её последнего сохранения ещё не снят (тогда это
+-- сохранение запишет изменение). Иначе ничего: false.
+function DataService:AmendLeaving(player: Player, fn: (data: PlayerData.Data) -> ()): boolean
+	local rec = records[player]
+	if not rec or rec.State ~= "Leaving" or rec.FinalTaken or rec.Data == nil then
+		return false
+	end
+	fn(rec.Data :: PlayerData.Data)
+	return true
 end
 
 -- Размеры внутренних таблиц (тесты: после выхода всех игроков и паузы ключа — нули).

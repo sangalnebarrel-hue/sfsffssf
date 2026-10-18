@@ -29,9 +29,9 @@
 	     LeapTime — вместе со столбом света: «Рыбак (Лазурная база): мифическая радужная рыба
 	     «Рыба-дракон» ×5!» — база рыбака, мутация и её множитель). Рыба выпрыгивает из воды
 	     у поплавка и летит к рыбаку (это рисуют клиенты, см. атрибут FishFx ниже), а через
-	     LeapTime, когда она долетела, рыба (модель HeldFish в персонаже, атрибуты FishId, Rarity,
-	     Mutation, Kg, Value — для таблички над ней; Scale — во сколько раз она крупнее модели,
-	     FishingConfig.HeldScale) появляется над головой рыбака на
+	     LeapTime, когда она долетела, рыба (модель HeldFish в персонаже — рецепт Lib/HeldRig;
+	     атрибуты FishId, Rarity, Mutation, Kg, Value — для таблички над ней; Scale — во сколько
+	     раз она крупнее модели, FishingConfig.HeldScale) появляется над головой рыбака на
 	     FishingRules.HoldFishTime(редкость) секунд (её видят все).
 	  6. Сам заканчивает рыбалку: персонаж умер или исчез ("died"), убрал удочку ("unequipped",
 	     сразу по Tool.Unequipped),
@@ -70,6 +70,8 @@
 	  FishingService:SetRod(player, rodId) -> boolean   -- сменить удочку (магазин, Этап 5): пишет
 	                                                     -- data.RodId (за CanWrite, иначе false)
 	  FishingService:StopFishing(player, reason?)       -- закончить рыбалку ("Idle", по умолчанию "stop")
+	  FishingService:DropHeldFish(player)               -- (Этап 4) убрать рыбу над головой и её прыжок
+	                                                     -- (вор: на голову ляжет краденая)
 ]]
 
 local Players = game:GetService("Players")
@@ -86,6 +88,7 @@ local FishingRules = require(Shared.FishingRules)
 local Net = require(Shared.Net)
 local Signal = require(Shared.Util.Signal)
 local Trove = require(Shared.Util.Trove)
+local HeldRig = require(ServerScriptService.Lib.HeldRig)
 local Notify = require(ServerScriptService.Lib.Notify)
 local BaseService = require(ServerScriptService.Services.BaseService)
 local DataService = require(ServerScriptService.Services.DataService)
@@ -167,7 +170,6 @@ local stateRemote = Net.Event("FishingState")
 local catchSink: ((Player, FishData) -> any)? = nil
 
 local rodAssets: Instance
-local fishAssets: Instance
 
 -- Объявлена заранее: удочка (giveRod) сматывает леску, когда её убирают из руки.
 local stopSession: (player: Player, state: PlayerState, reason: string) -> ()
@@ -306,16 +308,6 @@ end
 -- Рыба над головой
 --------------------------------------------------------------------------------
 
-local function weld(part0: BasePart, part1: BasePart, c0: CFrame)
-	local joint = Instance.new("Weld")
-	joint.Name = "HoldWeld"
-	joint.Part0 = part0
-	joint.Part1 = part1
-	joint.C0 = c0
-	joint.C1 = CFrame.identity
-	joint.Parent = part1
-end
-
 local function clearHeldFish(state: PlayerState)
 	cancelThread(state.HeldThread)
 	state.HeldThread = nil
@@ -326,78 +318,14 @@ local function clearHeldFish(state: PlayerState)
 	end
 end
 
-local function fishModel(fish: FishData): Model?
-	local variants = fishAssets:FindFirstChild(fish.Id)
-	local model = variants and variants:FindFirstChild(fish.Mutation or "Normal")
-	return if model and model:IsA("Model") and model.PrimaryPart then model else nil
-end
-
--- Во сколько раз рыба над головой крупнее модели (FishingConfig.HeldScale / HeldMaxLength): по
--- редкости и не длиннее HeldMaxLength studs (так же считает прыжок рыбы у клиентов —
--- FishingFxController heldScale).
-local function heldScale(fish: FishData, model: Model): number
-	local scale = FishingConfig.HeldScale[fish.Rarity] or 1
-	local _, size = model:GetBoundingBox()
-	local length = math.max(size.X, size.Z)
-	if length > 0 then
-		scale = math.min(scale, FishingConfig.HeldMaxLength / length)
-	end
-	return math.max(scale, 1)
-end
-
--- Рыба (копия Assets.Fish.<Id>.<мутация>) над головой рыбака: крупнее настоящей (heldScale —
--- Model:ScaleTo до сварок, атрибут Scale), не закреплена, без массы и столкновений, приварена
--- к голове (Weld с явным C0) — двигается вместе с персонажем.
+-- Рыба над головой рыбака: модель "HeldFish" (Lib/HeldRig — тот же рецепт у краденой рыбы на
+-- голове вора, Этап 4), убирается через FishingRules.HoldFishTime(редкость) секунд.
 local function holdFish(state: PlayerState, character: Model, fish: FishData)
 	clearHeldFish(state)
-	local head = character:FindFirstChild("Head")
-	local template = fishModel(fish)
-	if not head or not head:IsA("BasePart") or not template or not isAlive(character) then
+	local model = HeldRig.Build(character, fish, "HeldFish")
+	if not model then
 		return
 	end
-	local model = template:Clone()
-	local body = model.PrimaryPart :: BasePart
-	model.Name = "HeldFish"
-	local scale = heldScale(fish, model)
-	if scale ~= 1 then
-		model:ScaleTo(scale)
-	end
-
-	-- Центр рамки рыбы встаёт над макушкой; оси модели совпадают с осями головы
-	-- (голова рыбы, +X модели, смотрит вправо от персонажа).
-	local pivot = model:GetPivot()
-	local boxCFrame, boxSize = model:GetBoundingBox()
-	local center = pivot:PointToObjectSpace(boxCFrame.Position)
-	local lift = head.Size.Y / 2 + FishingConfig.HeldFishGap + boxSize.Y / 2
-	local modelInHead = CFrame.new(0, lift, 0) * CFrame.new(-center)
-	model:PivotTo(head.CFrame * modelInHead)
-
-	for _, part in model:GetDescendants() do
-		if part:IsA("BasePart") then
-			part.CanCollide = false
-			part.CanQuery = false
-			part.CanTouch = false
-			part.Massless = true
-			if part ~= body then
-				weld(body, part, body.CFrame:ToObjectSpace(part.CFrame))
-			end
-		end
-	end
-	weld(head, body, head.CFrame:ToObjectSpace(body.CFrame))
-	for _, part in model:GetDescendants() do
-		if part:IsA("BasePart") then
-			part.Anchored = false
-		end
-	end
-	-- Что за рыба — для табличек над ней у клиентов (FishingFxController).
-	model:SetAttribute("FishId", fish.Id)
-	model:SetAttribute("Rarity", fish.Rarity)
-	model:SetAttribute("Mutation", fish.Mutation)
-	model:SetAttribute("Kg", fish.Kg)
-	model:SetAttribute("Value", fish.Value)
-	model:SetAttribute("Scale", scale) -- во сколько раз крупнее модели (прыжок рыбы растёт до него)
-	model.Parent = character
-
 	state.HeldFish = model
 	state.HeldThread = task.delay(FishingRules.HoldFishTime(fish.Rarity), function()
 		state.HeldThread = nil
@@ -1033,6 +961,15 @@ function FishingService:StopFishing(player: Player, reason: string?)
 	end
 end
 
+-- Этап 4: убрать трофей над головой (и рыбу, которая ещё летит к нему) — на голову вора ляжет
+-- краденая рыба (StealService, начало выноса).
+function FishingService:DropHeldFish(player: Player)
+	local state = states[player]
+	if state then
+		clearHeldFish(state)
+	end
+end
+
 --------------------------------------------------------------------------------
 -- Жизненный цикл сервиса
 --------------------------------------------------------------------------------
@@ -1043,7 +980,6 @@ function FishingService:Init()
 	local fish = assets and assets:FindFirstChild("Fish")
 	assert(rods and fish, "[FishingService] нет ReplicatedStorage.Assets.Rods / Assets.Fish")
 	rodAssets = rods
-	fishAssets = fish
 	for _, rod in RodConfig.Rods do
 		assert(rodTemplate(rod.Id), `[FishingService] нет удочки Assets.Rods.{rod.Id} (Tool)`)
 	end

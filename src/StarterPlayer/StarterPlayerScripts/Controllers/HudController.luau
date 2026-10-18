@@ -50,6 +50,10 @@
 
 	Все эффекты здесь — на твинах и таймерах, HUD живёт всю сессию (ResetOnSpawn = false), поэтому
 	соединения создаются один раз.
+
+	API (Этап 4): HudController.HomeAlert(on) — тревога кражи у своей базы: красное кольцо вокруг
+	«ДОМОЙ» и подпись «ДОМОЙ!» (зовёт AlertController; волна 0 — контракт: пока ничего не делает,
+	тело — Wave 2 D).
 ]]
 
 local Players = game:GetService("Players")
@@ -109,6 +113,9 @@ local function baseSwatch(): Swatch
 	end
 	return Palette.Slate
 end
+
+-- Этап 4: тревога кражи у своей базы — «ДОМОЙ» зовёт домой (кольцо, «ДОМОЙ!»). Волна 0: пусто.
+function HudController.HomeAlert(_on: boolean) end
 
 function HudController:Start(hud: ScreenGui)
 	local status = hud:WaitForChild("Status") :: Frame
