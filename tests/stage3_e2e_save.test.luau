@@ -107,6 +107,7 @@ tests["(5) leave → save → a NEW server → rejoin: the same money, fish, age
 		t.eq(f.Value, nil, "Value is never stored")
 	end
 	Kit.ledgerHolds(t, sim, saved, "the leave save")
+	Kit.assertGaps(t, sim)
 	sim:Advance(10, Kit.COARSE)
 	Kit.sizesZero(t, sim, "10 s after the last player left")
 	sim:AssertNoErrors({ warnings = true })
@@ -237,6 +238,7 @@ tests["(6) BindToClose with 3 players who just caught: one final write each insi
 		t.ok(saved.Tank[1].Age > 0, `player {id}: its age`)
 		Kit.ledgerHolds(t, sim, saved, `player {id}`)
 	end
+	Kit.assertGaps(t, sim)
 	sim:AssertNoErrors({ warnings = true })
 
 	local later = Kit.restart(t, sim, 600)
