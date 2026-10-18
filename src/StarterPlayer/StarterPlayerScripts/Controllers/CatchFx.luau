@@ -48,7 +48,8 @@
 	    stampSize), подсказка «закрыть» — на ряду левее неё (короче, если тесно; не влезает и
 	    короткая — штамп важнее, подсказки нет); showTankStamp — штамп шлёпается (slap) своей
 	    долей; cardTime — карточку с проданной рыбой видно ещё SOLD_HOLD с после штампа.
-	  • Этап 3, копия и цель карточки (design §6.5): infoText — «1,2 кг · цена $35» (значение
+	  • Этап 3, копия и цель карточки (design §6.5): money — цена на фишке «$58» (TankRules.FormatMoney,
+	    как в кошельке); infoText — «1,2 кг · цена $35» (значение
 	    InfoLabel); priceFloat — что вылетает из фишки цены: доход рыбы «+$4/с» (зелёный) или
 	    золотое «+$15», если она сразу продана; flyTarget / flyIcon — куда летит карточка и что
 	    летит с ней: «sold» — 💵 в кошелёк (Wallet.Money), иначе 🐟 в кнопку «САДОК», её нет (нет
@@ -452,6 +453,12 @@ function CatchFx.showTankStamp(stamp: GuiObject, layer: GuiBase2d, at: Vector2, 
 	end
 	trove:Add(CatchFx.slap(stamp, layer, at, trove, CatchFx.SLAP_DOCKED))
 	UiFx.sound("swoosh", 0.3, 1.3)
+end
+
+-- Цена на фишке цены карточки (и её набегание): «$58» — тем же видом, что кошелёк, панель и
+-- всплывающие суммы (TankRules.FormatMoney; был голый «58» рядом с «+$5.2/с», UX-06).
+function CatchFx.money(value: number): string
+	return TankRules.FormatMoney(value)
 end
 
 -- Сводка карточки (значение InfoLabel.Text): «1,2 кг · цена $35».

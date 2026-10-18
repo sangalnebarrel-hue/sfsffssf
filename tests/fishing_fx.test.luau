@@ -1192,7 +1192,7 @@ tests["nameplate and mutation aura: Rare+ fish get a nameplate; a mutation recol
 	t.ok(plate.Plate.Rarity.Fill:IsA("UIGradient"), "the rarity word in rarity colours")
 	t.eq(plate.Plate.FishName.Text, "Фугу-пуфик")
 	t.eq(plate.Plate.Mutation.Text, "👑 Золотая ×2")
-	t.eq(plate.Plate.Price.Text, `💰 {rules(sim).FormatCoins(fish.Value)}`)
+	t.eq(plate.Plate.Price.Text, `💵 ${rules(sim).FormatCoins(fish.Value)}`, "💵 «$N» like the Wallet (UX-06)")
 	t.eq(plate.Plate.Price.FontFace.Style, roblox.Enum.FontStyle.Italic, "the price in italic digits")
 	t.ok(colorNear(plate.Plate.Price.TextColor3, UIConfig.BillboardYellow.Top), "…billboard yellow")
 	sim:Advance(0.6)

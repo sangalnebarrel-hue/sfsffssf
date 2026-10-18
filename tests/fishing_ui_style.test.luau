@@ -851,7 +851,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 	t.ok(isCandy(card.Banner, UIConfig.Rarity.Common), "the banner in the rarity gradient")
 	t.eq(card.InfoLabel.Text, "840 г · цена $11", "InfoLabel holds the summary at once")
 	t.eq(card.InfoLabel.Weight.Label.Text, "840 Г", "the weight chip in CAPS")
-	t.eq(price.Text, "0", "the price starts at 0")
+	t.eq(price.Text, "$0", "the price starts at $0 (TankRules.FormatMoney, UX-06)")
 	t.eq(card.Banner.FxScale.Scale, 0, "the rarity waits for its beat")
 	t.eq(card.NameLabel.FxScale.Scale, 1, "the name is born with the card (no blank right half)")
 	t.eq(card.NameLabel.TextTransparency, 0, "…readable at once")
@@ -872,7 +872,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 	t.ok(f:FindFirstChild("FxBurst"), "…and sparks from the stamp")
 	sim:Advance(0.45)
 	local partial = price.Text
-	t.ok(tonumber(partial) ~= nil, "the price is a number while counting")
+	t.ok(tonumber((string.gsub(partial, "^%$", ""))) ~= nil, "the price is «$N» while counting")
 	t.ok(
 		waitFor(sim, function()
 			return f:FindFirstChild("FxPriceFloat") ~= nil
@@ -881,7 +881,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 	)
 	t.eq(f.FxPriceFloat.Text, "+$1.1/с")
 	sim:Advance(0.5)
-	t.eq(price.Text, "11", "the price counted up to the value")
+	t.eq(price.Text, "$11", "the price counted up to the value")
 	t.near(card.NewStamp.FxScale.Scale, 1, 1e-3, "«НОВИНКА!» stamped")
 	t.ok(card.TapHint.TextTransparency < 0.5, "the close hint shows after the last beat")
 	t.ok(
@@ -913,7 +913,7 @@ tests["catch card: Common reveal — a new species gets a small fanfare, a known
 			or f:FindFirstChild("FxConfetti") ~= nil
 			or p.PlayerGui.HUD:FindFirstChild("FxConfetti") ~= nil
 	end
-	t.eq(price.Text, "11", "…the price lands")
+	t.eq(price.Text, "$11", "…the price lands")
 	t.eq(float, false, "…without «+$X/с»")
 	t.eq(confetti, false, "…and without confetti")
 	sim:AssertNoErrors({ warnings = true })
@@ -1084,7 +1084,7 @@ tests["mutation: stamped after the base price — «×N», recount, outline; Gol
 		-- before the stamp.
 		t.ok(
 			waitFor(sim, function()
-				return price.Text == tostring(CATCHES.Rare.Value)
+				return price.Text == `${CATCHES.Rare.Value}`
 			end, 2.5),
 			`{case[1]}: the base price first`
 		)
@@ -1094,7 +1094,7 @@ tests["mutation: stamped after the base price — «×N», recount, outline; Gol
 		sim:Advance(1.0)
 		t.near(badge.FxScale.Scale, 1, 0.02, `{case[1]}: stamped in`)
 		t.eq(card.InfoLabel.Price.Multiplier.Visible, true, `{case[1]}: «×N» slammed`)
-		t.eq(price.Text, tostring(fish.Value), `{case[1]}: recounted to the full price`)
+		t.eq(price.Text, `${fish.Value}`, `{case[1]}: recounted to the full price`)
 		t.ok(outline:FindFirstChild("FxRimFill"), `{case[1]}: the card outline in its colours`)
 		local float = fishing(p):FindFirstChild("FxPriceFloat")
 		local income = TankRules.FormatRate(TankRules.Income10(fish.Income))
@@ -1176,7 +1176,7 @@ tests["catch card beats: one at a time, ≥ 0.18 s (Common / Rare) or ≥ 0.25 s
 			{
 				name = "price",
 				shown = function()
-					return price.Text == tostring(case.base)
+					return price.Text == `${case.base}`
 				end,
 			},
 			{
@@ -1207,7 +1207,7 @@ tests["catch card beats: one at a time, ≥ 0.18 s (Common / Rare) or ≥ 0.25 s
 			table.insert(probes, at + 1, {
 				name = "full price",
 				shown = function()
-					return price.Text == tostring(case.fish.Value)
+					return price.Text == `${case.fish.Value}`
 				end,
 			})
 		end
@@ -1221,7 +1221,7 @@ tests["catch card beats: one at a time, ≥ 0.18 s (Common / Rare) or ≥ 0.25 s
 					found += 1
 				end
 			end
-			local value = tonumber((string.gsub(price.Text, "\u{00A0}", "")))
+			local value = tonumber((string.gsub(price.Text, "[%$\u{00A0}]", "")))
 			if value then
 				table.insert(shownPrice, { at = elapsed, value = value })
 			end
@@ -1293,11 +1293,11 @@ tests["mutation: a skip mid-stamp settles it — no recount from the base price 
 	sim:Advance(0.05)
 	sim:Click(p, card)
 	sim:Advance(1 / 60)
-	t.eq(price.Text, tostring(fish.Value), "the skip shows the full price")
+	t.eq(price.Text, `${fish.Value}`, "the skip shows the full price")
 	local dropped = false
 	for _ = 1, 45 do
 		sim:Advance(1 / 60)
-		if price.Text ~= tostring(fish.Value) then
+		if price.Text ~= `${fish.Value}` then
 			dropped = true
 		end
 	end
@@ -1349,7 +1349,7 @@ tests["closing: skip, then close — the card flies into «САДОК», 🐟 �
 	sim:Advance(0.02)
 	t.eq(card.Visible, true, "a tap during the reveal skips it")
 	t.near(card.Banner.FxScale.Scale, 1, 0.2, "…every beat at once")
-	t.eq(card.InfoLabel.Price.Label.Text, "58")
+	t.eq(card.InfoLabel.Price.Label.Text, "$58")
 	t.ok(card.TankStamp.Visible, "…the tank stamp too")
 	t.eq(card.TankStamp.Label.Text, "В САДОК!")
 	local button = f.ActionArea.ActionButton
@@ -1525,12 +1525,12 @@ tests["catch: mashing the action button never skips the reveal; «ЗАБРАТЬ
 	mash(1.5)
 	t.ok(opened ~= nil, "the card opened while the button was mashed")
 	t.eq(card.Visible, true, "open + 1.5 s: still up (the mashing neither skipped nor closed it)")
-	t.ok(midPrice ~= nil and midPrice ~= "590", `open + 1.2 s: the price still counting ({midPrice})`)
+	t.ok(midPrice ~= nil and midPrice ~= "$590", `open + 1.2 s: the price still counting ({midPrice})`)
 	t.ok(distinct >= 4, `the price counted up through {distinct} values`)
 	mash(2.6) -- the card settles at ≈ c + 1.84 (Legendary): keep mashing past it
 	t.ok(settledAt ~= nil, "the card settled by itself: «ЗАБРАТЬ!»")
 	t.eq(card.Visible, true, "…and the mashing does not close it")
-	t.eq(price.Text, "590")
+	t.eq(price.Text, "$590")
 	t.ok(
 		button.Ring.Transparency < 0.3,
 		`«ЗАБРАТЬ!» has its white halo 0.3 s after settling (Ring {button.Ring.Transparency})`
@@ -1562,7 +1562,7 @@ tests["rims: the Mythic price flare dies with the card; a rim restores the build
 	t.ok(openCard(sim, p))
 	t.ok(
 		waitFor(sim, function()
-			return price.Text == "2\u{00A0}400"
+			return price.Text == "$2\u{00A0}400"
 		end, 3),
 		"the Mythic price lands (its rim flares)"
 	)
@@ -2482,7 +2482,7 @@ tests["tank stamp: «В САДОК!» / «ЗАМЕНА!» / «САДОК ПОЛ�
 			local card = fishing(p).CatchCard
 			local stamp = card.TankStamp
 			local what = `{case[3]} ({p.Name})`
-			t.eq(card.InfoLabel.Price.Label.Text, tostring(case[1].Value), `{what}: after the price landed`)
+			t.eq(card.InfoLabel.Price.Label.Text, `${case[1].Value}`, `{what}: after the price landed`)
 			t.eq(stamp.Label.Text, case[3])
 			t.ok(isCandy(stamp, case[4]), `{what}: its colour`)
 			local s0, s1 = stamp.AbsolutePosition, stamp.AbsolutePosition + stamp.AbsoluteSize
@@ -2952,7 +2952,8 @@ tests["card parts: the catch reward is built from the sim primitives — chunky 
 	t.ok(isCandy(weight, Palette.Slate) and isCandy(price, Palette.Gold), "grey weight, gold price")
 	t.eq(price.Label.FontFace.Style, Enum.FontStyle.Italic, "the price in italic digits")
 	t.ok(price.Label.Outline:GetAttribute("BaseThickness") >= 4.5, "…with a display outline")
-	t.ok(price.Icon:FindFirstChild("Outline"), "an outlined 💰")
+	t.ok(price.Icon:FindFirstChild("Outline"), "an outlined 💵")
+	t.eq(price.Icon.Text, "💵", "the Wallet's bill on the price chip (UX-06)")
 	t.eq(price.Multiplier.FontFace.Style, Enum.FontStyle.Italic, "«×N» italic")
 	-- The sticker, the name, the hint.
 	checkCandy(t, card.NewStamp, "NewStamp")

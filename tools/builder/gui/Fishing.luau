@@ -1042,11 +1042,12 @@ local function buildCatch(root: any)
 	})
 
 	-- Weight and price chips; InfoLabel.Text is the summary «1,2 кг · цена $35» (the value),
-	-- Price.Label counts up from 0: the hero number in italic white digits with a display outline,
+	-- Price.Label counts up from «$0» (TankRules.FormatMoney, like the Wallet: one way to write
+	-- money, UX-06): the hero number in italic white digits with a display outline,
 	-- a tall label (0.8 of the chip) that FishingController turns into display text (box-driven,
 	-- up to 1.4 × Title, never under Button − 2). Weight is a light grey round chip with Ink text
 	-- in CAPS (never the rarity's colour again), the price a yellow Gold round chip (it is what a
-	-- thief steals) with its outlined 💰 overhanging the left end and the «×N» of a mutation
+	-- thief steals) with its outlined 💵 (the Wallet's bill) overhanging the left end and the «×N» of a mutation
 	-- slammed on its corner.
 	local info = U.new("TextLabel", {
 		Name = "InfoLabel",
@@ -1076,9 +1077,9 @@ local function buildCatch(root: any)
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
 		Size = UDim2.fromScale(0.45, 1),
-		Icon = "💰",
+		Icon = "💵",
 		IconScale = 1.45,
-		Text = "0",
+		Text = "$0",
 		Tier = "Title",
 		Italic = true,
 		Radius = 0.5,

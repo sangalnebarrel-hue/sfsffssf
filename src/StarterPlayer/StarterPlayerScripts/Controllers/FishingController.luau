@@ -3421,7 +3421,7 @@ do
 		local value = math.round(fish.Value)
 		ui.infoLabel.Text = CatchFx.infoText(kg, value)
 		ui.weightLabel.Text = upper(kg) -- «2,1 КГ»: фишки — заглавными
-		ui.priceLabel.Text = "0"
+		ui.priceLabel.Text = CatchFx.money(0)
 		-- Цена — главное число карточки: «витринное», по своей коробке (≈ 0.8 лица фишки) — до
 		-- CARD.PriceText × Title, не меньше Button − 2 (не уровень шкалы: fitText её не трогает).
 		ui.priceLabel:SetAttribute("TextTier", nil)
@@ -4364,7 +4364,7 @@ do
 	local function countPrice(from: number, to: number, time: number, pitchFrom: number, pitchTo: number): () -> ()
 		local label = ui.priceLabel
 		local shown = math.floor(from + 0.5)
-		label.Text = FishingRules.FormatCoins(shown)
+		label.Text = CatchFx.money(shown)
 		local elapsed = 0
 		local lastTick = -math.huge
 		return UiFx.schedule(function(dt: number): boolean
@@ -4374,7 +4374,7 @@ do
 			local value = math.floor(from + (to - from) * eased + 0.5)
 			if value ~= shown then
 				shown = value
-				label.Text = FishingRules.FormatCoins(value)
+				label.Text = CatchFx.money(value)
 				if elapsed - lastTick >= 1 / 12 then
 					-- Тик и «подскок» числа (1.06 → 1) — не чаще 12 раз в секунду: «число растёт».
 					lastTick = elapsed
@@ -4384,7 +4384,7 @@ do
 			end
 			return k < 1
 		end, function()
-			label.Text = FishingRules.FormatCoins(to)
+			label.Text = CatchFx.money(to)
 		end)
 	end
 
@@ -4929,7 +4929,7 @@ do
 		local base = math.round(value / multiplier)
 		addBeat(countStart, function(instant: boolean)
 			if instant then
-				ui.priceLabel.Text = FishingRules.FormatCoins(base)
+				ui.priceLabel.Text = CatchFx.money(base)
 				return
 			end
 			local count = countPrice(0, base, reveal.Count, 1, 1.4)
@@ -5060,7 +5060,7 @@ do
 		-- и залп конфетти, мифическая — ещё радужные края экрана и лёгкая тряска.
 		local function pricePop(amount: number, sparks: { Color3 })
 			local chip = ui.priceChip
-			ui.priceLabel.Text = FishingRules.FormatCoins(amount)
+			ui.priceLabel.Text = CatchFx.money(amount)
 			local w, h = rest.priceSize.X.Scale, rest.priceSize.Y.Scale
 			local anchor = chip.AnchorPoint
 			chip.Size = UDim2.new(w * 1.25, rest.priceSize.X.Offset, h * 0.85, rest.priceSize.Y.Offset)
@@ -5138,7 +5138,7 @@ do
 			if count then
 				count()
 			end
-			ui.priceLabel.Text = FishingRules.FormatCoins(base)
+			ui.priceLabel.Text = CatchFx.money(base)
 			if instant then
 				return
 			end
@@ -5163,7 +5163,7 @@ do
 				if instant then
 					UiFx.scaleOf(ui.mutationLabel).Scale = 1
 					UiFx.scaleOf(ui.priceMult).Scale = 1
-					ui.priceLabel.Text = FishingRules.FormatCoins(value)
+					ui.priceLabel.Text = CatchFx.money(value)
 					return
 				end
 				stampIn(ui.mutationLabel, 1.8, 12, 0.3)
@@ -5205,7 +5205,7 @@ do
 				if recount then
 					recount()
 				end
-				ui.priceLabel.Text = FishingRules.FormatCoins(value)
+				ui.priceLabel.Text = CatchFx.money(value)
 			end)
 		end
 
