@@ -972,9 +972,10 @@ RenderStepped connection for all running frame effects, disconnected when none r
   `Cards.{CardTemplate, EmptyTemplate, LockedTemplate}` → cloned as `Card<slot>` / `Locked`):
   TankPanelController (`Toggle`, `Open(focusUid?)`, `Close`, `IsOpen`; tests: `Relayout`, `Card`,
   `Stats`). Its numbers come from the own base's slot attributes (refreshed on each slot's
-  `Event` only) and `SellRatePct` (the server's sampled stall rate — the only source of market
-  mode); the client sends `TankSell(uid)` and nothing else (no amounts, prices or slots);
-  `TankEvent "Open"` only opens it, "Sold" / "Denied" answer a sale.
+  `Event` only) and `SellRatePct` (the server's stall rate from its samples, or set before
+  "Open" by a held stall prompt — the only source of market mode); the client sends
+  `TankSell(uid)` and nothing else (no amounts, prices or slots); `TankEvent "Open"` only opens
+  it, "Sold" / "Denied" answer a sale.
 - **World tank** (`Workspace.TankWorld`, client-only: `DisplayFish_<base>_<slot>` models and the
   `Fx…` words on attachments of one invisible anchor part): TankWorldController (`GetFish`,
   `GetTag`, `GetSign`, `GetPierWord`, `IsBuilt`, `IsAlive`, `Stats` for tests and previews).
