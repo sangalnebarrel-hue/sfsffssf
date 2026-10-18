@@ -9,8 +9,9 @@
 	light client (the TheftController filter tests).
 
 	  S.player(t, sim, id, spec?)      a player with a seeded save (Kit.seed: spec.tank / money /
-	                                   lock / upgrades / saveCount / stats; spec.lastOnline; no
-	                                   spec.tank and spec.fresh → a brand-new save), waited until
+	                                   lock / upgrades / saveCount / stats; spec.lastOnline;
+	                                   spec.fresh → a brand-new save; spec.keep → the key as it
+	                                   is, e.g. after a restart), waited until
 	                                   loaded and mounted; spec.protected keeps the join protection
 	                                   (otherwise S.unprotect)
 	  S.unprotect(sim, p)              DefenceService:EndProtection(p, "test") (the stage is set)
@@ -63,7 +64,7 @@ end
 -- A headless player with a seeded save, loaded, with a mounted tank.
 function S.player(t: any, sim: any, id: number, spec: { [string]: any }?): any
 	local s = spec or {}
-	if not s.fresh then
+	if not s.fresh and not s.keep then
 		local seed = table.clone(s)
 		Kit.seed(sim, id, seed)
 		if s.lastOnline ~= nil or s.saveCount ~= nil then
