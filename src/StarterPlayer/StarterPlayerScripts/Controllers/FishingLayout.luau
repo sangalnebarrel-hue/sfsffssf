@@ -36,8 +36,12 @@
 	    заданного зазора; RING, discFit — во сколько раз уменьшить её, чтобы и её белые кольца на
 	    пике пульса держали 16 px (D4: на планшете большая кнопка прыжка выше).
 	  • rectOf / placeOf — прямоугольник виджета «в покое» по Position/Size/AnchorPoint и обратно.
+	  • plateFit — своя табличка трофея (мировая надпись сбоку от рыбы над головой,
+	    FishingFxController) не заходит на кнопки HUD (Этап 3, C-R2-01: «САДОК» на планшете и
+	    маленьком телефоне — как раз на высоте рыбы): справа от рыбы, слева или меньше; под
+	    строкой кошелька — чуть ниже.
 	Ничего не создаёт и не подключает: вызывается в событиях (поклёвка, мини-игра, подсказка,
-	карточка), не каждый кадр.
+	карточка, табличка трофея), не каждый кадр.
 ]]
 
 local FishingLayout = {}
@@ -702,6 +706,71 @@ function FishingLayout.leastCoverScaled(
 		return nil, nil, nil, nil
 	end
 	return best, bestSide, bestCover, bestScale
+end
+
+--[[
+	Своя табличка трофея (BillboardGui сбоку от рыбы над головой, FishingFxController) и HUD (Этап 3,
+	C-R2-01). at — центр рыбы на экране (px; по высоте — середина таблички), reach — от него до
+	ближнего края таблички (px: полдлины рыбы и зазор), width × height — табличка в масштабе 1,
+	slack — на сколько px она ходит в каждую сторону по X и по Y (покачивание, рыбак празднует).
+	keepouts — кнопки сбоку (колонка «САДОК» / «ДОМОЙ»), above — то, что над ней (строка кошелька),
+	bounds — экран (px того же пространства). Справа (1) — если там до каждого keepout в её полосе
+	по высоте и до края экрана ≥ EDGE px; иначе слева (−1, карточки улова там уже нет), если
+	помещается там; иначе — на той стороне, где просторнее, уменьшенная до ширины просвета, но не
+	меньше minScale. Потом — ниже на drop px (не больше половины её высоты), чтобы её верх (и на
+	подъёме slack) был ≥ EDGE px под каждым прямоугольником above над ней. Возвращает сторону, масштаб
+	(≤ 1) и drop.
+]]
+function FishingLayout.plateFit(
+	at: Vector2,
+	reach: number,
+	width: number,
+	height: number,
+	slack: Vector2,
+	keepouts: { Rect },
+	above: { Rect },
+	bounds: Rect,
+	minScale: number
+): (number, number, number)
+	local y0, y1 = at.Y - height / 2 - slack.Y - EDGE, at.Y + height / 2 + slack.Y + EDGE
+	-- Сколько px от ближнего края таблички до первой помехи на стороне side (с зазором EDGE и
+	-- её ходом slack).
+	local function room(side: number): number
+		local inner = at.X + side * reach
+		local limit = if side > 0 then bounds.x1 - EDGE else bounds.x0 + EDGE
+		for _, box in keepouts do
+			if box.y0 < y1 and box.y1 > y0 then
+				if side > 0 and box.x1 > inner then
+					limit = math.min(limit, box.x0 - EDGE)
+				elseif side < 0 and box.x0 < inner then
+					limit = math.max(limit, box.x1 + EDGE)
+				end
+			end
+		end
+		return (limit - inner) * side - slack.X
+	end
+	local right, left = room(1), room(-1)
+	local side, scale = 1, 1
+	if right < width then
+		if left >= width then
+			side = -1
+		else
+			side = if left > right then -1 else 1
+			scale = math.clamp(math.max(left, right) / math.max(width, 1), minScale, 1)
+		end
+	end
+	-- Её прямоугольник (с ходом) и сколько опустить, чтобы верх и в прыжке был ≥ EDGE под тем, что
+	-- над ней.
+	local inner, outer = at.X + side * reach, at.X + side * (reach + width * scale)
+	local x0, x1 = math.min(inner, outer) - slack.X, math.max(inner, outer) + slack.X
+	local top = at.Y - height * scale / 2 - slack.Y
+	local drop = 0
+	for _, box in above do
+		if box.x0 < x1 + EDGE and box.x1 > x0 - EDGE and box.y1 <= at.Y then
+			drop = math.max(drop, box.y1 + EDGE - top)
+		end
+	end
+	return side, scale, math.min(drop, height * scale / 2)
 end
 
 return FishingLayout

@@ -82,7 +82,8 @@
 	    дорого пересчитывать), пока рыба над головой (FishingRules.HoldFishTime —
 	    на ≈3 с дольше карточки улова: после неё свой трофей ещё виден). Чужая табличка — над
 	    рыбой, выскакивает сразу; своя — сбоку, справа от рыбы (над ней — заголовок и карточка
-	    улова своего экрана) и ждёт, пока улов на экране (у HUD атрибут CounterHold): под
+	    улова своего экрана; справа до кнопок HUD меньше 16 px — слева или меньше, fitOwnPlate:
+	    Этап 3, «САДОК» на высоте рыбы) и ждёт, пока улов на экране (у HUD атрибут CounterHold): под
 	    заголовком она повторяла бы его слово, из-за карточки торчала бы готовая цена, пока та
 	    считает; выскакивает на «повторе» трофея (ReplayOwnTrophy), а не было его — через
 	    PLATE_AFTER_CARD после того, как счётчик отпустили. Рыбу убрали — табличка на её месте
@@ -188,8 +189,10 @@ local Net = require(Shared:WaitForChild("Net"))
 local Util = Shared:WaitForChild("Util")
 local Signal = require(Util:WaitForChild("Signal"))
 local Trove = require(Util:WaitForChild("Trove"))
--- Помощники (модули, не контроллеры): живая рыба, тень, леска; тайминги броска рыбака.
+-- Помощники (модули, не контроллеры): живая рыба, тень, леска; тайминги броска рыбака; место
+-- своей таблички трофея у кнопок HUD (FishingLayout.plateFit).
 local FishLife = require(script.Parent:WaitForChild("FishLife"))
+local FishingLayout = require(script.Parent:WaitForChild("FishingLayout"))
 local FishShadow = require(script.Parent:WaitForChild("FishShadow"))
 local FishingLine = require(script.Parent:WaitForChild("FishingLine"))
 local FisherPoses = require(script.Parent:WaitForChild("FisherPoses"))
@@ -240,6 +243,10 @@ local LEAP_START, LEAP_GROWN = 0.4, 0.8
 local TROPHY_SHORT_SCREEN, TROPHY_SHORT_HALO = 500, 0.7
 local PLATE_AFTER_CARD = 0.5 -- своя табличка: «повтора» трофея не было — выскакивает через столько после карточки, с
 local PLATE_OUT = 0.14 -- рыбу убрали: табличка «выдыхает» и тает за столько, с (не висит без неё)
+-- Своя табличка у кнопок HUD (fitOwnPlate): не мельче minScale; sway — на сколько studs она ходит в
+-- каждую сторону по X и Y (FishLife: покачивание и подскок за рыбой; рыбак празднует — приседает,
+-- прыгает, качает рыбу: вбок — на доли stud, вверх-вниз — почти на stud).
+local PLATE_FIT = { minScale = 0.7, sway = Vector2.new(0.2, 0.8) }
 local ALERT_OTHER_DISTANCE = 90 -- чужой «!» виден не дальше, studs
 local OWN_PILLAR_WIDTH = 0.4 -- свой столб света уже чужого во столько раз (см. pillar)
 local PILLAR_FAR = 80 -- чужой столб дальше стольких studs шире: × расстояние / PILLAR_FAR (≈ 28 px на телефоне)
@@ -2409,6 +2416,89 @@ local function revealPlate(gui: BillboardGui, delay: number): boolean
 	return true
 end
 
+--[[
+	Своя табличка (справа от рыбы над головой) не заходит на колонку кнопок HUD «САДОК» / «ДОМОЙ»
+	(Этап 3, C-R2-01: на планшете и маленьком телефоне «САДОК» стоит как раз на высоте рыбы, и
+	«ЛЕГЕНДАРНАЯ» / цена мифической уходили под него). Справа от рыбы, если там до кнопок (с их
+	обводкой) и края экрана ≥ 16 px; иначе слева (карточки улова там уже нет); иначе там, где
+	просторнее, — меньше, не мельче PLATE_FIT.minScale. Плашки статуса с кошельком — над рыбой
+	(камера с трофеем выше, FX.TrophyCamera), но на телефоне строка кошелька с доходом «+$46/с»
+	почти касалась слова редкости: табличка опускается, чтобы её верх был ≥ 16 px под ней (не
+	больше чем на полвысоты). FishingLayout.plateFit: прямоугольник таблички на экране — studs ×
+	пиксели на её глубине + пиксели, как у BillboardGui, и её ход PLATE_FIT.sway. Только в момент,
+	когда табличка выскакивает или подпрыгивает (не каждый кадр): камера с трофеем над головой
+	стоит, колонка и кошелёк — тоже.
+]]
+local function fitOwnPlate(gui: BillboardGui)
+	local camera = Workspace.CurrentCamera
+	local hud = hudGui
+	local adornee = gui.Adornee
+	if not camera or not hud or not adornee or not adornee:IsA("BasePart") or camera.ViewportSize.Y < 1 then
+		return
+	end
+	local point = camera:WorldToScreenPoint(adornee.Position + gui.StudsOffsetWorldSpace)
+	if point.Z <= 0.05 then
+		return
+	end
+	local perStud = camera.ViewportSize.Y / (2 * point.Z * math.tan(math.rad(camera.FieldOfView) / 2))
+	-- Кнопки колонки (сбоку) и плашки статуса (сверху) — с их обводкой (UIStroke у Lip) и подписью
+	-- чуть шире кнопки; ряд по центру (кошелёк «💵 $0 +$4/с» в широкой рамке) — по содержимому.
+	local function boxes(name: string): { FishingLayout.Rect }
+		local list = {}
+		local holder = hud:FindFirstChild(name)
+		if holder and holder:IsA("GuiObject") and holder.Visible then
+			for _, item in holder:GetChildren() do
+				if item:IsA("GuiObject") and item.Visible then
+					local lip = item:FindFirstChild("Lip")
+					local stroke = lip and lip:FindFirstChildOfClass("UIStroke")
+					local at, size = item.AbsolutePosition, item.AbsoluteSize
+					local pad = (if stroke then stroke.Thickness else 0) + size.X * 0.02
+					local left, right = at.X, at.X + size.X
+					local row = item:FindFirstChildOfClass("UIListLayout")
+					if
+						row
+						and row.FillDirection == Enum.FillDirection.Horizontal
+						and row.HorizontalAlignment == Enum.HorizontalAlignment.Center
+					then
+						local width, count = 0, 0
+						for _, child in item:GetChildren() do
+							if child:IsA("GuiObject") and child.Visible then
+								width += child.AbsoluteSize.X
+								count += 1
+							end
+						end
+						width += math.max(count - 1, 0) * (row.Padding.Scale * size.X + row.Padding.Offset)
+						left, right = (left + right - width) / 2, (left + right + width) / 2
+					end
+					table.insert(list, FishingLayout.rect(left - pad, at.Y - pad, right + pad, at.Y + size.Y + pad))
+				end
+			end
+		end
+		return list
+	end
+	local origin, screen = hud.AbsolutePosition, hud.AbsoluteSize
+	local reach = math.abs(gui.StudsOffset.X)
+	local side, scale, drop = FishingLayout.plateFit(
+		Vector2.new(point.X, point.Y),
+		reach * perStud,
+		NAMEPLATE_STUDS.X * perStud + NAMEPLATE_PIXELS.X,
+		NAMEPLATE_STUDS.Y * perStud + NAMEPLATE_PIXELS.Y,
+		PLATE_FIT.sway * perStud,
+		boxes("RightButtons"),
+		boxes("Status"),
+		FishingLayout.rect(origin.X, origin.Y, origin.X + screen.X, origin.Y + screen.Y),
+		PLATE_FIT.minScale
+	)
+	gui.StudsOffset = Vector3.new(side * reach, -drop / perStud, 0)
+	gui.SizeOffset = Vector2.new(side * 0.5, 0)
+	gui.Size = UDim2.new(
+		NAMEPLATE_STUDS.X * scale,
+		math.round(NAMEPLATE_PIXELS.X * scale),
+		NAMEPLATE_STUDS.Y * scale,
+		math.round(NAMEPLATE_PIXELS.Y * scale)
+	)
+end
+
 -- Табличка над рыбой (видят все, пока рыба над головой): редкость (с редкой и выше: белое → цвет
 -- редкости, мифическая — переливающейся радугой), название белым, мутация её цветом и цена
 -- наклонными жёлтыми цифрами; у обычной — только название и цена, крупнее (v3 fix WOW-5: соседи
@@ -2416,7 +2506,8 @@ end
 -- атрибутов модели (FishId, Rarity, Mutation, Value — их ставит FishingService), поэтому
 -- годится и для рыб на витринах базы (Этап 3). Размер — studs + пиксели (издалека читается).
 -- У самого рыбака табличка не над рыбой, а справа от неё: сверху экрана — плашки статуса и
--- счётчик улова, они закрыли бы её.
+-- кошелёк, они закрыли бы её; справа тесно (кнопка «САДОК» на высоте рыбы) — слева или меньше
+-- (fitOwnPlate, когда она выскакивает).
 local function nameplate(tracker: Tracker, held: Model, rarity: string, event: FxEvent)
 	local style = UIConfig.Rarity[rarity]
 	local body = held.PrimaryPart
@@ -2560,7 +2651,8 @@ local function nameplate(tracker: Tracker, held: Model, rarity: string, event: F
 		local waiting = hud:GetAttributeChangedSignal("CounterHold"):Connect(function()
 			if hud:GetAttribute("CounterHold") == nil then
 				task.delay(PLATE_AFTER_CARD, function()
-					if not effect.done then
+					if not effect.done and not gui.Enabled then
+						fitOwnPlate(gui)
 						revealPlate(gui, 0)
 					end
 				end)
@@ -2570,6 +2662,9 @@ local function nameplate(tracker: Tracker, held: Model, rarity: string, event: F
 			waiting:Disconnect()
 		end)
 	else
+		if isOwn(tracker) then
+			fitOwnPlate(gui)
+		end
 		tween(scale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out, 0, false, 0.12), { Scale = 1 })
 	end
 	if style.Rainbow and fill then
@@ -3608,6 +3703,9 @@ function FishingFxController.ReplayOwnTrophy(): boolean
 			burst(emitter, if short then 30 else 14)
 		end
 		for _, instance in effect.instances do
+			if instance.Name == "Nameplate" and instance:IsA("BillboardGui") then
+				fitOwnPlate(instance) -- (своя: у кнопок HUD — справа, слева или меньше)
+			end
 			if instance.Name == "Nameplate" and instance:IsA("BillboardGui") and not revealPlate(instance, 0.15) then
 				-- Уже видна (карточку закрыли без «повтора», не тот экран) — подпрыгивает.
 				local plate = instance:FindFirstChild("Plate")

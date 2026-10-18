@@ -3,10 +3,11 @@
 	Wallet (MoneyController), the «САДОК» button (TankButtonController) and the catch → tank on the
 	catch card (FishingController + CatchFx), on the real client.
 
-	The stage 3 services and FishingService are switched off ("return {}"): the test plays the
-	server — it writes the player attributes (DataMode, Money, Income, TankCount, TankSlots,
-	SellRatePct) the way DataService / EconomyService / TankService do, and sends FishingState
-	"Caught" with its TankResult after them (RemoteNames: crediting → attributes → remotes). The
+	The stage 3 services and FishingService are switched off ("return {}"; the nameplate test runs
+	them for real): the test plays the server — it writes the player attributes (DataMode, Money,
+	Income, TankCount, TankSlots, SellRatePct) the way DataService / EconomyService / TankService
+	do, and sends FishingState "Caught" with its TankResult after them (RemoteNames: crediting →
+	attributes → remotes). The
 	tank panel (wave 2 D) is replaced by a recorder that writes what «САДОК» asked of it on the HUD
 	(attributes PanelCalls / PanelLast), so this file checks only the button's side of that contract.
 
@@ -26,7 +27,12 @@
 	    naming both fish; the onboarding «!» after the first fish ever, gone on the first open; a
 	    tap during the flight opens the panel after the arrival, on the new fish; the first-fish
 	    toast and the memory-mode toast once; the catch toasts wait while the own trophy (HeldFish)
-	    is over the head (a tablet: NotifyController holds them back only on phones).
+	    is over the head (a tablet: NotifyController holds them back only on phones);
+	  • the own trophy's nameplate (FishingFxController + FishingLayout.plateFit, C-R2-01): the pure
+	    rule (right of the fish, else left, else smaller; lower under the Wallet row), and with the
+	    REAL server (FishingService and the stage 3 services on, a real Legendary and Mythic Rainbow
+	    catch, the preview's follow camera) on a tablet and a small phone: ≥ 16 px from «САДОК», on
+	    screen, ≥ 16 px under the Wallet row, while the fisher celebrates.
 
 	Run: lune run tools/run_tests.luau stage3_hud
 ]]
@@ -1025,6 +1031,272 @@ tests["memory mode: «💾 Studio: прогресс не сохраняется�
 	local again = watchToasts(sim, p, 2)
 	t.eq(again[DataConfig.Texts.MemoryToast], nil, "not again")
 	sim:AssertNoErrors({ warnings = true })
+end
+
+--------------------------------------------------------------------------------
+-- The own trophy's nameplate and «САДОК» (C-R2-01)
+--------------------------------------------------------------------------------
+
+-- FishingLayout is pure rectangle maths: loaded straight from src/ (Vector2 from Lune).
+local function loadLayout(): any
+	local path = "src/StarterPlayer/StarterPlayerScripts/Controllers/FishingLayout.luau"
+	local chunk = luau.load(fs.readFile(path), {
+		debugName = path,
+		environment = { Vector2 = roblox.Vector2, Vector3 = roblox.Vector3 },
+		injectGlobals = true,
+	})
+	return chunk()
+end
+
+tests["FishingLayout.plateFit: right of the fish when it fits, else left, else smaller on the roomier side; under the Wallet row a little lower"] = function(
+	t
+)
+	local L = loadLayout()
+	local screen = L.rect(0, 0, 1024, 768)
+	local column = { L.rect(902, 284, 1021, 403), L.rect(902, 409, 1021, 528) } -- «САДОК», «ДОМОЙ»
+	local still = Vector2.new(0, 0)
+	-- Room on the right: 902 − 16 − (500 + 50) = 336 px for a 300 px plate.
+	local side, scale, drop = L.plateFit(Vector2.new(500, 340), 50, 300, 90, still, column, {}, screen, 0.7)
+	t.eq(side, 1, "right of the fish")
+	t.eq(scale, 1, "… full size")
+	t.eq(drop, 0, "… where it is")
+	-- Too little on the right (886 − 650 = 236), plenty on the left (550 − 16 = 534).
+	side, scale = L.plateFit(Vector2.new(600, 340), 50, 300, 90, still, column, {}, screen, 0.7)
+	t.eq(side, -1, "the column is in the way — left of the fish")
+	t.eq(scale, 1, "… full size")
+	-- Neither side: the roomier one, smaller (right 886 − 618 = 268 → 0.89; left 406 − 212 − 16 = 178).
+	side, scale = L.plateFit(Vector2.new(406, 340), 212, 300, 90, still, column, {}, screen, 0.7)
+	t.eq(side, 1, "no room either side — the roomier right")
+	t.near(scale, 268 / 300, 0.001, "… shrunk to the gap")
+	-- Its own sway counts: 12 px each way leaves 256.
+	side, scale = L.plateFit(Vector2.new(406, 340), 212, 300, 90, Vector2.new(12, 20), column, {}, screen, 0.7)
+	t.near(scale, 256 / 300, 0.001, "the sway is kept clear too")
+	-- Never below minScale.
+	side, scale = L.plateFit(Vector2.new(406, 340), 212, 600, 90, still, column, {}, screen, 0.7)
+	t.eq(scale, 0.7, "not smaller than minScale")
+	-- The column far below its band does not count.
+	side, scale = L.plateFit(Vector2.new(600, 100), 50, 300, 90, still, column, {}, screen, 0.7)
+	t.eq(side, 1, "a button outside its band is no obstacle")
+	t.eq(scale, 1, "… full size")
+	-- The Wallet row's content above it: its top goes ≥ 16 px under it (≤ half its height).
+	local wallet = { L.rect(250, 97, 420, 127) }
+	side, scale, drop = L.plateFit(Vector2.new(300, 165), 70, 200, 60, still, {}, wallet, screen, 0.7)
+	t.eq(drop, 127 + 16 - (165 - 30), "under the Wallet row: lower by the missing gap")
+	side, scale, drop = L.plateFit(Vector2.new(300, 175), 70, 200, 60, Vector2.new(0, 10), {}, wallet, screen, 0.7)
+	t.eq(drop, 127 + 16 - (175 - 30 - 10), "… and at the top of its sway")
+	side, scale, drop = L.plateFit(Vector2.new(300, 140), 70, 200, 60, still, {}, wallet, screen, 0.7)
+	t.eq(drop, 30, "… but by half its height at most")
+	side, scale, drop = L.plateFit(Vector2.new(600, 165), 70, 200, 60, still, {}, wallet, screen, 0.7)
+	t.eq(drop, 0, "a Wallet row off to the side does not move it")
+end
+
+-- Everything real (FishingService and the stage 3 services) but the tank panel.
+local function bootReal(t: any): any
+	local sim = t.sim({ place = PLACE })
+	sim:Find("StarterPlayer.StarterPlayerScripts.Controllers.TankPanelController").Source = FAKE_PANEL
+	sim:StartServer()
+	sim:Advance(0.5)
+	return sim
+end
+
+local function rodIn(container: any): any
+	for _, item in if container then container:GetChildren() else {} do
+		if item:IsA("Tool") and item:GetAttribute("RodId") ~= nil then
+			return item
+		end
+	end
+	return nil
+end
+
+-- A real catch of `fish` ({ Id, Mutation? }, the biggest of its kind) with the real server, the
+-- player posed on the own FishingSpot with the preview's follow camera (12.5 studs back, 18°
+-- down, the Humanoid.CameraOffset FishingFxController sets): cast, hook, win the minigame by
+-- tapping when the needle is in the zone, then the card opens, closes, the fish flies into
+-- «САДОК» and the own trophy's nameplate pops out beside the fish. Returns the sim, the player
+-- and the nameplate (nil if it never showed).
+local function trophyPlate(t: any, screen: { [string]: any }, fish: { [string]: any }): (any, any, any)
+	local sim = bootReal(t)
+	local device = screen.name
+	local p = sim:AddPlayer({ UserId = 1, Name = "Plate1", device = screen.device, viewport = screen.viewport })
+	local loaded = sim:WaitFor(function()
+		local gui = p:FindFirstChild("PlayerGui")
+		local hud = gui and gui:FindFirstChild("HUD")
+		return hud ~= nil
+			and hud.RightButtons.TankButton.Visible
+			and hud.Status.Wallet.Visible
+			and rodIn(p:FindFirstChildOfClass("Backpack")) ~= nil
+	end, 15)
+	t.ok(loaded, `{device}: a base, the data, «САДОК», the Wallet and the rod`)
+	local Rules = sim:Require(sim:Find("ReplicatedStorage.Shared.FishingRules"))
+	local def = Rules.GetFish(fish.Id)
+	local value, income = Rules.Price(fish.Id, def.MaxKg, fish.Mutation)
+	local data =
+		{ Id = fish.Id, Rarity = def.Rarity, Mutation = fish.Mutation, Kg = def.MaxKg, Value = value, Income = income }
+	sim:Require(sim:Find("ServerScriptService.Services.FishingService")).RollFishForTest = function()
+		return table.clone(data)
+	end
+	-- On the FishingSpot facing the lagoon (as the preview poses him), the rod in hand.
+	local base = sim.workspace.Bases:FindFirstChild(`Base_{p:GetAttribute("BaseIndex")}`)
+	local spot = base.FishingSpot
+	local look = base:GetPivot().LookVector
+	local fwd = Vector3.new(look.X, 0, look.Z).Unit
+	local origin = spot.Position + Vector3.new(0, spot.Size.Y / 2, 0)
+	local character = p.Character
+	local root = character.HumanoidRootPart
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local at = origin + Vector3.new(0, humanoid.HipHeight + root.Size.Y / 2, 0)
+	sim:Teleport(p, roblox.CFrame.lookAt(at, at + fwd))
+	sim:EquipTool(p, rodIn(p:FindFirstChildOfClass("Backpack")))
+	sim:Advance(0.4)
+	local function aim()
+		sim:Run(function() -- (CameraOffset is client-local: FishingFxController tweens it there)
+			local offset = root.CFrame:VectorToWorldSpace(humanoid.CameraOffset)
+			local focus = origin + Vector3.new(0, 4.6, 0) + offset
+			local pitch = math.rad(18)
+			local eye = focus + Vector3.new(0, 12.5 * math.sin(pitch), 0) - fwd * (12.5 * math.cos(pitch))
+			sim.workspace.CurrentCamera.CFrame = roblox.CFrame.lookAt(eye, focus)
+		end, p)
+	end
+	aim()
+	-- Cast, hook on the bite, tap whenever the needle is well inside the zone (what the server
+	-- judges: FishingRules.Needle at the tap's moment).
+	local function events(): { any }
+		return sim:ClientEventsFor(p, "FishingState")
+	end
+	local function after(count: number, timeout: number): any
+		return sim:WaitFor(function()
+			return events()[count + 1]
+		end, timeout, 1 / 60)
+	end
+	sim:FireServer(p, "FishingCast")
+	local count = #events()
+	local bite = after(count, 12)
+	t.ok(bite and bite.args[1] == "Bite", `{device} {fish.Id}: the bite`)
+	sim:Advance(0.2)
+	count = #events()
+	sim:FireServer(p, "FishingHook")
+	local hooked = after(count, 1)
+	t.ok(hooked and hooked.args[1] == "Minigame", `{device} {fish.Id}: hooked`)
+	if not (hooked and hooked.args[1] == "Minigame") then
+		return sim, p, nil
+	end
+	local mg, start = hooked.args[2], hooked.time
+	local center, from = mg.ZoneCenter, FishingConfig.TapInterval + 0.02
+	local outcome = nil
+	for _ = 1, mg.HitsNeeded do
+		local moment = from
+		while math.abs(Rules.Needle(mg.U0, mg.Speed, moment) - center) > mg.ZoneWidth * 0.3 and moment < from + 8 do
+			moment += 0.005
+		end
+		sim:WaitFor(function()
+			return sim:Time() >= start + moment - 1e-9
+		end, 10, 1 / 60)
+		count = #events()
+		sim:FireServer(p, "FishingTap", moment)
+		local reply = after(count, 0.3)
+		outcome = reply and reply.args[1]
+		if outcome ~= "Zone" then
+			break
+		end
+		center, from = reply.args[2].ZoneCenter, moment + FishingConfig.TapInterval + 0.02
+	end
+	t.eq(outcome, "Caught", `{device} {fish.Id}: caught`)
+	t.ok(openCard(sim, p), `{device} {fish.Id}: the card`)
+	sim:Advance(0.8) -- (the trophy camera has moved up: FX.TrophyCamera)
+	aim()
+	t.ok(closeCard(sim, p), `{device} {fish.Id}: the card closes`)
+	t.ok(arrived(sim, p), `{device} {fish.Id}: the fish flew into «САДОК»`)
+	local fx = controller(sim, p, "FishingFxController")
+	local plate = sim:WaitFor(function()
+		for _, instance in fx.GetEffects(p) do
+			if instance.Name == "Nameplate" and instance:IsA("BillboardGui") and instance.Enabled then
+				return instance
+			end
+		end
+		return nil
+	end, 2, 1 / 60)
+	sim:Advance(0.5) -- (its pop has settled)
+	return sim, p, plate
+end
+
+-- Where a BillboardGui is on the client's screen (viewport px), as Roblox (and the preview) draw
+-- it: the adornee plus StudsOffsetWorldSpace and the camera-relative StudsOffset, sized "studs ×
+-- px per stud at its depth + px", moved by SizeOffset.
+local function billboardRect(sim: any, p: any, gui: any): Rect
+	return sim:Run(function()
+		local camera = sim.workspace.CurrentCamera
+		local cf = camera.CFrame
+		local so = gui.StudsOffset
+		local pos = gui.Adornee.Position + gui.StudsOffsetWorldSpace + cf.RightVector * so.X + cf.UpVector * so.Y
+		local point = camera:WorldToScreenPoint(pos)
+		local perStud = camera.ViewportSize.Y / (2 * point.Z * math.tan(math.rad(camera.FieldOfView) / 2))
+		local w = gui.Size.X.Scale * perStud + gui.Size.X.Offset
+		local h = gui.Size.Y.Scale * perStud + gui.Size.Y.Offset
+		local x = point.X + gui.SizeOffset.X * w
+		local y = point.Y - gui.SizeOffset.Y * h
+		return { x = x - w / 2, y = y - h / 2, w = w, h = h }
+	end, p)
+end
+
+tests["own trophy nameplate: an own Legendary and Mythic Rainbow keep ≥ 16 px from «САДОК» on a tablet and a small phone (right of the fish, left, or smaller), under the Wallet row"] = function(
+	t
+)
+	local screens = {
+		{ name = "tablet", device = "tablet" },
+		{ name = "phone_small", device = "phone", viewport = Vector2.new(667, 375) },
+	}
+	for _, screen in screens do
+		for _, fish in { { Id = "SharkPup" }, { Id = "DragonFish", Mutation = "Rainbow" } } do
+			local what = `{screen.name} {fish.Id}`
+			local sim, p, plate = trophyPlate(t, screen, fish)
+			t.ok(plate ~= nil, `{what}: the own nameplate pops out after the card`)
+			if plate then
+				local hud = hudOf(p)
+				local button = hud.RightButtons.TankButton
+				local stroke = button.Lip:FindFirstChildOfClass("UIStroke").Thickness
+				local tank = rectOf(sim, p, button)
+				local vp = sim.players.state[sim:Unwrap(p)].viewport
+				t.ok(
+					plate.Size.X.Offset >= math.floor(150 * 0.7),
+					`{what}: not smaller than 0.7 ({plate.Size.X.Offset} px of 150)`
+				)
+				-- The Wallet row's content (the 💵 number and «+$/с»).
+				local wallet = hud.Status.Wallet
+				local left, right, bottom = math.huge, -math.huge, -math.huge
+				for _, part in { wallet.Money, wallet.Rate } do
+					if part.Visible then
+						local r = rectOf(sim, p, part)
+						left, right, bottom =
+							math.min(left, r.x), math.max(right, r.x + r.w), math.max(bottom, r.y + r.h)
+					end
+				end
+				-- For 2 s while the fisher celebrates (crouch, jump, the fish shaken): the worst gaps.
+				local worstTank, worstWallet, offScreen = math.huge, math.huge, nil
+				for _ = 1, 20 do
+					local box = billboardRect(sim, p, plate)
+					if plate.StudsOffset.X > 0 then
+						worstTank = math.min(worstTank, tank.x - stroke - (box.x + box.w))
+					end
+					if left < box.x + box.w + 16 and right > box.x - 16 then
+						worstWallet = math.min(worstWallet, box.y - bottom)
+					end
+					if box.x < 15.5 or box.x + box.w > vp.X - 15.5 then
+						offScreen = box
+					end
+					sim:Advance(0.1)
+				end
+				t.ok(
+					worstTank >= 15.5,
+					`{what}: ≥ 16 px from «САДОК»'s outline (worst {math.floor(worstTank)} px; «САДОК» {fmt(
+						tank
+					)})`
+				)
+				t.ok(worstWallet >= 15.5, `{what}: ≥ 16 px under the Wallet row (worst {math.floor(worstWallet)} px)`)
+				t.ok(offScreen == nil, `{what}: ≥ 16 px inside the screen {if offScreen then fmt(offScreen) else ""}`)
+			end
+			sim:AssertNoErrors({ warnings = true })
+		end
+	end
 end
 
 return tests
