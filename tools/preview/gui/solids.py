@@ -5,7 +5,7 @@ both ways, per pixel.
 
 gui/world_capture.luau writes, per frame (frame["world"]):
   solids  [{cf: [x, y, z, R00..R22] (spot frame), s: [sx, sy, sz], c: [r, g, b], sh: shape,
-            t?: transparency, m?: 1 (Neon)}]
+            t?: transparency, m?: 1 (Neon), ff?: 1 (ForceField: rim-lit, see _forcefield)}]
   movers  [[id, x, y, z, R00..R22, transparency]]  map parts AmbientWorld moves (in view)
 and once per dump (dump["scene"]):
   movers  [{s, c, sh, k (kind), m?, sf? (saved LEGO surfaces)}]  (index = id - 1)
@@ -50,6 +50,7 @@ GLOW_RADIUS = 4.0  # px (output) of the Neon glow
 GLOW_ALPHA = 0.45
 MAX_TRANSPARENT_FACES = 4000  # beyond this the farthest transparent faces are dropped
 WATER_CLEAR = 6.0  # studs of way under the water until it tints a part fully (shallow = clearer)
+FF_CORE, FF_RIM = 0.25, 1.6  # ForceField opacity x (facing the camera, at the silhouette)
 
 
 class Context:
@@ -92,7 +93,8 @@ def parts_of(world, scene, ctx):
     rows, meta = [], []
     for s in _as_list(world.get("solids")):
         rows.append(s["cf"])
-        meta.append((s["s"], s["c"], s.get("sh", "Block"), float(s.get("t", 0) or 0), bool(s.get("m")), None))
+        meta.append((s["s"], s["c"], s.get("sh", "Block"), float(s.get("t", 0) or 0), bool(s.get("m")), None,
+                     bool(s.get("ff"))))
     infos = _as_list((scene or {}).get("movers"))
     for m in _as_list(world.get("movers")):
         idx = int(m[0]) - 1
@@ -101,14 +103,14 @@ def parts_of(world, scene, ctx):
         info = infos[idx]
         rows.append(m[1:13])
         meta.append((info["s"], info["c"], info.get("sh", "Block"), float(m[13]) if len(m) > 13 else 0.0,
-                     bool(info.get("m")), info.get("sf")))
+                     bool(info.get("m")), info.get("sf"), False))
     if not rows:
         return []
     cf = np.asarray(rows, float).reshape(-1, 12)
     pos = ctx.ground[None, :] + cf[:, :3] @ ctx.M.T
     rot = np.einsum("ij,njk->nik", ctx.M, cf[:, 3:].reshape(-1, 3, 3))
     out = []
-    for i, (size, color, shape, t, neon, surfaces) in enumerate(meta):
+    for i, (size, color, shape, t, neon, surfaces, ff) in enumerate(meta):
         part = {
             "cf": [float(pos[i, 0]), float(pos[i, 1]), float(pos[i, 2])] + [float(v) for v in rot[i].reshape(-1)],
             "size": [float(v) for v in size],
@@ -120,6 +122,8 @@ def parts_of(world, scene, ctx):
         }
         if surfaces:
             part["surfaces"] = dict(surfaces)
+        if ff:
+            part["ff"] = True
         out.append(part)
     return out
 
@@ -149,6 +153,27 @@ def _upsample_depth(bg_depth_ss, Hs, Ws):
     return d[np.ix_(ys, xs)]
 
 
+def _forcefield(sc, parts, eye):
+    """ForceField parts (stage 4: the shield dome): clear where the face looks at the camera,
+    up to FF_RIM x their opacity at the silhouette, glowing in their colour (unlit) — Roblox's
+    rim-lit shell. Back faces stay culled (a part is not drawn from inside, like Roblox)."""
+    ff = np.array([bool(p.get("ff")) for p in parts], bool)
+    if not ff.any() or len(sc.owner) == 0:
+        return
+    sel = ff[sc.owner]
+    if not sel.any():
+        return
+    view = sc.centroid[sel] - np.asarray(eye, float)[None, :]
+    view /= np.maximum(np.linalg.norm(view, axis=1), 1e-6)[:, None]
+    facing = np.abs((sc.normal[sel] * view).sum(1)) / np.maximum(np.linalg.norm(sc.normal[sel], axis=1), 1e-6)
+    rim = (1 - np.clip(facing, 0, 1)) ** 2
+    base = sc.face_opacity[sel]
+    sc.face_opacity = sc.face_opacity.copy()
+    sc.face_opacity[sel] = np.clip(base * (FF_CORE + (FF_RIM - FF_CORE) * rim), 0, 0.95)
+    sc.face_rgb = sc.face_rgb.copy()
+    sc.face_rgb[sel] = np.minimum(sc.face_color[sel] * 1.1 + 25, 255)
+
+
 def render(world, scene, cam_spec, ctx, W, H, ss, bg_depth_ss=None):
     """(layer RGBA Image at W*ss x H*ss or None, opaque depth (H, W) float32 or None) of a world
     frame's solids. cam_spec = {eye, focus, fov} in the spot frame; bg_depth_ss = the
@@ -158,6 +183,7 @@ def render(world, scene, cam_spec, ctx, W, H, ss, bg_depth_ss=None):
         return None, None
     sc = R.Scene({"parts": parts})
     eye, focus = ctx.point(cam_spec["eye"]), ctx.point(cam_spec["focus"])
+    _forcefield(sc, parts, eye)
     cam = R.PerspCamera(eye, focus, float(cam_spec.get("fov", 70)), W, H, ss)
     Ws, Hs = W * ss, H * ss
     fp = cam.focal(ss)
@@ -379,4 +405,15 @@ def selftest():
     assert q[H, W + r_px + 3, 3] > 0, q[H, W + r_px + 3]  # glow just outside the ball
     x_t = W + int(3.0 * (H * 2 / 2) / math.tan(math.radians(35)) / 9)
     assert 100 < q[H, x_t, 3] < 160, q[H, x_t]  # the half-transparent cube
+    # a ForceField ball: nearly clear in the middle, denser towards the silhouette; not drawn
+    # from inside (back faces culled)
+    world = {"solids": [{"cf": [0, 0, 0] + ident, "s": [6, 6, 6], "c": [80, 200, 255], "sh": "Ball", "t": 0.15,
+                         "ff": 1}], "waterY": -100}
+    im4, _ = render(world, None, cam, ctx, W, H, 2, None)
+    f = np.asarray(im4)
+    r_ff = int(3.0 * (H * 2 / 2) / math.tan(math.radians(35)) / math.sqrt(91))  # its radius, px
+    centre, rim = int(f[H, W, 3]), int(f[H, W + r_ff - 3, 3])
+    assert 0 < centre < 90 and rim > centre + 30, (centre, rim)
+    im5, _ = render(world, None, {"eye": [0, 0, 0.5], "focus": [0, 0, 5], "fov": 70}, ctx, W, H, 2, None)
+    assert im5 is None or np.asarray(im5)[..., 3].max() == 0
     return True

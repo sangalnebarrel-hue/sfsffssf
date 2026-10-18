@@ -744,6 +744,27 @@ client's `Workspace.TankWorld` (TankWorldController's fish, words and FX; its fi
 boxes) and draws the pedestal labels (`Pedestal.LabelGui`) of the bases within 60 studs of the
 camera. Render them HUD-less: `gui_render.py --scenario tank_court,tank_aisle --no-hud …`.
 
+Stage 4 world views (`tools/preview/gui_scenarios_theft_world.luau`, `world = true`, not in
+`--all`; by name): `steal_hold_follow` (the follow camera behind a thief holding Slot_3: the fish
+lifted and tilted, the red pulse, «КРАДУТ!» with its ring), `steal_carry_dog` (the carry: the
+fish's arc out of the front glass onto the thief's head, his StolenFish plate and «ВОР!», the
+lamp, the siren, the Highlight, the dog running after the slowed thief), `alarm_lamp_court` (the
+lamp half a blink apart), `alarm_siren_highlight` (the owner's view of the thief: the Highlight,
+«ВОР!», the siren's beams), `shield_dome_gate` (base 1's dome from its gate, a join-protected
+neighbour without one, the camera inside the dome), `dog_court_rest` (the shown dog at
+`Dog.Rest` and the kennel), `tank_sign_defences` («🔐1 · 🐕 · 🚨» and «🛡️ 0:42»),
+`owner_pier_alert` / `owner_pier_alert_wait` (`server = true`: the real cast) — the fishing
+camera with «🚨 КРАДУТ!». The stage 4 services are stubs: the file writes the slot steal channel,
+the base / dog / player attributes and the thief's StolenFish (the real `Lib/HeldRig`) itself;
+the thief is a second player (`h:extraPlayer`, gone at the scenario's end) and `h:atEnd` puts
+base 1 back for the next scenario. The world capture walks the client's `Workspace.TheftWorld`
+and draws a Highlight (its parts' projected boxes filled + ringed; AlwaysOnTop over everything),
+a SpotLight (a glow + its lit ground patch) and a ForceField part (rim-lit, clear in the middle,
+not drawn from inside — Roblox culls back faces). The lamp, the shown dog and the kennel are
+drawn from the sim (`addLive`). World views HUD-less: `gui_render.py --scenario
+steal_hold_follow,… --devices phone --no-hud --sheets …`; the pier words with the HUD on phone and
+desktop.
+
 Stage 3 tank panel (`tools/preview/gui_scenarios_panel.luau`, listed after the built-in states, in
 the standard set): `tank_panel_home` (3/6: a Gold Perch, a maxed Puffer, a young Crucian, empty
 cards, the locked teaser; the open's rise and card pops at 0.12 s), `tank_panel_take` (opened with

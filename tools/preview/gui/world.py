@@ -11,9 +11,12 @@ scene and the solids (Occluder):
   dots     {p: [x, y, size, r, g, b, a], shape, e}   simulated ParticleEmitter particles
   gui      {objects}                   a BillboardGui laid out on screen (HUD objects)
   surface  {objects, size, quad}       a SurfaceGui: its canvas warped onto the face quad
-  glow     {x, y, r, c, a}             a PointLight
+  glow     {x, y, r, c, a}             a PointLight (and a SpotLight's source)
+  poly     {pts, c, a, neon, dn}       a SpotLight's lit ground patch (stage 4: the siren);
+                                       in dumps from before the solids also a lit part face
+  highlight {polys, fc, fa, oc, oa, top}  a Highlight: its parts' projected boxes (hulled here),
+                                       filled and ringed; top = AlwaysOnTop (never hidden)
 and, in dumps from before the solids (still drawn):
-  poly     {pts, c, a, neon}           a lit part face / cylinder hull; Neon glows
   circle   {x, y, r, c, a, neon}       a Ball part
   fish     {fish, mutation, x, y, len, ang, box}     a fish model: docs/gear sprite
 
@@ -34,6 +37,7 @@ from . import text as T
 
 XRAY = {"fish": (0, 229, 255), "fx": (255, 92, 230), "path": (0, 229, 255)}
 COVER_ALPHA = 0.6  # HUD opacity from which a world pixel counts as hidden
+HIGHLIGHT_OUTLINE = 1.5  # px (output) of a Highlight's outline ring (stage 4: the thief's mark)
 
 
 class Occluder:
@@ -280,6 +284,62 @@ def _glow(canvas, ss, origin, it, occ=None):
     reg.done(occ, _near(it))
 
 
+def _hull(pts):
+    """Convex hull (monotone chain) of [(x, y)...], counter-clockwise."""
+    pts = sorted(set((float(p[0]), float(p[1])) for p in pts))
+    if len(pts) < 3:
+        return pts
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    lower, upper = [], []
+    for p in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+    for p in reversed(pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+    return lower[:-1] + upper[:-1]
+
+
+def _highlight(canvas, ss, origin, it, occ=None):
+    """A Highlight (stage 4: the thief's mark): the union of its parts' projected boxes filled
+    with fc at fa and ringed (HIGHLIGHT_OUTLINE px outside the union) with oc at oa; `top`
+    (AlwaysOnTop) is never hidden, else the scene in front of the adornee hides it."""
+    hulls = [_hull(p) for p in it.get("polys") or []]
+    hulls = [h for h in hulls if len(h) >= 3]
+    if not hulls:
+        return
+    allpts = [p for h in hulls for p in h]
+    pad = HIGHLIGHT_OUTLINE + 2
+    x0, y0, x1, y1 = _bbox(allpts)
+    reg = _Region(canvas, ss, origin, x0 - pad, y0 - pad, x1 + pad, y1 + pad)
+    if not reg.ok:
+        return
+    mask = Image.new("L", reg.im.size, 0)
+    md = ImageDraw.Draw(mask)
+    for h in hulls:
+        md.polygon([reg.pt(*p) for p in h], fill=255)
+    size = int(HIGHLIGHT_OUTLINE * ss) * 2 + 1
+    ring = np.asarray(mask.filter(ImageFilter.MaxFilter(size)), np.float32) - np.asarray(mask, np.float32)
+    inside = np.asarray(mask, np.float32) / 255.0
+    ring = np.clip(ring, 0, 255) / 255.0
+    fa, oa = float(it.get("fa", 0)), float(it.get("oa", 0))
+    fc, oc = np.asarray(it.get("fc", (255, 0, 0)), np.float32), np.asarray(it.get("oc", (255, 255, 255)), np.float32)
+    a_fill, a_ring = inside * fa, ring * oa
+    a = a_fill + a_ring * (1 - a_fill)
+    rgb = (fc[None, None, :] * a_fill[..., None] + oc[None, None, :] * (a_ring * (1 - a_fill))[..., None]) / \
+        np.maximum(a, 1e-6)[..., None]
+    layer = np.zeros(mask.size[::-1] + (4,), np.uint8)
+    layer[..., :3] = np.clip(rgb, 0, 255).astype(np.uint8)
+    layer[..., 3] = np.clip(a * 255, 0, 255).astype(np.uint8)
+    reg.im = Image.fromarray(layer, "RGBA")
+    reg.done(None if it.get("top") else occ, _near(it))
+
+
 def perspective_coeffs(src, dst):
     """Coefficients for PIL's Image.PERSPECTIVE transform that maps output points `dst` to input
     points `src` (4 pairs)."""
@@ -353,6 +413,8 @@ def paint(canvas, world, ss, origin=(0, 0), depth=None):
                 _surface(canvas, ss, origin, it, occ)
             elif k == "glow":
                 _glow(canvas, ss, origin, it, occ)
+            elif k == "highlight":
+                _highlight(canvas, ss, origin, it, occ)
         except (ValueError, ZeroDivisionError, OverflowError) as exc:  # a degenerate projection
             T.warn_once(f"world item {k} skipped: {exc}")
 
@@ -452,6 +514,19 @@ def selftest():
     q = c2.load()
     assert q[40, 20][3] == 0 and q[60, 20][3] == 255, (q[40, 20], q[60, 20])
     assert q[40, 70][3] == 255, q[40, 70]
+    # a Highlight: the union filled at fa, a ring outside it at oa; Occluded hides behind the
+    # wall, AlwaysOnTop does not
+    c3 = Image.new("RGBA", (100, 100), (0, 0, 0, 0))
+    hl = {"k": "highlight", "polys": [[[30, 40], [45, 40], [45, 60], [30, 60]], [[44, 40], [70, 40], [70, 60], [44, 60]]],
+          "fc": [255, 0, 0], "fa": 0.3, "oc": [255, 0, 0], "oa": 1, "d": 20}
+    paint(c3, {"items": [hl]}, 1, depth=depth)
+    h = c3.load()
+    assert h[40, 50][3] == 0 and 60 < h[60, 50][3] < 100, (h[40, 50], h[60, 50])  # hidden / fill 0.3
+    assert h[71, 50][3] == 255 and h[60, 39][3] == 255, (h[71, 50], h[60, 39])  # the ring
+    assert h[75, 50][3] == 0, h[75, 50]
+    c4 = Image.new("RGBA", (100, 100), (0, 0, 0, 0))
+    paint(c4, {"items": [dict(hl, top=True)]}, 1, depth=depth)
+    assert c4.load()[40, 50][3] > 60, c4.load()[40, 50]  # AlwaysOnTop: through the wall
     hud = Image.new("RGBA", (100, 100), (0, 0, 0, 0))
     ImageDraw.Draw(hud).rectangle([0, 0, 49, 99], fill=(255, 255, 255, 255))
     cov = coverage(hud, {"marks": [{"name": "A", "box": [0, 0, 100, 100]}]}, 1)
