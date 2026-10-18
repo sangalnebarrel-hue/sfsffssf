@@ -10,7 +10,7 @@
 	    turn, «НОВАЯ!», count-up, confetti; Legendary/Mythic: a crisp burst at the fish — no edge
 	    flash —, second ring, rainbow), the mutation badge effects and the hint pill by kind;
 	    stage 3: the fish's income «+$X/с» flies out of the price, the tank stamp «В САДОК!» /
-	    «ЗАМЕНА!» / «ПРОДАНА» lands after it, and the card flies into «САДОК» (a fish sold on the
+	    «ЗАМЕНА!» / «САДОК ПОЛОН · ПРОДАНА» lands after it, and the card flies into «САДОК» (a fish sold on the
 	    spot — as 💵 into the Wallet);
 	  • effects start and are cleaned up: no Fx* instances left after a full catch/close and after
 	    a miss, no frame effect (RenderStepped/Heartbeat) running while idle, connection counts
@@ -2424,10 +2424,12 @@ tests["catch card layout: a landscape trophy card on phones, square on tablet / 
 	sim:AssertNoErrors({ warnings = true })
 end
 
--- Stage 3: what happened to the fish, stamped on the card after its price lands — «В САДОК!» (Water),
--- «ЗАМЕНА!» (Leaf), «ПРОДАНА» (Gold) — in the close-hint row (the hint shortens beside it or goes),
--- never under 12 px; a catch without a tank result keeps the whole row for the hint.
-tests["tank stamp: «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА» after the price, in the hint row, ≥ 12 px"] = function(
+-- Stage 3: what happened to the fish, slapped on the card after its price lands — «В САДОК!» (Water),
+-- «ЗАМЕНА!» (Leaf), «САДОК ПОЛОН» over «ПРОДАНА» (Sun) — a sticker on the card's bottom-right
+-- corner like «НОВИНКА!» (ART-04: overhanging it, its line ≥ 16 px, «ПРОДАНА» ≥ 18 px; UX-01), below
+-- the price chip, the close hint left of it (shorter or gone); a catch without a tank result keeps
+-- the whole row for the hint.
+tests["tank stamp: «В САДОК!» / «ЗАМЕНА!» / «САДОК ПОЛОН · ПРОДАНА» after the price, a corner sticker, ≥ 16 px"] = function(
 	t
 )
 	local sim = boot(t)
@@ -2452,7 +2454,7 @@ tests["tank stamp: «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА» a
 			"ЗАМЕНА!",
 			Palette.Leaf,
 		},
-		{ CATCHES.Common, { Result = "sold", Count = 6, Slots = 6, Price = 11 }, "ПРОДАНА", Palette.Gold },
+		{ CATCHES.Common, { Result = "sold", Count = 6, Slots = 6, Price = 11 }, "ПРОДАНА", Palette.Sun },
 	}
 	for index, case in cases do
 		for _, p in players do
@@ -2485,18 +2487,33 @@ tests["tank stamp: «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА» a
 			t.ok(isCandy(stamp, case[4]), `{what}: its colour`)
 			local s0, s1 = stamp.AbsolutePosition, stamp.AbsolutePosition + stamp.AbsoluteSize
 			local c0, c1 = card.AbsolutePosition, card.AbsolutePosition + card.AbsoluteSize
+			local mid = (s0 + s1) / 2
 			t.ok(
-				s0.X >= c0.X and s0.Y >= c0.Y and s1.X <= c1.X and s1.Y <= c1.Y,
+				mid.X > c0.X and mid.X < c1.X and mid.Y > c0.Y and mid.Y < c1.Y,
 				`{what}: on the card ({s0} … {s1} in {c0} … {c1})`
 			)
-			t.ok(stamp.AbsoluteSize.Y * 0.72 >= 12 - 0.01, `{what}: ≥ 12 px ({stamp.AbsoluteSize.Y})`)
+			t.ok(s1.X > c1.X and s1.Y > c1.Y, `{what}: … overhanging its bottom-right corner`)
+			t.eq(stamp.Rotation, -8, `{what}: tilted like «НОВИНКА!»`)
+			local least = if case[3] == "ПРОДАНА" then 18 else 16
+			t.ok(
+				stamp.Label.AbsoluteSize.Y >= least - 0.01,
+				`{what}: its line ≥ {least} px ({stamp.Label.AbsoluteSize.Y})`
+			)
+			t.eq(stamp.Sub.Visible, case[3] == "ПРОДАНА", `{what}: the cause line only on a sale`)
+			if case[3] == "ПРОДАНА" then
+				t.eq(stamp.Sub.Text, "САДОК ПОЛОН")
+				t.ok(stamp.Sub.AbsoluteSize.Y >= 12, `{what}: «САДОК ПОЛОН» ≥ 12 px`)
+			end
 			local price = card.InfoLabel.Price
 			local p1 = price.AbsolutePosition + price.AbsoluteSize
 			t.ok(s0.Y >= p1.Y - 1 or s1.X <= price.AbsolutePosition.X, `{what}: below the price chip`)
 			local hint = card.TapHint
 			if hint.Text ~= "" then
 				local h0, h1 = hint.AbsolutePosition, hint.AbsolutePosition + hint.AbsoluteSize
-				t.ok(h1.X <= s0.X + 1 or h0.X >= s1.X - 1, `{what}: beside the close hint «{hint.Text}»`)
+				t.ok(
+					h1.X <= s0.X + 1 or h0.X >= s1.X - 1 or h1.Y <= s0.Y + 1,
+					`{what}: clear of the close hint «{hint.Text}»`
+				)
 			end
 		end
 		for _, p in players do

@@ -154,10 +154,12 @@
 	    цветов редкости; прилёт — когда долетели, а следом трофей над головой «вспыхивает» ещё раз
 	    (FishingFxController.ReplayOwnTrophy; своя табличка с ценой выскакивает только теперь) —
 	    рыба висит дольше карточки. Этап 3 (design §6.5): "Caught" несёт Tank — что стало с рыбой
-	    в садке; на карточке — «цена $45», из фишки цены вылетает доход рыбы «+$4/с», под ценой
-	    своей долей шлёпается штамп «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА» (CatchFx.tankStamp /
-	    tankRow); рыба продана сразу (садок полон) — вылетает золотое «+$15», а карточка и 💵 летят
-	    в кошелёк (Status.Wallet.Money; кнопки нет — в середину колонки кнопок). «НОВИНКА!» —
+	    в садке; на карточке — «цена $45», из фишки цены вылетает доход рыбы «+$4/с», своей долей
+	    на правый нижний угол карточки шлёпается наклейка «В САДОК!» / «ЗАМЕНА!» / «САДОК ПОЛОН»
+	    над «ПРОДАНА» (CatchFx.tankStamp / tankRow); рыба продана сразу (садок полон) — вылетает
+	    золотое «+$15», карточка висит не меньше CatchFx.SOLD_HOLD после наклейки (cardTime), а
+	    уходя, она и 💵 летят в кошелёк (Status.Wallet.Money; кнопки нет — в середину колонки
+	    кнопок). «НОВИНКА!» —
 	    первый улов вида за всё время (Fish.New от сервера). Фишку «4/6» кнопки «САДОК» ведёт
 	    TankButtonController, кошелёк — MoneyController: от "Caught" до прилёта у HUD стоит
 	    атрибут CounterHold (прошлое число улова — «улов на экране»), пока рыба летит —
@@ -378,7 +380,7 @@ type Ui = {
 	priceLabel: TextLabel,
 	counter: GuiObject, -- Этап 3: кнопка «САДОК» (RightButtons.TankButton) — туда летит улов
 	wallet: GuiObject, -- … а рыба, проданная сразу, — 💵 в кошелёк (Status.Wallet.Money)
-	tankStamp: Frame, -- штамп садка под ценой «В САДОК!» / «ЗАМЕНА!» / «ПРОДАНА»
+	tankStamp: Frame, -- наклейка садка на углу «В САДОК!» / «ЗАМЕНА!» / «САДОК ПОЛОН · ПРОДАНА»
 	-- Баннер «ТВОЯ БАЗА» по центру (его ведёт HudController): пока он виден, подсказка по месту ждёт.
 	baseBanner: GuiObject?,
 
@@ -3204,7 +3206,7 @@ do
 			applyPlace(gui, place)
 		end
 		CatchFx.stampMin(ui.newStamp, size.X) -- (UI v5: на узкой карточке наклейка уже)
-		-- Этап 3: ряд под ценой — штамп садка справа, подсказка «закрыть» слева (CatchFx.tankRow).
+		-- Этап 3: наклейка садка на правом нижнем углу, подсказка «закрыть» левее (CatchFx.tankRow).
 		CatchFx.tankRow(
 			ui.tankStamp,
 			ui.tapHint,
@@ -5286,8 +5288,13 @@ do
 		end)
 
 		-- Сама закроется: по редкости (UIConfig.CatchCardTime), но не раньше, чем через CARD.Linger
-		-- после последней доли.
-		local auto = math.max(UIConfig.CatchCardTime[fish.Rarity] or UIConfig.CatchCardTime.Common, last + CARD.Linger)
+		-- после последней доли; рыба продана сразу — не раньше CatchFx.SOLD_HOLD после доли штампа
+		-- (last − beat): «САДОК ПОЛОН / ПРОДАНА» успевают прочесть (CatchFx.cardTime).
+		local auto = CatchFx.cardTime(
+			math.max(UIConfig.CatchCardTime[fish.Rarity] or UIConfig.CatchCardTime.Common, last + CARD.Linger),
+			last - beat,
+			cardTank
+		)
 		later(cardTrove, auto, closeCard)
 		cardTrove:Add(function()
 			local count = stopPriceCount

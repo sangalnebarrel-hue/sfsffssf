@@ -491,6 +491,10 @@ local UIConfig = {
 		ReplacedToastAfter = 1.1,
 		ArrivalWait = 0.05,
 		StoredWait = 0.3,
+		-- Улов продан сразу (садок полон): пока его карточка на экране, золотая фишка «6/6»
+		-- пульсирует до SoldPulse за SoldPeriod с — продажа связана с полным садком (UX-01).
+		SoldPulse = 1.22,
+		SoldPeriod = 0.7,
 	},
 
 	-- Лимиты и ритм эффектов (UiFx).

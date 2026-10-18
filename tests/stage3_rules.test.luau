@@ -968,6 +968,11 @@ tests["text widths: every toast ≤ 300 px at 12 px with the longest names and p
 				TextUtil.fill(TankConfig.Texts.Replaced, { new = new, old = old, price = R.FormatMoney(big.price) })
 			)
 		end
+		-- (a notable fish sold on the spot: its name and the price)
+		table.insert(
+			texts,
+			TextUtil.fill(TankConfig.Texts.SoldNotable, { name = new, price = R.FormatMoney(big.price) })
+		)
 	end
 	for _, text in texts do
 		t.ok(not string.find(text, "{", 1, true), `«{text}»: every field filled`)
@@ -1042,26 +1047,48 @@ tests["text widths: card, header and stamp strings fit their boxes at their tier
 	fits(t, UiFx, R.FormatRate(big.tankIncome10), header.Rate, panel, sheet, "tank income")
 	fits(t, UiFx, "💵 " .. R.FormatMoney(big.tankValue) .. " ▲", header.Total, panel, sheet, "tank value")
 	fits(t, UiFx, header.Market.Label.Text, header.Market.Label, panel, sheet, "market chip")
-	-- The tank stamp on the catch card (wave 2 C): CatchFx.tankRow sizes its plate to its words in
-	-- the close-hint row — on the smallest docked card (phone_small) the label is ≥ 12 px and holds
-	-- every stamp; the builder's label shares are the ones tankRow computes with.
+	-- The tank stamp on the catch card (ART-04 / UX-01): CatchFx.tankRow slaps it on the card's
+	-- bottom-right corner like «НОВИНКА!» — on the smallest docked card (phone_small) its plate is
+	-- ≥ 26 px tall and its line ≥ 16 px (a fish sold on the spot: «ПРОДАНА» ≥ 18 px under the
+	-- cause «САДОК ПОЛОН» ≥ 12 px), every word fits its box, it is tilted and overhangs the
+	-- corner; the builder's label shares are the ones tankRow computes with.
 	local stamp = hud.Fishing.CatchCard.TankStamp
 	local CatchFx = s.CatchFx
-	t.ok(CatchFx.STAMP_TEXT >= 12, "the stamp is never under 12 px")
+	t.ok(CatchFx.STAMP_TEXT >= 16, "the stamp's line is never under 16 px")
+	t.ok(CatchFx.SOLD_TEXT >= 18, "«ПРОДАНА» never under 18 px")
 	t.near(stamp.Label.Size.Y.Scale, CatchFx.STAMP_LABEL, 1e-6, "the label's height share (tankRow)")
 	t.near(stamp.Label.Size.X.Scale, CatchFx.STAMP_INNER, 1e-6, "the label's width share (tankRow)")
-	local smallest = Vector2.new(260, 165)
-	for _, result in { "stored", "replaced", "sold" } do
-		local text = CatchFx.tankStamp({ Result = result })
-		local plate, hint = stamp:Clone(), hud.Fishing.CatchCard.TapHint:Clone()
-		CatchFx.tankRow(plate, hint, { Result = result }, smallest, true, smallest.X)
-		local size = Vector2.new(plate.Size.X.Scale * smallest.X, plate.Size.Y.Scale * smallest.Y)
-		local inner = Vector2.new(size.X * plate.Label.Size.X.Scale, size.Y * plate.Label.Size.Y.Scale)
-		t.ok(inner.Y >= 12 - 1e-6, `stamp «{text}»: its label box is {math.floor(inner.Y)} px tall`)
-		local w = UiFx.textWidth(text, 12)
-		t.ok(w <= inner.X, `stamp «{text}»: {math.floor(w)} px fits {math.floor(inner.X)} px at 12 px`)
-		plate:Destroy()
-		hint:Destroy()
+	t.eq(stamp.Sub.Visible, false, "the cause line hidden at rest")
+	for _, case in { { Vector2.new(260, 165), true }, { Vector2.new(300, 290), false } } do
+		local card, wide = case[1], case[2]
+		for _, result in { "stored", "replaced", "sold" } do
+			local text, _, sub = CatchFx.tankStamp({ Result = result })
+			local plate, hint = stamp:Clone(), hud.Fishing.CatchCard.TapHint:Clone()
+			CatchFx.tankRow(plate, hint, { Result = result }, card, true, if wide then card.X else nil)
+			local what = `{if wide then "wide" else "square"} {card.X}×{card.Y} «{text}»`
+			local size = Vector2.new(plate.Size.X.Scale * card.X, plate.Size.Y.Scale * card.Y)
+			t.ok(size.Y >= 26 - 0.01, `{what}: the plate is {math.floor(size.Y)} px tall (≥ 26)`)
+			local inner = Vector2.new(size.X * plate.Label.Size.X.Scale, size.Y * plate.Label.Size.Y.Scale)
+			local least = if sub then CatchFx.SOLD_TEXT else CatchFx.STAMP_TEXT
+			t.ok(inner.Y >= least - 0.01, `{what}: its line box is {math.floor(inner.Y + 0.01)} px (≥ {least})`)
+			t.ok(UiFx.textWidth(text, inner.Y) <= inner.X + 1e-6, `{what}: the word fits at {math.floor(inner.Y)} px`)
+			t.eq(plate.Sub.Visible, sub ~= nil, `{what}: the cause line only on a sale`)
+			if sub then
+				t.eq(sub, TankConfig.Texts.Stamp.full)
+				local subBox = Vector2.new(size.X * plate.Sub.Size.X.Scale, size.Y * plate.Sub.Size.Y.Scale)
+				t.ok(subBox.Y >= 12, `{what}: «{sub}» ≥ 12 px ({math.floor(subBox.Y)})`)
+				t.ok(UiFx.textWidth(sub, subBox.Y) <= subBox.X + 1e-6, `{what}: «{sub}» fits`)
+				t.ok(plate.Sub.Position.Y.Scale < plate.Label.Position.Y.Scale, `{what}: the cause over «{text}»`)
+			end
+			t.eq(plate.Rotation, CatchFx.STAMP_TILT, `{what}: tilted like «НОВИНКА!»`)
+			-- on the card's bottom-right corner, overhanging it
+			local x1 = (plate.Position.X.Scale + (1 - plate.AnchorPoint.X) * plate.Size.X.Scale) * card.X
+			local y1 = (plate.Position.Y.Scale + (1 - plate.AnchorPoint.Y) * plate.Size.Y.Scale) * card.Y
+			t.ok(x1 > card.X and x1 < card.X + size.X * 0.3, `{what}: overhangs the right edge ({x1})`)
+			t.ok(y1 > card.Y and y1 < card.Y + size.Y * 0.5, `{what}: overhangs the bottom edge ({y1})`)
+			plate:Destroy()
+			hint:Destroy()
+		end
 	end
 end
 
@@ -1070,17 +1097,25 @@ tests["CatchFx.tankStamp: the result's words and colours; nothing without Tank"]
 	local cases = {
 		{ "stored", TankConfig.Texts.Stamp.stored, "Water" },
 		{ "replaced", TankConfig.Texts.Stamp.replaced, "Leaf" },
-		{ "sold", TankConfig.Texts.Stamp.sold, "Gold" },
+		{ "sold", TankConfig.Texts.Stamp.sold, "Sun" },
 	}
 	for _, case in cases do
-		local text, token = CatchFx.tankStamp({ Result = case[1], Count = 1, Slots = 6 })
+		local text, token, sub = CatchFx.tankStamp({ Result = case[1], Count = 1, Slots = 6 })
 		t.eq(text, case[2], `{case[1]}: the words`)
 		t.eq(token, case[3], `{case[1]}: the colour`)
+		t.eq(sub, if case[1] == "sold" then TankConfig.Texts.Stamp.full else nil, `{case[1]}: the cause line`)
 		t.ok(UIConfig.Palette[token] ~= nil, `{token} is a palette token`)
 	end
 	t.eq(TankConfig.Texts.Stamp.stored, "В САДОК!")
 	t.eq(TankConfig.Texts.Stamp.replaced, "ЗАМЕНА!")
 	t.eq(TankConfig.Texts.Stamp.sold, "ПРОДАНА")
+	t.eq(TankConfig.Texts.Stamp.full, "САДОК ПОЛОН")
+	-- a sold card stays SOLD_HOLD after its stamp (UX-01); the others keep their time
+	t.eq(CatchFx.cardTime(2.2, 1.6, { Result = "sold" }), 1.6 + CatchFx.SOLD_HOLD)
+	t.eq(CatchFx.cardTime(5.1, 1.6, { Result = "sold" }), 5.1, "a long card keeps its own time")
+	t.eq(CatchFx.cardTime(2.2, 1.6, { Result = "stored" }), 2.2)
+	t.eq(CatchFx.cardTime(2.2, 1.6, nil), 2.2)
+	t.ok(CatchFx.SOLD_HOLD >= 1.5 + 0.26, "≥ 1.5 s after the slap (0.26 s) lands")
 	for _, junk in { nil, {}, { Result = "pending" }, { Result = 5 }, "stored" } do
 		local text, token = CatchFx.tankStamp(junk)
 		t.eq(text, nil, `{typeof(junk)}: no stamp`)

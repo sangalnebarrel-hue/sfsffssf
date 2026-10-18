@@ -1100,23 +1100,24 @@ local function buildCatch(root: any)
 		MinTextSize = 14,
 	})
 
-	-- Stage 3: the tank stamp under the price — what happened to the fish in the tank (K-4):
-	-- «В САДОК!» (Water), «ЗАМЕНА!» (Leaf), «ПРОДАНА» (Gold) — CatchFx.tankStamp gives the text
-	-- and the colour; CatchFx.tankRow places it at the right end of the close hint's row (the
-	-- hint takes the rest, shorter when tight), sized to its word by UiFx.textWidth (never under
-	-- 12 px), and its own beat slaps it in after the price; a small tilted sim plate like
-	-- «НОВИНКА!», hidden (no Tank in "Caught": no stamp).
-	Theme.plate(card, "TankStamp", "Water", {
+	-- Stage 3: the tank stamp — what happened to the fish in the tank (K-4): «В САДОК!» (Water),
+	-- «ЗАМЕНА!» (Leaf), and for a fish sold on the spot the cause over the result, «САДОК ПОЛОН»
+	-- (Sub) over «ПРОДАНА» (Sun) — CatchFx.tankStamp gives the words and the colour. A sticker like
+	-- «НОВИНКА!» (ART-04): CatchFx.tankRow slaps it on the card's bottom-right corner, tilted
+	-- −8°, overhanging the corner, its line ≥ 16 px (the sold one ≥ 18 px) and sized to its words
+	-- by UiFx.textWidth; the close hint keeps the row left of it; its own beat slaps it in after the
+	-- price. Hidden (no Tank in "Caught": no stamp); Sub hidden unless sold.
+	local tankStamp = Theme.plate(card, "TankStamp", "Water", {
 		Visible = false,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.74, 0.84),
-		Size = UDim2.fromScale(0.36, 0.075),
-		Rotation = -6,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.86, 0.95),
+		Size = UDim2.fromScale(0.4, 0.13),
+		Rotation = -8,
 		ZIndex = 8,
 		Text = TankConfig.Texts.Stamp.stored,
-		MaxTextSize = 22,
+		MaxTextSize = 26,
 		Radius = UI.Sim.PlateRadius,
-		SimOpts = { stroke = Theme.MINOR, shine = false },
+		SimOpts = { stroke = Theme.DISPLAY_OUTLINE, shine = false },
 		LabelProps = {
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
@@ -1124,6 +1125,17 @@ local function buildCatch(root: any)
 			Outline = 3,
 			MinTextSize = 12,
 		},
+	})
+	label(tankStamp, "Sub", {
+		Visible = false,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.28),
+		Size = UDim2.fromScale(0.88, 0.4),
+		Text = TankConfig.Texts.Stamp.full,
+		ZIndex = SZ.Content,
+		Outline = 3,
+		MaxTextSize = 26,
+		MinTextSize = 12,
 	})
 
 	-- The close hint, named like the button's «ЗАБРАТЬ!»: muted italic on the plate (the

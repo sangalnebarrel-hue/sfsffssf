@@ -58,8 +58,12 @@
 	        CounterHold — отпускает: надпись не застревает);
 	      улов "sold" — ТОЛЬКО MoneyController, когда снят CounterHold: Celebrate(Price, nil) —
 	        призрак карточки уже прилетел в Wallet.Money как 💵 (FishingController), только счёт;
-	        первый раз за игру — уведомление TankConfig.Texts.FullSold (Sun, 💵) через CatchToast,
-	        когда число набежало (+ Wallet.SoldToastGap с): не поверх праздника продажи.
+	        потом уведомление, ПОЧЕМУ её продали (Sun, 💵; CatchToast, когда число набежало +
+	        Wallet.SoldToastGap с: не поверх праздника продажи): заметная рыба — новый вид
+	        (Fish.New, без него — первый за игру, как «НОВИНКА!» карточки), с мутацией или
+	        редкости из TankConfig.SoldExplain — КАЖДЫЙ раз «Садок полон: «Окунь» слабее всех,
+	        +$35» (Texts.SoldNotable), обычная — «Садок полон — лови рыбу получше!» (FullSold) раз
+	        за игру.
 	  • CatchToast(text, kind, look?, delay?) — уведомление улова (зовёт и TankButtonController:
 	    первая рыба, замена): через delay с и не раньше, чем своя рыба над головой (HeldFish в
 	    своём персонаже) ушла, но не дольше Wallet.TrophyWait с — на планшете и компьютере
@@ -89,6 +93,8 @@ local EconomyConfig = require(Config:WaitForChild("EconomyConfig"))
 local TankConfig = require(Config:WaitForChild("TankConfig"))
 local DataConfig = require(Config:WaitForChild("DataConfig"))
 local TankRules = require(Shared:WaitForChild("TankRules"))
+local FishingRules = require(Shared:WaitForChild("FishingRules"))
+local TextUtil = require(Shared:WaitForChild("TextUtil"))
 local Net = require(Shared:WaitForChild("Net"))
 local UiFx = require(Shared:WaitForChild("UiFx"))
 local NotifyController = require(script.Parent:WaitForChild("NotifyController"))
@@ -157,11 +163,13 @@ local state: "hidden" | "loading" | "ready" = "hidden"
 local startedAt = 0
 local memoryToast = false -- уведомление «прогресс не сохраняется» уже было
 local soldToast = false -- «Садок полон…» уже было за эту игру
+local seenSpecies: { [string]: boolean } = {} -- виды, пойманные за эту игру (как «НОВИНКА!» карточки)
 local floatChain = 0 -- поколение цепочки «+$13»
 local lastParty = -math.huge -- os.clock() последнего праздника денег (Celebrate)
 
--- Придержка улова "replaced" / "sold" (до прилёта рыбы и Celebrate этой суммы).
-type CatchHold = { amount: number, held: number, result: string }
+-- Придержка улова "replaced" / "sold" (до прилёта рыбы и Celebrate этой суммы); fishId и
+-- notable — для уведомления о продаже на месте.
+type CatchHold = { amount: number, held: number, result: string, fishId: string, notable: boolean }
 local catchHold: CatchHold? = nil
 
 local function number(value: any): number
@@ -630,8 +638,27 @@ local function dropHold()
 	end
 end
 
+-- Заметный улов (его продажу на месте объясняем всегда): новый вид (Fish.New сервера, а без него —
+-- первый за эту игру, как «НОВИНКА!» карточки), мутация или редкость из TankConfig.SoldExplain.
+-- Запоминает вид как пойманный.
+local function notableCatch(fish: any): (string, boolean)
+	if typeof(fish) ~= "table" then
+		return "", false
+	end
+	local id = if typeof(fish.Id) == "string" then fish.Id else ""
+	local isNew = if typeof(fish.New) == "boolean" then fish.New else not seenSpecies[id]
+	seenSpecies[id] = true
+	local mutated = typeof(fish.Mutation) == "string" and fish.Mutation ~= ""
+	local rare = typeof(fish.Rarity) == "string" and TankConfig.SoldExplain[fish.Rarity] == true
+	return id, isNew or mutated or rare
+end
+
 local function onCaught(data: any)
-	if typeof(data) ~= "table" or typeof(data.Tank) ~= "table" then
+	if typeof(data) ~= "table" then
+		return
+	end
+	local fishId, notable = notableCatch(data.Fish)
+	if typeof(data.Tank) ~= "table" then
 		return
 	end
 	local result = data.Tank.Result
@@ -642,7 +669,7 @@ local function onCaught(data: any)
 	dropHold() -- прошлый улов (редко: два подряд) — отпустить
 	local take = math.min(price, math.max(0, moneyNow() - held - shown))
 	held += take
-	local hold: CatchHold = { amount = price, held = take, result = result }
+	local hold: CatchHold = { amount = price, held = take, result = result, fishId = fishId, notable = notable }
 	catchHold = hold
 	-- Нет карточки (FishingController не поставил CounterHold) — как будто рыба уже долетела.
 	task.defer(function()
@@ -652,20 +679,26 @@ local function onCaught(data: any)
 	end)
 end
 
--- Рыба долетела: "sold" — счёт (💵 уже сел в кошелёк) и первый раз за игру — «Садок полон…»
--- (когда число набежало и трофей ушёл: не на праздник продажи); "replaced" — ждём Celebrate от
--- TankButtonController (не позвал за HoldRelease с — отпустить).
+-- Рыба долетела: "sold" — счёт (💵 уже сел в кошелёк) и уведомление, почему её продали (когда
+-- число набежало и трофей ушёл: не на праздник продажи): заметная — каждый раз с именем и суммой
+-- (TankConfig.Texts.SoldNotable), обычная — «Садок полон — лови рыбу получше!» раз за игру;
+-- "replaced" — ждём Celebrate от TankButtonController (не позвал за HoldRelease с — отпустить).
 function arrived(hold: CatchHold)
 	if hold.result == "sold" then
 		MoneyController.Celebrate(hold.amount, nil) -- (берёт придержанное как своё)
-		if not soldToast then
-			soldToast = true
-			MoneyController.CatchToast(
-				TankConfig.Texts.FullSold,
-				"warning",
-				{ icon = "💵" },
-				countTime(hold.amount) + WALLET.SoldToastGap
-			)
+		local text: string? = nil
+		if hold.notable then
+			local def = FishingRules.GetFish(hold.fishId)
+			text = TextUtil.fill(TankConfig.Texts.SoldNotable, {
+				name = if def then def.ShortName else hold.fishId,
+				price = TankRules.FormatMoney(hold.amount),
+			})
+		elseif not soldToast then
+			text = TankConfig.Texts.FullSold
+		end
+		if text then
+			soldToast = true -- (объяснили — простое «Садок полон…» уже не нужно)
+			MoneyController.CatchToast(text, "warning", { icon = "💵" }, countTime(hold.amount) + WALLET.SoldToastGap)
 		end
 	else
 		task.delay(WALLET.HoldRelease, function()
