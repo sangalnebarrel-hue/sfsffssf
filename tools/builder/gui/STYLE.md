@@ -209,7 +209,12 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   and flashes its rim only when the base arrives); the base banner (first assignment: NO panel — a
   huge outlined title like the reference's «Украдите яйцо!»: the caption «ТВОЯ БАЗА» over the name
   «ЛАЗУРНАЯ!» in white → base colour with an 8 px Ink outline and a drop-shadow twin, the 🚩
-  waving beside it; the name slams in and flashes, rays, confetti, a fanfare; after 2 s it shrinks
+  waving beside it; the name slams in from its baseline (anchored at its bottom middle: it grows up
+  and sideways, never down) no bigger than the room — it keeps 16 px to the shown status rows, the
+  right column and the action disc's place even at the start of the slam, and where «ВЗЯТЬ» stands
+  under the name's end (phones; the small 667 px phone at rest) the banner is lifted until the name
+  clears the disc by 16 px, never closer than 16 px to the status rows (HudController placeBanner /
+  nameSlamFrom, V-02) — and flashes, rays, confetti, a fanfare; after 2 s it shrinks
   into the badge, which bumps and flashes its rim); the Wallet and «САДОК» (stage 3, see «The
   Wallet and «САДОК»» below: the catch counter is gone); the Home button (a
   square purple Grape sim button, a big outlined 🏠 and «ДОМОЙ» ON its bottom edge, the red «!»

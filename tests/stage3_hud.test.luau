@@ -609,6 +609,101 @@ tests["pop-in order: the base banner lands in the badge → the Wallet (+0.3 s) 
 	sim:AssertNoErrors({ warnings = true })
 end
 
+-- Distance between two rects (0 when they touch, negative never: overlapping rects read 0 — the
+-- caller asks for ≥ 16).
+local function rectGap(a: Rect, b: Rect): number
+	local dx = math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), 0)
+	local dy = math.max(b.y - (a.y + a.h), a.y - (b.y + b.h), 0)
+	return math.sqrt(dx * dx + dy * dy)
+end
+
+local function grownBy(r: Rect, gui: any): Rect
+	local lip = gui:FindFirstChild("Lip")
+	local stroke = lip and lip:FindFirstChildOfClass("UIStroke")
+	local e = if stroke then stroke.Thickness else 0
+	return { x = r.x - e, y = r.y - e, w = r.w + 2 * e, h = r.h + 2 * e }
+end
+
+-- V-02: the «ТВОЯ БАЗА» banner's giant name (HudController) keeps 16 px to the status badge,
+-- «ДОМОЙ» and the action disc («ВЗЯТЬ» may pop in under it at any moment) on every screen, at rest
+-- and through its slam (it grows from its baseline, no bigger than the room; the banner's own
+-- pop-in scale counts). The name is measured as it is drawn: its box and its drop-shadow twin, the
+-- outline at the sides and a quarter of its height of font line above and below (what the preview
+-- checker measures). On the small 667 px phone the disc stands under the name's end: the banner is
+-- lifted (stage 3 shipped it 13 px over the disc).
+tests["base banner: its name keeps 16 px to the badge, «ДОМОЙ» and the action disc on every screen — at rest and through its slam (V-02)"] = function(
+	t
+)
+	local sim = boot(t)
+	local screens = {
+		{ name = "phone", device = "phone" },
+		{ name = "phone_notch", device = "phone", viewport = Vector2.new(750, 369) },
+		{ name = "phone_small", device = "phone", viewport = Vector2.new(667, 375) },
+		{ name = "tablet", device = "tablet" },
+		{ name = "desktop", device = "desktop" },
+	}
+	for i, screen in screens do
+		local p = sim:AddPlayer({ UserId = i, Name = `Banner{i}`, device = screen.device, viewport = screen.viewport })
+		local banner: any = nil
+		local shown = sim:WaitFor(function()
+			local hud = p.PlayerGui:FindFirstChild("HUD")
+			banner = hud and hud:FindFirstChild("BaseBanner")
+			return banner ~= nil and banner.Visible
+		end, 10, 1 / 60)
+		t.ok(shown, `{screen.name}: the banner shows`)
+		local hud = hudOf(p)
+		local name, twin = banner.NameLabel, banner.NameLabelShadow
+		local disc = hud.Fishing.ActionArea.ActionButton
+		local neighbours = {
+			badge = grownBy(rectOf(sim, p, hud.Status.BaseBadge), hud.Status.BaseBadge),
+			home = grownBy(rectOf(sim, p, hud.RightButtons.HomeButton), hud.RightButtons.HomeButton),
+			disc = grownBy(rectOf(sim, p, disc), disc),
+		}
+		local outline = name:FindFirstChild("Outline")
+		local edge = if outline then outline.Thickness else 0
+		local worst: { [string]: number } = {}
+		local biggest = 1
+		for _ = 1, 66 do -- (1.1 s: pop-in, slam, rest; the banner flies into the badge at 2 s)
+			local b = rectOf(sim, p, banner)
+			local n = rectOf(sim, p, name)
+			local s = rectOf(sim, p, twin)
+			local sb = if banner:FindFirstChild("FxScale") then banner.FxScale.Scale else 1
+			local sn = if name:FindFirstChild("FxScale") then name.FxScale.Scale else 1
+			biggest = math.max(biggest, sn)
+			local bc = Vector2.new(b.x + b.w / 2, b.y + b.h / 2)
+			local anchor = Vector2.new(n.x + n.w / 2, n.y + n.h) -- (the name's baseline middle)
+			local at = bc + (anchor - bc) * sb
+			local k = sb * sn
+			local ink = n.h * 0.25
+			local x0, x1 = math.min(n.x, s.x) - edge, math.max(n.x + n.w, s.x + s.w) + edge
+			local y0, y1 = n.y - ink, math.max(n.y + n.h, s.y + s.h) + ink
+			local drawn: Rect = {
+				x = at.X - (anchor.X - x0) * k,
+				y = at.Y - (anchor.Y - y0) * k,
+				w = (x1 - x0) * k,
+				h = (y1 - y0) * k,
+			}
+			for what, rect in neighbours do
+				worst[what] = math.min(worst[what] or math.huge, rectGap(drawn, rect))
+			end
+			sim:Advance(1 / 60)
+		end
+		t.ok(biggest > 1.15, `{screen.name}: the name still slams in ({biggest})`)
+		for what, gap in worst do
+			t.ok(gap >= 16, `{screen.name}: the name keeps 16 px to the {what} ({gap})`)
+		end
+		if screen.name == "phone_small" then
+			local rest = INSET + 0.46 * (screen.viewport.Y - INSET)
+			local b = rectOf(sim, p, banner)
+			t.ok(
+				b.y + b.h / 2 < rest - 4,
+				`{screen.name}: the banner is lifted over «ВЗЯТЬ» ({b.y + b.h / 2} < {rest})`
+			)
+		end
+	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
 tests["idle with income: plain-text ticks, a «+$N» float every 5 s only; no frame job, no connection churn"] = function(
 	t
 )

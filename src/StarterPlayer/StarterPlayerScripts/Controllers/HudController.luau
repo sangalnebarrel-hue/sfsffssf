@@ -10,7 +10,10 @@
 	    игрок ждёт (светло-серая плашка «ЖДЁМ БАЗУ…»).
 	  • Первая база — момент: по центру экрана огромная надпись HUD.BaseBanner, как заголовок
 	    образца («ТВОЯ БАЗА» / «ЛАЗУРНАЯ!» в цветах базы, с толстой обводкой и тенью, без
-	    плашки): имя «влетает» (slam) и вспыхивает, флажок машет, лучи, конфетти и «фанфара»;
+	    плашки; на маленьком телефоне, где под концом имени «ВЗЯТЬ», — выше, чтобы до её круга
+	    было 16 px, но не ближе 16 px к строкам статуса — placeBanner): имя «влетает» (slam: растёт
+	    от своей нижней кромки и не крупнее, чем позволяют 16 px до плашек статуса, колонки кнопок и
+	    кнопки действия — nameSlamFrom) и вспыхивает, флажок машет, лучи, конфетти и «фанфара»;
 	    через 2 с надпись сжимается и влетает в плашку, плашка подпрыгивает, её ободок
 	    вспыхивает, блик (пока баннер виден, подсказка рыбалки ждёт — FishingController смотрит
 	    на его Visible). Если база досталась после ожидания в очереди — уведомление «Тебе
@@ -63,6 +66,7 @@ local Trove = require(Shared:WaitForChild("Util"):WaitForChild("Trove"))
 local UiFx = require(Shared:WaitForChild("UiFx"))
 local TextUtil = require(Shared:WaitForChild("TextUtil"))
 local NotifyController = require(script.Parent:WaitForChild("NotifyController"))
+local Layout = require(script.Parent:WaitForChild("FishingLayout")) -- (прямоугольники и «удар»)
 
 type Swatch = UIConfig.Swatch
 
@@ -76,6 +80,11 @@ local FLAG_WAITING = "⏳"
 local FLAG_SEARCHING = "🔎"
 
 local BANNER_HOLD = 2 -- сколько секунд баннер базы стоит по центру
+local NAME_SLAM = 1.8 -- имя на баннере «ударяет» с такого масштаба (если есть место — nameSlamFrom)
+local NAME_ROOM = 1.5 -- … и баннер над кнопкой действия встаёт так, чтобы места хватило хотя бы на такой
+local NAME_INK = 0.25 -- строка шрифта имени выступает за его рамку сверху и снизу на столько его высоты
+local SLAM_CLEAR = 16 + 3 -- до соседей (с их обводкой ≈ 3 px), px
+local DISC_POP = 0.15 -- «выскок» кнопки действия с доворотом (и её «!») поднимает её верх на столько её стороны
 local BANNER_FLY = 0.4 -- полёт баннера в плашку
 local CAPTION_REST = "ДОМОЙ"
 local CAPTION_WAIT = "ЖДИ"
@@ -209,6 +218,98 @@ function HudController:Start(hud: ScreenGui)
 		end))
 	end
 
+	-- Соседи баннера в px HUD, до которых он и «удар» его имени держат SLAM_CLEAR (V-02):
+	-- показанные строки статуса (по ширине — вся стопка), колонка кнопок справа и круг кнопки
+	-- действия на своём месте в покое (FishingController.layoutColumn: якорь в центре, сторона —
+	-- доля высоты области; сверху ещё DISC_POP на её «выскок» с доворотом — «ВЗЯТЬ» может появиться
+	-- в любой миг). Возвращает их список, отдельно — круг (nil — нет) и низ строк статуса с зазором.
+	local function bannerNeighbours(): ({ any }, any?, number)
+		local origin = hud.AbsolutePosition
+		local function rect(at: Vector2, size: Vector2, grow: number): any
+			return Layout.rect(at.X - grow, at.Y - grow, at.X + size.X + grow, at.Y + size.Y + grow)
+		end
+		local keepouts = {}
+		local top = status.AbsolutePosition - origin
+		local floor = top.Y
+		for _, item in status:GetChildren() do
+			if item:IsA("GuiObject") and item.Visible then
+				floor = math.max(floor, item.AbsolutePosition.Y - origin.Y + item.AbsoluteSize.Y)
+			end
+		end
+		table.insert(keepouts, rect(top, Vector2.new(status.AbsoluteSize.X, floor - top.Y), SLAM_CLEAR))
+		table.insert(keepouts, rect(rightButtons.AbsolutePosition - origin, rightButtons.AbsoluteSize, SLAM_CLEAR))
+		local fishing = hud:FindFirstChild("Fishing")
+		local area = fishing and fishing:FindFirstChild("ActionArea")
+		local disc = area and area:FindFirstChild("ActionButton")
+		local around: any = nil
+		if area and area:IsA("GuiObject") and disc and disc:IsA("GuiObject") then
+			local box = area.AbsoluteSize
+			local side = disc.Size.Y.Scale * box.Y + disc.Size.Y.Offset
+			local at = area.AbsolutePosition
+				- origin
+				+ Vector2.new(
+					disc.Position.X.Scale * box.X + disc.Position.X.Offset - side / 2,
+					disc.Position.Y.Scale * box.Y + disc.Position.Y.Offset - side / 2
+				)
+			around = rect(at, Vector2.new(side, side), SLAM_CLEAR)
+			around.y0 -= side * DISC_POP
+			table.insert(keepouts, around)
+		end
+		return keepouts, around, floor + SLAM_CLEAR
+	end
+
+	-- Имя на баннере в px HUD с запасом на обводку (по бокам), строку шрифта (NAME_INK сверху и
+	-- снизу) и тень-близнеца (ниже на свой сдвиг) и его якорь (середина нижней кромки) в долях
+	-- этого прямоугольника.
+	local function nameBox(nameLabel: GuiObject): (any, Vector2)
+		local at = nameLabel.AbsolutePosition - hud.AbsolutePosition
+		local size = nameLabel.AbsoluteSize
+		local outline = nameLabel:FindFirstChild("Outline")
+		local edge = if outline and outline:IsA("UIStroke") then outline.Thickness else 0
+		local ink = size.Y * NAME_INK
+		local twin = UiFx.twinOf(nameLabel)
+		local drop = if twin then math.max(twin.AbsolutePosition.Y - nameLabel.AbsolutePosition.Y, 0) else 0
+		local box = Layout.rect(at.X - edge, at.Y - ink, at.X + size.X + edge, at.Y + size.Y + ink + drop)
+		local pivot = at + size * nameLabel.AnchorPoint
+		return box,
+			Vector2.new(
+				(pivot.X - box.x0) / math.max(box.x1 - box.x0, 1),
+				(pivot.Y - box.y0) / math.max(box.y1 - box.y0, 1)
+			)
+	end
+
+	-- Баннер — по центру (bannerRest), но если имя при «ударе» с NAME_ROOM (вокруг своего якоря;
+	-- строка шрифта под кромкой растёт с ним) подошло бы к кругу кнопки действия (с его «выскоком»)
+	-- ближе SLAM_CLEAR — телефоны: «ВЗЯТЬ» справа внизу под концом имени, — он поднимается на
+	-- столько, но не выше SLAM_CLEAR под показанными строками статуса.
+	local function placeBanner(live: GuiObject, nameLabel: GuiObject?)
+		live.Position = bannerRest
+		if not nameLabel or not nameLabel:IsA("GuiObject") then
+			return
+		end
+		local _, around, floor = bannerNeighbours()
+		local name, anchor = nameBox(nameLabel)
+		local w, h = name.x1 - name.x0, name.y1 - name.y0
+		local px, py = name.x0 + anchor.X * w, name.y0 + anchor.Y * h
+		local x0, x1 = px - anchor.X * w * NAME_ROOM, px + (1 - anchor.X) * w * NAME_ROOM
+		local y1 = py + (1 - anchor.Y) * h * NAME_ROOM
+		if around and x1 > around.x0 and around.x1 > x0 and y1 > around.y0 then
+			local top = live.AbsolutePosition.Y - hud.AbsolutePosition.Y
+			local lift = math.max(math.min(y1 - around.y0, top - floor), 0)
+			live.Position = bannerRest - UDim2.fromOffset(0, math.ceil(lift))
+		end
+	end
+
+	-- Имя «ударяет» с NAME_SLAM, но не крупнее, чем есть места: растёт от своей нижней кромки (к
+	-- кнопке действия под баннером не опускается) и и в начале держит SLAM_CLEAR до соседей
+	-- (bannerNeighbours; V-02: на маленьком телефоне и планшете удар 1.8 доставал до «ДОМОЙ»).
+	-- Меряется до «выскока» баннера (масштаб 1).
+	local function nameSlamFrom(nameLabel: GuiObject): number
+		local keepouts = bannerNeighbours()
+		local name, anchor = nameBox(nameLabel)
+		return Layout.growFrom(name, anchor, NAME_SLAM, keepouts)
+	end
+
 	-- Первая база: баннер по центру (лучи, конфетти, машущий флажок), потом — в плашку.
 	local function showBanner(swatch: Swatch, colorName: string)
 		local live = banner
@@ -217,8 +318,8 @@ function HudController:Start(hud: ScreenGui)
 			return
 		end
 		bannerTrove:Clean()
-		live.Position = bannerRest
 		live.Visible = true
+		placeBanner(live, live:FindFirstChild("NameLabel") :: GuiObject?)
 		local caption = live:FindFirstChild("Caption")
 		if caption and caption:IsA("TextLabel") then
 			caption.Text = "ТВОЯ БАЗА"
@@ -237,8 +338,9 @@ function HudController:Start(hud: ScreenGui)
 					ColorSequenceKeypoint.new(1, swatch.Bottom),
 				})
 			end
+			local from = nameSlamFrom(nameLabel)
 			bannerTrove:Add(task.delay(0.12, function()
-				UiFx.slam(nameLabel, 1.8, 0.3)
+				UiFx.slam(nameLabel, from, 0.3)
 			end))
 			bannerTrove:Add(task.delay(0.45, function()
 				UiFx.flashText(nameLabel, swatch.Top, 0.4)
