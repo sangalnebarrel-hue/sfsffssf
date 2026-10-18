@@ -47,8 +47,8 @@
 	  DogBrain.Get(base) -> Brain?                        -- тесты
 	  DogBrain._debugSizes() -> { Brains }
 	Атрибуты модели Base_N.Dog (RemoteNames): DogState, DogPos (Vector3 мира), DogTarget (UserId).
-	Волна 0 (контракт): чистые шаги готовы, запись атрибутов (writeAttributes) — заглушка; её тело —
-	Wave 1 A (вместе с показом собаки DefenceService).
+	Запись атрибутов (writeAttributes) — по правилам Pending выше; показ и прятание самой модели
+	собаки — DefenceService.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -176,8 +176,21 @@ end
 -- Записать в атрибуты Base_N.Dog то, что вернул Pending, — по правилам шапки: каждый ключ
 -- pending — одна запись base.Dog:SetAttribute(name, value); value == false → nil (снять);
 -- DogPos — base.Model:GetPivot() * pos (точка базы → мир); DogState / DogTarget — как есть.
--- Волна 0: заглушка — атрибуты пишет Wave 1 A (здесь только помечается, что «записано»).
-local function writeAttributes(_base: any, brain: Brain, pending: { [string]: any }, now: number)
+-- (База без модели собаки — чистые тесты — только помечает, что «записано».)
+local function writeAttributes(base: any, brain: Brain, pending: { [string]: any }, now: number)
+	local dog = if type(base) == "table" then base.Dog else nil
+	local model = if type(base) == "table" then base.Model else nil
+	if typeof(dog) == "Instance" and typeof(model) == "Instance" then
+		for name, value in pending do
+			if value == false then
+				dog:SetAttribute(name, nil)
+			elseif name == "DogPos" then
+				dog:SetAttribute(name, (model :: Model):GetPivot() * (value :: Vector3))
+			else
+				dog:SetAttribute(name, value)
+			end
+		end
+	end
 	DogBrain.Mark(brain, pending, now)
 end
 
@@ -215,12 +228,9 @@ function DogBrain.Step(base: any, dt: number, thief: Vector3?): boolean
 end
 
 function DogBrain.Reset(base: any)
-	local brain = brains[base]
 	brains[base] = nil
-	if brain then
-		local rest = DogBrain.New()
-		writeAttributes(base, rest, { DogState = false, DogPos = false, DogTarget = false }, os.clock())
-	end
+	-- Всегда (и у уснувшей собаки остались DogState = "Sleep" и DogPos): база — как свежая (BE-27).
+	writeAttributes(base, DogBrain.New(), { DogState = false, DogPos = false, DogTarget = false }, os.clock())
 end
 
 function DogBrain.AnyAwake(): boolean

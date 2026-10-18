@@ -13,8 +13,8 @@
 	     шаблона (его возвращают пустым витринам); у всех витрин State = "empty"; кнопка
 	     ProximityPrompt "TankPrompt" на Tank.Glass.PromptAttachment (TankConfig.Prompt: «Открыть» /
 	     «Садок», HoldDuration 0, MaxActivationDistance 10, RequiresLineOfSight false, Enabled
-	     false); хук DataService:OnSerialize (обновить возраст рыб на базе; Этап 4 — какие uid не
-	     сохранять, в Этапе 3 — никаких).
+	     false); хук DataService:OnSerialize (обновить возраст рыб на базе; Этап 4 — skipUid: рыбы
+	     «в пути» этого игрока не сохранять, есть у него запись или уже нет).
 	  2. DataService.Loaded → записи рыб: Rarity, Value, Income10 — из FishingRules.Price; рыба
 	     «спит» (Dormant), если вид незнаком или у неё нет своей витрины (PlayerData.Layout):
 	     не видна, без дохода, не продаётся, не заменяется, сохраняется как есть. Атрибуты игрока
@@ -35,10 +35,11 @@
 	     EconomyService:AddMoney(…, "autosell") при "replaced" / "sold" → Stats.Sold + 1 → атрибуты
 	     витрины (Event последним) → доход → атрибуты → FishRemoved / FishAdded. Полный садок:
 	       есть свободная открытая витрина → в самую младшую → "stored" (Event "<n>|in|<FishId>");
-	       иначе слабейшая активная (не Locked, не Dormant) — TankRules.ChooseReplacement: доход
-	       новой больше → слабейшую продать по SellPrice(…, возраст сейчас, HomeRatePct), новая на
-	       её место → "replaced" (Event "<n>|swap|<цена>"); иначе новую продать сразу по
-	       SellPrice(Value, 0, HomeRatePct) → "sold" (витрины не меняются, номер не тратится).
+	       иначе слабейшая активная (не Locked: её не крадут и она не «в пути»; не Dormant) —
+	       TankRules.ChooseReplacement: доход новой больше → слабейшую продать по SellPrice(…,
+	       возраст сейчас, HomeRatePct), новая на её место → "replaced" (Event "<n>|swap|<цена>");
+	       иначе новую продать сразу по SellPrice(Value, 0, HomeRatePct) → "sold" (витрины не
+	       меняются, номер не тратится).
 	     Возвращает TankResult { Result, Slot?, Uid?, Count, Slots, Replaced?, Price?, First? }
 	     (First — улов и Stats.Caught == 1: первое уведомление и «!»). Price — ВСЕГДА монеты, которые
 	     зачислил этот AddFish (клиент празднует именно их): "replaced" — Price == Replaced.Price
@@ -48,8 +49,8 @@
 	     без него — у улова Origin нет). Без базы (Этап 4: вор в очереди) — только данные, витрины
 	     покажет подключение.
 	  6. Продажа TankSell(uid) — проверки по порядку из шапки RemoteNames (uid, лимит запросов
-	     Lib.TankRequests — из него же каждый ответ, CanWrite, база, своя активная рыба, не
-	     Locked, конечная цена), потом без ожиданий: возраст сейчас и цена
+	     Lib.TankRequests — из него же каждый ответ, CanWrite, база, своя активная рыба, её не
+	     крадут — "locked", она не «в пути» — "escrow", конечная цена), потом без ожиданий: возраст сейчас и цена
 	     TankRules.SellPrice(Value, ageNow, MarketService:RatePct(player)), убрать из data.Tank
 	     (плотно) и записей, AddMoney(…, "sell"), Stats.Sold + 1, витрина ("empty", поля nil, Event
 	     "<n>|sold|<цена>"), доход, TankEvent("Sold", { Items, Amount, RatePct, Place }),
@@ -84,30 +85,62 @@
 	через EconomyService:SetIncome); Base_N.Tank — Count, Slots, Income; витрины — State, FishUid,
 	FishId, Rarity, Mutation, Kg, Value, Income, GrowFrom (TankRules.AttrTime), Event
 	("<n>|in|<FishId>", "<n>|mount|" — подключение и отключение садка, тихо, "<n>|sold|<цена>",
-	"<n>|swap|<цена>", Этап 4 "<n>|stolen|"; поля рыбы → State → Event последним; пишутся только
-	изменившиеся; n растёт у базы всё время работы сервера).
-	Remote'ы: TankSell (клиент → сервер), TankEvent (сервер → клиент) — протокол в RemoteNames.
+	"<n>|swap|<цена>", Этап 4 "<n>|stolen|<UserId вора>" и "<n>|void|"; поля рыбы → State → канал
+	кражи (StealBy, StealEnd, Escrow, FreshUntil, StealPhase последним) → Event последним; пишутся
+	только изменившиеся; n растёт у базы всё время работы сервера).
+	Remote'ы: TankSell (клиент → сервер), TankEvent (сервер → клиент), StealEvent "Returned" (сервер →
+	клиент, Этап 4) — протокол в RemoteNames.
 
-	Этап 4 (кража) — уже есть: RemoveFish(owner, uid, reason) и AddFish(thief, fish, "stolen")
-	(то же правило полного садка; оба nil без CanWrite своего игрока), сигналы FishAdded /
-	FishRemoved, Event "stolen" одним событием (RemoveFish с reason "stolen"), SetLocked(owner,
-	uid, bool) (продажа — Denied "locked", рыба не заменяется), Pedestal.PromptAttachment свободна
-	под кнопки кражи. Порядок кражи (никогда не дюп; худшее — одна потерянная рыба):
-	1) RemoveFish(жертва, uid) → seqV = DataService:SaveSoon(жертва); 2) AddFish(вор, рыба,
-	"stolen") — новый Uid из счётчика вора, Origin = "<UserId жертвы>:<uid>", в записи Escrow =
-	{ жертва, seqV }: пока так — не продаётся, хук OnSerialize её не сохраняет; 3) когда
-	Committed(жертва) ≥ seqV — Escrow снимается, SaveSoon(вор); 4) запись жертвы так и не легла
-	(замок потерян) — рыба «в пути» пропадает, когда вор уходит. Две рыбы с одним Origin в садке —
-	оставить одну.
 	Этап 5 (магазин): SetSlots(player, n) — открывает следующие витрины (только больше, до любых
 	n ≥ текущего; в игре — не больше MaxSlots: атрибуты, таблички) и будит «спящих» знакомых рыб
 	в новых витринах.
 
-	Этап 4 (кража, docs/stage4_design.md §3.2, §4.5) — волна 0 (контракт): подписи ниже; чтение
-	(PreviewAdd, SlotFish, ActiveCount, IsMounted) уже работает; SetSteal, StealFish, «в пути»
-	(EscrowCount), сигналы Mounted / Unmounted / SlotChanged и канал кражи витрин — Wave 1 A.
-	Краденая рыба «в пути» снимается ТОЛЬКО записью жертвы (DataService.Committed / Released),
-	никогда по таймеру.
+	Этап 4 — кража (docs/stage4_design.md §3.2–§3.4, §4.5; StealService только зовёт SetSteal и
+	StealFish, весь переход рыбы — здесь):
+	  10. SetSteal(owner, uid, token, phase, info?) — «держатель» рыбы: пока её крадут (hold /
+	     carry), второй токен её не возьмёт; рыба «в пути» и спящая — никогда. Канал кражи витрины
+	     (отдельно от Event): StealBy, StealEnd, потом StealPhase ПОСЛЕДНИМ; снятие — так же,
+	     StealPhase последним. "carry" — рыба уже на голове вора: дохода хозяину не даёт. SetLocked —
+	     тонкая обёртка (токен −1, без атрибутов: Этап 3).
+	  11. StealFish(victim, thief, uid, token) — у ограды, в наблюдателе StealService, без ожиданий:
+	     ПРОВЕРКА — полный план, ничего не меняя (оба CanWrite и подключены; рыба активна, её
+	     токен и фаза "carry"; место у вора: свободная витрина или слабейшая не Locked рыба
+	     слабее добычи — иначе nil, "full"; новый Uid вора подсмотрен; цены конечны; Origin
+	     «<UserId жертвы>:<uid>» у вора ещё нет); ПОТОМ — по порядку, только таблицы и атрибуты:
+	     0) запись «в пути» escrows[вор][новый uid] (Seq = ∞: с этого мига сохранения вора её
+	     пропускают, и ни один Committed с ней не совпадёт); 1) жертва: рыба убрана (данные,
+	     записи, витрина «empty» → Event "<n>|stolen|<UserId вора>"), доход, Stats.Lost + 1;
+	     2) вор: NextUid + 1, при "replaced" — слабейшая убрана (денег пока нет), строка добычи
+	     (Age — как у жертвы, CaughtAt — сейчас, Origin), её запись с Escrow, витрина (Escrow =
+	     true до Event "in" / "swap"), доход (рыба «в пути» дохода не даёт), Stats.Stolen + 1;
+	     3) Seq = SaveSoon(жертва); 4) не DataStore или запись жертвы уже ≥ Seq — снять «в пути»
+	     сразу; 5) потом деньги ("replaced": AddMoney(вор, цена его слабейшей, "autosell"),
+	     Stats.Sold + 1), SlotChanged ×2, FishRemoved / FishAdded, TankEvent("Stored") вору.
+	  12. «В пути» (escrow) снимается ТОЛЬКО записью жертвы: DataService.Committed(жертва, seq ≥
+	     Seq) — снять (запись первой, рыба начинает приносить доход, SaveSoon(вор));
+	     DataService.Released(жертва, committed) — каждая её запись: committed ≥ Seq — снять,
+	     иначе — «аннулировать» (void: рыба уходит из садка вора тихо, Event "<n>|void|",
+	     Stats.Stolen − 1, вору StealEvent "Returned" «Рыба вернулась к хозяину»; монеты за его
+	     проданную слабейшую остаются). НИКОГДА по таймеру: таймер — единственный путь к дюпу.
+	     Записи — по самому Player жертвы (её запись, не UserId: перезаход — другая запись).
+	     Пока «в пути»: не сохраняется (хук OnSerialize — skipUid), не продаётся (Denied
+	     "escrow"), не кандидат замены, не крадётся (TheftChecks "fresh"), без дохода.
+	  13. Вор уходит с рыбой «в пути» (PlayerRemoving; и хук DataService:OnClose — при закрытии
+	     сервера, раньше последних сохранений): вернуть каждую жертве — запись первой; жертва
+	     пишет данные — та же строка (прежний uid; своя витрина, если свободна, иначе младшая
+	     свободная, иначе «спит» до следующей загрузки), Stats.Lost − 1, SaveSoon(жертва),
+	     StealEvent "Returned" «Вор ушёл — рыба вернулась!»; жертва уже уходит, а её последний
+	     снимок не снят — DataService:AmendLeaving (та же строка в её живые данные); снимок уже
+	     снят — одна рыба потеряна (F8c, никогда не две). У вора строка убрана из живых данных
+	     (Stats.Stolen − 1). Повторное возвращение и вставка uid, который уже есть, — ничего не
+	     делают (§3.4).
+	  14. Улов ("catch") — свежий: FreshUntil = сейчас + StealConfig.Limits.FreshCatch (запись и
+	     атрибут витрины); краденая и вернувшаяся рыба — без него.
+	  15. Канал кражи не переживает подключение: пустая витрина снимает StealBy, StealEnd, Escrow,
+	     FreshUntil, потом StealPhase; отключение садка снимает Steal со всех рыб ДО rt.Base = nil.
+	  16. Сигналы: Mounted / Unmounted (player, base) — в конце mount / unmount (DefenceService,
+	     StealService); SlotChanged (base, index) — после каждой записи витрины (улов, продажа,
+	     кража, возврат, «в пути», подключение): StealService обновляет по нему кнопку «Украсть».
 
 	API:
 	  TankService:AddFish(player, fish: FishData, reason) -> TankResult?
@@ -120,11 +153,12 @@
 	  TankService:StealFish(victim, thief, uid, token) -> (StealResult?, reason?)
 	  TankService:PreviewAdd(player, income10) -> "stored" | "replaced" | nil   -- ляжет ли добыча
 	  TankService:SlotFish(base, index) -> (owner?, view?)   -- view = { Uid, Id, ShortName, Rarity,
-	                                                   -- Mutation?, Value, Income10, Steal?, Escrow,
-	                                                   -- FreshUntil? }
+	                                                   -- Mutation?, Kg, Value, Income10, Steal?,
+	                                                   -- Escrow, FreshUntil? }
 	  TankService:ActiveCount(player) -> number        -- активные рыбы (и та, что сейчас несут)
 	  TankService:IsMounted(player) -> boolean
-	  TankService:EscrowCount(player) -> number        -- тесты: рыб «в пути»
+	  TankService:EscrowCount(player) -> number        -- тесты: рыб «в пути» у вора
+	  TankService:Income10(player) -> number           -- доход садка (десятые $/с; 0 — не подключён)
 	  TankService.Mounted, TankService.Unmounted       -- Signal (player, base): конец mount / unmount
 	  TankService.SlotChanged                          -- Signal (base, index): после записи витрины
 	  TankService._debugSizes()                        -- тесты: после выхода всех — нули
@@ -139,6 +173,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage.Shared
 local DataConfig = require(Shared.Config.DataConfig)
 local EconomyConfig = require(Shared.Config.EconomyConfig)
+local StealConfig = require(Shared.Config.StealConfig)
 local TankConfig = require(Shared.Config.TankConfig)
 local UIConfig = require(Shared.Config.UIConfig)
 local FishingRules = require(Shared.FishingRules)
@@ -179,6 +214,27 @@ export type TankResult = {
 	First: boolean?,
 }
 
+-- Этап 4: кто держит рыбу для кражи (SetSteal). Quiet — обёртка SetLocked (без атрибутов).
+type StealHold = {
+	Token: number,
+	Phase: string, -- "hold" | "carry"
+	By: number?, -- UserId вора (атрибут StealBy)
+	End: number?, -- серверное время конца удержания / выноса (атрибут StealEnd)
+	Quiet: boolean,
+}
+
+-- Этап 4: краденая рыба «в пути» (escrows[вор][uid вора]): ждёт записи жертвы (§3.2).
+type Entry = {
+	Victim: Player, -- запись жертвы (её Player: перезаход — другая запись)
+	VictimUserId: number,
+	VictimUid: string,
+	Thief: Player,
+	ThiefUid: string,
+	Seq: number, -- SaveSoon(жертва); до него — math.huge (ни один Committed не совпадёт)
+	Row: PlayerData.Fish, -- строка жертвы, как была (её вернёт возврат)
+	Fish: FishData, -- чистые данные рыбы (уведомления "Returned")
+}
+
 -- Рыба садка в игре (сама запись — Rec, живая строка data.Tank).
 type FishRt = {
 	Rec: PlayerData.Fish,
@@ -188,8 +244,10 @@ type FishRt = {
 	Value: number, -- цена ×1
 	Income10: number, -- доход, десятые в секунду
 	GrowFrom: number, -- серверное время «в садке с» (атрибут витрины), пока садок подключён
-	Locked: boolean, -- (Этап 4) её сейчас крадут
 	Dormant: boolean,
+	Steal: StealHold?, -- (Этап 4) её сейчас крадут (или SetLocked)
+	Escrow: Entry?, -- (Этап 4) у вора: «в пути», пока запись жертвы не легла
+	FreshUntil: number?, -- (Этап 4) свежий улов: не крадётся до этого серверного времени (AttrTime)
 }
 
 type Runtime = {
@@ -239,6 +297,8 @@ type BaseRefs = {
 local GROWTH_TIME = TankConfig.Growth.Time
 local HOME = EconomyConfig.HomeRatePct
 local TEXTS = TankConfig.Texts
+local STEAL_TEXTS = StealConfig.Texts
+local FRESH_CATCH = StealConfig.Limits.FreshCatch
 local PROMPT = TankConfig.Prompt
 local FISH_FIELDS = { "FishUid", "FishId", "Rarity", "Mutation", "Kg", "Value", "Income", "GrowFrom" }
 local WARN_EVERY = 30 -- секунд между предупреждениями цикла дохода
@@ -267,6 +327,7 @@ export type SlotView = {
 	ShortName: string,
 	Rarity: string,
 	Mutation: string?,
+	Kg: number,
 	Value: number,
 	Income10: number,
 	Steal: { Token: number, Phase: string }?,
@@ -276,7 +337,10 @@ export type SlotView = {
 
 local runtimes: { [Player]: Runtime } = {}
 local baseRefs: { [Base]: BaseRefs } = {}
+-- Этап 4: рыбы «в пути» — вор (сам Player: ключ живёт и после его записи) → uid у вора → запись.
+local escrows: { [Player]: { [string]: Entry } } = {}
 local tankEvent: RemoteEvent? = nil
+local stealEvent: RemoteEvent? = nil
 local lastLoopWarn = -math.huge
 
 --------------------------------------------------------------------------------
@@ -308,6 +372,25 @@ local function deny(player: Player, reason: string)
 	send(player, "Denied", { Reason = reason, Text = TEXTS.Denied[reason] or "" })
 end
 
+-- StealEvent "Returned" (Этап 4): краденая рыба вернулась хозяину.
+local function returned(player: Player, fish: FishData, text: string)
+	local remote = stealEvent
+	if remote and player.Parent == Players then
+		remote:FireClient(player, "Returned", { Fish = fish, Text = text })
+	end
+end
+
+-- Рыбу сейчас нельзя продать, заменить или украсть (её крадут или она «в пути»).
+local function locked(fish: FishRt): boolean
+	return fish.Steal ~= nil or fish.Escrow ~= nil
+end
+
+-- Даёт ли рыба доход: не «в пути» и не на голове у вора.
+local function earning(fish: FishRt): boolean
+	local steal = fish.Steal
+	return fish.Escrow == nil and not (steal ~= nil and steal.Phase == "carry")
+end
+
 local function knownMutation(mutation: any): string?
 	return if type(mutation) == "string" and FishingRules.GetMutation(mutation) then mutation else nil
 end
@@ -333,8 +416,27 @@ local function activeFish(rec: PlayerData.Fish): FishRt
 		Value = value,
 		Income10 = TankRules.Income10(income),
 		GrowFrom = 0,
-		Locked = false,
 		Dormant = false,
+		Steal = nil,
+		Escrow = nil,
+		FreshUntil = nil,
+	}
+end
+
+-- Спящая рыба: не видна, без дохода, не продаётся, не заменяется, сохраняется как есть.
+local function dormantFish(rec: PlayerData.Fish): FishRt
+	return {
+		Rec = rec,
+		Uid = rec.Uid,
+		Rarity = "",
+		Mutation = nil,
+		Value = 0,
+		Income10 = 0,
+		GrowFrom = 0,
+		Dormant = true,
+		Steal = nil,
+		Escrow = nil,
+		FreshUntil = nil,
 	}
 end
 
@@ -407,9 +509,30 @@ local function clearFishFields(slot: SlotRefs)
 	end
 end
 
+-- Этап 4: канал кражи витрины (отдельно от Event) — по рыбе в ней (nil — пусто): StealBy, StealEnd,
+-- Escrow, FreshUntil, потом StealPhase ПОСЛЕДНИМ (и при снятии — тоже последним).
+local function writeSteal(slot: SlotRefs, fish: FishRt?)
+	local steal = fish and fish.Steal
+	local shown = if steal and not steal.Quiet then steal else nil
+	local fresh = fish and fish.FreshUntil
+	setAttr(slot, "StealBy", shown and shown.By)
+	setAttr(slot, "StealEnd", shown and shown.End)
+	setAttr(slot, "Escrow", if fish and fish.Escrow then true else nil)
+	setAttr(slot, "FreshUntil", if fresh and fresh > Workspace:GetServerTimeNow() then fresh else nil)
+	setAttr(slot, "StealPhase", shown and shown.Phase)
+end
+
+-- Этап 4: витрина записана — StealService обновляет её кнопку «Украсть» (BE-22).
+local function changed(refs: BaseRefs?, index: number)
+	if refs then
+		TankService.SlotChanged:Fire(refs.Base, index)
+	end
+end
+
 local function showEmpty(refs: BaseRefs, slot: SlotRefs, kind: string?, detail: string?)
 	clearFishFields(slot)
 	setAttr(slot, "State", "empty")
+	writeSteal(slot, nil)
 	lookTemplate(slot)
 	if kind then
 		event(refs, slot, kind, detail or "")
@@ -419,6 +542,7 @@ end
 local function showLocked(refs: BaseRefs, slot: SlotRefs, kind: string?)
 	clearFishFields(slot)
 	setAttr(slot, "State", "locked")
+	writeSteal(slot, nil)
 	look(slot, "locked", function()
 		local t = slot.Template
 		slot.Label.Text = TEXTS.SlotLocked
@@ -452,6 +576,7 @@ local function showFish(refs: BaseRefs, slot: SlotRefs, fish: FishRt, kind: stri
 	setAttr(slot, "Income", fish.Income10 / 10)
 	setAttr(slot, "GrowFrom", fish.GrowFrom)
 	setAttr(slot, "State", "fish")
+	writeSteal(slot, fish)
 	look(slot, `fish|{rec.Id}|{fish.Rarity}`, function()
 		local def = FishingRules.GetFish(rec.Id)
 		local rarity = FishingRules.GetRarity(fish.Rarity)
@@ -486,7 +611,9 @@ end
 local function refresh(rt: Runtime)
 	local sum = 0
 	for _, fish in rt.BySlot do
-		sum += fish.Income10
+		if earning(fish) then
+			sum += fish.Income10 -- (Этап 4: «в пути» и на голове у вора — без дохода)
+		end
 	end
 	rt.Income10Sum = sum
 	local player = rt.Player
@@ -532,6 +659,10 @@ local function mount(rt: Runtime, base: Base)
 	end
 	refresh(rt)
 	refs.Prompt.Enabled = true
+	for index in refs.Slots do
+		changed(refs, index)
+	end
+	TankService.Mounted:Fire(rt.Player, base)
 end
 
 local function unmount(rt: Runtime)
@@ -543,6 +674,11 @@ local function unmount(rt: Runtime)
 	local now = Workspace:GetServerTimeNow()
 	for _, fish in rt.BySlot do
 		fish.Rec.Age = TankRules.AgeAt(fish.GrowFrom, now) -- возраст замирает
+	end
+	-- Этап 4 (BE-5): канал кражи не переживает подключение — Steal снят со всех рыб ДО rt.Base = nil
+	-- (пустые витрины ниже снимают и атрибуты; StealService в Unmounted чистит только своё).
+	for _, fish in rt.Fish do
+		fish.Steal = nil
 	end
 	rt.Mounted = false
 	rt.Base = nil
@@ -559,6 +695,12 @@ local function unmount(rt: Runtime)
 		refs.Prompt.Enabled = false
 	end
 	refresh(rt)
+	if refs then
+		for index in refs.Slots do
+			changed(refs, index)
+		end
+	end
+	TankService.Unmounted:Fire(rt.Player, base)
 end
 
 local function newRuntime(player: Player, data: PlayerData.Data): Runtime
@@ -580,17 +722,7 @@ local function newRuntime(player: Player, data: PlayerData.Data): Runtime
 		rt.BySlot[slot] = fish
 	end
 	for _, rec in dormant do
-		rt.Fish[rec.Uid] = {
-			Rec = rec,
-			Uid = rec.Uid,
-			Rarity = "",
-			Mutation = nil,
-			Value = 0,
-			Income10 = 0,
-			GrowFrom = 0,
-			Locked = false,
-			Dormant = true,
-		}
+		rt.Fish[rec.Uid] = dormantFish(rec)
 	end
 	return rt
 end
@@ -613,8 +745,13 @@ local function onLoaded(player: Player, data: PlayerData.Data)
 	tryMount(rt)
 end
 
+local returnEscrows: (player: Player) -> ()
+
 local function onPlayerRemoving(player: Player)
 	TankRequests.Forget(player)
+	-- Этап 4 (F8a / F8b / F8c): рыбы «в пути» этого вора — назад жертвам и прочь из его живых
+	-- данных; как жертва — ничего (её последнее сохранение уже без рыбы).
+	returnEscrows(player)
 	local rt = runtimes[player]
 	if not rt then
 		return
@@ -651,6 +788,32 @@ local function detach(rt: Runtime, fish: FishRt)
 	end
 end
 
+-- Кандидаты замены полного садка (TankRules.ChooseReplacement): активные рыбы; Locked — те, что
+-- крадут или «в пути» (Этап 4).
+local function candidatesOf(rt: Runtime, now: number): { TankRules.Candidate }
+	local list: { TankRules.Candidate } = {}
+	for _, other in rt.BySlot do
+		table.insert(list, {
+			Uid = other.Uid,
+			Income10 = other.Income10,
+			Value = other.Value,
+			Age = ageOf(rt, other, now),
+			Locked = locked(other),
+			Dormant = false,
+		})
+	end
+	return list
+end
+
+local function freeSlot(rt: Runtime, cap: number): number?
+	for index = 1, cap do
+		if rt.BySlot[index] == nil then
+			return index
+		end
+	end
+	return nil
+end
+
 function TankService:AddFish(player: Player, fish: FishData, reason: string): TankResult?
 	local rt, data = writable(player)
 	if not rt or not data or type(fish) ~= "table" then
@@ -673,29 +836,12 @@ function TankService:AddFish(player: Player, fish: FishData, reason: string): Ta
 	local income10 = TankRules.Income10(income)
 	local now = Workspace:GetServerTimeNow()
 	local cap = PlayerData.SlotCap(data)
-	local slot: number? = nil
-	for index = 1, cap do
-		if rt.BySlot[index] == nil then
-			slot = index
-			break
-		end
-	end
+	local slot: number? = freeSlot(rt, cap)
 	local result: "stored" | "replaced" | "sold" = "stored"
 	local weak: FishRt? = nil
 	local price: number? = nil
 	if not slot then
-		local candidates: { TankRules.Candidate } = {}
-		for _, other in rt.BySlot do
-			table.insert(candidates, {
-				Uid = other.Uid,
-				Income10 = other.Income10,
-				Value = other.Value,
-				Age = ageOf(rt, other, now),
-				Locked = other.Locked,
-				Dormant = false,
-			})
-		end
-		local weakUid = TankRules.ChooseReplacement(candidates, income10)
+		local weakUid = TankRules.ChooseReplacement(candidatesOf(rt, now), income10)
 		local chosen = weakUid and rt.Fish[weakUid]
 		if chosen then
 			weak = chosen
@@ -735,6 +881,9 @@ function TankService:AddFish(player: Player, fish: FishData, reason: string): Ta
 		table.insert(data.Tank, newEntry)
 		local fishRt = activeFish(newEntry)
 		fishRt.GrowFrom = TankRules.AttrTime(now)
+		if reason == "catch" then
+			fishRt.FreshUntil = TankRules.AttrTime(now + FRESH_CATCH) -- (Этап 4: свежий улов не крадётся)
+		end
 		rt.Fish[fishRt.Uid] = fishRt
 		rt.BySlot[index] = fishRt
 		entry, added = newEntry, fishRt
@@ -754,6 +903,9 @@ function TankService:AddFish(player: Player, fish: FishData, reason: string): Ta
 		end
 	end
 	refresh(rt)
+	if rt.Mounted and refs and added then
+		changed(refs, added.Rec.Slot)
+	end
 
 	local tank: TankResult = {
 		Result = result,
@@ -792,19 +944,12 @@ function TankService:RemoveFish(owner: Player, uid: string, reason: string): Pla
 		showEmpty(refs, refs.Slots[fish.Rec.Slot], if reason == "stolen" then "stolen" else "mount", "")
 	end
 	refresh(rt)
+	if rt.Mounted then
+		changed(refs, fish.Rec.Slot)
+	end
 	local copy = table.clone(fish.Rec)
 	TankService.FishRemoved:Fire(owner, copy, reason)
 	return copy
-end
-
-function TankService:SetLocked(owner: Player, uid: string, locked: boolean): boolean
-	local rt = runtimes[owner]
-	local fish = rt and rt.Fish[uid]
-	if not fish or fish.Dormant then
-		return false
-	end
-	fish.Locked = locked == true
-	return true
 end
 
 function TankService:SetSlots(player: Player, slots: number): boolean
@@ -844,51 +989,420 @@ function TankService:SetSlots(player: Player, slots: number): boolean
 		end
 	end
 	refresh(rt)
+	if rt.Mounted and refs then
+		for index = 1, cap do
+			changed(refs, index)
+		end
+	end
 	return true
 end
 
 --------------------------------------------------------------------------------
--- Этап 4: кража (волна 0 — контракт; SetSteal / StealFish — Wave 1 A)
+-- Этап 4: кража (docs/stage4_design.md §3.2–§3.4, §4.5)
 --------------------------------------------------------------------------------
 
--- Держать рыбу для кражи (holder token) / отпустить (phase nil). Волна 0: ничего не держит.
-function TankService:SetSteal(_owner: Player, _uid: string, _token: number, _phase: string?, _info: any?): boolean
+-- Рыба, которую можно держать для кражи: активная, в своей витрине, не спит и не «в пути».
+local function stealable(rt: Runtime, uid: any): FishRt?
+	local fish = if type(uid) == "string" then rt.Fish[uid] else nil
+	if not fish or fish.Dormant or fish.Escrow or rt.BySlot[fish.Rec.Slot] ~= fish then
+		return nil
+	end
+	return fish
+end
+
+-- Подключённая база записи (nil — садок не подключён).
+local function mountedRefs(rt: Runtime): BaseRefs?
+	local base = rt.Base
+	return if rt.Mounted and base then baseRefs[base] else nil
+end
+
+-- Держатель рыбы: token берёт её (phase "hold" | "carry"), nil — отпустить (только тот же token).
+local function holdFish(owner: Player, uid: any, token: number, phase: string?, info: any?, quiet: boolean): boolean
+	local rt = runtimes[owner]
+	local fish = rt and stealable(rt, uid)
+	if not rt or not fish or type(token) ~= "number" then
+		return false
+	end
+	local current = fish.Steal
+	if phase == nil then
+		if not current or current.Token ~= token then
+			return false
+		end
+		fish.Steal = nil
+	else
+		if phase ~= "hold" and phase ~= "carry" then
+			return false
+		end
+		if current and current.Token ~= token then
+			return false -- (её держит другая кража)
+		end
+		local given = if type(info) == "table" then info else {}
+		fish.Steal = {
+			Token = token,
+			Phase = phase,
+			By = if given.By ~= nil then given.By elseif current then current.By else nil,
+			End = if given.End ~= nil then given.End elseif current then current.End else nil,
+			Quiet = quiet,
+		}
+	end
+	local refs = mountedRefs(rt)
+	if refs then
+		writeSteal(refs.Slots[fish.Rec.Slot], fish)
+	end
+	refresh(rt)
+	changed(refs, fish.Rec.Slot)
+	return true
+end
+
+function TankService:SetSteal(owner: Player, uid: string, token: number, phase: string?, info: any?): boolean
+	if token == -1 then
+		return false -- (−1 — только SetLocked)
+	end
+	return holdFish(owner, uid, token, phase, info, false)
+end
+
+-- Этап 3: «рыбу крадут» без кражи — тонкая обёртка держателя (токен −1, без атрибутов).
+function TankService:SetLocked(owner: Player, uid: string, isLocked: boolean): boolean
+	return holdFish(owner, uid, -1, if isLocked == true then "hold" else nil, nil, true)
+end
+
+-- Строка data.Tank с этим Uid (защита от вставки uid, который уже есть: §3.2).
+local function hasUid(data: PlayerData.Data, uid: string): boolean
+	for _, row in data.Tank do
+		if row.Uid == uid then
+			return true
+		end
+	end
 	return false
 end
 
--- Перенести рыбу жертвы вору (§3.2: план, «в пути», без ожиданий). Волна 0: всегда отказ.
-function TankService:StealFish(_victim: Player, _thief: Player, _uid: string, _token: number): (StealResult?, string?)
-	return nil, "busy"
+-- Витрина для вернувшейся рыбы: своя, если свободна, иначе младшая свободная, иначе прежняя —
+-- тогда рыба «спит» до загрузки, где освободится витрина (PlayerData.Layout).
+local function homeSlot(data: PlayerData.Data, wanted: number): number
+	local cap = PlayerData.SlotCap(data)
+	local used: { [number]: boolean } = {}
+	for _, row in data.Tank do
+		used[row.Slot] = true
+	end
+	if wanted >= 1 and wanted <= cap and not used[wanted] then
+		return wanted
+	end
+	for index = 1, cap do
+		if not used[index] then
+			return index
+		end
+	end
+	return wanted
+end
+
+local function minusOne(stats: any, key: string)
+	stats[key] = math.max(0, (tonumber(stats[key]) or 0) - 1)
+end
+
+-- Снять «в пути»: запись — ПЕРВОЙ (второй вызов ничего не найдёт), рыба начинает приносить доход,
+-- SaveSoon(вор). Только из Committed / Released жертвы (или сразу, шаг 4 StealFish) — не по таймеру.
+local function clearEscrow(thief: Player, uid: string)
+	local map = escrows[thief]
+	local entry = map and map[uid]
+	if not map or not entry then
+		return
+	end
+	map[uid] = nil
+	if next(map) == nil then
+		escrows[thief] = nil
+	end
+	local rt = runtimes[thief]
+	local fish = rt and rt.Fish[uid]
+	if rt and fish and fish.Escrow == entry then
+		fish.Escrow = nil
+		local refs = mountedRefs(rt)
+		if refs and rt.BySlot[fish.Rec.Slot] == fish then
+			writeSteal(refs.Slots[fish.Rec.Slot], fish)
+		end
+		refresh(rt)
+		changed(refs, fish.Rec.Slot)
+	end
+	DataService:SaveSoon(thief)
+end
+
+-- Убрать краденую рыбу из садка вора (данные — живые, даже если он уже уходит: её строку не
+-- сохраняло ни одно сохранение — хук пропускал), Stats.Stolen − 1. Тихо: Event "<n>|void|".
+local function stripFromThief(entry: Entry): boolean
+	local thief = entry.Thief
+	local rt = runtimes[thief]
+	local data = if rt then rt.Data else nil
+	if not rt or not data then
+		return false
+	end
+	local fish = rt.Fish[entry.ThiefUid]
+	if not fish or fish.Escrow ~= entry then
+		return false
+	end
+	local slot = fish.Rec.Slot
+	local active = rt.BySlot[slot] == fish
+	detach(rt, fish)
+	fish.Escrow = nil
+	minusOne(data.Stats, "Stolen")
+	local refs = mountedRefs(rt)
+	if refs and active then
+		showEmpty(refs, refs.Slots[slot], "void", "")
+	end
+	refresh(rt)
+	if active then
+		changed(refs, slot)
+	end
+	TankService.FishRemoved:Fire(thief, table.clone(fish.Rec), "void")
+	return true
+end
+
+-- Аннулировать (F7): запись жертвы так и не легла — её ключ всё ещё хранит рыбу; у вора её нет.
+local function voidEscrow(thief: Player, uid: string)
+	local map = escrows[thief]
+	local entry = map and map[uid]
+	if not map or not entry then
+		return
+	end
+	map[uid] = nil
+	if next(map) == nil then
+		escrows[thief] = nil
+	end
+	if stripFromThief(entry) then
+		returned(thief, entry.Fish, STEAL_TEXTS.Result.Void)
+	end
+end
+
+-- Вернуть краденую рыбу «в пути» жертве (F8a / F8b / F9; F8c — снимок жертвы уже снят: рыба
+-- потеряна, никогда не две) и убрать у вора. Запись — ПЕРВОЙ. true — рыба снова у жертвы.
+local function returnEscrow(thief: Player, uid: string): boolean
+	local map = escrows[thief]
+	local entry = map and map[uid]
+	if not map or not entry then
+		return false
+	end
+	map[uid] = nil
+	if next(map) == nil then
+		escrows[thief] = nil
+	end
+	local victim = entry.Victim
+	local back = false
+	local vrt, vdata = writable(victim)
+	if vrt and vdata and vrt.Player == victim then
+		-- F8a / F9: жертва играет — строка, запись, витрина, доход.
+		if not hasUid(vdata, entry.VictimUid) then
+			local row = table.clone(entry.Row)
+			row.Uid = entry.VictimUid
+			row.Slot = homeSlot(vdata, entry.Row.Slot)
+			table.insert(vdata.Tank, row)
+			minusOne(vdata.Stats, "Lost")
+			local fishRt: FishRt
+			local cap = PlayerData.SlotCap(vdata)
+			if vrt.BySlot[row.Slot] == nil and row.Slot <= cap and FishingRules.GetFish(row.Id) then
+				fishRt = activeFish(row)
+				fishRt.GrowFrom = TankRules.AttrTime(Workspace:GetServerTimeNow() - math.clamp(row.Age, 0, GROWTH_TIME))
+				vrt.BySlot[row.Slot] = fishRt
+			else
+				fishRt = dormantFish(row) -- (свободных витрин нет: «спит» до загрузки)
+			end
+			vrt.Fish[row.Uid] = fishRt
+			local refs = mountedRefs(vrt)
+			if refs and not fishRt.Dormant then
+				showFish(refs, refs.Slots[row.Slot], fishRt, "in", row.Id)
+			end
+			refresh(vrt)
+			if not fishRt.Dormant then
+				changed(refs, row.Slot)
+			end
+			TankService.FishAdded:Fire(victim, table.clone(row), "returned")
+			DataService:SaveSoon(victim)
+			returned(victim, entry.Fish, STEAL_TEXTS.Result.Saved.left)
+			back = true
+		end
+	else
+		-- F8b: жертва уже уходит, а снимок её последнего сохранения не снят — правка её данных.
+		back = DataService:AmendLeaving(victim, function(data: PlayerData.Data)
+			if hasUid(data, entry.VictimUid) then
+				return
+			end
+			local row = table.clone(entry.Row)
+			row.Uid = entry.VictimUid
+			row.Slot = homeSlot(data, entry.Row.Slot)
+			table.insert(data.Tank, row)
+			minusOne(data.Stats, "Lost")
+		end)
+	end
+	stripFromThief(entry)
+	return back
+end
+
+-- Перенести рыбу жертвы вору (§3.2): ПРОВЕРКА — план, ничего не меняя; потом — без ожиданий.
+function TankService:StealFish(victim: Player, thief: Player, uid: string, token: number): (StealResult?, string?)
+	-- ПРОВЕРКА
+	if victim == thief or type(uid) ~= "string" then
+		return nil, "busy"
+	end
+	local vrt, vdata = writable(victim)
+	local trt, tdata = writable(thief)
+	if not vrt or not vdata or not trt or not tdata or not vrt.Mounted or not trt.Mounted then
+		return nil, "busy"
+	end
+	local fish = stealable(vrt, uid)
+	local steal = fish and fish.Steal
+	if not fish or not steal or steal.Token ~= token or steal.Phase ~= "carry" then
+		return nil, "busy"
+	end
+	local now = Workspace:GetServerTimeNow()
+	local origin: string? = `{victim.UserId}:{uid}`
+	if #(origin :: string) > DataConfig.Limits.OriginMax then
+		origin = nil
+	end
+	for _, row in tdata.Tank do
+		if origin and row.Origin == origin then
+			return nil, "busy" -- (такая уже есть у вора: дюп — никогда)
+		end
+	end
+	local cap = PlayerData.SlotCap(tdata)
+	local slot = freeSlot(trt, cap)
+	local weak: FishRt? = nil
+	local price: number? = nil
+	if not slot then
+		local weakUid = TankRules.ChooseReplacement(candidatesOf(trt, now), fish.Income10)
+		weak = if weakUid then trt.Fish[weakUid] else nil
+		if not weak then
+			return nil, "full"
+		end
+		slot = weak.Rec.Slot
+		price = TankRules.SellPrice(weak.Value, ageOf(trt, weak, now), HOME)
+		if not goodPrice(price :: number) then
+			warn(
+				`[TankService] цена продажи не число ({price}) — кража у {victim.UserId} отменена`
+			)
+			return nil, "busy"
+		end
+	end
+	local index = slot :: number
+	-- Новый Uid вора — подсмотреть (на копии), взять — в шаге 2.
+	local newUid = PlayerData.NewUid({ NextUid = tdata.NextUid, Tank = tdata.Tank })
+	if trt.Fish[newUid] or hasUid(tdata, newUid) then
+		return nil, "busy"
+	end
+	local value, income = FishingRules.Price(fish.Rec.Id, fish.Rec.Kg, fish.Mutation)
+	if not finite(value) or not finite(income) then
+		return nil, "busy"
+	end
+	local age = ageOf(vrt, fish, now)
+	local row: PlayerData.Fish = {
+		Uid = newUid,
+		Id = fish.Rec.Id,
+		Kg = fish.Rec.Kg,
+		Mutation = fish.Rec.Mutation,
+		Age = age,
+		Slot = index,
+		CaughtAt = os.time(),
+		Origin = origin,
+	}
+	local clean: FishData = {
+		Id = fish.Rec.Id,
+		Rarity = fish.Rarity,
+		Kg = fish.Rec.Kg,
+		Mutation = fish.Mutation,
+		Value = value,
+		Income = income,
+	}
+	local victimRow = table.clone(fish.Rec)
+	victimRow.Age = age
+	local victimSlot = fish.Rec.Slot
+
+	-- ПОТОМ: только таблицы и атрибуты, ни сигнала, ни remote'а до шага 5.
+	-- 0. «В пути» — раньше, чем рыба появится у вора: все его сохранения её пропустят.
+	local entry: Entry = {
+		Victim = victim,
+		VictimUserId = victim.UserId,
+		VictimUid = uid,
+		Thief = thief,
+		ThiefUid = newUid,
+		Seq = math.huge,
+		Row = victimRow,
+		Fish = clean,
+	}
+	local map = escrows[thief]
+	if not map then
+		map = {}
+		escrows[thief] = map
+	end
+	map[newUid] = entry
+	-- 1. Жертва.
+	fish.Steal = nil
+	detach(vrt, fish)
+	vdata.Stats.Lost += 1
+	local vrefs = mountedRefs(vrt)
+	if vrefs then
+		showEmpty(vrefs, vrefs.Slots[victimSlot], "stolen", tostring(thief.UserId))
+	end
+	refresh(vrt)
+	-- 2. Вор.
+	PlayerData.NewUid(tdata) -- (тот самый newUid — подсмотрен выше на копии тех же данных: NextUid + 1)
+	if weak then
+		detach(trt, weak)
+	end
+	table.insert(tdata.Tank, row)
+	local loot = activeFish(row)
+	loot.GrowFrom = TankRules.AttrTime(now - age)
+	loot.Escrow = entry
+	trt.Fish[newUid] = loot
+	trt.BySlot[index] = loot
+	tdata.Stats.Stolen += 1
+	local trefs = mountedRefs(trt)
+	if trefs then
+		if weak then
+			showFish(trefs, trefs.Slots[index], loot, "swap", string.format("%d", price :: number))
+		else
+			showFish(trefs, trefs.Slots[index], loot, "in", row.Id)
+		end
+	end
+	refresh(trt)
+	-- 3. Сохранение жертвы (с задержкой 0 оно может записаться прямо здесь: его Committed с
+	-- Seq = ∞ не совпал — поэтому шаг 4).
+	entry.Seq = DataService:SaveSoon(victim)
+	-- 4. Уже записано (или DataStore нет) — снять «в пути» сразу.
+	if DataService:Mode() ~= "DataStore" or DataService:CommittedSeq(victim) >= entry.Seq then
+		clearEscrow(thief, newUid)
+	end
+	-- 5. Деньги, сигналы, remote — «в пути» уже действует.
+	if weak and price then
+		EconomyService:AddMoney(thief, price, "autosell")
+		tdata.Stats.Sold += 1
+	end
+	changed(vrefs, victimSlot)
+	changed(trefs, index)
+	TankService.FishRemoved:Fire(victim, table.clone(victimRow), "stolen")
+	if weak then
+		TankService.FishRemoved:Fire(thief, table.clone(weak.Rec), "autosell")
+	end
+	TankService.FishAdded:Fire(thief, table.clone(row), "stolen")
+	local tank: TankResult = {
+		Result = if weak then "replaced" else "stored",
+		Slot = index,
+		Uid = newUid,
+		Count = activeCount(trt),
+		Slots = cap,
+		Replaced = if weak then soldFish(weak, price :: number) else nil,
+		Price = price,
+	}
+	local stored = table.clone(tank) :: any
+	stored.Fish = table.clone(clean)
+	send(thief, "Stored", stored)
+	return { Result = tank, Fish = clean, ThiefUid = newUid, VictimUid = uid }, nil
 end
 
 -- Ляжет ли рыба с доходом income10 в садок игрока: "stored" (свободная витрина) | "replaced"
--- (сильнее его слабейшей не Locked) | nil. Только чтение (StealRules.CanPlace).
+-- (сильнее его слабейшей не Locked — не краденой и не «в пути») | nil. Только чтение.
 function TankService:PreviewAdd(player: Player, income10: number): ("stored" | "replaced")?
 	local rt = runtimes[player]
 	if not rt then
 		return nil
 	end
-	local cap = PlayerData.SlotCap(rt.Data)
-	local free = false
-	for index = 1, cap do
-		if rt.BySlot[index] == nil then
-			free = true
-			break
-		end
-	end
-	local now = Workspace:GetServerTimeNow()
-	local candidates: { TankRules.Candidate } = {}
-	for _, fish in rt.BySlot do
-		table.insert(candidates, {
-			Uid = fish.Uid,
-			Income10 = fish.Income10,
-			Value = fish.Value,
-			Age = ageOf(rt, fish, now),
-			Locked = fish.Locked,
-			Dormant = false,
-		})
-	end
-	return StealRules.CanPlace(candidates, free, income10)
+	local free = freeSlot(rt, PlayerData.SlotCap(rt.Data)) ~= nil
+	return StealRules.CanPlace(candidatesOf(rt, Workspace:GetServerTimeNow()), free, income10)
 end
 
 -- Рыба в витрине index базы base: (хозяин, вид) или nil (свободная база, пусто, «спит»).
@@ -903,6 +1417,7 @@ function TankService:SlotFish(base: Base, index: number): (Player?, SlotView?)
 		return rt.Player, nil
 	end
 	local def = FishingRules.GetFish(fish.Rec.Id)
+	local steal = fish.Steal
 	return rt.Player,
 		{
 			Uid = fish.Uid,
@@ -910,11 +1425,12 @@ function TankService:SlotFish(base: Base, index: number): (Player?, SlotView?)
 			ShortName = if def then def.ShortName else fish.Rec.Id,
 			Rarity = fish.Rarity,
 			Mutation = fish.Mutation,
+			Kg = fish.Rec.Kg,
 			Value = fish.Value,
 			Income10 = fish.Income10,
-			Steal = nil,
-			Escrow = false,
-			FreshUntil = nil,
+			Steal = if steal then { Token = steal.Token, Phase = steal.Phase } else nil,
+			Escrow = fish.Escrow ~= nil,
+			FreshUntil = fish.FreshUntil,
 		}
 end
 
@@ -928,8 +1444,61 @@ function TankService:IsMounted(player: Player): boolean
 	return rt ~= nil and rt.Mounted
 end
 
-function TankService:EscrowCount(_player: Player): number
-	return 0
+-- Доход садка (десятые $/с; без «в пути» и несомой рыбы), 0 — не подключён (фильтр "weak").
+function TankService:Income10(player: Player): number
+	local rt = runtimes[player]
+	return if rt and rt.Mounted then rt.Income10Sum else 0
+end
+
+function TankService:EscrowCount(player: Player): number
+	local n = 0
+	for _ in escrows[player] or {} do
+		n += 1
+	end
+	return n
+end
+
+-- Хуки записи жертвы (§3.2): Committed(seq) — снять её записи с Seq ≤ seq; Released(committed) —
+-- КАЖДУЮ её запись: снять или аннулировать (ни одна не переживёт её запись).
+local function onCommitted(player: Player, seq: number)
+	for thief, map in table.clone(escrows) do
+		for uid, entry in table.clone(map) do
+			if entry.Victim == player and seq >= entry.Seq then
+				clearEscrow(thief, uid)
+			end
+		end
+	end
+end
+
+local function onReleased(player: Player, committed: number)
+	for thief, map in table.clone(escrows) do
+		for uid, entry in table.clone(map) do
+			if entry.Victim == player then
+				if committed >= entry.Seq then
+					clearEscrow(thief, uid)
+				else
+					voidEscrow(thief, uid)
+				end
+			end
+		end
+	end
+end
+
+-- Закрытие сервера (F9): синхронно, раньше, чем хоть одна запись станет Leaving, — вернуть все
+-- рыбы «в пути» жертвам (их последние сохранения возьмут рыбу с собой).
+local function onClose()
+	for thief in table.clone(escrows) do
+		returnEscrows(thief)
+	end
+end
+
+returnEscrows = function(player: Player)
+	local map = escrows[player]
+	if map then
+		for uid in table.clone(map) do
+			returnEscrow(player, uid)
+		end
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -958,8 +1527,12 @@ local function onTankSell(player: Player, rawUid: unknown)
 		deny(player, "missing")
 		return
 	end
-	if fish.Locked then
-		deny(player, "locked")
+	if fish.Steal then
+		deny(player, "locked") -- (Этап 4: её сейчас крадут)
+		return
+	end
+	if fish.Escrow then
+		deny(player, "escrow") -- (Этап 4: краденая, ещё «в пути»)
 		return
 	end
 	local ratePct, place = MarketService:RatePct(player)
@@ -979,6 +1552,7 @@ local function onTankSell(player: Player, rawUid: unknown)
 		showEmpty(refs, refs.Slots[fish.Rec.Slot], "sold", string.format("%d", price))
 	end
 	refresh(rt)
+	changed(refs, fish.Rec.Slot)
 	send(player, "Sold", {
 		Items = { soldFish(fish, price) },
 		Amount = price,
@@ -1058,7 +1632,8 @@ local function incomeLoop()
 end
 
 -- Хук сохранения (внутри transform DataService, не ждёт): свежий возраст рыб подключённого
--- садка. Этап 4: вернуть skipUid для рыб «в пути».
+-- садка. Этап 4: skipUid — рыбы «в пути» этого игрока не сохранять (каждое его сохранение, есть
+-- у него запись этого сервиса или уже нет: ключ карты — сам Player).
 local function onSerialize(player: Player, data: PlayerData.Data): ((uid: string) -> boolean)?
 	local rt = runtimes[player]
 	if rt and rt.Data == data and rt.Mounted then
@@ -1067,7 +1642,10 @@ local function onSerialize(player: Player, data: PlayerData.Data): ((uid: string
 			fish.Rec.Age = TankRules.AgeAt(fish.GrowFrom, now)
 		end
 	end
-	return nil
+	return function(uid: string): boolean
+		local map = escrows[player]
+		return map ~= nil and map[uid] ~= nil
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -1084,7 +1662,13 @@ function TankService._debugSizes(): { [string]: number }
 			mounted += 1
 		end
 	end
-	return { Records = records, Bases = mounted, Requests = TankRequests.Size() }
+	local inFlight = 0
+	for _, map in escrows do
+		for _ in map do
+			inFlight += 1
+		end
+	end
+	return { Records = records, Bases = mounted, Requests = TankRequests.Size(), Escrows = inFlight }
 end
 
 function TankService._runtimeFor(player: Player): any
@@ -1171,11 +1755,15 @@ end
 
 function TankService:Init()
 	tankEvent = Net.Event("TankEvent")
+	stealEvent = Net.Event("StealEvent")
 	for _, base in BaseService:GetBases() do
 		baseRefs[base] = resolveBase(base)
 	end
 	if type(DataService.OnSerialize) == "function" then
 		DataService:OnSerialize(onSerialize)
+	end
+	if type(DataService.OnClose) == "function" then
+		DataService:OnClose(onClose)
 	end
 end
 
@@ -1186,6 +1774,10 @@ function TankService:Start()
 		end)
 	end
 	DataService.Loaded:Connect(onLoaded)
+	DataService.Committed:Connect(onCommitted)
+	if DataService.Released then
+		DataService.Released:Connect(onReleased)
+	end
 	BaseService.BaseAssigned:Connect(function(player: Player, _base: Base)
 		local rt = runtimes[player]
 		if rt then
