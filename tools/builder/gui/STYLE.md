@@ -209,7 +209,12 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   and flashes its rim only when the base arrives); the base banner (first assignment: NO panel — a
   huge outlined title like the reference's «Украдите яйцо!»: the caption «ТВОЯ БАЗА» over the name
   «ЛАЗУРНАЯ!» in white → base colour with an 8 px Ink outline and a drop-shadow twin, the 🚩
-  waving beside it; the name slams in and flashes, rays, confetti, a fanfare; after 2 s it shrinks
+  waving beside it; the name slams in from its baseline (anchored at its bottom middle: it grows up
+  and sideways, never down) no bigger than the room — it keeps 16 px to the shown status rows, the
+  right column and the action disc's place even at the start of the slam, and where «ВЗЯТЬ» stands
+  under the name's end (phones; the small 667 px phone at rest) the banner is lifted until the name
+  clears the disc by 16 px, never closer than 16 px to the status rows (HudController placeBanner /
+  nameSlamFrom, V-02) — and flashes, rays, confetti, a fanfare; after 2 s it shrinks
   into the badge, which bumps and flashes its rim); the Wallet and «САДОК» (stage 3, see «The
   Wallet and «САДОК»» below: the catch counter is gone); the Home button (a
   square purple Grape sim button, a big outlined 🏠 and «ДОМОЙ» ON its bottom edge, the red «!»
@@ -289,7 +294,10 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   huge «КЛЮЁТ!» — white → gold display text, a thick Ink outline and the reference title's
   drop-shadow twin — jumps out of the own bobber (0.35 → 1,
   flying to its slot; where that path would cross the fisher it pops up in place — v3: never a
-  screen-wide slam over the fisher) with a sun flash and a FOV punch; the word punches in after the
+  screen-wide slam over the fisher; with no bobber on screen a phone pops it up in place, a tablet
+  or a PC slams it from above, no bigger than the room — the plate and its outline keep 16 px to
+  «ПОДСЕЧЬ!»'s ribbon at the peak of its punch, the thumbstick and the fisher, else it pops up in
+  place too: FishingController slamRoom, V-03) with a sun flash and a FOV punch; the word punches in after the
   plate, the two «!» glyphs (level with the word) pop in one after the other, turning (their text
   boxes stay within the plate's bottom outline, tilted, wiggling or popping: 0.8 of its height); sun edge glow, one BITE_BEAT for
   the plate, the button and the swinging «!» glyphs, the word flashing gold on the beat (≤ 3/s), a

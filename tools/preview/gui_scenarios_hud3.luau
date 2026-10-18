@@ -107,6 +107,19 @@ local function closeLater(after: number): (h: any) -> ()
 	end
 end
 
+-- The first fish ever (Tank.First) into an empty tank: its Common card is tapped closed while it
+-- is still up — «В САДОК!» lands at ≈ 1.25 s, the card would close by itself at
+-- UIConfig.CatchCardTime.Common (2.2 s) — then the fish flies into «САДОК» and lands (V-04: a
+-- tap at 2.4 s hit a card already gone).
+local function firstFish(h: any)
+	catchCard(h, FISH.Common, { Result = "stored", Slot = 1, Uid = "f1", Count = 1, Slots = 6, First = true })
+	h:advance(1.6)
+	if not h:visible("HUD.Fishing.CatchCard") then
+		h:warn("the first fish's card closed before the tap")
+	end
+	h:click("HUD.Fishing.CatchCard")
+end
+
 return {
 	{
 		name = "wallet_idle",
@@ -219,9 +232,7 @@ return {
 		desc = "The first fish ever arrived: the red «!» wobbles on «САДОК» until the panel opens",
 		still = 0.2,
 		run = function(h: any)
-			catchCard(h, FISH.Common, { Result = "stored", Slot = 1, Uid = "f1", Count = 1, Slots = 6, First = true })
-			h:advance(2.4)
-			h:click("HUD.Fishing.CatchCard")
+			firstFish(h)
 			h:advance(5.5) -- the arrival, the toast came and went
 		end,
 	},
@@ -230,10 +241,9 @@ return {
 		desc = "Right after the first fish ever: «Твоя рыба приносит $ каждую секунду!» (Water 🐠)",
 		still = 0.8,
 		run = function(h: any)
-			catchCard(h, FISH.Common, { Result = "stored", Slot = 1, Uid = "f1", Count = 1, Slots = 6, First = true })
-			h:advance(2.4)
-			h:click("HUD.Fishing.CatchCard")
-			h:advance(0.5)
+			firstFish(h)
+			-- (the toast waits for the arrival and the held trophy: MoneyController.CatchToast)
+			h:waitVisible("HUD.Toasts.Toast", 6)
 		end,
 	},
 	{

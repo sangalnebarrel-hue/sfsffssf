@@ -979,13 +979,19 @@ at the end.
   `.Hint`, `.BiteAlert`, `.Minigame`, `.CatchCard`, ... A widget's shape is the union of the
   rounded rects of what it draws — backgrounds, images, Border strokes (grown by their
   thickness), and for a text label without a background the ink box of its text — so
-  overhanging icons and caption ribbons count and invisible containers do not. Skipped:
+  overhanging icons and caption ribbons count and invisible containers do not. A rotated object
+  (an icon turning in, a tilted stamp) counts as its turned box — a quad measured exactly, not
+  the axis-aligned box around it (up to 41 % bigger at 45°: a thumbs-up turning in on
+  «ЗАБРАТЬ!» read 15 px from Jump on the tablet while its turned box keeps 27 px). Skipped:
   effects (any path part starting with `Fx`) and full-screen layers (>= 45 % of the screen:
   dims, ray holders). Every pair of widgets, and every widget against the CoreGui chrome
   (`gui/backdrop.chrome_shapes`: Jump and the thumbstick as circles, the hotbar, the top-bar
   buttons, the desktop chat window and player list), closer than **16 px** is reported with the
   gap (negative = overlap) between the closest points; a glow ring (`FxRing`) reaching into
-  Jump or the thumbstick is reported too. `--all` also dumps the standard set on
+  Jump or the thumbstick is reported too. A widget in flight INTO another — its root carries the
+  attribute `FxLandingIn` (the target's name; dumped as `landing`) set by its controller only for
+  that flight: HudController's base banner shrinking into the badge — is not judged against that
+  target meanwhile (`LANDING`, an intended merge); against everything else it still is. `--all` also dumps the standard set on
   `phone_notch`, `phone_small` and `tablet` for the checks only (`--no-checks-devices` skips
   them); their failing stills are drawn as `_layout.png`.
 * **Text floor**: visible text at rest (UIScale ~1) drawn under 12 px after TextScaled fitting.
@@ -1028,7 +1034,7 @@ events = [{name, kind, t}], frames = [{ t, still, sheet, burst, timeline, tools 
 [{name, equipped}], objects = [...], world? = { cam, items, marks } }], errors, warnings }`.
 Objects are the effectively visible GuiObjects in draw order, in screen pixels:
 `path, class, name, z, x, y, w, h` (the box before rotation; rotate about its centre),
-`rot, k` (accumulated rotation and UIScale), `clip, alpha, bg, bgT, radius / radii`
+`rot, k` (accumulated rotation and UIScale), `landing` (the attribute `FxLandingIn`, if set), `clip, alpha, bg, bgT, radius / radii`
 (UICorner in px), `border` (legacy, only without UICorner and a Border UIStroke),
 `strokes` (`color, t, offset, tr, target border|text, pos Outer|Center|Inner, join, grad`),
 `grad` (UIGradient: `c` colour keypoints, `a` transparency keypoints, `rot, off, type, tile,

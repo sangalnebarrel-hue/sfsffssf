@@ -55,7 +55,9 @@
 	    рыбы). Выскакивает из своего правого нижнего угла (якорь там): к «ДОМОЙ» не растёт.
 	  • Поклёвка (BiteAlert): «КЛЮЁТ!» выпрыгивает из своего поплавка и летит на своё место
 	    (v3: не «удар» на весь экран поверх рыбака; если по пути заслонила бы рыбака — «выскакивает»
-	    на месте), солнечная вспышка, камера на миг
+	    на месте; поплавка не видно — на телефоне «выскакивает», на планшете и ПК «ударяет» сверху,
+	    но не крупнее, чем позволяют 16 px до ленты кнопки действия на пике её «удара», джойстика и
+	    рыбака — slamRoom, иначе тоже «выскакивает»), солнечная вспышка, камера на миг
 	    «приближается» (UiFx.fovPunch), края экрана светятся солнцем; всё дальше — в одном такте
 	    BITE_BEAT: плашка и кнопка пульсируют вместе, кольцо от кнопки на каждый такт, знаки «!»
 	    по краям качаются по очереди, «КЛЮЁТ!» вспыхивает золотом; к концу окна такт ускоряется и
@@ -658,6 +660,7 @@ end
 local laidOutFor: Vector2? = nil -- размер HUD, под который колонка разложена
 local hintHeldUntil = 0
 local layoutColumn, showHint, clearEventHint, setContextHint, destroyGuide, setGuide, keepClearOfBobber, fisherRect
+local slamRoom
 do
 	local Layout = require(script.Parent:WaitForChild("FishingLayout")) -- раскладка у своего рыбака
 	local HINT_TIME = 3.5 -- сколько висит подсказка о событии, с
@@ -1332,6 +1335,51 @@ do
 		end
 		local position, size = Layout.placeOf(moved, gui.AnchorPoint)
 		return position, size, at
+	end
+
+	--[[
+		«Удар» виджета колонки с большого (плашка «КЛЮЁТ!» на планшете и ПК, без полёта из поплавка):
+		с какого масштаба (не больше from) он может начаться, вырастая вокруг своего якоря, чтобы и в
+		начале — с обводкой (OUTLINE) — держать 16 px до ленты подписи кнопки действия на пике её
+		«удара» смены вида (до 1.08, не больше GrowMax), до джойстика (тач-экран) и до своего рыбака
+		(V-03: удар 1.6 на планшете ложился на «ПОДСЕЧЬ!»). position / size — виджет в покое; 1 — места
+		на удар нет.
+	]]
+	function slamRoom(gui: GuiObject, position: UDim2, size: UDim2, from: number): number
+		local root = ui.fishing.AbsoluteSize
+		local plate = Layout.rectOf(position, boxSize(gui, root.X, root.Y, size), gui.AnchorPoint, root)
+		plate = Layout.rect(plate.x0 - OUTLINE, plate.y0 - OUTLINE, plate.x1 + OUTLINE, plate.y1 + OUTLINE)
+		local gap = Layout.RING.clear -- (16 px — как до кнопки прыжка)
+		-- Кнопка действия: круг с якорем в центре (layoutColumn), лента подписи шире круга, её обводка
+		-- — не толще OUTLINE.
+		local area = ui.actionArea.AbsoluteSize
+		local rest = defaults.actionPosition
+		local ribbon = ui.actionButton:FindFirstChild("CaptionRibbon")
+		local wide = if ribbon and ribbon:IsA("GuiObject") then math.max(ribbon.Size.X.Scale, 1) else 1
+		local reach = defaults.actionSize.Y.Scale * area.Y / 2 * wide + OUTLINE
+		local disc = ui.actionArea.AbsolutePosition.X
+			- ui.fishing.AbsolutePosition.X
+			+ rest.X.Scale * area.X
+			+ rest.X.Offset
+		local peak = math.min(1.08, (ui.actionButton:GetAttribute("GrowMax") :: number?) or 2)
+		local keepouts = { Layout.rect(disc - reach * peak - gap, -math.huge, math.huge, math.huge) }
+		if UserInputService.TouchEnabled then
+			local small = smallTouchScreen() -- (джойстик: правый край STICK_*, верх в 90 / 210 px от низа)
+			table.insert(
+				keepouts,
+				Layout.rect(
+					-math.huge,
+					root.Y - (if small then 90 else 210) - gap,
+					(if small then STICK_SMALL else STICK_BIG) + gap,
+					math.huge
+				)
+			)
+		end
+		local fisher = fisherRect()
+		if fisher then
+			table.insert(keepouts, fisher)
+		end
+		return Layout.growFrom(plate, gui.AnchorPoint, from, keepouts)
 	end
 end
 
@@ -5654,8 +5702,10 @@ do
 			UiFx.tween(alert, 0.3, { Position = position }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 		else
 			-- (Без полёта: у своего рыбака на телефоне — «выскакивает» из малого на месте, иначе
-			-- — удар сверху, крупнее себя: на рыбака не наезжает.)
-			slam.Scale = if ui.fishing.AbsoluteSize.Y < 500 then 0.35 else 1.6
+			-- — удар сверху, крупнее себя, но не больше, чем есть места: slamRoom, V-03 — на
+			-- планшете удар 1.6 ложился на «ПОДСЕЧЬ!»; места на удар нет — «выскакивает», как там.)
+			local room = if ui.fishing.AbsoluteSize.Y < 500 then 1 else slamRoom(alert, position, size, 1.6)
+			slam.Scale = if room >= 1.15 then room else 0.35
 		end
 		UiFx.tween(slam, 0.38, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 		-- (Тряска — когда плашка долетела: тряска запоминает место «в покое».)

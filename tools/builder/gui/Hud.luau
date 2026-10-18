@@ -63,7 +63,9 @@ local function buildBaseBanner(hud: any)
 		Active = false,
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		-- (Clear of the chat window, and ≥ 16 px under the status stack on a notched phone.)
+		-- (Clear of the chat window, and ≥ 16 px under the status stack on a notched phone. On the
+		-- small 667 px phone «ВЗЯТЬ» stands under the name's end: HudController lifts the banner
+		-- until the name keeps 16 px above the disc — V-02.)
 		Position = UDim2.fromScale(0.5, 0.46),
 		Size = UDim2.fromScale(1.05, 0.3),
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
@@ -86,9 +88,10 @@ local function buildBaseBanner(hud: any)
 		ZIndex = SZ.Content,
 		Tier = "Button",
 	})
+	-- (Anchored at its baseline: the slam grows it up and sideways, never down onto «ВЗЯТЬ».)
 	Theme.title(banner, "NameLabel", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.56, 0.62),
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.56, 0.92),
 		Size = UDim2.fromScale(0.84, 0.6),
 		Text = "ЛАЗУРНАЯ!",
 		TextGradient = { WHITE, WHITE, P.Leaf.Top, P.Leaf.Bottom },

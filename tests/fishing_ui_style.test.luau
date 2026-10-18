@@ -597,7 +597,8 @@ tests["bite alert: slams in with a Sun flash and rays, the timer drains green �
 
 	serverSays(sim, p, "Bite", { Window = 1.8 })
 	t.eq(alert.Visible, true)
-	t.ok(alert.FxScale.Scale > 1.2, `slams in from big ({alert.FxScale.Scale})`)
+	-- (V-03: the slam starts no bigger than the room — on this desktop ≈ 1.3; read 0.05 s into it)
+	t.ok(alert.FxScale.Scale > 1.05, `slams in from big ({alert.FxScale.Scale})`)
 	t.ok(p.PlayerGui.HUD:FindFirstChild("FxFlash"), "a quick flash")
 	t.ok(alert:FindFirstChild("FxRays"), "rays behind the alert")
 	t.eq(alert.FxRays.ZIndex, 0, "the rays are behind the candy")
@@ -2421,6 +2422,126 @@ tests["catch card layout: a landscape trophy card on phones, square on tablet / 
 		end
 		t.ok(hud.Status.BaseBadge.Label.TextTransparency > 0.95, `{device}: the status stack faded under the card`)
 	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- Distance from a rect to a circle (centre c, radius r); negative — they overlap.
+local function rectCircleGap(r: Rect, c: any, radius: number): number
+	local dx = math.max(r.x - c.X, 0, c.X - (r.x + r.w))
+	local dy = math.max(r.y - c.Y, 0, c.Y - (r.y + r.h))
+	return math.sqrt(dx * dx + dy * dy) - radius
+end
+
+-- V-03: «КЛЮЁТ!» with no bobber on screen (here there is none) «ударяет» from big on a tablet and a
+-- PC — but never bigger than the room: grown about its anchor (the middle of its bottom) the plate
+-- with its outline keeps 16 px to «ПОДСЕЧЬ!»'s caption ribbon at the peak of its look-change punch
+-- (1.08) and to the thumbstick; with no room for a slam (≥ 1.15) it pops in from small, like on a
+-- phone (the stage 2 slam from 1.6 laid the tablet's plate onto the ribbon for its first frames).
+-- Every frame of the entrance and the first beats keeps the 16 px, the button's punch and pulse
+-- included.
+tests["bite alert: the slam from big starts no bigger than the room — 16 px to «ПОДСЕЧЬ!» and the thumbstick"] = function(
+	t
+)
+	local sim = boot(t)
+	local devices = { "phone", "tablet", "desktop" }
+	local players = {}
+	for i, device in devices do
+		players[device] = addPlayer(sim, i, device)
+	end
+	for _, device in devices do
+		ready(sim, players[device])
+		serverSays(sim, players[device], "Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
+	end
+	sim:Advance(0.5)
+	for _, device in devices do
+		local p = players[device]
+		local f = fishing(p)
+		local alert = f.BiteAlert
+		local disc = f.ActionArea.ActionButton
+		local vp = sim.players.state[sim:Unwrap(p)].viewport
+		sim:Find("ReplicatedStorage.Remotes.FishingState"):FireClient(p, "Bite", { Window = 1.8 })
+		sim:Flush() -- (the handler has run, no tween has moved yet)
+		local start = alert.FxScale.Scale
+		if device == "phone" then
+			t.ok(start < 1, `{device}: pops in from small ({start})`)
+		elseif device == "desktop" then
+			t.ok(start >= 1.15, `{device}: a slam from big where there is room ({start})`)
+		end
+		local plate = rectOf(sim, p, alert)
+		local edge = alert.Lip:FindFirstChildOfClass("UIStroke").Thickness
+		local ribbon = rectOf(sim, p, disc.CaptionRibbon)
+		local ribbonEdge = disc.CaptionRibbon.Lip:FindFirstChildOfClass("UIStroke").Thickness
+		local button = rectOf(sim, p, disc)
+		local cx = button.x + button.w / 2
+		local small = math.min(vp.X, vp.Y) <= 500
+		local stick = if small
+			then roblox.Vector2.new(25 + 35, vp.Y - 90 + 35)
+			else roblox.Vector2.new(60 + 60, vp.Y - 210 + 60)
+		local worst = math.huge
+		local worstStick = math.huge
+		for frame = 0, 60 do
+			local sa = alert.FxScale.Scale
+			local sb = disc:FindFirstChild("FxScale") and disc.FxScale.Scale or 1
+			-- the plate grown about the middle of its bottom, with its outline
+			local w, h = (plate.w + 2 * edge) * sa, (plate.h + 2 * edge) * sa
+			local grown: Rect = { x = plate.x + plate.w / 2 - w / 2, y = plate.y + plate.h + edge - h, w = w, h = h }
+			-- the ribbon grown about the disc's centre, with its outline
+			local left = cx - (cx - ribbon.x + ribbonEdge) * sb
+			worst = math.min(worst, left - (grown.x + grown.w))
+			if device ~= "desktop" then
+				worstStick = math.min(worstStick, rectCircleGap(grown, stick, if small then 35 else 60))
+			end
+			if frame < 60 then
+				sim:Advance(1 / 60)
+			end
+		end
+		t.ok(worst >= 16, `{device}: the plate keeps 16 px to «ПОДСЕЧЬ!» from its first frame ({worst})`)
+		if device ~= "desktop" then
+			t.ok(worstStick >= 16, `{device}: … and to the thumbstick ({worstStick})`)
+		end
+	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- V-01: when the card has shown its last beat the frozen «ЖДЁМ…» turns into «ЗАБРАТЬ!» with a
+-- punch, and its 👍 turns in (from 0.2 with a -120° turn, overshooting). On a tablet — where the big
+-- Jump button sits up and to the right of the disc — the turning icon's whole circle (its box's
+-- half-diagonal, outline included: whatever the angle) keeps 16 px to Jump in every frame (the
+-- preview checker once read 15 px off the turned box's axis-aligned bounds).
+tests["«ЗАБРАТЬ!»: the thumbs-up turning in keeps 16 px to Jump on a tablet in every frame"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "tablet")
+	ready(sim, p)
+	local f = fishing(p)
+	local disc = f.ActionArea.ActionButton
+	local icon = disc.Icon
+	local vp = sim.players.state[sim:Unwrap(p)].viewport
+	catchTank(sim, p, CATCHES.Legendary, 1, stored(1))
+	t.ok(
+		waitFor(sim, function()
+			return icon.Text == "👍"
+		end, CARD_OPENS + 6),
+		"the button turns into «ЗАБРАТЬ!»"
+	)
+	local jump = roblox.Vector2.new(vp.X - 170 + 60, vp.Y - 210 + 60)
+	local button = rectOf(sim, p, disc)
+	local rest = rectOf(sim, p, icon)
+	local bc = roblox.Vector2.new(button.x + button.w / 2, button.y + button.h / 2)
+	local ic = roblox.Vector2.new(rest.x + rest.w / 2, rest.y + rest.h / 2)
+	local stroke = icon:FindFirstChild("Outline")
+	local outline = if stroke then stroke.Thickness else 0
+	local worst, turned = math.huge, 0
+	for _ = 1, 45 do
+		local sb = disc:FindFirstChild("FxScale") and disc.FxScale.Scale or 1
+		local si = icon:FindFirstChild("FxScale") and icon.FxScale.Scale or 1
+		local centre = bc + (ic - bc) * sb
+		local reach = (math.sqrt(rest.w * rest.w + rest.h * rest.h) / 2 * si + outline) * sb
+		worst = math.min(worst, (centre - jump).Magnitude - reach - 60)
+		turned = math.max(turned, math.abs(icon.Rotation))
+		sim:Advance(1 / 60)
+	end
+	t.ok(turned > 20, `the icon turns in ({turned}°)`)
+	t.ok(worst >= 16, `the turning icon keeps 16 px to Jump ({worst})`)
 	sim:AssertNoErrors({ warnings = true })
 end
 
