@@ -74,7 +74,7 @@ local function buildHeader(header: any)
 		LayoutOrder = 3,
 		Glass = true,
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
-		Size = UDim2.fromScale(3, 0.66),
+		Size = UDim2.fromScale(2.4, 0.66),
 		Icon = "💵",
 		IconScale = 1.1,
 		Text = "$0",

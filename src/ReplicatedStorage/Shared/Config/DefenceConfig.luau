@@ -160,7 +160,11 @@ local DefenceConfig = {
 		-- Лист «ЗАЩИТА» (HUD.DefencePanel)
 		Title = "ЗАЩИТА",
 		Cards = {
-			Shield = { Icon = "🛡️", Name = "ЩИТ", Effect = "Никто не украдёт 1 минуту" }, -- (1 минута = Shield.Duration)
+			Shield = {
+				Icon = "🛡️",
+				Name = "ЩИТ",
+				Effect = "Никто не украдёт 1\u{00A0}минуту",
+			}, -- (1 минута = Shield.Duration)
 			Dog = {
 				Icon = "🐕",
 				Name = "СОБАКА",
@@ -175,7 +179,7 @@ local DefenceConfig = {
 			Lock = {
 				Icon = "🔐",
 				Name = "ЗАМОК",
-				Effect = "Вору держать {new} с вместо {old}",
+				Effect = "Вору держать {new}\u{00A0}с вместо {old}", -- (неразрывный пробел: «4 с» не рвётся)
 			},
 		},
 		Buy = {

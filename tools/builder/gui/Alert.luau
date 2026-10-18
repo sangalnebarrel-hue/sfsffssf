@@ -138,11 +138,15 @@ local function buildPlate(root: any)
 		Layout = "square",
 		Icon = "🏠",
 		Caption = TEXTS.Home,
-		Tier = "Small",
+		-- (no tier: the square is only ≈ 44–64 px, so «ДОМОЙ» scales 12..16 px to its width
+		-- instead of the Small tier, which grows with the screen and would break the word)
+		MaxTextSize = 16,
+		MinTextSize = 12,
 		ZIndex = 5,
 		SimOpts = { stroke = Theme.MINOR },
 	})
 	U.new("UISizeConstraint", { MinSize = Vector2.new(THEFT.HomeMin, THEFT.HomeMin) }, home)
+	home.Caption.TextWrapped = false -- (shrinks, never breaks)
 end
 
 -- The phone pill when the plate would cover the own fisher: «🚨 ВОР! Окунь» + ЩИТ (or 🏠).

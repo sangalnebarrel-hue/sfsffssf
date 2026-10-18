@@ -1048,6 +1048,20 @@ RenderStepped connection for all running frame effects, disconnected when none r
   `FishingConfig.Fx.PillarTimeOther[rarity]` s. Stage 3 can reuse the signal (e.g. a theft alarm
   pointer) and the template.
 - **Catch card time**: `UIConfig.CatchCardTime[rarity]` (seconds of auto-close).
+- **Stage 4 widgets** (built hidden in wave 0, docs/stage4_design.md §6.1; one owner each):
+  `RightButtons.DefenceButton` (`Icon`, `Caption`, `Badge`, `Cooldown.Drain`, `CooldownText`; the
+  column's 3rd square, Guard) and `Status.BaseBadge.ShieldChip` (`Icon`, `Label`) —
+  DefenceController; `HUD.TheftBar` (`Plate`, `Icon.Icon`, `Title`, `Time`, `Sub`,
+  `Bar.Track.Fill`, `DogChip`) and `HUD.TheftTitle` (`Title`, `Sub`) — TheftController;
+  `HUD.TheftAlert` (`Plate`, `Icon.Icon`, `Text.{Title, Sub}`, `Buttons.{Shield, Home}`,
+  `Compact.{Label, Shield, Home}`) — AlertController; `HUD.DefencePanel` on the sheet shell
+  (`Panel.Header.{Icon, Title, Money}`, `Cards.{ShieldCard, DogCard, AlarmCard, LockCard}` each
+  `Icon.Emoji`, `Name` — reach it with `FindFirstChild("Name")` —, `Effect`, `State`,
+  `Buy.{Label, Price}`) — DefenceController + `Controllers/Sheet`. TheftBar and TheftAlert sit at
+  the top of the toast column: `NotifyController.Reserve("theft" | "alert", px)` moves the toasts
+  under them (`Offset(key)` — where a band stands, the thief's first; `Reserved()`); keep them
+  inside the column's px width (≤ `UIConfig.Theft.Width` × W and `WidthMax`). Their numbers:
+  `UIConfig.Theft`; their texts: `StealConfig.Texts` / `DefenceConfig.Texts`.
 
 ### 6.6 Rules for the next agents
 
