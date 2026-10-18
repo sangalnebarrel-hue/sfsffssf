@@ -20,7 +20,10 @@
 	    SellRatePct 150 before "Open"; another player's tank prompt does nothing; spam is bounded
 	    by the request bucket), the exploits (junk uids, someone else's fish, a double sell, 100
 	    sells in one frame);
-	  • rare catches save soon; dormant fish; the rod from data; two players; leave → clean.
+	  • rare catches save soon; dormant fish; the rod from data; two players; leave → clean;
+	  • the Stage 4/5 hooks: RemoveFish «stolen» (one Event), AddFish(thief, fish, "stolen") with
+	    its Origin (data, FishAdded, "Stored"; junk Origins and catches without), SetLocked
+	    (Denied locked, never replaced), SetSlots(8).
 
 	Run: lune run tools/run_tests.luau stage3_tank
 ]]
@@ -783,6 +786,149 @@ tests["two players are independent: own displays, money, uids and sales"] = func
 	t.eq(slotOf(sim, b, 1):GetAttribute("State"), "fish", "B's fish untouched")
 	t.ok(leaderMoney(a) > 0)
 	t.eq(#tankEvents(sim, b, "Sold"), 0)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- The Stage 4 / Stage 5 hooks (design §4.8), driven the way a later stage would drive them.
+local function entryOf(data: any, uid: string): any
+	for _, fish in data.Tank do
+		if fish.Uid == uid then
+			return fish
+		end
+	end
+	return nil
+end
+
+tests["Stage 4/5 hooks: RemoveFish «stolen» → one Event; AddFish(thief, fish, «stolen») keeps Origin (data, save, Stored once; junk dropped, a catch ignores it); SetLocked → Denied locked, never replaced; SetSlots(8) opens 7–8"] = function(
+	t
+)
+	local sim = boot(t)
+	local victim = addPlayer(sim, 1)
+	local thief = addPlayer(sim, 2)
+	local tank = service(sim, "TankService")
+	local data = service(sim, "DataService")
+	local removed, added = {}, {}
+	tank.FishRemoved:Connect(function(_, fish, reason)
+		table.insert(removed, { Uid = fish.Uid, Reason = reason })
+	end)
+	tank.FishAdded:Connect(function(_, fish, reason)
+		table.insert(added, { Uid = fish.Uid, Origin = fish.Origin, Reason = reason })
+	end)
+
+	-- 1. The victim loses a fish: one "stolen" Event on its display.
+	local prey = addFish(sim, victim, "Crucian", 0.5)
+	local slot = slotOf(sim, victim, prey.Slot)
+	local events = {}
+	slot:GetAttributeChangedSignal("Event"):Connect(function()
+		table.insert(events, slot:GetAttribute("Event"))
+	end)
+	local taken = sim:Run(function()
+		return tank:RemoveFish(victim, prey.Uid, "stolen")
+	end)
+	sim:Flush()
+	t.ok(taken and taken.Uid == prey.Uid and taken.Id == "Crucian", "RemoveFish returns the record")
+	t.eq(#events, 1, "one Event")
+	t.ok(string.find(events[1] or "", "|stolen|", 1, true) ~= nil, `Event «…|stolen|» ({events[1]})`)
+	t.eq(slot:GetAttribute("State"), "empty")
+	t.eq(slot:GetAttribute("FishId"), nil)
+	t.eq(#data:Get(victim).Tank, 0, "gone from the victim's data")
+	t.eq(removed[#removed].Reason, "stolen", "FishRemoved (…, «stolen»)")
+
+	-- 2. The thief gets it with its Origin (BE-03): in the data, the signal, "Stored" and the save.
+	local origin = `{victim.UserId}:{prey.Uid}`
+	local loot = fishData(sim, "Crucian", 0.5)
+	loot.Origin = origin
+	local storedBefore = #tankEvents(sim, thief, "Stored")
+	local got = sim:Run(function()
+		return tank:AddFish(thief, loot, "stolen")
+	end)
+	sim:Flush()
+	t.eq(got.Result, "stored")
+	t.eq(entryOf(data:Get(thief), got.Uid).Origin, origin, "Origin kept in the thief's tank")
+	t.eq(added[#added].Origin, origin, "FishAdded carries it")
+	t.eq(added[#added].Reason, "stolen")
+	local stored = tankEvents(sim, thief, "Stored")
+	t.eq(#stored, storedBefore + 1, "TankEvent Stored once")
+	t.eq(stored[#stored].Uid, got.Uid)
+	-- Junk Origins are dropped, a catch never carries one.
+	local long = fishData(sim, "Perch", 1)
+	long.Origin = string.rep("9", DataConfig.Limits.OriginMax + 1)
+	local number = fishData(sim, "Perch", 1)
+	number.Origin = 12
+	local caught = fishData(sim, "Perch", 1)
+	caught.Origin = "1:f9"
+	local plain = {}
+	for _, case in
+		{ { long, "stolen", "too long" }, { number, "stolen", "not a string" }, { caught, "catch", "a catch" } }
+	do
+		local r = sim:Run(function()
+			return tank:AddFish(thief, case[1], case[2])
+		end)
+		t.eq(entryOf(data:Get(thief), r.Uid).Origin, nil, `no Origin: {case[3]}`)
+		table.insert(plain, r.Uid)
+	end
+	-- The save keeps it (PlayerData serializes Origin).
+	sim:Run(function()
+		data:SaveSoon(thief)
+	end)
+	sim:Advance(DataConfig.MinWriteGap + 1, COARSE)
+	local savedNow = sim.DataStore:Peek(STORE, `Player_{thief.UserId}`)
+	t.eq(entryOf(savedNow, got.Uid).Origin, origin, "saved with its Origin")
+	for _, uid in plain do
+		t.eq(entryOf(savedNow, uid).Origin, nil, `{uid}: saved without one`)
+	end
+
+	-- 3. SetLocked: a sale answers Denied "locked", and the full-tank rule never replaces it.
+	for _ = 1, 2 do
+		addFish(sim, thief, "Perch", 1)
+	end
+	t.eq(thief:GetAttribute("TankCount"), TankConfig.StartSlots, "the thief's tank is full")
+	t.eq(
+		sim:Run(function()
+			return tank:SetLocked(thief, got.Uid, true)
+		end),
+		true
+	)
+	sell(sim, thief, got.Uid)
+	sim:Flush()
+	local denied = tankEvents(sim, thief, "Denied")
+	t.eq(denied[#denied].Reason, "locked", "a locked fish is not sold")
+	t.ok(entryOf(data:Get(thief), got.Uid) ~= nil, "still there")
+	local strong = addFish(sim, thief, "SharkPup", 20)
+	t.eq(strong.Result, "replaced", "a stronger catch replaces …")
+	t.ok(strong.Replaced.Uid ~= got.Uid, "… not the locked (weakest) Crucian")
+	t.ok(entryOf(data:Get(thief), got.Uid) ~= nil, "the locked fish stays")
+	t.eq(
+		sim:Run(function()
+			return tank:SetLocked(thief, got.Uid, false)
+		end),
+		true
+	)
+	sell(sim, thief, got.Uid)
+	sim:Flush()
+	t.eq(entryOf(data:Get(thief), got.Uid), nil, "unlocked: it sells")
+
+	-- 4. SetSlots(8): displays 7–8 open, 9+ stay locked; the next catch lands in 7.
+	t.eq(slotOf(sim, thief, 7):GetAttribute("State"), "locked")
+	t.eq(
+		sim:Run(function()
+			return tank:SetSlots(thief, 8)
+		end),
+		true
+	)
+	sim:Flush()
+	t.eq(thief:GetAttribute("TankSlots"), 8)
+	t.eq(slotOf(sim, thief, 7):GetAttribute("State"), "empty")
+	t.eq(slotOf(sim, thief, 8):GetAttribute("State"), "empty")
+	t.eq(slotOf(sim, thief, 9):GetAttribute("State"), "locked")
+	addFish(sim, thief, "Perch", 1) -- into the sold Crucian's display
+	t.eq(addFish(sim, thief, "Perch", 1).Slot, 7, "the next catch: display 7")
+
+	-- The final save: the slots; the sold stolen fish is gone.
+	local saved = peekAfterLeave(sim, thief)
+	t.eq(saved.TankSlots, 8)
+	t.eq(entryOf(saved, got.Uid), nil, "sold: not saved")
+	t.eq(#saved.Tank, TankConfig.StartSlots + 1)
 	sim:AssertNoErrors({ warnings = true })
 end
 

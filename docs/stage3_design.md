@@ -891,7 +891,7 @@ Production attributes are doubles.
 
 | stage | needs | Stage 3 provides |
 |---|---|---|
-| 4 theft | take a fish by uid, give it to the thief | `TankService:RemoveFish(owner, uid, reason) -> fishRecord?` and `TankService:AddFish(thief, fish, "stolen")` (the same full-tank rule), both `nil` unless `CanWrite` of that player; signals `FishAdded`/`FishRemoved (player, fish, reason)`; slot `Event "stolen"` (one event) |
+| 4 theft | take a fish by uid, give it to the thief | `TankService:RemoveFish(owner, uid, reason) -> fishRecord?` and `TankService:AddFish(thief, fish, "stolen")` (the same full-tank rule; a non-catch keeps `fish.Origin`, a string ≤ `Limits.OriginMax`, fix BE-03), both `nil` unless `CanWrite` of that player; signals `FishAdded`/`FishRemoved (player, fish, reason)`; slot `Event "stolen"` (one event) |
 | 4 theft | no "sell to dodge" during a steal hold | `TankService:SetLocked(owner, uid, bool)`: sells answer `Denied locked`, and the fish is never auto-replaced |
 | 4 theft | per-slot steal prompts | `Pedestal.PromptAttachment` (unused by Stage 3); slot attributes already public |
 | 4 dupes | never duplicate a fish across two keys | `SaveSoon -> seq`, `CommittedSeq`, `Committed`, `OnSerialize` skip-uid, per-load lock, `Origin` field (B-24) |

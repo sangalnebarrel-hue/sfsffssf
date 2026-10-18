@@ -43,8 +43,10 @@
 	     (First — улов и Stats.Caught == 1: первое уведомление и «!»). Price — ВСЕГДА монеты, которые
 	     зачислил этот AddFish (клиент празднует именно их): "replaced" — Price == Replaced.Price
 	     (цена проданной слабейшей), "sold" — цена новой рыбы, "stored" — nil. Рыба не из улова
-	     (Этап 4: кража) — ещё и TankEvent("Stored", результат + { Fish }). Без базы (Этап 4: вор в
-	     очереди) — только данные, витрины покажет подключение.
+	     (Этап 4: кража) — ещё и TankEvent("Stored", результат + { Fish }), и в запись идёт её
+	     fish.Origin («<UserId жертвы>:<uid>»; строка не длиннее DataConfig.Limits.OriginMax, иначе
+	     без него — у улова Origin нет). Без базы (Этап 4: вор в очереди) — только данные, витрины
+	     покажет подключение.
 	  6. Продажа TankSell(uid) — проверки по порядку из шапки RemoteNames (uid, лимит запросов
 	     Lib.TankRequests — из него же каждый ответ, CanWrite, база, своя активная рыба, не
 	     Locked, конечная цена), потом без ожиданий: возраст сейчас и цена
@@ -117,6 +119,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage.Shared
+local DataConfig = require(Shared.Config.DataConfig)
 local EconomyConfig = require(Shared.Config.EconomyConfig)
 local TankConfig = require(Shared.Config.TankConfig)
 local UIConfig = require(Shared.Config.UIConfig)
@@ -615,6 +618,12 @@ function TankService:AddFish(player: Player, fish: FishData, reason: string): Ta
 		return nil
 	end
 	local mutation = knownMutation(fish.Mutation)
+	-- Этап 4: откуда рыба («<UserId жертвы>:<uid>» у краденой) — только не у улова и только
+	-- строкой не длиннее Limits.OriginMax (PlayerData сохраняет то же самое).
+	local origin = (fish :: any).Origin
+	if reason == "catch" or type(origin) ~= "string" or #origin > DataConfig.Limits.OriginMax then
+		origin = nil
+	end
 	local value, income = FishingRules.Price(id, fish.Kg, mutation)
 	local income10 = TankRules.Income10(income)
 	local now = Workspace:GetServerTimeNow()
@@ -676,6 +685,7 @@ function TankService:AddFish(player: Player, fish: FishData, reason: string): Ta
 			Age = 0,
 			Slot = index,
 			CaughtAt = os.time(),
+			Origin = origin,
 		}
 		table.insert(data.Tank, newEntry)
 		local fishRt = activeFish(newEntry)
