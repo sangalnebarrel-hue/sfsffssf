@@ -1,6 +1,11 @@
 -- input.luau: per-client input state: device profile, keys, ContextActionService
 -- bindings, ProximityPrompt holds and TextBox focus. Tests drive it through
 -- sim:PressKey / sim:Tap / sim:FireInput / sim:TriggerAction / sim:HoldPrompt.
+-- A hold reads the prompt as the holding client sees it (its client-local Enabled,
+-- MaxActivationDistance, HoldDuration and ProximityPromptService.Enabled); its events reach
+-- that client at once and the server after the client->server remoteLatency (in the
+-- order they happened). sim:FirePromptEvent sends one prompt event to the server only,
+-- unchecked (an exploit's fireproximityprompt or a forged HoldBegan).
 
 local roblox = require("@lune/roblox")
 
@@ -326,7 +331,22 @@ local function promptPosition(sim, prompt)
 end
 Input.promptPosition = promptPosition
 
--- Returns (ok, reason) for whether the player can currently use the prompt.
+-- A prompt property (or a service's) as the holding client sees it: its client-local value
+-- (an Enabled = false or MaxActivationDistance = 0 a LocalScript wrote) over the replicated one.
+local function seenBy(sim, ctx, real, key: string)
+	return sim.proxy:viewOf(ctx, real, key)
+end
+
+-- HoldDuration of the prompt as this player's client sees it.
+function Input:holdDurationFor(playerReal, prompt): number
+	local st = self.sim.players.state[playerReal]
+	return seenBy(self.sim, st and st.ctx, prompt, "HoldDuration")
+end
+
+-- Returns (ok, reason) for whether the player can currently use the prompt. Enabled,
+-- MaxActivationDistance and ProximityPromptService.Enabled are read through the player's
+-- client (a prompt that client hid locally cannot be held there); a MaxActivationDistance
+-- of 0 or less is never in range.
 function Input:canUsePrompt(playerReal, prompt, opts)
 	local sim = self.sim
 	opts = opts or {}
@@ -334,15 +354,16 @@ function Input:canUsePrompt(playerReal, prompt, opts)
 	if st == nil or st.removed then
 		return false, "player left"
 	end
+	local ctx = st.ctx
 	if sim.proxy:isDestroyed(prompt) or not prompt:IsDescendantOf(sim.workspaceReal) then
 		return false, "prompt not in workspace"
 	end
-	if not opts.ignoreEnabled and not prompt.Enabled then
+	if not opts.ignoreEnabled and not seenBy(sim, ctx, prompt, "Enabled") then
 		return false, "prompt disabled"
 	end
 	local ppsEnabled = true
 	pcall(function()
-		ppsEnabled = sim.real:GetService("ProximityPromptService").Enabled
+		ppsEnabled = seenBy(sim, ctx, sim.ppsReal, "Enabled")
 	end)
 	if not ppsEnabled then
 		return false, "ProximityPromptService disabled"
@@ -362,26 +383,82 @@ function Input:canUsePrompt(playerReal, prompt, opts)
 			return false, "prompt has no world position"
 		end
 		local dist = (hrp.CFrame.Position - pos).Magnitude
-		if dist > prompt.MaxActivationDistance + 1e-6 then
-			return false, string.format("out of range (%.1f > %.1f)", dist, prompt.MaxActivationDistance)
+		local reach = seenBy(sim, ctx, prompt, "MaxActivationDistance")
+		if reach <= 0 or dist > reach + 1e-6 then
+			return false, string.format("out of range (%.1f > %.1f)", dist, reach)
 		end
 	end
 	return true, nil
 end
 
-local function promptFilter(ctx)
-	return function(c)
-		return c.kind == "server" or c == ctx
-	end
+local function serverOnly(c)
+	return c.kind == "server"
 end
 
+-- Prompt event names per FirePromptEvent kind: { prompt event, ProximityPromptService event }.
+local PROMPT_EVENTS = {
+	HoldBegan = { "PromptButtonHoldBegan", "PromptButtonHoldBegan" },
+	HoldEnded = { "PromptButtonHoldEnded", "PromptButtonHoldEnded" },
+	Triggered = { "Triggered", "PromptTriggered" },
+	TriggerEnded = { "TriggerEnded", "PromptTriggerEnded" },
+}
+Input.PROMPT_EVENTS = PROMPT_EVENTS
+
+-- Delivers a prompt event (and its ProximityPromptService twin) to the server's handlers after
+-- the client->server latency, like a RemoteEvent (equal delays keep the call order).
+function Input:_toServer(promptReal, event: string, serviceEvent: string, playerProxy)
+	local sim = self.sim
+	sim.remotes:_later(function()
+		local proxy = sim.proxy
+		proxy:fireFiltered(promptReal, event, serverOnly, playerProxy)
+		proxy:fireFiltered(sim.ppsReal, serviceEvent, serverOnly, proxy:wrap(promptReal), playerProxy)
+	end)
+end
+
+-- A hold's event: the holding client's handlers at once, the server's after remoteLatency
+-- (with no latency both in this frame, in connection order, as before).
 function Input:_firePrompt(hold, event: string, serviceEvent: string)
 	local sim = self.sim
 	local proxy = sim.proxy
-	local filter = promptFilter(sim.players.state[hold.player].ctx)
+	local ctx = sim.players.state[hold.player].ctx
 	local pp = proxy:wrap(hold.player)
-	proxy:fireFiltered(hold.prompt, event, filter, pp)
-	proxy:fireFiltered(sim.ppsReal, serviceEvent, filter, proxy:wrap(hold.prompt), pp)
+	if (sim.opts.remoteLatency or 0) <= 0 then
+		local filter = function(c)
+			return c.kind == "server" or c == ctx
+		end
+		proxy:fireFiltered(hold.prompt, event, filter, pp)
+		proxy:fireFiltered(sim.ppsReal, serviceEvent, filter, proxy:wrap(hold.prompt), pp)
+		return
+	end
+	local own = function(c)
+		return c == ctx
+	end
+	proxy:fireFiltered(hold.prompt, event, own, pp)
+	proxy:fireFiltered(sim.ppsReal, serviceEvent, own, proxy:wrap(hold.prompt), pp)
+	self:_toServer(hold.prompt, event, serviceEvent, pp)
+end
+
+-- sim:FirePromptEvent: one prompt event as the player's client would send it, to the server
+-- only, with no checks at all (enabled, range, alive, hold time, a hold in progress) and
+-- through remoteLatency like the real ones. Also for a player who already left: an event
+-- still in flight when he disconnected.
+function Input:firePromptEvent(playerReal, prompt, kind: string)
+	local names = PROMPT_EVENTS[kind]
+	if names == nil then
+		error(
+			'RbxSim: FirePromptEvent kind must be "HoldBegan", "HoldEnded", "Triggered" or "TriggerEnded", got '
+				.. tostring(kind),
+			3
+		)
+	end
+	if prompt == nil or not prompt:IsA("ProximityPrompt") then
+		error("RbxSim: ProximityPrompt expected", 3)
+	end
+	if self.sim.players.state[playerReal] == nil then
+		error("RbxSim: unknown player", 3)
+	end
+	self:_toServer(prompt, names[1], names[2], self.sim.proxy:wrap(playerReal))
+	self.sim.sched:flush()
 end
 
 function Input:findHold(playerReal, prompt)
@@ -415,14 +492,14 @@ function Input:beginHold(playerReal, prompt, opts)
 		triggered = false,
 		opts = opts or {},
 		active = ok,
-		began = prompt.HoldDuration > 0,
+		began = self:holdDurationFor(playerReal, prompt) > 0,
 		cancelReason = reason,
 	}
 	if not ok then
 		return hold
 	end
 	table.insert(self.holds, hold)
-	if prompt.HoldDuration <= 0 then
+	if not hold.began then
 		self:_trigger(hold)
 	else
 		self:_firePrompt(hold, "PromptButtonHoldBegan", "PromptButtonHoldBegan")
@@ -467,7 +544,7 @@ function Input:update()
 		local ok, reason = self:canUsePrompt(hold.player, hold.prompt, hold.opts)
 		if not ok then
 			self:_endHold(hold, reason)
-		elseif not hold.triggered and clock - hold.started >= hold.prompt.HoldDuration - 1e-9 then
+		elseif not hold.triggered and clock - hold.started >= self:holdDurationFor(hold.player, hold.prompt) - 1e-9 then
 			self:_trigger(hold)
 		end
 	end

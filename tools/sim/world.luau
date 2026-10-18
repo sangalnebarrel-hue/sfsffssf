@@ -56,6 +56,8 @@ function World:setPartCFrame(real, cf, noAssembly: boolean?)
 	end
 	local old = real.CFrame
 	real.CFrame = cf
+	-- a replicated move overwrites every client-local CFrame of the part (only when it changed)
+	local seen = if old ~= cf then proxy:replicateOver(real, "CFrame") else nil
 	if proxy.signals[real] then
 		for _, key in MOVE_KEYS do
 			if proxy:isWatched(real, key) then
@@ -67,7 +69,9 @@ function World:setPartCFrame(real, cf, noAssembly: boolean?)
 				elseif key == "Rotation" then
 					v = rotationOf(cf)
 				end
-				proxy:emitChanged(real, key, v)
+				proxy:fireReplicated(seen, cf, function(filter)
+					proxy:emitChanged(real, key, v, filter)
+				end)
 			end
 		end
 	end

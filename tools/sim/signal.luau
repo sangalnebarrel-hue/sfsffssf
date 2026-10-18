@@ -55,6 +55,7 @@ function Signal.new(sim, name: string, opts)
 	self.owner = self.opts.owner
 	self.conns = {}
 	self.waiters = {}
+	self.reverse = false -- true: handlers in reverse connection order (see _dispatch)
 	return self
 end
 
@@ -188,11 +189,17 @@ end
 
 -- filter(ctx) -> boolean restricts delivery to some contexts.
 -- forceAll: queued handlers run even if disconnected before the flush (Destroying).
+-- Handlers are queued in connection order, or the reverse when `self.reverse` is set
+-- (Sim.new{ removingOrder = "reverse" } for Players.PlayerRemoving).
 function Signal:_dispatch(immediate: boolean, filter, forceAll: boolean, ...)
 	local sched = self.sim.sched
-	if #self.conns > 0 then
+	local count = #self.conns
+	if count > 0 then
 		local args = table.pack(...)
-		for _, conn in table.clone(self.conns) do
+		local list = table.clone(self.conns)
+		local reverse = self.reverse == true
+		for i = 1, count do
+			local conn = list[if reverse then count + 1 - i else i]
 			if conn.connected and (filter == nil or filter(conn.ctx)) then
 				local force = forceAll
 				if conn.once then

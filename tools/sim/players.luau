@@ -219,7 +219,9 @@ function Players:remove(real)
 	local sim = self.sim
 	local proxy = sim.proxy
 	local sched = sim.sched
-	proxy:getSignal(self:service(), "PlayerRemoving"):Fire(proxy:wrap(real))
+	local removing = proxy:getSignal(self:service(), "PlayerRemoving")
+	removing.reverse = sim.opts.removingOrder == "reverse" -- handler order (Roblox guarantees none)
+	removing:Fire(proxy:wrap(real))
 	sched:queueFn(function()
 		local char = real.Character
 		if char then
