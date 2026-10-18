@@ -135,7 +135,10 @@ local Config = Shared:WaitForChild("Config")
 local TankConfig = require(Config:WaitForChild("TankConfig"))
 local EconomyConfig = require(Config:WaitForChild("EconomyConfig"))
 local UIConfig = require(Config:WaitForChild("UIConfig"))
+local StealConfig = require(Config:WaitForChild("StealConfig"))
+local DefenceConfig = require(Config:WaitForChild("DefenceConfig"))
 local TankRules = require(Shared:WaitForChild("TankRules"))
+local StealRules = require(Shared:WaitForChild("StealRules"))
 local TextUtil = require(Shared:WaitForChild("TextUtil"))
 local UiFx = require(Shared:WaitForChild("UiFx"))
 local Net = require(Shared:WaitForChild("Net"))
@@ -151,6 +154,21 @@ local RATE_SUFFIX = EconomyConfig.Format.Rate
 local FOLDER_NAME = "TankWorld"
 local ARRIVAL_WAIT = 1 -- прилёт без CounterHold (нет FishingController): всплеск через столько с
 local BUSY_STATES: { [string]: boolean } = { Bite = true, Reeling = true }
+-- Этап 4: кража (канал витрины StealPhase / StealEnd / StealBy) и защиты базы.
+local STEAL = DISPLAY.Steal
+local WORLD_WORDS = StealConfig.Texts.World
+local DEFENCE_WORDS = DefenceConfig.Texts.World
+local STEAL_WORD_RANGE = DefenceConfig.World.StealWordRange
+local LOCK_LEVELS = #DefenceConfig.Lock.Levels
+local BERRY = UIConfig.Palette.Berry
+-- Атрибуты модели базы, от которых зависит строка защит надписи садка (DefenceService).
+local SIGN_ATTRIBUTES: { [string]: boolean } = {
+	ProtectUntil = true,
+	ProtectKind = true,
+	LockLevel = true,
+	HasDog = true,
+	HasAlarm = true,
+}
 
 type Info = {
 	state: string,
@@ -163,6 +181,24 @@ type Info = {
 	income: number?,
 	growFrom: number?,
 	event: string?,
+	phase: string?, -- StealPhase: "hold" | "carry" (Этап 4)
+	stealBy: number?, -- StealBy: UserId вора
+	stealEnd: number?, -- StealEnd: конец удержания / выноса (серверное время)
+}
+
+-- Кража витрины на этом клиенте (Этап 4): слово «КРАДУТ!» / «УНОСЯТ!» с кольцом, красный свет у
+-- LightBar, поднятая рыба (удержание); всё — в trove этой кражи.
+type Steal = {
+	phase: string,
+	by: number?,
+	trove: any,
+	word: TankDisplay.StealWord?,
+	holder: Attachment?,
+	ringStop: (() -> ())?,
+	ringEnd: number?,
+	rig: TankDisplay.Rig?, -- рыба поднята и бьётся
+	moves: { Tween },
+	spot: Vector3?, -- где вор с рыбой (последнее известное; для возврата рыбы)
 }
 
 type Slot = {
@@ -188,6 +224,8 @@ type Slot = {
 	lastEvent: string?,
 	pending: boolean, -- отложенное перечитывание уже ждёт
 	queued: boolean, -- ждёт тихой постройки
+	steal: Steal?, -- Этап 4: витрину крадут
+	rig: TankDisplay.Rig?, -- рыба витрины целиком, в покое (снято при постройке: подъём и полёт)
 }
 
 type Base = {
@@ -200,6 +238,7 @@ type Base = {
 	distance: number,
 	owner: number,
 	sign: TankDisplay.Pair?,
+	defence: TankDisplay.Defence?, -- строка защит надписи садка (Этап 4)
 	prompt: ProximityPrompt?,
 	leaving: { [Model]: boolean }, -- уходящие рыбы (сжимаются): убрать вместе с базой
 }
@@ -214,7 +253,8 @@ local folder: Folder? = nil
 local anchor: BasePart? = nil
 local hudGui: ScreenGui? = nil
 local bases: { [Model]: Base } = {}
-local hiddenPrompts: { [ProximityPrompt]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+-- (обычные таблицы с уборкой, не слабые: RbxSim может терять ключи-Instance слабых таблиц)
+local hiddenPrompts: { [ProximityPrompt]: boolean } = {}
 local emitters: { Emitter } = {}
 local rng = Random.new()
 local nextTag = 0
@@ -224,7 +264,8 @@ local warned: { [string]: boolean } = {}
 local sellPoints: { [string]: Attachment } = {}
 local marketWords: { BillboardGui } = {}
 -- Слова, ушедшие из-под HUD (тают; Display.Clear), и потолок букв надписей витрин (px).
-local faded: { [BillboardGui]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+local faded: { [BillboardGui]: boolean } = {}
+local arcs = 0 -- новых копий рыбы в полёте (возврат с головы вора; Steal.MaxArcs)
 local tagCap, signCap = TankDisplay.tagCap(390), TankDisplay.signCap(390)
 local tagCapHeight = 0 -- высота экрана, по которой они посчитаны
 -- Надпись садка у потолка букв: «+$1 234/с» ≈ SIGN_W потолков в ширину, две строки ≈ SIGN_H.
@@ -244,6 +285,11 @@ local pier = {
 	heldFish = false,
 	heldGen = 0, -- поколение «трофей убран» (Pier.TrophyGap)
 	characterTrove = Trove.new(),
+	-- Этап 4: у своей базы идёт кража (AlarmState "theft") — «🚨 КРАДУТ!» вместо строк
+	base = nil :: Model?,
+	alarm = false,
+	alarmLabel = nil :: TextLabel?,
+	alarmStop = nil :: (() -> ())?,
 }
 
 --------------------------------------------------------------------------------
@@ -330,14 +376,19 @@ end
 -- Частицы (не больше Fx.MaxEmitters сразу)
 --------------------------------------------------------------------------------
 
-local function burst(at: Vector3, kind: string, colors: { Color3 }?, count: number)
+-- toward — куда лететь искрам (мир; nil — вверх): «верх» Attachment'а смотрит туда.
+local function burst(at: Vector3, kind: string, colors: { Color3 }?, count: number, toward: Vector3?)
 	while #emitters >= FX.MaxEmitters do
 		local oldest = table.remove(emitters, 1)
 		if oldest then
 			oldest.holder:Destroy()
 		end
 	end
-	local point = holder("FxBurst", CFrame.new(at))
+	local frame = CFrame.new(at)
+	if toward and toward.Magnitude > 1e-3 then
+		frame = CFrame.lookAt(at, at + toward.Unit) * CFrame.Angles(-math.pi / 2, 0, 0)
+	end
+	local point = holder("FxBurst", frame)
 	if not point then
 		return
 	end
@@ -452,7 +503,30 @@ local function hudRects(): { Rect }
 			else
 				table.insert(out, r)
 			end
+			-- Этап 4: фишка щита «🛡️ 0:42» свисает с правого конца плашки базы (там, где плашку
+			-- ставит раскладка: её сдвиг от плашки — по AbsolutePosition обеих)
+			local chip = if item.Name == "BaseBadge" then item:FindFirstChild("ShieldChip") else nil
+			if chip and chip:IsA("GuiObject") and chip.Visible then
+				local own = rectOf(chip)
+				if own then
+					local dx, dy = r.x0 - item.AbsolutePosition.X, r.y0 - item.AbsolutePosition.Y
+					table.insert(out, { x0 = own.x0 + dx, y0 = own.y0 + dy, x1 = own.x1 + dx, y1 = own.y1 + dy })
+				end
+			end
 		end)
+	end
+	-- Этап 4: полоса вора и тревога хозяина — по видимым частям (значок свисает с плашки,
+	-- «таблетка» тревоги стоит отдельно)
+	for _, name in { "TheftBar", "TheftAlert" } do
+		local root = hud:FindFirstChild(name)
+		if root and root:IsA("GuiObject") and root.Visible then
+			for _, child in root:GetChildren() do
+				local r = if child:IsA("GuiObject") and child.Visible then rectOf(child) else nil
+				if r then
+					table.insert(out, r)
+				end
+			end
+		end
 	end
 	local toasts = hud:FindFirstChild("Toasts")
 	if toasts and toasts:IsA("GuiObject") and toasts.Visible then
@@ -537,11 +611,20 @@ local function clearHud()
 		return
 	end
 	local rects = hudRects()
+	-- (ушедшие слова — из таблицы)
+	for gui in faded do
+		if gui.Parent == nil then
+			faded[gui] = nil
+		end
+	end
 	for _, base in bases do
 		clearWord(base.sign and base.sign.gui, rects, signCap, SIGN_W, SIGN_H)
 		for _, slot in base.slots do
 			clearWord(slot.tag and slot.tag.gui, rects, tagCap)
 			clearWord(slot.lockGui, rects)
+			local steal = slot.steal
+			local word = steal and steal.word
+			clearWord(word and word.gui, rects, tagCap, 4, 1.4)
 		end
 	end
 	clearWord(pier.word and pier.word.gui, rects)
@@ -571,6 +654,10 @@ local function refreshCap()
 				TankDisplay.capTag(tag, tagCap)
 			end
 		end
+		local defence = base.defence
+		if defence then
+			TankDisplay.capDefence(defence, signCap)
+		end
 	end
 end
 
@@ -591,6 +678,9 @@ local function readSlot(model: Instance): Info
 		income = num(model, "Income"),
 		growFrom = num(model, "GrowFrom"),
 		event = str(model, "Event"),
+		phase = str(model, "StealPhase"),
+		stealBy = num(model, "StealBy"),
+		stealEnd = num(model, "StealEnd"),
 	}
 end
 
@@ -659,7 +749,7 @@ local function dropFish(base: Base, slot: Slot, animate: boolean)
 	local model = slot.fish
 	stopLife(slot)
 	cancelTweens(slot)
-	slot.fish, slot.uid, slot.fishId, slot.mutation = nil, nil, nil, nil
+	slot.fish, slot.uid, slot.fishId, slot.mutation, slot.rig = nil, nil, nil, nil, nil
 	local tagHolder, tag = slot.tagHolder, slot.tag
 	slot.tag, slot.tagHolder = nil, nil
 	if tagHolder then
@@ -714,6 +804,7 @@ local function showFish(base: Base, slot: Slot, grow: boolean, delay: number)
 	model.Name = `DisplayFish_{base.index}_{slot.index}`
 	model.Parent = root
 	slot.fish, slot.uid, slot.fishId, slot.mutation = model, info.uid, info.fishId, info.mutation
+	slot.rig = TankDisplay.rig(model) -- (до «вырастания»: детали в полном размере, на местах покоя)
 	slot.busyUntil = 0
 	local tagAt = tagPoint(slot) :: Vector3
 	local tagHolder = holder("FxTankTag", CFrame.new(tagAt))
@@ -723,6 +814,8 @@ local function showFish(base: Base, slot: Slot, grow: boolean, delay: number)
 		local tag = TankDisplay.tag(tagHolder, tagCap)
 		slot.tag = tag
 		updateTag(slot)
+		-- (витрину крадут: надпись прохода спрятана, на её месте «КРАДУТ!»)
+		tag.gui.Enabled = slot.steal == nil
 		clearWord(tag.gui, nil, tagCap)
 	end
 	if grow then
@@ -813,7 +906,437 @@ local function updateLocks(base: Base)
 	end
 end
 
--- Перечитать витрину (после её Event / State или при постройке базы).
+--------------------------------------------------------------------------------
+-- Кража витрины (Этап 4): канал StealPhase / StealEnd / StealBy
+--------------------------------------------------------------------------------
+
+local function thiefOf(userId: number?): Player?
+	if not userId then
+		return nil
+	end
+	local ok, found = pcall(function()
+		return Players:GetPlayerByUserId(userId)
+	end)
+	return if ok then found else nil
+end
+
+-- Рыба на голове вора: центр её рамки и поворот её Body (StolenFish), иначе точка над его
+-- головой (поворот nil); вора нет — nil.
+local function thiefSpot(userId: number?): (Vector3?, CFrame?)
+	local thief = thiefOf(userId)
+	local character = thief and thief.Character
+	if not character then
+		return nil, nil
+	end
+	local carried = character:FindFirstChild("StolenFish")
+	local body = carried and carried:IsA("Model") and carried.PrimaryPart
+	if carried and carried:IsA("Model") and body then
+		local box = carried:GetBoundingBox()
+		return box.Position, body.CFrame.Rotation
+	end
+	local head = character:FindFirstChild("Head")
+	if head and head:IsA("BasePart") then
+		return head.Position + Vector3.new(0, STEAL.HeadUp, 0), nil
+	end
+	return nil, nil
+end
+
+-- Рыба на голове вора спрятана на этом клиенте, пока к ней летит рыба витрины.
+local function veil(userId: number?, hidden: boolean)
+	local thief = thiefOf(userId)
+	local character = thief and thief.Character
+	local carried = character and character:FindFirstChild("StolenFish")
+	if not carried then
+		return
+	end
+	for _, part in carried:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.LocalTransparencyModifier = if hidden then 1 else 0
+		end
+	end
+end
+
+-- Сколько рыба выступает вдоль dir (мир) от своего центра при повороте turn.
+local function extentAlong(rig: TankDisplay.Rig, turn: CFrame, dir: Vector3): number
+	local h = rig.half
+	return math.abs(turn.RightVector:Dot(dir)) * h.X
+		+ math.abs(turn.UpVector:Dot(dir)) * h.Y
+		+ math.abs(turn.LookVector:Dot(dir)) * h.Z
+end
+
+local function stopMoves(steal: Steal)
+	for _, tween in steal.moves do
+		tween:Cancel()
+	end
+	table.clear(steal.moves)
+end
+
+-- Надпись прохода прячется, пока витрину крадут (на её месте «КРАДУТ!»).
+local function syncTag(slot: Slot)
+	local tag = slot.tag
+	if tag then
+		tag.gui.Enabled = slot.steal == nil
+	end
+end
+
+-- Рыба уходит из витрины (кража), модель не удаляется: её уносит полёт.
+local function detachFish(slot: Slot): Model?
+	local model = slot.fish
+	stopLife(slot)
+	cancelTweens(slot)
+	slot.fish, slot.uid, slot.fishId, slot.mutation, slot.rig = nil, nil, nil, nil, nil
+	local tagHolder = slot.tagHolder
+	slot.tag, slot.tagHolder = nil, nil
+	if tagHolder then
+		tagHolder:Destroy()
+	end
+	return model
+end
+
+-- «КРАДУТ!» / «УНОСЯТ!» перед стеклом с кольцом до StealEnd и красный свет у LightBar.
+local function stealLook(slot: Slot, steal: Steal, text: string, endAt: number?)
+	if not steal.holder then
+		local at = tagPoint(slot)
+		local point = at and holder("FxTankSteal", CFrame.new(at))
+		if not point then
+			return
+		end
+		steal.holder = point
+		refreshCap()
+		local word = TankDisplay.stealWord(point, text, tagCap, STEAL_WORD_RANGE)
+		steal.word = word
+		UiFx.popIn(word.plate, { from = 0.4, time = 0.25 })
+		clearWord(word.gui, nil, tagCap, 4, 1.4)
+		local bar = slot.lightBar
+		local glow = bar and holder("FxStealPulse", CFrame.new(bar.Position))
+		if glow then
+			steal.trove:Add(glow)
+			TankDisplay.pulseLight(glow, BERRY.Bottom)
+		end
+	end
+	local word = steal.word
+	if not word then
+		return
+	end
+	if word.word.Text ~= text then
+		word.word.Text = text
+		UiFx.punch(word.plate, { from = 0.7, peak = 1.15 })
+	end
+	if endAt ~= steal.ringEnd then
+		steal.ringEnd = endAt
+		local stop = steal.ringStop
+		steal.ringStop = nil
+		if stop then
+			stop()
+		end
+		local left = if endAt then endAt - Workspace:GetServerTimeNow() else 0
+		if left > 0.05 then
+			steal.ringStop = UiFx.ringTimer(word.ring, left)
+		end
+	end
+end
+
+-- Витрину начали красть (или кража сменила фазу): запись кражи, слово, свет.
+local function ensureSteal(slot: Slot, info: Info): Steal
+	local steal = slot.steal
+	if not steal then
+		local made: Steal = {
+			phase = info.phase or "hold",
+			by = info.stealBy,
+			trove = Trove.new(),
+			word = nil,
+			holder = nil,
+			ringStop = nil,
+			ringEnd = nil,
+			rig = nil,
+			moves = {},
+			spot = nil,
+		}
+		slot.steal = made
+		syncTag(slot)
+		steal = made
+	end
+	local current = steal :: Steal
+	current.by = info.stealBy or current.by
+	local text = if info.phase == "carry" then WORLD_WORDS.Carrying else WORLD_WORDS.Stealing
+	stealLook(slot, current, text, info.stealEnd)
+	return current
+end
+
+-- Кража витрины кончилась: слово уходит (quiet — сразу), свет и твины сняты. Возвращает её
+-- запись (поднятая рыба — rig — остаётся на вызывающем).
+local function endSteal(slot: Slot, quiet: boolean): Steal?
+	local steal = slot.steal
+	if not steal then
+		return nil
+	end
+	slot.steal = nil
+	stopMoves(steal)
+	local stop = steal.ringStop
+	steal.ringStop = nil
+	if stop then
+		stop()
+	end
+	steal.trove:Clean()
+	local point, word = steal.holder, steal.word
+	steal.holder, steal.word = nil, nil
+	if point then
+		if quiet or not word then
+			point:Destroy()
+		else
+			UiFx.popOut(word.plate, { time = FX.TagOut })
+			task.delay(FX.TagOut + 0.05, function()
+				point:Destroy()
+			end)
+		end
+	end
+	syncTag(slot)
+	return steal
+end
+
+-- Удержание: рыба поднимается на Steal.Lift, наклоняется к проходу и бьётся (твины деталей).
+local function lift(slot: Slot, steal: Steal)
+	local model, display = slot.fish, slot.display
+	if not model or not display or steal.rig then
+		return
+	end
+	stopLife(slot)
+	cancelTweens(slot)
+	local found = slot.rig or TankDisplay.rig(model)
+	if not found then
+		return
+	end
+	local rig: TankDisplay.Rig = found
+	steal.rig = rig
+	local s = STEAL.Struggle
+	local tilt = CFrame.fromAxisAngle(display.CFrame.RightVector, math.rad(-STEAL.Tilt))
+	local function pose(sign: number): CFrame
+		local turn = CFrame.fromAxisAngle(Vector3.new(0, 1, 0), math.rad(sign * s.Turn)) * tilt
+		return TankDisplay.around(rig, Vector3.new(0, STEAL.Lift + sign * s.Bob, 0), turn)
+	end
+	local from, to = pose(-1), pose(1)
+	local rise = TweenInfo.new(STEAL.LiftTime, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+	steal.moves = TankDisplay.tweenRig(rig, from, rise)
+	steal.trove:Add(task.delay(STEAL.LiftTime, function()
+		if rig.model.Parent == nil or slot.steal ~= steal or not rawequal(steal.rig, rig) then
+			return
+		end
+		stopMoves(steal)
+		local struggle = TweenInfo.new(s.Time, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+		steal.moves = TankDisplay.tweenRig(rig, to, struggle)
+	end))
+end
+
+-- Отпустили (удержание сорвалось): рыба опускается на место со всплеском «in».
+local function dropBack(slot: Slot, rig: TankDisplay.Rig, loud: boolean)
+	local drop = TweenInfo.new(STEAL.DropTime, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	for _, tween in TankDisplay.tweenRig(rig, rig.rest, drop) do
+		table.insert(slot.tweens, tween)
+	end
+	slot.busyUntil = os.clock() + STEAL.DropTime + 0.05
+	task.delay(STEAL.DropTime, function()
+		if loud and slot.fish == rig.model and rig.model.Parent then
+			arrivalFx(slot, true)
+		end
+	end)
+end
+
+type Leg = {
+	at: () -> (Vector3, CFrame),
+	time: number,
+	style: Enum.EasingStyle,
+	direction: Enum.EasingDirection,
+}
+
+-- Полёт рыбы по отрезкам (их точка и поворот считаются в начале отрезка: вор идёт); done — в
+-- конце или когда рыбу убрали (с базой).
+local function fly(rig: TankDisplay.Rig, legs: { Leg }, done: () -> ())
+	local index = 0
+	local function nextLeg()
+		index += 1
+		local leg = legs[index]
+		if not leg or rig.model.Parent == nil then
+			done()
+			return
+		end
+		local centre, turn = leg.at()
+		local info = TweenInfo.new(leg.time, leg.style, leg.direction)
+		TankDisplay.tweenRig(rig, TankDisplay.bodyAt(rig, centre, turn), info)
+		task.delay(leg.time, nextLeg)
+	end
+	nextLeg()
+end
+
+-- Перед стеклом витрины, куда рыба вылетает СКВОЗЬ ПЕРЕДНЮЮ грань (вся рыба — снаружи), на
+-- высоте from (мир), и вершина дуги над серединой пути к to (верх рыбы не выше FishPoint + ArcTop).
+local function arcPoints(slot: Slot, rig: TankDisplay.Rig, turn: CFrame, fromY: number): (Vector3, (Vector3) -> Vector3)
+	local frame = (slot.fishPoint :: Attachment).WorldCFrame
+	local front = frame.LookVector
+	local face = if slot.display then slot.display.Size.Z / 2 else 3.1
+	local reach = face + extentAlong(rig, turn, front) + STEAL.ArcOut
+	local out = Vector3.new(frame.Position.X, fromY, frame.Position.Z) + front * reach
+	local top = frame.Position.Y + STEAL.ArcTop - extentAlong(rig, turn, Vector3.new(0, 1, 0))
+	local function apex(to: Vector3): Vector3
+		local mid = out:Lerp(to, 0.5)
+		return Vector3.new(mid.X, math.max(top, out.Y), mid.Z)
+	end
+	return out, apex
+end
+
+-- Рыба витрины вылетает к вору на голову (там её сменяет StolenFish), потом удаляется. Модель
+-- уже не в витрине (detachFish); пока летит — среди уходящих рыб базы.
+local function arcOut(base: Base, slot: Slot, model: Model, rig: TankDisplay.Rig, thiefId: number?)
+	if not slot.fishPoint then
+		model:Destroy()
+		return
+	end
+	base.leaving[model] = true
+	local current = rig.body.CFrame
+	local start = TankDisplay.centreAt(rig, current)
+	local turn0 = current.Rotation
+	local out, apex = arcPoints(slot, rig, turn0, start.Y + 0.4)
+	local frame = (slot.fishPoint :: Attachment).WorldCFrame
+	local target, turnEnd = thiefSpot(thiefId)
+	local aim: Vector3 = target or (out + frame.LookVector * 2)
+	local turned: CFrame = turnEnd or turn0
+	local function follow(): (Vector3, CFrame)
+		local c, r = thiefSpot(thiefId)
+		aim = c or aim
+		turned = r or turned
+		return aim, turned
+	end
+	local t = STEAL.ArcTime
+	veil(thiefId, true)
+	fly(rig, {
+		{
+			at = function()
+				return out, turn0
+			end,
+			time = t * 0.3,
+			style = Enum.EasingStyle.Quad,
+			direction = Enum.EasingDirection.Out,
+		},
+		{
+			at = function()
+				local c, r = follow()
+				return apex(c), turn0:Lerp(r, 0.5)
+			end,
+			time = t * 0.3,
+			style = Enum.EasingStyle.Quad,
+			direction = Enum.EasingDirection.Out,
+		},
+		{
+			at = follow,
+			time = t * 0.4,
+			style = Enum.EasingStyle.Quad,
+			direction = Enum.EasingDirection.In,
+		},
+	}, function()
+		veil(thiefId, false)
+		base.leaving[model] = nil
+		model:Destroy()
+	end)
+end
+
+-- Рыбу вернули (вынос сорвался): новая рыба витрины вылетает с головы вора (или с места, где
+-- его видели последним) и падает в витрину со всплеском «in». Далеко или уже летит
+-- Steal.MaxArcs копий — просто появляется.
+local function arcBack(base: Base, slot: Slot, steal: Steal, loud: boolean)
+	showFish(base, slot, false, 0)
+	local model, point = slot.fish, slot.fishPoint
+	if not model or not point then
+		return
+	end
+	local rig = if loud and arcs < STEAL.MaxArcs then TankDisplay.rig(model) else nil
+	if not rig then
+		if loud then
+			arrivalFx(slot, true)
+		end
+		return
+	end
+	arcs += 1
+	local tag = slot.tag
+	if tag then
+		tag.gui.Enabled = false
+	end
+	slot.busyUntil = os.clock() + STEAL.ArcTime + 0.1
+	local rest = rig.rest.Rotation
+	local home = TankDisplay.centreAt(rig, rig.rest)
+	local out, apex = arcPoints(slot, rig, rest, home.Y + 0.4)
+	local c, r = thiefSpot(steal.by)
+	local start: Vector3 = c or steal.spot or (out + point.WorldCFrame.LookVector * 2)
+	local turn0: CFrame = r or rest
+	TankDisplay.setRig(rig, TankDisplay.bodyAt(rig, start, turn0))
+	local t = STEAL.ArcTime
+	fly(rig, {
+		{
+			at = function()
+				return apex(start), turn0:Lerp(rest, 0.5)
+			end,
+			time = t * 0.4,
+			style = Enum.EasingStyle.Quad,
+			direction = Enum.EasingDirection.Out,
+		},
+		{
+			at = function()
+				return out, rest
+			end,
+			time = t * 0.3,
+			style = Enum.EasingStyle.Quad,
+			direction = Enum.EasingDirection.In,
+		},
+		{
+			at = function()
+				return home, rest
+			end,
+			time = t * 0.3,
+			style = Enum.EasingStyle.Quad,
+			direction = Enum.EasingDirection.Out,
+		},
+	}, function()
+		arcs -= 1
+		if slot.fish == model and model.Parent then
+			TankDisplay.setRig(rig, rig.rest)
+			arrivalFx(slot, true)
+			local shown = slot.tag
+			if shown then
+				shown.gui.Enabled = slot.steal == nil
+				UiFx.popIn(shown.plate, { from = 0 })
+			end
+		end
+	end)
+end
+
+-- Event "stolen|<вор>": «УКРАДЕНО!» всплывает и тает, красные искры летят к вору; рыба, которая
+-- ещё в витрине (вынос не видели; Carry.Enabled = false — рыба переходит в конце удержания),
+-- прыгает к нему.
+local function stolenFx(base: Base, slot: Slot, thiefId: number?, loud: boolean)
+	local steal = endSteal(slot, true)
+	if loud then
+		local at = tagPoint(slot)
+		if at then
+			riseAt(at, WORLD_WORDS.Stolen, BERRY, STEAL.Word, STEAL.StolenRise, STEAL.StolenTime, STEAL_WORD_RANGE)
+		end
+		local top = topOf(slot)
+		if top then
+			local spot = thiefSpot(thiefId)
+			local colors = { Color3.new(1, 1, 1), BERRY.Top, BERRY.Bottom }
+			burst(top, "sparkle", colors, STEAL.Sparks, if spot then spot - top else nil)
+		end
+	end
+	local model = slot.fish
+	if model then
+		local rig = (steal and steal.rig) or slot.rig or TankDisplay.rig(model)
+		detachFish(slot)
+		if loud and rig then
+			arcOut(base, slot, model, rig, thiefId)
+		else
+			model:Destroy()
+		end
+	end
+end
+
+-- Перечитать витрину (после её Event / State / StealPhase или при постройке базы).
 local function refresh(base: Base, slot: Slot)
 	local info = readSlot(slot.model)
 	local event = info.event
@@ -822,7 +1345,8 @@ local function refresh(base: Base, slot: Slot)
 		kind, detail = parseEvent(event)
 	end
 	slot.lastEvent = event
-	local loud = kind ~= nil and kind ~= "mount" and base.distance <= DISPLAY.EventRange
+	local near = base.distance <= DISPLAY.EventRange
+	local loud = kind ~= nil and kind ~= "mount" and near
 	local fishId = info.fishId
 	local wanted = info.state == "fish" and fishId ~= nil and TankDisplay.template(fishId, info.mutation) ~= nil
 	local same = wanted
@@ -835,6 +1359,65 @@ local function refresh(base: Base, slot: Slot)
 	if locked ~= slot.locked then
 		slot.locked = locked
 		updateLocks(base)
+	end
+	-- Этап 4: кража витрины (StealPhase пишется последним; рыба остаётся в данных хозяина до
+	-- самого конца выноса)
+	local phase = if info.state == "fish" then info.phase else nil
+	local current = slot.steal
+	local prev = if current then current.phase else nil
+	if kind == "stolen" then
+		stolenFx(base, slot, tonumber(detail), loud)
+		prev, same = nil, false
+	end
+	if phase == "carry" then
+		-- рыба на голове вора: в витрине её нет
+		local steal = ensureSteal(slot, info)
+		local model = slot.fish
+		if model then
+			local rig = steal.rig or slot.rig or TankDisplay.rig(model)
+			stopMoves(steal)
+			steal.rig = nil
+			detachFish(slot)
+			if prev == "hold" and near and rig then
+				arcOut(base, slot, model, rig, info.stealBy)
+			else
+				model:Destroy()
+			end
+		end
+		steal.phase = "carry"
+		steal.spot = thiefSpot(info.stealBy) or steal.spot
+		slot.queued = false
+		return
+	end
+	if phase == "hold" and wanted then
+		local steal = ensureSteal(slot, info)
+		steal.phase = "hold"
+		if same then
+			updateTag(slot)
+		else
+			if slot.fish then
+				dropFish(base, slot, false)
+			end
+			steal.rig = nil
+			slot.queued = false
+			showFish(base, slot, false, 0)
+		end
+		lift(slot, steal)
+		return
+	end
+	if prev ~= nil then
+		local ended = endSteal(slot, false)
+		local rig = ended and ended.rig
+		if prev == "hold" and same and rig and slot.fish == rig.model then
+			dropBack(slot, rig, near)
+			updateTag(slot)
+			return
+		end
+		if prev == "carry" and wanted and slot.fish == nil and ended then
+			slot.queued = false
+			arcBack(base, slot, ended, near)
+			return
+		end
 	end
 	if same then
 		updateTag(slot)
@@ -877,6 +1460,32 @@ end
 -- База: постройка, хозяин, надпись садка, кнопка
 --------------------------------------------------------------------------------
 
+-- Строка защит надписи садка: («🛡️ 0:42» | nil, «🔐1 · 🐕 · 🚨» | nil).
+local function defenceTexts(model: Model): (string?, string?)
+	local now = Workspace:GetServerTimeNow()
+	local untilAt = num(model, "ProtectUntil")
+	local protect = if untilAt and untilAt > now
+		then TextUtil.fill(DEFENCE_WORDS.Protect, { t = StealRules.FormatClock(untilAt - now) })
+		else nil
+	local parts: { string } = {}
+	local lock = num(model, "LockLevel")
+	if lock and lock >= 1 then
+		table.insert(parts, TextUtil.fill(DEFENCE_WORDS.Lock, { n = math.min(math.floor(lock), LOCK_LEVELS) }))
+	end
+	if model:GetAttribute("HasDog") == true then
+		table.insert(parts, DEFENCE_WORDS.Dog)
+	end
+	if model:GetAttribute("HasAlarm") == true then
+		table.insert(parts, DEFENCE_WORDS.Alarm)
+	end
+	local owned = if #parts > 0 then table.concat(parts, DEFENCE_WORDS.Separator) else nil
+	if protect and owned then
+		-- (рядом с «🛡️ 0:42»: «· 🔐1 · 🐕»)
+		owned = string.gsub(DEFENCE_WORDS.Separator, "^%s+", "") .. owned
+	end
+	return protect, owned
+end
+
 local function updateSign(base: Base)
 	local tank = base.tank
 	local count, slots = num(tank, "Count"), num(tank, "Slots")
@@ -906,6 +1515,17 @@ local function updateSign(base: Base)
 			TankRules.FormatRate(income10),
 			TextUtil.fill(TEXTS.TankCount, { count = count or 0, slots = slots or 0 })
 		)
+		-- Этап 4: третья строка — защита базы «🛡️ 0:42» (любая; готов ли щит — никогда) и
+		-- купленные защиты «🔐1 · 🐕 · 🚨» (видят все)
+		local protect, owned = defenceTexts(base.model)
+		local row = base.defence
+		if (protect or owned) and not row then
+			row = TankDisplay.signDefence(sign, signCap)
+			base.defence = row
+		end
+		if row then
+			TankDisplay.setSignDefence(sign, row, protect, owned)
+		end
 	end
 end
 
@@ -970,6 +1590,7 @@ local function build(model: Model, distance: number): Base?
 		distance = distance,
 		owner = num(model, "OwnerUserId") or 0,
 		sign = nil,
+		defence = nil,
 		prompt = nil,
 		leaving = {},
 	}
@@ -1009,10 +1630,13 @@ local function build(model: Model, distance: number): Base?
 			lastEvent = nil,
 			pending = false,
 			queued = false,
+			steal = nil,
+			rig = nil,
 		}
 		table.insert(base.slots, slot)
 		base.trove:Connect(slotModel.AttributeChanged, function(name: string)
-			if name == "Event" or name == "State" then
+			-- (Этап 4: канал кражи StealPhase пишется последним — по нему и перечитываем)
+			if name == "Event" or name == "State" or name == "StealPhase" then
 				schedule(base, slot)
 			end
 		end)
@@ -1023,6 +1647,8 @@ local function build(model: Model, distance: number): Base?
 	base.trove:Connect(model.AttributeChanged, function(name: string)
 		if name == "OwnerUserId" then
 			ownerChanged(base)
+		elseif SIGN_ATTRIBUTES[name] then
+			updateSign(base) -- (Этап 4: строка защит)
 		end
 	end)
 	base.trove:Connect(tank.AttributeChanged, function(name: string)
@@ -1033,6 +1659,7 @@ local function build(model: Model, distance: number): Base?
 	end)
 	base.trove:Add(function()
 		for _, slot in base.slots do
+			endSteal(slot, true)
 			dropFish(base, slot, false)
 			dropLock(slot)
 			slot.info, slot.queued, slot.locked = nil, false, false
@@ -1042,6 +1669,7 @@ local function build(model: Model, distance: number): Base?
 		end
 		table.clear(base.leaving)
 		base.sign = nil
+		base.defence = nil
 	end)
 	updateSign(base)
 	applyPrompt(base)
@@ -1076,10 +1704,38 @@ local function refreshPier()
 	local slots = num(player, "TankSlots")
 	local state = str(player, "FishingState")
 	local hud = hudGui
-	local busy = (state ~= nil and BUSY_STATES[state] == true)
+	-- Этап 4: у своей базы кража — «🚨 КРАДУТ!» видно и в поклёвку, и в мини-игре (не под
+	-- карточкой улова и не под своим трофеем: там его табличка)
+	local own = pier.base
+	local alarm = own ~= nil and own:GetAttribute("AlarmState") == "theft"
+	local busy = (not alarm and state ~= nil and BUSY_STATES[state] == true)
 		or (hud ~= nil and hud:GetAttribute("CounterHold") ~= nil)
 		or pier.heldFish
 	local show = slots ~= nil and not busy
+	if alarm ~= pier.alarm then
+		pier.alarm = alarm
+		local label = pier.alarmLabel
+		if alarm and not label then
+			label = TankDisplay.pierAlarm(word, WORLD_WORDS.Pier)
+			pier.alarmLabel = label
+		end
+		local stop = pier.alarmStop
+		pier.alarmStop = nil
+		if stop then
+			stop()
+		end
+		word.top.Visible = not alarm
+		word.bottom.Visible = not alarm
+		if label then
+			label.Visible = alarm
+			if alarm then
+				pier.alarmStop = UiFx.pulse(label, STEAL.PierPulse, STEAL.PulsePeriod)
+			end
+		end
+		if alarm and show and pier.visible then
+			UiFx.punch(word.plate, { from = 0.6, peak = 1.2 })
+		end
+	end
 	if slots ~= nil then
 		local count = num(player, "TankCount") or 0
 		local income10 = math.round((num(player, "Income") or 0) * 10)
@@ -1128,6 +1784,11 @@ local function setupPier()
 	pier.word, pier.holder, pier.splashAt, pier.bucket = nil, nil, nil, nil
 	pier.visible = false
 	pier.baseIndex = index
+	local stop = pier.alarmStop
+	pier.base, pier.alarm, pier.alarmLabel, pier.alarmStop = nil, false, nil, nil
+	if stop then
+		stop()
+	end
 	local basesFolder = Workspace:FindFirstChild("Bases")
 	local base = index > 0 and basesFolder and basesFolder:FindFirstChild(`Base_{index}`)
 	local platform = base and base:FindFirstChild("Platform")
@@ -1164,6 +1825,15 @@ local function setupPier()
 	local word = TankDisplay.pier(point)
 	word.gui.Enabled = false
 	pier.word = word
+	-- Этап 4: кража у своей базы (AlarmState пишет StealService)
+	if base and base:IsA("Model") then
+		pier.base = base
+		pier.trove:Connect(base.AttributeChanged, function(name: string)
+			if name == "AlarmState" then
+				refreshPier()
+			end
+		end)
+	end
 	refreshPier()
 end
 
@@ -1346,8 +2016,12 @@ local function check()
 					built += 1
 				end
 			end
+			local steal = slot.steal
+			if steal and steal.phase == "carry" then
+				steal.spot = thiefSpot(steal.by) or steal.spot
+			end
 			local model, point = slot.fish, slot.fishPoint
-			if model and point then
+			if model and point and not steal then
 				-- с запасом: оживает ближе LifeRange, замирает только дальше LifeDrop
 				local d = distanceFrom(point.WorldPosition, cam, body)
 				if slot.life then
@@ -1366,6 +2040,10 @@ local function check()
 		end
 		if not base.prompt then
 			applyPrompt(base)
+		end
+		-- Этап 4: «🛡️ 0:42» на надписи садка идёт раз в TagEvery с
+		if tagTime and base.sign and num(base.model, "ProtectUntil") then
+			updateSign(base)
 		end
 	end
 	lastBuilds = built

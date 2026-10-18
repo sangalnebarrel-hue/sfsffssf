@@ -141,6 +141,9 @@ local TankConfig = {
 			TextMin = 22,
 			TextMax = 44,
 			CountShare = 0.6,
+			-- Этап 4: третья строка «🛡️ 0:42 · 🔐1 · 🐕 · 🚨» — табличка растёт вниз на такую долю
+			-- своей высоты (буквы строки — CountShare потолка, как «🐠 4/6»)
+			DefenceShare = 0.4,
 		},
 		-- Слово «РЫНОК +50%!» (FxMarketWord): над вывеской «РЫБНЫЙ РЫНОК» — от точки кнопки
 		-- ларька (SellPromptAttachment) на Up studs вверх и на Forward studs к покупателям.
@@ -188,6 +191,38 @@ local TankConfig = {
 			RiseOutline = 2,
 			RiseSize = { Width = 3.2, Height = 0.85, PixelsX = 40, PixelsY = 14 }, -- studs + px
 			EmitterLife = 1.2, -- столько секунд живёт временный ParticleEmitter (его частицы — до 1.1 с)
+		},
+		-- Кража (Этап 4, docs/stage4_design.md §5.2; канал витрины StealPhase / StealEnd / StealBy).
+		-- Удержание: рыба поднимается на Lift studs за LiftTime с, наклоняется на Tilt° к проходу и
+		-- бьётся (твин туда-обратно: ±Turn° и ±Bob studs за Time с — 1 / (2 × Time) Гц, не чаще
+		-- 3 Гц: STYLE), красный свет у LightBar пульсирует с периодом PulsePeriod (яркость до
+		-- PulseBrightness, радиус PulseRange), над витриной перед стеклом — «КРАДУТ!» с кольцом до
+		-- StealEnd (Word: studs + px, обводка Outline; буквы — по потолку надписей витрин, видно до
+		-- DefenceConfig.World.StealWordRange). Отпустили — рыба опускается за DropTime с со
+		-- всплеском «in». Вынос: рыба вылетает СКВОЗЬ ПЕРЕДНЕЕ стекло (на ArcOut studs перед ним),
+		-- вверх (верх рыбы не выше FishPoint + ArcTop: потолок галереи — на 5.15) и на голову вора
+		-- за ArcTime с; в полёте — не больше MaxArcs копий сразу (бюджет Theft); нет рыбы на голове
+		-- — цель над головой вора на HeadUp studs. «УКРАДЕНО!» всплывает на StolenRise studs за
+		-- StolenTime с, искр Sparks.
+		Steal = {
+			Lift = 1.6,
+			LiftTime = 0.3,
+			Tilt = 12,
+			Struggle = { Turn = 10, Bob = 0.12, Time = 0.2 },
+			DropTime = 0.25,
+			PulsePeriod = 0.5,
+			PulseBrightness = 4,
+			PulseRange = 10,
+			Word = { Width = 4.4, Height = 1.3, PixelsX = 40, PixelsY = 14, Outline = 3 },
+			ArcTime = 0.35,
+			ArcOut = 0.9,
+			ArcTop = 4.5,
+			MaxArcs = 1,
+			HeadUp = 2.6,
+			StolenRise = 0.6,
+			StolenTime = 2,
+			Sparks = 16,
+			PierPulse = 1.12, -- «🚨 КРАДУТ!» у ведра своей базы пульсирует до такого масштаба (2 Гц: PulsePeriod)
 		},
 	},
 

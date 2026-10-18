@@ -109,6 +109,57 @@ local DefenceConfig = {
 			Fade = 0.4,
 		},
 		StealWordRange = 90, -- «КРАДУТ!» над витриной видно до стольких studs (хозяин от спауна видит)
+		-- Остальное — TheftWorldController (docs/stage4_design.md §5.3–5.4): проверка баз раз в
+		-- CheckEvery с (цепочка task.delay; только пока у какой-то базы что-то идёт); лампа,
+		-- сирена и подсветка вора — у баз ближе Range к камере (дальше — вид шаблона).
+		CheckEvery = 0.5,
+		Range = 260,
+		-- Сирена: красный SpotLight (Range / Brightness / Angle) в лампе — их два, спиной друг к
+		-- другу (полоборота твином — оборот за SirenSpin); писк — раз в BeepPeriod с, громкость
+		-- BeepVolume, слышно ближе BeepRange.
+		Siren = { Range = 40, Brightness = 6, Angle = 50, BeepPeriod = 0.6, BeepVolume = 0.5 },
+		-- Вор (с сигнализацией хозяина): Highlight (заливка Berry с прозрачностью Fill, обводка —
+		-- Outline) и «ВОР!» над головой (Word: studs + px; Lift studs над макушкой; с рыбой на
+		-- голове — над её табличкой).
+		Mark = {
+			Fill = 0.7,
+			Outline = 0,
+			Lift = 1.6,
+			Word = { Width = 3.2, Height = 1.1, PixelsX = 30, PixelsY = 12, Outline = 2.5 },
+		},
+		-- Рыба на голове вора (StolenFish): покачивание ±Bob studs и поворот ±Sway° за Period с
+		-- (зацикленный твин сварки), табличка «🥷 Окунь $45» (Plate: studs + px, на Gap studs над
+		-- рыбой; появляется через Delay с — рыба ещё летит с витрины), видно до PlateRange.
+		Carried = {
+			Bob = 0.15,
+			Sway = 8,
+			Period = 0.9,
+			Plate = { Width = 5.2, Height = 1.2, PixelsX = 44, PixelsY = 14, Outline = 2.5 },
+			Gap = 0.4,
+			Delay = 0.35,
+			PlateRange = 90,
+		},
+		-- Собака на клиенте: ближе Range к камере — идёт за DogPos (догоняет с коэффициентом Follow:
+		-- α = 1 − e^(−Follow·dt)), на бегу (быстрее RunFrom studs/с) подпрыгивает на Hop studs HopHz
+		-- раз в секунду; «ГАВ!» (Bark: studs + px, всплывает на BarkRise за BarkTime с) — при
+		-- тревоге и при укусе; пока вор замедлен — пыль у его ног (Dust пылинок раз в DustEvery с).
+		Dog = {
+			Range = 200,
+			Follow = 12,
+			RunFrom = 1.5,
+			Hop = 0.35,
+			HopHz = 4,
+			Bark = { Width = 3, Height = 1.2, PixelsX = 30, PixelsY = 14 },
+			BarkRise = 1.4,
+			BarkTime = 0.9,
+			BarkLift = 1.2,
+			Dust = 3,
+			DustEvery = 0.25,
+		},
+		-- «🛡️ 4:12» под табличкой флага (Flag.Pole.SignAttachment.OwnerSign): свой BillboardGui
+		-- её размера (studs + px — читается с неё), сдвинут вниз на Drop своей высоты; строка —
+		-- Line её высоты сверху, ширина — Wide, обводка Outline px.
+		Flag = { Drop = 0.99, Line = 0.3, Wide = 0.7, Outline = 2 },
 	},
 	-- Лист «ЗАЩИТА» (Controllers/Sheet; px HUD — пишутся масштабом): Margin px до краёв, не больше
 	-- MaxWidth × MaxHeight, шапка — Header высоты листа, высокий экран — от TallFrom px; карточка —
