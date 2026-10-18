@@ -289,7 +289,10 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   huge «КЛЮЁТ!» — white → gold display text, a thick Ink outline and the reference title's
   drop-shadow twin — jumps out of the own bobber (0.35 → 1,
   flying to its slot; where that path would cross the fisher it pops up in place — v3: never a
-  screen-wide slam over the fisher) with a sun flash and a FOV punch; the word punches in after the
+  screen-wide slam over the fisher; with no bobber on screen a phone pops it up in place, a tablet
+  or a PC slams it from above, no bigger than the room — the plate and its outline keep 16 px to
+  «ПОДСЕЧЬ!»'s ribbon at the peak of its punch, the thumbstick and the fisher, else it pops up in
+  place too: FishingController slamRoom, V-03) with a sun flash and a FOV punch; the word punches in after the
   plate, the two «!» glyphs (level with the word) pop in one after the other, turning (their text
   boxes stay within the plate's bottom outline, tilted, wiggling or popping: 0.8 of its height); sun edge glow, one BITE_BEAT for
   the plate, the button and the swinging «!» glyphs, the word flashing gold on the beat (≤ 3/s), a

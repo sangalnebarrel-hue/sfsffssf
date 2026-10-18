@@ -28,6 +28,9 @@
 	  • flightHits — заденет ли виджет прямоугольник, вылетая из точки на своё место.
 	  • slamPivot — откуда растить «удар» огромной надписи (от середины или от края), чтобы и в
 	    начале она не легла на своего рыбака и джойстик.
+	  • growFrom — с какого масштаба (не больше заданного) может начаться «удар» виджета вокруг его
+	    якоря, чтобы и в начале он не задел ни одной помехи (плашка «КЛЮЁТ!» у кнопки действия,
+	    имя базы на баннере у колонки кнопок).
 	  • clearOf — насколько меньше поднимать слово над панелью (или куда его сдвинуть), чтобы оно
 	    не заходило на плашки статуса и флажок базы.
 	  • hintWidth — ширина «таблетки» подсказки под её текст (не влезает — две ровные строки).
@@ -357,11 +360,38 @@ function FishingLayout.slamPivot(rest: Rect, from: number, keepouts: { Rect }, c
 			return Vector2.new(ax, 0.5), from
 		end
 	end
+	local centre = Vector2.new(0.5, 0.5)
+	return centre, FishingLayout.growFrom(rest, centre, from, keepouts)
+end
+
+--[[
+	«Удар» с большого (UIScale from → 1) вокруг якоря anchor (доли rest, как AnchorPoint): самый
+	большой масштаб, не больше from (шагами по 0.05, не меньше 1), при котором rest, выросший вокруг
+	якоря, не задевает ни одного keepouts (их запасы — у вызывающего). С 1 удара нет — место только
+	на покой.
+]]
+function FishingLayout.growFrom(rest: Rect, anchor: Vector2, from: number, keepouts: { Rect }): number
+	local w, h = rest.x1 - rest.x0, rest.y1 - rest.y0
+	local px, py = rest.x0 + anchor.X * w, rest.y0 + anchor.Y * h
+	local function clear(k: number): boolean
+		local grown = {
+			x0 = px - anchor.X * w * k,
+			y0 = py - anchor.Y * h * k,
+			x1 = px + (1 - anchor.X) * w * k,
+			y1 = py + (1 - anchor.Y) * h * k,
+		}
+		for _, keepout in keepouts do
+			if hits(grown, keepout) then
+				return false
+			end
+		end
+		return true
+	end
 	local k = from
-	while k > 1 and not clear(0.5, k) do
+	while k > 1 and not clear(k) do
 		k = math.max(1, k - 0.05)
 	end
-	return Vector2.new(0.5, 0.5), k
+	return k
 end
 
 --[[
