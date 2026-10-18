@@ -70,7 +70,7 @@
 	Атрибуты, которые читает: Player — Money, Income, DataMode; HUD — CounterHold, IntroAt. Remote:
 	FishingState "Caught" (Tank.Result, Tank.Price — только для придержки). Соединения — один раз
 	на сессию (HUD живёт всю игру); CatchToast — ChildRemoved персонажа и CharacterAdded, только пока
-ждёт ухода трофея.
+	ждёт ухода трофея.
 
 	API:
 	  MoneyController:Start(hud)

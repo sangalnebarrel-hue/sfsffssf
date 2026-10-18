@@ -271,10 +271,10 @@ local function buildRightButtons(hud: any)
 
 	-- «САДОК» (stage 3): the same square recipe as Home, one slot above it (LayoutOrder 90), in
 	-- aqua Water (never Grape «ДОМОЙ», Leaf «ЛОВИ!» or Sky «ЗАБРОСИТЬ»), 🐠 in the middle (a little
-	-- lower right, clear of the chip) and «САДОК» on its bottom edge; Count — a small Cream chip «0/6» (italic dark digits) in its
-	-- top-left corner (Gold when the tank is full), Badge — the hidden red «!» on its top-right
-	-- corner (the first fish ever: open me). Hidden until the base and the data are there
-	-- (TankButtonController).
+	-- lower right, clear of the chip) and «САДОК» on its bottom edge; Count — a small Cream chip
+	-- «0/6» (italic dark digits) in its top-left corner (Gold when the tank is full), Badge — the
+	-- hidden red «!» on its top-right corner (the first fish ever: open me). Hidden until the base
+	-- and the data are there (TankButtonController).
 	local tank = Theme.simButton(right, "TankButton", "Water", {
 		LayoutOrder = 90,
 		Size = UDim2.fromScale(1, 0.28),
