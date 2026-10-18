@@ -66,8 +66,10 @@
 	        за игру.
 	  • CatchToast(text, kind, look?, delay?) — уведомление улова (зовёт и TankButtonController:
 	    первая рыба, замена): через delay с и не раньше, чем своя рыба над головой (HeldFish в
-	    своём персонаже) ушла, но не дольше Wallet.TrophyWait с — на планшете и компьютере
-	    NotifyController при трофее уведомления не держит, а их колонка — над головой рыбака.
+	    своём персонаже) ушла и ещё Wallet.AfterTrophy с (слово садка у ведра успевает «ударить»
+	    раньше, чем уведомление ляжет на него), но не дольше Wallet.TrophyWait с — на планшете и
+	    компьютере NotifyController при трофее уведомления не держит, а их колонка — над головой
+	    рыбака.
 	  • Придержка улова: на "Caught" с Tank.Result "replaced" / "sold" (Tank.Price — монеты этого
 	    улова, RemoteNames) MoneyController держит Price (held += min(Price, Money − held − shown)),
 	    пока у HUD есть CounterHold и до Celebrate этой суммы (шаг 1 берёт её отсюда).
@@ -586,10 +588,11 @@ function MoneyController.Shown(): number
 end
 
 -- Уведомление улова (первая рыба, замена, продажа на месте): через delay с и не раньше, чем
--- своя рыба над головой ушла (HeldFish в своём персонаже; не дольше Wallet.TrophyWait с; новый
--- персонаж — трофея нет). NotifyController держит уведомления при трофее только на телефоне, а
--- на планшете и компьютере плашка легла бы на трофей и его табличку. Соединения — только пока
--- ждёт.
+-- своя рыба над головой ушла (HeldFish в своём персонаже) и ещё Wallet.AfterTrophy с (слово садка
+-- у ведра успевает «ударить», прежде чем уведомление ляжет на него на телефоне), но не дольше
+-- Wallet.TrophyWait с; новый персонаж — трофея нет. NotifyController держит уведомления при
+-- трофее только на телефоне, а на планшете и компьютере плашка легла бы на трофей и его табличку.
+-- Соединения — только пока ждёт.
 function MoneyController.CatchToast(text: string, kind: string, look: NotifyController.Look?, delay: number?)
 	task.delay(delay or 0, function()
 		local character = player.Character
@@ -614,7 +617,7 @@ function MoneyController.CatchToast(text: string, kind: string, look: NotifyCont
 			links,
 			character.ChildRemoved:Connect(function(child: Instance)
 				if child.Name == "HeldFish" and not character:FindFirstChild("HeldFish") then
-					show()
+					task.delay(WALLET.AfterTrophy, show)
 				end
 			end)
 		)

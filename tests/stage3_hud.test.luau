@@ -1049,6 +1049,9 @@ tests["catch toasts wait for the held trophy (a tablet: the column is over the h
 			t.eq(hud.Status.Wallet.Money.Label.Text, "$524", `{round.what}: the coins are counted meanwhile`)
 		end
 		held:Destroy()
+		-- (and Wallet.AfterTrophy more: the pier word punches first, UX-03)
+		local soon = watchToasts(sim, p, UIConfig.Wallet.AfterTrophy - 0.15)
+		t.eq(next(soon), nil, `{round.what}: the trophy just left — the pier word's beat first`)
 		local seen = watchToasts(sim, p, 1)
 		t.eq(seen[round.text], 1, `{round.what}: the trophy is gone — «{round.text}»`)
 		sim:Advance(UIConfig.ToastDuration + 1)

@@ -587,6 +587,55 @@ tests["open / close: Toggle, TankEvent Open, ✕; refused during a bite or the c
 	sim:AssertNoErrors({ warnings = true })
 end
 
+tests["the open sheet covers the fishing layer (UX-04): «ВЗЯТЬ» and its «!» do not show through the glass; back on close and when fishing takes the screen"] = function(
+	t
+)
+	for _, device in { "phone", "tablet" } do
+		local sim = boot(t)
+		local p = addPlayer(sim, 1, device)
+		local fake = Fake.new(sim, p)
+		fake:mount(homeTank(fake))
+		local panel = panelOf(sim, p)
+		local fishing = hudOf(p).Fishing
+		local area = fishing.ActionArea
+		local root = hudOf(p).TankPanel
+		local function toggle(): boolean
+			return call(sim, p, function()
+				return panel.Toggle()
+			end)
+		end
+		t.ok(
+			fishing.Visible and area.Visible,
+			`{device}: the action button is up (rod in the backpack: «ВЗЯТЬ»)`
+		)
+		t.ok(toggle(), `{device}: opens`)
+		sim:Advance(0.4)
+		local a0, a1 = area.AbsolutePosition, area.AbsolutePosition + area.AbsoluteSize
+		local r0, r1 = root.AbsolutePosition, root.AbsolutePosition + root.AbsoluteSize
+		local under = a0.X < r1.X and a1.X > r0.X and a0.Y < r1.Y and a1.Y > r0.Y
+		t.ok(under, `{device}: the action area lies under the sheet`)
+		t.eq(fishing.Visible, false, `{device}: the fishing layer is hidden under the open sheet`)
+		t.ok(area.Visible, `{device}: … the widgets' own Visible untouched`)
+		toggle()
+		sim:Advance(0.05)
+		t.eq(fishing.Visible, true, `{device}: back at once when it closes`)
+		sim:Advance(0.4)
+		-- a bite while open: the sheet goes at once, the layer with it comes back
+		toggle()
+		sim:Advance(0.3)
+		t.eq(fishing.Visible, false, `{device}: hidden again`)
+		p:SetAttribute("FishingState", "Waiting")
+		sim:Advance(0.05)
+		p:SetAttribute("FishingState", "Bite")
+		sim:Advance(0.05)
+		t.ok(not panel.IsOpen(), `{device}: the bite closes the sheet`)
+		t.eq(fishing.Visible, true, `{device}: the fishing layer is back for the bite`)
+		p:SetAttribute("FishingState", "Idle")
+		sim:Advance(0.05)
+		sim:AssertNoErrors({ warnings = true })
+	end
+end
+
 --------------------------------------------------------------------------------
 -- Cards
 --------------------------------------------------------------------------------

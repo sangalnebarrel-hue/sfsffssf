@@ -106,6 +106,20 @@ return {
 		end,
 	},
 	{
+		name = "tank_panel_take",
+		desc = "Opened with the rod still in the backpack (the action button «ВЗЯТЬ» with its newcomer «!» and the «where to go» hint up): the open sheet hides the fishing layer, nothing shows through the phone's glass sheet (UX-04); ✕ brings «ВЗЯТЬ» back",
+		still = { 0.9, 1.6 },
+		run = function(h: any)
+			h:giveRod()
+			h:advance(1)
+			openWith(h, HOME, 1234)
+		end,
+		during = function(h: any)
+			h:advance(1.2)
+			h:click("HUD.TankPanel.Panel.Close")
+		end,
+	},
+	{
 		name = "tank_panel_full",
 		desc = "The tank panel full, 6/6 (the chip turns Gold): every species, a Neon Swordfish, a Rainbow Dragon (Mythic: the rainbow outline turns), the teaser cut off at the right edge (it scrolls)",
 		still = 0.9,
