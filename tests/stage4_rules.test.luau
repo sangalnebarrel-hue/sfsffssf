@@ -1193,8 +1193,19 @@ tests["contract: services, controllers and their API, remotes, ORDERs, the repli
 	fns(sim:Require(find("ServerScriptService.Lib.HeldRig")), "HeldRig", { "Build" })
 	fns(server("FishingService"), "FishingService", { "DropHeldFish" })
 
-	-- Wave 0 behaviour of the stubs: nothing protected, nobody stealing, the probe wired.
-	t.eq({ Defence:IsProtected(p) }, {}, "nobody protected (stub)")
+	-- Wave 1 behaviour: a first visit (SaveCount 0) is the newbie protection (the Studio knob
+	-- shortens it — it may be over by now), nobody stealing, the probe wired.
+	local kind, untilT = Defence:IsProtected(p)
+	if kind ~= nil then
+		t.eq(kind, "newbie", "a first visit: the newbie protection")
+		t.ok(untilT > sim.workspace:GetServerTimeNow(), "… still running")
+		local model = Base:GetBase(p).Model
+		t.eq(model:GetAttribute("ProtectKind"), kind, "the base's ProtectKind")
+		t.ok(
+			math.abs(model:GetAttribute("ProtectUntil") - untilT) < 0.01,
+			"the base's ProtectUntil = IsProtected's end"
+		)
+	end
 	t.eq(Steal:IsStealing(p), nil, "nobody stealing")
 	t.eq(Defence._isStealing(p), false, "StealService registered the probe (SetStealProbe)")
 	t.eq(Defence:HoldTime(p), LOCK.BaseHold, "the base hold")
@@ -1207,9 +1218,16 @@ tests["contract: services, controllers and their API, remotes, ORDERs, the repli
 		false,
 		"AmendLeaving only while leaving"
 	)
-	for name, module in { StealService = Steal, DefenceService = Defence } do
-		for key, size in module._debugSizes() do
-			t.eq(size, 0, `{name}._debugSizes().{key}`)
+	for key, size in Steal._debugSizes() do
+		t.eq(size, 0, `StealService._debugSizes().{key} (nobody stealing)`)
+	end
+	-- (one player: at most one entry per player map; no alarm bought — no early-warning loop)
+	local players = #sim.game:GetService("Players"):GetPlayers()
+	for key, size in Defence._debugSizes() do
+		if key == "Alarmed" or key == "IntruderLoop" or key == "IntruderSeen" then
+			t.eq(size, 0, `DefenceService._debugSizes().{key} (no alarm)`)
+		else
+			t.ok(size <= players, `DefenceService._debugSizes().{key} = {size} ≤ {players} players`)
 		end
 	end
 

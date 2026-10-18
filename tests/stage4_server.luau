@@ -44,6 +44,7 @@ S.SHIELD = Kit.DefenceConfig.Shield
 S.DOG = Kit.DefenceConfig.Dog
 S.LOCK = Kit.DefenceConfig.Lock
 S.BASE_HOLD = Kit.DefenceConfig.Lock.BaseHold
+S.TICK = Kit.StealConfig.Tick
 S.Vector3 = Vector3
 
 function S.Vector3up(y: number): any

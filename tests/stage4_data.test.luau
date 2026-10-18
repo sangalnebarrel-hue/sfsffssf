@@ -335,8 +335,9 @@ end
 -- F6–F9 in both PlayerRemoving handler orders
 --------------------------------------------------------------------------------
 
+local cases: { [string]: { [string]: (t: any) -> () } } = { fifo = {}, reverse = {} }
 for _, order in ORDERS do
-	tests[`F6 the victim leaves mid-escrow → the thief commits with the fish ({order})`] = function(t)
+	cases[order]["F6 the victim leaves mid-escrow → the thief commits with the fish"] = function(t)
 		local sim = bootOrder(t, order)
 		local victim = S.player(t, sim, 101, { tank = TANK })
 		local thief = S.player(t, sim, 102, { tank = { { Id = "Crucian" } } })
@@ -362,9 +363,7 @@ for _, order in ORDERS do
 		sim:AssertNoErrors({ warnings = true })
 	end
 
-	tests[`F7 the victim's save never lands → void on the thief; restart → the victim has it ({order})`] = function(
-		t
-	)
+	cases[order]["F7 the victim's save never lands → void on the thief; restart → the victim has it"] = function(t)
 		local sim = bootOrder(t, order)
 		local victim = S.player(t, sim, 101, { tank = TANK })
 		local thief = S.player(t, sim, 102, { tank = { { Id = "Crucian" } } })
@@ -397,9 +396,7 @@ for _, order in ORDERS do
 		sim:AssertNoErrors({ warnings = true })
 	end
 
-	tests[`F8a the thief leaves mid-escrow → back in the victim's tank, one copy after restart ({order})`] = function(
-		t
-	)
+	cases[order]["F8a the thief leaves mid-escrow → back in the victim's tank, one copy after restart"] = function(t)
 		local sim = bootOrder(t, order)
 		local victim = S.player(t, sim, 101, { tank = TANK })
 		local thief = S.player(t, sim, 102, { tank = { { Id = "Crucian" } } })
@@ -427,7 +424,7 @@ for _, order in ORDERS do
 		sim:AssertNoErrors({ warnings = true })
 	end
 
-	tests[`F8b the victim leaves, the thief 1 s later → AmendLeaving: the fish once in the victim's key ({order})`] = function(
+	cases[order]["F8b the victim leaves, the thief 1 s later → AmendLeaving: the fish once in the victim's key"] = function(
 		t
 	)
 		local sim = bootOrder(t, order)
@@ -449,9 +446,7 @@ for _, order in ORDERS do
 		sim:AssertNoErrors({ warnings = true })
 	end
 
-	tests[`F8c the victim's final snapshot already taken → zero copies, never two (documented) ({order})`] = function(
-		t
-	)
+	cases[order]["F8c the victim's final snapshot already taken → zero copies, never two (documented)"] = function(t)
 		local sim = bootOrder(t, order)
 		local victim = S.player(t, sim, 101, { tank = TANK })
 		local thief = S.player(t, sim, 102, { tank = { { Id = "Crucian" } } })
@@ -473,7 +468,7 @@ for _, order in ORDERS do
 		sim:AssertNoErrors({ warnings = true })
 	end
 
-	tests[`F9 Shutdown with two escrows → each fish once in its victim's key; F9' players first → the same ({order})`] = function(
+	cases[order]["F9 Shutdown with two escrows → each fish once in its victim's key; F9' players first → the same"] = function(
 		t
 	)
 		for _, shutdownOrder in { "closeFirst", "playersFirst" } do
@@ -500,6 +495,32 @@ for _, order in ORDERS do
 		end
 	end
 end
+
+-- (one top-level line per test, so `grep -c '^tests\['` counts them all)
+tests["F6 the victim leaves mid-escrow → the thief commits with the fish (fifo)"] =
+	cases.fifo["F6 the victim leaves mid-escrow → the thief commits with the fish"]
+tests["F7 the victim's save never lands → void on the thief; restart → the victim has it (fifo)"] =
+	cases.fifo["F7 the victim's save never lands → void on the thief; restart → the victim has it"]
+tests["F8a the thief leaves mid-escrow → back in the victim's tank, one copy after restart (fifo)"] =
+	cases.fifo["F8a the thief leaves mid-escrow → back in the victim's tank, one copy after restart"]
+tests["F8b the victim leaves, the thief 1 s later → AmendLeaving: the fish once in the victim's key (fifo)"] =
+	cases.fifo["F8b the victim leaves, the thief 1 s later → AmendLeaving: the fish once in the victim's key"]
+tests["F8c the victim's final snapshot already taken → zero copies, never two (documented) (fifo)"] =
+	cases.fifo["F8c the victim's final snapshot already taken → zero copies, never two (documented)"]
+tests["F9 Shutdown with two escrows → each fish once in its victim's key; F9' players first → the same (fifo)"] =
+	cases.fifo["F9 Shutdown with two escrows → each fish once in its victim's key; F9' players first → the same"]
+tests["F6 the victim leaves mid-escrow → the thief commits with the fish (reverse)"] =
+	cases.reverse["F6 the victim leaves mid-escrow → the thief commits with the fish"]
+tests["F7 the victim's save never lands → void on the thief; restart → the victim has it (reverse)"] =
+	cases.reverse["F7 the victim's save never lands → void on the thief; restart → the victim has it"]
+tests["F8a the thief leaves mid-escrow → back in the victim's tank, one copy after restart (reverse)"] =
+	cases.reverse["F8a the thief leaves mid-escrow → back in the victim's tank, one copy after restart"]
+tests["F8b the victim leaves, the thief 1 s later → AmendLeaving: the fish once in the victim's key (reverse)"] =
+	cases.reverse["F8b the victim leaves, the thief 1 s later → AmendLeaving: the fish once in the victim's key"]
+tests["F8c the victim's final snapshot already taken → zero copies, never two (documented) (reverse)"] =
+	cases.reverse["F8c the victim's final snapshot already taken → zero copies, never two (documented)"]
+tests["F9 Shutdown with two escrows → each fish once in its victim's key; F9' players first → the same (reverse)"] =
+	cases.reverse["F9 Shutdown with two escrows → each fish once in its victim's key; F9' players first → the same"]
 
 --------------------------------------------------------------------------------
 -- F7 variants, F10, F13

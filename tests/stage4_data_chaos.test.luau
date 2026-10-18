@@ -245,10 +245,9 @@ local function invariants(t: any, sim: any, ids: { number }, startCount: number,
 	t.ok(total <= startCount, `{what}: fish total {total} ≤ the start {startCount}`)
 end
 
+local cases: { [string]: (t: any) -> () } = {}
 for _, order in { "fifo", "reverse" } do
-	tests[`chaos ({order}): fail rate 0.3, four players stealing for 10 minutes with rejoins → no dupe anywhere`] = function(
-		t
-	)
+	cases[order] = function(t)
 		local sim = S.boot(t, if order == "reverse" then { removingOrder = "reverse", seed = 7 } else { seed = 7 })
 		local ids = { 101, 102, 103, 104 }
 		local players: { [number]: any } = {}
@@ -313,5 +312,11 @@ for _, order in { "fifo", "reverse" } do
 		after:AssertNoErrors({ warnings = true })
 	end
 end
+
+-- (one top-level line per test, so `grep -c '^tests\['` counts them all)
+tests["chaos (fifo): fail rate 0.3, four players stealing for 10 minutes with rejoins → no dupe anywhere"] =
+	cases.fifo
+tests["chaos (reverse): fail rate 0.3, four players stealing for 10 minutes with rejoins → no dupe anywhere"] =
+	cases.reverse
 
 return tests

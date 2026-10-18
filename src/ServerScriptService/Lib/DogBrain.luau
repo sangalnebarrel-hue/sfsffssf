@@ -194,6 +194,15 @@ local function writeAttributes(base: any, brain: Brain, pending: { [string]: any
 	DogBrain.Mark(brain, pending, now)
 end
 
+-- Смена состояния — в атрибуты сразу (клиент лает «ГАВ!» в тот же кадр, не на тике наблюдателя).
+local function writeNow(base: any, brain: Brain)
+	local now = os.clock()
+	local pending = DogBrain.Pending(brain, now)
+	if next(pending) then
+		writeAttributes(base, brain, pending, now)
+	end
+end
+
 function DogBrain.Wake(base: any, targetUserId: number?)
 	local brain = brains[base]
 	if not brain then
@@ -201,12 +210,14 @@ function DogBrain.Wake(base: any, targetUserId: number?)
 		brains[base] = brain
 	end
 	DogBrain.WakeBrain(brain, targetUserId)
+	writeNow(base, brain)
 end
 
 function DogBrain.Return(base: any)
 	local brain = brains[base]
 	if brain then
 		DogBrain.ReturnBrain(brain)
+		writeNow(base, brain)
 	end
 end
 

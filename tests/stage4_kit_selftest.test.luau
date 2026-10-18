@@ -437,9 +437,13 @@ tests["Kit.seed, basePoint / exitPoint vs StealRules, sizesZero4 after the leave
 
 	-- leaks: nothing left of the player once the leave save and its key's pause are over (the stage 3
 	-- services and the stage 4 ones; a join a few seconds earlier makes the leave save wait for the gap)
+	-- (wave 1: DefenceService remembers the leave for the quick-rejoin protection, a time-bounded map
+	-- keyed by UserId — §4.11; it is pruned once DefenceConfig.Shield.QuickRejoin has passed)
 	sim:RemovePlayer(p)
 	sim:Advance(2 * Kit.GAP + 2, Kit.COARSE)
-	Kit.sizesZero4(t, sim, "after the leave save and the key's pause")
+	t.eq(Kit.service(sim, "DefenceService")._debugSizes().LeftAt, 1, "the quick-rejoin mark kept")
+	sim:Advance(DefenceConfig.Shield.QuickRejoin, Kit.COARSE)
+	Kit.sizesZero4(t, sim, "after the leave save, the key's pause and the quick-rejoin window")
 	local left = Kit.peek(sim, 3)
 	t.ok(left.Money >= 1234, "the leave save")
 	sim:AssertNoErrors({ warnings = true })
