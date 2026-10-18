@@ -778,10 +778,11 @@ MarketService:
   +50%» / «Ларёк · +50%», HoldDuration 0.25, MaxActivationDistance 10, RequiresLineOfSight false.
 - **`Sample(player)`**, called from TankService's 1 Hz tick (B-22):
   - Read the HRP position with `FindFirstChild`.
-  - Displacement `> WalkSpeed × dt × 2 + 8` studs since the last sample (a teleport), or a new character
-    (no last sample) → `hold = MarketJump.Penalty` (5): the stall rate waits that many more clean samples,
-    each one `hold −= 1` (fix BE-02: resetting the dwell alone cost a teleport nothing, since a jump into a
-    stall's Range always changes the point too). A legitimate teleport (join, Home, respawn) puts the
+  - Horizontal displacement `> WalkSpeed × dt × 2 + 8` studs since the last sample (a teleport; a jump
+    or a fall from a roof does not count), or a new character (no last sample) → `hold =
+    MarketJump.Penalty` (5): the stall rate waits that many more clean samples, each one `hold −= 1`
+    (fix BE-02: resetting the dwell alone cost a teleport nothing, since a jump into a stall's Range
+    always changes the point too). A legitimate teleport (join, Home, respawn) puts the
     player at their base, more than 5 s of walking from any stall, so no exemptions are needed.
   - In `Range` of a point → `dwell += 1`, else `dwell = 0`.
   - `SellRatePct = (dwell ≥ MarketDwell and hold = 0 and still in range) and MarketRatePct or HomeRatePct`; write

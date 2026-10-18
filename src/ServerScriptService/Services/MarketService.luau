@@ -10,14 +10,15 @@
 	     RequiresLineOfSight false. PlayerAdded: атрибуты SellRatePct = HomeRatePct, SellPlace = "".
 	  2. Sample(player) — зовёт TankService из своего цикла раз в секунду (не каждый кадр): позиция
 	     HumanoidRootPart (FindFirstChild, без ожиданий); в Range ларька — dwell + 1 (тот же
-	     ларёк), иначе 0. Скачок с прошлой проверки дальше WalkSpeed × dt × MarketJump.SpeedFactor
-	     + MarketJump.Slack (телепорт) или новый персонаж (прошлой позиции нет) — «выдержка»
-	     hold = MarketJump.Penalty: ставка ларька ждёт ещё столько чистых проверок (каждая
-	     −1). Законные телепорты — «Домой», возрождение, вход — ставят игрока у его базы, а
-	     оттуда до любого ларька идти дольше выдержки: живому игроку она не видна; «к ларьку
-	     телепортом и сразу продать» — по ×1 ещё Penalty секунд. SellRatePct = MarketRatePct,
-	     если dwell ≥ MarketDwell, hold = 0 и игрок всё ещё в Range, иначе HomeRatePct; атрибуты
-	     SellRatePct / SellPlace — только при изменении.
+	     ларёк), иначе 0. Скачок с прошлой проверки по горизонтали (прыжок и падение — не
+	     скачок) дальше WalkSpeed × dt × MarketJump.SpeedFactor + MarketJump.Slack (телепорт)
+	     или новый персонаж (прошлой позиции нет) — «выдержка» hold = MarketJump.Penalty:
+	     ставка ларька ждёт ещё столько чистых проверок (каждая −1). Законные телепорты —
+	     «Домой», возрождение, вход — ставят игрока у его базы, а оттуда до любого ларька идти
+	     дольше выдержки: живому игроку она не видна; «к ларьку телепортом и сразу продать» —
+	     по ×1 ещё Penalty секунд. SellRatePct = MarketRatePct, если dwell ≥ MarketDwell,
+	     hold = 0 и игрок всё ещё в Range, иначе HomeRatePct; атрибуты SellRatePct / SellPlace —
+	     только при изменении.
 	  3. RatePct(player) -> (ratePct, pointId?) — ставка по проверкам + живая проверка расстояния
 	     до того же ларька; никогда не ждёт (TankService зовёт её в миг продажи).
 	  4. Нажатие кнопки ларька — через лимит запросов игрока (Lib.TankRequests, общий с садком),
@@ -92,9 +93,12 @@ local function walkSpeed(player: Player): number
 	return if humanoid then humanoid.WalkSpeed else DEFAULT_WALK_SPEED
 end
 
--- Скачок (телепорт): от прошлой проверки дальше, чем можно пройти за dt (с запасом).
+-- Скачок (телепорт): от прошлой проверки по горизонтали дальше, чем можно пройти за dt (с
+-- запасом). Высота не в счёт: прыжок или падение с башни — не телепорт.
 local function jumped(player: Player, last: Vector3, position: Vector3, dt: number): boolean
-	return (position - last).Magnitude > walkSpeed(player) * dt * JUMP.SpeedFactor + JUMP.Slack
+	local delta = position - last
+	local flat = math.sqrt(delta.X * delta.X + delta.Z * delta.Z)
+	return flat > walkSpeed(player) * dt * JUMP.SpeedFactor + JUMP.Slack
 end
 
 local function inRange(point: Point, position: Vector3): boolean

@@ -1030,6 +1030,16 @@ tests["stall rate: ×1.5 after MarketDwell samples at the market or a kiosk; awa
 	t.eq(tankEvents(sim, p, "Sold")[2].RatePct, EconomyConfig.MarketRatePct)
 	t.eq(tankEvents(sim, p, "Sold")[2].Place, "Kiosk1")
 
+	-- Height is not a jump (a fall from a roof is no teleport): 60 studs straight up (out of
+	-- range: ×1) and straight back down — the dwell alone brings ×1.5 back, no hold.
+	local here = sim:GetRoot(p).Position
+	sim:Teleport(p, here + Vector3.new(0, 60, 0))
+	sim:Advance(1.1 * EconomyConfig.IncomeTick, COARSE)
+	t.eq(p:GetAttribute("SellRatePct"), EconomyConfig.HomeRatePct, "60 studs up: out of the kiosk's range")
+	sim:Teleport(p, here)
+	sim:Advance((EconomyConfig.MarketDwell + 0.2) * EconomyConfig.IncomeTick, COARSE)
+	t.eq(p:GetAttribute("SellRatePct"), EconomyConfig.MarketRatePct, "back down: ×1.5 after the dwell only")
+
 	-- Teleported straight to the market and selling at once: ×1, and for Penalty more samples
 	-- (BE-02: a walk-in dwell of MarketDwell samples is not enough after a jump).
 	t.ok(PENALTY > EconomyConfig.MarketDwell, "the teleport hold is longer than the walk-in dwell")
