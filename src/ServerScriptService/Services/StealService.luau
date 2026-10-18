@@ -80,7 +80,7 @@
 
 	API:
 	  StealService:IsStealing(player) -> "hold" | "carry" | nil
-	  StealService:TheftOn(base) -> { Thief, Victim, Slot, Phase }?
+	  StealService:TheftOn(base) -> { Thief, Victim, Slot, Phase }?   -- base: BaseService.Base или модель Base_N
 	  StealService:Cancel(player, reason)          -- BindToClose и тесты
 	  StealService.TheftStarted, StealService.TheftEnded   -- Signal (thief, victim, result):
 	                                               -- result = "hold" (начало) | "credited" | причина
@@ -928,7 +928,10 @@ function StealService:IsStealing(player: Player): ("hold" | "carry")?
 end
 
 function StealService:TheftOn(base: any): TheftView?
-	local theft = byBase[base]
+	if typeof(base) == "Instance" then
+		base = BaseService:GetBaseFromInstance(base) -- (модель базы Base_N — тоже можно)
+	end
+	local theft = if base then byBase[base] else nil
 	if not theft or theft.Ended then
 		return nil
 	end
