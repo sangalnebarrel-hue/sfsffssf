@@ -61,6 +61,19 @@
 	  TankDisplay.emitter(parent, kind, colors?) -> ParticleEmitter;  TankDisplay.emit(emitter, count)
 	  TankDisplay.flash(parent, color) -> PointLight
 	  TankDisplay.countParts(model) -> number
+	Этап 4 (кража; числа — Display.Steal, Sign.DefenceShare):
+	  TankDisplay.rig(model) -> Rig?          -- рыба целиком: детали и их места от Body (в покое)
+	  TankDisplay.bodyAt(rig, centre, turn?) -> CFrame;  TankDisplay.centreAt(rig, body) -> Vector3
+	  TankDisplay.around(rig, offset, turn) -> CFrame   -- поза вокруг центра покоя (подъём, борьба)
+	  TankDisplay.setRig(rig, body);  TankDisplay.tweenRig(rig, body, info) -> { Tween }
+	      (твин CFrame у каждой детали, ≤ 20: без сварок — так же в эмуляторе тестов и в превью)
+	  TankDisplay.stealWord(parent, text, cap, maxDistance) -> StealWord   -- «КРАДУТ!» (FxTankSteal):
+	      тёмный диск Ring с 🥷 (на нём кольцо-таймер у вызывающего) и слово Berry
+	  TankDisplay.pulseLight(parent, color) -> PointLight   -- красный пульс у LightBar (FxStealPulse)
+	  TankDisplay.signDefence(sign, cap) -> Defence;  TankDisplay.setSignDefence(sign, row, protect?, owned?)
+	  TankDisplay.capDefence(row, cap);  TankDisplay.cap(label, max)   -- потолок букв любого слова
+	  TankDisplay.pierAlarm(pair, text) -> TextLabel   -- «🚨 КРАДУТ!» у ведра (спрятано)
+	  emitter вида "dust" — серая пыль у ног вора, которого держит собака (TheftWorldController)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -499,6 +512,11 @@ local function capLabel(label: TextLabel, max: number)
 	if constraint.MaxTextSize ~= size then
 		constraint.MaxTextSize = size
 	end
+end
+
+-- Любое слово над миром: буквы не крупнее max px (TheftWorldController: «ВОР!», рыба вора).
+function TankDisplay.cap(label: TextLabel, max: number)
+	capLabel(label, max)
 end
 
 -- Надпись витрины: «+$4/с» не крупнее cap, цена — Tag.ValueShare от него.

@@ -2,7 +2,8 @@
 --[[
 	TankWorldController — садок в мире (Этап 3, только этот клиент): рыбы в витринах дворов баз,
 	надписи над витринами и над большим аквариумом, слово садка над ведром у места рыбалки, всплески
-	и искры событий витрин, слово «РЫНОК +50%!» над рынком острова. Числа — TankConfig.Display /
+	и искры событий витрин, слово «РЫНОК +50%!» над рынком острова; Этап 4 — витрины во время кражи,
+	строка защит над аквариумом и «🚨 КРАДУТ!» у ведра (docs/stage4_design.md §5.2, §5.3). Числа — TankConfig.Display /
 	Pier (ниже — их имена без «TankConfig.»), тексты — TankConfig.Texts, данные — атрибуты витрин,
 	садка и игрока (RemoteNames, «Состояние садка и денег»; договор записи —
 	tools/builder/DESIGN.md, «Tank slots at runtime»). Новых деталей на сервере нет: рыбы —
@@ -82,7 +83,9 @@
 	    видимого слова — надписи витрин (буквы — по потолку), «🔒 Закрыто», надпись садка, слово у
 	    ведра, слово рынка — на экране (Camera:WorldToScreenPoint; размер — studs × px на stud на
 	    этой глубине + px; HUD.IgnoreGuiInset = false, как у AbsolutePosition) сравнивается с
-	    видимыми плашками HUD.Status и уведомлениями HUD.Toasts: ближе Clear.Margin px — буквы и
+	    видимыми плашками HUD.Status (Этап 4 — и фишкой щита Status.BaseBadge.ShieldChip, там, где
+	    стопка ставит плашку базы), видимыми частями полосы вора HUD.TheftBar и тревоги хозяина
+	    HUD.TheftAlert и уведомлениями HUD.Toasts (слово «КРАДУТ!» — тоже): ближе Clear.Margin px — буквы и
 	    обводка тают за Clear.Fade с (TextTransparency / Transparency — Visible, Enabled и
 	    UIScale слова у других), снова проявляются за Clear.Show с, только когда слово отошло на
 	    Clear.Back px. Слово за камерой, дальше своего MaxDistance или выключенное — как было.
@@ -93,6 +96,31 @@
 	    с, золотые искры, «+$45» поднимается (цена — третье поле Event); "swap" — то же, и новая
 	    рыба вырастает на её месте; "mount" и незнакомые — тихо. Не больше Fx.MaxEmitters
 	    ParticleEmitter на игрока (лишний вытесняет самый старый; каждый живёт Fx.EmitterLife с).
+	  • Кража витрины (Этап 4; отдельный канал атрибутов витрины, Event не трогает: StealBy — UserId
+	    вора, StealEnd — конец удержания / выноса, StealPhase — "hold" | "carry", пишется
+	    ПОСЛЕДНИМ: по нему витрина и перечитывается; числа — Display.Steal, слова —
+	    StealConfig.Texts.World): удержание — рыба поднимается на Steal.Lift (крупная — меньше: её
+	    верх остаётся под верхом стекла), наклоняется к проходу и бьётся (твины деталей, ≤ 3 Гц),
+	    жизнь не начинается; надпись прохода спрятана, на её месте перед стеклом «КРАДУТ!»
+	    (BillboardGui FxTankSteal: диск с кольцом UiFx.ringTimer до StealEnd и слово Berry, буквы
+	    по потолку надписей, видно до DefenceConfig.World.StealWordRange), у LightBar пульсирует
+	    красный PointLight; отпустили — рыба опускается со всплеском «in». Вынос — рыба витрины
+	    вылетает СКВОЗЬ ПЕРЕДНЮЮ грань стекла (вся — перед ней), вверх не выше FishPoint +
+	    Steal.ArcTop (под потолок галереи) и на голову вора за ArcTime с (три твина-отрезка;
+	    StolenFish вора на это время спрятан LocalTransparencyModifier), потом удаляется; слово —
+	    «УНОСЯТ!» с кольцом до конца выноса. Вернули (щит, касание, время…) — новая рыба витрины
+	    летит с головы вора (или с места, где его видели последним) обратно и падает со
+	    всплеском (не больше Steal.MaxArcs таких копий сразу — бюджет Theft; иначе просто
+	    появляется). Event "stolen|<вор>" — «УКРАДЕНО!» всплывает и тает за StolenTime с, красные
+	    искры летят к вору (рыба, ещё стоящая в витрине, прыгает к нему); "void" — тихо. База
+	    построена посреди выноса — рыбы в витрине нет, слово «УНОСЯТ!».
+	  • Строка защит надписи садка (Этап 4, атрибуты модели базы ProtectUntil / ProtectKind,
+	    LockLevel, HasDog, HasAlarm — DefenceService): «🛡️ 0:42» цветом щита, пока база под любой
+	    защитой (раз в TagEvery с), и купленное «🔐1 · 🐕 · 🚨» — видят все; готов ли щит — не
+	    показываем никогда; надпись растёт вниз на Sign.DefenceShare (верхние строки на месте).
+	  • У ведра своей базы, пока у неё AlarmState = "theft", — одно красное «🚨 КРАДУТ!» (пульс 2 Гц,
+	    Steal.PierPulse) вместо строк садка; видно и в поклёвку, и в мини-игре, но не под
+	    CounterHold и не под своим трофеем.
 	  • Кнопки "TankPrompt" чужих баз — Enabled = false только на этом клиенте (сервер всё равно
 	    проверяет хозяина); стала своей — Enabled как у сервера (садок подключён — у модели садка
 	    есть Slots). Над рынком острова — «РЫНОК +50%!» (Texts.MarketWord, BillboardYellow,
@@ -103,8 +131,9 @@
 	ChildRemoved: HeldFish); у HUD — AttributeChanged (CounterHold), у HUD.Toasts — ChildAdded
 	(новое уведомление); FishingState и TankEvent;
 	у каждой построенной базы — по одному AttributeChanged на витрину, садок и модель базы и
-	кнопка "TankPrompt" (Enabled). В покое ни одного покадрового соединения (только цепочка
-	проверок и зацикленные твины рыб вблизи); единственное исключение — живая радужная рыба
+	кнопка "TankPrompt" (Enabled); у своей базы — AttributeChanged модели (AlarmState, слово у
+	ведра). В покое ни одного покадрового соединения (только цепочка проверок и зацикленные твины
+	рыб вблизи; кража — тоже только твины и task.delay); единственное исключение — живая радужная рыба
 	рядом (ближе LifeDrop): её перекрашивает Heartbeat FishingFxController. С места рыбалки
 	(≈ 155 studs до своего садка) ни одна рыба не жива.
 	Атрибуты витрин требуют StreamingEnabled = false (tools/build.luau). Стекло с прозрачностью
@@ -124,6 +153,9 @@
 	  TankWorldController.IsFaded(gui) -> boolean    -- слово ушло из-под HUD (Display.Clear)
 	  TankWorldController.Lock(base, slotIndex) -> BillboardGui?     -- «🔒 Закрыто» витрины
 	  TankWorldController.SetLife(enabled)   -- превью: RbxSim не двигает приваренные детали за Body
+	  TankWorldController.HudRects() -> { { x0, y0, x1, y1 } }   -- что на экране HUD не уступает словам
+	Таблицы с ключами-Instance (слова под HUD, спрятанные кнопки) — обычные, с уборкой: слабые
+	ключи RbxSim может потерять.
 ]]
 
 local Players = game:GetService("Players")
@@ -1110,9 +1142,14 @@ local function lift(slot: Slot, steal: Steal)
 	steal.rig = rig
 	local s = STEAL.Struggle
 	local tilt = CFrame.fromAxisAngle(display.CFrame.RightVector, math.rad(-STEAL.Tilt))
+	-- (крупная рыба поднимается меньше: её верх с наклоном и покачиванием остаётся под верхом
+	-- стекла на Steal.LiftGap — из витрины она уходит только через переднюю грань)
+	local restTop = (rig.rest * rig.centre).Y + rig.half.Y + rig.half.Z * math.sin(math.rad(STEAL.Tilt))
+	local glassTop = display.Position.Y + display.Size.Y / 2
+	local height = math.clamp(glassTop - STEAL.LiftGap - s.Bob - restTop, STEAL.LiftMin, STEAL.Lift)
 	local function pose(sign: number): CFrame
 		local turn = CFrame.fromAxisAngle(Vector3.new(0, 1, 0), math.rad(sign * s.Turn)) * tilt
-		return TankDisplay.around(rig, Vector3.new(0, STEAL.Lift + sign * s.Bob, 0), turn)
+		return TankDisplay.around(rig, Vector3.new(0, height + sign * s.Bob, 0), turn)
 	end
 	local from, to = pose(-1), pose(1)
 	local rise = TweenInfo.new(STEAL.LiftTime, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
@@ -1194,7 +1231,7 @@ local function arcOut(base: Base, slot: Slot, model: Model, rig: TankDisplay.Rig
 	local current = rig.body.CFrame
 	local start = TankDisplay.centreAt(rig, current)
 	local turn0 = current.Rotation
-	local out, apex = arcPoints(slot, rig, turn0, start.Y + 0.4)
+	local out, apex = arcPoints(slot, rig, turn0, start.Y)
 	local frame = (slot.fishPoint :: Attachment).WorldCFrame
 	local target, turnEnd = thiefSpot(thiefId)
 	local aim: Vector3 = target or (out + frame.LookVector * 2)
@@ -1262,7 +1299,7 @@ local function arcBack(base: Base, slot: Slot, steal: Steal, loud: boolean)
 	slot.busyUntil = os.clock() + STEAL.ArcTime + 0.1
 	local rest = rig.rest.Rotation
 	local home = TankDisplay.centreAt(rig, rig.rest)
-	local out, apex = arcPoints(slot, rig, rest, home.Y + 0.4)
+	local out, apex = arcPoints(slot, rig, rest, home.Y)
 	local c, r = thiefSpot(steal.by)
 	local start: Vector3 = c or steal.spot or (out + point.WorldCFrame.LookVector * 2)
 	local turn0: CFrame = r or rest
@@ -2132,6 +2169,11 @@ end
 
 function TankWorldController.IsFaded(gui: BillboardGui): boolean
 	return faded[gui] == true
+end
+
+-- Тесты: что сейчас на экране HUD не уступает словам мира (px; Display.Clear).
+function TankWorldController.HudRects(): { { x0: number, y0: number, x1: number, y1: number } }
+	return hudRects()
 end
 
 function TankWorldController.Stats(): { [string]: any }
