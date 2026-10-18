@@ -9,11 +9,13 @@
 	      its fish; a weaker catch is sold on the spot — «ПРОДАНА», the card flies into the Wallet as
 	      💵, «Садок полон — лови рыбу получше!» once; the next weak catch is quiet; the tank stays
 	      6/6, the stats and the ledger hold;
-	  (4) the stalls: the kid WALKS from the base to the hub «РЫБНЫЙ РЫНОК» — the server's own
-	      samples (dwell) switch SellRatePct to 150 only there; the «РЫНОК +50%!» word; hold
-	      E «Продать рыбу» → the panel opens in market mode (the chip, Gold buttons, ×1.5 prices) →
-	      two fish sold one by one at ×1.5, coins at the scales; walking away → ×1 again; a bridge
-	      kiosk («Ларёк») pays ×1.5 too.
+	  (4) the stalls: the kid WALKS from the base to the hub «РЫБНЫЙ РЫНОК» and holds E «Продать
+	      рыбу» the moment he arrives — the hold counts as the dwell (UX-05): SellRatePct 150
+	      before "Open", so the panel opens straight in market mode (the chip, Gold buttons,
+	      ×1.5 prices, never ×1 first); the «РЫНОК +50%!» word; two fish sold one by one at
+	      ×1.5, coins at the scales; walking away → ×1 again; a bridge kiosk («Ларёк»): after a
+	      teleport onto the bridge (its hold waited out) he walks in and the server's own
+	      samples (dwell) switch the rate to ×1.5; its prompt opens the panel; it pays ×1.5 too.
 
 	Run: lune run tools/run_tests.luau stage3_e2e_tank
 ]]
@@ -169,7 +171,7 @@ tests["(3) a full tank: a stronger catch replaces the weakest («ЗАМЕНА!»
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["(4) stalls: walk to the hub market → ×1.5 after the dwell, «РЫНОК +50%!»; hold E → the panel in market mode, two fish sold at ×1.5; away → ×1; a bridge kiosk pays ×1.5 too"] = function(
+tests["(4) stalls: walk to the hub market, hold E at once → the panel opens in market mode (×1.5), «РЫНОК +50%!»; two fish sold at ×1.5; away → ×1; a bridge kiosk: ×1.5 after the dwell, pays ×1.5 too"] = function(
 	t
 )
 	local sim = Kit.boot(t)
@@ -197,37 +199,44 @@ tests["(4) stalls: walk to the hub market → ×1.5 after the dwell, «РЫНО�
 	local stand = market.WorldPosition + Vector3.new(4, 0, 4)
 	t.eq(p:GetAttribute("SellRatePct"), HOME, "at the base: ×1")
 	t.ok(Kit.walkTo(sim, p, stand), "the kid walks to the market")
-	t.ok(
-		sim:WaitFor(function()
-			return p:GetAttribute("SellRatePct") == MARKET
-		end, EconomyConfig.MarketDwell + 1.5, Kit.COARSE) == true,
-		"the server's samples switch the rate to ×1.5 at the stall"
-	)
-	t.eq(p:GetAttribute("SellPlace"), "Market")
-	local word = world.Stats().folder:FindFirstChild("FxMarketWord", true)
-	local board = word and word:FindFirstChildOfClass("BillboardGui")
-	t.ok(board and board.Enabled, "the «РЫНОК +50%!» word over the market")
-	t.eq(board.Plate.Word.Text, Kit.fill(TEXTS.MarketWord, { bonus = bonus }))
+	t.eq(p:GetAttribute("SellRatePct"), HOME, "just arrived: no dwell yet")
 
-	-- Hold E «Продать рыбу» → the panel in market mode.
+	-- Holds E «Продать рыбу» at once → the panel opens in market mode (UX-05: the hold is the
+	-- dwell, SellRatePct 150 before "Open").
 	local opens = #Kit.tankEvents(sim, p, "Open")
+	local rates = {}
+	local rateConn = p:GetAttributeChangedSignal("SellRatePct"):Connect(function()
+		table.insert(rates, p:GetAttribute("SellRatePct"))
+	end)
 	t.ok(sim:HoldPrompt(p, prompt), "the prompt is held to the end")
 	t.ok(sim:WaitFor(function()
 		return #Kit.tankEvents(sim, p, "Open") > opens and hud.panel.Visible
 	end, 2, Kit.FRAME) == true, "TankEvent Open → the panel opens")
 	local open = Kit.tankEvents(sim, p, "Open")[opens + 1]
 	t.eq(open.Place, "Market")
-	t.eq(open.RatePct, MARKET)
-	sim:Advance(1)
-	t.ok(hud.header.Market.Visible, "the «💰 РЫНОК +50%» chip")
+	t.eq(open.RatePct, MARKET, "the hold gave ×1.5 at once")
+	t.eq(p:GetAttribute("SellRatePct"), MARKET)
+	t.eq(p:GetAttribute("SellPlace"), "Market")
 	local values = {}
 	for i, f in saved do
 		values[i] = Kit.priceOf(sim, f.Id, f.Kg, f.Mutation)
 	end
 	local card1 = Kit.card(hud, 1)
 	local price1 = R.SellPrice(values[1], maxAge, MARKET)
+	-- From the first frame the panel shows: never a ×1 price or a Leaf button first.
 	t.eq(card1.Sell.Caption.Text, Kit.fill(TEXTS.SellPhone, { price = R.FormatMoney(price1) }), "×1.5 on the button")
 	t.ok(Kit.colorNear(Kit.faceTop(card1.Sell), UIConfig.Palette.Gold.Top), "Gold buttons at a stall")
+	sim:Advance(1)
+	t.ok(hud.header.Market.Visible, "the «💰 РЫНОК +50%» chip")
+	t.eq(card1.Sell.Caption.Text, Kit.fill(TEXTS.SellPhone, { price = R.FormatMoney(price1) }), "still ×1.5")
+	t.ok(Kit.colorNear(Kit.faceTop(card1.Sell), UIConfig.Palette.Gold.Top), "still Gold")
+	local word = world.Stats().folder:FindFirstChild("FxMarketWord", true)
+	local board = word and word:FindFirstChildOfClass("BillboardGui")
+	t.ok(board and board.Enabled, "the «РЫНОК +50%!» word over the market")
+	t.eq(board.Plate.Word.Text, Kit.fill(TEXTS.MarketWord, { bonus = bonus }))
+	sim:Advance(1.2)
+	rateConn:Disconnect()
+	t.eq(rates, { MARKET }, "SellRatePct went 100 → 150 once (the server's samples keep it)")
 
 	-- Two fish sold one by one at ×1.5.
 	local coins = {}
@@ -263,10 +272,12 @@ tests["(4) stalls: walk to the hub market → ×1.5 after the dwell, «РЫНО�
 	sim:Advance(0.6)
 	t.eq(hud.panel.Visible, false, "✕ closes the panel")
 
-	-- A bridge kiosk: the same ×1.5 after the dwell (a teleport there starts the dwell anew).
+	-- A bridge kiosk: teleported onto the bridge (the hold of a jump waited out: no stall rate
+	-- for MarketJump.Penalty samples), he walks in and the server's samples give ×1.5.
 	local kiosk = sim:Find("Workspace.Map.Bridges.Bridge_1.Lookout.SellKiosk.Scales.SellPromptAttachment")
-	sim:Teleport(p, kiosk.WorldPosition + Vector3.new(3, 3, 0))
-	sim:Advance(0.1)
+	sim:Teleport(p, kiosk.WorldPosition + Vector3.new(0, 3, 24))
+	sim:Advance(EconomyConfig.MarketJump.Penalty + 1.2, Kit.COARSE)
+	t.ok(Kit.walkTo(sim, p, kiosk.WorldPosition + Vector3.new(3, 0, 0)), "the kid walks up to the kiosk")
 	t.ok(sim:WaitFor(function()
 		return p:GetAttribute("SellRatePct") == MARKET
 	end, EconomyConfig.MarketDwell + 1.5, Kit.COARSE) == true, "the kiosk's rate after the dwell")

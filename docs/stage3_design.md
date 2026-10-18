@@ -390,7 +390,9 @@ truth, and TankService's serialize hook refreshes the ages inside the transform 
      release-only save at once.
 4. `PlayerAdded` while `closing` → no load, no lock.
 5. `while next(pending) and os.clock() − t0 < CloseBudget (25) do task.wait() end`. Close saves use
-   `Retry.Close` = 2 tries with a short backoff.
+   `Retry.Close` = 2 tries with a short backoff. A normal save in flight that becomes the final (release)
+   save — on leave or at close — starts its own count: its failed normal tries do not use up the
+   `Retry.Close` tries, and its first release try always runs (fix BE-01).
 
 **Kicks** (B-14):
 
@@ -475,7 +477,8 @@ IncomeScale = 1,           -- × FishConfig/FishData Income (Stage 5 tuning knob
 SellScalePct = 100,        -- × the sale value only (Stage 5 knob; FishConfig Value stays what the card shows)
 HomeRatePct = 100,         -- selling from the panel anywhere
 MarketRatePct = 150,       -- every «ПРОДАТЬ РЫБУ» stall (hub market + 4 bridge kiosks)
-MarketDwell = 2,           -- consecutive 1 Hz server samples in range before the stall rate applies
+MarketDwell = 2,           -- consecutive 1 Hz server samples in range before the stall rate applies (or a held stall prompt)
+MarketJump = { SpeedFactor = 2, Slack = 8, Penalty = 5 }, -- a jump (> WalkSpeed·dt·2 + 8) or a new character: 5 more samples
 SellPoints = {             -- the server picks a point within Range of its sampled HumanoidRootPart position
   { Id = "Market", Path = "Map.Hub.FishMarket.Scales.SellPromptAttachment", Name = "Рыбный рынок", Range = 12, Word = true },
   { Id = "Kiosk1", Path = "Map.Bridges.Bridge_1.Lookout.SellKiosk.Scales.SellPromptAttachment", Name = "Ларёк", Range = 12 },
@@ -775,14 +778,21 @@ MarketService:
   +50%» / «Ларёк · +50%», HoldDuration 0.25, MaxActivationDistance 10, RequiresLineOfSight false.
 - **`Sample(player)`**, called from TankService's 1 Hz tick (B-22):
   - Read the HRP position with `FindFirstChild`.
-  - Displacement `> WalkSpeed × dt × 2 + 8` studs since the last sample → reset the dwell. A legitimate
-    teleport (Home, respawn) only ever moves a player *away* from a stall, so no exemptions are needed.
+  - Displacement `> WalkSpeed × dt × 2 + 8` studs since the last sample (a teleport), or a new character
+    (no last sample) → `hold = MarketJump.Penalty` (5): the stall rate waits that many more clean samples,
+    each one `hold −= 1` (fix BE-02: resetting the dwell alone cost a teleport nothing, since a jump into a
+    stall's Range always changes the point too). A legitimate teleport (join, Home, respawn) puts the
+    player at their base, more than 5 s of walking from any stall, so no exemptions are needed.
   - In `Range` of a point → `dwell += 1`, else `dwell = 0`.
-  - `SellRatePct = (dwell ≥ MarketDwell and still in range) and MarketRatePct or HomeRatePct`; write
+  - `SellRatePct = (dwell ≥ MarketDwell and hold = 0 and still in range) and MarketRatePct or HomeRatePct`; write
     `SellRatePct` / `SellPlace` on change.
 - **`RatePct(player) -> ratePct, pointId?`** returns the sampled state plus a live in-range check of the
   same point. It never yields.
-- **`Triggered(player)`** runs through the token bucket, then a distance re-check, then
+- **`Triggered(player)`** runs through the token bucket, then a distance re-check. The hold of the prompt
+  counts as the dwell (fix UX-05): in the point's `Range`, `hold = 0` and no jump since the last sample (the
+  same measure; the trigger moves neither the sample position nor the hold, so prompt spam cannot soften
+  either) → `SellRatePct = MarketRatePct` is written **before** the answer, so the panel opens with the
+  market prices instead of ×1 for the first second (a jump → `hold = Penalty`, ×1). Then
   `TankEvent("Open", { Place = point.Id, RatePct = current, Name })`. This only opens the UI; the rate at
   the sale moment is decided by `RatePct`.
 
@@ -869,7 +879,9 @@ Production attributes are doubles.
 - **Mutations.** Check-then-mutate without yields, compute-before-commit and a fixed commit order.
 - **Rate limits.** A token bucket on every tank remote, every prompt and every `Denied` reply.
 - **Ownership.** The tank prompt answers only its owner.
-- **Stall rate.** From the server's own position samples, with dwell and displacement checks; Stage 4
+- **Stall rate.** From the server's own position samples: a dwell (2 samples, or a held stall prompt) and a
+  displacement check (a teleport or a new character holds the stall rate for 5 more samples, the prompt
+  included); Stage 4
   cannot "sell to dodge" (`Locked`).
 - **Saves.** Sanitized, rolling-update-safe loads and a validating serializer. A per-load session lock
   with strict ownership guards against dupes and stale overwrites.
@@ -1141,8 +1153,9 @@ reuses both.
   from the own base's slot attributes plus `SellRatePct`. Never a frame job while idle-open.
 - **Market mode:** whenever `SellRatePct > 100`, the server-sampled attribute and the only source. The
   Market chip pops in, prices use the stall rate, and the sell buttons turn Gold. `TankEvent "Open"` from a
-  stall only opens the panel. The chip may pop in up to ≈ 2 s after arrival (the dwell); that reads as a
-  "prices jump up" moment.
+  stall only opens the panel; the server writes `SellRatePct` before it (the prompt hold counts as the
+  dwell), so a stall's panel opens in market mode. Opened by «САДОК» on the way, the chip may pop in up to
+  ≈ 2 s after arrival (the dwell); that reads as a "prices jump up" moment.
 - **Sell one** (every fish, K-3):
   1. The first tap → confirm state: Berry «ТОЧНО?» + `ringTimer` 3 s, and the card's `Rate` label flashes
      red «−$4/с».
@@ -1381,7 +1394,9 @@ This is the one test that exercises the retry, coalescing and queue logic togeth
   - the Legendary/Mythic catch → `SaveSoon`.
 - **Stall rate:**
   - the HRP at the market → `SellRatePct` 150 after 2 samples, the price ×1.5; a kiosk 150; away 100;
-  - teleporting in and selling at once → ×1 (dwell).
+  - teleporting in and selling at once → ×1, and still ×1 after the dwell: a jump holds the rate for
+    `MarketJump.Penalty` samples, the stall prompt included (BE-02);
+  - walking in and holding the stall prompt at once → `SellRatePct` 150 before `Open` (UX-05).
 - **Prompts:** a market hold → `Open`; the own tank prompt → `Open`; another player's tank prompt →
   nothing; a prompt spam → bounded by the bucket.
 - **Exploits:**
@@ -1468,7 +1483,7 @@ only `FishingService` keep the real Stage 3 services (they load from the sim Dat
    client has a fish model on `Slot_1.Display`.
 2. Advance 30 s → Wallet ≈ income × 30.
 3. Open the panel → sell (two taps) → money += price.
-4. Teleport to the market, wait 2 s, `HoldPrompt` → the panel in market mode → **sell 2 fish one by one
+4. Walk to the market, `HoldPrompt` at once → the panel opens in market mode → **sell 2 fish one by one
    at ×1.5**.
 5. 6+1 forced catches → replace / auto-sell (stamps, one toast).
 6. Leave → `Peek` → `restart` (+1 h) → rejoin → the same money, fish, slots and ages (no offline growth),
@@ -1658,7 +1673,7 @@ Accept: the suite is green; no visible change in renders; every name in §6.1 ex
 | R16 | Milestone toasts / a persistent «Индекс». | Index data (`Stats.Species`) ships now; milestone toasts are P2. |
 | R17 | Dormant fish (rolling updates) can reappear on a later load. | Accept: rare, and better than losing them. |
 | R18 | Stage 1/2 tests that cast right after join now meet `Denied loading`. | They wait for `DataMode` (≈ 0.1 s in the sim); Wave 1 A updates them. |
-| R19 | The stall chip pops in up to ≈ 2 s after arrival (dwell). | Accept; it reads as "prices jump up". The server pays what `"Sold"` says. |
+| R19 | The stall chip pops in up to ≈ 2 s after arrival (dwell). | Accept; it reads as "prices jump up". The server pays what `"Sold"` says. A stall's prompt opens the panel at the stall rate at once (UX-05). |
 | R20 | `Water` vs `Sky` on phones (K-23). | Check in the `tank_button` render; deepen the fill or enlarge the icon. |
 
 **P2 (only if a wave has time):** the tail wag, the kiosk words, milestone toasts, the МАКС glint (K-20), and
@@ -1726,7 +1741,7 @@ Legend: **accepted** = applied as proposed; **changed** = applied in a different
 | B-19 | Integer tenths for income, integer percents for rates | accepted | §3.1, §3.2 (`HomeRatePct`, `MarketRatePct`, `SellScalePct`). |
 | B-20 | `MaxMoney = 1e15`; NaN guard in `FormatMoney`; formats past T | accepted | D10, §3.1, §3.2, §4.4. |
 | B-21 | Loop cost: no concern; keep `MoneyChanged` trivial | accepted | §3.3. |
-| B-22 | Stall rate from server samples (dwell + displacement) | changed | P2 → in Stage 3, simplified. No teleport exemptions: a displacement only resets the dwell, and legitimate teleports only move players away from stalls. The panel's market mode reads the sampled `SellRatePct` only (§4.4, R19). |
+| B-22 | Stall rate from server samples (dwell + displacement) | changed | P2 → in Stage 3, simplified. No teleport exemptions: a displacement (or a new character) holds the stall rate for `MarketJump.Penalty` = 5 samples (BE-02), and legitimate teleports only move players away from stalls. The panel's market mode reads the sampled `SellRatePct` only (§4.4, R19). |
 | B-23 | Remote/prompt checklist (Uid pattern, Denied from the bucket, `nobase`, prompts bucketed, no yields, `userIds > 0`) | accepted | §4.5, §4.3, §4.4, §2.2. |
 | B-24 | Commit seq + escrow-ready serializer + the Stage 4 protocol + `Origin` | accepted | §2.2 API (`SaveSoon -> seq`, `CommittedSeq`, `Committed`, `OnSerialize`), §2.1 `Origin`, §4.8 protocol. |
 | B-25 | `Stats.Spent` + the ledger invariant (warn, test oracle) | accepted | §2.1, §4.4, §7.0. `SetMoneyForTest` keeps the ledger. |

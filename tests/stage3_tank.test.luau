@@ -14,10 +14,12 @@
 	  • growth ×1 → ×3 (patched to 30 s), the price at the sale moment; GrowFrom exact on a
 	    whole-second mount (AttrTime);
 	  • selling: money, the empty display, Event sold, TankEvent Sold, stats, the ledger;
-	  • the stall rate from the server's own 1 Hz samples (dwell, a teleport resets it), the
-	    prompts (market, kiosk, the own tank; another player's tank prompt does nothing; spam is
-	    bounded by the request bucket), the exploits (junk uids, someone else's fish, a double
-	    sell, 100 sells in one frame);
+	  • the stall rate from the server's own 1 Hz samples (dwell; a teleport in waits
+	    MarketJump.Penalty more samples, the stall's prompt gives it nothing then), the prompts
+	    (market, kiosk, the own tank; a stall's prompt held after walking in counts as the dwell:
+	    SellRatePct 150 before "Open"; another player's tank prompt does nothing; spam is bounded
+	    by the request bucket), the exploits (junk uids, someone else's fish, a double sell, 100
+	    sells in one frame);
 	  • rare catches save soon; dormant fish; the rod from data; two players; leave → clean.
 
 	Run: lune run tools/run_tests.luau stage3_tank
@@ -828,15 +830,17 @@ end
 local MARKET_PATH = EconomyConfig.SellPoints[1].Path
 local KIOSK_PATH = EconomyConfig.SellPoints[2].Path
 
--- Out of the stall's range, then walks in (no teleport into range: the dwell counts).
+local PENALTY = EconomyConfig.MarketJump.Penalty
+
+-- Out of the stall's range (the teleport's hold waited out), then walks in: the dwell counts.
 local function walkInto(sim: any, player: any, attachment: any)
 	local spot = attachment.WorldPosition
 	sim:Teleport(player, spot + Vector3.new(0, 3, 24))
-	sim:Advance(1.2, COARSE)
+	sim:Advance((PENALTY + 1.2) * EconomyConfig.IncomeTick, COARSE)
 	sim:WalkTo(player, spot + Vector3.new(0, 3, 3))
 end
 
-tests["stall rate: ×1.5 after MarketDwell samples at the market or a kiosk; away ×1; a teleport in sells at ×1"] = function(
+tests["stall rate: ×1.5 after MarketDwell samples at the market or a kiosk; away ×1; a teleport in sells at ×1 for MarketJump.Penalty more samples"] = function(
 	t
 )
 	local sim = boot(t)
@@ -880,17 +884,38 @@ tests["stall rate: ×1.5 after MarketDwell samples at the market or a kiosk; awa
 	t.eq(tankEvents(sim, p, "Sold")[2].RatePct, EconomyConfig.MarketRatePct)
 	t.eq(tankEvents(sim, p, "Sold")[2].Place, "Kiosk1")
 
-	-- Teleported straight to the market and selling at once: ×1 (the dwell starts over).
+	-- Teleported straight to the market and selling at once: ×1, and for Penalty more samples
+	-- (BE-02: a walk-in dwell of MarketDwell samples is not enough after a jump).
+	t.ok(PENALTY > EconomyConfig.MarketDwell, "the teleport hold is longer than the walk-in dwell")
 	sim:Teleport(p, baseOf(sim, p).SpawnPad.Position + Vector3.new(0, 3, 0))
 	sim:Advance(1.2, COARSE)
 	sim:Teleport(p, market.WorldPosition + Vector3.new(0, 3, 3))
+	local jumpedAt = sim:Time()
 	sell(sim, p, fish[3].Uid)
 	t.eq(tankEvents(sim, p, "Sold")[3].RatePct, EconomyConfig.HomeRatePct, "a teleport in sells at ×1")
 	sim:Advance(1.1, COARSE)
 	sell(sim, p, fish[4].Uid)
 	t.eq(tankEvents(sim, p, "Sold")[4].RatePct, EconomyConfig.HomeRatePct, "one sample after a jump is not a dwell")
-	sim:Advance(EconomyConfig.MarketDwell * EconomyConfig.IncomeTick, COARSE)
-	t.eq(p:GetAttribute("SellRatePct"), EconomyConfig.MarketRatePct, "staying there earns the rate")
+	-- The stall's prompt held there gives no shortcut either.
+	local prompt = market:FindFirstChild("SellPrompt")
+	local opens = #tankEvents(sim, p, "Open")
+	t.ok(sim:HoldPrompt(p, prompt), "the market prompt triggers")
+	t.eq(#tankEvents(sim, p, "Open"), opens + 1)
+	t.eq(tankEvents(sim, p, "Open")[opens + 1].RatePct, EconomyConfig.HomeRatePct, "the prompt after a jump: ×1")
+	sim:Advance((EconomyConfig.MarketDwell + 0.2) * EconomyConfig.IncomeTick, COARSE)
+	t.eq(
+		p:GetAttribute("SellRatePct"),
+		EconomyConfig.HomeRatePct,
+		`{sim:Time() - jumpedAt} s after the jump: still ×1 (before BE-02, MarketDwell samples gave ×1.5)`
+	)
+	t.ok(sim:WaitFor(function()
+		return p:GetAttribute("SellRatePct") == EconomyConfig.MarketRatePct
+	end, (PENALTY + 2) * EconomyConfig.IncomeTick, COARSE) == true, "staying there earns the rate")
+	local waited = sim:Time() - jumpedAt
+	t.ok(
+		waited >= (PENALTY - 0.05) * EconomyConfig.IncomeTick and waited <= (PENALTY + 1.1) * EconomyConfig.IncomeTick,
+		`after the hold: {waited} s ≈ Penalty samples`
+	)
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -923,7 +948,23 @@ tests["prompts: a stall hold or the own tank prompt opens the panel; another pla
 	t.eq(#open, 1)
 	t.eq(open[1].Place, "Market")
 	t.eq(open[1].Name, "Рыбный рынок")
-	t.eq(open[1].RatePct, EconomyConfig.HomeRatePct, "just arrived: the panel opens, the rate comes with the dwell")
+	t.eq(open[1].RatePct, EconomyConfig.HomeRatePct, "teleported in: the panel opens at ×1")
+	t.eq(a:GetAttribute("SellRatePct"), EconomyConfig.HomeRatePct)
+
+	-- UX-05: walked in and held the prompt at once — the hold is the dwell: SellRatePct 150
+	-- before "Open", so the panel opens with the market prices (no ×1 on the first second).
+	walkInto(sim, a, kiosk)
+	t.eq(a:GetAttribute("SellRatePct"), EconomyConfig.HomeRatePct, "just arrived: no dwell yet")
+	t.ok(sim:HoldPrompt(a, kioskPrompt), "the kiosk prompt triggers")
+	open = tankEvents(sim, a, "Open")
+	t.eq(#open, 2)
+	t.eq(open[2].Place, "Kiosk1")
+	t.eq(open[2].Name, "Ларёк")
+	t.eq(open[2].RatePct, EconomyConfig.MarketRatePct, "walked in + held: ×1.5 at once")
+	t.eq(a:GetAttribute("SellRatePct"), EconomyConfig.MarketRatePct, "SellRatePct 150 with it")
+	t.eq(a:GetAttribute("SellPlace"), "Kiosk1")
+	sim:Advance(1.1 * EconomyConfig.IncomeTick, COARSE)
+	t.eq(a:GetAttribute("SellRatePct"), EconomyConfig.MarketRatePct, "the next sample keeps it")
 
 	local tankPrompt = baseOf(sim, a).Tank.Glass.PromptAttachment.TankPrompt
 	t.eq(tankPrompt.ActionText, TankConfig.Prompt.Action)
@@ -935,9 +976,9 @@ tests["prompts: a stall hold or the own tank prompt opens the panel; another pla
 	sim:Teleport(a, near)
 	t.ok(sim:HoldPrompt(a, tankPrompt), "the own tank prompt triggers")
 	open = tankEvents(sim, a, "Open")
-	t.eq(#open, 2)
-	t.eq(open[2].Place, "Tank")
-	t.eq(open[2].Name, TankConfig.Prompt.Object)
+	t.eq(#open, 3)
+	t.eq(open[3].Place, "Tank")
+	t.eq(open[3].Name, TankConfig.Prompt.Object)
 
 	sim:Teleport(b, near)
 	sim:HoldPrompt(b, tankPrompt)
@@ -950,7 +991,7 @@ tests["prompts: a stall hold or the own tank prompt opens the panel; another pla
 		sim:BeginHold(a, tankPrompt)
 		sim:ReleasePrompt(a, tankPrompt)
 	end
-	local answered = #tankEvents(sim, a, "Open") - 2
+	local answered = #tankEvents(sim, a, "Open") - 3
 	t.ok(answered >= 1 and answered <= TankConfig.Requests.Burst, `spam answered {answered} ≤ Burst times`)
 	sim:AssertNoErrors({ warnings = true })
 end
