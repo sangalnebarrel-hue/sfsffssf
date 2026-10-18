@@ -54,11 +54,13 @@ local DataConfig = {
 	BudgetDelay = 10,
 
 	-- PlayerData.Serialize: строки известных полей не длиннее MaxString знаков, Origin рыбы
-	-- (Этап 4, «<UserId жертвы>:<uid>») — не длиннее OriginMax; незнакомые поля (от сервера
-	-- новее) — только JSON-совместимые и не глубже MaxDepth уровней таблиц.
+	-- (Этап 4, «<UserId жертвы>:<uid>» — до 11 + 1 + 12 знаков: длиннее TankService:AddFish молча
+	-- выбросил бы его, и защита от дюпа по Origin не работала бы у больших UserId, BE-7) — не
+	-- длиннее OriginMax; незнакомые поля (от сервера новее) — только JSON-совместимые и не
+	-- глубже MaxDepth уровней таблиц.
 	Limits = {
 		MaxString = 64,
-		OriginMax = 24,
+		OriginMax = 32,
 		MaxDepth = 4,
 	},
 

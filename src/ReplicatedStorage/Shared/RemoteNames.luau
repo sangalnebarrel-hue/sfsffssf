@@ -61,8 +61,9 @@
 	            игрока можно менять (DataService:CanWrite, иначе Denied "loading"); 4) у игрока есть
 	            база (иначе "nobase"); 5) рыба есть в садке ЭТОГО игрока и не спит (иначе "missing" —
 	            это же и двойное нажатие); 6) рыбу сейчас не крадут (Этап 4, иначе "locked");
-	            7) цену и ставку считает сервер (TankRules.SellPrice); не конечное число — warn,
-	            ничего не меняется. Между проверкой и изменением — ни одного ожидания.
+	            6b) это не краденая рыба «в пути» (Этап 4, Escrow, иначе "escrow"); 7) цену и ставку
+	            считает сервер (TankRules.SellPrice); не конечное число — warn, ничего не меняется.
+	            Между проверкой и изменением — ни одного ожидания.
 	  TankEvent сервер → клиент: (kind: string, data: table):
 	    "Open"   { Place: "Tank" | "Market" | "Kiosk1".."Kiosk4", RatePct: number, Name: string } —
 	             кнопка ProximityPrompt открыла панель садка (только открыть; ставку в миг продажи
@@ -70,8 +71,8 @@
 	    "Sold"   { Items: { { Uid, Id, Rarity, Mutation?, Price } }, Amount: number, RatePct: number,
 	             Place: string? } — продано (в Этапе 3 — одна рыба; список — на будущее)
 	    "Stored" TankResult + { Fish: FishData } — рыба легла в садок не из улова (Этап 4: кража)
-	    "Denied" { Reason: "loading" | "nobase" | "missing" | "locked", Text: string } — продажа
-	             не принята (тексты — TankConfig.Texts.Denied)
+	    "Denied" { Reason: "loading" | "nobase" | "missing" | "locked" | "escrow", Text: string } —
+	             продажа не принята (тексты — TankConfig.Texts.Denied)
 	  TankResult = { Result: "stored" | "replaced" | "sold", Slot: number?, Uid: string?,
 	    Count: number, Slots: number, Replaced: { Uid, Id, Rarity, Mutation?, Price }?, Price: number?,
 	    First: boolean? } — "stored": легла в свободную витрину Slot; "replaced": садок был полон,
@@ -98,7 +99,9 @@
 	    TankRules.CurrentValue(Value, GetServerTimeNow() − GrowFrom)); Event — что случилось:
 	    "<n>|in|<FishId>" (легла), "<n>|mount|" (садок занял или освободил витрины базы: тихо,
 	    без всплеска),
-	    "<n>|sold|<цена>" (продана), "<n>|swap|<цена>" (заменена другой), Этап 4: "<n>|stolen|".
+	    "<n>|sold|<цена>" (продана), "<n>|swap|<цена>" (заменена другой), Этап 4:
+	    "<n>|stolen|<UserId вора>" (украдена: громко, искры к вору) и "<n>|void|" (краденую рыбу
+	    вернули хозяину — её запись у жертвы так и не легла: тихо).
 	    Порядок записи: поля рыбы → State → Event ПОСЛЕДНИМ; у "empty" и "locked" все поля рыбы —
 	    nil. n растёт у базы всё время работы сервера (не сбрасывается — новая строка всегда
 	    другая). За кадр до клиента доходит только последнее Event витрины — поэтому "swap"
@@ -107,6 +110,62 @@
 	  Время в атрибутах — через TankRules.AttrTime (+1/1024 с к целым): Lune (симулятор) хранит
 	    целые числа атрибутов как float32 (1700000123 читается 1700000128); в Roblox атрибуты —
 	    double, добавка меньше 1 мс.
+
+	Кража и защита (Этап 4, StealService / DefenceService ↔ TheftController, AlertController,
+	DefenceController, TheftWorldController; docs/stage4_design.md §4.10, §4.11). У кражи НЕТ
+	remote'а клиент → сервер: только кнопки ProximityPrompt "StealPrompt" у витрин (сервер сам
+	считает удержание). Клиент никогда не присылает цены, уровни, слоты, uid и позиции:
+	  StealEvent     сервер → клиент: (kind: string, data: table):
+	    вору:   "Denied" { Reason, Text, Quiet?, BaseIndex, Slot } — кража не началась (причины и
+	            тексты — Shared/TheftChecks и StealConfig.Texts.Denied; Quiet — тот же отказ
+	            меньше Limits.DeniedEvery с назад: без текста, но клиент гасит кольцо этой кнопки);
+	            "Hold" { Slot, BaseIndex, Uid, FishId, Rarity, Mutation?, Short, Income10, End,
+	            Need } — удержание началось (End — серверное время конца, Need — секунд);
+	            "Carry" { End } — рыба на голове, неси за ограду до End; "Cancel" { Reason, Text,
+	            Phase } — сорвалось (Phase "hold" | "carry"; тексты — StealConfig.Texts.Cancel);
+	            "Done" { Fish, Result, Name } — рыба твоя (Fish — FishData, Result — TankResult,
+	            Name — DisplayName хозяина);
+	    жертве: "Alert" { Phase, Thief, Name, Slot, FishId, Rarity, Mutation?, Short, Income10,
+	            End, Quiet? } — у тебя крадут (при начале удержания и при начале выноса; громко —
+	            не чаще раза в Limits.AlertCoalesce с на пару вор–жертва, остальные Quiet);
+	            "Saved" { Reason, Slot, Text, Quiet? } — рыба спасена; "Lost" { Fish, Name, Until,
+	            Kind } — украли (Until / Kind — твоя защита теперь: "after" | "rest");
+	            "Intruder" { Thief, Name } — гость во дворе (только с сигнализацией);
+	    обоим:  "Returned" { Fish, Text } — краденую рыбу вернули хозяину (вор ушёл или запись
+	            жертвы так и не легла: StealConfig.Texts.Result).
+	  ShieldActivate клиент → сервер: () (аргументы не читаются) — включить щит. Проверки по
+	            порядку: 1) лимит DefenceConfig.Requests (Burst 4, Rate 1/с; пусто — молча);
+	            2) CanWrite ("loading"); 3) своя подключённая база ("nobase"); 4) игрок не крадёт
+	            сам — спросить StealService через DefenceService:SetStealProbe ("stealing");
+	            5) защиты осталось меньше Shield.StackBelow с ("protected"); 6) щит готов —
+	            сейчас ≥ ShieldReadyAt ("cooldown"). Принято → защита, атрибуты, SaveSoon, кража на
+	            базе отменена (удержание) или рыба вернулась (вынос), DefenceEvent("Shield").
+	  DefenceBuy     клиент → сервер: (item: "Dog" | "Alarm" | "Lock") — купить защиту. Проверки по
+	            порядку: 1) строка и знакомый предмет (иначе молча); 2) лимит; 3) CanWrite
+	            ("loading"); 4) своя база ("nobase"); 5) Dog / Alarm уже есть — "owned"; Lock на
+	            #Levels — "max", на Lock.SaleMax — "soon"; 6) цена только из DefenceConfig,
+	            EconomyService:SpendMoney(…, "defence:<item>") не вышел — "money"; 7) купить
+	            (Upgrades или уровень замка), атрибуты, SaveSoon, DefenceEvent("Bought").
+	  DefenceEvent   сервер → клиент: (kind: string, data: table): "Bought" { Item, Level?, Price },
+	            "Denied" { Item?, Reason, Text } (тексты — DefenceConfig.Texts.Denied), "Shield"
+	            { Until, ReadyAt } (серверное время).
+	Состояние (атрибуты; время — через TankRules.AttrTime):
+	  Player: Stealing ("hold" | "carry"; пишется ПОСЛЕДНИМ), StealCooldownUntil, Slowed (true, пока
+	    собака держит вора — пишет Lib/Speed при появлении и уходе), ShieldUntil, ShieldReadyAt
+	    (открыты всем, но чужую готовность щита интерфейс не показывает), HasDog, HasAlarm,
+	    LockLevel; доход Income (Этап 3) — для фильтра «намного слабее».
+	  Модель базы Base_N: ProtectUntil, ProtectKind ("shield" | "join" | "newbie" | "after" |
+	    "rest"; nil, когда кончилась), AlarmState ("theft" | "intruder"), Thief (UserId вора),
+	    HasDog, HasAlarm, LockLevel, HoldTime. Всё снимается при отключении садка (до того, как базу
+	    получит другой).
+	  Витрина Slot_K — отдельный канал, Event не трогает: StealBy (UserId вора), StealEnd (конец
+	    удержания / выноса), StealPhase ("hold" | "carry"; пишется ПОСЛЕДНИМ и снимается последним),
+	    Escrow (true — у вора: рыба «в пути», не продаётся и не крадётся), FreshUntil (свежий улов:
+	    до этого времени не крадётся). Клиенты слушают StealPhase, Escrow и FreshUntil.
+	  Собака Base_N.Dog: Unlocked, DogState ("Sleep" | "Alert" | "Chase" | "Return"), DogPos
+	    (Vector3 мира; не чаще Dog.Replicate с и только после сдвига), DogTarget (UserId вора).
+	  Персонаж вора: модель StolenFish (рыба на голове: FishId, Rarity, Mutation, Kg, Value, Scale,
+	    Owner = UserId хозяина).
 ]]
 
 local RemoteNames = {
@@ -120,6 +179,10 @@ local RemoteNames = {
 		"FishingState", -- сервер → клиент: (state: string, data: table?)
 		"TankSell", -- клиент → сервер: (uid: string) — продать рыбу садка (Этап 3)
 		"TankEvent", -- сервер → клиент: (kind: string, data: table) — события садка (Этап 3)
+		"StealEvent", -- сервер → клиент: (kind: string, data: table) — кража: вору и жертве (Этап 4)
+		"ShieldActivate", -- клиент → сервер: () — включить щит (Этап 4)
+		"DefenceBuy", -- клиент → сервер: (item: "Dog" | "Alarm" | "Lock") — купить защиту (Этап 4)
+		"DefenceEvent", -- сервер → клиент: (kind: string, data: table) — щит и покупки (Этап 4)
 	},
 	Functions = {} :: { string },
 }

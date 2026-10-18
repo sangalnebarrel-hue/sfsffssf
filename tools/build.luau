@@ -477,6 +477,14 @@ local reserve = 0
 for _, n in budget.RuntimeReserve do
 	reserve += n
 end
+-- Stage 4 (theft): the client's shield domes (one Ball part per shielded base in range, at most
+-- one per base) and one display-fish clone in flight (≤ 20 parts, like TankFish) must fit the
+-- reserve; the StolenFish on a thief's head replaces the display fish (already in TankFish).
+local theftReserve = budget.RuntimeReserve.Theft
+expect(
+	type(theftReserve) == "number" and theftReserve >= MapConfig.BaseCount + 20,
+	`MapConfig.PartBudget.RuntimeReserve.Theft = {theftReserve}: needs ≥ {MapConfig.BaseCount} domes + 20 (an arc clone)`
+)
 expect(runtimeParts <= budget.Static, `static parts {runtimeParts} > budget {budget.Static} (MapConfig.PartBudget)`)
 expect(
 	runtimeParts + reserve <= budget.RuntimePeak,
@@ -504,7 +512,7 @@ print(
 )
 print(
 	`  parts: static {runtimeParts}/{budget.Static} (map + {MapConfig.BaseCount} bases), runtime peak`
-		.. ` ≈ {runtimeParts + reserve}/{budget.RuntimePeak} (+ reserve {reserve}: tank fish, ambient life, characters, FX)`
+		.. ` ≈ {runtimeParts + reserve}/{budget.RuntimePeak} (+ reserve {reserve}: tank fish, ambient life, characters, FX, theft)`
 )
 print(
 	`  studs: map {studdedMap}, template {studdedTemplate} × {MapConfig.BaseCount}`

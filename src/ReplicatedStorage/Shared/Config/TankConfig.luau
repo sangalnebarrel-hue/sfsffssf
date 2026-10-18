@@ -337,12 +337,14 @@ local TankConfig = {
 		TankCount = "🐠 {count}/{slots}", -- над большим аквариумом и над ведром
 		Pop = "+{amount}", -- всплывающие суммы: продажа над витриной, доход над ведром
 		MarketWord = "РЫНОК +{bonus}%!",
-		-- Отказ продажи (TankEvent "Denied" { Reason, Text })
+		-- Отказ продажи (TankEvent "Denied" { Reason, Text }); Этап 4: locked — рыбу сейчас крадут,
+		-- escrow — краденая рыба ещё «в пути» (её запись у жертвы не легла: docs/stage4_design.md §3.2)
 		Denied = {
 			loading = "Загружаем твой садок…",
 			nobase = "Сначала дождись своей базы",
 			missing = "Этой рыбы уже нет",
-			locked = "Эту рыбу сейчас не продать",
+			locked = "Её сейчас крадут!",
+			escrow = "Рыба ещё в пути — пара секунд!",
 		} :: { [string]: string },
 	},
 }

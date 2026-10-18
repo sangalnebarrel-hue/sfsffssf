@@ -10,8 +10,8 @@
 	Модуль «чистый» (без require, только Color3): его читают и клиент (контроллеры, UiFx), и сборщик
 	интерфейса (tools/builder/gui/Theme.luau) — все цвета и числа интерфейса заданы в одном месте.
 	Здесь же шкала размеров текста (Type), время карточки улова по редкости (CatchCardTime),
-	цвета баз (BaseSwatches, swatchFor) и числа HUD Этапа 3: кошелёк (Wallet) и кнопка «САДОК»
-	(TankButton).
+	цвета баз (BaseSwatches, swatchFor), числа HUD Этапа 3: кошелёк (Wallet) и кнопка «САДОК»
+	(TankButton), — и Этапа 4: кража, тревога, фишка щита, кнопка «ЗАЩИТА» (Theft).
 
 	Палитра: у каждого цвета (токена) есть
 	  Top    — верх лицевой стороны (светлее),
@@ -23,7 +23,7 @@
 	красный, Sun — оранжевый («ПОДСЕЧЬ!»), Gold — жёлтый («ВЗЯТЬ», цена), Grape — фиолетовый
 	(«ДОМОЙ»), Pink, Mint — бирюзовый, Slate — светло-серый (неактивное), Night — тёмно-синяя
 	панель, Cream — белая карточка, Pond — приглушённая бирюза («ЖДИ КЛЁВА…»), Glass — тёмное
-	стекло (подсказка, подпись кнопки, жёлоб).
+	стекло (подсказка, подпись кнопки, жёлоб), Guard — королевский синий (Этап 4: «ЗАЩИТА», щит).
 ]]
 
 export type Swatch = {
@@ -101,6 +101,9 @@ local Palette: { [string]: Swatch } = {
 	Pond = swatch("#A9E4EE", "#58AFC4", "#0B3440"),
 	Water = swatch("#6FF2FF", "#13B8D6", "#003A4D"), -- бирюза (вода)
 	Coal = swatch("#3C414D", "#14171D", "#000000"), -- чёрная «фишка»
+	-- Королевский синий (Этап 4): «ЗАЩИТА», щит, фишка «🛡️ 0:42», купол щита — не Sky (голубой),
+	-- не Water (бирюза), не Grape (фиолетовый).
+	Guard = swatch("#8FB4FF", "#3D6BFF", "#0A1A57"),
 	-- Тёмное стекло (таймер образца): лицо чёрное на Alpha прозрачности, без обводки и градиента.
 	Glass = { Top = hex("#0B0D14"), Bottom = hex("#0B0D14"), Lip = hex("#000000"), Alpha = 0.5 },
 }
@@ -379,6 +382,11 @@ local UIConfig = {
 		-- что поймал — крупно, золотом / белым на тёмном в радужной обводке).
 		Legendary = { Token = "Gold", Icon = "🌟", Big = true, Life = 4.5, Priority = 2 },
 		Mythic = { Token = "Night", Icon = "🌈", Rainbow = true, Big = true, Life = 4.5, Priority = 2 },
+		-- Этап 4: у тебя украли (громко, в две строки «Украдено: Окунь (Ника)» / «Садок отдыхает…»;
+		-- важнее «опасности»), рыба спасена, щит.
+		theft = { Token = "Berry", Icon = "🚨", Big = true, Life = 4.5, Priority = 4 },
+		saved = { Token = "Leaf", Icon = "💪", Priority = 2 },
+		shield = { Token = "Guard", Icon = "🛡️", Priority = 2 },
 	} :: { [string]: ToastKind },
 
 	-- Сплошной цвет по виду (подсказки рыбалки и всё, что без градиента).
@@ -498,6 +506,53 @@ local UIConfig = {
 		-- пульсирует до SoldPulse за SoldPeriod с — продажа связана с полным садком (UX-01).
 		SoldPulse = 1.22,
 		SoldPeriod = 0.7,
+	},
+
+	--[[
+		Кража (Этап 4; docs/stage4_design.md §6): виджеты вора (HUD.TheftBar, HUD.TheftTitle —
+		TheftController), тревога жертвы (HUD.TheftAlert — AlertController), фишка щита
+		(Status.BaseBadge.ShieldChip) и кнопка «ЗАЩИТА» (DefenceController). Размеры — px HUD или
+		доли экрана, пишутся масштабом:
+		  Width, WidthMax — полоса вора и плашка тревоги не шире Width ширины экрана и WidthMax px
+		                  (в колонке уведомлений);
+		  BarHeight      — полоса вора: доля высоты экрана (телефон ≈ 50 px); PlateHeight — плашка
+		                  тревоги на телефоне, px; CompactHeight — её «таблетка» (Compact), px;
+		  ShieldMin, ShieldShare — кнопка «ЩИТ» на плашке: не ниже стольких px и не уже такой доли
+		                  плашки (самая крупная цель); HomeMin — «ДОМОЙ» не ниже стольких px;
+		  ChipMax        — фишка «🛡️ 0:42» не шире стольких px;
+		  Edge           — тонкая красная пульсация краёв экрана: доля (Phone / Other), период,
+		                  непрозрачность не больше Alpha (светочувствительность: без вспышек экрана);
+		  Pings, PingGap — тревога: столько «пинов» через столько с (не при Quiet);
+		  HintEvery      — проверка «вор во дворе» (подсказка), с; DeniedHint — отказ висит столько с;
+		  FailTime       — «СОРВАЛОСЬ!» столько с; DoneTime — «ДОБЫЧА!»;
+		  BeamEvery, BeamWidth — красная дорожка к выходу: пересчёт раз в столько с, ширина от … до;
+		  ReadyPop       — «ГОТОВ!» на подписи «ЗАЩИТА» столько с; IntruderBob — кнопка «ЗАЩИТА»
+		                  подпрыгивает столько с после «👀 … у тебя во дворе!»;
+		  CardAfter      — тревога во время карточки улова: плашка — через столько с после того, как
+		                  карточка закрылась (DC-02).
+	]]
+	Theft = {
+		Width = 0.62,
+		WidthMax = 520,
+		BarHeight = 0.15,
+		PlateHeight = 72,
+		CompactHeight = 56,
+		ShieldMin = 56,
+		ShieldShare = 0.35,
+		HomeMin = 44,
+		ChipMax = 90,
+		Edge = { Phone = 0.06, Other = 0.1, Period = 0.5, Alpha = 0.35 },
+		Pings = 3,
+		PingGap = 0.18,
+		HintEvery = 0.5,
+		DeniedHint = 2.5,
+		FailTime = 2.2,
+		DoneTime = 2.2,
+		BeamEvery = 0.25,
+		BeamWidth = { 0.3, 0.8 },
+		ReadyPop = 1.5,
+		IntruderBob = 5,
+		CardAfter = 0.1,
 	},
 
 	-- Лимиты и ритм эффектов (UiFx).
