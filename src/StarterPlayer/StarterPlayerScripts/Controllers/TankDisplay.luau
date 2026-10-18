@@ -27,10 +27,13 @@
 	оттенка того же цвета (Lip); LightInfluence 0, AlwaysOnTop false; содержимое — во Frame
 	"Plate" (его UIScale «FxScale» — для UiFx.popIn / punch).
 	  tag   — перед витриной, на высоте её планки (FxTankTag): «+$4/с» (BillboardGreen) и
-	          «$45 ▲» / «$135 МАКС» (BillboardYellow), строки чуть внахлёст рамками (крупнее буквы);
-	  sign  — над большим аквариумом (FxTankSign): «+$42/с» крупно зелёным, «🐠 4/6» белым;
+	          «$45» / «$135 МАКС» (BillboardYellow), строки чуть внахлёст рамками (крупнее буквы) и
+	          прижаты к середине; буквы не крупнее потолка tagCap (UITextSizeConstraint "Cap" —
+	          capTag: вблизи растёт рамка, а не буквы — надпись не громче кошелька);
+	  sign  — над большим аквариумом (FxTankSign): «+$42/с» крупно зелёным, «🐠 4/6» белым; буквы не
+	          крупнее signCap (capSign), строки у середины;
 	  pier  — над ведром у места рыбалки (FxPierTank): «🐠 4/6» белым, «+$42/с» зелёным;
-	  lock  — на закрытой витрине (FxTankLock): «🔒 Закрыто» светло-серым (Palette.Slate);
+	  lock  — на первой закрытой витрине галереи (FxTankLock): «🔒 Закрыто» светло-серым (Palette.Slate);
 	  market — над рынком острова (FxMarketWord): «РЫНОК +50%!» (BillboardYellow);
 	  rise  — всплывающая сумма (FxTankPop): выскакивает, поднимается на lift studs за time с и
 	          тает, потом удаляется сама (task.delay).
@@ -48,8 +51,10 @@
 	  TankDisplay.scaleParts(model, from, to, time, style, direction, delay?) -> { Tween }
 	  TankDisplay.billboard(parent, name, size, maxDistance) -> (BillboardGui, Frame)
 	  TankDisplay.word(plate, name, text, box, look, outline, italic?) -> TextLabel
-	  TankDisplay.tag(parent) -> Tag;   TankDisplay.setTag(tag, rateText, valueText, maxed)
-	  TankDisplay.sign(parent) -> Pair; TankDisplay.pier(parent) -> Pair; TankDisplay.setPair(pair, a, b)
+	  TankDisplay.tag(parent, cap) -> Tag;   TankDisplay.setTag(tag, rateText, valueText)
+	  TankDisplay.tagCap(screenHeight) -> number;   TankDisplay.capTag(tag, cap)
+	  TankDisplay.sign(parent, cap) -> Pair; TankDisplay.pier(parent) -> Pair; TankDisplay.setPair(pair, a, b)
+	  TankDisplay.signCap(screenHeight) -> number;   TankDisplay.capSign(sign, cap)
 	  TankDisplay.lock(parent, text) -> BillboardGui                  -- «🔒 Закрыто» (FxTankLock)
 	  TankDisplay.market(parent, text) -> BillboardGui
 	  TankDisplay.rise(parent, text, look, size, lift, time, maxDistance) -> BillboardGui
@@ -384,13 +389,63 @@ local function sizeOf(spec: Size): UDim2
 	return UDim2.new(spec.Width, spec.PixelsX, spec.Height, spec.PixelsY)
 end
 
-function TankDisplay.tag(parent: Instance): Tag
+-- Потолки букв на экране высотой height px (TextSize верхней строки, px): надписи витрины и
+-- надписи садка.
+type CapSpec = { TextShare: number, TextMin: number, TextMax: number }
+local function capOf(spec: CapSpec, height: number): number
+	return math.clamp(math.round(height * spec.TextShare), spec.TextMin, spec.TextMax)
+end
+
+function TankDisplay.tagCap(height: number): number
+	return capOf(DISPLAY.Tag, height)
+end
+
+function TankDisplay.signCap(height: number): number
+	return capOf(DISPLAY.Sign, height)
+end
+
+-- Буквы не крупнее max (UITextSizeConstraint "Cap": TextScaled его слушается — вблизи растёт
+-- рамка, а не буквы).
+local function capLabel(label: TextLabel, max: number)
+	local limit = label:FindFirstChild("Cap")
+	if not (limit and limit:IsA("UITextSizeConstraint")) then
+		local made = Instance.new("UITextSizeConstraint")
+		made.Name = "Cap"
+		made.Parent = label
+		limit = made
+	end
+	local constraint = limit :: UITextSizeConstraint
+	local size = math.max(math.round(max), 1)
+	if constraint.MaxTextSize ~= size then
+		constraint.MaxTextSize = size
+	end
+end
+
+-- Надпись витрины: «+$4/с» не крупнее cap, цена — Tag.ValueShare от него.
+function TankDisplay.capTag(tag: Tag, cap: number)
+	capLabel(tag.rate, cap)
+	capLabel(tag.value, cap * DISPLAY.Tag.ValueShare)
+end
+
+-- Надпись садка: «+$42/с» не крупнее cap, «🐠 4/6» — Sign.CountShare от него.
+function TankDisplay.capSign(sign: Pair, cap: number)
+	capLabel(sign.top, cap)
+	capLabel(sign.bottom, cap * DISPLAY.Sign.CountShare)
+end
+
+-- cap — потолок букв (tagCap): строки прижаты к середине надписи (к планке) — «+$4/с» снизу своей
+-- рамки, цена — сверху своей, и вблизи (буквы упёрлись в потолок) они не расходятся.
+function TankDisplay.tag(parent: Instance, cap: number): Tag
 	local spec = DISPLAY.Tag
 	local gui, plate = TankDisplay.billboard(parent, "FxTankTag", sizeOf(spec), DISPLAY.TagShow)
 	local rate = TankDisplay.word(plate, "Rate", "", { 0, -0.02, 1, 0.54 }, UIConfig.BillboardGreen, spec.Outline, true)
+	rate.TextYAlignment = Enum.TextYAlignment.Bottom
 	local value =
 		TankDisplay.word(plate, "Value", "", { 0.03, 0.52, 0.94, 0.48 }, UIConfig.BillboardYellow, spec.Outline, true)
-	return { gui = gui, plate = plate, rate = rate, value = value }
+	value.TextYAlignment = Enum.TextYAlignment.Top
+	local tag: Tag = { gui = gui, plate = plate, rate = rate, value = value }
+	TankDisplay.capTag(tag, cap)
+	return tag
 end
 
 function TankDisplay.setTag(tag: Tag, rateText: string, valueText: string)
@@ -402,12 +457,17 @@ function TankDisplay.setTag(tag: Tag, rateText: string, valueText: string)
 	end
 end
 
-function TankDisplay.sign(parent: Instance): Pair
+-- cap — потолок букв (signCap): строки прижаты к середине надписи, как у надписи витрины.
+function TankDisplay.sign(parent: Instance, cap: number): Pair
 	local spec = DISPLAY.Sign
 	local gui, plate = TankDisplay.billboard(parent, "FxTankSign", sizeOf(spec), DISPLAY.SignRange)
 	local top = TankDisplay.word(plate, "Rate", "", { 0, 0, 1, 0.62 }, UIConfig.BillboardGreen, spec.Outline, true)
+	top.TextYAlignment = Enum.TextYAlignment.Bottom
 	local bottom = TankDisplay.word(plate, "Count", "", { 0.15, 0.64, 0.7, 0.36 }, WHITE_LOOK, spec.Outline - 0.5)
-	return { gui = gui, plate = plate, top = top, bottom = bottom }
+	bottom.TextYAlignment = Enum.TextYAlignment.Top
+	local sign: Pair = { gui = gui, plate = plate, top = top, bottom = bottom }
+	TankDisplay.capSign(sign, cap)
+	return sign
 end
 
 function TankDisplay.pier(parent: Instance): Pair

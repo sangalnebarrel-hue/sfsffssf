@@ -7,7 +7,7 @@
 	  (1) at the REAL numbers (Growth.Time 300 s, real bites): join → the Wallet «$0», «САДОК 0/6»
 	      and the pier word «🐠 0/6» → a catch → the card says «цена $N», «В САДОК!» → the card flies
 	      into «САДОК» → «1/6», the Wallet's «+$X/с», the pier word «🐠 1/6» with a splash, the fish
-	      in its court display (centred), its tag «+$X/с · $N ▲» and the big tank's sign; the
+	      in its court display (centred), its tag «+$X/с · $N» and the big tank's sign; the
 	      first-fish toast and the «!» → money ticks every second (≈ income × 30 s, Wallet and
 	      «Деньги» agree) → five minutes later the fish is at «МАКС» (×3: the tag and the card) →
 	      «САДОК» opens the panel (the «!» goes out) → a two-tap sale → +×3 value, the card turns
