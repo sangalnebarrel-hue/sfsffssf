@@ -979,7 +979,10 @@ at the end.
   `.Hint`, `.BiteAlert`, `.Minigame`, `.CatchCard`, ... A widget's shape is the union of the
   rounded rects of what it draws — backgrounds, images, Border strokes (grown by their
   thickness), and for a text label without a background the ink box of its text — so
-  overhanging icons and caption ribbons count and invisible containers do not. Skipped:
+  overhanging icons and caption ribbons count and invisible containers do not. A rotated object
+  (an icon turning in, a tilted stamp) counts as its turned box — a quad measured exactly, not
+  the axis-aligned box around it (up to 41 % bigger at 45°: a thumbs-up turning in on
+  «ЗАБРАТЬ!» read 15 px from Jump on the tablet while its turned box keeps 27 px). Skipped:
   effects (any path part starting with `Fx`) and full-screen layers (>= 45 % of the screen:
   dims, ray holders). Every pair of widgets, and every widget against the CoreGui chrome
   (`gui/backdrop.chrome_shapes`: Jump and the thumbstick as circles, the hotbar, the top-bar

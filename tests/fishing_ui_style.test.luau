@@ -2503,6 +2503,48 @@ tests["bite alert: the slam from big starts no bigger than the room — 16 px to
 	sim:AssertNoErrors({ warnings = true })
 end
 
+-- V-01: when the card has shown its last beat the frozen «ЖДЁМ…» turns into «ЗАБРАТЬ!» with a
+-- punch, and its 👍 turns in (from 0.2 with a -120° turn, overshooting). On a tablet — where the big
+-- Jump button sits up and to the right of the disc — the turning icon's whole circle (its box's
+-- half-diagonal, outline included: whatever the angle) keeps 16 px to Jump in every frame (the
+-- preview checker once read 15 px off the turned box's axis-aligned bounds).
+tests["«ЗАБРАТЬ!»: the thumbs-up turning in keeps 16 px to Jump on a tablet in every frame"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "tablet")
+	ready(sim, p)
+	local f = fishing(p)
+	local disc = f.ActionArea.ActionButton
+	local icon = disc.Icon
+	local vp = sim.players.state[sim:Unwrap(p)].viewport
+	catchTank(sim, p, CATCHES.Legendary, 1, stored(1))
+	t.ok(
+		waitFor(sim, function()
+			return icon.Text == "👍"
+		end, CARD_OPENS + 6),
+		"the button turns into «ЗАБРАТЬ!»"
+	)
+	local jump = roblox.Vector2.new(vp.X - 170 + 60, vp.Y - 210 + 60)
+	local button = rectOf(sim, p, disc)
+	local rest = rectOf(sim, p, icon)
+	local bc = roblox.Vector2.new(button.x + button.w / 2, button.y + button.h / 2)
+	local ic = roblox.Vector2.new(rest.x + rest.w / 2, rest.y + rest.h / 2)
+	local stroke = icon:FindFirstChild("Outline")
+	local outline = if stroke then stroke.Thickness else 0
+	local worst, turned = math.huge, 0
+	for _ = 1, 45 do
+		local sb = disc:FindFirstChild("FxScale") and disc.FxScale.Scale or 1
+		local si = icon:FindFirstChild("FxScale") and icon.FxScale.Scale or 1
+		local centre = bc + (ic - bc) * sb
+		local reach = (math.sqrt(rest.w * rest.w + rest.h * rest.h) / 2 * si + outline) * sb
+		worst = math.min(worst, (centre - jump).Magnitude - reach - 60)
+		turned = math.max(turned, math.abs(icon.Rotation))
+		sim:Advance(1 / 60)
+	end
+	t.ok(turned > 20, `the icon turns in ({turned}°)`)
+	t.ok(worst >= 16, `the turning icon keeps 16 px to Jump ({worst})`)
+	sim:AssertNoErrors({ warnings = true })
+end
+
 -- Stage 3: what happened to the fish, slapped on the card after its price lands — «В САДОК!» (Water),
 -- «ЗАМЕНА!» (Leaf), «САДОК ПОЛОН» over «ПРОДАНА» (Sun) — a sticker on the card's bottom-right
 -- corner like «НОВИНКА!» (ART-04: overhanging it, its line ≥ 16 px, «ПРОДАНА» ≥ 18 px; UX-01), below

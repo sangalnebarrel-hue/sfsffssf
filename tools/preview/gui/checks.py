@@ -18,7 +18,11 @@ widgets(objects, W, H) / layout_findings(...)  (RND-02)
     Minigame, CatchCard, ...). A widget's shape is the union of the rounded rects of what its
     objects draw — backgrounds, images, Border strokes (grown by their thickness) and, for a
     text label without a background, the ink box of its text — so overhanging icons and
-    caption ribbons count and invisible containers do not. Skipped: transient effects (any
+    caption ribbons count and invisible containers do not. A rotated object (an icon turning
+    in, a tilted stamp) is its rotated box — a quad, measured exactly (a quad against a rounded
+    rect or another quad: separating axes, then the closest vertex/edge pair), not the axis-
+    aligned box around it, which grows by up to 41 % at 45° (V-01: a thumbs-up turning in on
+    «ЗАБРАТЬ!» on a tablet read 15 px from Jump, while its turned ink box keeps 27 px). Skipped: transient effects (any
     path component starting with "Fx": FxRays, FxConfetti, FxCardOut ghosts...), full-screen
     layers (a widget covering >= 45 % of the screen: dims, ray holders) and the screen layers
     in LAYERS (the catch dim and rays: since v3 the dim on a phone is one side band that melts
@@ -199,9 +203,78 @@ def fill_budget_applies(W, H):
 # ---------------------------------------------------------------------------------------
 
 
+def _poly_of(shape):
+    """(convex polygon, radius) of a shape: its quad (a rotated box), or a rounded rect's core
+    rect (shrunk by its radius; a point for a circle) with the radius."""
+    if len(shape) > 5:
+        return shape[5], 0.0
+    x0, y0, x1, y1, r = shape[:5]
+    r = max(0.0, min(r, (x1 - x0) / 2, (y1 - y0) / 2))
+    return [(x0 + r, y0 + r), (x1 - r, y0 + r), (x1 - r, y1 - r), (x0 + r, y1 - r)], r
+
+
+def _seg_point(p, a, b):
+    """(distance, closest point) from point p to segment a-b."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    length = dx * dx + dy * dy
+    t = 0.0 if length < 1e-12 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / length))
+    q = (a[0] + t * dx, a[1] + t * dy)
+    return math.hypot(p[0] - q[0], p[1] - q[1]), q
+
+
+def _sat_overlap(P, Q):
+    """Least overlap of two convex polygons along the edge normals of both (separating axes);
+    <= 0: separated. A degenerate polygon (a point, a segment) adds no axes of its own."""
+    best = math.inf
+    for poly in (P, Q):
+        n = len(poly)
+        for i in range(n):
+            (ax, ay), (bx, by) = poly[i], poly[(i + 1) % n]
+            nx, ny = by - ay, ax - bx
+            length = math.hypot(nx, ny)
+            if length < 1e-9:
+                continue
+            nx, ny = nx / length, ny / length
+            pa = [x * nx + y * ny for x, y in P]
+            qa = [x * nx + y * ny for x, y in Q]
+            o = min(max(pa), max(qa)) - max(min(pa), min(qa))
+            if o <= 0:
+                return o
+            best = min(best, o)
+    return best
+
+
+def poly_distance(P, ra, Q, rb):
+    """(distance, point on P, point on Q) between convex polygons dilated by ra / rb; negative =
+    overlap depth (approximate: the least separating-axis overlap)."""
+    overlap = _sat_overlap(P, Q)
+    if overlap > 0:
+        cp = (sum(x for x, _ in P) / len(P), sum(y for _, y in P) / len(P))
+        cq = (sum(x for x, _ in Q) / len(Q), sum(y for _, y in Q) / len(Q))
+        return -(overlap + ra + rb), cp, cq
+    best = None
+    for A, B, flip in ((P, Q, False), (Q, P, True)):
+        m = len(B)
+        for v in A:
+            for i in range(m):
+                d, q = _seg_point(v, B[i], B[(i + 1) % m])
+                if best is None or d < best[0]:
+                    best = (d, q, v) if flip else (d, v, q)
+    d, p, q = best
+    if d > 1e-9:
+        ux, uy = (q[0] - p[0]) / d, (q[1] - p[1]) / d
+        p, q = (p[0] + ux * ra, p[1] + uy * ra), (q[0] - ux * rb, q[1] - uy * rb)
+    return d - ra - rb, p, q
+
+
 def rrect_distance(a, b):
-    """(distance, point on a, point on b) between rounded rects (x0, y0, x1, y1, r); negative =
-    overlap depth (approximate). Each rect is its core rect (shrunk by r) dilated by r."""
+    """(distance, point on a, point on b) between shapes: rounded rects (x0, y0, x1, y1, r) or
+    quads (x0, y0, x1, y1, 0, corners) — the box first, for cheap rejects; negative = overlap depth
+    (approximate). Each rect is its core rect (shrunk by r) dilated by r."""
+    if len(a) > 5 or len(b) > 5:
+        P, ra = _poly_of(a)
+        Q, rb = _poly_of(b)
+        return poly_distance(P, ra, Q, rb)
     ax0, ay0, ax1, ay1, ar = a
     bx0, by0, bx1, by1, br = b
     ar = max(0.0, min(ar, (ax1 - ax0) / 2, (ay1 - ay0) / 2))
@@ -264,8 +337,9 @@ def _rotated(o):
     return 0.01 < r < 359.99
 
 
-def text_ink_box(o):
-    """Screen box of an object's laid-out text (rotation included) and its TextSize in px."""
+def text_ink_quad(o, grow=0.0):
+    """Screen corners of an object's laid-out text box (grown by `grow` px, rotation included)
+    and its TextSize in px."""
     rec = o.get("text")
     if not rec:
         return None, 0
@@ -276,6 +350,7 @@ def text_ink_box(o):
     if lay is None:
         return None, 0
     x0, y0, x1, y1 = T.extents(lay, tbw)
+    x0, y0, x1, y1 = x0 - grow, y0 - grow, x1 + grow, y1 + grow
     # object-local (box top-left = 0, 0) -> screen, about the box centre
     cx, cy = o["w"] / 2, o["h"] / 2
     corners = [(pad[0] + x0, pad[1] + y0), (pad[0] + x1, pad[1] + y0), (pad[0] + x1, pad[1] + y1),
@@ -284,7 +359,28 @@ def text_ink_box(o):
     c, s = math.cos(r), math.sin(r)
     ox, oy = o["x"] + cx, o["y"] + cy
     pts = [(ox + (x - cx) * c - (y - cy) * s, oy + (x - cx) * s + (y - cy) * c) for x, y in corners]
-    return _aabb(pts), lay.size
+    return pts, lay.size
+
+
+def text_ink_box(o):
+    """Screen box of an object's laid-out text (rotation included) and its TextSize in px."""
+    pts, size = text_ink_quad(o)
+    if pts is None:
+        return None, 0
+    return _aabb(pts), size
+
+
+def _quad_shape(pts, clip):
+    """A rotated box as a shape (its axis-aligned box, radius 0, the corners), clipped to the clip
+    rect; None when nothing is left."""
+    if clip:
+        pts = _clip_poly(pts, clip[0], clip[1], clip[2], clip[3])
+        if len(pts) < 3:
+            return None
+    x0, y0, x1, y1 = _aabb(pts)
+    if x1 - x0 <= 0.5 or y1 - y0 <= 0.5:
+        return None
+    return (x0, y0, x1, y1, 0.0, pts)
 
 
 def object_shapes(o):
@@ -299,11 +395,12 @@ def object_shapes(o):
     rot = _rotated(o) and not (abs(o["w"] - o["h"]) < 0.5 and radius >= min(o["w"], o["h"]) / 2 - 0.5)
 
     def add(grow, r):
-        if rot:
-            box = _aabb(object_quad(o, grow))
-            r = 0.0
-        else:
-            box = (o["x"] - grow, o["y"] - grow, o["x"] + o["w"] + grow, o["y"] + o["h"] + grow)
+        if rot:  # the turned box itself (its rounded corners count as square: a little conservative)
+            shape = _quad_shape(object_quad(o, grow), o.get("clip"))
+            if shape:
+                out.append(shape)
+            return
+        box = (o["x"] - grow, o["y"] - grow, o["x"] + o["w"] + grow, o["y"] + o["h"] + grow)
         box = _clip_box(box, o.get("clip"))
         if box and box[2] - box[0] > 0.5 and box[3] - box[1] > 0.5:
             out.append((box[0], box[1], box[2], box[3], r))
@@ -322,10 +419,14 @@ def object_shapes(o):
                 grow = 0.0
             add(grow, radius + grow)
     if not solid and _text_shown(o) and float(o["text"].get("tr", 0)) < 0.9:
-        box, _ = text_ink_box(o)
-        if box:
-            grow = max([float(st["t"]) for st in o.get("strokes") or [] if st["target"] == "text"] + [0.0])
-            box = _clip_box((box[0] - grow, box[1] - grow, box[2] + grow, box[3] + grow), o.get("clip"))
+        grow = max([float(st["t"]) for st in o.get("strokes") or [] if st["target"] == "text"] + [0.0])
+        pts, _ = text_ink_quad(o, grow)
+        if pts and _rotated(o):
+            shape = _quad_shape(pts, o.get("clip"))
+            if shape:
+                out.append(shape)
+        elif pts:
+            box = _clip_box(_aabb(pts), o.get("clip"))
             if box:
                 out.append((box[0], box[1], box[2], box[3], 0.0))
     return out
@@ -531,6 +632,26 @@ def selftest():
     assert object_shapes(disc) == [(0, 0, 20, 20, 10.0)], object_shapes(disc)
     square = dict(disc, radius=0, rot=45)
     near(object_shapes(square)[0][2] - object_shapes(square)[0][0], 20 * math.sqrt(2), 1e-6)
+    # V-01: a turned box is measured as the quad it is, not its axis-aligned box — a 45° square
+    # (a diamond |x-10| + |y-10| <= 14.1) and a circle r 5 at (40, 40): the box says 17.4 px, the
+    # diamond's edge x + y = 34.1 is 27.4 px away; a circle inside the diamond's box corner but
+    # off the diamond is clear; a circle on its edge overlaps.
+    diamond = object_shapes(square)[0]
+    d, p, q = rrect_distance(diamond, (35, 35, 45, 45, 5))
+    near(d, (80 - (20 + 10 * math.sqrt(2))) / math.sqrt(2) - 5, 1e-6)
+    near(p[0] + p[1], 20 + 10 * math.sqrt(2), 1e-6)  # on the diamond's edge
+    d, _, _ = rrect_distance(diamond, (21, 21, 25, 25, 2))
+    assert d > 0, d  # in the AABB's corner, off the diamond
+    d, _, _ = rrect_distance(diamond, (14, 14, 22, 22, 4))
+    assert d < 0, d
+    # … a quad against a rounded rect's straight side, and two quads
+    d, _, _ = rrect_distance(diamond, (40, 0, 60, 20, 2))
+    near(d, 40 - (10 + 10 * math.sqrt(2)), 1e-6)
+    d, _, _ = rrect_distance(diamond, (40, 0, 60, 20, 2, [(40, 10), (50, 0), (60, 10), (50, 20)]))
+    near(d, 40 - (10 + 10 * math.sqrt(2)), 1e-6)
+    # a turned object under a clip rect is clipped to it
+    clipped = dict(square, clip=[0, 0, 10, 100])
+    near(object_shapes(clipped)[0][2], 10, 1e-6)
     assert widget_of("HUD.Fishing.ActionArea.ActionButton.Face") == ("HUD.Fishing.ActionArea", "solid")
     assert widget_of("HUD.Fishing.ActionArea.ActionButton.FxRing") == ("HUD.Fishing.ActionArea", "fx")
     assert widget_of("HUD.Fishing.BiteAlert.FxRays.Ray1") == ("HUD.Fishing.BiteAlert", None)
