@@ -710,15 +710,17 @@ have no GUI path) — and may be mixed with GUI paths.
 Stage 3 HUD (`tools/preview/gui_scenarios_hud3.luau`, loaded by `gui_dump.luau` after
 `gui_scenarios.luau`; the standard set, so `--all` checks them on every device; the stage 3
 services are stubs — the scenarios write the player attributes and send "Caught" with its
-TankResult in the same frame, like TankService): `wallet_idle` (the panel-less Wallet «💵 $1 234
+TankResult in the same frame, like TankService — a stored or replacing catch also moves the
+Income attribute, like EconomyService): `wallet_idle` (the panel-less Wallet «💵 $1 234
 +$19/с» under the badge; the 5 s income float), `wallet_loading` (`fresh`: the data loads longer
 than 3 s — «$…» on a glass pill, then the punch-in), `wallet_big` («$999 999» with «+$1 234/с»: the
 number stays ≥ 22 px on `phone_small`), `tank_button` / `tank_full` (the square aqua «САДОК» over
 «ДОМОЙ», the chip «4/6», gold «6/6»), `catch_to_tank` (a Rare catch: «+$5.2/с» out of the price,
-«В САДОК!» stamped, the card flies into «САДОК», the chip rolls 2 → 3; sheet 2.6..3.5 s),
-`catch_replaced` (a full tank, an Epic: «ЗАМЕНА!», coins from «САДОК» into the Wallet, the toast
-naming both fish), `catch_sold` (a weaker catch: «ПРОДАНА», a gold «+$11», the card flies into the
-Wallet as 💵, «Садок полон…» once), `tank_button_badge` (the onboarding «!» after the first fish
+«В САДОК!» stamped, the card flies into «САДОК», the chip rolls 2 → 3, then the Wallet's «+$/с»
+rolls up; sheet 2.6..3.5 s), `catch_replaced` (a full tank, an Epic: «ЗАМЕНА!», coins from «САДОК»
+into the Wallet, «+$/с» rolls up, the toast naming both fish), `catch_sold` (a weaker catch:
+«ПРОДАНА», a gold «+$11», the card flies into the Wallet as 💵, «Садок полон…» once, after the
+count-up), `tank_button_badge` (the onboarding «!» on the corner of «САДОК» after the first fish
 ever), `first_fish_toast`, `data_memory_toast` (`fresh`: Studio without DataStore access).
 
 Stage 3 world views (`tools/preview/gui_scenarios_tank.luau`, loaded by `gui_dump.luau` after

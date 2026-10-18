@@ -49,7 +49,8 @@ TEXT_FLOOR = 12
 # hangs right under the status stack (STYLE.md §3; stage 3: the Wallet row is always shown), so
 # they may sit closer than MIN_GAP — only an overlap of what they draw is reported, beyond a few
 # pixels: the Wallet's 💵 and the toast's icon are emoji whose text boxes are a line tall (the
-# glyph is ~0.8 of it), and both bump / pop for a moment when a sale lands and its toast comes in.
+# glyph is ~0.8 of it). (The toast column is drawn under the status stack, ZIndex 0: a toast
+# dropping in from above passes behind the Wallet row, never over the money.)
 STACKED = {("HUD.Status", "HUD.Toasts"): -4}
 FULLSCREEN_SHARE = 0.45
 # ScreenGui children that are containers of widgets rather than widgets themselves.
