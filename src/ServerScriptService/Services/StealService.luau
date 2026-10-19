@@ -53,6 +53,9 @@
 	     отпущена (SetSteal nil) — осталась или вернулась; ожидания вора: своя вина ("released",
 	     "far", "died", "timeout", "speed", "deadline", "tag") — FailCooldown по счёту срывов за
 	     FailWindow, "early" — сразу последнее, пойман ("tag") — ещё TagCooldown на этой базе;
+	     "released" в удержании короче, чем клиент ждёт ответа (max(QuietSavedUnder, Hold.NoReply,
+	     пинг + NoReplySlack) + NoReplySlack: тап или кольцо погасил сам клиент, NoReply), — не
+	     срыв: без ожидания и счёта, Limits.FreeTaps раз за FailWindow (дальше — как срыв: спам);
 	     щит / ушёл хозяин / садок полон / ушёл вор — без ожидания. StealEvent "Cancel" вору,
 	     "Saved" жертве (Quiet — удержание короче QuietSavedUnder, которое кончил не хозяин: его
 	     "tag" и "shield" — всегда громко, A2-04; жертве, которая ушла, — ничего).
@@ -71,7 +74,7 @@
 	     Lib/Speed.Forget.
 	Записи — по самому Player с проверкой «это всё ещё она»; соединения — одно на
 	ProximityPromptService (три события), ни одного на кнопку; карты по UserId (cooldowns, fails,
-	tagged, alertCoalesce) — с границей по времени, чистятся при записи, в PlayerRemoving и в
+	taps, tagged, alertCoalesce) — с границей по времени, чистятся при записи, в PlayerRemoving и в
 	_debugSizes; ожидание переживает перезаход, и TankService.Mounted возвращает новому Player
 	атрибут StealCooldownUntil (A2-03). Часы внутри — os.clock; в атрибуты — серверное время
 	(TankRules.AttrTime).
@@ -88,7 +91,7 @@
 	  StealService:Cancel(player, reason)          -- BindToClose и тесты
 	  StealService.TheftStarted, StealService.TheftEnded   -- Signal (thief, victim, result):
 	                                               -- result = "hold" (начало) | "credited" | причина
-	  StealService._debugSizes()                   -- Thefts, Buckets + Cooldowns, Fails, Tags, Alerts,
+	  StealService._debugSizes()                   -- Thefts, Buckets + Cooldowns, Fails, Taps, Tags, Alerts,
 	                                               -- Denied, Dogs, Watcher (1 — цикл идёт)
 ]]
 
@@ -199,6 +202,7 @@ local byBase: { [Base]: Theft } = {}
 local lastDenied: { [Player]: { Reason: string, At: number } } = {}
 local cooldowns: { [number]: number } = {} -- UserId вора → os.clock() конца ожидания
 local fails: { [number]: { number } } = {} -- UserId вора → срывы по своей вине (окно FailWindow)
+local taps: { [number]: { number } } = {} -- UserId вора → прощённые короткие «отпустил» (окно FailWindow)
 local tagged: { [string]: number } = {} -- "вор:хозяин" (UserId) → os.clock() конца TagCooldown
 local alerts: { [string]: number } = {} -- "вор:жертва" (UserId) → os.clock() последней громкой тревоги
 local dogs: { [Base]: boolean } = {} -- базы, чья собака не спит (их тикает наблюдатель)
@@ -286,6 +290,15 @@ local function pruneMaps()
 			end
 		end
 		fails[userId] = if #kept > 0 then kept else nil
+	end
+	for userId, list in table.clone(taps) do
+		local kept = {}
+		for _, at in list do
+			if t - at < LIMITS.FailWindow then
+				table.insert(kept, at)
+			end
+		end
+		taps[userId] = if #kept > 0 then kept else nil
 	end
 	for key, untilT in table.clone(tagged) do
 		if untilT <= t then
@@ -435,6 +448,37 @@ local function savedText(reason: string): string
 	return saved.failed
 end
 
+-- Пинг вора (туда и обратно, с); нет — 0.
+local function pingOf(player: Player): number
+	local ok, ping = pcall(function(): any
+		return player:GetNetworkPing()
+	end)
+	return if ok and type(ping) == "number" and ping == ping and ping >= 0 and ping < math.huge then ping else 0
+end
+
+-- «Отпустил» почти сразу — не срыв по своей вине (C-20, C-28): удержание короче, чем клиент
+-- ждёт ответа (max(QuietSavedUnder, NoReply, пинг + NoReplySlack) — короткий тап или кольцо
+-- погасил сам клиент, не дождавшись "Hold") + NoReplySlack на разброс связи; не дольше
+-- need − Tolerance. Прощается Limits.FreeTaps раз за FailWindow, дальше — обычный срыв (спам).
+local function freeTap(theft: Theft, reason: string): boolean
+	if reason ~= "released" or theft.Phase ~= "hold" then
+		return false
+	end
+	local waitFor = math.max(LIMITS.QuietSavedUnder, HOLD.NoReply, pingOf(theft.Thief) + HOLD.NoReplySlack)
+	local window = math.min(waitFor + HOLD.NoReplySlack, theft.Need - HOLD.Tolerance)
+	if os.clock() - theft.T0 >= window then
+		return false
+	end
+	local userId = theft.Thief.UserId
+	local list = taps[userId] or {}
+	if #list >= LIMITS.FreeTaps then
+		return false
+	end
+	table.insert(list, os.clock())
+	taps[userId] = list
+	return true
+end
+
 -- Срыв: рыба отпущена (осталась в витрине или вернулась), ожидания вора, ответы, конец.
 local function cancel(theft: Theft, reason: string)
 	if theft.Ended or theft.Credited then
@@ -444,6 +488,8 @@ local function cancel(theft: Theft, reason: string)
 	TankService:SetSteal(victim, theft.Uid, theft.Token, nil)
 	if OWN_FAULT[reason] then
 		pruneMaps()
+	end
+	if OWN_FAULT[reason] and not freeTap(theft, reason) then
 		local userId = thief.UserId
 		local list = fails[userId] or {}
 		table.insert(list, os.clock())
@@ -994,6 +1040,7 @@ function StealService._debugSizes(): { [string]: number }
 		Buckets = startBucket:Size(),
 		Cooldowns = count(cooldowns),
 		Fails = count(fails),
+		Taps = count(taps),
 		Tags = count(tagged),
 		Alerts = count(alerts),
 		Denied = count(lastDenied),

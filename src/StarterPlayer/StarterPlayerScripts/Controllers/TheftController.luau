@@ -28,12 +28,14 @@
 	        красная дорожка на земле (папка Workspace.TheftGuide, Theft.Guide): шевроны от
 	        вора к ближайшему выходу StealRules.NearestExit ползут к нему (бегущие огни), у
 	        выхода — зелёное дышащее кольцо и табличка «ВЫХОД» (TankWorldController.TrackWord:
-	        у плашек HUD тает); переставляется раз в BeamEvery с (task.delay);
+	        у плашек HUD тает; где на экране «ГАВ!» собаки — ждёт, пока он не уйдёт: слова
+	        слились бы); переставляется раз в BeamEvery с (task.delay);
 	      срыв — "Cancel": красная, трясётся, 💨 «СОРВАЛОСЬ!» и под ним причина (Text сервера,
 	        Reason: шрифт Body во всю ширину; плашка — по длине текста), FailTime с; в
 	        удержании гасит кольцо своей кнопки (InputHoldEnd: сервер кнопки не выключает —
 	        BE-15). Короткий тап (отпустил «Украсть» раньше Limits.QuietSavedUnder с) — не
-	        срыв, а подсказка на стекле «Не отпускай «Украсть», пока полоска не заполнится!»;
+	        срыв, а подсказка на стекле «Не отпускай «Украсть», пока полоска не заполнится!»
+	        (и сервер не ждёт после него: Limits.FreeTaps раз за FailWindow);
 	      подсказка на стекле (Line, две ровные строки, ширина — по тексту, как у подсказки
 	        рыбалки) — во дворе чужой базы (цепочка task.delay HintEvery, только пока есть
 	        персонаж; StealRules.InPlot): почему здесь красть нельзя — пока стоишь во дворе, с
@@ -45,8 +47,10 @@
 	        названной кнопки гаснет (InputHoldEnd по BaseIndex / Slot); нет ни "Hold", ни
 	        "Denied" за max(Hold.NoReply, пинг + Hold.NoReplySlack) с после своего начала
 	        удержания — кольцо гаснет, «Подожди секунду» (BE-16); опоздавшие "Hold" / "Cancel"
-	        этой кнопки — без полосы и без «СОРВАЛОСЬ!» (та же подсказка). Пока открыт лист
-	        (HUD.TankPanel, HUD.DefencePanel) — подсказок нет (полоса выше листов).
+	        этой кнопки (сервер начал удержание до того, как клиент сдался: End − Need) — без
+	        полосы и без «СОРВАЛОСЬ!» (та же подсказка), а новое удержание той же кнопки — как
+	        обычно. Пока идёт своя кража (Player.Stealing, он бывает раньше "Hold") и пока открыт
+	        лист (HUD.TankPanel, HUD.DefencePanel) — подсказок двора нет.
 	  • Уведомления (HUD.Toasts) ждут, пока кража идёт (своё начало удержания — и до "Cancel" /
 	    "Done"): NotifyController.Reserve("thief", вся колонка) — колонка над витриной, которую
 	    грабят, и над рыбой на голове (§6.4 rev. 3); ключ не из RESERVE_ORDER, поэтому тревога
@@ -119,6 +123,9 @@ local RESERVE_KEY = "thief" -- колонка уведомлений (не из 
 local SHEETS = { "TankPanel", "DefencePanel" } -- листы: при них подсказок на стекле нет
 local GHOST_WINDOW = 10 -- опоздавший "Hold" брошенной (NoReply) кнопки узнаём столько с
 local GROUND_UP, GROUND_DOWN = 4, 14 -- луч к земле двора для шевронов: от пояса вора, studs
+-- «ГАВ!» собаки (TheftWorldController: TankDisplay.rise в папке Workspace.TheftWorld) — над ним
+-- «ВЫХОД» не пишется (C1-R2-02).
+local WORLD_FOLDER, BARK_NAME = "TheftWorld", "FxTankPop"
 
 -- Значок подсказки по причине отказа: ожидание, защита, хозяин рядом, остальное — рыба.
 local WAIT_REASONS = { cooldown = true, tagged = true, new = true, loading = true, nobase = true, busy = true }
@@ -177,8 +184,10 @@ local noReplyToken = 0
 local holdBeganAt = -math.huge -- (os.clock) своё последнее начало удержания «Украсть»
 local heldFor = math.huge -- сколько с держал «Украсть» до того, как отпустил (последнее)
 -- Кнопка, на которую сервер не ответил вовремя (NoReply): её опоздавшие "Hold" / "Cancel" —
--- без полосы; ghost — данные опоздавшего "Hold" (если вдруг пришёл и "Carry").
-local abandoned: { baseIndex: number, slot: number, at: number }? = nil
+-- без полосы; ghost — данные опоздавшего "Hold" (если вдруг пришёл и "Carry"). serverAt —
+-- серверное время, когда клиент махнул рукой: "Hold" удержания, начатого сервером позже, —
+-- новая попытка, не опоздавший ответ (C2-R2-01).
+local abandoned: { baseIndex: number, slot: number, at: number, serverAt: number }? = nil
 local ghost: { [string]: any }? = nil
 local incomingSince = 0 -- (os.clock) TankIncoming стоит с
 local reservedPx: number? = nil -- сколько px колонки уведомлений занято (Reserve), nil — нисколько
@@ -602,6 +611,9 @@ local function plotStep(root: BasePart)
 	if mode ~= "none" and mode ~= "hint" then
 		return -- (кража, срыв, «ДОБЫЧА!» — у них своя полоса)
 	end
+	if player:GetAttribute("Stealing") ~= nil then
+		return -- (своя кража уже идёт — её полоса; атрибут бывает раньше "Hold": не причина двора)
+	end
 	if sheetOpen() then
 		hideHint() -- (лист открыт; закроется — подсказка вернётся на следующем шаге)
 		return
@@ -724,6 +736,24 @@ local function groundParams(base: Model): RaycastParams?
 	return params
 end
 
+-- Рамка слова мира на экране (px, как AbsolutePosition) или nil: выключено, без Adornee-детали,
+-- за камерой. Size: Scale — studs, Offset — px (как у TankWorldController).
+local function wordBox(gui: BillboardGui, camera: Camera): { x0: number, y0: number, x1: number, y1: number }?
+	local adornee = gui.Adornee
+	if not gui.Enabled or not (adornee and adornee:IsA("BasePart")) then
+		return nil
+	end
+	local at = adornee.Position + gui.StudsOffsetWorldSpace + camera.CFrame:VectorToWorldSpace(gui.StudsOffset)
+	local p = camera:WorldToScreenPoint(at)
+	if p.Z <= 0.05 or (at - camera.CFrame.Position).Magnitude > gui.MaxDistance then
+		return nil
+	end
+	local perStud = camera.ViewportSize.Y / (2 * p.Z * math.tan(math.rad(camera.FieldOfView) / 2))
+	local size = gui.Size
+	local half = Vector2.new(size.X.Scale * perStud + size.X.Offset, size.Y.Scale * perStud + size.Y.Offset) / 2
+	return { x0 = p.X - half.X, y0 = p.Y - half.Y, x1 = p.X + half.X, y1 = p.Y + half.Y }
+end
+
 local function guidePart(name: string, size: Vector3, color: Color3, parent: Instance): Part
 	local part = Instance.new("Part")
 	part.Name = name
@@ -789,6 +819,47 @@ local function startGuide()
 	TankDisplay.word(plate, "Word", TEXTS.Exit, { 0, 0, 1, 1 }, Palette.Leaf, 3)
 	folder.Parent = Workspace
 	TankWorldController.TrackWord(label)
+	-- «ВЫХОД» и «ГАВ!» — оба поверх всего: где они сошлись на экране, табличка ждёт, пока «ГАВ!»
+	-- не уйдёт (проверка — на появлении и уходе «ГАВ!» и на каждом шаге дорожки; Enabled —
+	-- наш, прозрачность — у TrackWord).
+	local clearPad = spec.Clear
+	local function clearOfBark()
+		local camera = Workspace.CurrentCamera
+		local barks = Workspace:FindFirstChild(WORLD_FOLDER)
+		if label.Parent == nil or not camera then
+			return
+		end
+		label.Enabled = true
+		local mine = if barks then wordBox(label, camera) else nil
+		if not mine then
+			return
+		end
+		for _, item in (barks :: Instance):GetChildren() do
+			if item.Name == BARK_NAME and item:IsA("BillboardGui") then
+				local other = wordBox(item, camera)
+				if
+					other
+					and mine.x0 < other.x1 + clearPad
+					and mine.x1 > other.x0 - clearPad
+					and mine.y0 < other.y1 + clearPad
+					and mine.y1 > other.y0 - clearPad
+				then
+					label.Enabled = false
+					return
+				end
+			end
+		end
+	end
+	local barks = Workspace:FindFirstChild(WORLD_FOLDER)
+	if barks then
+		local function changed(item: Instance)
+			if item.Name == BARK_NAME then
+				task.defer(clearOfBark) -- (Adornee и сдвиг «ГАВ!» пишутся сразу после появления)
+			end
+		end
+		carryTrove:Add(barks.ChildAdded:Connect(changed))
+		carryTrove:Add(barks.ChildRemoved:Connect(changed))
+	end
 	local params = groundParams(base)
 	-- (за оградой двора — дорожки хаба: любой мир под точкой, кроме персонажа и самой дорожки)
 	local world = RaycastParams.new()
@@ -835,6 +906,7 @@ local function startGuide()
 				part.Transparency = if hidden then 1 else 0
 			end
 		end
+		clearOfBark()
 		task.delay(SPEC.BeamEvery, aim)
 	end
 	aim()
@@ -1034,13 +1106,21 @@ end
 -- События сервера и свои удержания
 --------------------------------------------------------------------------------
 
--- Ответ про кнопку, на которую NoReply уже махнул рукой (опоздал): data — её BaseIndex / Slot.
+-- Ответ про кнопку, на которую NoReply уже махнул рукой (опоздал): data — её BaseIndex / Slot,
+-- и сервер начал это удержание (End − Need) не позже, чем клиент сдался; начатое позже — новое
+-- удержание той же кнопки (тот же ребёнок снова держит «Украсть»), его полоса — как обычно.
 local function isAbandoned(data: { [string]: any }): boolean
 	local gone = abandoned
-	return gone ~= nil
-		and os.clock() - gone.at < GHOST_WINDOW
-		and data.BaseIndex == gone.baseIndex
-		and data.Slot == gone.slot
+	if gone == nil or os.clock() - gone.at >= GHOST_WINDOW then
+		return false
+	end
+	if data.BaseIndex ~= gone.baseIndex or data.Slot ~= gone.slot then
+		return false
+	end
+	if finite(data.End) and finite(data.Need) then
+		return (data.End :: number) - (data.Need :: number) <= gone.serverAt
+	end
+	return true
 end
 
 local function onDenied(data: { [string]: any })
@@ -1119,7 +1199,7 @@ local function onHoldBegan(prompt: ProximityPrompt)
 		syncToasts()
 		local baseIndex, slot = TheftPrompts.SlotOf(prompt)
 		if baseIndex and slot then
-			abandoned = { baseIndex = baseIndex, slot = slot, at = os.clock() }
+			abandoned = { baseIndex = baseIndex, slot = slot, at = os.clock(), serverAt = serverNow() }
 		end
 		endHold(prompt)
 		TheftPrompts.SetHeld(nil)

@@ -11,8 +11,9 @@
 	    cannot hold his own prompt ("out of range");
 	  • exploits: a Triggered with no hold → nothing; 100 HoldBegans on one prompt in a frame → one
 	    theft, no answers; a HoldBegan fired after the player left → no bucket entry (BE-20);
-	  • griefing (DC-10, BE-19): release loops → waits 3 / 10 / 30 s, at most one loud alert per 30 s
-	    (≤ 3 in 60 s), holds under 1 s → Saved Quiet;
+	  • griefing (DC-10, BE-19): release loops → the first Limits.FreeTaps short taps in FailWindow
+	    cost nothing (a kid learning to hold, C-20), then waits 3 / 10 / 30 s, at most one loud alert
+	    per 30 s (≤ 3 in 60 s), holds under 1 s → Saved Quiet;
 	  • the victim cap (DC-06): four thieves for 10 virtual minutes → exactly 2 losses, then «rest»
 	    until the older loss is 600 s old; a steal by the victim clears his rest and his losses.
 
@@ -217,7 +218,7 @@ end
 -- Griefing
 --------------------------------------------------------------------------------
 
-tests["griefing (DC-10, BE-19): release loops → waits 3 / 10 / 30 s, ≤ one loud alert per 30 s (≤ 3 in 60 s), short holds Quiet"] = function(
+tests["griefing (DC-10, BE-19): release loops → FreeTaps free taps, then waits 3 / 10 / 30 s, ≤ one loud alert per 30 s (≤ 3 in 60 s), short holds Quiet"] = function(
 	t
 )
 	local sim = S.boot(t)
@@ -241,10 +242,17 @@ tests["griefing (DC-10, BE-19): release loops → waits 3 / 10 / 30 s, ≤ one l
 		t.eq(S.last(sim, thief, "Cancel").Reason, "released")
 		t.eq(S.last(sim, victim, "Saved").Quiet, true, "a hold under 1 s ends quietly for the victim")
 		table.insert(waits, math.floor(cooldownLeft(sim, thief) + 0.5))
+		if waits[#waits] == 0 then
+			sim:Advance(1 / S.LIMITS.StartRate) -- (a free tap waits nothing: a start token for the next)
+		end
 	end
-	t.eq(waits[1], S.LIMITS.FailCooldown[1], "1st failure: 3 s")
-	t.eq(waits[2], S.LIMITS.FailCooldown[2], "2nd: 10 s")
-	t.eq(waits[3], S.LIMITS.FailCooldown[3], "3rd: 30 s")
+	local free = S.LIMITS.FreeTaps
+	for i = 1, free do
+		t.eq(waits[i], 0, `tap {i}: free (C-20)`)
+	end
+	t.eq(waits[free + 1], S.LIMITS.FailCooldown[1], "then the 1st failure: 3 s")
+	t.eq(waits[free + 2], S.LIMITS.FailCooldown[2], "2nd: 10 s")
+	t.eq(waits[free + 3], S.LIMITS.FailCooldown[3], "3rd: 30 s")
 	local n = loud(sim, victim)
 	t.ok(n >= 1 and n <= 3, `loud alerts in 60 s: {n} (attempts {attempts})`)
 	-- loud ones at least AlertCoalesce apart

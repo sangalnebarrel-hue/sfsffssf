@@ -534,8 +534,9 @@ local UIConfig = {
 		                  толщиной) через Step studs, первая — Start studs впереди вора, на Lift над
 		                  землёй; за шаг пересчёта они ползут на Step / Crawl к выходу (бегущие
 		                  огни); у самого выхода — зелёное кольцо Ring studs (дышит до RingPulse
-		                  раз за RingPeriod с) и табличка «ВЫХОД» (Label: studs, px, видна до
-		                  LabelRange studs);
+		                  раз за RingPeriod с) и табличка «ВЫХОД» (Label: PixelsX × PixelsY px —
+		                  издалека тот же размер, — на Lift studs над кольцом, видна до LabelRange
+		                  studs; «ГАВ!» собаки ближе Clear px на экране — прячется, пока он висит);
 		  Bar            — где и как полоса вора (§6.4 rev. 3, TheftController): Top — её верх, доля
 		                  высоты HUD (нижняя полоса, под вором и кнопкой «Украсть»); Gap — до
 		                  джойстика, кнопки прыжка и края экрана, px; TitleTop / TitleHeight —
@@ -585,7 +586,7 @@ local UIConfig = {
 			Ring = 7,
 			RingPulse = 1.25,
 			RingPeriod = 0.8,
-			Label = { Width = 6, Height = 1.8, Lift = 4.5, PixelsX = 120, PixelsY = 40 },
+			Label = { Lift = 4.5, PixelsX = 120, PixelsY = 40, Clear = 8 },
 			LabelRange = 400,
 		},
 		Bar = {

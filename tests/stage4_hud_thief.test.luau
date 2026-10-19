@@ -40,8 +40,12 @@
 	    the how-to first, then the warning; 👀 for «Хозяин рядом!»; the gamepad's first hint; the
 	    owner's tag hides his base for TagCooldown; F / a click with the rod in the carry call no
 	    fishing hint; no court hint over an open sheet; a slow link's late Hold / Cancel show no
-	    bar and no «СОРВАЛОСЬ!»; «САДОК» tapped in the carry opens at once and a failure never
-	    opens it; every «СОРВАЛОСЬ!» reason on one line at the Body tier on 5 screens.
+	    bar and no «СОРВАЛОСЬ!»; every «СОРВАЛОСЬ!» reason on one line at the Body tier on 5 screens;
+	  • critic round 2 (C-30, C-33…C-35): three quick taps cost no wait on the server (FreeTaps; a
+	    4th does), nor does the release NoReply made; «Ты уже крадёшь» never for his own theft; a new
+	    hold of a display NoReply gave up on is a theft with its bar and the toast reserve; «ВЫХОД»
+	    waits while a «ГАВ!» crosses it on screen; «САДОК» tapped in the hold or the carry wiggles
+	    «нет» and opens nothing, a failure never opens it.
 
 	Run: lune run tools/run_tests.luau stage4_hud_thief
 ]]
@@ -53,6 +57,7 @@ local S = require("./stage4_server")
 local CFrame = roblox.CFrame
 local Vector2 = roblox.Vector2
 local Vector3 = roblox.Vector3
+local UDim2 = roblox.UDim2
 local Enum = roblox.Enum
 
 local STEAL = S.StealConfig
@@ -64,6 +69,7 @@ local SPEC = UI.Theft
 local BAR = SPEC.Bar
 local GUIDE = SPEC.Guide
 local MAX = STEAL.Prompt.MaxDistance
+local LIMITS = STEAL.Limits
 local GAP = 16
 
 local VICTIM = { { Id = "Perch" }, { Id = "Perch" }, { Id = "Puffer", Age = 200 }, { Id = "Crucian" } }
@@ -1191,7 +1197,7 @@ tests["toasts wait while he steals: the protection-ended toast is not over the r
 	t.eq(#sim.Errors, 0, sim:FormatErrors())
 end
 
-tests["a quick tap on «Украсть» is not a failure: a glass hint how to hold it; a real let-go later is «СОРВАЛОСЬ!»"] = function(
+tests["a quick tap on «Украсть» is not a failure: a glass hint how to hold it, no wait on the server (FreeTaps per FailWindow, then the spam waits); a real let-go is «СОРВАЛОСЬ!»"] = function(
 	t
 )
 	local sim = S.boot(t)
@@ -1202,37 +1208,69 @@ tests["a quick tap on «Украсть» is not a failure: a glass hint how to h
 	local u = ui(sim, thief)
 	intoCourt(sim, thief, victim, 3)
 	sim:Advance(BAR.HintTime + 0.5) -- (the first-time hint over)
-	local modes: { [string]: boolean } = {}
-	local hold, prompt = S.hold(t, sim, thief, victim, 3)
-	t.ok(hold.active, "the hold began")
-	sim:Advance(0.25)
-	sim:ReleasePrompt(thief, prompt)
-	sim:WaitFor(function()
-		modes[modeOf(sim, thief)] = true
-		return false
-	end, 0.6, S.FRAME)
-	local cancel = S.last(sim, thief, "Cancel")
-	t.ok(cancel and cancel.Reason == "released", `the server: Cancel «released» ({kinds(sim, thief)})`)
-	t.ok(not modes.fail, "no «СОРВАЛОСЬ!» for a tap")
-	t.eq(modeOf(sim, thief), "hint", "a hint on glass")
-	t.eq(
-		u.line.Text,
-		TEXTS.Hint.HoldLonger,
-		"«Не отпускай «Украсть», пока полоска не заполнится!»"
+	local cooldownSeen = false
+	local prompt
+	-- A 7-year-old taps, is told to hold, taps again: three taps in FailWindow cost nothing (C-20).
+	for tap = 1, LIMITS.FreeTaps do
+		local modes: { [string]: boolean } = {}
+		local hold
+		hold, prompt = S.hold(t, sim, thief, victim, 3)
+		t.ok(hold.active, `tap {tap}: the hold began`)
+		sim:Advance(0.3)
+		sim:ReleasePrompt(thief, prompt)
+		sim:WaitFor(function()
+			modes[modeOf(sim, thief)] = true
+			cooldownSeen = cooldownSeen or thief:GetAttribute("StealCooldownUntil") ~= nil
+			return false
+		end, 0.6, S.FRAME)
+		local cancel = S.last(sim, thief, "Cancel")
+		t.ok(cancel and cancel.Reason == "released", `tap {tap}: the server: Cancel «released» ({kinds(sim, thief)})`)
+		t.ok(not modes.fail, `tap {tap}: no «СОРВАЛОСЬ!» for a tap`)
+		t.eq(modeOf(sim, thief), "hint", `tap {tap}: a hint on glass`)
+		t.eq(
+			u.line.Text,
+			TEXTS.Hint.HoldLonger,
+			`tap {tap}: «Не отпускай «Украсть», пока полоска не заполнится!»`
+		)
+		t.eq(u.icon.Icon.Text, ICONS.Hint, `tap {tap}: 🥷`)
+		sim:WaitFor(function()
+			cooldownSeen = cooldownSeen or thief:GetAttribute("StealCooldownUntil") ~= nil
+			return false
+		end, SPEC.DeniedHint - 0.4, S.FRAME)
+		t.ok(seen(sim, thief, prompt) > 0, `tap {tap}: the prompt stays shown`)
+	end
+	t.ok(
+		not cooldownSeen,
+		"no StealCooldownUntil after the free taps (no «Красть снова можно через 0:01» flicker)"
 	)
-	t.eq(u.icon.Icon.Text, ICONS.Hint, "🥷")
 
-	-- Held for 1.5 s and let go: a real failure.
-	sim:Advance(SPEC.DeniedHint + 0.2)
-	thief:SetAttribute("StealCooldownUntil", nil)
-	sim:Advance(0.2)
+	-- Held for 2 s and let go: a real failure (3 s).
 	local again = S.hold(t, sim, thief, victim, 3)
-	t.ok(again.active, "the second hold began")
-	sim:Advance(1.5)
+	t.ok(again.active, "the real hold began")
+	sim:Advance(2)
 	sim:ReleasePrompt(thief, prompt)
 	sim:Advance(0.3)
 	t.eq(modeOf(sim, thief), "fail", "«СОРВАЛОСЬ!»")
 	t.eq(u.reason.Text, TEXTS.Cancel.released, "«Кнопку надо держать до конца!»")
+	t.ok(thief:GetAttribute("StealCooldownUntil") ~= nil, "a real let-go waits FailCooldown[1]")
+	-- One tap more than FreeTaps in the window: spam — a failure on the server (the 2nd: 10 s).
+	sim:WaitFor(function()
+		return thief:GetAttribute("StealCooldownUntil") == nil
+			or (thief:GetAttribute("StealCooldownUntil") :: number) < serverTime(sim)
+	end, LIMITS.FailCooldown[1] + 1, 0.1)
+	sim:Advance(SPEC.FailTime)
+	local spam = S.hold(t, sim, thief, victim, 3)
+	t.ok(spam.active, "the spam tap began")
+	sim:Advance(0.3)
+	sim:ReleasePrompt(thief, prompt)
+	sim:Advance(0.3)
+	local untilT = thief:GetAttribute("StealCooldownUntil")
+	t.ok(
+		type(untilT) == "number" and untilT - serverTime(sim) > LIMITS.FailCooldown[1] + 1,
+		`tap {LIMITS.FreeTaps + 1}: the 2nd failure's wait ({if type(untilT) == "number"
+			then untilT - serverTime(sim)
+			else "-"} s)`
+	)
 	t.eq(#sim.Errors, 0, sim:FormatErrors())
 end
 
@@ -1371,23 +1409,156 @@ tests["a slow link (0.6 s each way): NoReply ends the ring; the late Hold and it
 	local hold = sim:BeginHold(thief, prompt)
 	local modes: { [string]: boolean } = {}
 	local titles: { [string]: boolean } = {}
+	local lines: { [string]: boolean } = {}
+	local cooldownSeen = false
 	sim:WaitFor(function()
 		local mode = modeOf(sim, thief)
 		modes[mode] = true
 		if u.title.Visible and u.bar.Visible then
 			titles[u.title.Text] = true
 		end
+		if u.line.Visible and u.bar.Visible then
+			lines[u.line.Text] = true
+		end
+		cooldownSeen = cooldownSeen or thief:GetAttribute("StealCooldownUntil") ~= nil
 		return false
 	end, 6, S.FRAME)
 	t.ok(not hold.active, "the ring ended (NoReply)")
 	t.ok(S.last(sim, thief, "Hold") ~= nil, `the late Hold came ({kinds(sim, thief)})`)
 	t.ok(not modes.hold and not modes.fail, "no hold bar and no «СОРВАЛОСЬ!» for the abandoned hold")
 	t.ok(not titles[BANNER.Fail], "«СОРВАЛОСЬ!» never shown")
+	-- (Player.Stealing arrives before the late "Hold": his own theft is never a court reason)
+	t.ok(not lines[TEXTS.Denied.stealing], "«Ты уже крадёшь» never on glass (C2-R2-01)")
+	t.ok(lines[BANNER.NoReply], "«Подожди секунду»")
+	-- (the client's NoReply ended the ring: the server does not make him wait for it, C-28)
+	t.ok(not cooldownSeen, "no StealCooldownUntil for the release NoReply made")
 	t.eq(u.hud:GetAttribute("TankIncoming"), nil, "«САДОК» not held")
 	t.eq(#sim.Errors, 0, sim:FormatErrors())
 end
 
-tests["«САДОК» tapped in the carry opens the sheet at once; a failure never opens it by itself"] = function(t)
+tests["NoReply after a mash at «Хозяин рядом!»: the next real hold on that display 1.5 s later is a theft, not the late reply (C2-R2-01)"] = function(
+	t
+)
+	local sim = S.boot(t)
+	local victim = S.player(t, sim, 281, { tank = VICTIM })
+	local thief = S.player(t, sim, 282, { tank = THIEF, client = true, device = "phone" })
+	sim:Advance(1.5)
+	local u = ui(sim, thief)
+	local notify = S.client(sim, thief, "NotifyController")
+	local prompt = S.prompt(sim, victim, 3)
+	S.standAt(sim, thief, prompt)
+	sim:Advance(SPEC.HintEvery + BAR.HintTime + 1)
+	-- The owner steps next to him: «owner» is a server-only row, the prompt stays shown.
+	local root = thief.Character.HumanoidRootPart
+	sim:Teleport(victim, root.Position + root.CFrame.RightVector * (STEAL.Tag.Range - 2))
+	sim:Advance(0.1)
+	-- 4 presses in 0.4 s: 3 Denied «owner» (the start bucket's 3 tokens), the 4th silent (empty).
+	local lines: { [string]: boolean } = {}
+	local function trace()
+		if u.line.Visible and u.bar.Visible then
+			lines[u.line.Text] = true
+		end
+	end
+	for _ = 1, 4 do
+		sim:BeginHold(thief, prompt)
+		sim:WaitFor(function()
+			trace()
+			return false
+		end, 0.1, S.FRAME)
+	end
+	t.eq(#S.events(sim, thief, "Denied"), 3, `3 Denied ({kinds(sim, thief)})`)
+	sim:WaitFor(function()
+		trace()
+		return false
+	end, 1.2, S.FRAME)
+	t.ok(lines[BANNER.NoReply], "the silent press: «Подожди секунду» (NoReply)")
+	-- The owner walks off; the kid holds the same display again.
+	sim:Teleport(victim, S.exitPoint(S.baseOf(sim, thief), "gate"))
+	sim:Advance(1.5)
+	table.clear(lines)
+	local hold = sim:BeginHold(thief, prompt)
+	local modes: { [string]: boolean } = {}
+	local reserved = false
+	local titled = false
+	local carried = sim:WaitFor(function()
+		trace()
+		modes[modeOf(sim, thief)] = true
+		if modeOf(sim, thief) == "hold" then
+			reserved = reserved or notify.Reserved() > 0
+			titled = titled or u.title.Text == S.fill(BANNER.Hold, { short = upper(sim, "Фугу") })
+		end
+		return thief:GetAttribute("Stealing") == "carry"
+	end, STEAL.Hold.Deadline + 4, S.FRAME)
+	t.ok(S.last(sim, thief, "Hold") ~= nil, `the server began it ({kinds(sim, thief)})`)
+	t.ok(modes.hold, "the hold bar")
+	t.ok(titled, "«КРАДЁШЬ: ФУГУ»")
+	t.ok(reserved, "the toast column reserved during the hold (C-16)")
+	t.ok(not lines[TEXTS.Denied.stealing], "«Ты уже крадёшь» never on glass")
+	t.ok(not lines[BANNER.NoReply], "no «Подожди секунду» for the real hold")
+	t.ok(carried, "the carry")
+	if hold.active then
+		sim:ReleasePrompt(thief, prompt)
+	end
+	sim:Advance(0.5)
+	t.eq(modeOf(sim, thief), "carry", "«БЕГИ ЗА ОГРАДУ!»")
+	t.eq(#sim.Errors, 0, sim:FormatErrors())
+end
+
+tests["«ВЫХОД» waits while a «ГАВ!» crosses it on screen and comes back when it is gone; a bark elsewhere leaves it (C1-R2-02)"] = function(
+	t
+)
+	local sim = S.boot(t)
+	local victim = S.player(t, sim, 291, { tank = VICTIM })
+	local thief = S.player(t, sim, 292, { tank = THIEF, client = true, device = "phone" })
+	sim:Teleport(victim, S.exitPoint(S.baseOf(sim, thief), "gate"))
+	sim:Advance(1.5)
+	S.toCarry(t, sim, thief, victim, 3)
+	sim:Advance(0.5)
+	local guide = sim.workspace:FindFirstChild("TheftGuide")
+	t.ok(guide ~= nil, "the guide")
+	if not guide then
+		return
+	end
+	local ring, label = guide:FindFirstChild("Ring"), guide:FindFirstChild("ExitLabel")
+	t.ok(ring ~= nil and label ~= nil, "the ring and «ВЫХОД»")
+	-- The camera on the exit: the ring and «ВЫХОД» in the middle of the screen.
+	local camera = sim.workspace.CurrentCamera
+	sim:Run(function()
+		camera.CFrame = CFrame.lookAt(ring.Position + Vector3.new(0, 12, 30), ring.Position)
+		camera.FieldOfView = 70
+	end, thief)
+	sim:Advance(SPEC.BeamEvery + S.FRAME)
+	t.ok(label.Enabled, "«ВЫХОД» shown")
+	local world = S.client(sim, thief, "TheftWorldController").Stats().folder
+	-- A «ГАВ!» as TheftWorldController makes it (TankDisplay.rise: FxTankPop, studs + px, on top).
+	local function bark(offset: any): any
+		return sim:Create("BillboardGui", {
+			Name = "FxTankPop",
+			Size = UDim2.new(3, 30, 1.2, 14),
+			Adornee = ring,
+			StudsOffsetWorldSpace = offset,
+			AlwaysOnTop = true,
+			MaxDistance = 400,
+		}, world)
+	end
+	local over = bark(Vector3.new(0, GUIDE.Label.Lift, 0))
+	sim:Advance(S.FRAME * 2)
+	t.ok(not label.Enabled, "a «ГАВ!» over «ВЫХОД»: the label waits (no «ВЫХОДГАВ!»)")
+	sim:Advance(SPEC.BeamEvery * 2)
+	t.ok(not label.Enabled, "… while the bark is there")
+	over:Destroy()
+	sim:Advance(S.FRAME * 2)
+	t.ok(label.Enabled, "the bark gone: «ВЫХОД» back at once")
+	local aside = bark(Vector3.new(25, GUIDE.Label.Lift, 0))
+	sim:Advance(SPEC.BeamEvery * 2)
+	t.ok(label.Enabled, "a bark elsewhere on the screen: «ВЫХОД» stays")
+	aside:Destroy()
+	t.eq(#sim.Errors, 0, sim:FormatErrors())
+end
+
+tests["«САДОК» tapped in the hold or the carry wiggles «нет» and opens nothing (the loot is not in his tank, the sheet would lie under the bar); a failure never opens it"] = function(
+	t
+)
 	local sim = S.boot(t)
 	local victim = S.player(t, sim, 251, { tank = VICTIM })
 	local thief = S.player(t, sim, 252, { tank = THIEF, client = true, device = "phone" })
@@ -1395,22 +1566,47 @@ tests["«САДОК» tapped in the carry opens the sheet at once; a failure nev
 	sim:Advance(1.5)
 	local button = sim:Gui(thief, "HUD.RightButtons.TankButton")
 	local panel = sim:Gui(thief, "HUD.TankPanel")
-	local panelCtl = S.client(sim, thief, "TankPanelController")
-	S.toCarry(t, sim, thief, victim, 3)
+	local function tap(label: string)
+		local turned = false
+		sim:Click(thief, button)
+		sim:WaitFor(function()
+			turned = turned or math.abs(button.Rotation) > 0.5
+			return false
+		end, 0.3, S.FRAME)
+		t.ok(turned, `{label}: the «нет» wiggle`)
+		sim:Advance(1)
+		t.ok(not panel.Visible, `{label}: the sheet stays closed`)
+	end
+	t.ok(
+		waitFor(sim, function()
+			return button.Visible and button.AbsoluteSize.X > 0
+		end, 6),
+		"«САДОК» popped in (after the base banner)"
+	)
+	sim:Advance(1)
+	local hold, prompt = S.hold(t, sim, thief, victim, 3)
+	t.ok(hold.active, "the hold")
 	sim:Advance(0.5)
-	sim:Click(thief, button)
-	sim:Advance(1)
-	t.ok(panel.Visible, "the sheet opened at once (the loot is not in his tank yet)")
-	call(sim, thief, function()
-		panelCtl.Close()
-	end)
-	sim:Advance(1)
-	t.ok(not panel.Visible, "closed")
+	tap("in the hold")
+	sim:WaitFor(function()
+		return thief:GetAttribute("Stealing") == "carry"
+	end, STEAL.Hold.Deadline + 3, S.FRAME)
+	if hold.active then
+		sim:ReleasePrompt(thief, prompt)
+	end
+	t.eq(thief:GetAttribute("Stealing"), "carry", "the carry")
+	sim:Advance(0.5)
+	tap("in the carry")
 	local root = thief.Character.HumanoidRootPart
 	sim:Teleport(victim, root.Position + Vector3.new(STEAL.Tag.Range - 1, 0, 0))
 	sim:Advance(2)
 	t.ok(S.last(sim, thief, "Cancel") ~= nil, "caught")
+	sim:Advance(SPEC.FailTime)
 	t.ok(not panel.Visible, "the failure does not open the sheet")
+	-- Afterwards a tap opens it as always.
+	sim:Click(thief, button)
+	sim:Advance(1)
+	t.ok(panel.Visible, "after the theft: the sheet opens")
 	t.eq(#sim.Errors, 0, sim:FormatErrors())
 end
 

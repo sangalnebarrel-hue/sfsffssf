@@ -395,7 +395,7 @@ return function(H: { [string]: any }): { any }
 		},
 		{
 			name = "thief_carry",
-			desc = "The carry: «🏃 БЕГИ ЗА ОГРАДУ!» on Berry, the Gold bar draining, «21 с», «🐕 СОБАКА!» over its right end (Slowed), the StolenFish on his head, the red beam to the gate",
+			desc = "The carry: «🏃 БЕГИ ЗА ОГРАДУ!» on Berry, the Gold bar draining, «21 с», «🐕 СОБАКА!» over its right end (Slowed), the StolenFish on his head, the red chevrons to the gate, the ring and «ВЫХОД» (it waits while the dog's «ГАВ!» crosses it on screen, C-35)",
 			world = true,
 			standard = false,
 			still = { 0.5, 1.4 },

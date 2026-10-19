@@ -44,10 +44,10 @@
 	  • Нажатие во время полёта рыбы (CounterHold, карточка уже закрылась; краденая 🐟 «ДОБЫЧИ!» —
 	    TankIncoming, когда кража уже кончилась) запоминается (без «нет»-качания): панель
 	    откроется сразу после прилёта (OpenAfter), прокрученная к новой рыбе
-	    (TankPanelController.Open(uid)); прилёта не было (кража сорвалась) — не откроется. Пока
-	    кража идёт (удержание, вынос: Player.Stealing) — добычи в садке ещё нет, панель
-	    открывается сразу. Нажатие во время поклёвки, мини-игры или открытой карточки улова —
-	    качание «нет» (wiggle).
+	    (TankPanelController.Open(uid)); прилёта не было (кража сорвалась) — не откроется.
+	    Нажатие во время поклёвки, мини-игры, открытой карточки улова и пока идёт своя кража
+	    (удержание, вынос: Player.Stealing — добычи в садке ещё нет, а лист лёг бы под полосу
+	    вора и закрыл дорожку к выходу; C2-R2-02) — качание «нет» (wiggle), не запоминается.
 	  • Цвет: Water (#6FF2FF → #13B8D6) близок к Sky («ЗАБРОСИТЬ» под ней на телефоне) — проверено
 	    рендером tank_button (tools/preview, сценарий tank_button): кнопку отличают квадратная
 	    форма, 🐠 и подпись.
@@ -417,8 +417,12 @@ function TankButtonController:Start(hud: ScreenGui)
 		end)
 	end
 
-	-- Нажатие: поклёвка, мини-игра, открытая карточка — «нет»; рыба летит — открыть после прилёта.
+	-- Нажатие: поклёвка, мини-игра, открытая карточка, своя кража — «нет»; рыба летит — открыть
+	-- после прилёта.
 	local function busy(): boolean
+		if player:GetAttribute("Stealing") ~= nil then
+			return true -- (удержание, вынос: добычи ещё нет, лист лёг бы под полосу вора)
+		end
 		local state = player:GetAttribute("FishingState")
 		if state == "Bite" or state == "Reeling" then
 			return true
@@ -437,10 +441,8 @@ function TankButtonController:Start(hud: ScreenGui)
 			UiFx.wiggle(button, 7, 2, 0.3)
 			return
 		end
-		-- Рыба ещё летит: откроем, как долетит. Пока кража идёт (удержание, вынос) — добычи в
-		-- садке ещё нет: открыть сразу (иначе панель выскочила бы сама на «СОРВАЛОСЬ!»).
-		local flying = hud:GetAttribute("CounterHold") ~= nil
-			or (hud:GetAttribute("TankIncoming") ~= nil and player:GetAttribute("Stealing") == nil)
+		-- Рыба ещё летит (улов; 🐟 «ДОБЫЧИ!» — кража уже кончилась): откроем, как долетит.
+		local flying = hud:GetAttribute("CounterHold") ~= nil or hud:GetAttribute("TankIncoming") ~= nil
 		if flying then
 			wantsOpen = true
 			return
