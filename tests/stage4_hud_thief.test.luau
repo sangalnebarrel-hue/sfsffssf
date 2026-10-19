@@ -1132,7 +1132,9 @@ tests["toasts wait while he steals: the protection-ended toast is not over the r
 	t.ok(S.baseOf(sim, thief):GetAttribute("ProtectUntil") ~= nil, "the thief is under his join protection")
 	local hold, prompt = S.hold(t, sim, thief, victim, 3)
 	t.ok(hold.active, "the hold began")
-	sim:Advance(0.1)
+	-- (the server ends his protection once the hold outlasts the tap window, 1.4 s: a tap costs
+	-- nothing — stage 4 wave 3 S-01 / UX-01)
+	sim:Advance(1.5)
 	t.ok(S.baseOf(sim, thief):GetAttribute("ProtectUntil") == nil, "stealing ended his protection")
 	local reserved = call(sim, thief, function()
 		return notify.Reserved()
