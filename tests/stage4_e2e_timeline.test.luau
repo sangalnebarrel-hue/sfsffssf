@@ -11,6 +11,9 @@
 	  (8) the catch card: a tablet victim lands a Mythic (the forced next fish) and a hold starts on
 	      his base while its card is up → the card closes within 1 s by its normal path (the 🐟 still
 	      flies into «САДОК», 4/6 → 5/6), the plate pops in, his tap on its ЩИТ saves the fish.
+	  (10) the bait log (§11.7 F-05): the victim's shield ends — «Щит погас» on his phone; another
+	      thief's hold a second later pushes the read toast out with the alert, and when the alert
+	      is over it does not come back (the critic saw it twice for the server's one Notify).
 
 	Run: lune run tools/run_tests.luau stage4_e2e_timeline
 ]]
@@ -170,6 +173,67 @@ tests["(8) the catch card: a Mythic card is up when the hold starts — it close
 	t.eq(E.slot(sim, victim, 3):GetAttribute("FishUid"), uid, "the fish is home")
 	t.eq(victim:GetAttribute("TankCount"), 5, "the victim keeps 5 fish (the Mythic and the saved one)")
 	t.eq(vu.alert.Visible and E.alert(sim, victim).phase ~= nil, false, "the alert is over")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["(10) the bait log (F-05): the shield ends — «Щит погас» once; another thief's short hold a second later pushes it out, and after his alert it does not come back"] = function(
+	t
+)
+	local cast = E.trio(t, { quick = true, victim = { device = "phone" } })
+	local sim, victim, thief, other = cast.sim, cast.victim, cast.thief, cast.bystander
+	local victimToasts = E.toastWatch(victim)
+	local base = E.baseOf(sim, victim)
+	-- the bait: the thief's hold, the kid taps the plate's ЩИТ (the base is closed to that thief now)
+	local prompt = E.toCourt(t, sim, thief, victim, 3)
+	local hold = sim:BeginHold(thief, prompt)
+	t.ok(hold.active, "the bait hold")
+	sim:Advance(1.2)
+	E.shieldTap(sim, victim, "plate")
+	sim:Advance(0.6)
+	if hold.active then
+		sim:ReleasePrompt(thief, prompt)
+	end
+	t.eq(E.theftEvents(sim, thief, "Cancel")[1].data.BaseReason, "shielded", "the bait closed the base to him")
+	-- another thief waits by the display for the shield to end
+	local second = E.toCourt(t, sim, other, victim, 2)
+	local left = base:GetAttribute("ProtectUntil") - E.serverNow(sim)
+	sim:Advance(left - 0.5, E.COARSE)
+	t.ok(
+		sim:WaitFor(function()
+			return E.has(victimToasts, E.DEFENCE_TEXTS.Shield.Off)
+		end, 3, E.FRAME),
+		"«Щит погас» on the victim's screen"
+	)
+	local offAt = sim:Time()
+	sim:Advance(math.max(0, offAt + 1.0 - sim:Time()))
+	E.standAt(sim, other, second)
+	local hold2 = sim:BeginHold(other, second)
+	t.ok(hold2.active, "the second thief's hold, a second after «Щит погас»")
+	t.ok(
+		sim:WaitFor(function()
+			return E.alert(sim, victim).phase == "hold"
+		end, 1, E.FRAME),
+		"the victim's alert"
+	)
+	sim:Advance(1.5)
+	if hold2.active then
+		sim:ReleasePrompt(other, second)
+	end
+	sim:Advance(E.UIConfig.ToastDuration + 3, E.COARSE)
+	local count = 0
+	for _, text in victimToasts do
+		if text == E.DEFENCE_TEXTS.Shield.Off then
+			count += 1
+		end
+	end
+	local notified = 0
+	for _, e in sim:ClientEventsFor(victim, "Notify") do
+		if e.args[1] == E.DEFENCE_TEXTS.Shield.Off then
+			notified += 1
+		end
+	end
+	t.eq(notified, 1, "the server sent one Notify «Щит погас»")
+	t.eq(count, 1, `… and the victim saw one toast ({E.list(victimToasts)})`)
 	sim:AssertNoErrors({ warnings = true })
 end
 
