@@ -37,7 +37,8 @@
 	  4. После кражи (GiveAfterTheft): losses[UserId] (окно VictimWindow), after = сейчас +
 	     VictimImmunity; стало ≥ VictimMax краж за окно — rest до (VictimMax-я с конца) +
 	     VictimWindow (DC-06).
-	  5. EndProtection(player, "stealing") — начал красть сам: все виды сняты и его losses
+	  5. EndProtection(player, "stealing") — крадёт сам (StealService зовёт, когда его удержание
+	     пережило окно тапа: случайный тап защиту не гасит, UX-01): все виды сняты и его losses
 	     забыты (ShieldReadyAt не возвращается), была защита — уведомление «Кража погасила
 	     твою защиту» (StealConfig.Texts.Hint.Ended, Notify "shield").
 	  6. Покупки (DefenceBuy, проверки по порядку — шапка RemoteNames): строка и знакомый предмет

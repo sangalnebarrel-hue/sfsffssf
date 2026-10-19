@@ -13,9 +13,12 @@
 	    theft, no answers; a HoldBegan fired after the player left → no bucket entry (BE-20);
 	  • griefing (DC-10, BE-19): release loops → the first Limits.FreeTaps short taps in FailWindow
 	    cost nothing (a kid learning to hold, C-20), then waits 3 / 10 / 30 s, at most one loud alert
-	    per 30 s (≤ 3 in 60 s), holds under 1 s → Saved Quiet;
+	    per 30 s (≤ 3 in 60 s), holds under 1 s → Saved Quiet (the global ladder alone: BaseFails
+	    off here; the per-base close, the shield bait, the free tap's quiet result and the newbie's
+	    tap are in stage4_fairness_grief);
 	  • the victim cap (DC-06): four thieves for 10 virtual minutes → exactly 2 losses, then «rest»
-	    until the older loss is 600 s old; a steal by the victim clears his rest and his losses.
+	    until the older loss is 600 s old; a steal by the victim clears his rest and his losses (once
+	    his hold outlasts a tap).
 
 	Run: lune run tools/run_tests.luau stage4_fairness
 ]]
@@ -221,7 +224,17 @@ end
 tests["griefing (DC-10, BE-19): release loops → FreeTaps free taps, then waits 3 / 10 / 30 s, ≤ one loud alert per 30 s (≤ 3 in 60 s), short holds Quiet"] = function(
 	t
 )
-	local sim = S.boot(t)
+	-- (the global ladder alone: Limits.BaseFails off — the per-base close of stage 4 wave 3 UX-03 would
+	-- close this one base after two failures; stage4_fairness_grief tests it)
+	local sim = S.boot(t, {
+		patches = {
+			{
+				path = "ReplicatedStorage.Shared.Config.StealConfig",
+				from = "\t\tBaseFails = 2,",
+				to = "\t\tBaseFails = 0,",
+			},
+		},
+	})
 	local victim = S.player(t, sim, 101, { tank = TANK })
 	local thief = S.player(t, sim, 102, { tank = { { Id = "Crucian" } } })
 	local start = sim:Time()
@@ -341,10 +354,13 @@ tests["a steal by the victim clears his rest and his losses (D6)"] = function(t)
 	S.out(sim, thiefB, victim, "gate")
 	t.eq(defence:IsProtected(victim), "rest")
 	t.eq(defence._debugSizes().Losses, 1, "his losses are kept")
-	-- he steals himself: his protection and his losses are gone
+	-- he steals himself: his protection and his losses are gone (once the hold outlasts a tap, UX-01)
 	local hold = S.hold(t, sim, victim, other, 3)
 	t.ok(hold.active)
 	t.eq(victim:GetAttribute("Stealing"), "hold")
+	t.eq(defence:IsProtected(victim), "rest", "the hold's first frame: the rest still on")
+	sim:Advance(1.5)
+	t.eq(victim:GetAttribute("Stealing"), "hold", "still holding past the tap window")
 	t.eq(defence:IsProtected(victim), nil, "the rest ended")
 	t.eq(defence._debugSizes().Losses, 0, "his losses forgotten")
 	local notes = sim:ClientEventsFor(victim, "Notify")

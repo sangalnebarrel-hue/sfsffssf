@@ -50,7 +50,17 @@ end
 tests["dog: from Dog.Rest it reaches the thief at slots 1–6 before BaseHold; DogPos ≤ 5 Hz, none while standing; no bite in Return"] = function(
 	t
 )
-	local sim = S.boot(t)
+	-- (six let-gos on one base: Limits.BaseFails off, or the base would close after two — stage 4
+	-- wave 3 UX-03, tested in stage4_fairness_grief)
+	local sim = S.boot(t, {
+		patches = {
+			{
+				path = "ReplicatedStorage.Shared.Config.StealConfig",
+				from = "\t\tBaseFails = 2,",
+				to = "\t\tBaseFails = 0,",
+			},
+		},
+	})
 	local victim = S.player(t, sim, 101, { tank = SIX, upgrades = { Dog = true } })
 	local thief = S.player(t, sim, 102, { tank = { { Id = "Crucian" } } })
 	local brains = dogLib(sim)

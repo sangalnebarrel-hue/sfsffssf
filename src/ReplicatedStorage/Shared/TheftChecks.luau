@@ -12,7 +12,7 @@
 	      вовсе); quiet — та же причина уже была отказом меньше Limits.DeniedEvery с назад
 	      (view.LastReason / LastAt / Now: сервер шлёт Denied с Quiet = true — без текста, но
 	      клиент узнаёт, какое кольцо погасить); left — сколько секунд ждать (для {t} в тексте:
-	      cooldown, tagged, защита, new). Всё прошло — nil. clientOnly — только строки с
+	      cooldown, ожидание на базе, защита, new). Всё прошло — nil. clientOnly — только строки с
 	      Client = true (то, что клиент знает из атрибутов).
 	  TheftChecks.Rows      -- строки по порядку: { Id, Client, Reasons }; 17 строк (§4.3)
 	  TheftChecks.Silent    -- причины без ответа: prompt, repeat, bucket, self
@@ -31,8 +31,10 @@
 	  8  Alive, Distance  вор жив и тот же персонаж; HRP от точки кнопки (3D) не дальше
 	                    Prompt.MaxDistance + Prompt.Slack                       → far
 	  9  Stealing       true — вор уже крадёт                            (клиент) → stealing
-	  10 CooldownLeft, TagLeft  > 0 — вор ждёт (после кражи / срывов; пойман на этой базе)
-	                                                                     (клиент) → cooldown / tagged
+	  10 CooldownLeft, TagLeft  > 0 — вор ждёт (после кражи / срывов) или эта база закрыта для него
+	                    (TagKind — почему: "tagged" — хозяин поймал, "shielded" — хозяин включил щит
+	                    против его кражи, "wary" — Limits.BaseFails срывов на ней; нет — "tagged")
+	                                                    (клиент) → cooldown / tagged / shielded / wary
 	  11 ProtectLeft, ProtectKind  > 0 — база под защитой (shield | join | newbie | after | rest)
 	                                                                     (клиент) → её вид
 	  12 BaseTheft      true — на этой базе уже крадут                  (клиент) → taken
@@ -45,7 +47,8 @@
 	     FreshLeft      > 0 — поймана меньше Limits.FreshCatch с назад  (клиент) → new
 	  17 Placeable      false — в садке вора ей нет места: свободной витрины нет, а она не
 	                    сильнее его слабейшей (StealRules.CanPlace)     (клиент) → full
-	  LastReason, LastAt, Now — для quiet (см. выше).
+	  LastReason, LastAt, Now — для quiet (см. выше). ProtectKind и TagKind — только вместе со своим
+	  *Left > 0 (Missing их не требует).
 	Сервер берёт жетон лимита (строка 3) только после строк 1–2: сначала Check({ Known, Repeat }),
 	потом Take и полный view — двойное нажатие на ту же кнопку жетон не тратит (BE-17).
 	Число Distance / OwnerDistance — studs; *Left — секунды; доходы — десятые $/с
@@ -69,6 +72,7 @@ export type View = {
 	Stealing: boolean?,
 	CooldownLeft: number?,
 	TagLeft: number?,
+	TagKind: string?,
 	ProtectLeft: number?,
 	ProtectKind: string?,
 	BaseTheft: boolean?,
@@ -102,6 +106,9 @@ local TAG = StealConfig.Tag
 local function positive(x: number?): boolean
 	return type(x) == "number" and x > 0
 end
+
+-- Почему база закрыта для вора (строка «wait», TagKind); другое или nil — "tagged".
+local BASE_WAITS: { [string]: boolean } = { tagged = true, shielded = true, wary = true }
 
 local Rows: { Row } = {
 	{
@@ -186,12 +193,13 @@ local Rows: { Row } = {
 	{
 		Id = "wait",
 		Client = true,
-		Reasons = { "cooldown", "tagged" },
+		Reasons = { "cooldown", "tagged", "shielded", "wary" },
 		Test = function(v: View): string?
 			if positive(v.CooldownLeft) then
 				return "cooldown"
 			elseif positive(v.TagLeft) then
-				return "tagged"
+				local kind = v.TagKind
+				return if type(kind) == "string" and BASE_WAITS[kind] then kind else "tagged"
 			end
 			return nil
 		end,
@@ -303,6 +311,7 @@ local Fields = {
 	"Stealing",
 	"CooldownLeft",
 	"TagLeft",
+	"TagKind",
 	"ProtectLeft",
 	"ProtectKind",
 	"BaseTheft",
@@ -316,8 +325,9 @@ local Fields = {
 	"Placeable",
 	"Now",
 }
--- (ProtectKind — только вместе с ProtectLeft > 0; LastReason / LastAt — только после отказа)
-local OPTIONAL = { ProtectKind = true }
+-- (ProtectKind / TagKind — только вместе с ProtectLeft / TagLeft > 0; LastReason / LastAt — только
+-- после отказа)
+local OPTIONAL = { ProtectKind = true, TagKind = true }
 
 local TheftChecks = {
 	Rows = Rows,

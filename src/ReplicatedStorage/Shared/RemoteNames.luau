@@ -116,19 +116,25 @@
 	remote'а клиент → сервер: только кнопки ProximityPrompt "StealPrompt" у витрин (сервер сам
 	считает удержание). Клиент никогда не присылает цены, уровни, слоты, uid и позиции:
 	  StealEvent     сервер → клиент: (kind: string, data: table):
-	    вору:   "Denied" { Reason, Text, Quiet?, BaseIndex, Slot } — кража не началась (причины и
-	            тексты — Shared/TheftChecks и StealConfig.Texts.Denied; Quiet — тот же отказ
-	            меньше Limits.DeniedEvery с назад: без текста, но клиент гасит кольцо этой кнопки);
+	    вору:   "Denied" { Reason, Text, Quiet?, BaseIndex, Slot, Until? } — кража не началась
+	            (причины и тексты — Shared/TheftChecks и StealConfig.Texts.Denied; Quiet — тот же
+	            отказ меньше Limits.DeniedEvery с назад: без текста, но клиент гасит кольцо этой
+	            кнопки; Until — серверное время конца ожидания у причин с {t});
 	            "Hold" { Slot, BaseIndex, Uid, FishId, Rarity, Mutation?, Short, Income10, End,
 	            Need } — удержание началось (End — серверное время конца, Need — секунд);
 	            "Carry" { End } — рыба на голове, неси за ограду до End; "Cancel" { Reason, Text,
-	            Phase } — сорвалось (Phase "hold" | "carry"; тексты — StealConfig.Texts.Cancel);
+	            Phase, BaseUntil?, BaseReason? } — сорвалось (Phase "hold" | "carry"; тексты —
+	            StealConfig.Texts.Cancel); BaseUntil — до какого серверного времени база этого
+	            хозяина закрыта для вора, BaseReason — почему ("tagged" — поймал, "shielded" — щит
+	            против его кражи, "wary" — Limits.BaseFails срывов на ней; отказ — с этой причиной):
+	            клиент прячет её кнопки до BaseUntil;
 	            "Done" { Fish, Result, Name } — рыба твоя (Fish — FishData, Result — TankResult,
 	            Name — DisplayName хозяина);
 	    жертве: "Alert" { Phase, Thief, Name, Slot, FishId, Rarity, Mutation?, Short, Income10,
 	            End, Quiet? } — у тебя крадут (при начале удержания и при начале выноса; громко —
 	            не чаще раза в Limits.AlertCoalesce с на пару вор–жертва, остальные Quiet);
-	            "Saved" { Reason, Slot, Text, Quiet? } — рыба спасена; "Lost" { Fish, Name, Until,
+	            "Saved" { Reason, Slot, Text, Quiet? } — рыба спасена (Quiet — без уведомления:
+	            удержание вора было тапом или все его тревоги были тихими); "Lost" { Fish, Name, Until,
 	            Kind } — украли (Until / Kind — твоя защита теперь: "after" | "rest");
 	            "Intruder" { Thief, Name } — гость во дворе (только с сигнализацией);
 	    обоим:  "Returned" { Fish, Text, Result?, Price? } — краденую рыбу вернули хозяину (вор ушёл

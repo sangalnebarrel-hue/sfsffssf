@@ -32,7 +32,7 @@ the origin, y = 0 is the ground top, −Z points to the lagoon, the plot is x ±
 | D2 | What ends a theft early | **Hold:** the button released, the thief left the radius (6 + 2 studs), died, left the game or reset; the owner's shield went up; the owner came within 6 studs ("tag"); the owner left; no `Triggered` arrived by `need + 1.5 s`. **Carry:** died, left the game, tagged by the owner, **the owner's shield went up (DC-01)**, 25 s timeout, the speed budget overdrawn or a teleport (§4.4), the owner left. A cancelled hold or carry puts the fish back in its display. |
 | D3 | What can be stolen | Any **active** fish (not dormant, not escrowed, not already being stolen, **not caught in the last 30 s**: DC-08), Mythic included: it is the genre's prize. The victim must have **≥ 3 active fish**, so a kid is never left with fewer than 2. A stolen fish keeps **Id, Kg, Mutation and its Age (value growth)**. A theft is zero-sum, so keeping the growth creates no money. |
 | D4 | The thief's full tank | **"Steal up, not down."** A free slot → the fish is stored. A full tank → the Stage 3 rule: if the loot earns more than the thief's weakest fish, the weakest is auto-sold (coins from the thief's **own** fish) and the loot takes its slot. Otherwise the steal is **refused before the hold starts** («Садок полон — эта рыба слабее твоих»). The client hides those prompts. A stolen fish is never auto-sold, so the money dupe (read_hooks G-04) cannot happen, and a rich kid cannot farm a poor kid's Commons. |
-| D5 | Limits | One theft at a time **per thief** and **per victim base**. The thief waits **30 s** after a success. After a failure he caused he waits **3 / 10 / 30 s** (1st / 2nd / 3rd within 60 s; an `early` trigger → 30 s at once; the first 3 short taps per 60 s are no failure, C-34); after being **tagged** he cannot start on **that base** for **20 s** (DC-10, BE-19). Nothing can be stolen from an offline player: the base leaves with its owner. A thief needs his own base. (The rev. 1 pair limit is gone: the victim cap of D21 covers it, DC-06.) |
+| D5 | Limits | One theft at a time **per thief** and **per victim base**. The thief waits **30 s** after a success. After a failure he caused he waits **3 / 10 / 30 s** (1st / 2nd / 3rd within 60 s; an `early` trigger is an ordinary step, S-04; the first 3 short taps per 60 s are no failure, C-34, and cost neither his protection nor the victim a toast, S-01 / S-03); after being **tagged** he cannot start on **that base** for **20 s** (DC-10, BE-19); after **2 failures on one base** within 60 s that base is closed to him for **60 s** (S-05); after the owner's **shield** stopped him, that base is closed to him until the shield is over **+ 180 s** — when the owner's shield is ready again (S-02). Nothing can be stolen from an offline player: the base leaves with its owner. A thief needs his own base. (The rev. 1 pair limit is gone: the victim cap of D21 covers it, DC-06.) |
 | D6 | Free protection | **Join protection 90 s** after the tank mounts; **300 s «защита новичка»** on the first session of a new save (`SaveCount == 0` at load, DC-07); **20 s** if the player left this server or was last online < 5 min ago, so a rejoin cannot farm it. The **90 s immunity** after being robbed, and the **«садок отдыхает»** rest after a 2nd loss (D21), use the same chip. **Starting a steal ends all of your own protection** (and forgets your recent losses): a thief cannot hide behind a shield. A hint says so before the hold. 15 s before join/newbie protection ends, a toast teaches the shield (DC-07). |
 | D7 | Shield (щит) | **Free.** It lasts **60 s** and is ready again **240 s after activation** (60 on + 180 cooldown). The ready time is **saved** (`Upgrades.ShieldReadyAt`, `os.time`), so a rejoin does not reset it. Raising it **cancels a hold on your base and returns a fish that is being carried** (it flies home; DC-01): «Никто не украдёт 1 минуту» is literally true. It is refused only while your remaining protection is ≥ 60 s (no cooldown spent; DC-03 lets it top up a protection that is about to end) and while you are stealing. |
 | D8 | Lock (замок) | `LockLevel` sets the hold time. **Stage 4 sells level 1 only** (DC-11): **$1 500, hold 3 → 4 s**, a one-time buy on the «ЗАЩИТА» sheet like the dog and the alarm. The levelled «Лучший замок» is a Stage 5 shop item: its table (levels 2–5: **5.0 / 6.0 / 7.5 / 9.0 s, $5 000 / $15 000 / $40 000 / $100 000**) is already in `DefenceConfig.Lock.Levels`, every level works at runtime, and `Lock.SaleMax = 1` is the only thing Stage 5 raises. The time is captured when the hold starts. |
@@ -157,8 +157,11 @@ Distances are from `read_world.md` §2. Speeds: 16 studs/s, carry 13.6, with the
 | one active theft per thief / per victim base | 1 / 1 | — |
 | victim's active fish | ≥ 3 | `StealConfig.Limits.MinFishToRob` |
 | thief cooldown after a success | 30 s | `ThiefCooldown` |
-| thief cooldown after his own failures within 60 s (`early` → the last step at once) | 3 / 10 / 30 s | `FailCooldown`, `FailWindow` |
+| thief cooldown after his own failures within 60 s (`early` too, an ordinary step: S-04; a let-go inside the tap window is free, `FreeTaps` per window) | 3 / 10 / 30 s | `FailCooldown`, `FailWindow`, `FreeTaps` |
 | after being tagged, on that base | 20 s | `TagCooldown` |
+| after 2 own-fault failures on one base within 60 s, on that base («wary», S-05) | 60 s | `BaseFails`, `BaseWait` |
+| after the owner's shield stopped his theft, on that base («shielded», S-02) | the shield's rest + 180 s | `ShieldWait` |
+| his own protection ends when his hold outlasts the tap window (S-01) | ≈ 1.4 s into the hold | `QuietSavedUnder`, `Hold.NoReply`, `NoReplySlack` |
 | victim immunity after a loss (`after`) | 90 s | `VictimImmunity` |
 | victim cap (`rest` after the 2nd loss, until the older loss is 600 s old) | ≤ 2 losses / 600 s | `VictimMax`, `VictimWindow` |
 | a fish just caught | not stealable for 30 s | `FreshCatch` |
@@ -293,9 +296,10 @@ The lamp flashes during the hold and the carry, then for `StealConfig.Alarm.Ling
   `RestUntil = (the VictimMax-th newest) + VictimWindow` (kind `rest`, «Садок отдыхает 6:12 — никто не украдёт»; DC-06).
   The first mount of a later session re-applies, from the same list, an `after` (latest loss + 90) or a
   `rest` that is still running, so leaving and rejoining never shortens them.
-- **`EndProtection(player, "stealing")`** at the start of his hold clears every kind **and his `losses`
-  list**, with the toast «Кража погасила твою защиту» (it waits in the toast queue until the theft is over:
-  §6.4, C-16). `ShieldReadyAt` is unchanged: no refund.
+- **`EndProtection(player, "stealing")`** once his hold outlasts the tap window (≈ 1.4 s; a tap costs
+  nothing, S-01) clears every kind **and his `losses` list**, with the toast «Кража погасила твою защиту»
+  (it waits in the toast queue until the theft is over: §6.4, C-16). `ShieldReadyAt` is unchanged: no
+  refund.
   (Otherwise being robbed twice by a friend would buy 10 minutes of safe stealing.)
 - **Studio knob** (DC-20): when `RunService:IsStudio()` and `DefenceConfig.Debug.StudioProtect` is a
   number (10), the join, newbie, after and rest durations are clamped to it; the shield is untouched.
@@ -324,7 +328,8 @@ Prompt = {
   Slack = 2,              -- server reach 8 (< 10: never through the arcade back wall)
 },
 Hold = {
-  Tolerance = 0.5,        -- a Triggered this early still counts; the server finishes at t0 + need
+  Tolerance = 0.5,        -- a HoldEnded this close to need waits for its Triggered; the tap window ≤ need − this
+  LateShare = 0.5,        -- a Triggered from need × this on counts (a late HoldBegan); the server finishes at t0 + need (S-04)
   Deadline = 1.5,         -- no Triggered by need + this → cancelled ("deadline")
   Grace = 0.3,            -- a HoldEnded at ≥ need − Tolerance waits this long for its Triggered
   NoReply = 1.0,          -- client: no Hold/Denied this long after HoldBegan → InputHoldEnd (BE-16)
@@ -350,8 +355,11 @@ Tag = { Range = 6 },
 Tick = 0.1,               -- watcher period while any theft or dog is awake (no loop otherwise)
 Limits = {
   ThiefCooldown = 30,
-  FailCooldown = { 3, 10, 30 }, -- the 1st / 2nd / 3rd+ failure he caused within FailWindow; "early" → the last
+  FailCooldown = { 3, 10, 30 }, -- the 1st / 2nd / 3rd+ failure he caused within FailWindow ("early" too, S-04)
   FailWindow = 60,
+  BaseFails = 2,          -- own-fault failures on ONE base within FailWindow → that base closed to him … (S-05)
+  BaseWait = 60,          -- … for this long («wary»; 0 BaseFails = off)
+  ShieldWait = 180,       -- the owner's shield stopped him: that base closed to him till the shield's end + this (S-02)
   TagCooldown = 20,       -- a tagged thief cannot start on that base for this long
   VictimImmunity = 90,    -- "after"
   VictimMax = 2,          -- losses per victim per VictimWindow; the 2nd starts "rest" (DC-06)
@@ -688,7 +696,8 @@ Trove }`. Maps: `byThief[Player]`, `byBase[Base]`.
 **Begin** (after §4.3):
 
 1. `TankService:SetSteal(victim, uid, token, "hold", { By = thief.UserId, End = HoldEnd })`.
-2. `DefenceService:EndProtection(thief, "stealing")`.
+2. (Not here: `DefenceService:EndProtection(thief, "stealing")` runs when the hold outlasts the tap
+   window — the watcher's hold step, at the latest the hold → carry step; S-01.)
 3. The theft's Trove gets its **first** cleanup: `Speed.ClearAll(thief)` (which also clears `Slowed`),
    so it runs even if a later cleanup throws (BE-10).
 4. Base `Thief = thief.UserId` and `AlarmState = "theft"`; Player `Stealing = "hold"`. No prompt
@@ -730,13 +739,20 @@ Trove }`. Maps: `byThief[Player]`, `byBase[Base]`.
      (max(`QuietSavedUnder`, `Hold.NoReply`, ping + `NoReplySlack`) + `NoReplySlack`, at most
      need − `Tolerance`): a kid's tap or the ring the client's NoReply ended — no wait and no count,
      `Limits.FreeTaps` 3 times per `FailWindow` (`taps[userId]`), then as above (tap spam; C-34);
-   - `early` (the exploit signal) → the last step (30 s) at once;
-   - `tag` also sets `tagged["thief:victim"] = now + TagCooldown` 20;
-   - `shield`, `victim`, `full`, `busy`, `left` → no wait (not his fault).
-4. `StealEvent("Cancel", { Reason, Text, Phase })` to the thief, if he is still here.
+   - `early` (a Triggered before need × `LateShare`: the exploit signal, or a link far too slow) → an
+     ordinary step (S-04);
+   - `tag` also closes that base: `tagged["thief:victim"] = { Until = now + TagCooldown 20, Kind =
+     "tagged" }`; `BaseFails` 2 own-fault failures on that base within `FailWindow` close it for
+     `BaseWait` 60 (`Kind = "wary"`, `baseFails["thief:victim"]`, S-05);
+   - `shield` → no wait, but that base is closed until the protection's end + `ShieldWait` 180 (`Kind =
+     "shielded"`: the bait costs him the owner's whole recharge, S-02);
+   - `victim`, `full`, `busy`, `left` → no wait (not his fault).
+4. `StealEvent("Cancel", { Reason, Text, Phase, BaseUntil?, BaseReason? })` to the thief, if he is still
+   here (`BaseUntil` / `BaseReason`: that base is closed to him until then, and why — the client hides it).
 5. `StealEvent("Saved", { Reason, Slot, Quiet })` to the victim, if he is still here and it was not his
-   leave. `Quiet = true` when the hold lasted less than `QuietSavedUnder` 1 s (no toast, no pings) and
-   the reason is not the owner's own `tag` or `shield` (those are always loud; A2-04).
+   leave. `Quiet = true` (no toast, no pings) in the hold when it lasted less than `QuietSavedUnder` 1 s,
+   or was a free tap (S-03), or every alert of the theft was Quiet (coalesced: S-05) — and the reason is
+   not the owner's own `tag` or `shield` (those are always loud; A2-04). A carry's result is always loud.
 6. End.
 
 **End:** `Ended = true` first, so a second `Cancel`/`End` does nothing, and every deferred callback (the
@@ -785,7 +801,7 @@ end (BE-16). «client» marks the rows the client filter also evaluates (§5.1).
 | 7 | `CanWrite(victim)`, the victim mounted on this base | `busy` | «Сейчас нельзя» | |
 | 8 | thief alive, the same `Character`, HRP ≤ 6 + 2 studs (3D) from the attachment | `far` | «Подойди ближе к витрине» | |
 | 9 | thief not in a theft | `stealing` | «Ты уже крадёшь» | ✔ |
-| 10 | thief not waiting: no success/fail cooldown, not tagged on this base | `cooldown` / `tagged` | «Красть снова можно через {t}» / «Хозяин тебя поймал! Здесь красть снова через {t}» | ✔ (`StealCooldownUntil`) |
+| 10 | thief not waiting: no success/fail cooldown, this base not closed to him (`TagLeft`; why — `TagKind`: tagged, the owner's shield against him, 2 failures here; S-02 / S-05) | `cooldown` / `tagged` / `shielded` / `wary` | «Красть снова можно через {t}» / «Хозяин тебя поймал! Здесь красть снова через {t}» / «Хозяин включил щит — здесь красть снова через {t}» / «Хозяин настороже — здесь красть снова через {t}» | ✔ (`StealCooldownUntil`; the base waits from the "Cancel" `BaseUntil` / `BaseReason`) |
 | 11 | the victim's base not protected | `shield` / `join` / `newbie` / `after` / `rest` | «Здесь щит — ещё {t}» / «Игрок только пришёл — подожди {t}» / «Новичок под защитой — ещё {t}» / «Этого игрока недавно обокрали — подожди {t}» / «Садок отдыхает — ещё {t}» | ✔ |
 | 12 | no theft on this base | `taken` | «Здесь уже кто-то крадёт» | ✔ (base `Thief`) |
 | 13 | owner's HRP > 6 studs from the thief's | `owner` | «Хозяин рядом!» | |
@@ -805,9 +821,11 @@ and shows the text on the banner unless `Quiet`.
 - `T0 = os.clock()` at HoldBegan. `Need = HoldTime(level)` captured then; `HoldEnd = AttrTime(serverNow +
   Need)`.
 - `Triggered` from the same thief on the same prompt:
-  - `elapsed ≥ Need − 0.5` → `Finishing = true`; if `elapsed < Need`, finish at `T0 + Need`
-    (`task.delay`, token-checked), re-running checks 7–8, 11 (shield only) and 13 at that moment;
-  - earlier → cancel `early` (a suspicion log line, no kick; the 30 s wait).
+  - `elapsed ≥ Need × LateShare` (1.5 s at lock 0) → `Finishing = true`; if `elapsed < Need`, finish at
+    `T0 + Need` (`task.delay`, token-checked), the watcher re-running checks 7–8, 11 (shield only) and 13
+    every tick until then (an honest phone whose HoldBegan came late is no longer `early`; a
+    `fireproximityprompt` still cannot finish before `T0 + Need`; S-04);
+  - earlier → cancel `early` (a suspicion log line, no kick; an ordinary fail step).
 - `Triggered` without a record → ignored, with one rate-limited log line (`fireproximityprompt` exploit).
 - `HoldEnded` → **classified by the state at that moment** (BE-13), because a stock prompt ends the hold
   on the client (and in RbxSim) before the server watcher sees a death or the radius:
@@ -1031,8 +1049,9 @@ events are `"<n>|stolen|<thiefUserId>"` (the detail now carries the thief) and `
 a rejoin does not reset a wait, a loss or a quick-rejoin mark, and they are pruned on every write, on
 every `PlayerRemoving` and inside `_debugSizes()` (BE-26):
 
-- StealService: `cooldowns[userId]` (until), `fails[userId]` (times within `FailWindow`),
-  `tagged["thief:victim"]`, `alertCoalesce["thief:victim"]`;
+- StealService: `cooldowns[userId]` (until), `fails[userId]` and `taps[userId]` (times within
+  `FailWindow`), `tagged["thief:victim"]` ({ Until, Kind }: the base closed to him), `baseFails["thief:victim"]`
+  (times within `FailWindow`), `alertCoalesce["thief:victim"]`;
 - DefenceService: `losses[userId]` (times within `VictimWindow`), `leftAt[userId]` (within
   `QuickRejoin`), `intruderSeen["intruder:owner"]` (UserIds, not bases, so a freed base keeps nothing).
 
@@ -1493,7 +1512,7 @@ Rules (D20, DC-14): no display numbers, no «чужой», no gender or case agr
   - victim «Хозяин ушёл из игры»;
   - full «Садок полон — эта рыба слабее твоих»;
   - busy «Сейчас нельзя».
-- **Denied:** the table in §4.3 (incl. `tagged`, `newbie`, `rest`, `weak`, `new`). Home guard «Сначала
+- **Denied:** the table in §4.3 (incl. `tagged`, `shielded`, `wary`, `newbie`, `rest`, `weak`, `new`). Home guard «Сначала
   унеси рыбу за ограду!».
 - **Victim alert:**
   - «ВОР В САДКЕ!», «{Name} крадёт: {Short}»;
@@ -2084,7 +2103,7 @@ the RU notes.
 | R6 | One fish can be lost (never duplicated): a hard crash inside the thief's key gap (F10), a both-leave race after the victim's final snapshot (F8c, ≈ one request), a lost write reply (F7). | Accepted and documented. P2: a write token in every save closes the F7 case (BE-6). |
 | R7 | The logical dog may clip decor on its straight runs (the run to slot 5 grazes the big tank's front-west corner). | One waypoint for a dog in front of the arcades. The pup never collides. Accept the rest. |
 | R8 | A teleport-in exploit saves walking time. | Not detected at the start (the server-timed hold, the reach check, and the carry budget on the way out cover the gain). P2: a suspicion counter on MarketService's 1 Hz sample (BE-12). |
-| R9 | Griefing by start/cancel spam. | One loud alert per (thief, victim) per 30 s, fail waits 3 / 10 / 30 s (`early` 30 at once; the first 3 short taps per 60 s are free, C-34), the tag wait 20 s, quiet saves under 1 s, the start bucket, the victim cap. |
+| R9 | Griefing by start/cancel spam. | One loud alert per (thief, victim) per 30 s and a quiet result for a coalesced alert (S-05), fail waits 3 / 10 / 30 s (`early` an ordinary step, S-04; the first 3 short taps per 60 s are free and quiet, C-34 / S-03), 2 failures on one base close it for 60 s (S-05), the tag wait 20 s, the shield's base wait (S-02), quiet saves under 1 s, the start bucket, the victim cap. |
 | R10 | The DisplayName in the victim's toast. | Shown only to the victim (it is public in the player list anyway); no server broadcast. |
 | R11 | Friends or an alt farming protection: without the pair limit, an alt can rob his main twice to give him 10 min of `rest`. | Accept: it creates no money, it costs the main two fish (they go to the alt), and the rest ends the moment the main steals. P2 if seen: no `after`/`rest` for a loot weaker than the victim's weakest active fish. |
 | R12 | The 3rd column button lowers the docked catch card's room on phones. | Re-render the `catch_*` scenarios (D); the card floors follow the visible stack automatically (Stage 3 §6.3). |
@@ -2266,7 +2285,7 @@ different number or shape (the why says what); **P2** = accepted, but moved out 
 | A2-03 a rejoin dropped `StealCooldownUntil` | **accepted** | StealService writes it again on `TankService.Mounted` while the wait runs (§4.11). The tag wait is per base and has no attribute: after a rejoin the client may show «Украсть» on that one base for ≤ 20 s and the server answers `tagged` (accepted). |
 | A2-04 the owner's early tag / shield was sent Quiet | **accepted** | Quiet only for endings the owner did not cause (§1.2, §4.2). Test `stage4_theft_end`. |
 | A2-05 a long server tick counted as a teleport | **accepted** | `Teleport + allowed × Rate × max(0, dt − Tick)` (§4.4). Tests in `stage4_rules` and `stage4_theft`. |
-| A2 note: an honest phone's late HoldBegan reads as `early` (30 s) | **open (design)** | Not changed: the server cannot tell it from `fireproximityprompt`. Option for the designer: treat `early` as an ordinary fail step. |
+| A2 note: an honest phone's late HoldBegan reads as `early` (30 s) | **resolved in Wave 3 (§11.7 S-04)** | Was not changed here: the server cannot tell it from `fireproximityprompt`. Wave 3: a Triggered from need × `LateShare` on is taken (the server still finishes at `T0 + need`), `early` is an ordinary fail step. |
 | decision: `TankService:Income10(player)` | **added (read API)** | The weak rule and the victim cap read the victim's income without TankService internals. |
 | decision: `SlotView.Kg`; `StealService.TheftOn` takes a base or its model | **added** | The steal payloads name the size; DefenceService and tests pass models. |
 | decision: extra `_debugSizes` keys (StealService Denied, Dogs, Watcher; DefenceService Alarmed, IntruderLoop; TankService Escrows) | **added** | The leak tests assert each returns to zero. |
@@ -2383,7 +2402,14 @@ TankButtonController, `tests/stage4_hud_thief`, the `thief_*` scenarios); rows D
 | E-04 budget and leak audit | **test** | `stage4_e2e_audit` on the real server with three real clients through a theft with the dog, the siren, the Highlight, the guide and then the shield dome: per-client parts seen 23 897 (own 232) → peak 23 925 for the thief (+12 own), 23 914 for the victim and the bystander (+2) of `RuntimePeak` 26 500, all within the Theft reserve 60; one Highlight and one dome per client; frame connections 2 per client and 1 on the server (FishingService's Heartbeat) before = after; the watcher a task.wait loop that stops (0 after); server connections 62 before = after, 38 after everyone left; `_debugSizes` zero after `VictimWindow` + 1 s (the time-bounded caches `Alerts`, `IntruderSeen`, `LeftAt` age out); the intruder loop runs only while an alarmed base is mounted. |
 | E-05 D-11 on a tablet | **corrected** | The tablet column shows one toast at a time (`MaxToastsTouch` 1), so after a loss «Украдено …», «Садок отдыхает …», the tip and «Вор ушёл — рыба вернулась!» come one after another (≈ 12 s for the first three; case 6 waits 18 s). The README says so. |
 | E-06 D-19 re-check: the Epic TitleSlam during the alert | **open (Stage 5 UI polish)** | `victim_alert_catch_after` on a phone at 1.8 s (not a standard still): the Epic word placed beside the fisher wobbles (±2.75°) to 12 px from Roblox's Menu and 14 px from the chat pill (16 px at rest from 2.0 s; phone_notch 14 px). FishingController's side placement keeps `TopbarRight` clear only for the band above the fisher, not for the wobble beside him on touch screens. Transient (≈ 0.2 s), FishingController (32 spare registers) untouched in Stage 4. |
-| E-07 A2 note (`early`) | **open (design)** | Unchanged from §11.4: an honest phone's late HoldBegan still reads as `early` (30 s); the e2e cases with `remoteLatency 0.15` (case 9) do not hit it. |
+| E-07 A2 note (`early`) | **resolved by S-04** | Unchanged from §11.4 at E's head: an honest phone's late HoldBegan still read as `early` (30 s); the e2e cases with `remoteLatency 0.15` (case 9) do not hit it. The server fixer's S-04 closes it. |
 | E-09 «ВЫХОД» and «ГАВ!» in `thief_carry` (0.5 s on phones) | **fixed (TheftController; C-35 follow-up)** | Looking at the thief scenarios on five screens: the dog's «ГАВ!» rises (`DefenceConfig.World.Dog.BarkRise`) and rides the running dog toward the camera, so between two steps of the guide (`BeamEvery` 0.25 s) it slid into «ВЫХОД» — «ВЫХОДГАВ!» on phone and phone_small at 0.3–0.5 s. Now the bark's box covers its whole rise (the current box ∪ the box at `StudsOffset` = BarkRise), the check runs every `Theft.Guide.BarkEvery` (0.1 s, a task.delay chain only while a bark lives — also for the bark of the hold's start that is already there when the carry begins) as well as on each step, and the clearance is `Guide.Label.Clear` 16 px (was 8: «ВЫХОД ГАВ!» 10 px apart read as one phrase). Regressions `stage4_hud_thief` ««ВЫХОД» waits for a «ГАВ!» that will rise into it, and for one that runs into it between two steps of the guide» and ««ВЫХОД» also watches a «ГАВ!» that was already there when the carry began» (each fails on the code before its fix). Re-rendered at 0.15 … 1.2 s on phone, phone_small, tablet, desktop: the label waits on phones while the bark lives and comes back after; ≥ 16 px apart on tablet and desktop. |
 | E-10 the victim's plate under the thief's own bar (merge re-check, `victim_alert_while_stealing`) | **fixed (NotifyController)** | The only `--all` findings of the merged branch: robbed while stealing himself, the owner's plate stood 11 px from the TheftBar on a tablet and 12 px over it on a desktop. C's thief reserves the whole column under the key «thief» (not in `RESERVE_ORDER`, so «alert» keeps the top), but `Offset("alert")` asked before the alert had reserved summed every band present — the plate was placed under the thief's whole column, right on the bottom band. `Offset(key)` now counts only the bands that stand before `key` in the order, reserved or not yet (`reserveKeys(with)`): the plate goes back to the column's top (D's own render). Regression in `stage4_hud_thief` «toasts wait while he steals…» (Offset of the not-yet-reserved «alert» = 0); re-rendered on the five devices: clean. |
 | E-08 README and STYLE | **done** | README: Stage 4 ✅, «Как проверить Этап 4» from §10 (the rule in its first line, Clients and Servers with 2–3 players, `DefenceConfig.Debug.StudioProtect`), the StealConfig / DefenceConfig knobs and the four one-line decisions (`Carry.Enabled`, `Lock.SaleMax`, `Limits.VictimMax`, `Limits.RichRatio`). STYLE.md: the `Guard` token, the thief's bottom band, the victim's plate / pill / zero-layout layers, the alert outranks the catch card, the defence widgets and the placement rules (incl. C-31). |
+| S-01 UX-01 a newbie's accidental tap on «Украсть» ended his 5:00 protection (major) | **fixed (StealService)** | `begin()` no longer calls `DefenceService:EndProtection(thief, "stealing")`. The hold **commits** (`commit`: `Committed`, then `EndProtection`) once it outlasts the **tap window** (`tapWindow` = max(`QuietSavedUnder` 1, `Hold.NoReply` 1, ping + `NoReplySlack`) + `NoReplySlack`, at most need − `Tolerance`: 1.4 s on a normal link) — the watcher's hold step, at the latest `toCarry` (nothing is carried under protection; the carry starts at ≥ need > the window). The window is the server's own C-34 «not an attempt yet» line (rather than the critic's flat 1 s), so a let-go the server forgives as a tap never costs the protection, the loss list or a raised shield (S-03), and a committed hold is never a free tap. Tests: `stage4_fairness_grief` UX-01 (a fresh save's 0.3 s tap: «newbie» kept to the second, no «Кража погасила твою защиту», no wait, the victim's result Quiet; a real hold: still «newbie» at 1 s, gone at 1.5 s in the hold, the Notify, the carry unprotected, credited); `stage4_defence` join protection and `stage4_fairness` D6 now check the protection at the hold's first frame and after 1.5 s. The critic's client half (TheftController's court hints: «Начнёшь красть — твоя защита погаснет» before the how-to) is the UI fixer's; with this fix the order no longer costs the kid anything. |
+| S-02 UX-02 the free shield could be baited at no cost (major) | **fixed (StealService, StealConfig, TheftChecks)** | A `shield` cancel stays off the `FailCooldown` ladder (not his fault) but closes **that base** to that thief until the owner's protection ends **+ `Limits.ShieldWait` 180 s** (`tagged["thief:victim"] = { Until, Kind = "shielded" }`): the bait costs the baiter exactly the owner's recharge (`ShieldWait` = `Shield.Cooldown`, pinned in `stage4_rules`; the critic's «e.g. 120» would reopen the base 60 s before the kid's shield is ready again). Other bases stay open; another thief is not affected (a two-account bait stays possible: R11-like, documented). The refusal is «Хозяин включил щит — здесь красть снова через {t}» (`Texts.Denied.shielded`); TheftChecks row «wait» reads the new optional `TagKind` ("tagged" / "shielded" / "wary"; anything else — "tagged"), so the base's own wait answers before row «protect» (the whole wait, not the shield's minute). Test `stage4_fairness_grief` UX-02 (bait → Cancel «shield», no wait, `BaseUntil` = the shield's end + 180 = the owner's `ShieldReadyAt`; under the shield «shielded» for him and «shield» for another thief; another base open; after the shield still «shielded» with the time; open again when the owner's shield is ready, which answers the next hold). |
+| S-03 DATA-01 a let-go in the C-34 tap window cost the thief nothing but gave the victim a loud result | **fixed (StealService)** | `cancel()` calls `freeTap` once (`free = own and freeTap(theft, reason, held)`): the fail step is skipped for a free tap and the victim's `Saved` is Quiet for it as well (`quiet = … held < QuietSavedUnder or free or …`). `held` is measured at the let-go itself (`onHoldEnded` passes its moment through the Grace delay). C-34's «The victim's Quiet rule is unchanged» is superseded: a release the server counts as a tap is a tap for both. Test `stage4_fairness_grief` DATA-01 (three 1.2 s let-gos: no `StealCooldownUntil`, `Saved.Quiet` true although the first alert was loud; the 4th waits 3 s). |
+| S-04 UX-04 / A2 / E-07 an honest phone's late HoldBegan was `early` → 30 s | **fixed (StealService, StealConfig)** | `Hold.LateShare = 0.5`: a Triggered from need × `LateShare` on (1.5 s at lock 0) is taken like the old Tolerance branch — `Finishing`, the server ends the hold at `T0 + need` itself, the watcher keeps checking radius / alive / shield / tag every tick (a `fireproximityprompt` still cannot finish before `T0 + need`, so the old harsh rule protected nothing). Earlier is still `early`, now an **ordinary** `FailCooldown` step (no jump to the last). `HoldEnded` keeps its Grace rule at need − `Tolerance` (extending it to need × `LateShare` would delay every ordinary let-go after 1.5 s by Grace; a completed hold fires Triggered at the ring's end, before the finger lifts — so in RbxSim — and the existing Grace still covers the reverse order near the end). Kinder copy for `early` not needed: «Не получилось — попробуй ещё раз» is already neutral. Tests: `stage4_theft` «a late HoldBegan (UX-04)…» (Triggered at 1.6 s: no Cancel, the carry at T0 + 3 s, credited once; the same, then a 12-stud step-away in the wait → «far», no carry) and the early case now expects the 2nd step (10 s); `stage4_rules` pins `0 < LateShare < 1` and that a normal link's tap window ends before a late Triggered is taken. |
+| S-05 UX-03 one griefer kept interrupting one fishing kid | **fixed (StealService, StealConfig), client half to the UI fixer** | (a) `Limits.BaseFails` 2 own-fault failures on **one base** within `FailWindow` close it to that thief for `Limits.BaseWait` 60 s (`baseFails["thief:victim"]`, pruned like `fails`; `tagged` Kind "wary"; «Хозяин настороже — здесь красть снова через {t}»; 0 = off). (b) A hold whose alerts were all Quiet (the same thief within `AlertCoalesce`; the theft remembers `Loud`) ends with a Quiet `Saved` too — no second «Кража сорвалась — рыба дома» for a coalesced attempt; a carry's result stays loud (the fish was on the thief's head, the owner saw it fly home). Measured by `stage4_fairness_grief`: a 150 s release-spam loop on one kid now gives ≤ 6 holds, ≤ 3 loud alerts and ≤ 3 loud results (the critic: 8 holds, 5 loud alerts, 8 loud results); the 2nd failure on a base answers «wary» with `BaseUntil`, other bases stay open, the base opens on time, `BaseFails` ages out. Tests whose fail chains run on one base (`stage4_theft` ×3, `stage4_defence_dog`, `stage4_fairness` griefing — the global ladder alone) patch `BaseFails = 0`. Not done here (AlertController, the UI fixer's): skipping `HurryCard` for a Quiet alert of a thief who already failed on this base. |
+| S-06 the closed base reaches the client | **protocol (RemoteNames header, stage4_rules pins)** | StealEvent "Cancel" { Reason, Text, Phase, **BaseUntil?, BaseReason?** } — the server time until which this owner's base is closed to the thief and why ("tagged" / "shielded" / "wary"), sent whenever the pair has a live wait; "Denied" gains **Until?** (the server time a refusal with {t} ends). For the UI fixer (TheftController / TheftPrompts, not touched here): call `TheftPrompts.SetTagged(owner, data.BaseUntil)` on any "Cancel" with `BaseUntil` (not only «tag» with the local `TagCooldown`), keep `BaseReason` per owner and fill `baseView.TagKind` with it (the court hint then reads «Хозяин включил щит…» / «Хозяин настороже…»), add `shielded` / `wary` to `WAIT_REASONS`; optionally hide the base after a "Denied" with `Until` (closes A2-03's 20 s rejoin gap too). Until then the server still refuses with the right text, the client just shows «Украсть» on that base. |
+| S-07 tests and docs | **done** | New `tests/stage4_fairness_grief.test.luau` (5 tests: UX-01, UX-02, DATA-01, UX-03 ×2); `stage4_theft` +1 test (UX-04) and the tag's `BaseUntil` / Denied `Until`; `stage4_rules` (TagKind rows, `Missing` without the optional `TagKind`, config invariants for `LateShare`, `ShieldWait`, `BaseFails`, `BaseWait`, the Cancel fields in the protocol). Headers: StealService (items 2, 5, 6, the maps), StealConfig (header, `Hold.LateShare`, `Limits.BaseFails` / `BaseWait` / `ShieldWait`, the two Denied texts), TheftChecks (row 10, `TagKind`), DefenceService (item 5), RemoteNames ("Cancel", "Denied", "Saved"). Design D5, §1.5, §2.4, §2.6, §4.2, §4.3 row 10 and Timing, §4.11 maps, §6.10, R9 and the A2 note synced. README «Как проверить Этап 4» items 4–6 and the StealConfig knobs. |

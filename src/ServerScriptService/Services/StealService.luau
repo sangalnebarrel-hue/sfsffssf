@@ -18,14 +18,19 @@
 	  2. PromptButtonHoldBegan → проверки Shared/TheftChecks по порядку: сначала строки 1–2 (не
 	     кнопка кражи, повтор той же кнопки — молча, без жетона), потом жетон лимита (StartBurst /
 	     StartRate; пусто — молча) и полный view. Отказ — StealEvent "Denied" { Reason, Text, Quiet?,
-	     BaseIndex, Slot } (тот же отказ меньше DeniedEvery с назад — Quiet). Начало:
-	     TankService:SetSteal(…, "hold", { By, End }), DefenceService:EndProtection(вор,
-	     "stealing"), первая уборка кражи — Lib/Speed.ClearAll, атрибуты базы Thief / AlarmState =
-	     "theft", собака просыпается (Lib/DogBrain), игрока Stealing = "hold" (последним),
-	     StealEvent "Hold" вору и "Alert" жертве, наблюдатель. Время удержания считает сервер: Need
-	     = HoldTime при начале; Triggered раньше Need − Tolerance — "early" (строка в Output, без
-	     кика); не раньше Need — вынос (ещё раньше — по task.delay к T0 + Need, с повторной
-	     проверкой: жертва, радиус, щит, касание); отпустил — "released" / "far" / "died" по
+	     BaseIndex, Slot, Until? } (тот же отказ меньше DeniedEvery с назад — Quiet; Until —
+	     серверное время, когда отказ кончится, у причин с ожиданием). Начало:
+	     TankService:SetSteal(…, "hold", { By, End }), первая уборка кражи — Lib/Speed.ClearAll,
+	     атрибуты базы Thief / AlarmState = "theft", собака просыпается (Lib/DogBrain), игрока
+	     Stealing = "hold" (последним), StealEvent "Hold" вору и "Alert" жертве, наблюдатель.
+	     Защита вора гаснет (DefenceService:EndProtection(вор, "stealing")) не в начале, а когда
+	     удержание переживёт окно тапа (tapWindow: max(QuietSavedUnder, Hold.NoReply, пинг +
+	     NoReplySlack) + NoReplySlack, не дольше Need − Tolerance; шаг наблюдателя, самое позднее — в
+	     начале выноса): случайный тап новичка его защиту не гасит (UX-01). Время удержания считает
+	     сервер: Need = HoldTime при начале; Triggered раньше Need × LateShare — "early" (строка в
+	     Output, без кика; обычная ступень FailCooldown, UX-04); не раньше Need — вынос (раньше —
+	     HoldBegan опоздал на медленной связи: по task.delay к T0 + Need, наблюдатель всё это время
+	     проверяет жертву, радиус, щит, касание); отпустил — "released" / "far" / "died" по
 	     состоянию в этот миг (BE-13; отпустил к концу — ждём его Triggered Grace с); нет Triggered
 	     к Need + Deadline — "deadline". Triggered без кражи — молча (одна строка в Output не чаще
 	     раза в 10 с).
@@ -51,17 +56,23 @@
 	     Lib/Speed.ClearAll и уборка кражи (StolenFish), кнопка получает HoldDuration, Thief снят,
 	     AlarmState — через Alarm.Linger, собака — домой, Stealing = nil (последним). Срыв: рыба
 	     отпущена (SetSteal nil) — осталась или вернулась; ожидания вора: своя вина ("released",
-	     "far", "died", "timeout", "speed", "deadline", "tag") — FailCooldown по счёту срывов за
-	     FailWindow, "early" — сразу последнее, пойман ("tag") — ещё TagCooldown на этой базе;
-	     "released" в удержании короче, чем клиент ждёт ответа (max(QuietSavedUnder, Hold.NoReply,
-	     пинг + NoReplySlack) + NoReplySlack: тап или кольцо погасил сам клиент, NoReply), — не
-	     срыв: без ожидания и счёта, Limits.FreeTaps раз за FailWindow (дальше — как срыв: спам);
-	     щит / ушёл хозяин / садок полон / ушёл вор — без ожидания. StealEvent "Cancel" вору,
-	     "Saved" жертве (Quiet — удержание короче QuietSavedUnder, которое кончил не хозяин: его
-	     "tag" и "shield" — всегда громко, A2-04; жертве, которая ушла, — ничего).
+	     "far", "died", "timeout", "speed", "deadline", "tag", "early") — FailCooldown по счёту
+	     срывов за FailWindow; на одной базе Limits.BaseFails срывов за FailWindow — она закрыта для
+	     него ещё BaseWait с ("wary", UX-03); пойман ("tag") — ещё TagCooldown на этой базе
+	     ("tagged"); "released" в удержании короче окна тапа (тап или кольцо погасил сам клиент,
+	     NoReply; защита вора ещё не погасла) — не срыв: без ожидания и счёта, Limits.FreeTaps раз за
+	     FailWindow (дальше — как срыв: спам); щит хозяина — без ожидания, но эта база закрыта для
+	     него до конца защиты и ещё ShieldWait ("shielded": щит не «выманить», UX-02); ушёл хозяин /
+	     садок полон / ушёл вор — без ожидания. Закрытые базы — карта tagged (пара вор–хозяин, вид
+	     «почему» — для отказа: строка «wait» TheftChecks, TagKind). StealEvent "Cancel" вору
+	     { Reason, Text, Phase, BaseUntil?, BaseReason? } (база хозяина закрыта для него до
+	     BaseUntil — серверное время — по причине BaseReason: клиент прячет её кнопки), "Saved"
+	     жертве (Quiet — удержание, которое кончил не хозяин: короче QuietSavedUnder, прощённый тап
+	     (DATA-01) или все его тревоги были тихими (UX-03); его "tag" и "shield" — всегда громко,
+	     A2-04; вынос — всегда громко; жертве, которая ушла, — ничего).
 	  6. Тревога жертве: "Alert" при начале удержания и выноса; ГРОМКО — не чаще раза в
-	     AlertCoalesce с на пару (вор, жертва) от прошлой громкой, остальные Quiet. Никому другому —
-	     ничего (кража видна только двоим).
+	     AlertCoalesce с на пару (вор, жертва) от прошлой громкой (кража помнит Loud), остальные
+	     Quiet. Никому другому — ничего (кража видна только двоим).
 	  7. «ДОМОЙ» (BaseService:SetHomeGuard): с рыбой на голове — отказ «Сначала унеси рыбу за
 	     ограду!» (кулдаун не тратится); у хозяина идёт кража — на площадку лицом во двор (+Z базы).
 	  8. DefenceService.SetStealProbe(IsStealing) — в Init: защита спрашивает, не крадёт ли
@@ -74,9 +85,9 @@
 	     Lib/Speed.Forget.
 	Записи — по самому Player с проверкой «это всё ещё она»; соединения — одно на
 	ProximityPromptService (три события), ни одного на кнопку; карты по UserId (cooldowns, fails,
-	taps, tagged, alertCoalesce) — с границей по времени, чистятся при записи, в PlayerRemoving и в
-	_debugSizes; ожидание переживает перезаход, и TankService.Mounted возвращает новому Player
-	атрибут StealCooldownUntil (A2-03). Часы внутри — os.clock; в атрибуты — серверное время
+	taps, tagged, baseFails, alertCoalesce) — с границей по времени, чистятся при записи, в
+	PlayerRemoving и в _debugSizes; ожидание переживает перезаход, и TankService.Mounted возвращает
+	новому Player атрибут StealCooldownUntil (A2-03). Часы внутри — os.clock; в атрибуты — серверное время
 	(TankRules.AttrTime).
 	Каждый вызов другого сервиса — за type(...) == "function".
 
@@ -91,8 +102,8 @@
 	  StealService:Cancel(player, reason)          -- BindToClose и тесты
 	  StealService.TheftStarted, StealService.TheftEnded   -- Signal (thief, victim, result):
 	                                               -- result = "hold" (начало) | "credited" | причина
-	  StealService._debugSizes()                   -- Thefts, Buckets + Cooldowns, Fails, Taps, Tags, Alerts,
-	                                               -- Denied, Dogs, Watcher (1 — цикл идёт)
+	  StealService._debugSizes()                   -- Thefts, Buckets + Cooldowns, Fails, Taps, Tags, BaseFails,
+	                                               -- Alerts, Denied, Dogs, Watcher (1 — цикл идёт)
 ]]
 
 local Players = game:GetService("Players")
@@ -157,6 +168,8 @@ type Theft = {
 	CarryEnd: number?, -- серверное время конца выноса (атрибут)
 	CarryUntil: number, -- os.clock() конца выноса
 	Finishing: boolean, -- Triggered пришёл: удержание кончается
+	Committed: boolean, -- удержание пережило окно тапа: защита вора снята (UX-01)
+	Loud: boolean, -- хоть одна тревога этой кражи жертве — громкая (не Quiet)
 	Credited: boolean, -- рыба уже вора (StealFish)
 	Ended: boolean,
 	Guard: CarryGuard.Guard?,
@@ -203,7 +216,10 @@ local lastDenied: { [Player]: { Reason: string, At: number } } = {}
 local cooldowns: { [number]: number } = {} -- UserId вора → os.clock() конца ожидания
 local fails: { [number]: { number } } = {} -- UserId вора → срывы по своей вине (окно FailWindow)
 local taps: { [number]: { number } } = {} -- UserId вора → прощённые короткие «отпустил» (окно FailWindow)
-local tagged: { [string]: number } = {} -- "вор:хозяин" (UserId) → os.clock() конца TagCooldown
+-- "вор:хозяин" (UserId) → база закрыта для вора до Until (os.clock): Kind "tagged" (поймал, TagCooldown),
+-- "shielded" (щит против его кражи: до конца защиты + ShieldWait), "wary" (BaseFails срывов: BaseWait)
+local tagged: { [string]: { Until: number, Kind: string } } = {}
+local baseFails: { [string]: { number } } = {} -- "вор:хозяин" → срывы вора по своей вине на этой базе (FailWindow)
 local alerts: { [string]: number } = {} -- "вор:жертва" (UserId) → os.clock() последней громкой тревоги
 local dogs: { [Base]: boolean } = {} -- базы, чья собака не спит (их тикает наблюдатель)
 local alarmTokens: { [Base]: number } = {} -- лампа после кражи (Alarm.Linger): номер последней
@@ -300,10 +316,19 @@ local function pruneMaps()
 		end
 		taps[userId] = if #kept > 0 then kept else nil
 	end
-	for key, untilT in table.clone(tagged) do
-		if untilT <= t then
+	for key, closed in table.clone(tagged) do
+		if closed.Until <= t then
 			tagged[key] = nil
 		end
+	end
+	for key, list in table.clone(baseFails) do
+		local kept = {}
+		for _, at in list do
+			if t - at < LIMITS.FailWindow then
+				table.insert(kept, at)
+			end
+		end
+		baseFails[key] = if #kept > 0 then kept else nil
 	end
 	for key, at in table.clone(alerts) do
 		if t - at >= LIMITS.AlertCoalesce then
@@ -456,17 +481,31 @@ local function pingOf(player: Player): number
 	return if ok and type(ping) == "number" and ping == ping and ping >= 0 and ping < math.huge then ping else 0
 end
 
--- «Отпустил» почти сразу — не срыв по своей вине (C-20, C-28): удержание короче, чем клиент
--- ждёт ответа (max(QuietSavedUnder, NoReply, пинг + NoReplySlack) — короткий тап или кольцо
--- погасил сам клиент, не дождавшись "Hold") + NoReplySlack на разброс связи; не дольше
--- need − Tolerance. Прощается Limits.FreeTaps раз за FailWindow, дальше — обычный срыв (спам).
-local function freeTap(theft: Theft, reason: string): boolean
-	if reason ~= "released" or theft.Phase ~= "hold" then
-		return false
-	end
+-- Окно тапа (C-20, C-28): сколько клиент ждёт ответа — max(QuietSavedUnder, NoReply, пинг +
+-- NoReplySlack): короткий тап или кольцо погасил сам клиент, не дождавшись "Hold", — плюс
+-- NoReplySlack на разброс связи; не дольше need − Tolerance. Удержание короче него — ещё не
+-- попытка: «отпустил» в нём прощается (freeTap), и защита вора в нём не гаснет (UX-01).
+local function tapWindow(theft: Theft): number
 	local waitFor = math.max(LIMITS.QuietSavedUnder, HOLD.NoReply, pingOf(theft.Thief) + HOLD.NoReplySlack)
-	local window = math.min(waitFor + HOLD.NoReplySlack, theft.Need - HOLD.Tolerance)
-	if os.clock() - theft.T0 >= window then
+	return math.min(waitFor + HOLD.NoReplySlack, theft.Need - HOLD.Tolerance)
+end
+
+-- Удержание пережило окно тапа — это попытка: защита вора гаснет (DefenceService, «Кража погасила
+-- твою защиту»). Не в начале удержания: случайный тап новичка не стоит ему защиты (UX-01); до
+-- выноса — всегда (toCarry): под защитой ничего не украсть.
+local function commit(theft: Theft)
+	if theft.Committed then
+		return
+	end
+	theft.Committed = true
+	DefenceService:EndProtection(theft.Thief, "stealing")
+end
+
+-- «Отпустил» почти сразу — не срыв по своей вине (C-20, C-28, C-34): удержание held (с) короче
+-- окна тапа, и защита вора ещё не погасла. Прощается Limits.FreeTaps раз за FailWindow, дальше —
+-- обычный срыв (спам).
+local function freeTap(theft: Theft, reason: string, held: number): boolean
+	if reason ~= "released" or theft.Phase ~= "hold" or theft.Committed or held >= tapWindow(theft) then
 		return false
 	end
 	local userId = theft.Thief.UserId
@@ -479,35 +518,70 @@ local function freeTap(theft: Theft, reason: string): boolean
 	return true
 end
 
--- Срыв: рыба отпущена (осталась в витрине или вернулась), ожидания вора, ответы, конец.
-local function cancel(theft: Theft, reason: string)
+-- База закрыта для вора ещё seconds с (почему — kind); раньше кончавшееся ожидание продлевается,
+-- более долгое остаётся.
+local function closeBase(key: string, seconds: number, kind: string)
+	local untilT = os.clock() + seconds
+	local old = tagged[key]
+	if not old or untilT >= old.Until then
+		tagged[key] = { Until = untilT, Kind = kind }
+	end
+end
+
+-- Срыв: рыба отпущена (осталась в витрине или вернулась), ожидания вора, ответы, конец. at —
+-- os.clock() мига, когда он отпустил (по умолчанию — сейчас).
+local function cancel(theft: Theft, reason: string, at: number?)
 	if theft.Ended or theft.Credited then
 		return
 	end
 	local thief, victim = theft.Thief, theft.Victim
+	local held = (at or os.clock()) - theft.T0
+	local key = pairKey(thief, victim)
 	TankService:SetSteal(victim, theft.Uid, theft.Token, nil)
-	if OWN_FAULT[reason] then
+	local own = OWN_FAULT[reason] == true
+	if own then
 		pruneMaps()
 	end
-	if OWN_FAULT[reason] and not freeTap(theft, reason) then
+	local free = own and freeTap(theft, reason, held)
+	if own and not free then
 		local userId = thief.UserId
 		local list = fails[userId] or {}
 		table.insert(list, os.clock())
 		fails[userId] = list
 		local steps = LIMITS.FailCooldown
-		local n = if reason == "early" then #steps else math.min(#list, #steps)
-		setCooldown(thief, steps[n])
+		setCooldown(thief, steps[math.min(#list, #steps)]) -- ("early" — обычная ступень, UX-04)
 		if reason == "tag" then
-			tagged[pairKey(thief, victim)] = os.clock() + LIMITS.TagCooldown
+			closeBase(key, LIMITS.TagCooldown, "tagged")
 		end
+		-- Срывы на этой базе: BaseFails за FailWindow — она закрыта для него (UX-03).
+		local onBase = baseFails[key] or {}
+		table.insert(onBase, os.clock())
+		baseFails[key] = onBase
+		if LIMITS.BaseFails > 0 and #onBase >= LIMITS.BaseFails then
+			closeBase(key, LIMITS.BaseWait, "wary")
+		end
+	elseif reason == "shield" then
+		-- Щит хозяина против его кражи: не его вина (без ожидания), но эта база закрыта до конца
+		-- защиты и ещё ShieldWait — щит не «выманить» (UX-02).
+		local _, untilT = DefenceService:IsProtected(victim)
+		closeBase(key, math.max(0, (untilT or now()) - now()) + LIMITS.ShieldWait, "shielded")
 	end
-	send(thief, "Cancel", { Reason = reason, Text = TEXTS.Cancel[reason] or TEXTS.Cancel.busy, Phase = theft.Phase })
+	local closed = tagged[key]
+	local closedLeft = if closed then closed.Until - os.clock() else 0
+	send(thief, "Cancel", {
+		Reason = reason,
+		Text = TEXTS.Cancel[reason] or TEXTS.Cancel.busy,
+		Phase = theft.Phase,
+		BaseUntil = if closedLeft > 0 then TankRules.AttrTime(now() + closedLeft) else nil,
+		BaseReason = if closed and closedLeft > 0 then closed.Kind else nil,
+	})
 	if reason ~= "victim" then
-		-- Тихо — только короткое удержание, которое кончил сам вор (или никто); защиту хозяина
-		-- (поймал, щит) празднуют всегда (D20; A2-04).
+		-- Тихо — удержание, которое кончил сам вор (или никто): короче QuietSavedUnder, прощённый тап
+		-- (DATA-01) или кража, чьи тревоги все были тихими (UX-03: тот же вор за AlertCoalesce);
+		-- защиту хозяина (поймал, щит) празднуют всегда (D20; A2-04). Вынос — всегда громко.
 		local quiet = theft.Phase == "hold"
 			and not OWNER_SAVE[reason]
-			and os.clock() - theft.T0 < LIMITS.QuietSavedUnder
+			and (held < LIMITS.QuietSavedUnder or free or not theft.Loud)
 		send(victim, "Saved", {
 			Reason = reason,
 			Slot = theft.Slot,
@@ -606,6 +680,7 @@ local function alert(theft: Theft, phase: string)
 	local quiet = alerts[key] ~= nil
 	if not quiet then
 		alerts[key] = t
+		theft.Loud = true
 	end
 	local fish = theft.Fish
 	send(theft.Victim, "Alert", {
@@ -633,6 +708,7 @@ local function toCarry(theft: Theft)
 		cancel(theft, problem)
 		return
 	end
+	commit(theft) -- (наблюдатель это уже сделал; под защитой рыбу не унести)
 	local thief, victim = theft.Thief, theft.Victim
 	theft.CarryUntil = os.clock() + CARRY.Timeout
 	theft.CarryEnd = TankRules.AttrTime(now() + CARRY.Timeout)
@@ -681,6 +757,8 @@ local function stepTheft(theft: Theft, dt: number)
 			cancel(theft, problem)
 		elseif not theft.Finishing and os.clock() - theft.T0 > theft.Need + HOLD.Deadline then
 			cancel(theft, "deadline")
+		elseif not theft.Committed and os.clock() - theft.T0 >= tapWindow(theft) then
+			commit(theft) -- (дольше тапа — попытка: защита вора гаснет, UX-01)
 		end
 		return
 	end
@@ -765,7 +843,7 @@ startWatcher = function()
 					if theft.Credited then
 						pcall(finish, theft, "credited") -- (рыба уже у вора: только конец, A2-02)
 					else
-						pcall(cancel, theft, "busy")
+						pcall(cancel, theft, "busy", nil)
 					end
 				end
 			end
@@ -815,6 +893,8 @@ local function begin(player: Player, prompt: ProximityPrompt, info: PromptInfo, 
 		CarryEnd = nil,
 		CarryUntil = math.huge,
 		Finishing = false,
+		Committed = false,
+		Loud = false,
 		Credited = false,
 		Ended = false,
 		Guard = nil,
@@ -836,7 +916,7 @@ local function begin(player: Player, prompt: ProximityPrompt, info: PromptInfo, 
 	theft.Trove:Add(function()
 		Speed.ClearAll(player) -- (первая уборка кражи: вор не останется медленным, BE-10)
 	end)
-	DefenceService:EndProtection(player, "stealing")
+	-- (защита вора гаснет не здесь, а когда удержание переживёт окно тапа: commit, UX-01)
 	local model = base.Model
 	alarmTokens[base] = nil
 	setAttr(model, "Thief", player.UserId)
@@ -877,6 +957,7 @@ local function viewFor(player: Player, info: PromptInfo, bucket: boolean): (Thef
 		kind, untilT = DefenceService:IsProtected(victim)
 	end
 	local ownerRoot = if victim then rootOf(victim) else nil
+	local closed = if victim then tagged[pairKey(player, victim)] else nil
 	local last = lastDenied[player]
 	local view: TheftChecks.View = {
 		Known = true,
@@ -892,7 +973,8 @@ local function viewFor(player: Player, info: PromptInfo, bucket: boolean): (Thef
 		Distance = if root then (info.Attachment.WorldPosition - root.Position).Magnitude else math.huge,
 		Stealing = byThief[player] ~= nil,
 		CooldownLeft = math.max(0, (cooldowns[player.UserId] or 0) - t),
-		TagLeft = if victim then math.max(0, (tagged[pairKey(player, victim)] or 0) - t) else 0,
+		TagLeft = if closed then math.max(0, closed.Until - t) else 0,
+		TagKind = if closed then closed.Kind else nil,
 		ProtectLeft = if untilT then untilT - serverNow else 0,
 		ProtectKind = kind,
 		BaseTheft = byBase[base] ~= nil,
@@ -931,6 +1013,7 @@ local function onHoldBegan(prompt: ProximityPrompt, player: Player)
 			Quiet = quiet,
 			BaseIndex = pinfo.Base.Index,
 			Slot = pinfo.Slot,
+			Until = if type(left) == "number" and left > 0 then TankRules.AttrTime(now() + left) else nil,
 		})
 		if not quiet and player.Parent == Players then
 			lastDenied[player] = { Reason = reason, At = os.clock() }
@@ -953,13 +1036,17 @@ local function onTriggered(prompt: ProximityPrompt, player: Player)
 		return
 	end
 	local elapsed = os.clock() - theft.T0
-	if elapsed < theft.Need - HOLD.Tolerance then
+	if elapsed < theft.Need * HOLD.LateShare then
 		suspicion(
 			`Triggered через {string.format("%.2f", elapsed)} с из {theft.Need} (игрок {player.UserId})`
 		)
 		cancel(theft, "early")
 		return
 	end
+	-- Раньше need, но не раньше need × LateShare: его HoldBegan опоздал (медленная связь) — удержание
+	-- кончит сервер сам в T0 + need; наблюдатель до тех пор проверяет радиус, жизнь, щит и касание
+	-- (UX-04: честный телефон на плохой связи больше не «early»; fireproximityprompt раньше need не
+	-- кончит).
 	theft.Finishing = true
 	if elapsed < theft.Need then
 		task.delay(theft.Need - elapsed, function()
@@ -988,16 +1075,17 @@ local function onHoldEnded(prompt: ProximityPrompt, player: Player)
 			reason = "far"
 		end
 	end
-	if reason == "released" and os.clock() - theft.T0 >= theft.Need - HOLD.Tolerance then
+	local at = os.clock()
+	if reason == "released" and at - theft.T0 >= theft.Need - HOLD.Tolerance then
 		-- Отпустил у самого конца: Triggered может прийти следом (порядок двух событий клиента).
 		task.delay(HOLD.Grace, function()
 			if current(theft) and theft.Phase == "hold" and not theft.Finishing then
-				cancel(theft, "released")
+				cancel(theft, "released", at)
 			end
 		end)
 		return
 	end
-	cancel(theft, reason)
+	cancel(theft, reason, at)
 end
 
 --------------------------------------------------------------------------------
@@ -1042,6 +1130,7 @@ function StealService._debugSizes(): { [string]: number }
 		Fails = count(fails),
 		Taps = count(taps),
 		Tags = count(tagged),
+		BaseFails = count(baseFails),
 		Alerts = count(alerts),
 		Denied = count(lastDenied),
 		Dogs = count(dogs),

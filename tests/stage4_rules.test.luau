@@ -383,6 +383,11 @@ local function failures(): { [string]: { { change: { [string]: any }, reason: st
 			{ change = { CooldownLeft = 12 }, reason = "cooldown", left = 12 },
 			{ change = { TagLeft = 7 }, reason = "tagged", left = 7 },
 			{ change = { CooldownLeft = 12, TagLeft = 7 }, reason = "cooldown", left = 12 },
+			-- (why the base is closed to him: TagKind; stage 4 wave 3 UX-02 / UX-03)
+			{ change = { TagLeft = 7, TagKind = "tagged" }, reason = "tagged", left = 7 },
+			{ change = { TagLeft = 200, TagKind = "shielded" }, reason = "shielded", left = 200 },
+			{ change = { TagLeft = 50, TagKind = "wary" }, reason = "wary", left = 50 },
+			{ change = { TagLeft = 7, TagKind = "bogus" }, reason = "tagged", left = 7 },
 		},
 		protect = {
 			{ change = { ProtectLeft = 30, ProtectKind = "shield" }, reason = "shield", left = 30 },
@@ -439,7 +444,9 @@ tests["TheftChecks: the 17 rows of §4.3 in order, Client tags, texts, every row
 	t.eq(C.Missing(good), {}, "the server view is complete")
 	t.eq({ C.Check({}) }, {}, "nil = unknown = pass (the client knows less)")
 	local missing = C.Missing({})
-	t.eq(#missing, #C.Fields - 1, "Missing lists every field but the optional ProtectKind")
+	t.eq(#missing, #C.Fields - 2, "Missing lists every field but the optional ProtectKind and TagKind")
+	t.ok(table.find(C.Fields, "TagKind") ~= nil, "TagKind is a field (the server fills it with TagLeft)")
+	t.eq(C.Check(with(good, { TagKind = "wary" })), nil, "TagKind alone (TagLeft 0) refuses nothing")
 
 	-- Each row alone, with its reason, its {t} seconds and silence.
 	local F = failures()
@@ -857,6 +864,15 @@ tests["config invariants: lock, prompt reach, carry timeout and speed budget, sh
 	t.ok(P.MaxDistance + P.Slack < 10, "MaxDistance + Slack < 10 (the back-wall reach)")
 	t.ok(P.MaxDistance <= 6, "MaxDistance ≤ 6")
 	t.ok(StealConfig.Hold.Tolerance < P.Slack, "the hold tolerance under the slack")
+	-- A late HoldBegan (UX-04): a Triggered from LateShare of the hold on is taken, and the tap window
+	-- (≤ need − Tolerance) still ends before the hold does.
+	local H = StealConfig.Hold
+	t.ok(H.LateShare > 0 and H.LateShare < 1, "0 < Hold.LateShare < 1")
+	t.ok(LOCK.BaseHold * H.LateShare <= LOCK.BaseHold - H.Tolerance, "LateShare × BaseHold ≤ BaseHold − Tolerance")
+	t.ok(
+		math.max(StealConfig.Limits.QuietSavedUnder, H.NoReply) + H.NoReplySlack < LOCK.BaseHold * H.LateShare,
+		"a normal link's tap window ends before a late Triggered is taken"
+	)
 	-- The carry timeout covers the longest exit under the dog.
 	local longest = 0
 	for x = -HALF, HALF, 2 do
@@ -925,6 +941,15 @@ tests["fairness (DC-21): VictimMax, FreshCatch, the dog inside the base hold, fa
 		t.ok(L.FailCooldown[i] > L.FailCooldown[i - 1], `FailCooldown[{i}] grows`)
 	end
 	t.ok(L.TagCooldown > L.FailCooldown[1], "TagCooldown > FailCooldown[1]")
+	-- Per base (stage 4 wave 3): a bait costs the baiter the owner's whole recharge; repeated failures
+	-- on one base close it for longer than the fail ladder's first steps.
+	t.ok(
+		L.ShieldWait >= DefenceConfig.Shield.Cooldown,
+		`ShieldWait {L.ShieldWait} ≥ Shield.Cooldown {DefenceConfig.Shield.Cooldown} (UX-02)`
+	)
+	t.ok(L.BaseFails >= 2, "BaseFails ≥ 2: one failure never closes a base (UX-03)")
+	t.ok(L.BaseWait > L.FailCooldown[2], "BaseWait > FailCooldown[2]")
+	t.ok(L.BaseWait > L.TagCooldown, "BaseWait > TagCooldown")
 	t.ok(
 		L.AlertCoalesce >= 2 * (LOCK.BaseHold + L.FailCooldown[1]),
 		"AlertCoalesce ≥ 2 × (BaseHold + FailCooldown[1])"
@@ -1367,6 +1392,8 @@ tests["contract: services, controllers and their API, remotes, ORDERs, the repli
 			'"Hold"',
 			'"Carry"',
 			'"Cancel"',
+			"BaseUntil",
+			"BaseReason",
 			'"Done"',
 			'"Alert"',
 			'"Saved"',

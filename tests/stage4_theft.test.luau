@@ -12,7 +12,12 @@
 	    the shield in the hold and in the carry (returned, the fish back in its display, the thief
 	    at 16, no fail wait; DC-01), tag (the fail step + tagged 20 s on that base, another base
 	    allowed after the fail step), deadline (the server HoldDuration raised mid-hold), early
-	    (FirePromptEvent Triggered at 1 s → 30 s), the carry timeout;
+	    (FirePromptEvent Triggered at 1 s → the next ordinary fail step, not the last: UX-04), the
+	    carry timeout (these chains run with Limits.BaseFails off: the per-base close after two
+	    failures has its own tests in stage4_fairness_grief);
+	  • a late HoldBegan (UX-04, an honest phone on a slow link): a Triggered from Need × LateShare
+	    on is taken — the server ends the hold itself at T0 + Need (no earlier), with the watcher's
+	    checks (a walk-away in that window is «far»); under LateShare it is «early»;
 	  • the speed budget with Kit.drive (BE-9, BE-35): 16 st/s under the dog → returned within 3 s;
 	    an honest walk under the dog with a 1.2 s freeze and the catch-up → not returned; a 30-stud
 	    hop → returned; a teleport straight out of the plot → returned, never credited; a 2× / 2.5×
@@ -41,6 +46,13 @@ local TANK = {
 }
 local TEXTS = S.STEAL_TEXTS
 local FAIL = S.LIMITS.FailCooldown
+-- Limits.BaseFails off: the fail-reason chains below fail twice on one base (stage 4 wave 3 UX-03
+-- closes it; that rule's own tests are in stage4_fairness_grief).
+local NO_BASE_CLOSE = {
+	path = "ReplicatedStorage.Shared.Config.StealConfig",
+	from = "\t\tBaseFails = 2,",
+	to = "\t\tBaseFails = 0,",
+}
 
 local function pair(t: any, opts: { [string]: any }?): (any, any, any)
 	local o = opts or {}
@@ -231,7 +243,7 @@ end
 tests["hold cancels: released (fail step 3 s), far (a 9-stud teleport, BE-13), died — the fish stays, Saved to the victim"] = function(
 	t
 )
-	local sim, victim, thief = pair(t)
+	local sim, victim, thief = pair(t, { boot = { patches = { NO_BASE_CLOSE } } })
 	-- released
 	local hold, prompt = S.hold(t, sim, thief, victim, 3)
 	t.ok(hold.active)
@@ -361,6 +373,13 @@ tests["tag: the owner within 6 studs → the fish home, the fail step + tagged 2
 	sim:Teleport(victim, S.beside(thief, 5))
 	sim:Advance(0.2)
 	t.eq(lastCancel(sim, thief).Reason, "tag")
+	t.eq(lastCancel(sim, thief).BaseReason, "tagged", "the Cancel names the closed base: «tagged» …")
+	t.near(
+		lastCancel(sim, thief).BaseUntil,
+		sim.workspace:GetServerTimeNow() + S.LIMITS.TagCooldown,
+		0.5,
+		"… until TagCooldown (BaseUntil: the client hides that base)"
+	)
 	t.eq(S.last(sim, victim, "Saved").Text, TEXTS.Result.Saved.tag)
 	fishHome(t, sim, victim, 3, "f3", "tag")
 	t.near(cooldownLeft(sim, thief), FAIL[1], 0.3, "the fail step")
@@ -372,6 +391,7 @@ tests["tag: the owner within 6 studs → the fish home, the fail step + tagged 2
 	local denied = S.last(sim, thief, "Denied")
 	t.eq(denied and denied.Reason, "tagged", "the tagged base refuses")
 	t.eq(denied.Slot, 3)
+	t.ok(type(denied.Until) == "number" and denied.Until > sim.workspace:GetServerTimeNow(), "Denied carries Until")
 	if hold.active then
 		sim:ReleasePrompt(thief, S.prompt(sim, victim, 3))
 	end
@@ -385,10 +405,10 @@ tests["tag: the owner within 6 studs → the fish home, the fail step + tagged 2
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["deadline (the server HoldDuration raised to 10 mid-hold), early (Triggered at 1 s → 30 s), carry timeout"] = function(
+tests["deadline (the server HoldDuration raised to 10 mid-hold), early (Triggered at 1 s → the next fail step), carry timeout"] = function(
 	t
 )
-	local sim, victim, thief = pair(t)
+	local sim, victim, thief = pair(t, { boot = { patches = { NO_BASE_CLOSE } } })
 	-- deadline: the sim's hold reads the prompt's HoldDuration (now 10), the server captured 3
 	local hold, prompt = S.hold(t, sim, thief, victim, 3)
 	t.ok(hold.active)
@@ -401,19 +421,21 @@ tests["deadline (the server HoldDuration raised to 10 mid-hold), early (Triggere
 	sim:ReleasePrompt(thief, prompt)
 	sim:Advance(FAIL[1] + 0.3)
 
-	-- early: a Triggered 1 s after HoldBegan (fireproximityprompt) → the last step at once
+	-- early: a Triggered 1 s after HoldBegan (under Need × LateShare: fireproximityprompt, or a link
+	-- far too slow) → the next ordinary fail step (the 2nd here: 10 s), not the last one (UX-04)
 	hold = S.hold(t, sim, thief, victim, 3)
 	t.ok(hold.active)
 	sim:Advance(1)
+	t.ok(1 < S.BASE_HOLD * S.HOLD_CFG.LateShare, "1 s is under Need × LateShare")
 	sim:FirePromptEvent(thief, prompt, "Triggered")
 	sim:Advance(0.1)
 	t.eq(lastCancel(sim, thief).Reason, "early")
-	t.near(cooldownLeft(sim, thief), FAIL[#FAIL], 0.3, "early → the last step at once")
+	t.near(cooldownLeft(sim, thief), FAIL[2], 0.3, "early → the 2nd failure's step, 10 s (not the last)")
 	fishHome(t, sim, victim, 3, "f3", "early")
 	sim:Advance(S.BASE_HOLD) -- the stock hold completes on the client: no record, nothing happens
 	t.eq(thief:GetAttribute("Stealing"), nil)
 	sim:ReleasePrompt(thief, prompt)
-	sim:Advance(FAIL[#FAIL] + 0.3)
+	sim:Advance(FAIL[2] + 0.3)
 
 	-- the carry timeout: he stands in the court
 	S.toCarry(t, sim, thief, victim, 3)
@@ -523,6 +545,7 @@ tests["speed (A2-01): a 2× / 2.5× hack from every display straight to the near
 					from = "FailCooldown = { 3, 10, 30 },",
 					to = "FailCooldown = { 0.2, 0.2, 0.2 },",
 				},
+				NO_BASE_CLOSE,
 			},
 		},
 	})
@@ -628,6 +651,52 @@ tests["StealFish nil at the exit (the thief's tank full of stronger fish) → re
 	t.eq(thief2:GetAttribute("Stealing"), "carry", "the Triggered after the HoldEnded still counts")
 	S.out(sim2, thief2, victim2, "gate")
 	t.ok(S.last(sim2, thief2, "Done"), "credited")
+	sim:AssertNoErrors({ warnings = true })
+	sim2:AssertNoErrors({ warnings = true })
+end
+
+tests["a late HoldBegan (UX-04): a Triggered at 1.6 s of 3 is taken — the carry at T0 + 3, not before; a walk-away in that wait is «far»"] = function(
+	t
+)
+	local sim, victim, thief = pair(t)
+	local prompt = S.prompt(sim, victim, 3)
+	S.standAt(sim, thief, prompt)
+	-- the honest phone held for 3 s, but its HoldBegan reached the server 1.4 s late
+	local began = sim:Time()
+	sim:FirePromptEvent(thief, prompt, "HoldBegan")
+	sim:Advance(1.6)
+	t.ok(1.6 >= S.BASE_HOLD * S.HOLD_CFG.LateShare, "1.6 s ≥ Need × LateShare")
+	sim:FirePromptEvent(thief, prompt, "Triggered")
+	sim:FirePromptEvent(thief, prompt, "HoldEnded") -- (the finger lifts after the ring: ignored now)
+	sim:Advance(0.1)
+	t.eq(#S.events(sim, thief, "Cancel"), 0, "not «early» any more")
+	t.eq(thief:GetAttribute("Stealing"), "hold", "the server still holds for him")
+	t.eq(cooldownLeft(sim, thief), 0, "no wait")
+	local carried = sim:WaitFor(function()
+		return thief:GetAttribute("Stealing") == "carry"
+	end, S.BASE_HOLD, S.FRAME)
+	t.ok(carried, "the carry")
+	t.ok(sim:Time() - began >= S.BASE_HOLD - S.FRAME, `the carry at T0 + Need ({sim:Time() - began} s), never earlier`)
+	S.out(sim, thief, victim, "gate")
+	t.ok(S.last(sim, thief, "Done"), "credited once")
+	t.eq(#S.events(sim, thief, "Done"), 1)
+
+	-- the same late Triggered, then he walks off before T0 + Need: the watcher's radius → «far»
+	local sim2, victim2, thief2 = pair(t)
+	local prompt2 = S.prompt(sim2, victim2, 3)
+	S.standAt(sim2, thief2, prompt2)
+	sim2:FirePromptEvent(thief2, prompt2, "HoldBegan")
+	sim2:Advance(1.6)
+	sim2:FirePromptEvent(thief2, prompt2, "Triggered")
+	sim2:Advance(0.2)
+	local root = thief2.Character.HumanoidRootPart
+	sim2:Teleport(thief2, root.Position - root.CFrame.LookVector * 12)
+	sim2:Advance(0.3)
+	t.eq(lastCancel(sim2, thief2) and lastCancel(sim2, thief2).Reason, "far", "walked off in the wait: «far»")
+	t.eq(thief2:GetAttribute("Stealing"), nil)
+	fishHome(t, sim2, victim2, 3, "f3", "far in the late wait")
+	sim2:Advance(S.BASE_HOLD)
+	t.eq(#S.events(sim2, thief2, "Carry"), 0, "no carry after all")
 	sim:AssertNoErrors({ warnings = true })
 	sim2:AssertNoErrors({ warnings = true })
 end

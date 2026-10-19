@@ -204,7 +204,8 @@ tests["join protection: a fresh save → 300 s newbie; a second session → 90 s
 	kind, left = protectLeft(sim, defence, quick)
 	t.eq(kind, "join", "a quick rejoin")
 	t.near(left, SHIELD.QuickRejoinProtect, 1)
-	-- starting a steal ends all of his protection and a manual shield, with no refund
+	-- a steal ends all of his protection and a manual shield, with no refund — once the hold has
+	-- outlasted a tap (stage 4 wave 3 UX-01: not at its first frame)
 	sim:FireServer(second, "ShieldActivate")
 	sim:Advance(0.1)
 	t.eq(lastDefence(sim, second, "Denied").Reason, "protected", "90 s of join: the shield is refused")
@@ -217,6 +218,9 @@ tests["join protection: a fresh save → 300 s newbie; a second session → 90 s
 	local ready = second:GetAttribute("ShieldReadyAt")
 	local hold = S.hold(t, sim, second, quick, 3)
 	t.ok(hold.active)
+	t.eq(defence:IsProtected(second), "shield", "the hold's first frame: still shielded (a tap costs nothing)")
+	sim:Advance(1.5) -- (past the tap window: 1.4 s on this link)
+	t.eq(second:GetAttribute("Stealing"), "hold", "still holding")
 	t.eq(defence:IsProtected(second), nil, "stealing ended his shield")
 	t.eq(second:GetAttribute("ShieldReadyAt"), ready, "no refund of the cooldown")
 	t.eq(lastNotify(sim, second), S.STEAL_TEXTS.Hint.Ended)
