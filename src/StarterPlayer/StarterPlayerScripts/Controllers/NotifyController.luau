@@ -27,7 +27,9 @@
 	(текст по шкале UiFx.fitText: Body); длинный текст — в две строки. Если уведомлений
 	несколько, все тянутся до ширины самого широкого (значки встают в столбик). Колонку
 	раскладывает этот модуль (без UIListLayout): новое уведомление съезжает сверху в свой слот с
-	пружинкой, значок «вкручивается» (−180° → 0), когда плашка села (у предупреждения и громких —
+	пружинкой (ENTER_DROP высоты колонки — но не выше её свободного верха: плашки статуса над
+	колонкой и полосы тревоги оно не пересекает, Этап 4 C-31; у верхнего слота — только пружина
+	масштаба), значок «вкручивается» (−180° → 0), когда плашка села (у предупреждения и громких —
 	потом ещё качается), по плашке пробегает блик, у громких вспыхивает ободок; «успех» и
 	громкие — со звёздочками по бокам плашки (не на буквах), «опасность» — встряхивается.
 	Соседи съезжают на новые места с лёгким перелётом (Back Out). Без тач-экрана колонка (по центру) сужается так,
@@ -46,7 +48,8 @@
 	виджет согнал с экрана в первой половине срока, встаёт в начало очереди. Когда места нет,
 	уходит самое старое из самых неважных (Priority вида; «опасность» вытесняет обычные); если
 	все на экране важнее нового — новое ждёт в очереди.
-	Уход: через Life (или UIConfig.ToastDuration) секунд уведомление поднимается на 20 px, чуть
+	Уход: через Life (или UIConfig.ToastDuration) секунд уведомление поднимается на LEAVE_RISE px
+	(не выше свободного верха колонки: верхнее не заезжает на плашки статуса), чуть
 	поворачивается (+4°) и тает (имя "ToastLeaving"), остальные через 0.12 с съезжают вверх; уходят не чаще, чем раз в
 	UIConfig.ToastGap секунд.
 
@@ -135,7 +138,9 @@ local GAP = 0.08 -- зазор между уведомлениями
 local BIG = 1.2 -- громкие уведомления выше во столько раз
 local TWO_LINES = 1.6 -- … и длинные (в две строки)
 local ENTER_TIME = 0.45
+local ENTER_DROP = 0.3 -- въезд сверху: столько высоты колонки над слотом (не выше её свободного верха)
 local LEAVE_TIME = 0.2
+local LEAVE_RISE = 20 -- уход вверх, px (не выше свободного верха колонки)
 local REFLOW_DELAY = 0.12
 local LABEL_SHARE = 0.8 -- ширина надписи, доля уведомления (Hud.luau: LabelProps)
 local MIN_WIDTH = 0.42
@@ -442,9 +447,14 @@ local function dismiss(toast: Toast, quick: boolean?)
 	frame.Name = "ToastLeaving"
 	frame.ZIndex = math.max(frame.ZIndex - 1, 0) -- остальные проезжают поверх
 	local time = if quick then 0.15 else LEAVE_TIME
-	-- Уходит вверх на 20 px с лёгким поворотом (+4°), сжимается и тает (Quad In).
+	-- Уходит вверх на LEAVE_RISE px с лёгким поворотом (+4°), сжимается и тает (Quad In); вверх — не
+	-- выше свободного верха колонки (верхнее не заезжает на плашки статуса, C-31).
 	local quad, inDir = Enum.EasingStyle.Quad, Enum.EasingDirection.In
-	UiFx.tween(frame, time, { Position = frame.Position - UDim2.fromOffset(0, 20), Rotation = 4 }, quad, inDir)
+	local column = container
+	local columnHeight = if column then column.AbsoluteSize.Y else 0
+	local room = math.max(0, frame.Position.Y.Scale - reservedShare()) * columnHeight
+	local rise = math.min(LEAVE_RISE, room)
+	UiFx.tween(frame, time, { Position = frame.Position - UDim2.fromOffset(0, rise), Rotation = 4 }, quad, inDir)
 	UiFx.tween(UiFx.scaleOf(frame), time, { Scale = 0.92 }, quad, inDir)
 	UiFx.fadeOut(frame, time)
 	task.delay(time + 0.02, function()
@@ -777,13 +787,18 @@ present = function(item: Pending)
 
 	table.insert(active, toast)
 	local slot = #active
-	frame.Position = slotPosition(slot) - UDim2.fromScale(0, 0.3)
+	-- Въезд сверху — но не выше свободного верха колонки (под полосами): над колонкой плашки
+	-- статуса (и плашка тревоги), выезжающее уведомление их не пересекает (Этап 4, C-31); у
+	-- верхнего слота въезд — пружина масштаба (popIn / «удар»).
+	local target = slotPosition(slot)
+	local drop = math.min(ENTER_DROP, math.max(0, target.Y.Scale - reservedShare()))
+	frame.Position = target - UDim2.fromScale(0, drop)
 	frame.Visible = true
 	frame.Parent = parent
 
 	-- Въезд: сверху в слот с пружиной, значок выскакивает следом, потом блик. Громкие — «удар» с
 	-- перелётом (0.3 → 1.12 → 1), при посадке — кольцо цвета редкости, вспышка ободка и строки.
-	UiFx.tween(frame, ENTER_TIME, { Position = slotPosition(slot) }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+	UiFx.tween(frame, ENTER_TIME, { Position = target }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 	if big then
 		UiFx.punch(frame, { from = 0.3, peak = 1.12, up = 0.2, settle = 0.25 })
 		trove:Add(task.delay(ENTER_TIME, function()

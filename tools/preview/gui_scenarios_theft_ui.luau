@@ -416,6 +416,35 @@ return function(H: { [string]: any }): { any }
 			end,
 		},
 		{
+			name = "thief_carry_trophy",
+			desc = "Wave 3 (C-32): the carry while someone else's Legendary pillar burns off screen to the right — the 🌟 trophy chip beside the three-button column stays ≥ 16 px from the bottom-band TheftBar and its «🐕 СОБАКА!» chip (the broadcast toast waits for the theft)",
+			world = true,
+			still = { 1.2 },
+			burst = false,
+			run = function(h: any)
+				statusRule(h)
+				h:money(1215, 459)
+				H.court(h, { -14, 8.9, 66.7 }, { -14, 4.6, 55 }, 70)
+				H.place(h, h.player, { -14, 3.2, 55 }, { -14, 0, 40 })
+				holdOn(h, 3, 3)
+				h:advance(0.3)
+				carryOn(h, 3, "Puffer", true)
+				local fx = h:clientModule("FishingFxController")
+				local base = h:base()
+				if fx and base then
+					-- (base-local: far to the right of this court camera, off screen)
+					local at = base:GetPivot() * Vector3.new(220, 6, 50)
+					h.sim:Run(function()
+						fx.OtherTrophy:Fire(h.player, at, "Legendary")
+					end, h.player)
+				end
+				h:notify(
+					"КапитанКрюк (Лазурная база): легендарная рыба «Акулёнок»!",
+					"Legendary"
+				)
+			end,
+		},
+		{
 			name = "thief_guide",
 			desc = "The carry from the thief's follow camera in the open court: the red chevrons on the ground from him to the nearest exit (the gate), crawling to it every BeamEvery s, the breathing green ring and «ВЫХОД» over the exit",
 			world = true,
@@ -724,9 +753,9 @@ return function(H: { [string]: any }): { any }
 		desc = "critic: full own tank; the stolen Puffer replaces his weakest Crucian («ЗАМЕНА!», coins)",
 		world = true,
 		standard = false,
-		-- (no still at 1.8 s: the «Замена!» toast's entrance scale — NotifyController's, D — touches
-		-- Status for a moment; the sheet shows it; design §11.6 C-31)
-		still = { 0.15, 0.5, 0.9, 1.3, 2.4, 3.0 },
+		-- (1.8 s: the «Замена!» toast pops in at its slot — the entrance never rises above the
+		-- column's free top, so it no longer crosses Status; design §11.6 C-31, §11.7 E-01)
+		still = { 0.15, 0.5, 0.9, 1.3, 1.8, 2.4, 3.0 },
 		sheet = { from = 0, to = 3.2, fps = 5 },
 		burst = false,
 		run = function(h: any)

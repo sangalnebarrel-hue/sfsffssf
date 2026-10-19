@@ -966,6 +966,69 @@ tests["Home: the cooldown veil drains with a countdown, then a ready ring"] = fu
 	sim:AssertNoErrors({ warnings = true })
 end
 
+tests["toasts (stage 4 wave 3, C-31): the entrance and the leave never rise above the column's free top — a pop-in never crosses the status stack; a lower slot still drops in"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "desktop")
+	sim:Advance(5)
+	local column = p.PlayerGui.HUD.Toasts
+	sim:WaitFor(function()
+		return #liveToasts(p) == 0
+	end, 15, 0.1)
+	sim:Advance(1)
+	-- The top of a toast in px from the column's top (its Position: scale of the column + offset).
+	local function topOf(toast: any): number
+		return toast.Position.Y.Scale * column.AbsoluteSize.Y + toast.Position.Y.Offset
+	end
+	local function watch(seconds: number, pick: () -> any?): (number, number)
+		local lowest, highest = math.huge, -math.huge
+		local t0 = sim:Time()
+		while sim:Time() - t0 < seconds do
+			local toast = pick()
+			if toast then
+				lowest = math.min(lowest, topOf(toast))
+				highest = math.max(highest, topOf(toast))
+			end
+			sim:Advance(1 / 60)
+		end
+		return lowest, highest
+	end
+	notify(sim, p, "Первое", "info")
+	local lowest1 = watch(0.6, function()
+		return liveToasts(p)[1]
+	end)
+	t.ok(
+		lowest1 >= -0.5,
+		`slot 1's entrance starts inside the column (top {lowest1} px ≥ 0): never over the status stack`
+	)
+	notify(sim, p, "Второе", "success")
+	sim:Advance(1 / 60)
+	local second = liveToasts(p)[2]
+	t.ok(second ~= nil, "a second toast")
+	local start = topOf(second)
+	local lowest2, highest2 = watch(0.6, function()
+		return liveToasts(p)[2]
+	end)
+	t.ok(lowest2 >= -0.5, `slot 2's entrance stays inside the column ({lowest2} px)`)
+	t.ok(highest2 > start + 4, `… and still drops in from above its slot ({start} → {highest2} px)`)
+	-- The top toast leaves: it rises only as far as the column's free top (here: not at all).
+	local seen, lowestLeaving = 0, math.huge
+	local t0 = sim:Time()
+	while sim:Time() - t0 < UIConfig.ToastDuration + 1 do
+		for _, c in column:GetChildren() do
+			if c.Name == "ToastLeaving" then
+				seen += 1
+				lowestLeaving = math.min(lowestLeaving, topOf(c))
+			end
+		end
+		sim:Advance(1 / 60)
+	end
+	t.ok(seen > 0, "a toast left meanwhile")
+	t.ok(lowestLeaving >= -0.5, `a leaving toast never rises above the column ({lowestLeaving} px)`)
+	sim:AssertNoErrors({ warnings = true })
+end
+
 tests["toasts: colour and icon by kind, width by text, slots, leave and reflow"] = function(t)
 	local sim = boot(t)
 	local p = addPlayer(sim, 1, "desktop")
