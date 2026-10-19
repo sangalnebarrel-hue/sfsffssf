@@ -464,8 +464,8 @@ local function plotStep(root: BasePart)
 	if mode ~= "none" and mode ~= "hint" then
 		return -- (кража, срыв, «ДОБЫЧА!» — у них своя полоса)
 	end
-	if mode == "hint" and hintUntil > os.clock() then
-		return -- (отказ, «подожди», первая подсказка — держатся своё время)
+	if mode == "hint" and hintUntil > os.clock() and (base ~= nil or hintKey == nil) then
+		return -- (отказ, «подожди», первая подсказка — держатся своё время; подсказка двора — пока он во дворе)
 	end
 	if not base then
 		hideHint()
