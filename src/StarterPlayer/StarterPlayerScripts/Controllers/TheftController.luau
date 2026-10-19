@@ -915,6 +915,11 @@ local function startGuide()
 		end
 		carryTrove:Add(barks.ChildAdded:Connect(changed))
 		carryTrove:Add(barks.ChildRemoved:Connect(changed))
+		-- «ГАВ!» уже висит (собака гавкнула при начале удержания, до выноса): цепочка сразу
+		if barks:FindFirstChild(BARK_NAME) then
+			watching = true
+			task.defer(watchBarks)
+		end
 	end
 	local params = groundParams(base)
 	-- (за оградой двора — дорожки хаба: любой мир под точкой, кроме персонажа и самой дорожки)

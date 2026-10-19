@@ -45,7 +45,10 @@
 	    4th does), nor does the release NoReply made; «Ты уже крадёшь» never for his own theft; a new
 	    hold of a display NoReply gave up on is a theft with its bar and the toast reserve; «ВЫХОД»
 	    waits while a «ГАВ!» crosses it on screen; «САДОК» tapped in the hold or the carry wiggles
-	    «нет» and opens nothing, a failure never opens it.
+	    «нет» and opens nothing, a failure never opens it;
+	  • wave 3 (integration): «ВЫХОД» waits for a «ГАВ!» that will rise into it, for one that runs
+	    into it between two steps of the guide and for one that was there before the carry; the
+	    owner's alert asks for the column's top while the thief's band holds the whole column.
 
 	Run: lune run tools/run_tests.luau stage4_hud_thief
 ]]
@@ -1662,6 +1665,65 @@ tests["«ВЫХОД» waits for a «ГАВ!» that will rise into it, and for on
 	t.ok(GUIDE.BarkEvery + S.FRAME * 2 < SPEC.BeamEvery, "the check is sooner than the guide's next step")
 	t.ok(not label.Enabled, "the bark ran onto «ВЫХОД»: it waits within BarkEvery")
 	runner:Destroy()
+	sim:Advance(GUIDE.BarkEvery + S.FRAME * 2)
+	t.ok(label.Enabled, "gone: «ВЫХОД» back")
+	t.eq(#sim.Errors, 0, sim:FormatErrors())
+end
+
+tests["«ВЫХОД» also watches a «ГАВ!» that was already there when the carry began (the dog barks at the hold's start)"] = function(
+	t
+)
+	local sim = S.boot(t)
+	local victim = S.player(t, sim, 295, { tank = VICTIM })
+	local thief = S.player(t, sim, 296, { tank = THIEF, client = true, device = "phone" })
+	sim:Teleport(victim, S.exitPoint(S.baseOf(sim, thief), "gate"))
+	sim:Advance(1.5)
+	-- The bark of the hold: made before the carry (and its guide) exist, far from everything.
+	local world = S.client(sim, thief, "TheftWorldController").Stats().folder
+	local anchor = victim.Character and victim.Character:FindFirstChild("HumanoidRootPart")
+	local early = sim:Create("BillboardGui", {
+		Name = "FxTankPop",
+		Size = UDim2.new(3, 30, 1.2, 14),
+		Adornee = anchor,
+		StudsOffsetWorldSpace = Vector3.new(0, 200, 0),
+		AlwaysOnTop = true,
+		MaxDistance = 400,
+	}, world)
+	sim:Create(
+		"TextLabel",
+		{ Name = "Amount", Text = "ГАВ!", TextScaled = true, Size = UDim2.fromScale(1, 1) },
+		early
+	)
+	S.toCarry(t, sim, thief, victim, 3)
+	sim:Advance(0.5)
+	local guide = sim.workspace:FindFirstChild("TheftGuide")
+	local ring = guide and guide:FindFirstChild("Ring")
+	local label = guide and guide:FindFirstChild("ExitLabel")
+	t.ok(ring ~= nil and label ~= nil, "the ring and «ВЫХОД»")
+	if not (guide and ring and label) then
+		return
+	end
+	local camera = sim.workspace.CurrentCamera
+	sim:Run(function()
+		camera.CFrame = CFrame.lookAt(ring.Position + Vector3.new(0, 12, 30), ring.Position)
+		camera.FieldOfView = 70
+	end, thief)
+	sim:Advance(SPEC.BeamEvery + S.FRAME)
+	t.ok(label.Enabled, "«ВЫХОД» shown (the early bark is far away)")
+	local first = guide:FindFirstChild("Arrow_1")
+	local arrow = first and first:FindFirstChild("Left")
+	local before = arrow and arrow.CFrame
+	for _ = 1, 40 do -- (to the next step of the guide)
+		sim:Advance(S.FRAME)
+		if arrow and arrow.CFrame ~= before then
+			break
+		end
+	end
+	early.Adornee = ring
+	early.StudsOffsetWorldSpace = Vector3.new(0, GUIDE.Label.Lift, 0)
+	sim:Advance(GUIDE.BarkEvery + S.FRAME * 2)
+	t.ok(not label.Enabled, "the early bark ran onto «ВЫХОД»: it waits within BarkEvery, not at the next step")
+	early:Destroy()
 	sim:Advance(GUIDE.BarkEvery + S.FRAME * 2)
 	t.ok(label.Enabled, "gone: «ВЫХОД» back")
 	t.eq(#sim.Errors, 0, sim:FormatErrors())
