@@ -19,7 +19,8 @@
 	  E.trio(t, opts?)              a server and the players of a case: opts.victim / thief /
 	                                bystander = { device, tank, money, upgrades, lock } (false — no
 	                                such player; defaults: tablet victim, phone thief, desktop
-	                                bystander), opts.latency, opts.patches; waits for every HUD
+	                                bystander), opts.latency, opts.patches, opts.quick (the quick-
+	                                rejoin protection 20 → 2 s: E.QUICK_JOIN); waits for every HUD
 	                                («ЗАЩИТА» popped in) and — unless opts.protected — for the join
 	                                protection of every base to run out (a quick rejoin: 20 s; the
 	                                ShieldChip goes); returns { sim, victim, thief, bystander }
@@ -112,9 +113,21 @@ local function hudReady(p: any): boolean
 	return hud ~= nil and hud.RightButtons.DefenceButton.Visible and hud.RightButtons.TankButton.Visible
 end
 
+-- The quick-rejoin protection (the poked saves were online a moment ago: 20 s) cut to 2 s, for the
+-- cases that are not about it (a config line, like the Studio knob; case 1 waits the real one out).
+E.QUICK_JOIN = {
+	path = "ReplicatedStorage.Shared.Config.DefenceConfig",
+	from = "QuickRejoinProtect = 20,",
+	to = "QuickRejoinProtect = 2,",
+}
+
 function E.trio(t: any, opts: { [string]: any }?): { [string]: any }
 	local o = opts or {}
-	local sim = Kit.boot(t, { latency = o.latency, patches = o.patches })
+	local patches = table.clone(o.patches or {})
+	if o.quick then
+		table.insert(patches, E.QUICK_JOIN)
+	end
+	local sim = Kit.boot(t, { latency = o.latency, patches = patches })
 	local out: { [string]: any } = { sim = sim }
 	local order = { "victim", "thief", "bystander" }
 	local specs = {}
@@ -352,6 +365,16 @@ function E.walkOut(sim: any, p: any, owner: any, exit: string?): boolean
 	end
 	sim:Advance(0.2)
 	return p:GetAttribute("Stealing") == nil
+end
+
+-- Humanoid:MoveTo without waiting (the caller steps the sim; two players can walk at once).
+function E.moveTo(sim: any, p: any, pos: any)
+	local humanoid = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		sim:Run(function()
+			humanoid:MoveTo(pos)
+		end)
+	end
 end
 
 -- The thief's Stealing changes from now on (server attribute): { { time, value } }.
