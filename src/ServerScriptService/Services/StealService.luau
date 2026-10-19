@@ -31,7 +31,7 @@
 	     раза в 10 с).
 	  3. Удержание кончилось → вынос: SetSteal(…, "carry", { End }), FishingService:DropHeldFish(вор),
 	     Lib/HeldRig.Build(…, "StolenFish") (+ Owner = UserId хозяина), Lib/Speed "Carry",
-	     Lib/CarryGuard на полном бюджете, Stealing = "carry", StealEvent "Carry" и "Alert" { Phase
+	     Lib/CarryGuard (бюджет с Carry.Speed.Start, не полный: A2-01), Stealing = "carry", StealEvent "Carry" и "Alert" { Phase
 	     = "carry" } (ЩИТ жертвы работает и сейчас: DC-01). StealConfig.Carry.Enabled = false —
 	     рыба переходит сразу в конце удержания (без выноса и StolenFish; §9 R1).
 	  4. Наблюдатель — ОДИН цикл task.wait(StealConfig.Tick), только пока идёт хоть одна кража
@@ -44,16 +44,18 @@
 	     (nil → рыба вернулась: "full" / "busy"). Собаки (Lib/DogBrain.Step; кусает — Lib/Speed
 	     "Dog" × Dog.Slow до SlowLinger, только пока кража на этой базе жива и её вор — цель).
 	  5. Удачно: DefenceService:GiveAfterTheft(жертва), вор ждёт ThiefCooldown, StealEvent "Done" вору
-	     и "Lost" жертве (Until / Kind — её защита теперь). Конец кражи: Ended — первым (второй конец
-	     ничего не делает, отложенные — проверяют номер кражи), Lib/Speed.ClearAll и уборка кражи
-	     (StolenFish), записи по вору и базе сняты, кнопка получает HoldDuration, Thief снят,
+	     и "Lost" жертве (Until / Kind — её защита теперь) — в xpcall: рыба уже у вора, и конец кражи
+	     будет, что бы там ни упало (A2-02; ошибка шага наблюдателя после StealFish — тоже только
+	     конец). Конец кражи: Ended — первым (второй конец ничего не делает, отложенные — проверяют
+	     номер кражи), записи по вору и базе сняты (до уборки: упавшая уборка не оставит цикл),
+	     Lib/Speed.ClearAll и уборка кражи (StolenFish), кнопка получает HoldDuration, Thief снят,
 	     AlarmState — через Alarm.Linger, собака — домой, Stealing = nil (последним). Срыв: рыба
 	     отпущена (SetSteal nil) — осталась или вернулась; ожидания вора: своя вина ("released",
 	     "far", "died", "timeout", "speed", "deadline", "tag") — FailCooldown по счёту срывов за
 	     FailWindow, "early" — сразу последнее, пойман ("tag") — ещё TagCooldown на этой базе;
 	     щит / ушёл хозяин / садок полон / ушёл вор — без ожидания. StealEvent "Cancel" вору,
-	     "Saved" жертве (Quiet — удержание короче QuietSavedUnder; жертве, которая ушла, —
-	     ничего).
+	     "Saved" жертве (Quiet — удержание короче QuietSavedUnder, которое кончил не хозяин: его
+	     "tag" и "shield" — всегда громко, A2-04; жертве, которая ушла, — ничего).
 	  6. Тревога жертве: "Alert" при начале удержания и выноса; ГРОМКО — не чаще раза в
 	     AlertCoalesce с на пару (вор, жертва) от прошлой громкой, остальные Quiet. Никому другому —
 	     ничего (кража видна только двоим).
@@ -70,7 +72,9 @@
 	Записи — по самому Player с проверкой «это всё ещё она»; соединения — одно на
 	ProximityPromptService (три события), ни одного на кнопку; карты по UserId (cooldowns, fails,
 	tagged, alertCoalesce) — с границей по времени, чистятся при записи, в PlayerRemoving и в
-	_debugSizes. Часы внутри — os.clock; в атрибуты — серверное время (TankRules.AttrTime).
+	_debugSizes; ожидание переживает перезаход, и TankService.Mounted возвращает новому Player
+	атрибут StealCooldownUntil (A2-03). Часы внутри — os.clock; в атрибуты — серверное время
+	(TankRules.AttrTime).
 	Каждый вызов другого сервиса — за type(...) == "function".
 
 	Атрибуты (RemoteNames, «Кража и защита»): Player — Stealing, StealCooldownUntil (Slowed пишет
@@ -176,6 +180,11 @@ local OWN_FAULT = {
 	deadline = true,
 	tag = true,
 	early = true,
+}
+-- Конец, который сделала защита хозяина: «Saved» ему — всегда громко (A2-04).
+local OWNER_SAVE = {
+	tag = true,
+	shield = true,
 }
 
 local StealService = {
@@ -314,6 +323,16 @@ local function setCooldown(player: Player, seconds: number)
 	end
 end
 
+-- Ожидание — по UserId и переживает перезаход, а атрибут был у прежнего Player: вернуть его новому,
+-- иначе фильтр клиента (строка 10, Client) покажет «Украсть», а сервер ответит "cooldown" (A2-03).
+local function restoreCooldown(player: Player)
+	local t = os.clock()
+	local untilT = cooldowns[player.UserId]
+	if untilT and untilT > t and player.Parent == Players then
+		setAttr(player, "StealCooldownUntil", TankRules.AttrTime(now() + (untilT - t)))
+	end
+end
+
 --------------------------------------------------------------------------------
 -- Кнопки «Украсть»
 --------------------------------------------------------------------------------
@@ -375,14 +394,16 @@ local function finish(theft: Theft, result: string)
 	end
 	theft.Ended = true
 	local thief, victim, base = theft.Thief, theft.Victim, theft.Base
-	Speed.ClearAll(thief) -- (первым: вор никогда не остаётся медленным, BE-10)
-	theft.Trove:Destroy()
+	-- Записи — сразу (только таблицы): даже если уборка ниже упадёт, наблюдатель её больше не
+	-- увидит и кончится сам (A2-02).
 	if byThief[thief] == theft then
 		byThief[thief] = nil
 	end
 	if byBase[base] == theft then
 		byBase[base] = nil
 	end
+	Speed.ClearAll(thief) -- (первая уборка: вор никогда не остаётся медленным, BE-10)
+	theft.Trove:Destroy()
 	theft.Info.Held = false
 	refreshPrompt(base, theft.Slot)
 	local model = base.Model
@@ -436,7 +457,11 @@ local function cancel(theft: Theft, reason: string)
 	end
 	send(thief, "Cancel", { Reason = reason, Text = TEXTS.Cancel[reason] or TEXTS.Cancel.busy, Phase = theft.Phase })
 	if reason ~= "victim" then
-		local quiet = theft.Phase == "hold" and os.clock() - theft.T0 < LIMITS.QuietSavedUnder
+		-- Тихо — только короткое удержание, которое кончил сам вор (или никто); защиту хозяина
+		-- (поймал, щит) празднуют всегда (D20; A2-04).
+		local quiet = theft.Phase == "hold"
+			and not OWNER_SAVE[reason]
+			and os.clock() - theft.T0 < LIMITS.QuietSavedUnder
 		send(victim, "Saved", {
 			Reason = reason,
 			Slot = theft.Slot,
@@ -462,16 +487,23 @@ local function credit(theft: Theft)
 		return
 	end
 	theft.Credited = true -- (дальше ни один срыв её не тронет: защита жертвы — ниже)
-	DefenceService:GiveAfterTheft(victim)
-	setCooldown(thief, LIMITS.ThiefCooldown)
-	local kind, untilT = DefenceService:IsProtected(victim)
-	send(thief, "Done", { Fish = result.Fish, Result = result.Result, Name = victim.DisplayName })
-	send(victim, "Lost", {
-		Fish = result.Fish,
-		Name = thief.DisplayName,
-		Until = if untilT then TankRules.AttrTime(untilT) else nil,
-		Kind = kind,
-	})
+	-- Рыба уже у вора: конец кражи — всегда, что бы ни упало ниже (A2-02).
+	local done, err = xpcall(function(): any
+		DefenceService:GiveAfterTheft(victim)
+		setCooldown(thief, LIMITS.ThiefCooldown)
+		local kind, untilT = DefenceService:IsProtected(victim)
+		send(thief, "Done", { Fish = result.Fish, Result = result.Result, Name = victim.DisplayName })
+		send(victim, "Lost", {
+			Fish = result.Fish,
+			Name = thief.DisplayName,
+			Until = if untilT then TankRules.AttrTime(untilT) else nil,
+			Kind = kind,
+		})
+		return nil
+	end, trace)
+	if not done then
+		warn(`[StealService] ❌ после StealFish: {err}`)
+	end
 	finish(theft, "credited")
 end
 
@@ -684,7 +716,11 @@ startWatcher = function()
 						lastWarn = os.clock()
 						warn(`[StealService] ❌ шаг кражи: {err}`)
 					end
-					pcall(cancel, theft, "busy")
+					if theft.Credited then
+						pcall(finish, theft, "credited") -- (рыба уже у вора: только конец, A2-02)
+					else
+						pcall(cancel, theft, "busy")
+					end
 				end
 			end
 			for base in table.clone(dogs) do
@@ -1061,7 +1097,8 @@ function StealService:Start()
 		TankService.SlotChanged:Connect(refreshPrompt)
 	end
 	if TankService.Mounted then
-		TankService.Mounted:Connect(function(_player: Player, base: Base)
+		TankService.Mounted:Connect(function(player: Player, base: Base)
+			restoreCooldown(player)
 			refreshBase(base)
 		end)
 	end

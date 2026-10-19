@@ -13,6 +13,12 @@
 	  • leaks: connections back to baseline after both leave; every _debugSizes zero after
 	    Advance(VictimWindow) with no further writes (pruned inside _debugSizes, BE-26); the
 	    watcher ends by itself (no loop while idle);
+	  • robust end (A2-02): an error thrown after StealFish (a patched GiveAfterTheft) still ends
+	    the theft — Stealing nil, 16, no record, no StolenFish, the watcher stops, one warning;
+	  • rejoin (A2-03): the wait survives a rejoin and the new Player gets StealCooldownUntil back
+	    (the client filter matches the server's «cooldown»); none once the wait is over;
+	  • quiet (A2-04): a tag or the shield inside the first second → Saved loud; the thief's own
+	    release inside it → Quiet;
 	  • BindToClose during the hold and the carry → the fish home, once (the victim's close save
 	    has it, the thief's has none).
 
@@ -240,6 +246,120 @@ tests["leaks: connections back to baseline, _debugSizes zero after Advance(Victi
 	sim:Advance(S.LIMITS.VictimWindow + 1, 1)
 	S.sizesZero4(t, sim, "after both left")
 	t.eq(S.service(sim, "TankService")._debugSizes().Escrows, 0)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- A2-02: anything that throws after StealFish moved the fish must still end the theft.
+local BOOM = {
+	path = "ServerScriptService.Services.DefenceService",
+	from = "function DefenceService:GiveAfterTheft(victim: Player)",
+	to = 'function DefenceService:GiveAfterTheft(victim: Player)\n\tif victim then error("boom (test: after StealFish)") end',
+}
+
+tests["robust end (A2-02): an error after StealFish (in the credit) still ends the theft — Stealing nil, 16, no record, the watcher stops"] = function(
+	t
+)
+	local sim, victim, thief = pair(t, { boot = { patches = { BOOM } } })
+	local steal = S.service(sim, "StealService")
+	S.toCarry(t, sim, thief, victim, 3)
+	S.out(sim, thief, victim, "gate")
+	t.ok(S.rowByOrigin(S.tankOf(sim, thief), `{victim.UserId}:f3`), "StealFish ran: the fish is the thief's")
+	t.eq(S.rowOf(S.tankOf(sim, victim), "f3"), nil, "… and not the victim's")
+	t.eq(thief:GetAttribute("Stealing"), nil, "the theft ended (Stealing nil)")
+	t.eq(S.walk(thief), S.WALK, "the thief walks at 16 again")
+	t.eq(
+		sim:Run(function()
+			return steal:IsStealing(thief)
+		end),
+		nil,
+		"IsStealing nil"
+	)
+	t.eq(thief.Character:FindFirstChild("StolenFish"), nil, "no StolenFish left")
+	t.eq(steal._debugSizes().Thefts, 0, "no theft record")
+	t.ok(
+		sim:WaitFor(function()
+			return steal._debugSizes().Watcher == 0
+		end, 15, S.COARSE),
+		"the watcher stops"
+	)
+	local warned = false
+	for _, w in sim.Warnings do
+		if string.find(w.message, "после StealFish", 1, true) then
+			warned = true
+		end
+	end
+	t.ok(warned, "one warning names the failure")
+	sim:AssertNoErrors()
+end
+
+-- A2-03: the wait survives a rejoin (by UserId), and so does the attribute the client filter reads.
+tests["rejoin (A2-03): the thief's wait survives a rejoin — the new Player gets StealCooldownUntil back, the server denies «cooldown»"] = function(
+	t
+)
+	local sim, victim, thief = pair(t)
+	local other = S.player(t, sim, 103, { tank = TANK })
+	S.toCarry(t, sim, thief, victim, 3)
+	S.out(sim, thief, victim, "gate")
+	t.ok(S.last(sim, thief, "Done"), "credited")
+	local untilT = thief:GetAttribute("StealCooldownUntil")
+	t.ok(type(untilT) == "number", "StealCooldownUntil set")
+	sim:RemovePlayer(thief)
+	sim:Advance(1)
+	local again = S.player(t, sim, 102, { keep = true })
+	local restored = again:GetAttribute("StealCooldownUntil")
+	t.ok(type(restored) == "number", `the new Player has StealCooldownUntil ({restored})`)
+	t.ok(restored and math.abs(restored - untilT) < 0.5, `… the same end ({restored} vs {untilT})`)
+	local denied = S.denied(t, sim, again, other, 1)
+	t.eq(denied and denied.Reason, "cooldown", "the server still denies «cooldown»")
+	-- after the wait, a rejoin writes nothing
+	sim:Advance(S.LIMITS.ThiefCooldown + 1, S.COARSE)
+	sim:RemovePlayer(again)
+	sim:Advance(1)
+	local third = S.player(t, sim, 102, { keep = true })
+	t.eq(third:GetAttribute("StealCooldownUntil"), nil, "no stale attribute once the wait is over")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- A2-04: the owner's own defence is celebrated even inside the first QuietSavedUnder second.
+tests["quiet (A2-04): a tag or the shield within 1 s → Saved loud; the thief's own release within 1 s → Quiet"] = function(
+	t
+)
+	local sim, victim, thief = pair(t)
+	local prompt = S.prompt(sim, victim, 3)
+	S.standAt(sim, thief, prompt)
+	S.moveTo(sim, victim, S.beside(thief, S.StealConfig.Tag.Range + 1)) -- row 13 lets the hold begin
+	sim:BeginHold(thief, prompt)
+	sim:Advance(S.FRAME)
+	t.eq(thief:GetAttribute("Stealing"), "hold", "the hold began")
+	sim:Advance(0.3)
+	S.moveTo(sim, victim, S.beside(thief, 4)) -- the owner steps in
+	sim:Advance(0.2)
+	local saved = S.last(sim, victim, "Saved")
+	t.eq(saved and saved.Reason, "tag", "a tag after ≈ 0.5 s")
+	t.eq(saved and saved.Quiet, nil, "the owner's tag is celebrated (not Quiet)")
+	sim:Advance(S.LIMITS.TagCooldown + 1, S.COARSE)
+
+	-- the shield 0.5 s into a hold (on another victim: the tag wait is per base)
+	local victim2 = S.player(t, sim, 103, { tank = TANK })
+	S.hold(t, sim, thief, victim2, 3)
+	t.eq(thief:GetAttribute("Stealing"), "hold", "a second hold began")
+	sim:Advance(0.5)
+	sim:FireServer(victim2, "ShieldActivate")
+	sim:Advance(0.2)
+	saved = S.last(sim, victim2, "Saved")
+	t.eq(saved and saved.Reason, "shield", "the shield after ≈ 0.7 s")
+	t.eq(saved and saved.Quiet, nil, "the owner's shield save is celebrated (not Quiet)")
+
+	-- the thief's own release within 1 s stays quiet (BE-19)
+	local victim3 = S.player(t, sim, 104, { tank = TANK })
+	local _, prompt3 = S.hold(t, sim, thief, victim3, 3)
+	t.eq(thief:GetAttribute("Stealing"), "hold", "a third hold began")
+	sim:Advance(0.4)
+	sim:ReleasePrompt(thief, prompt3)
+	sim:Advance(0.2)
+	saved = S.last(sim, victim3, "Saved")
+	t.eq(saved and saved.Reason, "released")
+	t.eq(saved and saved.Quiet, true, "a release under 1 s is Quiet")
 	sim:AssertNoErrors({ warnings = true })
 end
 
