@@ -25,12 +25,23 @@
 	      --devices phone --no-hud --out DIR      (the world views; HUD-less)
 	  gui_render.py --scenario owner_pier_alert,owner_pier_alert_wait --devices phone,desktop \
 	      --out DIR                               (the fishing camera with the HUD)
+	Wave 1 B review (design §11.4), with the HUD:
+	  steal_hold_thief_hud / steal_hold_thief_rule, steal_carry_thief_hud / steal_carry_thief_rule —
+	      the THIEF'S OWN screen (the local player holds / carries) from his follow camera: rev. 2's
+	      top TheftBar vs the §6.4 rule mocked here (HUD.Status hidden, the TheftBar in the bottom
+	      band); `gui_render -v` prints a [band] line: the robbed display's screen rect
+	      (TankWorldController.StealRect) and the HUD's rects (B1-01; phone, phone_small, tablet,
+	      desktop);
+	  steal_hold_spawn (B1-06), shield_dome_spawn (B1-02), alarm_lamp_far (B1-03 / B1-05),
+	  tank_sign_gate (B1-04), dog_rest_side (B1-09), flag_label_neighbour (B1-10, base 2 is blue).
 ]]
 
 local roblox = require("@lune/roblox")
 
 local Vector3 = roblox.Vector3
 local CFrame = roblox.CFrame
+local Vector2 = roblox.Vector2
+local UDim2 = roblox.UDim2
 
 -- The court's six fish (gui_scenarios_tank.luau's SIX).
 local SIX = {
@@ -219,6 +230,61 @@ local function alarm(h: any, thief: any, state: string?)
 	base:SetAttribute("AlarmState", state or "theft")
 end
 
+-- The robbed display on screen (TankWorldController.StealRect, px, in the client's own camera)
+-- next to the HUD's rects and the TheftBar plate — printed (gui_render -v) for the §6.4 / §6.9
+-- band contract (design, DESIGN.md).
+local function measure(h: any, index: number, label: string)
+	local world = h:clientModule("TankWorldController")
+	if not world then
+		return
+	end
+	local rect, rects = h.sim:Run(function()
+		return world.StealRect(h:base(), index), world.HudRects()
+	end, h.player)
+	local function fmt(r: any): string
+		return if r then string.format("x %d..%d y %d..%d", r.x0, r.x1, r.y0, r.y1) else "-"
+	end
+	local parts = { `[band] {h.scenario}/{h.device} {label}: display Slot_{index} {fmt(rect)}` }
+	for i, r in rects do
+		table.insert(parts, `hud{i} {fmt(r)}`)
+	end
+	print(table.concat(parts, " · "))
+end
+
+-- The wave-0 TheftBar shown where wave 2 builds it (until TheftController drives it).
+local function showBar(h: any)
+	local bar = h:gui("HUD.TheftBar")
+	if bar then
+		bar.Visible = true
+		h:atEnd(function()
+			bar.Visible = false
+		end)
+	end
+end
+
+-- The §6.4 layout rule mocked until Wave 2 builds it (TheftController / HudController): while
+-- HUD.Stealing is set, HUD.Status hides and the TheftBar docks in the bottom band (its top at
+-- Steal.BandTop of the screen height), clear of the robbed display's band.
+local function ruleLayout(h: any)
+	local status = h:gui("HUD.Status")
+	local bar = h:gui("HUD.TheftBar")
+	if status then
+		status.Visible = false
+		h:atEnd(function()
+			status.Visible = true
+		end)
+	end
+	if bar then
+		local anchor, position = bar.AnchorPoint, bar.Position
+		bar.AnchorPoint = Vector2.new(0.5, 0)
+		bar.Position = UDim2.fromScale(0.5, 0.74)
+		h:atEnd(function()
+			bar.AnchorPoint = anchor
+			bar.Position = position
+		end)
+	end
+end
+
 -- The dog's brain (DogBrain): state, a base-local ground point → DogPos (world), the target.
 local function dogTo(h: any, state: string, x: number, z: number, target: any?)
 	local dog = h:base().Dog
@@ -258,7 +324,8 @@ return {
 		run = function(h: any)
 			local thief = h:extraPlayer({ DisplayName = "Ника" })
 			h.sim:Teleport(h.player, at(h, 0, 3.2, 40))
-			court(h, { -15, 9, 38 }, { -19, 4, 62 }, 70)
+			-- (aimed a little high: the thief's plate stays under the status stack, which fades it)
+			court(h, { -15, 7, 33 }, { -19, 9.5, 62 }, 70)
 			h:defence({ alarm = true })
 			showDog(h)
 			place(h, thief, { -27.4, 3.2, 72.2 }, { -33.5, 0, 71.5 })
@@ -448,6 +515,251 @@ return {
 			h:advance(0.4)
 			h:click("HUD.Fishing.ActionArea.ActionButton")
 			h:advance(1.6)
+		end,
+	},
+	{
+		name = "steal_hold_thief_hud",
+		desc = "THE THIEF'S OWN screen (HUD on) holding Slot_3 from the follow camera (12.5 studs behind, 20° down): where the robbed display, the lifted fish and «КРАДУТ!» land against the status stack and the wave-0 TheftBar (y 152) — the §6.4 band contract; the [band] line prints the rects",
+		world = true,
+		standard = false,
+		still = { 0.7 },
+		burst = false,
+		run = function(h: any)
+			h:money(1215, 459)
+			court(h, { -16.5, 8.9, 71.5 }, { -28.2, 4.6, 71.5 }, 70)
+			place(h, h.player, { -28.2, 3.2, 71.5 }, { -33.5, 0, 71.5 })
+			h:advance(0.2)
+			steal(h, 3, "hold", h.player, 4)
+			alarm(h, h.player)
+			h.player:SetAttribute("Stealing", "hold")
+			h:atEnd(function()
+				h.player:SetAttribute("Stealing", nil)
+			end)
+			showBar(h)
+			h:advance(0.4)
+			measure(h, 3, "hold")
+		end,
+	},
+	{
+		name = "steal_hold_thief_rule",
+		desc = "The same hold with the §6.4 rule (mocked until Wave 2): HUD.Status hidden while stealing, the TheftBar in the bottom band — the robbed display, the lifted fish and «КРАДУТ!» in the clear",
+		world = true,
+		standard = false,
+		still = { 0.7 },
+		burst = false,
+		run = function(h: any)
+			h:money(1215, 459)
+			court(h, { -16.5, 8.9, 71.5 }, { -28.2, 4.6, 71.5 }, 70)
+			place(h, h.player, { -28.2, 3.2, 71.5 }, { -33.5, 0, 71.5 })
+			h:advance(0.2)
+			steal(h, 3, "hold", h.player, 4)
+			alarm(h, h.player)
+			h.player:SetAttribute("Stealing", "hold")
+			h:atEnd(function()
+				h.player:SetAttribute("Stealing", nil)
+			end)
+			showBar(h)
+			ruleLayout(h)
+			h:advance(0.4)
+			measure(h, 3, "hold, rule")
+		end,
+	},
+	{
+		name = "steal_carry_thief_hud",
+		desc = "THE THIEF'S OWN screen (HUD on) running out with the fish on his head (the owner bought the alarm): his plate «🥷 Фугу $52» + «ВОР!» fade under the status stack (TrackWord), the Highlight stays",
+		world = true,
+		standard = false,
+		still = { 0.9 },
+		burst = false,
+		run = function(h: any)
+			h:money(1215, 459)
+			court(h, { -14, 8.9, 66.7 }, { -14, 4.6, 55 }, 70)
+			h:defence({ alarm = true })
+			place(h, h.player, { -14, 3.2, 55 }, { -14, 0, 40 })
+			steal(h, 3, "hold", h.player, 4)
+			alarm(h, h.player)
+			h:advance(0.3)
+			carry(h, h.player, "Puffer")
+			steal(h, 3, "carry", h.player, 30)
+			h.player:SetAttribute("Stealing", "carry")
+			showBar(h)
+			h:atEnd(function()
+				h.player:SetAttribute("Stealing", nil)
+				local fish = h.player.Character and h.player.Character:FindFirstChild("StolenFish")
+				if fish then
+					fish:Destroy()
+				end
+			end)
+			h:advance(0.6)
+		end,
+	},
+	{
+		name = "steal_carry_thief_rule",
+		desc = "The carry with the §6.4 rule (mocked): Status hidden, the TheftBar in the bottom band — the fish on his head, its plate «🥷 Фугу $52» + «ВОР!» in the clear",
+		world = true,
+		standard = false,
+		still = { 0.9 },
+		burst = false,
+		run = function(h: any)
+			h:money(1215, 459)
+			court(h, { -14, 8.9, 66.7 }, { -14, 4.6, 55 }, 70)
+			h:defence({ alarm = true })
+			place(h, h.player, { -14, 3.2, 55 }, { -14, 0, 40 })
+			steal(h, 3, "hold", h.player, 4)
+			alarm(h, h.player)
+			h:advance(0.3)
+			carry(h, h.player, "Puffer")
+			steal(h, 3, "carry", h.player, 30)
+			h.player:SetAttribute("Stealing", "carry")
+			showBar(h)
+			ruleLayout(h)
+			h:atEnd(function()
+				h.player:SetAttribute("Stealing", nil)
+				local fish = h.player.Character and h.player.Character:FindFirstChild("StolenFish")
+				if fish then
+					fish:Destroy()
+				end
+			end)
+			h:advance(0.6)
+		end,
+	},
+	{
+		name = "steal_hold_spawn",
+		desc = "The owner just landed on his spawn (ДОМОЙ) while Slot_5 is held: «КРАДУТ!» with its ring in front of the arcade lanterns (AlwaysOnTop), the lifted fish",
+		world = true,
+		standard = false,
+		still = { 0.6 },
+		burst = false,
+		run = function(h: any)
+			local thief = h:extraPlayer({ DisplayName = "Ника" })
+			h.sim:Teleport(h.player, at(h, 0, 3.2, 40))
+			court(h, { 0, 10.5, 28 }, { 0, 5, 80 }, 70)
+			place(h, thief, { -27.4, 3.2, 82.2 }, { -33.5, 0, 82.5 })
+			h:advance(0.2)
+			steal(h, 5, "hold", thief, 4)
+			alarm(h, thief)
+		end,
+	},
+	{
+		name = "shield_dome_spawn",
+		desc = "The owner on his spawn pad (inside the dome) with his follow camera 12.5 studs behind (outside it): the dome goes faint (Dome.Near), not a full-screen layer; then from 8 studs outside the skin (the Near band) and from 30 studs out (a bubble)",
+		world = true,
+		standard = false,
+		still = { 0.8, 1.8, 2.8 },
+		burst = false,
+		run = function(h: any)
+			h.sim:Teleport(h.player, CFrame.lookAt(at(h, 0, 3.2, 36), at(h, 0, 3.2, 60)))
+			h:money(1215, 459)
+			court(h, { 0, 9.0, 24.3 }, { 0, 4.7, 36 }, 70)
+			h:shield(52, nil, "shield")
+			h:advance(0.6)
+		end,
+		during = function(h: any)
+			h:advance(1.0)
+			h.sim:Teleport(h.player, CFrame.lookAt(at(h, 0, 3.2, 22), at(h, 0, 3.2, 60)))
+			if h.world then
+				h.world:setCamera(at(h, 0, 9, 10.3), at(h, 0, 4.7, 22), 70)
+			end
+			h:advance(1.0)
+			h.sim:Teleport(h.player, CFrame.lookAt(at(h, 0, 3.2, 0), at(h, 0, 3.2, 60)))
+			if h.world then
+				h.world:setCamera(at(h, -6, 12, -18), at(h, 0, 10, 60), 70)
+			end
+			h:advance(1.0)
+		end,
+	},
+	{
+		name = "alarm_lamp_far",
+		desc = "A passer-by on the lane ~45 studs from the mast during a theft (alarm bought): the lamp blinks dark ↔ hot (frames half a period apart) and the siren's two pitched beams sweep the court",
+		world = true,
+		standard = false,
+		still = { 0.1, 0.35, 0.6 },
+		sheet = { from = 0, to = 1.2, fps = 10, roi = { { frac = { 0, 0, 1, 1 } } } },
+		burst = false,
+		run = function(h: any)
+			local thief = h:extraPlayer({ DisplayName = "Ника" })
+			h.sim:Teleport(h.player, at(h, 30, 3.2, 120))
+			court(h, { 40, 8, -14 }, { 18, 10, 40 }, 70)
+			h:defence({ alarm = true })
+			place(h, thief, { -28.2, 3.2, 71.5 }, { -33.5, 0, 71.5 })
+			steal(h, 3, "hold", thief, 4)
+			alarm(h, thief)
+			h:advance(0.3)
+		end,
+	},
+	{
+		name = "tank_sign_gate",
+		desc = "The tank sign with its defences row «🛡️ 0:42 · 🔐1 · 🐕 · 🚨» ON TOP, seen from the gate (a thief walking in), then from the spawn follow camera: the row clear of the fountain statue",
+		world = true,
+		standard = false,
+		still = { 0.6, 1.6 },
+		burst = false,
+		run = function(h: any)
+			h.sim:Teleport(h.player, at(h, 4, 3.2, 40))
+			court(h, { 0, 9, 16 }, { 0, 10, 75 }, 70)
+			showDog(h)
+			h:defence({ alarm = true, lock = 1 })
+			h:shield(42, nil, "join")
+			h:advance(1.2)
+		end,
+		during = function(h: any)
+			h:advance(1.0)
+			if h.world then
+				h.world:setCamera(at(h, 0, 9, 24.3), at(h, 0, 4.7, 36), 70)
+			end
+			h:advance(1.0)
+		end,
+	},
+	{
+		name = "dog_rest_side",
+		desc = "The shown dog asleep at Dog.Rest seen from the side (14 studs): its paws on the crosswalk paving (not sunk), «💤» over it",
+		world = true,
+		standard = false,
+		still = { 0.4 },
+		burst = false,
+		run = function(h: any)
+			h.sim:Teleport(h.player, at(h, 30, 3.2, 120))
+			court(h, { 17, 5.5, 47 }, { 6, 1.6, 58 }, 60)
+			showDog(h)
+			h:advance(0.3)
+		end,
+	},
+	{
+		name = "flag_label_neighbour",
+		desc = "The neighbour's (blue) flag with its join protection: «🛡️ 0:42» OVER the owner sign, on the sky — not on the blue cloth; then from ~140 studs",
+		world = true,
+		standard = false,
+		still = { 0.6, 1.6 },
+		burst = false,
+		run = function(h: any)
+			local neighbour = h:extraPlayer({ DisplayName = "Ника" })
+			h.sim:Teleport(h.player, at(h, 30, 3.2, 120))
+			court(h, nil, nil, nil)
+			local tankRules = h.sim:Require(h.sim:Find("ReplicatedStorage.Shared.TankRules"))
+			local other = h.sim.workspace.Bases:FindFirstChild(`Base_{neighbour:GetAttribute("BaseIndex")}`)
+			h.otherBase = other
+			if not other then
+				h:warn("flag_label_neighbour: no base for the neighbour")
+				return
+			end
+			other:SetAttribute("ProtectUntil", tankRules.AttrTime(h.sim.workspace:GetServerTimeNow() + 42))
+			other:SetAttribute("ProtectKind", "join")
+			h:atEnd(function()
+				other:SetAttribute("ProtectUntil", nil)
+				other:SetAttribute("ProtectKind", nil)
+			end)
+			if h.world then
+				h.world:setCamera(at(h, -2, 50, 6, other), at(h, -20, 60, 31, other), 60)
+			end
+			h:advance(0.6)
+		end,
+		during = function(h: any)
+			h:advance(1.0)
+			local other = h.otherBase
+			if other and h.world then
+				h.world:setCamera(at(h, 60, 14, -70, other), at(h, -20, 46, 31, other), 70)
+			end
+			h:advance(1.0)
 		end,
 	},
 }

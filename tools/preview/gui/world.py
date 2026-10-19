@@ -9,7 +9,7 @@ scene and the solids (Occluder):
 
   ribbon   {l, r, c[], a[], e}         a Beam or a Trail: left / right edge per sample
   dots     {p: [x, y, size, r, g, b, a], shape, e}   simulated ParticleEmitter particles
-  gui      {objects}                   a BillboardGui laid out on screen (HUD objects)
+  gui      {objects, top?}             a BillboardGui laid out on screen (HUD objects); top = AlwaysOnTop
   surface  {objects, size, quad}       a SurfaceGui: its canvas warped onto the face quad
   glow     {x, y, r, c, a}             a PointLight (and a SpotLight's source)
   poly     {pts, c, a, neon, dn}       a SpotLight's lit ground patch (stage 4: the siren);
@@ -403,7 +403,7 @@ def paint(canvas, world, ss, origin=(0, 0), depth=None):
             elif k == "fish":
                 _fish(canvas, ss, origin, it, occ)
             elif k == "gui":
-                if occ is None:
+                if occ is None or it.get("top"):  # (AlwaysOnTop: never hidden by the scene)
                     painter.paint(it.get("objects") or [], canvas, origin=origin)
                 else:
                     layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))

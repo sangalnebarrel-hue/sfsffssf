@@ -246,7 +246,21 @@ must see every base's displays and attributes.
   FishPoint), lands on the thief's `StolenFish` and is destroyed («УНОСЯТ!»); the channel
   cleared with the fish still in the data — a release (it drops back with the `in` splash) or a
   return (a copy flies back from the thief's head). Keep the 6.2 display cube, `FishPoint` at
-  its centre with −Z towards the aisle, the LightBar and the ceiling where they are.
+  its centre with −Z towards the aisle, the LightBar and the ceiling where they are. The steal
+  words («КРАДУТ!», «УКРАДЕНО!») are `AlwaysOnTop` (MaxDistance 90): they stand at the LightBar's
+  height (y 11.25) right behind the arcade lanterns (x ±23, y 10.5–12.3, z 66/88/110), which
+  would cut them from the court mouth and the spawn — keep the lanterns there or lower the words.
+* **The robbed display's screen band (stage 4, `docs/stage4_design.md` §6.4, §6.9):** from the
+  thief's default follow camera during a hold (12.5 studs behind, 20° down, standing at the
+  prompt ≈ 5 studs from the glass), the display's glass (`TankWorldController.StealRect(base,
+  slot)`: its 8 corners projected, px like `AbsolutePosition`) covers **x ≈ 0.36–0.64 W,
+  y ≈ 0.10–0.45 H** on every device (phone 844×390: 351..492 × 39..174; phone_small 667×375:
+  265..401 × 38..168; tablet: 373..650 × 77..344; desktop 1280×720: 510..769 × 72..322); the
+  thief's own character is under it (≈ 0.49–0.65 H) and the stock «Украсть» prompt at knee height
+  (≈ 0.50–0.70 H). That top-centre band is where `HUD.Status` and the toast column are, so the
+  thief's HUD keeps out of it while `HUD.Stealing` is set (Status hidden, the TheftBar in the
+  bottom band — the §6.4 rule; renders `steal_hold_thief_hud` / `steal_hold_thief_rule`). A
+  template change that moves the displays, the aisle or the prompt re-measures this band.
 * **Write order:** the fish fields → `State` → **`Event` last**. `"empty"` / `"locked"` set every
   fish field to `nil` (no stale `FishId` / `Value`). `n` is monotonic per base for the server's
   lifetime (never reset on unmount: a new owner's first event never repeats an old string).

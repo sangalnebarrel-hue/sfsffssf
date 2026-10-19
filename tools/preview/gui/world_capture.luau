@@ -38,7 +38,7 @@
 	      – BillboardGui (Adornee / parent part / attachment): placed at the projected point plus
 	        StudsOffsetWorldSpace and the camera-relative StudsOffset, sized "studs x px-per-stud
 	        + px" at its depth, MaxDistance applied, its GUI laid out at that size (the trophy's
-	        nameplate, the «?» of a nibble …);
+	        nameplate, the «?» of a nibble …); AlwaysOnTop ones are drawn over the scene;
 	      – Beam: a camera-facing ribbon along the Bezier (CurveSize0/1 along the attachments'
 	        WorldAxis), Width0 -> Width1, Color / Transparency along it — the fishing line leaves
 	        the bent rod's live TipAttachment;
@@ -1301,7 +1301,12 @@ function Capture:billboardItem(cam: any, gui: any, items: { any }, marks: { any 
 	if #objects == 0 then
 		return
 	end
-	table.insert(items, { k = "gui", objects = objects, d = z, name = gui.Name })
+	-- AlwaysOnTop (stage 4: «КРАДУТ!», «УКРАДЕНО!»): drawn over the scene, never hidden by it
+	local onTop = get(gui, "AlwaysOnTop", false) == true
+	table.insert(
+		items,
+		{ k = "gui", objects = objects, d = if onTop then 0.06 else z, top = onTop or nil, name = gui.Name }
+	)
 	if startsWithAny(gui.Name, MARK_PREFIXES) then
 		table.insert(marks, { name = gui.Name, box = { r1(rect.x), r1(rect.y), r1(rect.x + w), r1(rect.y + h) } })
 	end

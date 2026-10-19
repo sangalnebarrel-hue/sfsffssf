@@ -8,7 +8,9 @@ a config ModuleScript (§2.6). Nothing is a "magic" number in code.
 
 **Rev. 2** applies the two critiques in this folder (`critique_design.md`, items DC-nn: kid fairness and
 fun; `critique_backend.md`, items BE-nn: data safety, exploits, testability). Every item and what was
-done with it is listed in §11 «Решения по критике». The body below is already the revised design.
+done with it is listed in §11 «Решения по критике». The body below is already the revised design. The
+implementation reviews add their decisions there too (§11.3 Wave 0, §11.4 Wave 1 B: the world, and the
+thief's TheftBar moved to the bottom band — §6.4 rev. 3).
 
 **Scope.** Stage 4 only: the theft (a 3 s hold, then carrying the fish out of the plot), the owner's
 alert and the flashing lamp, the dog, the alarm («сигнализация»), the lock («замок», **level 1 only**:
@@ -1068,6 +1070,8 @@ They are driven by the slot's `StealPhase`, read on its change and on the first 
   - **«КРАДУТ!»**: a BillboardGui on a client Attachment over the display front at LightBar height (in
     front of the glass, like `FxTankTag`), `MaxDistance` 90, a Berry word with a `UiFx.ringTimer` to
     `StealEnd`. Its letters are capped like the Stage 3 tags. The aisle tag of that slot hides meanwhile.
+    `AlwaysOnTop` (like «УКРАДЕНО!»; B1-06): the arcade lanterns hang at its height and cut the ring and
+    the letters from the court mouth and the spawn; the Stage 3 tags stay depth-tested.
 - **Hold → carry:** a client clone of the display fish arcs out **through the front face** (apex ≤ 12.5,
   under the ceiling at 13.15) to the thief's head in 0.35 s, then disappears as `StolenFish` takes over.
   The display fish is **destroyed** (so the part budget holds). «КРАДУТ!» → «УНОСЯТ!».
@@ -1085,13 +1089,18 @@ They are driven by the slot's `StealPhase`, read on its change and on the first 
 
 - **Lamp** (`Alarm.Lamp`, server part, never written by the server):
   - while `AlarmState` is set, one looping tween (`RepeatCount −1`, `Reverses`, half of `LampPeriod`
-    0.5 s; `IntruderPeriod` 1 s for "intruder") on its `Color` with `Material = Neon`;
+    0.5 s; `IntruderPeriod` 1 s for "intruder") on its `Color` with `Material = Neon`, from a dark
+    `LampDim` to a hot `LampOn` (dark ↔ bright, not red ↔ red: the base and the mast are red too; B1-05);
   - plus a client `PointLight` (Range 32, Brightness 3 ↔ 0, `Shadows = false`) on a client Attachment
     under the cap;
   - restored exactly when the state clears or the base drops out of the 260-stud range.
 - **Siren** (`HasAlarm` and `AlarmState == "theft"`):
-  - a red `SpotLight` on a client Attachment inside the lamp, spun by one looped CFrame tween (1.2 s per
-    turn);
+  - two red `SpotLight`s back to back, **pitched down `Siren.Pitch` 38°** (a red pool sweeps the yard and
+    the court; level beams reached the ground only ≈ 32 studs out, where the falloff is ≈ 0), and along
+    each a `Beam` (`BeamLength` 14, `BeamWidth0` 0.6 → `BeamWidth1` 5, `LightEmission` 1, `LightInfluence`
+    0: seen by day and on phones that drop local lights), all on an invisible client spinner part in the
+    lamp (1 part, `Theft` reserve) spun by one looped CFrame tween (half a turn per `SirenSpin / 2`: a
+    turn per 1.2 s; B1-03);
   - a looped `electronicpingshort.wav` (0.6 s period) within `BeepRange` 120;
   - (P2, DC-17: the bell swing ±18° and the red court lanterns. The owner on his pier never sees them,
     and the thief already has enough signal.)
@@ -1102,20 +1111,26 @@ They are driven by the slot's `StealPhase`, read on its change and on the first 
   - created on start and destroyed on end (no `Enabled` toggling: disabled Highlights still use slots).
 - **Shield dome** (`ProtectKind` in `World.Dome.Kinds`, i.e. **the shield only**; DC-15):
   - one client Part `Shape = Ball`, Ø 116, at base-local (0, 0, 88), `Material = ForceField`, colour
-    `Guard.Bottom`, Transparency 0.15 (0.8 when the camera is inside);
+    `Guard.Bottom`, Transparency 0.15; 0.8 (`Inside`) when the camera **or the own character** is inside,
+    lerped between them within `Dome.Near` 16 studs outside the skin (B1-02: the owner on his spawn pad
+    is inside the dome while his follow camera is outside — the whole court was seen through the dome's
+    face, a full-screen overdraw on his phone);
   - `CanCollide/CanQuery/CanTouch/CastShadow = false`;
   - only for bases within 260 studs of the camera, and on touch devices only the `PhoneMax` 2 nearest; a
     0.4 s fade in and out; checked on the 0.5 s chain.
   - Join, newbie, after and rest get no dome: at server start all 8 bases are protected at once, and 8
     transparent spheres are heavy overdraw on phones (and would make the shield look ordinary).
-- **Tank sign** (`FxTankSign`, owned by TankWorldController), a third line for every viewer: «🛡️ 0:42»
-  (Guard) while protected, then the owned defences «🔐1 · 🐕 · 🚨» (only the owned icons; DC-12). The
+- **Tank sign** (`FxTankSign`, owned by TankWorldController), a third line for every viewer, **on top of
+  «+$42/с»** (the sign grows up; growing down put it behind the fountain statue from the gate and the
+  spawn; B1-04): «🛡️ 0:42» (Guard) while protected, then the owned defences «🔐1 · 🐕 · 🚨» (only the owned icons; DC-12). The
   defences deter and show off a purchase; whether the **shield is ready** is never shown (it would hand
   thieves the timing). The 1 s chain updates the countdown only while protected.
-- **Flag** (`Flag.Pole.SignAttachment.OwnerSign`): a client-local label «🛡️ 4:12» under the owner name
+- **Flag** (`Flag.Pole.SignAttachment.OwnerSign`): a client-local label «🛡️ 4:12» **over** the owner sign
   while the base is protected, any kind (0 parts; the sign's own `MaxDistance`), so thieves see
-  protection across the map without a dome. If the sign's layout has no room, a sibling client
-  BillboardGui on `SignAttachment`; Wave 1 B picks it against the render.
+  protection across the map without a dome. The sign's layout has no room: a sibling client
+  BillboardGui on `SignAttachment` of its size, raised `Flag.Raise` of its height (under it the label
+  sat on the flag cloth — Guard blue on the blue, cyan and purple bases; over it there is only sky;
+  B1-10).
 - **Pier word** (`FxPierTank`, own base): while the own base has `AlarmState == "theft"` it reads «🚨
   КРАДУТ!» (Berry, 2 Hz pulse; no display number: DC-14). It shows during the bite and the minigame
   too. It still hides during `CounterHold` and the own trophy, where the trophy nameplate stands.
@@ -1126,11 +1141,17 @@ They are driven by the slot's `StealPhase`, read on its change and on the first 
   - When `Unlocked` is true: within 200 studs, follow `DogPos` with an exponential lerp
     (α = 1 − e^(−12·dt)) on a RenderStepped connection that exists **only while `DogState` ≠ "Sleep"** and
     the base is in range (connected on wake, disconnected on sleep).
-  - The pup faces its motion, with a hop bob of 0.35 studs at 4 Hz while running.
-  - «ГАВ!» pops (the "words in the world" style) on `Alert` and when a bite starts.
+  - The pup faces its motion, with a hop bob of 0.35 studs at 4 Hz while running, its paws on the ground
+    under `DogPos` (one downward ray per `DogPos` change, the base's `Grounds` / `Arcades` only: the
+    arcade deck and the crosswalk paving are above the base point; B1-09).
+  - «ГАВ!» pops (the "words in the world" style) on `Alert` and when a bite starts, adorned to the pup's
+    body so it rides with the running dog (B1-08); «ВОР!», the carried plate and «ГАВ!» share one range
+    `World.WordRange` 120 and the HUD rule (`TankWorldController.TrackWord`; B1-07).
   - `smoke_main` puffs at the slowed thief's feet (within the emitter budget).
-  - Asleep: the server's rest pose exactly (the pup pivot the server set at `Dog.Rest`, cached on wake
-    and restored with `PivotTo` on sleep).
+  - Asleep: the server's rest pose (the pup pivot the server set at `Dog.Rest`), raised on this client so
+    its paws stand on the crosswalk paving (the template height sank them ≈ 0.45 studs), cached on wake
+    and restored with `PivotTo` on sleep; a still «💤» over it (`World.Dog.Sleep`, `SleepRange` 60; no
+    tween: an idle base does no per-frame work; B1-09).
 - **The carried fish.**
   - `StolenFish` gets the Stage 2 life on a looped tween (bob ±0.15 and a sway; `FishLife` if its API
     fits).
@@ -1142,7 +1163,8 @@ They are driven by the slot's `StealPhase`, read on its change and on the first 
 
 | item | parts | where |
 |---|---|---|
-| prompts, lamp, siren, Highlight, words, sounds, PointLights, the flag label | 0 | — |
+| prompts, lamp, Highlight, words, sounds, PointLights, the siren's SpotLights and Beams, the flag label | 0 | — |
+| siren spinner (B1-03) | 1 invisible part per siren in range (one base's theft at a time near you), client | `Theft` |
 | dog shown | 0 (17 already counted, hidden) | template |
 | `StolenFish` | ≤ 20 per theft, replaces the destroyed display fish | `TankFish` reserve |
 | arc clone | ≤ 20, ≤ 0.4 s, client | `RuntimeReserve.Theft` 60 |
@@ -1159,7 +1181,7 @@ They are driven by the slot's `StealPhase`, read on its change and on the first 
 |---|---|---|
 | `HUD.RightButtons.DefenceButton` (`Theme.simButton` "square", token **Guard**, Icon 🛡️, Caption «ЗАЩИТА», Tier Small, LayoutOrder 80 (above «САДОК» 90), `SimOpts.stroke 5`) → `Badge` («!», hidden), `Cooldown` + `Drain` + `CooldownText` (Home's veil recipe) | `gui/Hud.luau` | `DefenceController` |
 | `HUD.Status.BaseBadge.ShieldChip` (glass stadium overhanging the badge's right end, Small tier) → `Icon` 🛡️, `Label` «0:42» (italic) | `gui/Hud.luau` | `DefenceController` (the badge itself stays HudController's) |
-| `HUD.TheftBar` (top centre, under Status) → `Plate` (sim, Night / Berry / glass), `Icon` (socket 🥷/🏃/⏳), `Title`, `Bar.{Track, Fill}` (siblings: Fill drawn over Track), `Time` (italic), `Sub`, `DogChip` (Sun «🐕 СОБАКА!», hidden) | new `gui/Steal.luau` | `TheftController` |
+| `HUD.TheftBar` (the bottom band, centred; §6.4 rev. 3) → `Plate` (sim, Night / Berry / glass), `Icon` (socket 🥷/🏃/⏳), `Title`, `Bar.{Track, Fill}` (siblings: Fill drawn over Track), `Time` (italic), `Sub`, `DogChip` (Sun «🐕 СОБАКА!», hidden) | new `gui/Steal.luau` | `TheftController` |
 | `HUD.TheftTitle` (top band) → `Title` («ДОБЫЧА!» / «СОРВАЛОСЬ!», `Theme.title`), `Sub` | `gui/Steal.luau` | `TheftController` |
 | `HUD.TheftAlert` (toast slot) → `Plate` (Berry sim), `Icon` 🚨, `Text.{Title, Sub}`, `Buttons.{Shield (Guard «🛡️ ЩИТ», the largest target), Home (Grape «🏠 ДОМОЙ»)}`, `Compact` (pill variant: `Label`, `Shield`, `Home`) | new `gui/Alert.luau` | `AlertController` |
 | `HUD.DefencePanel` on the sheet shell → `Panel.{Strip, Header.{Icon 🛡️, Title «ЗАЩИТА», Money}, Close, Cards.{ShieldCard, DogCard, AlarmCard, LockCard}}`; each card: `Icon` (sim disc), `Name`, `Effect`, `State`, `Buy` (button: `Label`, `Price`). (No lock pips in Stage 4: the levelled lock is Stage 5's.) | `gui/Sheet.luau` (shell, unchanged) + new `gui/Defence.luau` | `DefenceController` + `Controllers/Sheet` |
@@ -1247,9 +1269,19 @@ touched inside existing functions, plus the one `HurryCard` function.
 
 ### 6.4 The thief's banner and celebration (TheftController)
 
-- **Where:** top centre under Status, the same column as the toasts, reserved through
-  `NotifyController.Reserve("theft", px)`. The thief is never fishing in a foreign court, so the top band
-  is free. It matches the reference's top «Украдите яйцо!» banner.
+- **Where (rev. 3, B1-01, §11.4):** the **bottom band**, centred, its top at ≈ 0.74 H, ≥ 16 px from the
+  thumbstick and Jump (`FishingLayout.clearOf`; on phone_small that caps it at ≈ 400 px), under the
+  thief's character and the stock «Украсть» prompt (≈ 0.5–0.7 H). While `HUD.Stealing` is set,
+  **`HUD.Status` hides** (badge, wallet, shield chip: none of them can change during a theft; it pops
+  back after `done` / `fail`, before the «ДОБЫЧА!» flight into «САДОК»). Why: from the thief's follow
+  camera the robbed display — the lifted, struggling fish, «КРАДУТ!» with its ring, the red pulse —
+  fills the top-centre band x ≈ 0.36–0.64 W, y ≈ 0.10–0.45 H on every device
+  (`TankWorldController.StealRect(base, slot)`; tools/builder/DESIGN.md), exactly where Status and the
+  toast column are: rev. 2's top banner (the reference's «Украдите яйцо!») hid the very thing the hold
+  is about (renders `steal_hold_thief_hud` vs the mocked rule `steal_hold_thief_rule`). The carry
+  keeps the same place (the fish on his head and its plate are then in that band). The bar no longer
+  needs `NotifyController.Reserve("theft", px)`; the victim's TheftAlert keeps the toast column (§6.3),
+  so a thief who is robbed meanwhile sees both without stacking.
 - **Size:** width ≤ min(0.62 W, 520 px), phone height ≈ 0.15 H (≈ 50 px), Title tier ≥ 20 px on
   phone_small.
 - **States:**
@@ -1274,7 +1306,7 @@ touched inside existing functions, plus the one `HurryCard` function.
   - FishingController's "where to go" hint and guide beam yield while it is set (one attribute check
     inside the existing hint function, 32 spare registers);
   - HudController greys «ДОМОЙ» with the lock look while `Player.Stealing == "carry"` (a press shows the
-    server's guard text).
+    server's guard text), and hides `HUD.Status` while `HUD.Stealing` is set (the band rule above).
 - **Denied:** `InputHoldEnd()` on the prompt the payload names (`BaseIndex`, `Slot`), then the `hint`
   state with the text for 2.5 s (no text for `Quiet`). A `Cancel` in the hold phase also calls
   `InputHoldEnd()` on the held prompt: the server no longer disables prompts, so this is how a shield
@@ -1359,8 +1391,10 @@ an alert fires.)
 |---|---|---|---|---|
 | DefenceButton | 776..836 × 88..144 | 603..660 × 88..141 | 910..1014 × 174..278 | 1163..1267 × 356..460 |
 | ShieldChip | right of the badge, ≤ 90 px, inside 558..760 | inside 463..587 | inside 720..894 | inside 848..956 (16 px to the player list) |
-| TheftBar / TheftAlert | toast column 186..658, from y 152 | 147..520, from y 148 | 225..799 | 444..836 (≤ 512 px: chat) |
-| TheftAlert ЩИТ button | ≥ 56 px tall, ≥ 35 % of the plate | the same (the tightest column: rendered stacked under TheftBar) | the same | the same |
+| TheftBar (bottom band; Status hidden while stealing) | 162..682 × 303..353 | 133..533 × 292..340 | 252..772 × 583..667 | 380..900 × 547..631 |
+| robbed display (StealRect, the hold; nothing of the thief's HUD in it) | 351..492 × 39..174 | 265..401 × 38..168 | 373..650 × 77..344 | 510..769 × 72..322 |
+| TheftAlert | toast column 186..658, from y 152 | 147..520, from y 148 | 225..799 | 444..836 (≤ 512 px: chat) |
+| TheftAlert ЩИТ button | ≥ 56 px tall, ≥ 35 % of the plate | the same (the tightest column) | the same | the same |
 | trophy chip | left of the column (phones) | left of the column | unchanged | unchanged |
 
 All rects are ≥ 16 px from Jump, thumbstick, column, status, chat and player list (`FishingLayout.clearOf`,
@@ -1635,16 +1669,19 @@ Studio). Note: RbxSim answers `RunService:IsStudio() == true`, so the stage 4 ki
 
 - **Displays:** lift/struggle on `StealPhase = hold`; destroyed on carry; rebuilt on return; «КРАДУТ!» /
   «УНОСЯТ!» / «УКРАДЕНО!» words appear and are cleaned; stolen event FX; ≤ 2 emitters.
-- **Lamp:** a tween while `AlarmState`, the colour and material restored exactly after.
-- **Siren** (SpotLight + beep) **and Highlight** only with `HasAlarm`; the Highlight destroyed on end; the
-  bell and the lanterns untouched (P2).
+- **Lamp:** a tween `LampDim` ↔ `LampOn` while `AlarmState` (luminance contrast ≥ 4), the colour and
+  material restored exactly after.
+- **Siren** (two SpotLights pitched down `Siren.Pitch`, a Beam along each, + beep) **and Highlight** only
+  with `HasAlarm`; the Highlight destroyed on end; the bell and the lanterns untouched (P2).
 - **Dome:** shield only (join protection → no dome; shield → a dome); in range only; ≤ 2 on touch;
-  inside transparency; fades.
-- **Tank sign** lines «🛡️ 0:42» and «🔐1 · 🐕 · 🚨»; the flag label «🛡️ 4:12» for any kind.
+  inside transparency for the camera **or the own character** (camera outside), in between in the
+  `Near` band; fades.
+- **Tank sign** lines «🛡️ 0:42» and «🔐1 · 🐕 · 🚨» on top (the sign grows up); the flag label «🛡️ 4:12»
+  over the owner sign for any kind.
 - **Pier word** «🚨 КРАДУТ!» red during the bite, hidden under `CounterHold`.
-- **Dog:** follows `DogPos`; the RenderStepped connection exists only while awake; back to the rest
-  pivot asleep.
-- **StolenFish** nameplate and life.
+- **Dog:** asleep on the paving with a still «💤»; follows `DogPos` on the ground (the arcade deck); the
+  RenderStepped connection exists only while awake; «ГАВ!» on its body; back to the rest pose asleep.
+- **StolenFish** nameplate and life; «ВОР!» and the nameplate fade under the HUD (`TrackWord`).
 - **Idle:** no RenderStepped/Heartbeat connections, `activeJobs() == 0`, everything gone after the base
   is released.
 
@@ -1762,8 +1799,8 @@ New Kit helpers in `tests/stage4_kit.luau` (Wave 0):
 - thief: `steal_court_hint`, `steal_hold`, `steal_carry` (+ `DogChip`), `steal_done`, `steal_fail`;
 - victim: `theft_alert_idle`, `theft_alert_bite` (phones), `theft_alert_compact` (phones, fisherBox),
   `theft_alert_catch` (the card closing → the plate; DC-02), `theft_alert_carry` (ЩИТ in the carry),
-  `theft_alert_cooldown` (Slate «⏳»), `theft_alert_while_stealing` (TheftBar and TheftAlert stacked;
-  phone_small is the tightest column), `theft_lost_toast`, `theft_saved_toast`;
+  `theft_alert_cooldown` (Slate «⏳»), `theft_alert_while_stealing` (TheftAlert in the column, TheftBar
+  in the bottom band; phone_small is the tightest), `theft_lost_toast`, `theft_saved_toast`;
 - shield: `shield_chip`, `shield_chip_join`, `shield_chip_rest`, `newbie_protect_ending`;
 - defence: `defence_button`, `defence_button_alert` («ЩИТ!»), `defence_panel`, `defence_panel_bought`,
   `defence_buy_confirm`;
@@ -1773,12 +1810,20 @@ New Kit helpers in `tests/stage4_kit.luau` (Wave 0):
 **World** (the world-FX capture or the scratch mock script of `read_world` §9):
 
 - `steal_hold_follow` (the thief camera: lifted fish, «КРАДУТ!»);
+- `steal_hold_thief_hud` / `steal_hold_thief_rule`, `steal_carry_thief_hud` / `steal_carry_thief_rule`
+  (the thief's own screen with the HUD on, phone, phone_small, tablet, desktop: rev. 2's top TheftBar
+  vs the §6.4 rule mocked — the robbed display's band, printed with `gui_render -v`);
+- `steal_hold_spawn` («КРАДУТ!» past the arcade lanterns from the owner's spawn);
 - `steal_carry_dog` (the fish over the head, the dog, the red beam);
-- `alarm_lamp_court`;
+- `alarm_lamp_court`, `alarm_lamp_far` (dark ↔ hot from the lane, the pitched siren beams);
 - `alarm_siren_highlight`;
-- `shield_dome_gate` (a shield dome; a join-protected base next to it without one);
-- `dog_court_rest` (the shown dog at its court spot, seen from the gate, and the kennel);
-- `tank_sign_defences` («🔐1 · 🐕 · 🚨» and «🛡️ 0:42»);
+- `shield_dome_gate` (a shield dome; a join-protected base next to it without one), `shield_dome_spawn`
+  (the owner on his spawn pad: faint, not a full-screen layer; the Near band; a bubble from afar);
+- `dog_court_rest` (the shown dog at its court spot, seen from the gate, and the kennel), `dog_rest_side`
+  (its paws on the paving, «💤»);
+- `tank_sign_defences` («🔐1 · 🐕 · 🚨» and «🛡️ 0:42»), `tank_sign_gate` (the row on top, clear of the
+  fountain statue from the gate and the spawn);
+- `flag_label_neighbour` («🛡️ 0:42» over a blue base's owner sign, on the sky);
 - `owner_pier_alert` (the phone fishing camera with «🚨 КРАДУТ!», clear of the fisher and the bobber).
 
 ---
@@ -2130,3 +2175,19 @@ different number or shape (the why says what); **P2** = accepted, but moved out 
 | note: `FinalTaken` stays set after a failed final attempt | **accepted** | §4.6 and F8c: a failed release attempt clears it, so a retry writes an amendment made between the attempts (`tests/stage4_data_hooks`). |
 | note: `Serialize` does not clamp a negative `ShieldReadyAt` | **rejected** | `Serialize` checks types (finite) for every number and clamps none (Money, LockLevel alike); `Sanitize` clamps on load and DefenceService clamps at load (§3.1). Only DefenceService writes it, always `os.time() + …`. |
 | note: `PreviewAdd` and `_debugSizes` miss Steal/Escrow | **Wave 1 A** | `FishRt.Steal` and `FishRt.Escrow` do not exist before `SetSteal` / `StealFish` (§4.5); A adds them to the `Locked` candidate rule and `Escrows` to `_debugSizes`. |
+
+### 11.4 Wave 1 B review (B1-nn; world; applied to this document and the code)
+
+| item | decision | where / why |
+|---|---|---|
+| B1-01 the thief's own follow camera: the robbed display under HUD.Status and the TheftBar | **accepted, changed** | §6.4 rev. 3, §6.9, tools/builder/DESIGN.md (the band). Measured with `TankWorldController.StealRect` (new): the display covers x ≈ 0.36–0.64 W, y ≈ 0.10–0.45 H on all four devices, so the critic's "TheftBar in the badge row (phone y 58–110)" would still cover the lifted fish (phone y ≈ 70–130). Instead: Status hides while `HUD.Stealing` is set (D, HudController) and the TheftBar docks in the bottom band (C), ≥ 16 px from the thumbstick and Jump, under the prompt. Renders `steal_hold_thief_hud` (rev. 2) vs `steal_hold_thief_rule` (the rule, mocked) on phone, phone_small, tablet and desktop. |
+| B1-02 the dome as a full-screen layer from the owner's spawn camera | **accepted** | §5.3: `Dome.Near` 16; Inside when the camera or the own HRP is inside, lerped (0.05 steps on the 0.5 s chain) within Near outside the skin. Test: camera outside, character inside → Inside; the band in between. Render `shield_dome_spawn`. |
+| B1-03 the siren does not read | **accepted** | §5.3: `Siren.Pitch` 38°, two `Beam`s (`BeamLength` 14, `BeamWidth0/1` 0.6 → 5, `BeamFade` 0.35, LightEmission 1, LightInfluence 0) on a spinner part (1 client part, the `Theft` reserve) spun by the one tween. Render `alarm_lamp_far`. The SpotLight look on court surfaces: Studio. |
+| B1-04 the defences row behind the fountain statue | **accepted** | §5.3: the row on top, the sign grows up (`SizeOffset` +k/2/(1+k)). Mirroring the icons on the flag label: not done (the flag label is about protection; the sign row is seen from the gate). Render `tank_sign_gate`. |
+| B1-05 low lamp contrast | **accepted** | `World.LampDim` (56, 10, 10) ↔ `LampOn` (255, 112, 84); the lights take `World.LightColor` (red). Test: WCAG ratio ≥ 4. |
+| B1-06 lanterns cut the steal words | **accepted** | `AlwaysOnTop` on «КРАДУТ!» and «УКРАДЕНО!» only (MaxDistance 90). Render `steal_hold_spawn`. |
+| B1-07 TheftWorldController's words never fade under the HUD | **accepted** | `TankWorldController.TrackWord(gui, cap?, capW?, capH?)`: «ВОР!», the carried plate and «ГАВ!» go through the same rule (`wordRect` now follows `Adornee`, `StudsOffsetWorldSpace`, `StudsOffset` and `SizeOffset`); gone words leave the table. The thief keeps his plate (the §6.4 rule hides Status anyway). |
+| B1-08 «ГАВ!» left behind; ranges | **accepted** | Adorned to the pup's Body; `World.WordRange` 120 for «ВОР!», the plate and «ГАВ!» (`Carried.PlateRange` removed). |
+| B1-09 the dog does not look asleep and sinks | **accepted, changed** | A still «💤» (`World.Dog.Sleep`, `SleepRange` 60) — **no bob tween**, so an idle base has no per-frame work. The ground: one ray per `DogPos` change (Grounds / Arcades), and the asleep pose raised onto the paving **on the client** (A's DefenceService keeps pivoting at the template height; the client lift is visual only, so no A/W0 number). |
+| B1-10 the flag label on the blue cloth | **accepted** | Over the owner sign (`Flag.Raise` 1.02 of its height, the line at the bottom of its box). Render `flag_label_neighbour` (base 2 is blue). |
+| nit: `stepDog` looked the thief up every frame | **accepted** | The DogTarget's Player is cached in `watchTarget`. |
