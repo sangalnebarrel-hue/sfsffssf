@@ -25,6 +25,9 @@
 	    leastCoverScaled — то же для нескольких размеров по очереди (чуть меньше, но рядом с
 	    рыбой, а не на ней).
 	  • topBand — полоса НАД рыбаком (и рыбой над головой): огромное слово редкости.
+	  • coreClear — огромное слово у кнопок Roblox слева вверху (меню, чат): насколько опустить его,
+	    какая доля качания и какой «удар» держат и повёрнутую, и выросшую рамку на тех же 16 px от
+	    них, что слово в покое (Этап 4, E-06 / D-19).
 	  • flightHits — заденет ли виджет прямоугольник, вылетая из точки на своё место.
 	  • slamPivot — откуда растить «удар» огромной надписи (от середины или от края), чтобы и в
 	    начале она не легла на своего рыбака и джойстик.
@@ -312,6 +315,33 @@ function FishingLayout.topBand(
 	end
 	local cy = math.clamp(wantY, top + h / 2, math.max(top + h / 2, limit - h / 2))
 	return cy, h
+end
+
+--[[
+	Огромное слово у кнопок Roblox слева вверху (меню, чат — до clearX px от левого края корня): box
+	— его нарисованные буквы с обводкой в покое (выше рамки), top — выше чего им нельзя (16 px до
+	кнопок); качание поднимает конец слова на lift px (слово целиком — на ±угол: половина ширины ×
+	sin; буквы — волной), а «удар» в начале — в scale раз больше вокруг середины. Возвращает (dy,
+	k, scale): насколько опустить слово (не ниже bottom его низом), какую долю качания k (0…1)
+	оставить и с какого «удара» (не меньше 1) начать, чтобы и повёрнутые, и выросшие буквы не
+	вставали выше top (Этап 4, E-06 / D-19: на телефоне эпическое слово сбоку от рыбака качалось до
+	12 px от меню). Слово правее clearX — (0, 1, scale не меньше 1).
+]]
+function FishingLayout.coreClear(
+	box: Rect,
+	top: number,
+	bottom: number,
+	clearX: number,
+	lift: number,
+	scale: number
+): (number, number, number)
+	if box.x0 >= clearX then
+		return 0, 1, math.max(scale, 1)
+	end
+	local dy = math.clamp(top + lift - box.y0, 0, math.max(bottom - box.y1, 0))
+	local room = math.max(box.y0 + dy - top, 0) -- (над рамкой в покое, до top)
+	local k = if lift > 0 then math.min(room / lift, 1) else 1
+	return dy, k, math.max(1, math.min(scale, 1 + 2 * room / math.max(box.y1 - box.y0, 1)))
 end
 
 --[[

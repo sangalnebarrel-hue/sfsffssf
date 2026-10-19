@@ -19,7 +19,8 @@
 	    badge and the Wallet), the right column («САДОК» over «ДОМОЙ»), the thumbstick or the Jump
 	    button, and the widgets do not overlap each other
 	    (v3: the Roblox hotbar is off; on a phone the minigame docks LEFT of the own fisher, the
-	    catch card beside him — FishingLayout).
+	    catch card beside him — FishingLayout); the giant title by the Roblox buttons keeps its
+	    16 px from them wobbling and slamming too (FishingLayout.coreClear, stage 4 last mile).
 	The server's FishingService is switched off (like tests/stage2_client.test.luau): the harness
 	plays the server and fires FishingState itself.
 
@@ -3151,6 +3152,44 @@ tests["card dock: FishingLayout.cardDock puts the card beside the fisher and his
 	t.ok(fit, "cardDock too")
 	local band = pcall(Layout.topBand, Layout.rect(0, bottom, 10, 400), 0, 2000, top, 10)
 	t.ok(band, "topBand too")
+end
+
+tests["title by the Roblox buttons (stage 4 last mile, F-06 / E-06, D-19): FishingLayout.coreClear lowers the wobbling word by its end's rise, never onto the fisher; tight — a quieter wobble and a smaller slam; right of the buttons — untouched"] = function(
+	t
+)
+	local Layout = loadLayout()
+	local tilt = math.sin(math.rad(3))
+	-- The phone render of victim_alert_catch_after (D-19): «ЭПИЧЕСКАЯ!» beside the fisher, the frame
+	-- x 26..340, its top 23 px under the HUD's top (the Roblox menu ends 7 px above it), its drawn
+	-- letters with the outline 13 px higher; the ±3° wobble lifts its end 157 × sin 3° ≈ 8.2 px.
+	local inkTop = 23 - 13
+	local word = Layout.rect(26 - 27 * tilt, inkTop, 340, 76.6)
+	local lift = 157 * tilt
+	local dy, k, scale = Layout.coreClear(word, 9, 76.6 + 16, 172, lift, 1.3)
+	t.near(dy, 9 + lift - inkTop, 1e-6, "lowered by what the wobble lifts above the 16 px line")
+	t.eq(k, 1, "… so the whole wobble stays")
+	t.ok(
+		scale >= 1 and (inkTop + dy) - (scale - 1) * (76.6 - inkTop) / 2 >= 9 - 1e-6,
+		"the slam starts no higher than that line"
+	)
+	-- No room below (the fisher right under it): the wobble goes quieter instead, the slam smaller.
+	local dy2, k2, scale2 = Layout.coreClear(word, 9, 76.6 + 2, 172, lift, 1.7)
+	t.near(dy2, 2, 1e-6, "lowered only to the fisher's top")
+	t.near(k2, (inkTop + 2 - 9) / lift, 1e-6, "the wobble scaled to what is left")
+	t.ok(k2 > 0 and k2 < 1)
+	t.near(scale2, 1 + 2 * (inkTop + 2 - 9) / (76.6 - inkTop), 1e-6, "… and the slam too")
+	-- Pressed against the line already: no wobble, no slam.
+	local _, k3, scale3 = Layout.coreClear(Layout.rect(26, 9, 340, 60), 9, 60, 172, lift, 2.5)
+	t.eq(k3, 0, "no room: no wobble")
+	t.eq(scale3, 1, "… and no slam")
+	-- Right of the buttons (TopbarRight 172): untouched.
+	local dy4, k4, scale4 = Layout.coreClear(Layout.rect(180, 0, 500, 60), 9, 60, 172, lift, 2.5)
+	t.eq(dy4, 0)
+	t.eq(k4, 1)
+	t.eq(scale4, 2.5, "the slam as before")
+	-- (The letters' wave: the same rule with their lift.)
+	local _, k5 = Layout.coreClear(Layout.rect(26, 10, 340, 70), 9, 70, 172, 60 * 0.06, 1.7)
+	t.near(k5, 1 / 3.6, 1e-6, "the letters' wave: quieter by the same rule")
 end
 
 tests["title on a PC: beside the fisher and his trophy when the band above is thin — big, clear of him and the chat"] = function(

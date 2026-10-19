@@ -2288,6 +2288,14 @@ do
 		               игроков справа вверху: ListLeft, ListBottom — и карточка); v5 (D5): сбоку и
 		               тогда, когда над рыбой лишь узкая полоса, а сбоку буквы в TitleBeside раз
 		               крупнее (планшет, компьютер: слово над трофеем выходило мелким).
+		  TitleWobble, TitleWave   слово целиком, встав, качается на ±TitleWobble°; буквы
+		               (легендарная, мифическая) — волной на TitleWave своей высоты. У кнопок
+		               Roblox слева вверху (левее TopbarRight; их низ — на TopbarGap px выше верха
+		               HUD) нарисованные буквы с обводкой (выше рамки на TitleInk её высоты и
+		               обводку) держат до них 16 px и в качании, и в «ударе»: слово ниже на подъём
+		               своего конца (не на рыбака), тесно — качание тише и «удар» меньше
+		               (FishingLayout.coreClear; Этап 4, E-06 / D-19: эпическое слово сбоку от
+		               рыбака качалось до 12 px от меню).
 		  TitleRays    лучи сцены слова — тонкие спицы (Width доли диаметра) и на Fade прозрачнее
 		               лучей карточки: вокруг рыбы не встаёт жёлтая «заливка» (v3).
 		  TitleDim     сцена слова: через At после приземления (кольца удара уже ушли — заливка
@@ -2322,6 +2330,10 @@ do
 		ListBottom = 33, -- … и до этой высоты HUD (низ списка — y 16 HUD + 16 px + 1 на округление)
 		TitleSide = 24,
 		TitleBeside = 1.25,
+		TitleWobble = 3,
+		TitleWave = 0.06,
+		TitleInk = 0.15, -- буквы TextScaled (строка ≈ 1.3 кегля) выше рамки на столько её высоты
+		TopbarGap = 7, -- низ кнопок Roblox (меню, чат: y 7…51) выше верха HUD (58) на столько px
 		TitleDim = { At = 0.55, Add = 0.2 },
 		RaysHole = 0.3,
 		Shine = 0.4,
@@ -3815,7 +3827,9 @@ do
 		-- слова тоже его сужает, а не встаёт вплотную под буквы.)
 		local left, right =
 			sideLimits(rootSize, middle - height / 2 - CARD_SIDE_GAP, middle + height / 2 + CARD_SIDE_GAP)
-		left = math.max(left, clearLeft)
+		-- (правее кнопок Roblox — и повёрнутое качанием: его угол уходит влево на полвысоты × sin)
+		local tilt = math.sin(math.rad(CLIMAX.TitleWobble))
+		left = math.max(left, clearLeft + (if clearLeft > 0 then height / 2 * tilt else 0))
 		-- (Ещё 10 px с каждой стороны: обводка букв и их «выскок» Back Out выходят за рамку.)
 		local room = 2 * math.max(math.min(centerX - left, right - centerX) - 10, 40)
 		if fisher then
@@ -3842,12 +3856,35 @@ do
 		end
 		local width = math.min(total * height, room)
 		height = math.min(height, width / total)
+		local single = not reveal.Letters
+		local edge = ui.titleLabel:FindFirstChild("Outline")
+		local edgePx = if edge and edge:IsA("UIStroke") then UiFx.strokeThickness(edge) else 5
+		-- У кнопок Roblox слева вверху: нарисованные буквы с обводкой (выше рамки на TitleInk высоты
+		-- и обводку) держат до них 16 px и в качании (конец слова выше на полширины × sin; буквы — на
+		-- волну), и в «ударе» — слово ниже (не на рыбака), тесно — тише и меньше (Этап 4, E-06 / D-19).
+		local drop, calm, burst = Layout.coreClear(
+			Layout.rect(
+				centerX - width / 2 - height / 2 * tilt,
+				middle - height / 2 - height * CLIMAX.TitleInk - edgePx,
+				centerX + width / 2,
+				middle + height / 2
+			),
+			Layout.EDGE - CLIMAX.TopbarGap,
+			if fisher
+					and centerX + width / 2 > fisher.x0
+					and centerX - width / 2 < fisher.x1
+				then math.min(fisher.y0, middle + height / 2 + CARD_SIDE_GAP)
+				else middle + height / 2 + CARD_SIDE_GAP,
+			CLIMAX.TopbarRight,
+			if single then width / 2 * tilt else height * CLIMAX.TitleWave,
+			math.min(if single then 2.5 else 1.7, room / width)
+		)
+		middle += drop
 		title.AnchorPoint = Vector2.new(0.5, 0.5)
 		title.Position = UDim2.fromScale(centerX / math.max(rootSize.X, 1), middle / math.max(rootSize.Y, 1))
 		title.Size = UDim2.fromScale(width / math.max(rootSize.X, 1), height / math.max(rootSize.Y, 1))
 		clearTitle()
 		titleWave.stopped = false
-		local single = not reveal.Letters
 		-- Как у слова редкости над мини-игрой: белое → цвет редкости → его тень.
 		local fill = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, WHITE),
@@ -3861,8 +3898,6 @@ do
 			twin.Visible = single
 		end
 		ui.titleSlamFill.Color = fill
-		local edge = ui.titleLabel:FindFirstChild("Outline")
-		local edgePx = if edge and edge:IsA("UIStroke") then UiFx.strokeThickness(edge) else 5
 		local labels: { TextLabel } = { ui.titleLabel }
 
 		if not single then
@@ -3906,8 +3941,9 @@ do
 				x += w
 				local landed = CLIMAX.TitleStagger * index
 				UiFx.popIn(letter, { from = 0.2, time = 0.24, delay = landed })
-				-- Встала — качается вверх-вниз на 6 % высоты слова (Sine; у каждой буквы свой сдвиг
-				-- фазы — по слову бежит волна); перед полётом в баннер стихает и уже не начинается.
+				-- Встала — качается вверх-вниз на TitleWave высоты слова (Sine; у каждой буквы свой
+				-- сдвиг фазы — по слову бежит волна; у кнопок Roblox — тише, calm); перед полётом в
+				-- баннер стихает и уже не начинается.
 				later(catchTrove, landed + 0.24, function()
 					if titleWave.stopped or letter.Parent == nil then
 						return
@@ -3915,7 +3951,7 @@ do
 					local swing = TweenService:Create(
 						letter,
 						TweenInfo.new(0.32, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-						{ Position = UDim2.fromScale(letter.Position.X.Scale, 0.44) }
+						{ Position = UDim2.fromScale(letter.Position.X.Scale, 0.5 - CLIMAX.TitleWave * calm) }
 					)
 					swing:Play()
 					table.insert(titleWave.tweens, swing)
@@ -3940,13 +3976,13 @@ do
 		title.Visible = true
 		local slam = UiFx.scaleOf(title)
 		-- (Буквы и так выскакивают по одной — у них «удар» меньше.)
-		slam.Scale = math.max(1, math.min(if single then 2.5 else 1.7, room / width))
+		slam.Scale = burst -- (не меньше 1; у кнопок Roblox — не выше их 16 px)
 		UiFx.tween(slam, 0.3, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 		if single then
-			-- Слово целиком, встав, качается волной (−3° → +3° → 0).
+			-- Слово целиком, встав, качается волной (−TitleWobble° → +… → 0; у кнопок Roblox — тише).
 			later(catchTrove, 0.3, function()
-				if not titleWave.stopped then
-					UiFx.wiggle(title, 3, 2, 0.6)
+				if not titleWave.stopped and calm > 0 then
+					UiFx.wiggle(title, CLIMAX.TitleWobble * calm, 2, 0.6)
 				end
 			end)
 		end
