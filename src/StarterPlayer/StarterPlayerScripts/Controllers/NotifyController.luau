@@ -70,7 +70,7 @@
 	покадровый эффект планировщика UiFx (где столб относительно камеры); нет значков — ничего.
 	Этап 4: в колонке справа три кнопки («ЗАЩИТА» над «САДОК» и «ДОМОЙ») — на HUD ниже
 	POINTER.ThreeTall px (телефоны) над колонкой места нет: значок с правой стороны встаёт СЛЕВА от
-	колонки, у её верха (его острый край — в POINTER.Gap px от неё; следующий — ниже); планшет и
+	колонки, у её верха (кольцо — в POINTER.ColumnGap px от неё; следующий — ниже); планшет и
 	компьютер — как раньше.
 ]]
 
@@ -872,7 +872,7 @@ local function stepPointers(): boolean
 			local edge = if right then "right" else "left"
 			if right and besideColumn then
 				-- слева от колонки, кольцо — у её верха; следующий — ниже
-				x = columnLeft - POINTER.Gap - reach - wave
+				x = columnLeft - POINTER.ColumnGap - reach - wave
 				y = columnTop + side * 0.62 + slots[edge] * side * POINTER.Stack
 			else
 				if right then

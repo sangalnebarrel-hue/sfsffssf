@@ -45,7 +45,8 @@
 	  DefenceController.Toggle() -> boolean      -- открыть / закрыть лист «ЗАЩИТА»
 	  DefenceController.IsOpen() -> boolean
 	  DefenceController.ActivateShield(from: GuiObject?) -> boolean  -- попросить щит (плашка тревоги,
-	                                             -- кнопка «ЩИТ!», карточка); from качается при отказе
+	                                             -- кнопка «ЩИТ!», карточка); from качается при отказе;
+	                                             -- пока сервер не ответил — false (одна просьба)
 	  DefenceController.ShieldReady() -> boolean -- щит готов (ShieldReadyAt ≤ сейчас)
 	  DefenceController.Bob(seconds: number)     -- кнопка «ЗАЩИТА» подпрыгивает столько с
 	  DefenceController.Stats() -> { ... }       -- тесты: chains, open, alert, cooldown
@@ -178,7 +179,8 @@ end
 --------------------------------------------------------------------------------
 
 function DefenceController.ActivateShield(from: GuiObject?): boolean
-	if not S.hud then
+	if not S.hud or S.shieldWait then
+		-- (уже попросили — ждём ответа: одна просьба на все кнопки щита, не дольше SHIELD_WAIT)
 		return false
 	end
 	S.shieldFrom = from
