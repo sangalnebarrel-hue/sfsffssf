@@ -138,10 +138,13 @@ add({
 		h:advance(1.0)
 		alertHold(h)
 		h:advance(0.1)
-		h:click("HUD.Fishing.ActionArea.ActionButton") -- (what HurryCard does: «ЗАБРАТЬ!»)
+		-- (what HurryCard does: the card settles — a tap skips its beats —, then «ЗАБРАТЬ!»)
+		h:click("HUD.Fishing.CatchCard")
+		h:advance(0.3)
+		h:click("HUD.Fishing.CatchCard")
 	end,
-	still = { 0.2, 1.6 },
-	sheet = { from = 0, to = 1.8, fps = 8 },
+	still = { 0.2, 2.0 },
+	sheet = { from = 0, to = 2.2, fps = 8 },
 })
 
 add({

@@ -24,7 +24,9 @@
 	    лист теряет меньшую долю места; телефон — правее): кто хочет идти, жмёт туда, а не в
 	    кнопку продажи. Лист — не больше MaxWidth × MaxHeight и не шире, чем нужно карточкам
 	    (opts.contentWidth: их ширина и самая большая — владелец может сделать их шире; в
-	    несколько рядов чуть не хватает ширины — карточкам до FitShrink — и ниже, по карточкам),
+	    несколько рядов чуть не хватает ширины — карточкам до FitShrink — и ниже, по карточкам;
+	    на планшете и ПК opts.contentHeight: сколько высоты нужно карточкам при этой ширине —
+	    лист не выше),
 	    по центру этого места. Так он никогда не закрывает кошелёк (стопка статуса), кнопку
 	    «САДОК» (колонка справа) и джойстик; может закрыть кнопку действия (модальный лист).
 	    Внутри: шапка — Header доли высоты, HeaderMin..HeaderMax px; ✕ — на правом верхнем углу
@@ -52,6 +54,7 @@
 	             HeaderMax, Inset, InsetMin, InsetMax, TallFrom, FitShrink } (TankConfig.Panel),
 	             Token: string? (плашка на высоком экране, "Night"),
 	             contentWidth: ((cardsHeight: number, tall: boolean) -> (number, number?))?,
+	             contentHeight: ((cardsWidth: number, tall: boolean) -> number?)?,
 	             onPlace: ((fit: Fit) -> ())?, onClose / onClosed: ((reason: string) -> ())? }
 	  sheet:Open() -> boolean          -- false: сейчас нельзя (Busy)
 	  sheet:Close(reason: string?)     -- "close" (✕) | "toggle" | "fishing" | "api" …
@@ -103,6 +106,7 @@ export type Options = {
 	Layout: Layout,
 	Token: string?,
 	contentWidth: ((cardsHeight: number, tall: boolean) -> (number, number?))?,
+	contentHeight: ((cardsWidth: number, tall: boolean) -> number?)?,
 	onPlace: ((fit: Fit) -> ())?,
 	onClose: ((reason: string) -> ())?,
 	onClosed: ((reason: string) -> ())?,
@@ -300,6 +304,14 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 			-- (ширина под карточки растёт с высотой окна линейно).
 			plateH = math.min(plateH, cardsTop + cardsH * shrink + inset * 0.6)
 			cardsH = math.max(plateH - cardsTop - inset * 0.6, 0)
+		end
+		if tall and opts.contentHeight and cardsH > 0 then
+			-- карточкам при этой ширине нужно меньше высоты (один ряд): лист ниже — по ним
+			local need = opts.contentHeight(math.max(plateW - 2 * side, 0), tall)
+			if need and need > 0 and need < cardsH then
+				plateH = cardsTop + need + inset * 0.6
+				cardsH = need
+			end
 		end
 		local x = left + (boxW - plateW) / 2
 		local y = top + (boxH - plateH) / 2

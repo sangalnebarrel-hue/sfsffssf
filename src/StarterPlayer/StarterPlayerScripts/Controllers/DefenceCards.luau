@@ -9,8 +9,8 @@
 	DefenceConfig.Texts.
 
 	Карточки (один ряд; ширина / высота — Panel.CardAspect, не уже Panel.CardMin px; на маленьком
-	телефоне четвёртая листается: явный CanvasSize, как у садка; на планшете и ПК все в листе, лист —
-	ниже, по ним). Кнопка Buy каждой карточки — одно из (UiFx.setCandy + подпись):
+	телефоне четвёртая листается: явный CanvasSize, как у садка; на планшете и ПК все в листе, выше
+	— до Panel.CardAspectTall: крупному тексту там нужно место, — лист — не выше них). Кнопка Buy каждой карточки — одно из (UiFx.setCandy + подпись):
 	  ЩИТ:  Guard «ВКЛЮЧИТЬ» — когда сервер примет (сам не крадёшь, защиты меньше
 	        Shield.StackBelow с, щит готов; DC-03) → нажатие — ShieldActivate (opts.onShield), «⏳» до
 	        ответа; щит включён — стекло «🛡️ 0:42»; перезарядка — Slate «⏳ 2:59» с кольцом-таймером
@@ -260,6 +260,20 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		return width, width
 	end
 
+	-- Планшет, ПК: все карточки в ряд по ширине окна cardsW — и выше (до CardAspectTall), чтобы
+	-- крупный текст влез; лист — не выше нужного им (Sheet: contentHeight).
+	local function tallWidth(cardsW: number): number
+		local n = math.max(#visibleCards(), 1)
+		return math.max(cardsW / (n + (n - 1) * LAYOUT.Gap + 2 * LAYOUT.Side), LAYOUT.CardMin)
+	end
+
+	local function contentHeight(cardsW: number, tall: boolean): number?
+		if not tall then
+			return nil
+		end
+		return tallWidth(cardsW) / LAYOUT.CardAspectTall * (1 + LAYOUT.Overhang + BOTTOM)
+	end
+
 	-- «СИГНАЛИЗАЦИЯ» не влезает в строку имени карточки шириной w px — «СИГНАЛКА» (DC-13).
 	local function fitNames(w: number)
 		for _, card in cards do
@@ -284,12 +298,10 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		local ch = cardHeight(fit.cards.Y)
 		local cw = math.max(ch * LAYOUT.CardAspect, LAYOUT.CardMin)
 		if fit.tall then
-			-- планшет, ПК: все карточки — в листе (Sheet уже сделал его ниже — по ним)
-			local fitAll = windowW / (n + (n - 1) * LAYOUT.Gap + 2 * LAYOUT.Side)
-			if fitAll < cw then
-				cw = math.max(fitAll, LAYOUT.CardMin)
-			end
-			ch = math.min(ch, cw / LAYOUT.CardAspect)
+			-- планшет, ПК: все карточки — в листе, выше обычного (до CardAspectTall: крупный текст;
+			-- Sheet уже сделал лист ниже — по ним)
+			cw = math.min(cw, tallWidth(windowW))
+			ch = math.min(ch, cw / LAYOUT.CardAspectTall)
 		end
 		local gap, side = LAYOUT.Gap * cw, LAYOUT.Side * cw
 		local top = LAYOUT.Overhang * ch
@@ -580,6 +592,7 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		Layout = LAYOUT :: any,
 		Token = "Night",
 		contentWidth = contentWidth,
+		contentHeight = contentHeight,
 		onPlace = onPlace,
 		onClose = function(reason: string)
 			open = false

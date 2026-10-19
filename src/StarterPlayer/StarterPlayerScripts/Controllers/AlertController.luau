@@ -98,7 +98,9 @@ local PLATE_GROW = 1.35
 local COMPACT_SHIELD = 0.42 -- ЩИТ «таблетки» — доля её ширины (как в gui/Alert.luau)
 local COMPACT = { Min = 160, Narrow = 132, Max = 300, Step = 8, LabelMin = 56 }
 local PLACE_SOON = 0.12 -- виджет рыбалки сдвинулся — новое место «таблетки» не чаще, с
-local SHAKE = 0.01 -- дрожь при появлении: доля HUD (≈ 8 px на телефоне)
+local SHAKE = 5 -- дрожь при появлении: не больше px (UiFx.shake — в долях корня)
+local TEXT_GAP = 8 -- текст плашки — не ближе к кнопкам, px
+local ROW_PAD = 0.02 -- зазор ряда кнопок плашки — доля его ширины (как в gui/Alert.luau)
 local SHIELD_WAIT = 3 -- ⏳ на ЩИТ, пока сервер не ответил (не дольше), с
 local RESULT_AFTER = 0.25 -- итог — когда плашка ушла (место колонки снова уведомлений), с
 local ICON_HOLD = "🚨"
@@ -200,6 +202,34 @@ local function setButtonLook(button: GuiObject?, token: string)
 end
 
 -- Тексты и вид кнопок по фазе, щиту и «сам крадёшь».
+-- Текст плашки — левее ряда кнопок на TEXT_GAP: на высокой плашке квадрат «ДОМОЙ» (по высоте)
+-- шире своей доли, и ряд (по правому краю) растёт влево. Сам крадёшь — кнопок нет: во всю плашку.
+local function fitText(own: boolean)
+	local p = A.parts
+	local text, buttons, r = p.text, p.buttons, A.rect
+	if not text then
+		return
+	end
+	local share = if own then 0.88 else p.textShare
+	if not own and buttons and r and A.shown == "plate" then
+		local w, h = r.x1 - r.x0, r.y1 - r.y0
+		local bw, bh = buttons.Size.X.Scale * w, buttons.Size.Y.Scale * h
+		local row, count = 0, 0
+		if p.shield and p.shield.Visible then
+			row += p.shield.Size.X.Scale * bw
+			count += 1
+		end
+		if p.home and p.home.Visible then
+			row += math.max(p.home.Size.Y.Scale * bh, THEFT.HomeMin)
+			count += 1
+		end
+		row += math.max(count - 1, 0) * ROW_PAD * bw
+		local rowLeft = buttons.Position.X.Scale * w - math.max(row, bw)
+		share = math.clamp((rowLeft - TEXT_GAP - text.Position.X.Scale * w) / w, 0.1, p.textShare)
+	end
+	text.Size = UDim2.fromScale(share, text.Size.Y.Scale)
+end
+
 local function fill()
 	local a = A.alert
 	local p = A.parts
@@ -228,10 +258,7 @@ local function fill()
 	if p.buttons and A.shown ~= "compact" then
 		p.buttons.Visible = not own -- («таблетке» кнопки плашки не нужны: place)
 	end
-	if p.text then
-		-- сам крадёшь — кнопок нет: текст во всю плашку
-		p.text.Size = UDim2.fromScale(if own then 0.88 else p.textShare, p.text.Size.Y.Scale)
-	end
+	fitText(own)
 	-- ЩИТ: готов — Guard «🛡️ ЩИТ», ждём сервер — «⏳», перезарядка — Slate «⏳ 1:12».
 	local left = math.max((tonumber(player:GetAttribute("ShieldReadyAt")) or 0) - now(), 0)
 	local wait = TextUtil.fill(TEXTS.ShieldWait, { t = StealRules.FormatClock(left) })
@@ -485,6 +512,8 @@ local function place(): string?
 		end
 	end
 	A.rect, A.spot = r, spot
+	A.shown = which
+	fitText(stealing())
 	root.AnchorPoint = Vector2.zero
 	root.Position = UDim2.fromScale(r.x0 / size.X, r.y0 / size.Y)
 	root.Size = UDim2.fromScale((r.x1 - r.x0) / size.X, (r.y1 - r.y0) / size.Y)
@@ -633,7 +662,8 @@ local function show(loud: boolean)
 		if loud then
 			task.delay(0.3, function()
 				if A.shown and A.root then
-					UiFx.shake(A.root, SHAKE, 0.35)
+					local size = if A.hud then A.hud.AbsoluteSize else Vector2.one
+					UiFx.shake(A.root, SHAKE / math.max(size.X, size.Y, 1), 0.35)
 				end
 			end)
 		end

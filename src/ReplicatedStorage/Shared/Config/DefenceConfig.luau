@@ -192,7 +192,8 @@ local DefenceConfig = {
 	},
 	-- Лист «ЗАЩИТА» (Controllers/Sheet; px HUD — пишутся масштабом): Margin px до краёв, не больше
 	-- MaxWidth × MaxHeight, шапка — Header высоты листа, высокий экран — от TallFrom px; карточка —
-	-- ширина / высота CardAspect, не уже CardMin px (на маленьком телефоне 4-я карточка листается).
+	-- ширина / высота CardAspect, не уже CardMin px (на маленьком телефоне 4-я карточка листается;
+	-- на планшете и ПК все в ряд — выше, до CardAspectTall).
 	Panel = {
 		Margin = 16,
 		MaxWidth = 900,
@@ -200,6 +201,7 @@ local DefenceConfig = {
 		Header = 0.2,
 		TallFrom = 600,
 		CardAspect = 0.78,
+		CardAspectTall = 0.52, -- планшет, ПК: карточки выше (крупный текст), лист — по ним
 		CardMin = 96,
 	},
 	-- Studio: защиты входа / новичка / после кражи / «отдыха» не дольше стольких с (щит — как
