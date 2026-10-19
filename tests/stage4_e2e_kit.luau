@@ -32,16 +32,20 @@
 	  E.seen(sim, p, prompt)        the prompt's MaxActivationDistance as that client sees it
 	  E.walkOut(sim, p, owner, exit?) Humanoid:MoveTo out of the owner's plot (gate by default),
 	                                leg by leg, until the theft is over or he is outside
+	  E.moveTo(sim, p, pos)         one Humanoid:MoveTo that does not wait (the owner's chase)
 	  E.phaseLog(p)                 the thief's Stealing changes from now on: { { time, value } }
 	  E.writeLog(sim)               every DataStore write that LANDS from now on: { key, time,
 	                                uids = { [uid] = true }, origins = { [origin] = row } }
 	  E.toastLog(sim, p, seconds)   every toast text seen while stepping `seconds`
+	  E.toastWatch(p)               every toast text that appears from now on (a live list)
 	  E.shieldTap(sim, p, where)    one tap on the visible ЩИТ: "plate" (the pill's on a phone, the
 	                                plate's elsewhere) or "column" (the «ЩИТ!» button)
 	  E.rodIn / E.toMinigame(t, sim, p)  the victim casts from his spot and hooks: the minigame
 	  E.minigameAnswers(t, sim, p, what)  the minigame still answers (FishingState and FishingTap)
 	  E.copies(sim, victimId, uid)  across all saved keys: rows of that fish (the victim's uid in his
 	                                key, `<victimId>:<uid>` as an Origin anywhere)
+	  E.ageOf(sim, owner, slot) / E.slotByOrigin(sim, thief, origin)  a display's fish age; the
+	                                thief's slot that holds a stolen fish (by its Origin)
 ]]
 
 local roblox = require("@lune/roblox")
