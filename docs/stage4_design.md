@@ -116,7 +116,8 @@ the origin, y = 0 is the ground top, −Z points to the lagoon, the plot is x ±
      shield was ready and unused, «Совет: жми 🛡️ ЩИТ, как только увидишь «ВОР В САДКЕ!» — он
      бесплатный»; otherwise the cheapest defence he lacks, with its price (DC-14).
    - Saved: «Рыба спасена! 💪» with the reason (tag, shield, the thief fell or ran out of time, the thief
-     left the game). A hold shorter than 1 s ends quietly (no toast, no pings: BE-19).
+     left the game). A hold shorter than 1 s that the thief ended (or nobody did) ends quietly (no toast,
+     no pings: BE-19); the owner's own tag or shield is always celebrated, however early (D20, A2-04).
 
 ### 1.3 Bystanders
 
@@ -335,7 +336,9 @@ Carry = {
     CapSeconds = 1.5,     -- cap = allowed × CapSeconds + CapSlack: a 1.5 s stall, then the catch-up
     CapSlack = 6,
     Debt = 4,             -- budget below −Debt → returned "speed"
-    Teleport = 24,        -- one tick moving more than this (studs) → returned "speed"
+    Teleport = 24,        -- one tick moving more than this (studs) → returned "speed"; a tick longer
+                          -- than Tick allows an allowed walker's extra path on top (A2-05)
+    Start = 6,            -- the budget at the carry start (not full: a 2× hack never reaches a fence; A2-01)
     FactorGrace = 0.5,    -- allowed = the highest speed factor of the last 0.5 s (WalkSpeed latency)
   },
 },
@@ -358,6 +361,7 @@ Limits = {
   DeniedEvery = 2,        -- the same Denied reason again within 2 s is sent Quiet (no banner text)
   AlertCoalesce = 30,     -- one LOUD victim alert per (thief, victim) per 30 s; later ones are Quiet
   QuietSavedUnder = 1,    -- a hold shorter than this ends without the victim's toast and pings
+                          -- (not a tag or the shield: the owner's save is always loud; A2-04)
 },
 Alarm = { Linger = 3 },
 Speed = { MinFactor = 0.4 },
@@ -568,13 +572,13 @@ would renumber a duplicate uid into a second real fish, not drop it). A return t
 | F4 | either side not writable at the exit | `StealFish` returns nil → `Returned` | victim keeps it ✔ |
 | F5 | normal escrow | the victim's commit → `Committed` → clear → `SaveSoon(thief)` | thief has it ✔ |
 | F6 | the **victim leaves during the escrow** | his release save carries the removal; `Committed` fires before `release` (DataService `:514-519`) → clear | thief has it ✔ |
-| F7 | the victim's save **never lands** (lost lock → kick; the final save fails for 15 s) | `Released(victim, committed < Seq)` → **void**: remove the escrowed fish from the thief (data, runtime, slot Event `"<n>\|void\|"`, quiet), toast «Рыба вернулась к хозяину» | the victim's store still has it ✔ (the thief keeps the coins of his own weakest fish, if one was replaced). **If the last write landed but its reply was lost** (`quiet`, or an error after the write) → one fish lost (BE-6), never two |
-| F8a | the **thief leaves during the escrow**, the victim can still write | TankService `PlayerRemoving(thief)`, synchronously: **return** each escrowed fish to the victim (the original uid; the original slot if free, else the lowest free, else **dormant**, so it shows again on the next load), `SaveSoon(victim)`, the toast «Вор ушёл — рыба вернулась!»; **strip** it from the thief's live `data.Tank`; the entry is gone first. The final save's transform always runs after a yield, so it cannot see the fish | the victim has it ✔ |
-| F8b | the same, but the victim is already `Leaving` and his final snapshot is not taken | `DataService:AmendLeaving(victim, reinsert)` puts the row back into the victim's live `data.Tank` (BE-1); strip from the thief | the victim has it ✔ |
-| F8c | the same, but the victim's final snapshot is already taken | strip | **one fish lost**. The window runs from the victim's final transform to its reply: about one request (a failed attempt clears `FinalTaken`, so the retries do not widen it; §4.6) |
+| F7 | the victim's save **never lands** (lost lock → kick; the final save fails for 15 s) | `Released(victim, committed < Seq)` → **void**: remove the escrowed fish from the thief (data, runtime, slot Event `"<n>\|void\|"`, quiet), toast «Рыба вернулась к хозяину» | the victim's store still has it ✔ if it was ever committed there (the thief keeps the coins of his own weakest fish, if one was replaced); a fish the victim himself received through an uncommitted clear or return (a chained theft) is lost with his other unsaved progress — voiding is the only safe choice, clearing could duplicate (A1-03). **If the last write landed but its reply was lost** (`quiet`, or an error after the write) → one fish lost (BE-6), never two |
+| F8a | the **thief leaves during the escrow**, the victim can still write | TankService `PlayerRemoving(thief)`, synchronously: the entry is gone first, then **strip** it from the thief's live `data.Tank` (a throw after this loses one fish, never leaves two), then **return** each escrowed fish to the victim (the original uid; the original slot if free, else the lowest free; **none free** — the victim caught into the display the theft freed — the AddFish full-tank rule: a weaker unlocked fish is sold for coins and the returned one takes its display, otherwise the returned fish itself is sold for the victim, «Вор ушёл — садок полон, рыба продана: $N»; never dormant, A1-01), `SaveSoon(victim)`, the toast «Вор ушёл — рыба вернулась!» (`Returned { …, Result, Price }`). The final save's transform always runs after a yield, so it cannot see the fish | the victim has it (or its coins) ✔ |
+| F8b | the same, but the victim is already `Leaving` and his final snapshot is not taken | strip from the thief; `DataService:AmendLeaving(victim, reinsert)` puts the row back into the victim's live `data.Tank` (BE-1). It writes only `Tank` (no coins for a leaving player): with a full tank the row keeps its `Slot` and sleeps until a load finds that display free (Stage 3 `PlayerData.Layout`) or Stage 5 `SetSlots` wakes it | the victim has it ✔ (dormant if his tank was full) |
+| F8c | the same, but the victim's final snapshot is already taken | strip; the amendment waits in `rec.PendingAmends` (A1-02): if that attempt **fails**, it is applied before the retry, which carries the fish | **one fish lost only if that final write lands**. The window runs from the victim's final transform to its reply: about one request (a failed attempt clears `FinalTaken` and applies the waiting amendments, so the retries neither widen nor drop it; §4.6) |
 | F9 | **shutdown**, BindToClose first | `DataService:OnClose(fn)` hooks run **synchronously at the very start** of the close callback, before any record goes `Leaving`; TankService returns every escrow as in F8a, then the close saves run | the victim has it ✔ |
 | F9' | shutdown with the **players removed first** (Roblox guarantees no order) | per pair: F8a, F8b or F8c, in the order Roblox removes them | as F8a/b/c |
-| F10 | a **hard server crash** (no BindToClose) between the victim's commit and the thief's commit | nothing can run | **one fish lost**, never two. The window is the thief's key gap: ≈ 6–7 s per theft |
+| F10 | a **hard server crash** (no BindToClose) between the victim's commit and the thief's commit, **or** the thief's saves never land before he leaves (a failing DataStore) | nothing can run / the final save gives up after `LeaveSaveWindow` | **one fish lost**, never two. The crash window is the thief's key gap: ≈ 6–7 s per theft; the failing-store case is unsaved progress, like a fresh catch (A1-03) |
 | F11 | a third player steals the escrowed fish | refused (`fresh`) | — |
 | F12 | two thieves on one fish/base | one theft per base; `SetSteal` holder tokens | — |
 | F13 | an old dupe already in a save (impossible by design) | Sanitize keeps one per `Origin` | defence in depth |
@@ -597,9 +601,11 @@ closed later with a write token in every save (BE-6 step 3: P2, §9).
    returned).
 4. The ledger holds for both sides (`Money == Start + Earned − Spent`). Autosell coins only come from the
    thief's own fish.
-5. `_debugSizes()` of TankService, StealService and DefenceService are zero 10 s after the last player
-   leaves. The time-bounded maps are pruned on every write, on every `PlayerRemoving` and inside
-   `_debugSizes()` itself, so an idle server still reports zeros (BE-26).
+5. `_debugSizes()` of TankService, StealService and DefenceService: the per-player tables are zero 10 s
+   after the last player leaves; the time-bounded maps (cooldowns, fail and tag waits, alert coalescing,
+   `LeftAt` for `QuickRejoin` 300 s, victim losses for `VictimWindow` 600 s) are zero once their windows
+   pass. They are pruned on every write, on every `PlayerRemoving` and inside `_debugSizes()` itself, so
+   an idle server reports zeros after `Advance(VictimWindow)` with no writes (BE-26).
 6. Clear, void and return are idempotent, and no uid is inserted twice into one tank.
 7. No escrow is cleared by a timer.
 
@@ -721,7 +727,8 @@ Trove }`. Maps: `byThief[Player]`, `byBase[Base]`.
    - `shield`, `victim`, `full`, `busy`, `left` → no wait (not his fault).
 4. `StealEvent("Cancel", { Reason, Text, Phase })` to the thief, if he is still here.
 5. `StealEvent("Saved", { Reason, Slot, Quiet })` to the victim, if he is still here and it was not his
-   leave. `Quiet = true` when the hold lasted less than `QuietSavedUnder` 1 s (no toast, no pings).
+   leave. `Quiet = true` when the hold lasted less than `QuietSavedUnder` 1 s (no toast, no pings) and
+   the reason is not the owner's own `tag` or `shield` (those are always loud; A2-04).
 6. End.
 
 **End:** `Ended = true` first, so a second `Cancel`/`End` does nothing, and every deferred callback (the
@@ -831,9 +838,10 @@ does no per-frame work (no Heartbeat). Each step runs per theft inside `xpcall` 
 
   ```
   allowed = Speed.Allowed(thief, FactorGrace)     -- 16 × the highest factor in the last 0.5 s
-  cap     = CapSeconds × allowed + CapSlack        -- 1.5 s of walking + 6 studs; the budget starts full
+  cap     = CapSeconds × allowed + CapSlack        -- 1.5 s of walking + 6 studs
+  budget  = Start (6) at the carry start           -- not full (A2-01): the stall reserve is earned walking
   budget  = min(cap, budget + allowed × dt × Rate) − d      -- Rate 1.15
-  d > Teleport (24) in one tick                    → Returned "speed"
+  d > Teleport (24) + allowed × Rate × max(0, dt − Tick) in one tick  → Returned "speed" (A2-05)
   budget < −Debt (4)                               → Returned "speed"
   ```
 
@@ -841,9 +849,12 @@ does no per-frame work (no Heartbeat). Each step runs per theft inside `xpcall` 
   |---|---|
   | honest carry, 13.6 st/s (6.8 under the dog) | the budget never drains |
   | a client that keeps `WalkSpeed 16` under the dog | drains ≈ 8 studs/s → returned in ≈ 2.5 s (the dog chase lasts 6.5–7.4 s) |
-  | a 2× speed hack in the carry | returned in ≈ 2.5 s |
+  | a 2× speed hack in the carry (from the start) | returned in ≈ 0.9 s (≈ 24 studs), before the nearest fence (≈ 44 studs from a display); 2.5× in ≈ 0.6 s (A2-01) |
+  | a 2× speed hack started mid-carry, on a full budget | returned in ≈ 2.7 s |
+  | a 1.33× hack (≈ 18 st/s) | reaches the nearest fence about as the budget hits 0: accepted at the margin |
   | `WalkSpeed 16` kept in the carry without the dog (only the ×0.85 ignored) | 18 % faster, never caught: accepted (`Rate` 1.05 would catch it in ≈ 25 s, at the cost of honest lag) |
-  | a phone with a 1.5 s network stall, then the catch-up (≈ 20 studs in one tick) | under `Teleport` and inside the cap: not returned |
+  | a phone with a 1.5 s network stall, then the catch-up (≈ 20 studs in one tick) | under `Teleport` and inside the cap: not returned (also at the carry start: the stall refills the budget) |
+  | a server hitch: one 2 s watcher tick while an honest thief walks 27 studs | the jump limit grows with dt: not returned (A2-05) |
 
   Nothing counts strikes, so two lag bursts over a long carry cannot add up.
 - **exit**: `StealRules.InPlot(LocalOf(base, HRP), ExitMargin)` false **on a tick that ends with the
@@ -893,7 +904,10 @@ Changes inside:
 - `DataService:OnClose(fn)`: hooks stored in a list. In the BindToClose callback they are called
   **first**, synchronously, each in `pcall`, before any record goes `Leaving`.
 - `DataService:AmendLeaving(player, fn) -> boolean` (BE-1): runs `fn(rec.Data)` synchronously only
-  while `rec.State == "Leaving"` and `not rec.FinalTaken`, and returns whether it ran. `saveOnce`'s
+  while `rec.State == "Leaving"` and `not rec.FinalTaken`, and returns whether it ran. While
+  `FinalTaken` is set (that attempt is in flight) `fn` waits in `rec.PendingAmends` and the call returns
+  false: a failed attempt applies the waiting list to `rec.Data` before the retry; a committed, quiet or
+  lost result (or the window running out) drops it (A1-02). `saveOnce`'s
   transform sets `rec.FinalTaken = true` where it takes the snapshot of a `releaseLock` save, and a
   **failed** release attempt clears it again before the retry (that snapshot is void; the retry takes a
   new one, with the amendment; W0 review). A lost reply cannot duplicate: the retry finds `Session` empty
@@ -912,8 +926,8 @@ Changes inside:
 
   StealService's guard:
   - carrying → «Сначала унеси рыбу за ограду!»;
-  - the player's own base has a live theft → `GetSpawnCFrame(base) * CFrame.Angles(0, math.pi, 0)`
-    (facing the court).
+  - the player's own base has a live theft → `CFrame.lookAt(spawn, spawn + the base's +Z)` (facing
+    the court, whatever the spawn pad's own rotation; §11.4).
 
 ### 4.7 Speed modifiers (`Lib/Speed`)
 
@@ -965,7 +979,7 @@ Speed.Allowed(player, grace: number?) -> number -- CharacterWalkSpeed × the hig
 
 | name | dir | payload | validation / limits (in this order) |
 |---|---|---|---|
-| `StealEvent` | S→C | `(kind, data)` | kinds: thief `Denied { Reason, Text, Quiet?, BaseIndex, Slot }`, `Hold { Slot, BaseIndex, Uid, FishId, Rarity, Mutation?, Short, Income10, End, Need }`, `Carry { End }`, `Cancel { Reason, Text, Phase }`, `Done { Fish, Result, Name }`; victim `Alert { … Quiet? }`, `Saved { Reason, Slot, Text, Quiet? }`, `Lost { Fish, Name, Until, Kind }`, `Intruder { Thief, Name }`; void/return `Returned { Fish, Text }` (F7/F8 toasts) |
+| `StealEvent` | S→C | `(kind, data)` | kinds: thief `Denied { Reason, Text, Quiet?, BaseIndex, Slot }`, `Hold { Slot, BaseIndex, Uid, FishId, Rarity, Mutation?, Short, Income10, End, Need }`, `Carry { End }`, `Cancel { Reason, Text, Phase }`, `Done { Fish, Result, Name }`; victim `Alert { … Quiet? }`, `Saved { Reason, Slot, Text, Quiet? }`, `Lost { Fish, Name, Until, Kind }`, `Intruder { Thief, Name }`; void/return `Returned { Fish, Text, Result?, Price? }` (F7/F8 toasts; the victim's return names `Result` "stored" / "replaced" / "sold" and the coins of a full tank, A1-01) |
 | `ShieldActivate` | C→S | `()` (args ignored) | 1) the `DefenceRequests` bucket (Burst 4, 1/s; empty → silent); 2) `CanWrite` (`loading`); 3) a mounted base (`nobase`); 4) not stealing, asked through the steal probe (`stealing` «Сначала закончи кражу»); 5) the remaining protection < `StackBelow` 60 s (`protected` «Ты и так под защитой — ещё {t}»); 6) `now ≥ ShieldReadyAt` (`cooldown` «Щит перезаряжается — ещё {t}»). OK → state, attributes, `SaveSoon`, `ProtectionChanged` (StealService cancels a hold or returns a carry on the base), `DefenceEvent("Shield", { Until, ReadyAt })` |
 | `DefenceBuy` | C→S | `(item: "Dog" \| "Alarm" \| "Lock")` | 1) `typeof == "string"` and a known item (else silent); 2) the bucket; 3) `CanWrite`; 4) a mounted base; 5) `Dog`/`Alarm` already owned → `owned` «Уже куплено»; `Lock` at `#Levels` → `max` «Замок уже лучший»; `Lock` at `SaleMax` → `soon` «Сильнее замки — скоро в магазине»; 6) the price from config only; `SpendMoney(player, price, "defence:" .. item)` false → `money` «Не хватает: нужно {$}»; 7) apply (`Upgrades` or `SetLockLevel`, base attributes, the dog shown; `LockChanged` → StealService rewrites `HoldDuration`), `SaveSoon`, `DefenceEvent("Bought", { Item, Level?, Price })` |
 | `DefenceEvent` | S→C | `(kind, data)` | `Bought`, `Denied { Item?, Reason, Text }`, `Shield { Until, ReadyAt }` |
@@ -980,7 +994,8 @@ item; a test that patches `SaleMax` checks "≤ Burst levels, each paid" instead
 **Player attributes:**
 
 - `Stealing` = "hold" | "carry" (written last);
-- `StealCooldownUntil` (AttrTime), `Slowed` (boolean);
+- `StealCooldownUntil` (AttrTime; the wait is kept by UserId, so `TankService.Mounted` writes it again on
+  a rejoin while it runs, A2-03), `Slowed` (boolean);
 - `ShieldUntil`, `ShieldReadyAt` (AttrTime). They stay **public** (BE-24, decided): a cheat client could
   read a victim's shield timing, which is genre-normal, but no UI ever shows another player's shield
   readiness (the tank sign and the flag show only active protection; DC-12);
@@ -1406,7 +1421,8 @@ Rules (D20, DC-14): no display numbers, no «чужой», no gender or case agr
     - tag «Вор пойман — рыба спасена!»;
     - shield «Щит спас рыбу!»;
     - thief failed «Кража сорвалась — рыба дома»;
-    - thief left «Вор ушёл — рыба вернулась!»;
+    - thief left «Вор ушёл — рыба вернулась!»; the tank full and the returned fish the weakest
+      «Вор ушёл — садок полон, рыба продана: {price}» (`Result.LeftSold`, A1-01);
   - void «Рыба вернулась к хозяину».
 - **Tips** (one per loss, DC-14):
   - the shield was ready and unused: «Совет: жми 🛡️ ЩИТ, как только увидишь «ВОР В САДКЕ!» — он
@@ -2130,3 +2146,29 @@ different number or shape (the why says what); **P2** = accepted, but moved out 
 | note: `FinalTaken` stays set after a failed final attempt | **accepted** | §4.6 and F8c: a failed release attempt clears it, so a retry writes an amendment made between the attempts (`tests/stage4_data_hooks`). |
 | note: `Serialize` does not clamp a negative `ShieldReadyAt` | **rejected** | `Serialize` checks types (finite) for every number and clamps none (Money, LockLevel alike); `Sanitize` clamps on load and DefenceService clamps at load (§3.1). Only DefenceService writes it, always `os.time() + …`. |
 | note: `PreviewAdd` and `_debugSizes` miss Steal/Escrow | **Wave 1 A** | `FishRt.Steal` and `FishRt.Escrow` do not exist before `SetSteal` / `StealFish` (§4.5); A adds them to the `Locked` candidate rule and `Escrows` to `_debugSizes`. |
+
+### 11.4 Wave 1 A review (server core; A1-nn data, A2-nn rules) and the implementer's decisions
+
+| item | decision | where / why |
+|---|---|---|
+| A1-01 a fish returned into a full tank stayed dormant (F8a) | **accepted** | TankService `backToVictim`: no free display → the AddFish full-tank rule (a weaker unlocked fish sold for the victim, the returned one in its display, Event `swap`; otherwise the returned fish itself sold, `Result.LeftSold`); `Returned` names `Result` and `Price`. The leaving victim (F8b, `AmendLeaving` writes only `Tank`) keeps the row dormant with its `Slot` (documented in §3.3). Tests `stage4_data` F8a' / F8b'. |
+| A1-02 an amendment refused while the final attempt was in flight was dropped when that attempt failed | **accepted** | `rec.PendingAmends` (§4.6, F8c): applied before the retry of a failed attempt, dropped on committed / quiet / lost / window over. Cannot duplicate (the thief's copy is already stripped). Test `stage4_data` F8c' in both handler orders (FinalTaken forced at the read, as Roblox runs the transform there; RbxSim runs it after the latency). |
+| A1-03 the failure table over-promised for failing-store losses | **accepted (documentation)** | §3.3 F7 and F10 and the TankService header item 12: unsaved progress under a failing DataStore, never a duplicate. |
+| A1 note: return inserted into the victim before stripping the thief | **accepted** | `returnEscrow` strips first: a throw in between loses one fish instead of leaving two. |
+| A1 note: `LeftAt` nonzero for `QuickRejoin` after everyone leaves | **accepted (documentation)** | §3.4 #5 now separates the per-player tables (zero 10 s after) from the time-bounded maps (zero once their windows pass). |
+| A2-01 a 2×–2.5× speed hack reached the nearest fence on the full starting budget | **accepted** | `StealConfig.Carry.Speed.Start = 6`: the budget starts small and the stall reserve is earned walking; a 2× hack is returned in ≈ 0.9 s. §4.4 table; `stage4_rules` CarryGuard cases; `stage4_theft` drives 2× / 2.5× from 6 displays to the nearest fence. |
+| A2-02 an error after `StealFish` left the theft alive forever | **accepted** | `credit` runs its side effects in `xpcall` and always `finish`es; the watcher's error branch finishes a credited theft; `finish` drops the records before the cleanup. Test `stage4_theft_end`. |
+| A2-03 a rejoin dropped `StealCooldownUntil` | **accepted** | StealService writes it again on `TankService.Mounted` while the wait runs (§4.11). The tag wait is per base and has no attribute: after a rejoin the client may show «Украсть» on that one base for ≤ 20 s and the server answers `tagged` (accepted). |
+| A2-04 the owner's early tag / shield was sent Quiet | **accepted** | Quiet only for endings the owner did not cause (§1.2, §4.2). Test `stage4_theft_end`. |
+| A2-05 a long server tick counted as a teleport | **accepted** | `Teleport + allowed × Rate × max(0, dt − Tick)` (§4.4). Tests in `stage4_rules` and `stage4_theft`. |
+| A2 note: an honest phone's late HoldBegan reads as `early` (30 s) | **open (design)** | Not changed: the server cannot tell it from `fireproximityprompt`. Option for the designer: treat `early` as an ordinary fail step. |
+| decision: `TankService:Income10(player)` | **added (read API)** | The weak rule and the victim cap read the victim's income without TankService internals. |
+| decision: `SlotView.Kg`; `StealService.TheftOn` takes a base or its model | **added** | The steal payloads name the size; DefenceService and tests pass models. |
+| decision: extra `_debugSizes` keys (StealService Denied, Dogs, Watcher; DefenceService Alarmed, IntruderLoop; TankService Escrows) | **added** | The leak tests assert each returns to zero. |
+| decision: server `Notify` (kind `shield`) «Щит погас» and `Hint.Ended` | **added** | Join / newbie / EndingWarn toasts stay on the client (§2.4). |
+| decision: a Triggered with no hold, or too early, logs a rate-limited `print` | **changed** | A laggy honest client can do it; normal flows stay warning-free. |
+| decision: DogBrain writes DogState / DogTarget at once on Wake / Return | **changed** | «ГАВ!» in the same frame the hold starts; `Reset` always clears all three. |
+| decision: `Carry.Enabled = false` = SetSteal "carry" + StealFish at once | **implementation** | One code path. |
+| decision: the alarm's early warning is skipped while a theft is live on that base | **implementation** | The theft alert already says it. |
+| decision: the held prompt keeps its HoldDuration until the theft ends | **implementation (BE-18)** | A lock bought mid-hold applies to the next hold. |
+| decision: the home guard during the own base's theft faces the base's +Z (`CFrame.lookAt`) | **changed (§4.6)** | Independent of the spawn pad's own rotation; the test asserts +Z. |
