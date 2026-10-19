@@ -7,19 +7,24 @@
 
 	  local guard = CarryGuard.new(cfg?, allowed)   -- cfg — StealConfig.Carry.Speed (по умолчанию);
 	                                                -- allowed — разрешённая скорость, studs/с
-	                                                -- (Lib/Speed.Allowed); бюджет сразу полный
+	                                                -- (Lib/Speed.Allowed); бюджет в начале —
+	                                                -- Start (не больше cap), НЕ полный (A2-01)
 	  guard:Step(dt, displacement, allowed) -> "ok" | "speed"
 	      cap    = allowed × CapSeconds + CapSlack
 	      budget = min(cap, budget + allowed × dt × Rate) − displacement
-	      displacement > Teleport за один тик → "speed"; budget < −Debt → "speed"
+	      displacement > Teleport + allowed × Rate × max(0, dt − Tick) за один тик → "speed"
+	      (длинный тик сервера — не вина вора: за лишнее время честный прошёл бы столько; A2-05);
+	      budget < −Debt → "speed"
 	  guard:CanCredit() -> boolean                  -- бюджет ≥ 0: на этом тике можно засчитать
 	                                                -- выход за ограду (телепорт наружу не засчитан)
 	  guard:Budget() -> number                      -- тесты
 
-	Честный вор (13.6 studs/с, с собакой 6.8) бюджет не тратит; WalkSpeed 16 под собакой —
-	«speed» за ≈ 2.5 с; задержка сети телефона 1.5 с и рывок ≈ 20 studs — не «speed» (меньше
-	Teleport и в пределах cap). Штрафов «по счёту» нет: две задержки за долгий вынос не
-	складываются.
+	Честный вор (13.6 studs/с, с собакой 6.8) бюджет не тратит (Rate > 1: он копится до cap);
+	WalkSpeed 16 под собакой — «speed» за ≈ 2.5 с; ускорение ×2 — за ≈ 0.9 с, раньше любой ограды
+	(бюджет начинается с Start: запас на задержку сети накапливается ходьбой, а не дан сразу);
+	задержка сети телефона 1.5 с и рывок ≈ 20 studs — не «speed» (меньше Teleport и в пределах
+	cap; задержка в самом начале выноса — тоже: за неё бюджет пополнится). Штрафов «по счёту»
+	нет: две задержки за долгий вынос не складываются.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -32,6 +37,7 @@ export type Config = {
 	CapSlack: number,
 	Debt: number,
 	Teleport: number,
+	Start: number,
 }
 
 export type Guard = {
@@ -40,6 +46,8 @@ export type Guard = {
 	Budget: (self: Guard) -> number,
 }
 
+local TICK = StealConfig.Tick
+
 local CarryGuard = {}
 
 function CarryGuard.new(cfg: Config?, allowed: number): Guard
@@ -47,14 +55,15 @@ function CarryGuard.new(cfg: Config?, allowed: number): Guard
 	local function cap(speed: number): number
 		return math.max(0, speed) * c.CapSeconds + c.CapSlack
 	end
-	local budget = cap(allowed)
+	local budget = math.min(cap(allowed), c.Start)
 	local self = {}
 
 	function self.Step(_: any, dt: number, displacement: number, speed: number): "ok" | "speed"
 		local d = if displacement == displacement then math.max(0, displacement) else math.huge
-		local refill = math.max(0, speed) * math.max(0, dt) * c.Rate
-		budget = math.min(cap(speed), budget + refill) - d
-		if d > c.Teleport then
+		local step = if dt == dt then math.max(0, dt) else 0
+		local walk = math.max(0, speed) * c.Rate
+		budget = math.min(cap(speed), budget + walk * step) - d
+		if d > c.Teleport + walk * math.max(0, step - TICK) then
 			return "speed"
 		end
 		if budget < -c.Debt then

@@ -8,9 +8,10 @@
 	    DeniedText, NextLock with SaleMax;
 	  • TheftChecks: the 17 rows of §4.3 headless over a view struct — the order (every pair), the
 	    Client tags, every reason has its text, nil fields pass, Missing, Quiet for a repeat;
-	  • CarryGuard: the §4.4 table with dt steps (honest 13.6 and 6.8; WalkSpeed 16 under the dog;
-	    a 2× hack; 1.2 s and 1.5 s stalls with the catch-up; a 30-stud hop; CanCredit after an
-	    overdraft);
+	  • CarryGuard: the §4.4 table with dt steps (the budget starts at Start, not full — A2-01;
+	    honest 13.6 and 6.8; WalkSpeed 16 under the dog; 2× / 2.5× / 3× hacks caught within a
+	    second; 1.2 s and 1.5 s stalls with the catch-up, also at the carry start; a 30-stud hop;
+	    a 2 s server tick is not a teleport — A2-05; CanCredit after an overdraft);
 	  • DogBrain's pure steps (Sleep → Alert → Chase → bite → Return → Sleep, the Pending throttle),
 	    Lib/Speed (the factor stack, Slowed, the expiry, Allowed's history) and Lib/Bucket;
 	  • PlayerData §3.1: Stats.Stolen / Lost (template, reconcile, sanitize, serialize), the typed
@@ -518,33 +519,57 @@ tests["CarryGuard: the §4.4 table — honest carries, the dog cheat, a 2× hack
 	end
 
 	local honest = G.new(nil, CARRY)
-	t.near(honest:Budget(), cap(CARRY), 1e-9, "the budget starts full")
+	t.near(honest:Budget(), S.Start, 1e-9, "the budget starts at Start, not full (A2-01)")
+	t.ok(S.Start < cap(CARRY), "Start is below the cap")
+	t.near(G.new(nil, 0):Budget(), math.min(S.Start, cap(0)), 1e-9, "… and never above the cap")
 	t.eq(run(honest, StealConfig.Carry.Timeout, CARRY, CARRY), nil, "an honest carry (13.6) is never caught")
-	t.ok(honest:Budget() >= cap(CARRY) - CARRY * TICK - 1e-9, `… and never drains ({honest:Budget()})`)
+	t.ok(
+		honest:Budget() >= cap(CARRY) - CARRY * TICK - 1e-9,
+		`… the budget fills up while walking ({honest:Budget()})`
+	)
 	t.ok(honest:CanCredit(), "… so it can be credited")
+	local fresh = G.new(nil, CARRY)
+	t.eq(run(fresh, 1, CARRY, CARRY), nil, "an honest first second")
+	t.ok(fresh:CanCredit(), "… is creditable at every tick")
 	local dog = G.new(nil, UNDER_DOG)
 	t.eq(run(dog, StealConfig.Carry.Timeout, UNDER_DOG, UNDER_DOG), nil, "an honest carry under the dog (6.8)")
 
-	-- A client that keeps WalkSpeed 16 under the dog: drains ≈ 8 studs/s → caught in ≈ 2.5 s.
-	local cheat = G.new(nil, UNDER_DOG)
+	-- A client that keeps WalkSpeed 16 under the dog (the bite comes mid-carry, on a full budget):
+	-- drains ≈ 8 studs/s → caught in ≈ 2.5 s.
+	local cheat = G.new(nil, CARRY)
+	t.eq(run(cheat, 10, CARRY, CARRY), nil, "walking until the dog bites")
 	local caught = run(cheat, 5, WALK, UNDER_DOG)
 	t.ok(caught and caught > 1.5 and caught <= 3, `WalkSpeed 16 under the dog: caught at {caught} s (≤ 3)`)
-	-- A 2× speed hack in the carry.
-	local hack = G.new(nil, CARRY)
-	local hacked = run(hack, 5, 2 * CARRY, CARRY)
-	t.ok(hacked and hacked <= 3, `a 2× hack: caught at {hacked} s`)
+	-- A speed hack in the carry: caught within a second, long before any fence (the nearest exit
+	-- is ≈ 44 studs from a display: tests/stage4_theft drives it on the real place).
+	for _, factor in { 2, 2.5, 3 } do
+		local hacked = run(G.new(nil, CARRY), 5, factor * CARRY, CARRY)
+		t.ok(hacked and hacked <= 1, `a {factor}× hack: caught at {hacked} s`)
+		t.ok(hacked and hacked * factor * CARRY < 30, `… after {hacked and hacked * factor * CARRY} studs`)
+	end
+	-- … also when the hack starts later, on a full budget (≈ 2.5 s, as §4.4 says).
+	local late = G.new(nil, CARRY)
+	run(late, 10, CARRY, CARRY)
+	local lateAt = run(late, 5, 2 * CARRY, CARRY)
+	t.ok(lateAt and lateAt <= 3, `a 2× hack after 10 s of walking: caught at {lateAt} s`)
 	-- WalkSpeed 16 kept in the carry without the dog: 18 % faster, accepted (Rate 1.15).
 	t.eq(run(G.new(nil, CARRY), StealConfig.Carry.Timeout, WALK, CARRY), nil, "×0.85 ignored: accepted")
+	-- The first FactorGrace s: the client's WalkSpeed is still 16 (allowed is 16 too).
+	t.eq(run(G.new(nil, WALK), S.FactorGrace, WALK, WALK), nil, "WalkSpeed 16 in the grace: ok")
 
 	-- A phone's network stall, then the catch-up in one tick: not caught (under Teleport, in the cap).
-	for _, case in { { 1.2, CARRY }, { 1.5, CARRY }, { 1.5, UNDER_DOG } } do
-		local stall, allowed = case[1], case[2]
+	for _, case in { { 1.2, CARRY, 2 }, { 1.5, CARRY, 2 }, { 1.5, UNDER_DOG, 2 }, { 1.5, CARRY, 0 }, { 1.2, WALK, 0 } } do
+		local stall, allowed, before = case[1], case[2], case[3]
 		local guard = G.new(nil, allowed)
-		t.eq(run(guard, 2, allowed, allowed), nil, "walking before the stall")
+		t.eq(run(guard, before, allowed, allowed), nil, `walking {before} s before the stall`)
 		t.eq(run(guard, stall, 0, allowed), nil, "the stall")
 		local catchUp = allowed * (stall + TICK)
 		t.ok(catchUp < S.Teleport, `the {stall} s catch-up {catchUp} studs is under Teleport`)
-		t.eq(guard:Step(TICK, catchUp, allowed), "ok", `a {stall} s stall + catch-up at {allowed}: ok`)
+		t.eq(
+			guard:Step(TICK, catchUp, allowed),
+			"ok",
+			`a {stall} s stall (after {before} s) + catch-up at {allowed}: ok`
+		)
 		t.eq(run(guard, 5, allowed, allowed), nil, "… and walking on")
 	end
 
@@ -553,8 +578,21 @@ tests["CarryGuard: the §4.4 table — honest carries, the dog cheat, a 2× hack
 	t.eq(hop:Step(TICK, 30, CARRY), "speed", "a 30-stud hop")
 	t.eq(G.new(nil, CARRY):Step(TICK, 0 / 0, CARRY), "speed", "a NaN displacement")
 
+	-- A server hitch (A2-05): one 2 s tick while an honest thief walked 27 studs — not a teleport;
+	-- the jump limit grows only by what an allowed walker covers in the extra time.
+	local hitch = G.new(nil, CARRY)
+	t.eq(run(hitch, 0.5, CARRY, CARRY), nil, "walking before the hitch")
+	t.ok(CARRY * 2 > S.Teleport, "the hitch's displacement is over Teleport")
+	t.eq(hitch:Step(2, CARRY * 2, CARRY), "ok", "a 2 s server tick at 13.6: ok")
+	t.eq(run(hitch, 5, CARRY, CARRY), nil, "… and walking on")
+	local limit = S.Teleport + CARRY * S.Rate * (2 - TICK)
+	t.eq(G.new(nil, CARRY):Step(2, limit + 1, CARRY), "speed", `a 2 s tick over {limit} studs: a teleport`)
+	t.eq(G.new(nil, CARRY):Step(TICK + 1e-3, 30, CARRY), "speed", "a normal-length tick keeps Teleport")
+	t.eq(G.new(nil, CARRY):Step(0 / 0, 1, CARRY), "ok", "a NaN dt refills nothing and is not a jump")
+
 	-- An overdraft inside the debt: not caught, but no credit until the budget is back ≥ 0.
 	local over = G.new(nil, CARRY)
+	t.eq(run(over, 10, CARRY, CARRY), nil, "walking until the budget is full")
 	t.eq(over:Step(TICK, S.Teleport - 1, CARRY), "ok", "a big tick under Teleport")
 	t.eq(over:Step(TICK, 6, CARRY), "ok", "another step into the debt")
 	t.ok(over:Budget() < 0 and over:Budget() >= -S.Debt, `in the debt ({over:Budget()})`)

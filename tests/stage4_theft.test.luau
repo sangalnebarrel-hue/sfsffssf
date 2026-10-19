@@ -15,7 +15,10 @@
 	    (FirePromptEvent Triggered at 1 s → 30 s), the carry timeout;
 	  • the speed budget with Kit.drive (BE-9, BE-35): 16 st/s under the dog → returned within 3 s;
 	    an honest walk under the dog with a 1.2 s freeze and the catch-up → not returned; a 30-stud
-	    hop → returned; a teleport straight out of the plot → returned, never credited;
+	    hop → returned; a teleport straight out of the plot → returned, never credited; a 2× / 2.5×
+	    hack from each of 6 displays straight to the nearest fence → returned «speed» within 1.5 s,
+	    never credited, honest on that line → credited (A2-01: the budget starts at Start); a 2 s
+	    server frame mid-carry at 13.6 → not returned (A2-05);
 	  • StealFish nil at the exit (the thief's tank filled with stronger fish mid-carry) → returned
 	    "full"; HoldEnded just before Triggered → still credited (Hold.Grace).
 
@@ -489,6 +492,99 @@ tests["speed: a 30-stud hop → returned; a teleport straight out of the plot �
 	t.eq(lastCancel(sim, thief).Reason, "speed", "a teleport out is returned")
 	t.eq(#S.events(sim, thief, "Done"), 0, "never credited")
 	fishHome(t, sim, victim, 3, "f3", "teleport out")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- The nearest fence from where the thief stands, a few studs past the ExitMargin line (base studs →
+-- world, at the HRP height).
+local function nearestOut(sim: any, thief: any, victim: any): (any, number)
+	local base = S.baseOf(sim, victim)
+	local Rules = S.shared(sim, "StealRules")
+	local here = Rules.LocalOf(base:GetPivot(), thief.Character.HumanoidRootPart.Position)
+	local flatHere = Vector3.new(here.X, 0, here.Z)
+	local exit = Rules.NearestExit(here)
+	local away = exit - flatHere
+	local beyond = exit + away.Unit * 3
+	return S.basePoint(base, beyond.X, beyond.Z, S.HRP_HEIGHT), away.Magnitude
+end
+
+tests["speed (A2-01): a 2× / 2.5× hack from every display straight to the nearest fence → returned «speed», never credited; honest on that line → credited"] = function(
+	t
+)
+	local six = table.clone(TANK)
+	table.insert(six, { Id = "Perch" })
+	table.insert(six, { Id = "Crucian" })
+	local sim, victim, thief = pair(t, {
+		victimTank = six,
+		boot = {
+			patches = {
+				{
+					path = "ReplicatedStorage.Shared.Config.StealConfig",
+					from = "FailCooldown = { 3, 10, 30 },",
+					to = "FailCooldown = { 0.2, 0.2, 0.2 },",
+				},
+			},
+		},
+	})
+	local shortest = math.huge
+	for slot = 1, 6 do
+		for _, factor in { 2, 2.5 } do
+			S.toCarry(t, sim, thief, victim, slot)
+			local target, distance = nearestOut(sim, thief, victim)
+			shortest = math.min(shortest, distance)
+			local started = sim:Time()
+			S.drive(sim, thief, target, factor * S.CARRY, {
+				stop = function()
+					return thief:GetAttribute("Stealing") == nil
+				end,
+				timeout = 6,
+			})
+			local took = sim:Time() - started
+			local cancel = lastCancel(sim, thief)
+			t.eq(cancel and cancel.Reason, "speed", `slot {slot}, {factor}×, {distance} studs: returned «speed»`)
+			t.ok(took <= 1.5, `… within 1.5 s ({took})`)
+			t.eq(#S.events(sim, thief, "Done"), 0, "… never credited")
+			fishHome(t, sim, victim, slot, `f{slot}`, `{factor}× from slot {slot}`)
+			sim:Advance(0.5)
+		end
+	end
+	t.ok(shortest < 50, `the nearest fence is close ({shortest} studs): the old full budget let ×2 through`)
+	-- honest on the nearest line: credited
+	S.toCarry(t, sim, thief, victim, 3)
+	local target = nearestOut(sim, thief, victim)
+	S.drive(sim, thief, target, S.CARRY, {
+		stop = function()
+			return thief:GetAttribute("Stealing") == nil
+		end,
+		timeout = S.CARRY_CFG.Timeout,
+	})
+	sim:Advance(0.3)
+	t.ok(
+		S.last(sim, thief, "Done"),
+		`honest 13.6 → credited (last cancel: {lastCancel(sim, thief) and lastCancel(sim, thief).Reason})`
+	)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- A2-05: a server hitch while an honest thief walks — one long server frame is not a teleport.
+tests["speed (A2-05): a 2 s server frame mid-carry at 13.6 → not returned, then credited"] = function(t)
+	local sim, victim, thief = pair(t)
+	local base = S.baseOf(sim, victim)
+	S.toCarry(t, sim, thief, victim, 3)
+	S.drive(sim, thief, S.exitPoint(base, "gate"), S.CARRY, { timeout = 0.5 })
+	local root = thief.Character.HumanoidRootPart
+	local ahead = S.exitPoint(base, "gate") - root.Position
+	local step = Vector3.new(ahead.X, 0, ahead.Z).Unit * (S.CARRY * 2)
+	t.ok(step.Magnitude > S.CARRY_CFG.Speed.Teleport, "the hitch's displacement is over Teleport")
+	sim:Teleport(thief, root.Position + step)
+	sim:Advance(2, 2) -- one 2 s server frame
+	t.eq(
+		thief:GetAttribute("Stealing"),
+		"carry",
+		`still carrying (cancel: {lastCancel(sim, thief) and lastCancel(sim, thief).Reason})`
+	)
+	S.out(sim, thief, victim, "gate")
+	t.ok(S.last(sim, thief, "Done"), "credited")
 	sim:AssertNoErrors({ warnings = true })
 end
 
