@@ -536,7 +536,8 @@ local UIConfig = {
 		                  огни); у самого выхода — зелёное кольцо Ring studs (дышит до RingPulse
 		                  раз за RingPeriod с) и табличка «ВЫХОД» (Label: PixelsX × PixelsY px —
 		                  издалека тот же размер, — на Lift studs над кольцом, видна до LabelRange
-		                  studs; «ГАВ!» собаки ближе Clear px на экране — прячется, пока он висит);
+		                  studs; «ГАВ!» собаки ближе Clear px на экране — на весь его подъём —
+		                  прячется, пока он висит; пока «ГАВ!» живёт, проверка раз в BarkEvery с);
 		  Bar            — где и как полоса вора (§6.4 rev. 3, TheftController): Top — её верх, доля
 		                  высоты HUD (нижняя полоса, под вором и кнопкой «Украсть»); Gap — до
 		                  джойстика, кнопки прыжка и края экрана, px; TitleTop / TitleHeight —
@@ -586,8 +587,9 @@ local UIConfig = {
 			Ring = 7,
 			RingPulse = 1.25,
 			RingPeriod = 0.8,
-			Label = { Lift = 4.5, PixelsX = 120, PixelsY = 40, Clear = 8 },
+			Label = { Lift = 4.5, PixelsX = 120, PixelsY = 40, Clear = 16 },
 			LabelRange = 400,
+			BarkEvery = 0.1,
 		},
 		Bar = {
 			Top = 0.74,

@@ -1135,7 +1135,16 @@ tests["toasts wait while he steals: the protection-ended toast is not over the r
 		return notify.Reserved()
 	end)
 	t.ok(reserved > 0, `the toast column is held (Reserved {reserved} px)`)
-	-- (the owner's alert, if he is robbed meanwhile, reserves "alert": it keeps the column's top)
+	-- (the owner's alert, if he is robbed meanwhile, asks where it goes before it reserves: the
+	-- column's top, not under the thief's whole column — stage 4 wave 3, victim_alert_while_stealing)
+	t.eq(
+		call(sim, thief, function()
+			return notify.Offset("alert")
+		end),
+		0,
+		"the owner's alert, not yet reserved, goes to the column's top"
+	)
+	-- (… and once it reserves "alert": it keeps the column's top)
 	t.eq(
 		call(sim, thief, function()
 			notify.Reserve("alert", 60)
@@ -1559,6 +1568,102 @@ tests["«ВЫХОД» waits while a «ГАВ!» crosses it on screen and comes b
 	sim:Advance(SPEC.BeamEvery * 2)
 	t.ok(label.Enabled, "a bark elsewhere on the screen: «ВЫХОД» stays")
 	aside:Destroy()
+	t.eq(#sim.Errors, 0, sim:FormatErrors())
+end
+
+tests["«ВЫХОД» waits for a «ГАВ!» that will rise into it, and for one that runs into it between two steps of the guide (stage 4 wave 3: «ВЫХОДГАВ!» in thief_carry at 0.5 s)"] = function(
+	t
+)
+	local sim = S.boot(t)
+	local victim = S.player(t, sim, 293, { tank = VICTIM })
+	local thief = S.player(t, sim, 294, { tank = THIEF, client = true, device = "phone" })
+	sim:Teleport(victim, S.exitPoint(S.baseOf(sim, thief), "gate"))
+	sim:Advance(1.5)
+	S.toCarry(t, sim, thief, victim, 3)
+	sim:Advance(0.5)
+	local guide = sim.workspace:FindFirstChild("TheftGuide")
+	local ring = guide and guide:FindFirstChild("Ring")
+	local label = guide and guide:FindFirstChild("ExitLabel")
+	t.ok(ring ~= nil and label ~= nil, "the ring and «ВЫХОД»")
+	if not (ring and label) then
+		return
+	end
+	local camera = sim.workspace.CurrentCamera
+	sim:Run(function()
+		camera.CFrame = CFrame.lookAt(ring.Position + Vector3.new(0, 12, 30), ring.Position)
+		camera.FieldOfView = 70
+	end, thief)
+	sim:Advance(SPEC.BeamEvery + S.FRAME)
+	t.ok(label.Enabled, "«ВЫХОД» shown")
+	local world = S.client(sim, thief, "TheftWorldController").Stats().folder
+	local rise = S.config("DefenceConfig").World.Dog.BarkRise
+	local function bark(offset: any, risen: boolean): any
+		local gui = sim:Create("BillboardGui", {
+			Name = "FxTankPop",
+			Size = UDim2.new(3, 30, 1.2, 14),
+			Adornee = ring,
+			StudsOffsetWorldSpace = offset,
+			StudsOffset = if risen then Vector3.new(0, rise, 0) else Vector3.new(0, 0, 0),
+			AlwaysOnTop = true,
+			MaxDistance = 400,
+		}, world)
+		sim:Create(
+			"TextLabel",
+			{ Name = "Amount", Text = "ГАВ!", TextScaled = true, Size = UDim2.fromScale(1, 1) },
+			gui
+		)
+		return gui
+	end
+	-- 1. Where is a bark that has finished its rise just clear of «ВЫХОД» (below it)?
+	local clearAt: number? = nil
+	for below = 1, 16, 0.25 do
+		local probe = bark(Vector3.new(0, GUIDE.Label.Lift - below, 0), true)
+		sim:Advance(S.FRAME * 2)
+		local shown = label.Enabled
+		probe:Destroy()
+		sim:Advance(S.FRAME * 2)
+		if shown then
+			clearAt = below
+			break
+		end
+	end
+	t.ok(
+		clearAt ~= nil and clearAt > 1,
+		`a risen bark close under «ВЫХОД» hides it, further down not ({clearAt})`
+	)
+	if not clearAt then
+		return
+	end
+	-- 2. A fresh bark one step closer, not risen yet: its box now is a whole rise lower (clear),
+	-- but where it will rise to is not — «ВЫХОД» waits from its first frame.
+	local fresh = bark(Vector3.new(0, GUIDE.Label.Lift - (clearAt - 0.25), 0), false)
+	sim:Advance(S.FRAME * 2)
+	t.ok(not label.Enabled, "a «ГАВ!» that will rise into «ВЫХОД»: the label waits from its first frame")
+	fresh:Destroy()
+	sim:Advance(S.FRAME * 2)
+	t.ok(label.Enabled, "the bark gone: «ВЫХОД» back")
+	-- 3. A bark aside runs into «ВЫХОД» right after a step of the guide: hidden within BarkEvery,
+	-- not only at the next step (BeamEvery later).
+	local runner = bark(Vector3.new(25, GUIDE.Label.Lift, 0), true)
+	sim:Advance(S.FRAME * 2)
+	t.ok(label.Enabled, "a bark far aside: «ВЫХОД» stays")
+	local first = guide:FindFirstChild("Arrow_1")
+	local arrow = first and first:FindFirstChild("Left")
+	t.ok(arrow ~= nil, "the first chevron")
+	local before = arrow and arrow.CFrame
+	for _ = 1, 40 do -- (to the next step of the guide: its chevrons move)
+		sim:Advance(S.FRAME)
+		if arrow and arrow.CFrame ~= before then
+			break
+		end
+	end
+	runner.StudsOffsetWorldSpace = Vector3.new(0, GUIDE.Label.Lift, 0)
+	sim:Advance(GUIDE.BarkEvery + S.FRAME * 2)
+	t.ok(GUIDE.BarkEvery + S.FRAME * 2 < SPEC.BeamEvery, "the check is sooner than the guide's next step")
+	t.ok(not label.Enabled, "the bark ran onto «ВЫХОД»: it waits within BarkEvery")
+	runner:Destroy()
+	sim:Advance(GUIDE.BarkEvery + S.FRAME * 2)
+	t.ok(label.Enabled, "gone: «ВЫХОД» back")
 	t.eq(#sim.Errors, 0, sim:FormatErrors())
 end
 

@@ -61,8 +61,11 @@
 	уведомления едут ниже (каждой полосе — ещё зазор NotifyController.BandGap(): GAP колонки, но не
 	меньше BAND_GAP — 16 px и обводка уведомления); px = 0 или nil — место освобождено, ждущие
 	выходят. Полосы стоят друг под другом в порядке RESERVE_ORDER («theft», потом «alert»;
-	незнакомые — следом, по имени): NotifyController.Offset(key) — сколько px от верха колонки до
-	полосы key (виджет ставит себя туда). Пока полосы стоят, уведомление под ними кончается не
+	незнакомые — следом, по имени, как «thief» вора, что держит всю колонку):
+	NotifyController.Offset(key) — сколько px от верха колонки до полосы key (виджет ставит себя
+	туда; полосы key ещё нет — где она встанет по этому порядку: тревога хозяина, которого
+	обворовывают, пока он крадёт сам, — вверху, а не под всей колонкой вора, Stage 4 wave 3).
+	Пока полосы стоят, уведомление под ними кончается не
 	ниже FISHER_GAP px над своим рыбаком (FishingLayout.fisherBox; на телефоне не вышло — где он у
 	камеры по умолчанию) и не ближе 16 px к кнопкам рыбалки под колонкой: полоса толкает
 	уведомления вниз — на планшете и компьютере под плашкой тревоги места до головы нет, и
@@ -250,11 +253,12 @@ local function columnHeight(): number
 	return if column then column.AbsoluteSize.Y else 0
 end
 
--- Ключи полос сверху вниз: сначала RESERVE_ORDER, потом незнакомые по имени.
-local function reserveKeys(): { string }
+-- Ключи полос сверху вниз: сначала RESERVE_ORDER, потом незнакомые по имени; with — ещё и этот
+-- ключ на своём месте в порядке (полосы ещё нет: где она встанет).
+local function reserveKeys(with: string?): { string }
 	local keys = {}
 	for _, key in RESERVE_ORDER do
-		if reserved[key] then
+		if reserved[key] or key == with then
 			table.insert(keys, key)
 		end
 	end
@@ -263,6 +267,9 @@ local function reserveKeys(): { string }
 		if not table.find(RESERVE_ORDER, key) then
 			table.insert(others, key)
 		end
+	end
+	if with and not reserved[with] and not table.find(RESERVE_ORDER, with) then
+		table.insert(others, with)
 	end
 	table.sort(others)
 	for _, key in others do
@@ -938,16 +945,17 @@ function NotifyController.Drop(tag: string)
 end
 
 -- Сколько px от верха колонки до полосы key (полосы — друг под другом в порядке RESERVE_ORDER;
--- у каждой — зазор BandGap). Полосы key нет — где встала бы следующая.
+-- у каждой — зазор BandGap). Полосы key ещё нет — где она встанет по этому порядку (тревога
+-- хозяина над полосой вора «thief», которая держит всю колонку, — а не под ней: Stage 4 wave 3).
 function NotifyController.Offset(key: string): number
 	local height = columnHeight()
 	local gap = if height > 1 then bandGapPx(height) else 0
 	local y = 0
-	for _, other in reserveKeys() do
+	for _, other in reserveKeys(key) do
 		if other == key then
 			return y
 		end
-		y += reserved[other] + gap
+		y += (reserved[other] or 0) + gap
 	end
 	return y
 end

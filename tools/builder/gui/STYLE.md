@@ -1124,7 +1124,9 @@ RenderStepped connection for all running frame effects, disconnected when none r
     `NotifyController.Reserve("thief", …)` holds the whole column (no toast, no trophy chip on
     phones) — a new widget for the thief goes into the bottom band too.
   - **The alert plate sits at the top of the toast column**: `NotifyController.Reserve("alert",
-    px)` moves the toasts below it (`Offset(key)`, `Reserved()`), inside the column's px width
+    px)` moves the toasts below it (`Offset(key)` — the bands before `key` in `RESERVE_ORDER`,
+    asked before it reserves too, so the thief's whole-column «thief» band never pushes it down;
+    `Reserved()`), inside the column's px width
     (≤ `UIConfig.Theft.Width` × W and `WidthMax`); on tablets and PCs the toasts wait for the
     alert's end, on phones the pill keeps 16 px from the fisher and every widget listed above.
   - **The alert's layers take no layout** (edge pulse, «ДОМОЙ!» / «ЩИТ!» glow, the pier word,

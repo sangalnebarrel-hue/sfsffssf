@@ -28,8 +28,9 @@
 	        красная дорожка на земле (папка Workspace.TheftGuide, Theft.Guide): шевроны от
 	        вора к ближайшему выходу StealRules.NearestExit ползут к нему (бегущие огни), у
 	        выхода — зелёное дышащее кольцо и табличка «ВЫХОД» (TankWorldController.TrackWord:
-	        у плашек HUD тает; где на экране «ГАВ!» собаки — ждёт, пока он не уйдёт: слова
-	        слились бы); переставляется раз в BeamEvery с (task.delay);
+	        у плашек HUD тает; где на экране «ГАВ!» собаки — на весь его подъём, ближе
+	        Guide.Label.Clear px — ждёт, пока он не уйдёт: слова слились бы; пока «ГАВ!» живёт,
+	        проверка раз в Guide.BarkEvery с); переставляется раз в BeamEvery с (task.delay);
 	      срыв — "Cancel": красная, трясётся, 💨 «СОРВАЛОСЬ!» и под ним причина (Text сервера,
 	        Reason: шрифт Body во всю ширину; плашка — по длине текста), FailTime с; в
 	        удержании гасит кольцо своей кнопки (InputHoldEnd: сервер кнопки не выключает —
@@ -87,6 +88,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = Shared:WaitForChild("Config")
+local DefenceConfig = require(Config:WaitForChild("DefenceConfig"))
 local StealConfig = require(Config:WaitForChild("StealConfig"))
 local UIConfig = require(Config:WaitForChild("UIConfig"))
 local FishingRules = require(Shared:WaitForChild("FishingRules"))
@@ -124,8 +126,10 @@ local SHEETS = { "TankPanel", "DefencePanel" } -- листы: при них по
 local GHOST_WINDOW = 10 -- опоздавший "Hold" брошенной (NoReply) кнопки узнаём столько с
 local GROUND_UP, GROUND_DOWN = 4, 14 -- луч к земле двора для шевронов: от пояса вора, studs
 -- «ГАВ!» собаки (TheftWorldController: TankDisplay.rise в папке Workspace.TheftWorld) — над ним
--- «ВЫХОД» не пишется (C1-R2-02).
+-- «ВЫХОД» не пишется (C1-R2-02); «ГАВ!» всплывает на BarkRise studs — место ему нужно на весь
+-- подъём, а не только там, где он сейчас (Stage 4 wave 3: между проверками он вплывал в «ВЫХОД»).
 local WORLD_FOLDER, BARK_NAME = "TheftWorld", "FxTankPop"
+local BARK_RISE = Vector3.new(0, DefenceConfig.World.Dog.BarkRise, 0)
 -- Ширина буквы слова мира в долях кегля (Montserrat Heavy Italic); TextScaled не крупнее кегля 100 —
 -- в широкой рамке вблизи буквы уже рамки (рамка «ГАВ!» у камеры — 388 px, буквы — 200).
 local GLYPH, SCALED_MAX = 0.5, 100
@@ -745,13 +749,16 @@ end
 local function wordBox(
 	gui: BillboardGui,
 	camera: Camera,
-	text: string?
+	text: string?,
+	offset: Vector3? -- вместо gui.StudsOffset (куда слово ещё всплывёт)
 ): { x0: number, y0: number, x1: number, y1: number }?
 	local adornee = gui.Adornee
 	if not gui.Enabled or not (adornee and adornee:IsA("BasePart")) then
 		return nil
 	end
-	local at = adornee.Position + gui.StudsOffsetWorldSpace + camera.CFrame:VectorToWorldSpace(gui.StudsOffset)
+	local at = adornee.Position
+		+ gui.StudsOffsetWorldSpace
+		+ camera.CFrame:VectorToWorldSpace(offset or gui.StudsOffset)
 	local p = camera:WorldToScreenPoint(at)
 	if p.Z <= 0.05 or (at - camera.CFrame.Position).Magnitude > gui.MaxDistance then
 		return nil
@@ -831,9 +838,11 @@ local function startGuide()
 	TankDisplay.word(plate, "Word", TEXTS.Exit, { 0, 0, 1, 1 }, Palette.Leaf, 3)
 	folder.Parent = Workspace
 	TankWorldController.TrackWord(label)
-	-- «ВЫХОД» и «ГАВ!» — оба поверх всего: где они сошлись на экране, табличка ждёт, пока «ГАВ!»
-	-- не уйдёт (проверка — на появлении и уходе «ГАВ!» и на каждом шаге дорожки; Enabled —
-	-- наш, прозрачность — у TrackWord).
+	-- «ВЫХОД» и «ГАВ!» — оба поверх всего: где они сошлись на экране (у «ГАВ!» — на весь его
+	-- подъём), табличка ждёт, пока «ГАВ!» не уйдёт. Проверка — на каждом шаге дорожки и, пока
+	-- «ГАВ!» живёт (≈ 1 с), раз в Guide.BarkEvery с: он едет с бегущей собакой и растёт, подбегая
+	-- к камере (Stage 4 wave 3: между шагами дорожки он вплывал в «ВЫХОД»). Enabled — наш,
+	-- прозрачность — у TrackWord.
 	local clearPad = spec.Clear
 	local function clearOfBark()
 		local camera = Workspace.CurrentCamera
@@ -849,7 +858,17 @@ local function startGuide()
 		for _, item in (barks :: Instance):GetChildren() do
 			if item.Name == BARK_NAME and item:IsA("BillboardGui") then
 				local word = item:FindFirstChildWhichIsA("TextLabel", true)
-				local other = wordBox(item, camera, if word then word.Text else nil)
+				local text = if word then word.Text else nil
+				local other = wordBox(item, camera, text)
+				local risen = wordBox(item, camera, text, BARK_RISE) -- (весь подъём «ГАВ!»)
+				if other and risen then
+					other = {
+						x0 = math.min(other.x0, risen.x0),
+						y0 = math.min(other.y0, risen.y0),
+						x1 = math.max(other.x1, risen.x1),
+						y1 = math.max(other.y1, risen.y1),
+					}
+				end
 				if
 					other
 					and mine.x0 < other.x1 + clearPad
@@ -865,9 +884,33 @@ local function startGuide()
 	end
 	local barks = Workspace:FindFirstChild(WORLD_FOLDER)
 	if barks then
+		local watching, stopped = false, false
+		carryTrove:Add(function()
+			stopped = true
+		end)
+		-- Цепочка task.delay, только пока в папке есть «ГАВ!» (покадровой работы нет).
+		local function watchBarks()
+			if stopped or label.Parent == nil then
+				watching = false
+				return
+			end
+			clearOfBark()
+			if (barks :: Instance):FindFirstChild(BARK_NAME) then
+				task.delay(GUIDE.BarkEvery, watchBarks)
+			else
+				watching = false
+			end
+		end
 		local function changed(item: Instance)
-			if item.Name == BARK_NAME then
-				task.defer(clearOfBark) -- (Adornee и сдвиг «ГАВ!» пишутся сразу после появления)
+			if item.Name ~= BARK_NAME then
+				return
+			end
+			-- (Adornee и сдвиг «ГАВ!» пишутся сразу после появления — проверка на defer)
+			if watching then
+				task.defer(clearOfBark)
+			else
+				watching = true
+				task.defer(watchBarks)
 			end
 		end
 		carryTrove:Add(barks.ChildAdded:Connect(changed))
