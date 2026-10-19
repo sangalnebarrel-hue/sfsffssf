@@ -64,8 +64,8 @@ local BAR = THEFT.Bar
 local Z = 32 -- over the sheets (30) and the base banner (20): the thief's banner is never covered
 local CONTENT_X = 0.1 -- the content starts right of the overhanging socket
 local CONTENT_W = 0.87
-local TITLE_Y, TITLE_H = 0.06, 0.42 -- the title: the upper half
-local BAR_Y, BAR_H = 0.54, 0.36 -- the bar (with Sub and Time inside): the lower half
+local TITLE_Y, TITLE_H = 0.05, 0.44 -- the title: the upper half
+local BAR_Y, BAR_H = 0.53, 0.36 -- the bar (with Sub and Time inside): the lower half
 local REASON_Y, REASON_H = 0.5, 0.42 -- «СОРВАЛОСЬ!»'s reason, where the bar would be
 local TEXT_PAD = 0.025 -- Sub / Time inside the bar's round ends
 

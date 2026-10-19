@@ -1069,7 +1069,7 @@ local function onStealEvent(kind: any, data: any)
 			syncToasts()
 			return
 		end
-		abandoned = nil
+		abandoned, ghost = nil, nil
 		enterHold(d)
 	elseif kind == "Carry" then
 		local late = ghost

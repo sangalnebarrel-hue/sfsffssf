@@ -1,8 +1,9 @@
 --[[
 	gui_scenarios_theft_ui.luau — stage 4 wave 2 C: the THIEF's own screen (TheftController,
-	docs/stage4_design.md §6.4 rev. 3, §6.9) over the 3D court: the banner HUD.TheftBar in the
-	bottom band (hold / carry / «СОРВАЛОСЬ!» / the hints on glass), «ДОБЫЧА!» (HUD.TheftTitle) with
-	the 🐟 flying into «САДОК», the red guide beam to the nearest exit, «🐕 СОБАКА!». Loaded by
+	docs/stage4_design.md §6.4 rev. 3, §6.9, §11.6 C-nn) over the 3D court: the banner HUD.TheftBar
+	in the bottom band (hold / carry / «СОРВАЛОСЬ!» / the hints on glass), «ДОБЫЧА!»
+	(HUD.TheftTitle) with the 🐟 flying into «САДОК», the red chevrons to the nearest exit with the
+	ring and «ВЫХОД» (Workspace.TheftGuide), «🐕 СОБАКА!». Loaded by
 	gui_scenarios_theft_world.luau (its court helpers come in as `H`); world = true, not in
 	--all; by name.
 
@@ -27,13 +28,22 @@
 	                     the server's end, «1,8 с»; the lifted fish and «КРАДУТ!» in the clear
 	                     (the [band] line prints StealRect vs the HUD with gui_render -v)
 	  thief_carry        the carry: «🏃 БЕГИ ЗА ОГРАДУ!» draining, «🐕 СОБАКА!» (Slowed), the
-	                     StolenFish on his head, the red beam to the gate
+	                     StolenFish on his head, the red chevrons to the gate
+	  thief_guide        the carry from his follow camera in the open court: the chevrons on the
+	                     ground crawling to the gate, the green ring and «ВЫХОД» (C-17)
+	  thief_tap          a quick tap (a real local hold let go after 0.3 s): the glass hint «Не
+	                     отпускай «Украсть»…», not «СОРВАЛОСЬ!» (C-20)
 	  thief_done         over the gate: «ДОБЫЧА!» + «Фугу — в твоём садке · +$3.2/с», confetti,
 	                     the 🐟 into «САДОК» (the chip 2/6 → 3/6)
 	  thief_fail         the owner raised the shield: «💨 СОРВАЛОСЬ!» + the reason, shaking
-	  thief_timeline     the whole run on a timeline: hold → carry (walking to the gate, the beam
-	                     re-aimed) → «ДОБЫЧА!» (render it on every device: --devices …)
+	  thief_timeline     the whole run on a timeline: hold → carry (walking to the gate, the
+	                     chevrons re-aimed) → «ДОБЫЧА!» (render it on every device: --devices …)
 	  thief_timeline_fail hold → the shield → «СОРВАЛОСЬ!»
+	The critic's set (round 1): thief_fail_<reason> (every Cancel reason), thief_denied_<reason>
+	(weak, owner, tagged, rest, few, new, full, after), thief_court_protected (a protected
+	newcomer: the how-to, then the warning), thief_noreply, thief_done_replaced (a full tank:
+	«ЗАМЕНА!» and the coins), thief_done_long / thief_hold_long (the longest short name),
+	thief_hold_ended (the protection-ended toast waits: nothing over the robbed display).
 
 	  gui_render.py --scenario thief_hold,thief_carry,thief_done,thief_fail \
 	      --devices phone,phone_small,phone_notch,tablet,desktop --out DIR
@@ -499,7 +509,7 @@ return function(H: { [string]: any }): { any }
 		},
 		{
 			name = "thief_timeline",
-			desc = "The whole run from the thief's follow camera: the hold on Slot_3 (the bar fills to the server's end), the carry out of the aisle to the gate (the bar drains, the red beam re-aimed, «🐕 СОБАКА!» for a while), «ДОБЫЧА!» over the gate with the 🐟 into «САДОК»",
+			desc = "The whole run from the thief's follow camera: the hold on Slot_3 (the bar fills to the server's end), the carry out of the aisle to the gate (the bar drains, the red chevrons to the exit re-aimed, «🐕 СОБАКА!» for a while), «ДОБЫЧА!» over the gate with the 🐟 into «САДОК»",
 			world = true,
 			standard = false,
 			still = { 1.5, 4.2, 6.6 },
@@ -522,6 +532,7 @@ return function(H: { [string]: any }): { any }
 				holdCourt(h)
 				-- (his «САДОК» reads 2/6; base 1's displays — the robbed ones — stay as painted)
 				h.player:SetAttribute("TankCount", #OWN)
+				h:advance(0.8) -- (the chip's roll settled before the run)
 				follow(h, h.player)
 			end,
 			during = function(h: any)
@@ -543,7 +554,7 @@ return function(H: { [string]: any }): { any }
 			world = true,
 			standard = false,
 			still = { 1.0, 2.0 },
-			timeline = { from = 0, to = 4.5, fps = 4 },
+			timeline = { from = 0, to = 5.6, fps = 4 },
 			extraBeats = {
 				{ name = "hold", appear = "HUD.TheftBar" },
 				{
@@ -571,7 +582,7 @@ return function(H: { [string]: any }): { any }
 					Phase = "hold",
 				})
 				h:steal(nil)
-				h:advance(2.9)
+				h:advance(4.0) -- (FailTime 3.2 s: the plate leaves at ≈ 4.85 s)
 			end,
 		},
 	}
@@ -713,7 +724,9 @@ return function(H: { [string]: any }): { any }
 		desc = "critic: full own tank; the stolen Puffer replaces his weakest Crucian («ЗАМЕНА!», coins)",
 		world = true,
 		standard = false,
-		still = { 0.15, 0.5, 0.9, 1.3, 1.8, 2.4, 3.0 },
+		-- (no still at 1.8 s: the «Замена!» toast's entrance scale — NotifyController's, D — touches
+		-- Status for a moment; the sheet shows it; design §11.6 C-31)
+		still = { 0.15, 0.5, 0.9, 1.3, 2.4, 3.0 },
 		sheet = { from = 0, to = 3.2, fps = 5 },
 		burst = false,
 		run = function(h: any)

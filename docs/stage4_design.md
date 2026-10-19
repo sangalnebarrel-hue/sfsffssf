@@ -83,7 +83,7 @@ the origin, y = 0 is the ground top, −Z points to the lagoon, the plot is x ±
    coins for his own weakest fish fly in (Stage 3 replaced flow). From now on he waits **30 s** before
    the next steal.
 7. **Failure** at any point: the banner blushes Berry and shakes, «СОРВАЛОСЬ!», and one plain line names
-   the reason («Хозяин тебя поймал!», «Ты отошёл от витрины», «Хозяин включил щит — рыба вернулась
+   the reason («Хозяин тебя поймал!», «Не отходи от витрины!», «Хозяин включил щит — рыба вернулась
    домой», «Слишком долго — рыба уплыла домой»…). The fish flies back to its display. He waits 3 s,
    then 10 s, then 30 s for repeated failures he caused within a minute; after a tag he cannot start on
    that base for 20 s. A shield or the owner leaving costs him no wait (not his fault).
@@ -294,7 +294,8 @@ The lamp flashes during the hold and the carry, then for `StealConfig.Alarm.Ling
   The first mount of a later session re-applies, from the same list, an `after` (latest loss + 90) or a
   `rest` that is still running, so leaving and rejoining never shortens them.
 - **`EndProtection(player, "stealing")`** at the start of his hold clears every kind **and his `losses`
-  list**, with the toast «Твоя защита снята: ты пошёл на дело!». `ShieldReadyAt` is unchanged: no refund.
+  list**, with the toast «Кража погасила твою защиту» (it waits in the toast queue until the theft is over:
+  §6.4, C-16). `ShieldReadyAt` is unchanged: no refund.
   (Otherwise being robbed twice by a friend would buy 10 minutes of safe stealing.)
 - **Studio knob** (DC-20): when `RunService:IsStudio()` and `DefenceConfig.Debug.StudioProtect` is a
   number (10), the join, newbie, after and rest durations are clamped to it; the shield is untouched.
@@ -783,7 +784,7 @@ end (BE-16). «client» marks the rows the client filter also evaluates (§5.1).
 | 11 | the victim's base not protected | `shield` / `join` / `newbie` / `after` / `rest` | «Здесь щит — ещё {t}» / «Игрок только пришёл — подожди {t}» / «Новичок под защитой — ещё {t}» / «Этого игрока недавно обокрали — подожди {t}» / «Садок отдыхает — ещё {t}» | ✔ |
 | 12 | no theft on this base | `taken` | «Здесь уже кто-то крадёт» | ✔ (base `Thief`) |
 | 13 | owner's HRP > 6 studs from the thief's | `owner` | «Хозяин рядом!» | |
-| 14 | victim active fish ≥ 3 | `few` | «У игрока мало рыбы — пусть подрастёт» | ✔ |
+| 14 | victim active fish ≥ 3 | `few` | «У игрока мало рыбы — найди другой садок» | ✔ |
 | 15 | not a much weaker victim: thief `Income10Sum` < `RichMin` × 10, or ≤ `RichRatio` × the victim's (DC-09) | `weak` | «Этот игрок пока намного слабее — найди соперника по силе» | ✔ (Player `Income`) |
 | 16 | the slot's fish active, `FishUid` matches, not Steal / Escrow / Dormant, not caught less than `FreshCatch` 30 s ago (DC-08) | `missing` / `fresh` / `new` | «Этой рыбы уже нет» / «Эту рыбу только что украли» / «Свежий улов — красть можно через {t}» | ✔ (`StealPhase`, `Escrow`, `FreshUntil`) |
 | 17 | `TankService:PreviewAdd(thief, income10)` ≠ nil | `full` | «Садок полон — эта рыба слабее твоих» | ✔ (own slots' `Income`, `Escrow`) |
@@ -1204,7 +1205,7 @@ They are driven by the slot's `StealPhase`, read on its change and on the first 
 | `FishingController.HurryCard()` (new public function; DC-02) | — | called by `AlertController` |
 
 There is **no alert pointer** in Stage 4 (DC-16): the victim acts with ЩИТ, or with «ДОМОЙ», which lands
-him facing the court; the thief has the red beam. `NotifyController.Point` is not built.
+him facing the court; the thief has the red chevrons to the exit. `NotifyController.Point` is not built.
 
 `ClientMain` ORDER gains `"DefenceController", "AlertController", "TheftController",
 "TheftWorldController"` (after `TankWorldController`, before `FishingController`). New logic goes in new
@@ -1296,7 +1297,10 @@ touched inside existing functions, plus the one `HurryCard` function.
   is about (renders `steal_hold_thief_hud` vs the mocked rule `steal_hold_thief_rule`). The carry
   keeps the same place (the fish on his head and its plate are then in that band). The bar no longer
   needs `NotifyController.Reserve("theft", px)`; the victim's TheftAlert keeps the toast column (§6.3),
-  so a thief who is robbed meanwhile sees both without stacking.
+  so a thief who is robbed meanwhile sees both without stacking. **Toasts wait** while he steals (from
+  his own hold start to "Cancel" / "Done"): TheftController reserves the whole column under the key
+  "thief" (not in `RESERVE_ORDER`, so "alert" stays on top) — the column is over the robbed display
+  and the fish on his head (C-16).
 - **Size:** width ≤ min(0.62 W, 520 px), phone height ≈ 0.15 H (≈ 50 px), Title tier ≥ 20 px on
   phone_small.
 - **States:**
@@ -1304,15 +1308,17 @@ touched inside existing functions, plus the one `HurryCard` function.
   | state | plate | content |
   |---|---|---|
   | `hint` (in a foreign plot, not stealing; a 0.5 s `task.delay` chain tests `StealRules.InPlot` only while the character exists) | glass | ⏳ / 🛡️ / 🐠 + one line (the reasons of §1.1 step 2; the first-time hint) |
-  | `hold` | Night, Berry bar | 🥷 «КРАДЁШЬ: ОКУНЬ» + `Bar` filling to `End` (`UiFx.timerBar`, a frame job only while holding) + `Time` «1,8 с» + `Sub` «Не отходи!» |
-  | `carry` | Berry | 🏃 «БЕГИ ЗА ОГРАДУ!» + `Bar` draining to the carry `End` + `Sub` «Не попадись хозяину»; `DogChip` «🐕 СОБАКА!» pops in while `Slowed` |
-  | `fail` | Berry, shake | «СОРВАЛОСЬ!» (TheftTitle, smaller) + the reason line; 2.2 s, then gone |
+  | `hold` | Night, Berry bar | 🥷 «КРАДЁШЬ: ОКУНЬ» + a chunky `Bar` (C-18) filling to `End` (one linear tween) with `Sub` «Не отходи!» and `Time` «1,8 с» inside it («1,8 с» punches on each whole second, the rim flashes 1 s before the end) |
+  | `carry` | Berry, Gold bar | 🏃 «БЕГИ ЗА ОГРАДУ!» + `Bar` draining to the carry `End` (a bump at the start) with `Sub` «Не попадись хозяину» and «21 с» inside (punching in the last 5 s); `DogChip` 🐕 «СОБАКА!» pops in (and wiggles) while `Slowed` |
+  | `fail` | Berry, shake | 💨 «СОРВАЛОСЬ!» + the reason under it (`Reason`, Body tier, the plate sized to it, C-19); 3.2 s, then gone. A tap shorter than `Limits.QuietSavedUnder` is no failure: the glass hint «Не отпускай «Украсть», пока полоска не заполнится!» (C-20) |
   | `done` | — | TheftTitle «ДОБЫЧА!» slam (`Theme.title`, a Gold/Leaf gradient), Sub «Окунь — в твоём садке · +$4/с», `confetti(hud, { origin = the StolenFish on screen })`, a 🐟 `flyTo` from that point into «САДОК» |
 
-- **Carry guide:** a client `Beam` (the `FishingGuide` recipe, Berry, `FaceCamera`, width 0.3 → 0.8)
-  from the HRP to `StealRules.NearestExit` (gate centre (0, 16), the nearest side-fence point (±70, z
-  clamped 20..121), or the nearest back arch (±40, 170)), recomputed on the 0.25 s chain. No screen
-  pointer (DC-16).
+- **Carry guide (C-17):** red chevrons on the ground (client Neon parts in `Workspace.TheftGuide`,
+  `UIConfig.Theft.Guide`: 5 «>» 3 studs wide, 4 studs apart, from 3.5 studs ahead of him) on the line
+  to `StealRules.NearestExit` (gate centre (0, 16), the nearest side-fence point (±70, z clamped
+  20..121), or the nearest back arch (±40, 170)), crawling towards it, and at the exit a breathing
+  green ring with «ВЫХОД» over it (AlwaysOnTop, under the HUD rule via `TrackWord`); re-placed on the
+  0.25 s chain. No screen pointer (DC-16).
 - **Hold arrival:** «САДОК» must not play the `Stored` arrival at 0.05 s. TheftController sets the HUD
   attribute **`TankIncoming`** before the flight, and TankButtonController waits for it to clear (not
   `CounterHold`: that one also means "catch on screen" to four modules). "Replaced" →
@@ -1427,13 +1433,15 @@ Rules (D20, DC-14): no display numbers, no «чужой», no gender or case agr
   - «СОРВАЛОСЬ!»; «Подожди секунду» (no reply).
 - **Thief hints:**
   - «Зажми «Украсть» у витрины и унеси рыбу за ограду!» (touch), «Держи E у витрины и унеси рыбу за
-    ограду!» (keyboard);
+    ограду!» (keyboard), «Держи «Украсть» у витрины и унеси рыбу за ограду!» (gamepad);
+  - «Не отпускай «Украсть», пока полоска не заполнится!» (a quick tap);
   - «Начнёшь красть — твоя защита погаснет»;
-  - «Твоя защита снята: ты пошёл на дело!».
+  - «Кража погасила твою защиту»;
+  - «ВЫХОД» (the exit's sign in the world).
 - **Cancel reasons** (`Cancel.Text`):
-  - released «Ты отпустил кнопку»;
-  - far «Ты отошёл от витрины»;
-  - died «Ты упал — рыба вернулась домой»;
+  - released «Кнопку надо держать до конца!»;
+  - far «Не отходи от витрины!»;
+  - died «Ой! Рыба вернулась домой»;
   - shield «Хозяин включил щит — рыба вернулась домой»;
   - tag «Хозяин тебя поймал!»;
   - deadline / early «Не получилось — попробуй ещё раз»;
@@ -1716,7 +1724,7 @@ Player, base and slot attributes (Stage 3 pattern; `sim:ServerEventsFor(p, "Shie
     `InputHoldEnd` + «Подожди секунду»;
   - done → «ДОБЫЧА!», the flight, `TankIncoming` holds the arrival;
   - fail → reason;
-  - the beam to the nearest exit;
+  - the red chevrons, ring and «ВЫХОД» on the line to the nearest exit (C-17);
   - the FishingController hint yields;
   - «ДОМОЙ» greyed in carry;
   - **`FishingController.HurryCard()`** (C owns FishingController; DC-02): a Mythic card up → closed
@@ -2243,16 +2251,33 @@ TankButtonController, `tests/stage4_hud_thief`, the `thief_*` scenarios); rows D
 |---|---|---|
 | C-01 the bottom band is shared with «ВЗЯТЬ» and the fishing hint | **changed (§6.4 rev. 3, §6.9)** | In a neighbour's court the action button shows «ВЗЯТЬ» (phone 623..708 × 289..374) and the fishing hint «Иди в сверкающий круг…» (195..578 × 334..374): both collide with the TheftBar (162..682 × 303..353). FishingController (inside `refreshButtons` / `refreshContextHint`) hides the ActionButton and the context hint while `HUD.Stealing` is set or the TheftBar / TheftTitle is shown, and keeps its guide beam off while stealing; both come back after. The fishing actions mean nothing during a theft. Test: the phone theft. |
 | C-02 «ДОБЫЧА!» (TheftTitle) | **changed** | It slams in the bottom band where the bar was (`UIConfig.Theft.Bar.TitleTop` 0.66, `TitleHeight` 0.26, the band's width), not the top: the top band holds Status (back as soon as `Stealing` clears), the toasts and the thief's head with the fish. The bar is replaced at once (no overlap during its pop-out). The 🐟 flies from over his head (or the screen centre when off screen) into «САДОК». Measured: phone 162..682 × 277..363, phone_small 127..540 × 267..350, tablet 252..772 × 527..697, desktop 380..900 × 495..665. |
-| C-03 «СОРВАЛОСЬ!» | **changed** | Inside the TheftBar (Berry plate, 💨, the server's reason in Sub at the title's full width — no timer then), not on TheftTitle: the same place the thief was watching. The shake is ± `Bar.Shake` (0.012) of the screen; on touch screens the band is inset by that much so the shaking bar stays ≥ 16 px from the thumbstick and Jump. Gone after `FailTime`. |
-| C-04 hints on glass | **added** | A `Line` label (Body tier, wrapped, italic) in the TheftBar; the pill is sized to its text (`FishingLayout.hintWidth`). Policy (TheftController's 0.5 s court chain, `HintEvery`): a client-known reason (cooldown, tagged, the protections, taken, few, weak, fresh / new / full) stays while he is in the court, with a live «0:24»; with prompts shown — «Начнёшь красть — твоя защита погаснет» on every entry while his own base is protected, else the first-time hint once per session (touch / keyboard); a server "Denied" shows its Text for `DeniedHint` s (Quiet: nothing), no answer in `Hold.NoReply` s → «Подожди секунду». Court hints leave with the court; a Denied / NoReply text keeps its own time. Icons in `StealConfig.Texts.Icons`. |
+| C-03 «СОРВАЛОСЬ!» | **changed** | Inside the TheftBar (Berry plate, 💨, the server's reason under the title — the `Reason` label since C-19, no bar then), not on TheftTitle: the same place the thief was watching. The shake is ± `Bar.Shake` (0.012) of the screen; on touch screens the band is inset by that much so the shaking bar stays ≥ 16 px from the thumbstick and Jump. Gone after `FailTime`. |
+| C-04 hints on glass | **added** | A `Line` label (Body tier, wrapped, italic) in the TheftBar; the pill is sized to its text (`FishingLayout.hintWidth`). Policy (TheftController's 0.5 s court chain, `HintEvery`): a client-known reason (cooldown, tagged, the protections, taken, few, weak, fresh / new / full) stays while he is in the court, with a live «0:24»; with prompts shown — on each entry, in turn: the first-time hint once per session (touch / keyboard / gamepad, C-21, C-24), then «Начнёшь красть — твоя защита погаснет» while his own base is protected; a server "Denied" shows its Text for `DeniedHint` s (Quiet: nothing), no answer in `Hold.NoReply` s → «Подожди секунду». Court hints leave with the court; a Denied / NoReply text keeps its own time. Icons in `StealConfig.Texts.Icons`. |
 | C-05 the prompt filter lives in `Controllers/TheftPrompts.luau` | **added (module, not a controller)** | TheftController's helper (not in ClientMain.ORDER): `StealRules.CanStealView` over the TheftChecks client rows, `Placeable` through `StealRules.CanPlace` (TankService:PreviewAdd's rule over the own displays, escrow / steal-locked rows skipped). `VictimActive` = the victim's `Tank.Count`, incomes from the players' `Income`. Recomputed once per frame at most (`task.defer`) on attribute changes, plus one `task.delay` to the soonest end (cooldown, protection, fresh); no frame connection. The held prompt is kept until the carry. Test: every row on the real server. |
 | C-06 `HUD.TankIncoming` | **changed (timing)** | Set at the carry start (= the fish's rarity) and released when the 🐟 lands (or on "Cancel", or `Bar.SafetyWait` 1.5 s after `Stealing` clears without "Done"): TankService's "Stored" (with the new count) arrives before StealEvent "Done", so the hold must already be on. TankButtonController shares one arrival path for FishingState "Caught" and TankEvent "Stored". |
 | C-07 the carry bar | **changed** | Gold fill on the Berry plate (Berry on Berry does not read); the hold keeps Night + Berry. Whole seconds in the carry («21 с»), tenths in the hold («1,8 с»). |
-| C-08 «🐕 СОБАКА!» | **changed** | A Sun chip standing on the bar's right end (above the plate), not inside it: Title / Sub / Time keep their room. Measured ≥ 16 px from Jump and the column on all five screens. |
+| C-08 «🐕 СОБАКА!» | **changed** | A Sun chip standing on the bar's right end (above the plate), not inside it: Title / Sub / Time keep their room. Measured ≥ 16 px from Jump and the column on all five screens. The 🐕 sits in its own socket at the chip's height (`DogChip.IconSocket.Icon`, `Texts.Icons.Dog`; the label is «СОБАКА!»), and the chip wiggles each time `Slowed` turns on (C1-R1-11). |
 | C-09 the thief's "Returned" (his fish went back, no `Result`) | **added** | A NotifyController toast «Рыба вернулась к хозяину» with 🐟 from TheftController; a "Returned" with `Result` is the victim's (D). |
 | C-10 `FishingController.HurryCard()` (DC-02) | **as designed** | The card leaves through the normal path: shown → `tapCard` (the input lock waived); its beats running → shown at once, the last beat closes it after `CARD.Linger`; still in the Epic+ delay → the card's `Hurry` attribute: `CARD_INPUT_LOCK` after it appears the beats are skipped, `CARD.Linger` later it closes. Cleared on close and on a new catch. Test (real Mythic catches): closed within 1 s; from the delay up ≤ 1.5 s instead of 5.1 s; the arrival still plays. |
 | C-11 the victim's «САДОК» on "Lost" | **added** | Berry `morphFlash` + ring + wiggle (`UIConfig.TankButton.Lost`) + Berry chip flash; the chip rolls down from `TankCount`. |
 | C-12 popping widgets | **implementation** | TheftController shows / hides its widgets with a generation: a pop-out's deferred hide never hides a widget shown again within its 0.2 s (hint → hold, fail → court reason). |
 | C-13 tests | **changed (§7.6)** | `tests/stage4_hud_thief` runs the REAL server (tests/stage4_server; clients where the UI is checked) instead of stubbed services: holds by `sim:BeginHold`, the carry by `Kit.drive`, the shield by "ShieldActivate", the owner's refusal by standing next to the thief. «ДОМОЙ» greyed in the carry and Status hidden while stealing are D's (HudController); this file asserts `HUD.Stealing`, which TheftController writes. |
-| C-14 scenarios | **added** | `tools/preview/gui_scenarios_theft_ui.luau` (`thief_court_hint`, `thief_court_wait`, `thief_court_shield`, `thief_denied`, `thief_hold`, `thief_carry`, `thief_done`, `thief_fail`, `thief_timeline`, `thief_timeline_fail`), appended to B's scenario list by `gui_scenarios_theft_world.luau` (its helpers passed in). Until D's HudController hides Status on `HUD.Stealing`, the scenarios mock that rule (`statusRule`, a no-op once HudController reads "Stealing"). The world capture draws the local character on his own pier, so the court frames show the neighbour's displays from B's court camera without the thief's body (renderer limit). |
-| C-15 config | **added** | `UIConfig.Theft.Bar` (Top, Gap, TitleTop, TitleHeight, HintTime, HoldTick, CarryTick, Resize, Confetti, FlyTime, FlySize, Shake, SafetyWait), `UIConfig.TankButton.Lost`, `StealConfig.Texts.Icons`. |
+| C-14 scenarios | **added** | `tools/preview/gui_scenarios_theft_ui.luau` (`thief_court_hint`, `thief_court_wait`, `thief_court_shield`, `thief_denied`, `thief_hold`, `thief_carry`, `thief_done`, `thief_fail`, `thief_timeline`, `thief_timeline_fail`; round 2: `thief_guide`, `thief_tap`, `thief_hold_ended`, `thief_court_protected`, `thief_noreply`, every `thief_fail_<reason>` and `thief_denied_<reason>`, `thief_done_replaced`, `thief_done_long`, `thief_hold_long`; `thief_timeline` no longer rewrites the robbed base 1's tank — C1-R1-10), appended to B's scenario list by `gui_scenarios_theft_world.luau` (its helpers passed in). Until D's HudController hides Status on `HUD.Stealing`, the scenarios mock that rule (`statusRule`, a no-op once HudController reads "Stealing"). The world capture draws the local character on his own pier, so the court frames show the neighbour's displays from B's court camera without the thief's body (renderer limit). |
+| C-15 config | **added** | `UIConfig.Theft.Bar` (Top, Gap, TitleTop, TitleHeight, HintTime, HoldTick, CarryTick, HoldWarn, CarryWarn, Resize, Confetti, FlyTime, FlySize, Shake, SafetyWait), `UIConfig.Theft.Guide` (replaces `BeamWidth`), `UIConfig.Theft.FailTime` 3.2 (was 2.2), `UIConfig.TankButton.Lost`, `StealConfig.Texts.Icons` (+ Owner 👀, Dog 🐕), `StealConfig.Texts.Exit`, `Texts.Hint.Gamepad` / `HoldLonger`, `StealConfig.Hold.NoReplySlack`; `MapConfig.PartBudget.RuntimeReserve.Theft` (60) now names the guide's 11 parts. |
+| C-16 toasts over the robbed display (C1-R1-01) | **changed (§6.4, §2.4)** | A protected thief's hold start sends «…защита…» (`DefenceService:EndProtection`) into the toast column — over `StealRect` on every device. TheftController now holds the whole column from his own `PromptButtonHoldBegan` (and while `Hold` / `Carry` are up) to "Cancel" / "Done" / `Denied` / `NoReply`: `NotifyController.Reserve("thief", column height)` (the existing API; the key is not in `RESERVE_ORDER`, so a victim alert for the thief himself keeps the top). Toasts queue and come out after the theft. Moving the column under `StealRect` was rejected: it lands on the thief's head (0.44–0.71 H). `Hint.Ended` became timeless «Кража погасила твою защиту» (it is now read after the theft). Test: a protected thief's hold → carry → «ДОБЫЧА!» (tablet): no toast at all, nothing over `StealRect`, `Offset("alert")` 0, then the toast. Render `thief_hold_ended`. |
+| C-17 the carry guide (C1-R1-02) | **changed (§6.4)** | The FaceCamera `Beam` read as a pale 4–6 px pole. Now `Workspace.TheftGuide` (client only, `UIConfig.Theft.Guide`): 5 red Neon chevrons «>» (3 × 1.6 studs, 0.75 thick) lying flat on the ground (a ray on the base's Grounds / Arcades, past the fence on the world) every 4 studs on the line to `NearestExit`, crawling ¼ step towards it on each 0.25 s re-aim (running lights, no frame job); at the exit a green Neon disc breathing (one looping tween, cancelled with the carry) and «ВЫХОД» (AlwaysOnTop billboard, `TankDisplay.word` Leaf, `TankWorldController.TrackWord`). 11 parts in the `Theft` reserve. Test: ring at the exit, every shown chevron between him and the exit, on the line, across it, flat, crawling, re-aimed after a move, gone after. Renders `thief_guide`, `thief_carry`, timelines. Studio: the look of Neon on the court paving. |
+| C-18 the progress bar (C1-R1-03) | **changed** | The bar is the lower half of the plate (0.36 of it: ≥ 16 px on phones, ≈ 30 px on a tablet), a sim pill with its outline and gloss (Berry hold, Gold carry), «Не отходи!» / «Не попадись хозяину» and the time written INSIDE it. Motion inside the existing tick chains: «1,8 с» punches on each whole second of the hold and in the last `Bar.CarryWarn` 5 s of the carry; the rim flashes at `Bar.HoldWarn` 1 s left and at 5 s left of the carry; the bar bumps at the carry start. Test: ≥ 16 px on 5 screens, the punch seen. |
+| C-19 the fail reason (C1-R1-07) | **changed** | A `Reason` label (Body tier, italic) under «СОРВАЛОСЬ!» at the content width; the plate is sized to the longer of the two (`failWidth`); `FailTime` 3.2 s. Test: every `Texts.Cancel` reason on one line at ≥ 13 px on 5 screens. |
+| C-20 a quick tap (C1-R1-04) | **changed (A: open)** | "Cancel" «released» in the hold after a local hold shorter than `Limits.QuietSavedUnder` (1 s, measured from `PromptButtonHoldBegan` to `…Ended` on the client) is no «СОРВАЛОСЬ!»: the glass hint «Не отпускай «Украсть», пока полоска не заполнится!» (🥷, `DeniedHint` s), no shake or sound. Open for A (StealService): the same short release still counts as OWN_FAULT (`FailCooldown` 3 / 10 / 30 s); exempting it like the victim's Quiet rule is a server change. Test + render `thief_tap`. |
+| C-21 the how-to for a protected newcomer (C1-R1-05) | **changed** | Court entry hints queue: the how-to first (once per session), then «Начнёшь красть — твоя защита погаснет» (while protected); `firstHintShown` is set only when the how-to is shown. Test: a protected first entry shows the how-to, then the warning; later entries the warning only. |
+| C-22 gender-free copy (C1-R1-06) | **changed (§6.10, D20)** | `Cancel.released` «Кнопку надо держать до конца!», `far` «Не отходи от витрины!», `died` «Ой! Рыба вернулась домой», `Hint.Ended` «Кража погасила твою защиту», `Denied.few` «У игрока мало рыбы — найди другой садок»; the StealConfig header states the rule. |
+| C-23 «Хозяин рядом!» (C1-R1-08) | **changed** | 👀 (`Texts.Icons.Owner`), not 🛡️: the owner is next to him, not a shield. Test: the Denied «owner» case. |
+| C-24 the gamepad's first hint (C1-R1-12) | **added** | The text follows `GetLastInputType()` (touch / gamepad / keyboard-mouse; none yet — the device): `Hint.Gamepad` «Держи «Украсть» у витрины…». Test: a console client. |
+| C-25 the owner's tag (C2-R1-01) | **fixed** | On "Cancel" «tag» TheftPrompts.SetTagged(the owner's UserId, now + `Limits.TagCooldown`): `baseView.TagLeft` — the client row of TheftChecks the server applies to the thief–victim pair — hides that base and the court says «Хозяин тебя поймал! Здесь красть снова через 0:16» with a live countdown; one `task.delay` to the end. Test: after `FailCooldown` the base stays hidden with «tagged», another victim's is shown, back after `TagCooldown`. |
+| C-26 the fishing keys in the carry (C2-R1-02) | **fixed** | `FishingController.pointToSpot` (inside the existing function) returns while `HUD.Stealing` is set or the TheftBar / TheftTitle is shown: F, a click with the rod and R2 no longer call «Иди в сверкающий круг…» over the bar. Test: phone + desktop, F and `ActivateTool` in the carry. |
+| C-27 hints over a sheet (C2-R1-03) | **fixed** | No glass hint (court reason, Denied, first-time) while `HUD.TankPanel` / `HUD.DefencePanel` is open (the bar's ZIndex 32 is for hold / carry / fail); the 0.5 s chain re-shows the reason after it closes. Test: the wait reason vs the «САДОК» sheet. |
+| C-28 a slow link (C2-R1-04) | **fixed (A: open)** | The NoReply window is max(`Hold.NoReply`, `GetNetworkPing()` + `Hold.NoReplySlack` 0.4). The prompt NoReply gave up on is remembered (10 s): its late "Hold" shows no bar (the hint stays), its "Cancel" shows «Подожди секунду» again, not «СОРВАЛОСЬ!»; a late "Carry" enters the theft normally. Open for A: that release still counts as OWN_FAULT on the server. Test: 0.6 s each way — no hold bar, no «СОРВАЛОСЬ!». |
+| C-29 `Bar.Resize` (C2-R1-05) | **implemented** | The plate's width tweens over `Bar.Resize` 0.2 s when it changes while shown (hint ↔ hold, hint text changes); the fail plate is placed at once (it shakes). Test: the first frame of the hold is between the hint's width and the bar's. |
+| C-30 «САДОК» tapped in the carry (C2-R1-07) | **fixed** | TankButtonController defers a tap only while a fish really flies (`CounterHold`, or `TankIncoming` once `Stealing` is nil — the «ДОБЫЧА!» flight); in the hold / carry it opens the sheet at once; `arrive()` opens a remembered tap only when something arrived. Test: the tap opens at once, a tag later opens nothing. |
+| C-31 «ЗАМЕНА!» toast pop-in (C1-R1-09) | **noted (D: NotifyController)** | The toast's pop-in (k 0.58 above its slot) touches HUD.Status on every device in `thief_done_replaced` — the shared entrance of NotifyController, not the theft; the scenario stays in the C set for D / E to re-render after a fix. |
+| C-32 merge note | **noted** | D's trophy chip (D-10: left of the column at its foot, by «ДОМОЙ») vs the bottom-band TheftBar on phones: ≈ 34 px apart vertically in this branch's numbers (chip ≈ 215..270, bar from 303) — re-check after the merge. |
