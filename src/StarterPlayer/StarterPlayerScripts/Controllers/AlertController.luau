@@ -26,7 +26,11 @@
 	    (NotifyController.Reserve("alert", px) — до нарисованного низа плашки, INK; уведомления —
 	    ниже на BandGap и не на своём рыбаке: на планшете и ПК они ждут конца тревоги; «таблетка»
 	    в колонке или над самым её верхом — так же), ширина — min(Theft.Width
-	    ширины, Theft.WidthMax, колонки), высота Theft.PlateHeight на телефоне; текст слева —
+	    ширины, Theft.WidthMax, колонки), высота Theft.PlateHeight на телефоне; на планшете и ПК
+	    нарисованный низ плашки — не ближе 16 px к своему рыбаку, если его видно под ней: плашка
+	    поднимается к стопке статуса (на 16 px + обводки под ней) и, не хватает и так, ниже ростом,
+	    но не ниже Theft.PlateHeight (Этап 4 wave 3, ART-06: губа плашки лежала у него на
+	    волосах); текст слева —
 	    «ВОР В САДКЕ!» / «Ника крадёт: Окунь», вынос — «ВОР УБЕГАЕТ!» / «Ника уносит: Окунь — жми
 	    ЩИТ!» (щит не готов — без «жми ЩИТ!»), справа — [🛡️ ЩИТ] (самая крупная цель:
 	    ≥ Theft.ShieldMin px и ≥ Theft.ShieldShare ширины плашки; щит перезаряжается — Slate
@@ -451,11 +455,34 @@ local function plateRect(hud: ScreenGui): Rect
 	local width = math.min(THEFT.Width * size.X, THEFT.WidthMax)
 	-- (≥ 16 px under the status stack's drawn rows: the Wallet's 💵 hangs under its box)
 	local status = statusRect(hud, origin)
-	local offset = NotifyController.Offset("alert")
-	if status then
-		offset = math.max(offset, status.y1 + STATUS_INK + GAP + INK - column.y0)
+	local bands = NotifyController.Offset("alert")
+	local offset = bands
+	local clearOfStatus = if status then status.y1 + STATUS_INK + GAP + INK else nil
+	if clearOfStatus then
+		offset = math.max(offset, clearOfStatus - column.y0)
 	end
-	return AlertLayout.plate(size, column, offset, width, height)
+	local r = AlertLayout.plate(size, column, offset, width, height)
+	-- Планшет, компьютер: нарисованный низ плашки — не ближе GAP к своему рыбаку (его видно под
+	-- плашкой): она поднимается к стопке статуса (не выше GAP под ней и не на полосы над собой; на
+	-- планшете между кошельком и колонкой ≈ 40 px), а не хватает и так — ниже ростом, но не ниже
+	-- Theft.PlateHeight (Wave 3 ART-06: губа плашки лежала у него на волосах, 0–3 px). Телефон —
+	-- «таблетка» (compactRect).
+	if not isPhone() then
+		local fisher = FishingLayout.fisherBox(player.Character, Workspace.CurrentCamera, origin)
+		local floor = if fisher and fisher.x1 > r.x0 and fisher.x0 < r.x1 then fisher.y0 - GAP - INK else nil
+		if floor and r.y1 > floor then
+			local top = column.y0 + bands
+			if clearOfStatus and bands <= 0 then
+				top = clearOfStatus
+			elseif clearOfStatus then
+				top = math.max(top, clearOfStatus)
+			end
+			local y0 = math.max(top, floor - height)
+			local h = math.max(math.min(height, floor - y0), math.min(THEFT.PlateHeight, height))
+			r = FishingLayout.rect(r.x0, y0, r.x1, y0 + h)
+		end
+	end
+	return r
 end
 
 -- Где «таблетка» (телефон, плашка легла бы на рыбака): AlertLayout.compact.

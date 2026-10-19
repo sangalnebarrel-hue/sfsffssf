@@ -416,6 +416,25 @@ return function(H: { [string]: any }): { any }
 			end,
 		},
 		{
+			name = "thief_carry_home_locked",
+			desc = "Wave 3 (UX-07): in the carry the kid taps the locked «🔒 ДОМОЙ» — it wiggles, the 🔒 beats, and the bar's line says why for Bar.LockedTime: «🔒 Сначала за ограду!» (then «Не попадись хозяину» again); nothing is sent to the server",
+			world = true,
+			standard = false,
+			still = { 0.5, 2.4 },
+			burst = false,
+			run = function(h: any)
+				statusRule(h)
+				h:money(1215, 459)
+				H.court(h, { -14, 8.9, 66.7 }, { -14, 4.6, 55 }, 70)
+				H.place(h, h.player, { -14, 3.2, 55 }, { -14, 0, 40 })
+				holdOn(h, 3, 3)
+				h:advance(0.3)
+				carryOn(h, 3, "Puffer", false)
+				h:advance(0.4)
+				h:click("HUD.RightButtons.HomeButton")
+			end,
+		},
+		{
 			name = "thief_carry_trophy",
 			desc = "Wave 3 (C-32): the carry while someone else's Legendary pillar burns off screen to the right — the 🌟 trophy chip beside the three-button column stays ≥ 16 px from the bottom-band TheftBar and its «🐕 СОБАКА!» chip (the broadcast toast waits for the theft)",
 			world = true,
@@ -517,7 +536,7 @@ return function(H: { [string]: any }): { any }
 		},
 		{
 			name = "thief_fail",
-			desc = "The owner raised the shield mid-hold: «💨 СОРВАЛОСЬ!» on Berry, shaking, «Хозяин включил щит — рыба вернулась домой»; gone after FailTime",
+			desc = "The owner raised the shield mid-hold: «💨 СОРВАЛОСЬ!» on Berry, shaking, «Хозяин включил щит — рыба дома» on one line on every screen; gone after FailTime",
 			world = true,
 			standard = false,
 			still = { 0.2, 1.0 },

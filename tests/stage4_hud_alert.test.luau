@@ -1253,6 +1253,39 @@ local function liveToasts(p: any): { any }
 	return out
 end
 
+tests["the plate on a tablet / PC stays clear of the own fisher's head (≥ 16 px from its drawn lip to his hair): it lifts towards the status stack, and only then gets shorter, never under Theft.PlateHeight (wave 3 ART-06)"] = function(
+	t
+)
+	for _, screen in { SCREENS[3], SCREENS[4] } do
+		local sim = boot(t)
+		local p = addPlayer(sim, 1, screen)
+		local hud = hudOf(p)
+		local Layout = module(sim, p, "FishingLayout")
+		atSpotFollowed(sim, p)
+		alert(sim, p)
+		t.ok(waitShown(sim, p), `{screen.name}: the alert shows`)
+		sim:Advance(0.6)
+		t.eq(alertStats(sim, p).shown, "plate", `{screen.name}: the plate`)
+		local fisher = fisherOf(sim, p)
+		t.ok(fisher ~= nil, `{screen.name}: the own fisher on screen`)
+		local plate = rectOf(hud.TheftAlert)
+		local wallet = rectOf(hud.Status.Wallet)
+		if fisher then
+			local hair = fisher.y0 + Layout.FISHER_PAD
+			local clear = hair - (plate.y1 + 8)
+			print(`[ART-06] {screen.name}: plate {fmt(plate)} hair {hair} clear {clear} wallet {fmt(wallet)}`)
+			t.ok(plate.y1 - plate.y0 >= THEFT.PlateHeight - 0.5, `{screen.name}: never shorter than PlateHeight`)
+			t.ok(plate.y0 >= wallet.y1 + 16 - 0.5, `{screen.name}: still ≥ 16 px under the Wallet row`)
+			-- the lip (8 px ink) ≥ 16 px over his hair, unless the plate already sits at its
+			-- highest and shortest (then as far as the screen allows)
+			local atBest = plate.y1 - plate.y0 <= THEFT.PlateHeight + 0.5
+			t.ok(clear >= 16 - 0.5 or atBest, `{screen.name}: the lip clear of his hair ({clear} px)`)
+			t.ok(clear >= 8, `{screen.name}: never on his hair ({clear} px; was 0–3)`)
+		end
+		sim:AssertNoErrors({ warnings = true })
+	end
+end
+
 tests["toasts during the alert: none pushed onto the own fisher or within the band gap of the plate; the intruder toast goes with its thief's hold; the waiting ones come out after the alert"] = function(
 	t
 )

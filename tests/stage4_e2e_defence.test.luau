@@ -6,7 +6,7 @@
 	holds «Украсть» as his own client shows it.
 
 	  (2a) the victim taps the column «ЩИТ!» during the thief's hold → the hold is cancelled: the
-	       thief's «СОРВАЛОСЬ!» «Хозяин включил щит — рыба вернулась домой», no fail wait; the
+	       thief's «СОРВАЛОСЬ!» «Хозяин включил щит — рыба дома», no fail wait; the
 	       victim's one toast «Щит спас рыбу! 🛡️ 1:00», his chip in Guard; the bystander sees the
 	       shield dome over the court;
 	  (2b) the victim taps the plate's ЩИТ during the CARRY → the fish flies home (DC-01): back in its
@@ -162,11 +162,7 @@ tests["(2a) the column «ЩИТ!» in the hold: cancelled, the thief «Хозя�
 		"the thief's «СОРВАЛОСЬ!»"
 	)
 	t.eq(tu.barTitle.Text, E.BANNER.Fail)
-	t.eq(
-		tu.barReason.Text,
-		E.CANCEL.shield,
-		"«Хозяин включил щит — рыба вернулась домой»"
-	)
+	t.eq(tu.barReason.Text, E.CANCEL.shield, "«Хозяин включил щит — рыба дома»")
 	t.eq(thief:GetAttribute("StealCooldownUntil"), nil, "no fail wait for the thief (not his fault)")
 	fishHome(t, sim, victim, uid, "after the shield")
 	thiefFree(t, sim, thief, "after the shield")

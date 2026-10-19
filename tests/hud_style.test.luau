@@ -12,6 +12,9 @@
 	  • the layout still fits on a phone, a tablet and a desktop: nothing overlaps, everything is
 	    on screen, the right column («САДОК» over «ДОМОЙ») stays above the Jump button on touch
 	    screens;
+	  • stage 4 wave 3: on a PC the toast stack stops above the own fisher (the rest wait, UX-06),
+	    a toast an alert pushed out early is dropped once it is stale (UX-05), a phone's broadcast
+	    that would reach his head goes one line (ART-08);
 	  • the runtime juice: base swatch on the badge and the base banner flying into it, the «САДОК»
 	    chip (frozen while the HUD has CounterHold, rolling on arrival), the draining Home cooldown («ЖДИ»),
 	    toasts by kind (colour, icon, width, slots, queue while fishing widgets are up — and while
@@ -1523,6 +1526,183 @@ tests["idle HUD: no frame effects and no connection churn"] = function(t)
 	sim:Advance(6)
 	t.eq(sim:CountConnections(p), idle, "back to the idle count")
 	t.eq(UiFx.activeJobs(), 0)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+-- Stage 4 wave 3 (UX-05 / UX-06 / ART-08): the own fisher under the column.
+
+-- The client's modules (NotifyController, FishingLayout).
+local function clientModule(sim: any, p: any, name: string): any
+	local module = sim:Find(`Controllers.{name}`, p:FindFirstChildOfClass("PlayerScripts"))
+	assert(module, `Controllers.{name}`)
+	return sim:Require(module, p)
+end
+
+-- A follow camera behind the character (his head in the middle of the screen, under the toast
+-- column), or one looking away at the sky (no fisher on screen).
+local function cameraOn(sim: any, p: any, fisher: boolean)
+	local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+	assert(root, "a character")
+	sim:Run(function()
+		local camera = sim.workspace.CurrentCamera
+		camera.FieldOfView = 70
+		local at = root.Position
+		local back = root.CFrame.LookVector * -1
+		camera.CFrame = if fisher
+			then roblox.CFrame.lookAt(at + back * 11 + Vector3.new(0, 4.5, 0), at + Vector3.new(0, 1.5, 0))
+			else roblox.CFrame.lookAt(at + Vector3.new(0, 200, 0), at + Vector3.new(0, 400, 50))
+	end, p)
+end
+
+-- The own fisher's box on screen (FishingLayout.fisherBox, HUD px; with its FISHER_PAD) or nil.
+local function fisherBox(sim: any, p: any): any?
+	local layout = clientModule(sim, p, "FishingLayout")
+	local hud = p.PlayerGui.HUD
+	return sim:Run(function()
+		return layout.fisherBox(p.Character, sim.workspace.CurrentCamera, hud.AbsolutePosition)
+	end, p)
+end
+
+local function quiet(sim: any, p: any)
+	sim:Advance(5) -- the join banner is gone
+	sim:WaitFor(function()
+		return #liveToasts(p) == 0
+	end, 15, 0.1)
+	sim:Advance(1)
+end
+
+tests["toasts (stage 4 wave 3, UX-06): on a PC the stack stops above the own fisher — the others wait their turn; the fisher off screen: the device cap as before"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "desktop")
+	quiet(sim, p)
+	local hud = p.PlayerGui.HUD
+	cameraOn(sim, p, true)
+	sim:Advance(0.1)
+	local fisher = fisherBox(sim, p)
+	t.ok(fisher ~= nil, "the fisher on screen, under the column")
+	local seen: { [string]: boolean } = {}
+	local most = 0
+	notify(sim, p, "Украдено: ФУГУ (Ника)", "theft")
+	notify(sim, p, "Садок отдыхает 1:30 — не украдут", "shield")
+	notify(sim, p, "Щит бесплатный: увидишь 🚨 — жми 🛡️", "info")
+	local t0 = sim:Time()
+	local worst = math.huge
+	while sim:Time() - t0 < 16 do
+		local live = liveToasts(p)
+		most = math.max(most, #live)
+		for i, toast in live do
+			seen[toast:GetAttribute("Kind")] = true
+			if i >= 2 and fisher then
+				local bottom = toast.AbsolutePosition.Y + toast.AbsoluteSize.Y - hud.AbsolutePosition.Y
+				worst = math.min(worst, fisher.y0 - bottom)
+			end
+		end
+		sim:Advance(0.1)
+	end
+	t.ok(most < UIConfig.MaxToasts, `fewer than the PC cap at once over the fisher ({most})`)
+	t.ok(worst >= 16 - 0.5, `a second toast only when it ends ≥ 16 px over the fisher ({worst})`)
+	t.ok(seen.theft and seen.shield and seen.info, "… and every one of them shown in turn")
+	-- the fisher off screen: three at once, as before
+	cameraOn(sim, p, false)
+	sim:Advance(0.1)
+	t.eq(fisherBox(sim, p), nil, "no fisher on screen")
+	notify(sim, p, "Первое", "info")
+	notify(sim, p, "Второе", "success")
+	notify(sim, p, "Третье", "warning")
+	sim:Advance(1)
+	t.eq(#liveToasts(p), UIConfig.MaxToasts, "the PC cap again")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["toasts (stage 4 wave 3, UX-05): a toast an alert band pushed out early comes back when the band goes, but not when it waited longer than its own life (no stale «Щит погас» flicker before «Украдено»)"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	quiet(sim, p)
+	local notifyModule = clientModule(sim, p, "NotifyController")
+	local column = p.PlayerGui.HUD.Toasts
+	local function band(on: boolean)
+		sim:Run(function()
+			notifyModule.Reserve("alert", if on then column.AbsoluteSize.Y else nil)
+		end, p)
+	end
+	local life = UIConfig.ToastKinds.shield.Life or UIConfig.ToastDuration
+	notify(sim, p, "Щит погас", "shield")
+	sim:Advance(0.4)
+	t.eq(#liveToasts(p), 1, "«Щит погас»")
+	band(true)
+	sim:Advance(0.3)
+	t.eq(#liveToasts(p), 0, "the alert's band pushed it out (in its first half: back to the queue)")
+	band(false)
+	sim:Advance(0.3)
+	local back = liveToasts(p)[1]
+	t.ok(back and back:GetAttribute("Kind") == "shield", "a short alert: it comes back")
+	sim:Advance(0.2)
+	band(true)
+	sim:Advance(life + 1)
+	notify(sim, p, "Украдено: ФУГУ (Ника)", "theft")
+	sim:Advance(0.1)
+	band(false)
+	local kinds: { string } = {}
+	local t0 = sim:Time()
+	while sim:Time() - t0 < 3 do
+		for _, toast in liveToasts(p) do
+			local kind = toast:GetAttribute("Kind")
+			if kinds[#kinds] ~= kind then
+				table.insert(kinds, kind)
+			end
+		end
+		sim:Advance(1 / 30)
+	end
+	t.eq(
+		table.concat(kinds, ","),
+		"theft",
+		"after a long alert: only «Украдено» — the stale «Щит погас» is dropped"
+	)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["toasts (stage 4 wave 3, ART-08): on a phone a two-line broadcast that would reach the own fisher's head is one line «Кто: ЧТО» over it (≥ 12 px); with no fisher under the column — two lines as before"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	quiet(sim, p)
+	local hud = p.PlayerGui.HUD
+	cameraOn(sim, p, true)
+	sim:Advance(0.1)
+	local fisher = fisherBox(sim, p)
+	t.ok(fisher ~= nil, "the fisher on screen")
+	local layout = clientModule(sim, p, "FishingLayout")
+	notify(sim, p, "Украдено: ФУГУ (Ника)", "theft")
+	sim:Advance(1)
+	local toast = liveToasts(p)[1]
+	t.ok(toast and toast:GetAttribute("Kind") == "theft", "«Украдено»")
+	if toast and fisher then
+		t.eq(toast:FindFirstChild("Byline"), nil, "one line (no byline)")
+		t.eq(toast.Label.Text, "Украдено: ФУГУ (Ника)", "«Украдено: ФУГУ (Ника)»")
+		local fit = toast.Label:FindFirstChildOfClass("UITextSizeConstraint")
+		t.ok(fit and fit.MinTextSize >= 12, "≥ 12 px")
+		local bottom = toast.AbsolutePosition.Y + toast.AbsoluteSize.Y - hud.AbsolutePosition.Y
+		local head = fisher.y0 + layout.FISHER_PAD
+		t.ok(
+			bottom <= head - 8 + 0.5,
+			`its plate ends over the head with room for its outline ({bottom} vs head {head})`
+		)
+	end
+	sim:Advance(6)
+	cameraOn(sim, p, false)
+	sim:Advance(0.1)
+	notify(sim, p, "Украдено: ФУГУ (Ника)", "theft")
+	sim:Advance(1)
+	local two = liveToasts(p)[1]
+	t.ok(
+		two and two:FindFirstChild("Byline") ~= nil,
+		"no fisher under the column: «кто» over «что» as before"
+	)
 	sim:AssertNoErrors({ warnings = true })
 end
 

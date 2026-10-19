@@ -83,8 +83,8 @@ the origin, y = 0 is the ground top, −Z points to the lagoon, the plot is x ±
    coins for his own weakest fish fly in (Stage 3 replaced flow). From now on he waits **30 s** before
    the next steal.
 7. **Failure** at any point: the banner blushes Berry and shakes, «СОРВАЛОСЬ!», and one plain line names
-   the reason («Хозяин тебя поймал!», «Не отходи от витрины!», «Хозяин включил щит — рыба вернулась
-   домой», «Слишком долго — рыба уплыла домой»…). The fish flies back to its display. He waits 3 s,
+   the reason («Хозяин тебя поймал!», «Не отходи от витрины!», «Хозяин включил щит — рыба дома»,
+   «Слишком долго — рыба уплыла домой»…). The fish flies back to its display. He waits 3 s,
    then 10 s, then 30 s for repeated failures he caused within a minute; after a tag he cannot start on
    that base for 20 s. A shield or the owner leaving costs him no wait (not his fault).
 
@@ -1485,7 +1485,7 @@ Rules (D20, DC-14): no display numbers, no «чужой», no gender or case agr
   - released «Кнопку надо держать до конца!»;
   - far «Не отходи от витрины!»;
   - died «Ой! Рыба вернулась домой»;
-  - shield «Хозяин включил щит — рыба вернулась домой»;
+  - shield «Хозяин включил щит — рыба дома»;
   - tag «Хозяин тебя поймал!»;
   - deadline / early «Не получилось — попробуй ещё раз»;
   - timeout «Слишком долго — рыба уплыла домой»;
@@ -1832,7 +1832,7 @@ New Kit helpers in `tests/stage4_kit.luau` (Wave 0):
    - `restart` → exactly one copy, the age kept.
 2. **Defence:**
    - the victim taps the «ЩИТ!» column button during the thief's hold → cancelled, the thief «Хозяин
-     включил щит — рыба вернулась домой», the dome on the bystander;
+     включил щит — рыба дома», the dome on the bystander;
    - **the victim taps the plate's ЩИТ during a carry → the fish flies home** (DC-01);
    - the victim taps «ДОМОЙ», lands facing the court, walks to the carrier → tag → the fish home.
 3. **Dog + alarm:**
