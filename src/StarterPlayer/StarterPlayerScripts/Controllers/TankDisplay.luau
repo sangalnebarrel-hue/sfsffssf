@@ -604,10 +604,13 @@ end
 
 -- «КРАДУТ!» / «УНОСЯТ!» над витриной (FxTankSteal, Этап 4): светлый диск с Steal.Icon слева (на
 -- нём кольцо-таймер до конца удержания / выноса — UiFx.ringTimer у вызывающего) и красное слово;
--- буквы не крупнее cap (потолок надписей витрин).
+-- буквы не крупнее cap (потолок надписей витрин). AlwaysOnTop: слово стоит на высоте фонарей
+-- галереи, и с ворот и спауна фонарь резал кольцо и буквы (недолгое, MaxDistance maxDistance —
+-- надписи Этапа 3 остаются за предметами).
 function TankDisplay.stealWord(parent: Instance, text: string, cap: number, maxDistance: number): StealWord
 	local spec = DISPLAY.Steal.Word
 	local gui, plate = TankDisplay.billboard(parent, "FxTankSteal", sizeOf(spec), maxDistance)
+	gui.AlwaysOnTop = true
 	local ring = Instance.new("Frame")
 	ring.Name = "Ring"
 	ring.AnchorPoint = Vector2.new(0, 0.5)
@@ -655,27 +658,23 @@ function TankDisplay.pulseLight(parent: Instance, color: Color3): PointLight
 	return light
 end
 
--- Строка защит под надписью садка (третья строка): «🛡️ 0:42» цветом щита (Guard) слева и
--- «🔐1 · 🐕 · 🚨» белым справа; табличка растёт ВНИЗ на Sign.DefenceShare своей высоты (верхние
--- строки остаются на месте). Создаётся при первой нужде.
+-- Строка защит над надписью садка (над «+$42/с»): «🛡️ 0:42» цветом щита (Guard) слева и
+-- «🔐1 · 🐕 · 🚨» белым справа; табличка растёт ВВЕРХ на Sign.DefenceShare своей высоты (прежние
+-- строки остаются на месте): строка — в небе над аквариумом, а не за статуей фонтана перед ним
+-- (с ворот и от спауна). Создаётся при первой нужде.
 function TankDisplay.signDefence(sign: Pair, cap: number): Defence
 	local spec = DISPLAY.Sign
 	local k = spec.DefenceShare
-	local share = 1 / (1 + k)
+	local band = k / (1 + k) -- (доля новой высоты под строку, сверху)
 	local plate = sign.plate
-	local protect = TankDisplay.word(
-		plate,
-		"Protect",
-		"",
-		{ 0, share, 0.5, 1 - share },
-		UIConfig.Palette.Guard,
-		spec.Outline - 0.5,
-		true
-	)
+	local protect =
+		TankDisplay.word(plate, "Protect", "", { 0, 0, 0.5, band }, UIConfig.Palette.Guard, spec.Outline - 0.5, true)
 	protect.TextXAlignment = Enum.TextXAlignment.Right
+	protect.TextYAlignment = Enum.TextYAlignment.Bottom
 	protect.Visible = false
-	local owned = TankDisplay.word(plate, "Owned", "", { 0.5, share, 0.5, 1 - share }, WHITE_LOOK, spec.Outline - 0.5)
+	local owned = TankDisplay.word(plate, "Owned", "", { 0.5, 0, 0.5, band }, WHITE_LOOK, spec.Outline - 0.5)
 	owned.TextXAlignment = Enum.TextXAlignment.Left
+	owned.TextYAlignment = Enum.TextYAlignment.Bottom
 	owned.Visible = false
 	capLabel(protect, cap * spec.CountShare)
 	capLabel(owned, cap * spec.CountShare)
@@ -683,7 +682,7 @@ function TankDisplay.signDefence(sign: Pair, cap: number): Defence
 end
 
 -- Тексты строки защит (nil — нет части); обе nil — строки нет, табличка прежнего размера. Одна
--- часть — во всю ширину по центру, обе — встык у середины.
+-- часть — во всю ширину по центру, обе — встык у середины; буквы прижаты вниз, к «+$42/с».
 function TankDisplay.setSignDefence(sign: Pair, row: Defence, protectText: string?, ownedText: string?)
 	local spec = DISPLAY.Sign
 	local shown = protectText ~= nil or ownedText ~= nil
@@ -691,24 +690,25 @@ function TankDisplay.setSignDefence(sign: Pair, row: Defence, protectText: strin
 		row.shown = shown
 		local k = if shown then spec.DefenceShare else 0
 		local share = 1 / (1 + k)
+		local band = 1 - share
 		sign.gui.Size = UDim2.new(spec.Width, spec.PixelsX, spec.Height * (1 + k), math.round(spec.PixelsY * (1 + k)))
-		-- (растёт вниз: центр сдвинут на половину прибавки)
-		sign.gui.SizeOffset = Vector2.new(0, -(k / 2) / (1 + k))
-		-- верхние строки — те же доли прежней высоты
-		sign.top.Position = UDim2.fromScale(0, 0)
+		-- (растёт вверх: низ на месте — центр поднят на половину прибавки)
+		sign.gui.SizeOffset = Vector2.new(0, (k / 2) / (1 + k))
+		-- прежние строки — те же доли прежней высоты, под строкой защит
+		sign.top.Position = UDim2.fromScale(0, band)
 		sign.top.Size = UDim2.fromScale(1, 0.62 * share)
-		sign.bottom.Position = UDim2.fromScale(0.15, 0.64 * share)
+		sign.bottom.Position = UDim2.fromScale(0.15, band + 0.64 * share)
 		sign.bottom.Size = UDim2.fromScale(0.7, 0.36 * share)
 	end
 	local both = protectText ~= nil and ownedText ~= nil
-	local share = 1 / (1 + spec.DefenceShare)
+	local band = 1 - 1 / (1 + spec.DefenceShare)
 	local function place(label: TextLabel, text: string?, x: number, w: number, align: Enum.TextXAlignment)
 		label.Visible = text ~= nil
 		if text and label.Text ~= text then
 			label.Text = text
 		end
-		label.Position = UDim2.fromScale(x, share)
-		label.Size = UDim2.fromScale(w, 1 - share)
+		label.Position = UDim2.fromScale(x, 0)
+		label.Size = UDim2.fromScale(w, band)
 		label.TextXAlignment = align
 	end
 	if both then

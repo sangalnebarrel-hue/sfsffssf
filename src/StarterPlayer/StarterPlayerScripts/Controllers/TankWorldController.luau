@@ -85,7 +85,10 @@
 	    этой глубине + px; HUD.IgnoreGuiInset = false, как у AbsolutePosition) сравнивается с
 	    видимыми плашками HUD.Status (Этап 4 — и фишкой щита Status.BaseBadge.ShieldChip, там, где
 	    стопка ставит плашку базы), видимыми частями полосы вора HUD.TheftBar и тревоги хозяина
-	    HUD.TheftAlert и уведомлениями HUD.Toasts (слово «КРАДУТ!» — тоже): ближе Clear.Margin px — буквы,
+	    HUD.TheftAlert и уведомлениями HUD.Toasts (слово «КРАДУТ!» — тоже; и чужие слова мира,
+	    отданные TrackWord: «ВОР!», табличка рыбы на голове вора, «ГАВ!» — TheftWorldController;
+	    точка слова — его Adornee или Attachment-родитель со сдвигами StudsOffsetWorldSpace /
+	    StudsOffset, рамка сдвинута на SizeOffset): ближе Clear.Margin px — буквы,
 	    обводки и плашки (диск и кольцо «КРАДУТ!») тают за Clear.Fade с (TextTransparency /
 	    Transparency / BackgroundTransparency, своя — в атрибуте FadeBase; Visible, Enabled и
 	    UIScale слова у других), снова проявляются за Clear.Show с, только когда слово отошло на
@@ -104,7 +107,9 @@
 	    верх остаётся под верхом стекла), наклоняется к проходу и бьётся (твины деталей, ≤ 3 Гц),
 	    жизнь не начинается; надпись прохода спрятана, на её месте перед стеклом «КРАДУТ!»
 	    (BillboardGui FxTankSteal: диск с кольцом UiFx.ringTimer до StealEnd и слово Berry, буквы
-	    по потолку надписей, видно до DefenceConfig.World.StealWordRange), у LightBar пульсирует
+	    по потолку надписей, видно до DefenceConfig.World.StealWordRange; AlwaysOnTop, как и
+	    «УКРАДЕНО!»: на высоте планки висят фонари галереи — с ворот и от спауна они резали кольцо
+	    и буквы; надписи Этапа 3 остаются за предметами), у LightBar пульсирует
 	    красный PointLight; отпустили — рыба опускается со всплеском «in». Вынос — рыба витрины
 	    вылетает СКВОЗЬ ПЕРЕДНЮЮ грань стекла (вся — перед ней), вверх не выше FishPoint +
 	    Steal.ArcTop (под потолок галереи) и на голову вора за ArcTime с (три твина-отрезка;
@@ -118,7 +123,8 @@
 	  • Строка защит надписи садка (Этап 4, атрибуты модели базы ProtectUntil / ProtectKind,
 	    LockLevel, HasDog, HasAlarm — DefenceService): «🛡️ 0:42» цветом щита, пока база под любой
 	    защитой (раз в TagEvery с), и купленное «🔐1 · 🐕 · 🚨» — видят все; готов ли щит — не
-	    показываем никогда; надпись растёт вниз на Sign.DefenceShare (верхние строки на месте).
+	    показываем никогда; строка — НАД «+$42/с», надпись растёт вверх на Sign.DefenceShare
+	    (прежние строки на месте: с ворот и от спауна строка в небе, а не за статуей фонтана).
 	  • У ведра своей базы, пока у неё AlarmState = "theft", — одно красное «🚨 КРАДУТ!» (пульс 2 Гц,
 	    Steal.PierPulse) вместо строк садка; видно и в поклёвку, и в мини-игре, но не под
 	    CounterHold и не под своим трофеем.
@@ -150,11 +156,14 @@
 	  TankWorldController.IsBuilt(base) -> boolean
 	  TankWorldController.IsAlive(base, slotIndex) -> boolean         -- твин жизни идёт
 	  TankWorldController.Stats() -> { bases, fish, tags, life, locks, emitters, lastBuilds, folder,
-	                                   faded, tagCap, signCap }  -- faded: слов под HUD (тают)
+	                                   faded, tracked, tagCap, signCap }  -- faded: слов под HUD (тают)
 	  TankWorldController.IsFaded(gui) -> boolean    -- слово ушло из-под HUD (Display.Clear)
 	  TankWorldController.Lock(base, slotIndex) -> BillboardGui?     -- «🔒 Закрыто» витрины
 	  TankWorldController.SetLife(enabled)   -- превью: RbxSim не двигает приваренные детали за Body
 	  TankWorldController.HudRects() -> { { x0, y0, x1, y1 } }   -- что на экране HUD не уступает словам
+	  TankWorldController.TrackWord(gui, cap?, capW?, capH?)   -- чужое слово мира — под то же правило
+	  TankWorldController.StealRect(base, slotIndex) -> { x0, y0, x1, y1 }?   -- стекло витрины на
+	                                   -- экране (px): его HUD вора не закрывает в удержании (§6.4)
 	Таблицы с ключами-Instance (слова под HUD, спрятанные кнопки) — обычные, с уборкой: слабые
 	ключи RbxSim может потерять.
 ]]
@@ -301,8 +310,14 @@ local faded: { [BillboardGui]: boolean } = {}
 local arcs = 0 -- новых копий рыбы в полёте (возврат с головы вора; Steal.MaxArcs)
 local tagCap, signCap = TankDisplay.tagCap(390), TankDisplay.signCap(390)
 local tagCapHeight = 0 -- высота экрана, по которой они посчитаны
--- Надпись садка у потолка букв: «+$1 234/с» ≈ SIGN_W потолков в ширину, две строки ≈ SIGN_H.
+-- Надпись садка у потолка букв: «+$1 234/с» ≈ SIGN_W потолков в ширину, две строки ≈ SIGN_H
+-- (со строкой защит — SIGN_H_ROW).
 local SIGN_W, SIGN_H = 7, 1.8
+local SIGN_H_ROW = SIGN_H * (1 + DISPLAY.Sign.DefenceShare)
+-- Слова мира других контроллеров под тем же правилом «не под HUD» (TrackWord: TheftWorldController
+-- — «ВОР!», табличка рыбы на голове вора, «ГАВ!»): потолок букв, как у wordRect.
+type Track = { cap: number?, capW: number?, capH: number? }
+local tracked: { [BillboardGui]: Track } = {}
 -- Слово у ведра своей базы.
 local pier = {
 	baseIndex = 0,
@@ -449,16 +464,17 @@ local function riseAt(
 	lift: number,
 	time: number,
 	range: number
-)
+): BillboardGui?
 	local point = holder("FxPop", CFrame.new(at))
 	if not point then
-		return
+		return nil
 	end
 	local size = UDim2.new(spec.Width, spec.PixelsX, spec.Height, spec.PixelsY)
-	TankDisplay.rise(point, text, look, size, lift, time, range)
+	local gui = TankDisplay.rise(point, text, look, size, lift, time, range)
 	task.delay(time + 0.1, function()
 		point:Destroy()
 	end)
+	return gui
 end
 
 --------------------------------------------------------------------------------
@@ -573,15 +589,29 @@ local function hudRects(): { Rect }
 	return out
 end
 
--- Прямоугольник слова на экране (px) или nil — его не видно (выключено, за камерой, дальше
--- MaxDistance). cap — потолок букв надписи витрины / садка (строки у середины рамки): не шире
--- cap × capW и не выше cap × capH.
-local function wordRect(gui: BillboardGui, camera: Camera, cap: number?, capW: number?, capH: number?): Rect?
-	local point = gui.Parent
-	if not gui.Enabled or not (point and point:IsA("Attachment")) then
+-- Точка слова в мире: его Adornee (Attachment или деталь), иначе родитель-Attachment, плюс
+-- StudsOffsetWorldSpace и StudsOffset (в осях камеры); nil — не к чему крепить.
+local function wordPoint(gui: BillboardGui, camera: Camera): Vector3?
+	local point = gui.Adornee or gui.Parent
+	local at: Vector3
+	if point and point:IsA("Attachment") then
+		at = point.WorldPosition
+	elseif point and point:IsA("BasePart") then
+		at = point.Position
+	else
 		return nil
 	end
-	local at = point.WorldPosition
+	return at + gui.StudsOffsetWorldSpace + camera.CFrame:VectorToWorldSpace(gui.StudsOffset)
+end
+
+-- Прямоугольник слова на экране (px) или nil — его не видно (выключено, за камерой, дальше
+-- MaxDistance). cap — потолок букв надписи витрины / садка (строки у середины рамки): не шире
+-- cap × capW и не выше cap × capH. SizeOffset сдвигает рамку на долю её размера (вверх — +Y).
+local function wordRect(gui: BillboardGui, camera: Camera, cap: number?, capW: number?, capH: number?): Rect?
+	local at = if gui.Enabled then wordPoint(gui, camera) else nil
+	if not at then
+		return nil
+	end
 	if (at - camera.CFrame.Position).Magnitude > gui.MaxDistance then
 		return nil
 	end
@@ -594,7 +624,9 @@ local function wordRect(gui: BillboardGui, camera: Camera, cap: number?, capW: n
 	local limit = cap or math.huge
 	local w: number = math.min(size.X.Scale * perStud + size.X.Offset, limit * (capW or 6))
 	local h: number = math.min(size.Y.Scale * perStud + size.Y.Offset, limit * (capH or 2.2))
-	return { x0 = screen.X - w / 2, y0 = screen.Y - h / 2, x1 = screen.X + w / 2, y1 = screen.Y + h / 2 }
+	local shift = gui.SizeOffset
+	local cx, cy = screen.X + shift.X * w, screen.Y - shift.Y * h
+	return { x0 = cx - w / 2, y0 = cy - h / 2, x1 = cx + w / 2, y1 = cy + h / 2 }
 end
 
 local function near(r: Rect, list: { Rect }, margin: number): boolean
@@ -671,7 +703,8 @@ local function clearHud()
 		end
 	end
 	for _, base in bases do
-		clearWord(base.sign and base.sign.gui, rects, signCap, SIGN_W, SIGN_H)
+		local row = base.defence
+		clearWord(base.sign and base.sign.gui, rects, signCap, SIGN_W, if row and row.shown then SIGN_H_ROW else SIGN_H)
 		for _, slot in base.slots do
 			clearWord(slot.tag and slot.tag.gui, rects, tagCap)
 			clearWord(slot.lockGui, rects)
@@ -683,6 +716,14 @@ local function clearHud()
 	clearWord(pier.word and pier.word.gui, rects)
 	for _, gui in marketWords do
 		clearWord(gui, rects)
+	end
+	-- слова других контроллеров (TrackWord); ушедшие — из таблицы
+	for gui, spec in tracked do
+		if gui.Parent == nil then
+			tracked[gui] = nil
+		else
+			clearWord(gui, rects, spec.cap, spec.capW, spec.capH)
+		end
 	end
 end
 
@@ -1375,8 +1416,11 @@ local function stolenFx(base: Base, slot: Slot, thiefId: number?, loud: boolean)
 	local steal = endSteal(slot, true)
 	if loud then
 		local at = tagPoint(slot)
-		if at then
-			riseAt(at, WORLD_WORDS.Stolen, BERRY, STEAL.Word, STEAL.StolenRise, STEAL.StolenTime, STEAL_WORD_RANGE)
+		local gui = if at
+			then riseAt(at, WORLD_WORDS.Stolen, BERRY, STEAL.Word, STEAL.StolenRise, STEAL.StolenTime, STEAL_WORD_RANGE)
+			else nil
+		if gui then
+			gui.AlwaysOnTop = true -- (как «КРАДУТ!»: фонари галереи его не режут; видно до 90 studs)
 		end
 		local top = topOf(slot)
 		if top then
@@ -2200,6 +2244,45 @@ function TankWorldController.HudRects(): { { x0: number, y0: number, x1: number,
 	return hudRects()
 end
 
+-- Чужое слово мира (BillboardGui с Adornee или на Attachment) — под то же правило «не под HUD»:
+-- тает у плашек HUD, проявляется, отойдя; уходит из таблицы вместе со словом (Parent = nil).
+function TankWorldController.TrackWord(gui: BillboardGui, cap: number?, capW: number?, capH: number?)
+	tracked[gui] = { cap = cap, capW = capW, capH = capH }
+	clearWord(gui, nil, cap, capW, capH)
+end
+
+-- Витрина base / index на экране этого клиента (px, как AbsolutePosition): рамка её стекла
+-- Display — что HUD вора не закрывает во время удержания (docs/stage4_design.md §6.4, §6.9);
+-- угол за камерой — nil.
+function TankWorldController.StealRect(
+	base: Instance,
+	index: number
+): { x0: number, y0: number, x1: number, y1: number }?
+	local camera = Workspace.CurrentCamera
+	local tank = base:FindFirstChild("Tank")
+	local slots = tank and tank:FindFirstChild("Slots")
+	local slot = slots and slots:FindFirstChild(`Slot_{index}`)
+	local display = slot and slot:FindFirstChild("Display")
+	if not camera or not (display and display:IsA("BasePart")) then
+		return nil
+	end
+	local frame, half = display.CFrame, display.Size / 2
+	local box: Rect = { x0 = math.huge, y0 = math.huge, x1 = -math.huge, y1 = -math.huge }
+	for _, sx in { -1, 1 } do
+		for _, sy in { -1, 1 } do
+			for _, sz in { -1, 1 } do
+				local p = camera:WorldToScreenPoint(frame * Vector3.new(sx * half.X, sy * half.Y, sz * half.Z))
+				if p.Z <= 0.05 then
+					return nil
+				end
+				box.x0, box.y0 = math.min(box.x0, p.X), math.min(box.y0, p.Y)
+				box.x1, box.y1 = math.max(box.x1, p.X), math.max(box.y1, p.Y)
+			end
+		end
+	end
+	return box
+end
+
 function TankWorldController.Stats(): { [string]: any }
 	local count = { bases = 0, fish = 0, tags = 0, life = 0, locks = 0 }
 	for _, base in bases do
@@ -2211,9 +2294,12 @@ function TankWorldController.Stats(): { [string]: any }
 			count.locks += if slot.lockHolder then 1 else 0
 		end
 	end
-	local fadedCount = 0
+	local fadedCount, trackedCount = 0, 0
 	for gui in faded do
 		fadedCount += if gui.Parent then 1 else 0
+	end
+	for gui in tracked do
+		trackedCount += if gui.Parent then 1 else 0
 	end
 	return {
 		bases = count.bases,
@@ -2225,6 +2311,7 @@ function TankWorldController.Stats(): { [string]: any }
 		lastBuilds = lastBuilds,
 		folder = folder,
 		faded = fadedCount,
+		tracked = trackedCount,
 		tagCap = tagCap,
 		signCap = signCap,
 	}

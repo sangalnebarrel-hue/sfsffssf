@@ -6,8 +6,10 @@
 	тексты — StealConfig.Texts.World, DefenceConfig.Texts.World; что читаем — атрибуты базы,
 	собаки и игроков, RemoteNames «Кража и защита»). Витрины во время кражи, строка защит над
 	аквариумом и слово у ведра — TankWorldController. Всё своё — в папке Workspace.TheftWorld (одна
-	невидимая деталь-держатель Anchor в начале координат с Attachment'ами света, сирены и слов;
-	купола; подсветки и таблички — BillboardGui с Adornee на деталях сервера).
+	невидимая деталь-держатель Anchor в начале координат с Attachment'ами света и пыли; волчок
+	сирены; купола; подсветки и слова — BillboardGui с Adornee на деталях сервера). Слова над
+	головами («ВОР!», табличка рыбы вора, «ГАВ!») — под правилом «не под HUD» TankWorldController
+	(TrackWord: у плашек HUD тают).
 
 	Что делает:
 	  • Базы Workspace.Bases — все сразу: по одному AttributeChanged на модель базы и на её Dog.
@@ -16,50 +18,64 @@
 	    будущем), неспящая собака, тающий купол; всё кончилось — цепочки нет. Расстояние — от
 	    камеры и своего персонажа (ближнее) до середины двора (World.Dome.Center).
 	  • Лампа Alarm.Lamp (деталь сервера; сервер её не пишет): пока у базы AlarmState и она
-	    ближе World.Range — Material Neon и ОДИН зацикленный твин Color (LampOff шаблона ↔
-	    World.LampOn; половина World.LampPeriod, у гостя — IntruderPeriod; Reverses), и PointLight
-	    (LampLight: Range, Brightness ↔ 0, без теней) на своём Attachment у лампы; кончилось или база
+	    ближе World.Range — Material Neon и ОДИН зацикленный твин Color от тёмного World.LampDim до
+	    горячего World.LampOn (половина World.LampPeriod, у гостя — IntruderPeriod; Reverses: на
+	    красной базе мигание тёмный ↔ яркий видно и издали), и PointLight (LampLight: Range,
+	    Brightness ↔ 0, цвет LightColor, без теней) на своём Attachment у лампы; кончилось или база
 	    дальше — цвет и материал шаблона ровно как были.
-	  • Сирена (HasAlarm и AlarmState = "theft", база ближе Range): два красных SpotLight спиной
-	    друг к другу (Siren: Range, Brightness, Angle) на своём Attachment в лампе, его CFrame —
-	    зацикленный твин полуоборота за SirenSpin / 2 (два прожектора — полный оборот за
-	    SirenSpin); писк electronicpingshort раз в Siren.BeepPeriod с (цепочка task.delay), если
-	    камера ближе BeepRange.
+	  • Сирена (HasAlarm и AlarmState = "theft", база ближе Range): невидимая деталь-волчок FxSiren
+	    в центре лампы, на ней два красных SpotLight спиной друг к другу, наклонённые вниз на
+	    Siren.Pitch° (Range, Brightness, Angle: красное пятно бежит по двору), и вдоль каждого — луч
+	    Beam (BeamLength studs, BeamWidth0 → BeamWidth1, прозрачность BeamFade → 1, LightEmission 1:
+	    виден и днём, и на телефоне, где местного света нет); один зацикленный твин её CFrame —
+	    полоборота за SirenSpin / 2 (два прожектора — полный оборот за SirenSpin); писк
+	    electronicpingshort раз в Siren.BeepPeriod с (цепочка task.delay), если камера или свой
+	    персонаж ближе BeepRange.
 	  • Вор (HasAlarm и Thief, база ближе Range): Highlight на персонаже (Mark: заливка Berry с
 	    прозрачностью Fill, обводка Berry; хозяину базы — AlwaysOnTop, остальным — Occluded) и
-	    «ВОР!» над головой (Mark.Word; с рыбой на голове — строкой над её табличкой). Создаются при
-	    начале и удаляются в конце (Enabled не трогаем: выключенный Highlight тоже занимает слот).
+	    «ВОР!» над головой (Mark.Word, видно до WordRange; с рыбой на голове — строкой над её
+	    табличкой). Создаются при начале и удаляются в конце (Enabled не трогаем: выключенный
+	    Highlight тоже занимает слот).
 	  • Купол щита — только у вида защиты из Dome.Kinds (щит; DC-15) и ProtectUntil в будущем:
-	    шар Ø 2 × Dome.Radius в Dome.Center (точка базы), ForceField цвета Guard, Transparency
-	    (камера внутри — Inside), без столкновений, запросов, касаний и теней; только у баз ближе
-	    Dome.Range, на тач-экране — не больше Dome.PhoneMax ближайших; появляется и тает за Fade с.
-	  • Табличка флага: под OwnerSign (Flag.Pole.SignAttachment) свой BillboardGui её размера,
-	    сдвинутый вниз на Flag.Drop своей высоты, — «🛡️ 4:12» цветом Guard, пока база под любой
-	    защитой (видно через карту: её MaxDistance); цифры — раз в проверку, только при смене.
-	  • Собака (Dog.Unlocked = true): спит — поза сервера (pivot щенка у DefenceConfig.Dog.Rest);
-	    DogState ≠ "Sleep" и база ближе World.Dog.Range — RenderStepped (ТОЛЬКО на это время):
-	    щенок догоняет DogPos (Vector3 мира, на земле) с α = 1 − e^(−Follow·dt), смотрит по ходу,
-	    на бегу подпрыгивает (Hop studs, HopHz раз в секунду); уснула или база далеко — соединение
-	    снято, pivot сервера (запомнен при пробуждении) возвращён. «ГАВ!» (Sun) всплывает над
-	    собакой при Alert и когда вор (DogTarget) стал Slowed; пока он Slowed — пыль у его ног
-	    (Dust раз в DustEvery с, из того же покадрового шага; один ParticleEmitter).
+	    шар Ø 2 × Dome.Radius в Dome.Center (точка базы), ForceField цвета Guard, без столкновений,
+	    запросов, касаний и теней; прозрачность Transparency, а камера или свой персонаж внутри —
+	    Inside, ближе Near studs к оболочке снаружи — плавно между ними (хозяин у своего спауна
+	    внутри купола, его камера — снаружи: иначе весь двор сквозь лицо купола, во весь экран);
+	    только у баз ближе Dome.Range, на тач-экране — не больше Dome.PhoneMax ближайших;
+	    появляется и тает за Fade с.
+	  • Табличка флага: над OwnerSign (Flag.Pole.SignAttachment) свой BillboardGui её размера,
+	    сдвинутый вверх на Flag.Raise своей высоты (там небо, не полотнище флага цвета базы), —
+	    «🛡️ 4:12» цветом Guard, пока база под любой защитой (видно через карту: её MaxDistance);
+	    цифры — раз в проверку, только при смене.
+	  • Собака (Dog.Unlocked = true): спит — поза сервера (pivot щенка у DefenceConfig.Dog.Rest),
+	    поднятая лапами на землю двора (луч вниз по Grounds и Arcades базы: мощёная дорожка выше
+	    точки базы), и «💤» над ней (World.Dog.Sleep, видно до SleepRange; неподвижное); DogState ≠
+	    "Sleep" и база ближе World.Dog.Range — RenderStepped (ТОЛЬКО на это время): щенок догоняет
+	    DogPos (Vector3 мира) с α = 1 − e^(−Follow·dt), лапами на земле под ней (один луч на каждую
+	    новую DogPos: галерея и дорожки выше газона), смотрит по ходу, на бегу подпрыгивает (Hop
+	    studs, HopHz раз в секунду); уснула или база далеко — соединение снято, поза сна возвращена.
+	    «ГАВ!» (Sun, едет с собакой: Adornee — её Body; видно до WordRange) всплывает при Alert и
+	    когда вор (DogTarget) стал Slowed; пока он Slowed — пыль у его ног (Dust раз в DustEvery
+	    с, из того же покадрового шага; один ParticleEmitter).
 	  • Рыба на голове вора (StolenFish, модель сервера — Lib/HeldRig; у каждого вора из Thief баз):
 	    зацикленный твин C0 сварки головы (Carried: ±Bob studs, ±Sway°, Period с; при уходе — C0
 	    как был) и табличка «🥷 Окунь $45» (Berry, буквы по потолку надписей витрин) над рыбой на
-	    Carried.Gap studs, видна до PlateRange, выскакивает через Carried.Delay с (рыба витрины ещё
+	    Carried.Gap studs, видна до WordRange, выскакивает через Carried.Delay с (рыба витрины ещё
 	    летит к нему — TankWorldController).
 	Покой (ни одной базы с кражей, защитой или неспящей собакой) — ни одного покадрового
-	соединения и ни одной цепочки; база снята — всё её убрано; чужие объекты (лампа, щенок, сварка)
-	возвращены как были.
+	соединения, ни одной цепочки и ни одного твина собаки («💤» неподвижно); база снята — всё её
+	убрано; чужие объекты (лампа, сварка) возвращены как были (щенка двигает только сервер:
+	спрятал — поставил в будку сам).
 
 	API (для тестов и превью):
 	  TheftWorldController:Start(hud)
 	  TheftWorldController.Get(base) -> { lamp, light, siren, beeps, mark, tag, dome, flag, dog,
-	                                     dogAt, dust, carried, plate, life, distance }?
-	                                     -- что сейчас у базы (Base_N; dogAt — где собака на
-	                                     -- этом клиенте, life — твин рыбы на голове вора)
+	                                     dogAt, sleep, dust, carried, plate, life, distance }?
+	                                     -- что сейчас у базы (Base_N; siren — волчок FxSiren,
+	                                     -- dogAt — низ лап собаки на этом клиенте, sleep — «💤»,
+	                                     -- life — твин рыбы на голове вора)
 	  TheftWorldController.Stats() -> { bases, lamps, sirens, marks, domes, fading, flags, dogs,
-	                                    carried, running, folder }   -- running: цепочка проверок идёт
+	                                    sleeps, carried, running, folder }   -- running: цепочка идёт
 ]]
 
 local Players = game:GetService("Players")
@@ -81,6 +97,7 @@ local TextUtil = require(Shared:WaitForChild("TextUtil"))
 local UiFx = require(Shared:WaitForChild("UiFx"))
 local Trove = require(Shared:WaitForChild("Util"):WaitForChild("Trove"))
 local TankDisplay = require(script.Parent:WaitForChild("TankDisplay"))
+local TankWorldController = require(script.Parent:WaitForChild("TankWorldController"))
 
 local WORLD = DefenceConfig.World
 local DOME = WORLD.Dome
@@ -97,6 +114,10 @@ local SUN = UIConfig.Palette.Sun
 local FOLDER_NAME = "TheftWorld"
 local BEEP = "rbxasset://sounds/electronicpingshort.wav"
 local HALF_TURN = math.rad(179.9) -- (полоборота твином: короткий путь однозначен)
+-- Слова у потолка букв для правила «не под HUD» (TankWorldController.TrackWord): табличка рыбы
+-- вора ≈ PLATE_W × PLATE_H потолков (две строки), «ВОР!» ≈ TAG_W × TAG_H.
+local PLATE_W, PLATE_H = 7, 2.6
+local TAG_W, TAG_H = 3, 1.2
 
 type Lamp = {
 	part: BasePart,
@@ -108,7 +129,7 @@ type Lamp = {
 	light: PointLight,
 }
 
-type Siren = { holder: Attachment, tween: Tween, sound: Sound, beep: thread?, beeps: number }
+type Siren = { spinner: BasePart, tween: Tween, sound: Sound, beep: thread?, beeps: number }
 
 type Mark = { userId: number, highlight: Highlight, tag: BillboardGui, owner: boolean }
 
@@ -129,14 +150,15 @@ type Dust = { holder: Attachment, emitter: ParticleEmitter, next: number }
 type Dog = {
 	model: Model,
 	pup: Model,
-	rest: CFrame, -- pivot сервера (запомнен при пробуждении)
-	height: number, -- pivot над землёй
-	groundY: number,
-	ground: Vector3, -- где собака сейчас (на земле, мир)
+	rest: CFrame, -- поза сна на этом клиенте (pivot сервера лапами на земле; запомнена при пробуждении)
+	feet: number, -- pivot над низом лап
+	ground: Vector3, -- где собака сейчас (низ лап, мир)
+	goalY: number, -- верх земли под DogPos (луч при каждой её смене)
 	look: Vector3,
 	clock: number,
 	conn: RBXScriptConnection,
-	target: number?, -- DogTarget, за чьим Slowed следим
+	target: number?, -- DogTarget, за чьим Slowed следим …
+	thief: Player?, -- … и он сам (пыль у ног — без поиска каждый кадр)
 	slowConn: RBXScriptConnection?,
 	dust: Dust?,
 }
@@ -154,6 +176,8 @@ type Base = {
 	domeTarget: number?,
 	flag: { gui: BillboardGui, label: TextLabel }?,
 	dog: Dog?,
+	sleep: BillboardGui?, -- «💤» над спящей собакой
+	ray: RaycastParams?, -- луч к земле двора (Grounds и Arcades базы)
 	thief: Thief?,
 }
 
@@ -303,11 +327,12 @@ local function startLamp(base: Base, state: string)
 	local period = if state == "intruder" then WORLD.IntruderPeriod else WORLD.LampPeriod
 	local info = TweenInfo.new(period / 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
 	part.Material = Enum.Material.Neon
+	part.Color = WORLD.LampDim -- (тёмный ↔ горячий: вспышка видна и на красной базе)
 	local tween = TweenService:Create(part, info, { Color = WORLD.LampOn })
 	tween:Play()
 	local light = Instance.new("PointLight")
 	light.Name = "FxAlarmGlow"
-	light.Color = WORLD.LampOn
+	light.Color = WORLD.LightColor
 	light.Range = WORLD.LampLight.Range
 	light.Brightness = 0
 	light.Shadows = false
@@ -336,39 +361,77 @@ local function stopSiren(base: Base)
 	if beep and coroutine.status(beep) == "suspended" then
 		task.cancel(beep)
 	end
-	siren.holder:Destroy()
+	siren.spinner:Destroy()
 end
 
+-- Сирена: невидимая деталь-волчок в центре лампы, на ней два прожектора спиной друг к другу,
+-- наклонённые вниз на Siren.Pitch° (Attachment FxSirenHead: SpotLight и начало луча), и концы
+-- лучей (FxSirenTip); один зацикленный твин её CFrame (полоборота) крутит всё сразу.
 local function startSiren(base: Base)
 	if base.siren then
 		return
 	end
 	local part = lampOf(base)
-	local point = part and holder("FxSiren", CFrame.new(part.Position))
-	if not point then
+	local root = folder
+	if not part or not root then
 		return
 	end
-	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
+	local spinner = Instance.new("Part")
+	spinner.Name = "FxSiren"
+	spinner.Size = Vector3.new(0.2, 0.2, 0.2)
+	spinner.CFrame = CFrame.new(part.Position)
+	spinner.Transparency = 1
+	spinner.Material = Enum.Material.SmoothPlastic
+	spinner.Anchored = true
+	spinner.CanCollide = false
+	spinner.CanQuery = false
+	spinner.CanTouch = false
+	spinner.CastShadow = false
+	spinner.Parent = root
+	local down = CFrame.Angles(-math.rad(SIREN.Pitch), 0, 0) -- (взгляд −Z — вниз на Pitch°)
+	for _, yaw in { 0, math.pi } do
+		local head = Instance.new("Attachment")
+		head.Name = "FxSirenHead"
+		head.CFrame = CFrame.Angles(0, yaw, 0) * down
+		head.Parent = spinner
 		local spot = Instance.new("SpotLight")
 		spot.Name = "FxSirenBeam"
-		spot.Face = face
-		spot.Color = WORLD.LampOn
+		spot.Face = Enum.NormalId.Front
+		spot.Color = WORLD.LightColor
 		spot.Range = SIREN.Range
 		spot.Brightness = SIREN.Brightness
 		spot.Angle = SIREN.Angle
 		spot.Shadows = false
-		spot.Parent = point
+		spot.Parent = head
+		local tip = Instance.new("Attachment")
+		tip.Name = "FxSirenTip"
+		tip.CFrame = head.CFrame * CFrame.new(0, 0, -SIREN.BeamLength)
+		tip.Parent = spinner
+		-- луч виден и днём, и на телефоне, где местного света нет
+		local ray = Instance.new("Beam")
+		ray.Name = "FxSirenRay"
+		ray.Attachment0 = head
+		ray.Attachment1 = tip
+		ray.Color = ColorSequence.new(WORLD.LightColor)
+		ray.Transparency = NumberSequence.new(SIREN.BeamFade, 1)
+		ray.Width0 = SIREN.BeamWidth0
+		ray.Width1 = SIREN.BeamWidth1
+		ray.LightEmission = 1
+		ray.LightInfluence = 0
+		ray.FaceCamera = true
+		ray.Segments = 1
+		ray.Parent = spinner
 	end
 	local sound = Instance.new("Sound")
 	sound.Name = "FxSirenBeep"
 	sound.SoundId = BEEP
 	sound.Volume = SIREN.BeepVolume
 	sound.RollOffMaxDistance = WORLD.BeepRange
-	sound.Parent = point
+	sound.Parent = spinner
 	local turn = TweenInfo.new(WORLD.SirenSpin / 2, Enum.EasingStyle.Linear, Enum.EasingDirection.In, -1)
-	local tween = TweenService:Create(point, turn, { CFrame = point.CFrame * CFrame.Angles(0, HALF_TURN, 0) })
+	local tween = TweenService:Create(spinner, turn, { CFrame = spinner.CFrame * CFrame.Angles(0, HALF_TURN, 0) })
 	tween:Play()
-	local siren: Siren = { holder = point, tween = tween, sound = sound, beep = nil, beeps = 0 }
+	local siren: Siren = { spinner = spinner, tween = tween, sound = sound, beep = nil, beeps = 0 }
 	base.siren = siren
 	-- писк — цепочкой (не покадрово), только когда камера рядом
 	local function beep()
@@ -376,7 +439,7 @@ local function startSiren(base: Base)
 			return
 		end
 		local cam, body = viewers()
-		if distanceFrom(point.WorldPosition, cam, body) <= WORLD.BeepRange then
+		if distanceFrom(spinner.Position, cam, body) <= WORLD.BeepRange then
 			siren.beeps += 1
 			sound:Play()
 		end
@@ -487,7 +550,7 @@ local function startCarried(base: Base, thief: Thief, model: Model)
 		root,
 		"FxCarriedPlate",
 		UDim2.new(spec.Width, spec.PixelsX, spec.Height * 2, spec.PixelsY * 2),
-		CARRIED.PlateRange
+		WORLD.WordRange
 	)
 	gui.Adornee = body
 	gui.StudsOffsetWorldSpace = Vector3.new(0, box.Position.Y + size.Y / 2 - body.Position.Y + CARRIED.Gap, 0)
@@ -500,6 +563,7 @@ local function startCarried(base: Base, thief: Thief, model: Model)
 	line.Visible = false
 	carried.gui, carried.thiefLine = gui, line
 	UiFx.popIn(plate, { from = 0, delay = CARRIED.Delay })
+	TankWorldController.TrackWord(gui, cap, PLATE_W, PLATE_H) -- (у плашек HUD — тает)
 	carried.trove:Connect(model.AncestryChanged, function()
 		if not model:IsDescendantOf(Workspace) and thief.carried == carried then
 			dropCarried(thief)
@@ -551,13 +615,15 @@ local function applyMark(base: Base)
 	highlight.OutlineTransparency = MARK.Outline
 	highlight.DepthMode = if owner then Enum.HighlightDepthMode.AlwaysOnTop else Enum.HighlightDepthMode.Occluded
 	highlight.Parent = root
-	local gui, plate = TankDisplay.billboard(root, "FxThiefTag", billboardSize(MARK.Word), WORLD.Range)
+	local gui, plate = TankDisplay.billboard(root, "FxThiefTag", billboardSize(MARK.Word), WORLD.WordRange)
 	gui.Adornee = head
 	gui.StudsOffsetWorldSpace = Vector3.new(0, head.Size.Y / 2 + MARK.Lift, 0)
 	gui.SizeOffset = Vector2.new(0, 0.5)
 	local word = TankDisplay.word(plate, "Thief", WORDS.Thief, { 0, 0, 1, 1 }, BERRY, MARK.Word.Outline)
-	TankDisplay.cap(word, letterCap() * 1.1)
+	local cap = letterCap() * 1.1
+	TankDisplay.cap(word, cap)
 	UiFx.popIn(plate, { from = 0 })
+	TankWorldController.TrackWord(gui, cap, TAG_W, TAG_H)
 	base.mark = { userId = thief.userId, highlight = highlight, tag = gui, owner = owner }
 	syncMarkTag(base)
 end
@@ -637,14 +703,23 @@ local function dropDome(base: Base)
 	table.insert(fading, entry)
 end
 
-local function ensureDome(base: Base, cam: Vector3?)
+-- Прозрачность купола для этого клиента: камера или свой персонаж внутри — Inside, ближе Near
+-- studs к оболочке снаружи — плавно от Transparency к Inside (хозяин у спауна внутри купола, а
+-- камера позади него — снаружи: иначе весь двор виден сквозь лицо купола, во весь экран);
+-- шагом 0.05 (новый твин — только когда цель сменилась).
+local function domeLook(center: Vector3, cam: Vector3?, body: Vector3?): number
+	local near = distanceFrom(center, cam, body)
+	local share = math.clamp((near - DOME.Radius) / DOME.Near, 0, 1)
+	return math.round((DOME.Inside + (DOME.Transparency - DOME.Inside) * share) * 20) / 20
+end
+
+local function ensureDome(base: Base, cam: Vector3?, body: Vector3?)
 	local root = folder
 	if not root then
 		return
 	end
 	local center = courtOf(base)
-	local inside = cam ~= nil and (cam - center).Magnitude < DOME.Radius
-	local target = if inside then DOME.Inside else DOME.Transparency
+	local target = domeLook(center, cam, body)
 	local dome = base.dome
 	if not dome then
 		local part = Instance.new("Part")
@@ -699,12 +774,13 @@ local function applyFlag(base: Base, now: number)
 		end
 		local gui, plate = TankDisplay.billboard(root, "FxFlagProtect", sign.Size, sign.MaxDistance)
 		gui.Adornee = point
-		gui.SizeOffset = Vector2.new(0, -FLAG.Drop) -- (под табличкой владельца — на её высоту ниже)
+		-- (над табличкой владельца — на её высоту выше: там небо, не синее полотнище флага)
+		gui.SizeOffset = Vector2.new(0, FLAG.Raise)
 		local label = TankDisplay.word(
 			plate,
 			"Protect",
 			text,
-			{ (1 - FLAG.Wide) / 2, 0, FLAG.Wide, FLAG.Line },
+			{ (1 - FLAG.Wide) / 2, 1 - FLAG.Line, FLAG.Wide, FLAG.Line },
 			GUARD,
 			FLAG.Outline,
 			true
@@ -732,24 +808,131 @@ local function dogModels(base: Base): (Model?, Model?)
 	return nil, nil
 end
 
--- «ГАВ!» всплывает над собакой.
+-- Pivot щенка на этом клиенте — по его Body (GetPivot модели в эмуляторе тестов читает сервер).
+local function pupPivot(pup: Model): CFrame
+	local body = pup.PrimaryPart :: BasePart
+	return body.CFrame * body.PivotOffset
+end
+
+-- Сколько pivot щенка над низом его лап и сколько макушка над pivot (по деталям; щенок стоит).
+local function pupShape(pup: Model): (number, number)
+	local y = pupPivot(pup).Position.Y
+	local low, high = math.huge, -math.huge
+	for _, part in pup:GetDescendants() do
+		if part:IsA("BasePart") then
+			low = math.min(low, part.Position.Y - part.Size.Y / 2)
+			high = math.max(high, part.Position.Y + part.Size.Y / 2)
+		end
+	end
+	if low > high then
+		return 0, 0
+	end
+	return y - low, high - y
+end
+
+-- Верх земли двора под точкой (x, z): луч вниз только по Grounds и Arcades базы (от
+-- Dog.GroundUp studs над точкой базы на Dog.GroundDown); nil — не попал.
+local function groundAt(base: Base, x: number, z: number): number?
+	local params = base.ray
+	if not params then
+		local list: { Instance } = {}
+		for _, name in { "Grounds", "Arcades" } do
+			local found = base.model:FindFirstChild(name)
+			if found then
+				table.insert(list, found)
+			end
+		end
+		if #list == 0 then
+			return nil
+		end
+		local made = RaycastParams.new()
+		made.FilterType = Enum.RaycastFilterType.Include
+		made.FilterDescendantsInstances = list
+		base.ray = made
+		params = made
+	end
+	local from = Vector3.new(x, base.model:GetPivot().Position.Y + DOG.GroundUp, z)
+	local hit = Workspace:Raycast(from, Vector3.new(0, -DOG.GroundDown, 0), params)
+	return if hit then hit.Position.Y else nil
+end
+
+-- Поза сна на этом клиенте: pivot сервера (Dog.Rest на высоте шаблона), поднятый так, чтобы лапы
+-- стояли на мощёной дорожке двора под ним (она выше точки базы — в шаблонной высоте лапы тонули).
+local function restPose(base: Base, pup: Model): CFrame
+	local pivot = pupPivot(pup)
+	local feet = pupShape(pup)
+	local ground = groundAt(base, pivot.Position.X, pivot.Position.Z)
+	if not ground then
+		return pivot
+	end
+	return pivot + Vector3.new(0, ground - (pivot.Position.Y - feet), 0)
+end
+
+-- «ГАВ!» всплывает над собакой и едет с ней (Adornee — Body щенка).
 local function bark(base: Base)
-	local dog = base.dog
 	local _, pup = dogModels(base)
-	if not pup then
+	local body = pup and pup.PrimaryPart
+	local root = folder
+	if not pup or not body or not root then
 		return
 	end
-	local box, size = pup:GetBoundingBox()
-	local at = (if dog then Vector3.new(dog.ground.X, box.Position.Y, dog.ground.Z) else box.Position)
-		+ Vector3.new(0, size.Y / 2 + DOG.BarkLift, 0)
-	local point = holder("FxBark", CFrame.new(at))
-	if not point then
+	local _, top = pupShape(pup)
+	local lift = pupPivot(pup).Position.Y + top - body.Position.Y + DOG.BarkLift
+	local gui =
+		TankDisplay.rise(root, WORDS.Bark, SUN, billboardSize(DOG.Bark), DOG.BarkRise, DOG.BarkTime, WORLD.WordRange)
+	gui.Adornee = body
+	gui.StudsOffsetWorldSpace = Vector3.new(0, lift, 0)
+	TankWorldController.TrackWord(gui)
+end
+
+local function dropSleep(base: Base)
+	local gui = base.sleep
+	if gui then
+		base.sleep = nil
+		gui:Destroy()
+	end
+end
+
+-- Собака показана и спит: лапы — на землю (PivotTo, только если стоит не там), «💤» над ней
+-- (неподвижное: в покое ни одного твина). Проснулась, спрятана или база снята — «💤» нет.
+local function applySleep(base: Base, awake: boolean)
+	local dogModel, pup = dogModels(base)
+	local body = pup and pup.PrimaryPart
+	local root = folder
+	if
+		awake
+		or base.dog
+		or not dogModel
+		or not pup
+		or not body
+		or not root
+		or dogModel:GetAttribute("Unlocked") ~= true
+	then
+		dropSleep(base)
 		return
 	end
-	TankDisplay.rise(point, WORDS.Bark, SUN, billboardSize(DOG.Bark), DOG.BarkRise, DOG.BarkTime, DOG.Range)
-	task.delay(DOG.BarkTime + 0.1, function()
-		point:Destroy()
-	end)
+	local pose = restPose(base, pup)
+	if (pose.Position - pupPivot(pup).Position).Magnitude > 0.02 then
+		pup:PivotTo(pose)
+	end
+	if base.sleep then
+		return
+	end
+	local spec = DOG.Sleep
+	local _, top = pupShape(pup)
+	local gui, plate = TankDisplay.billboard(root, "FxDogSleep", billboardSize(spec), DOG.SleepRange)
+	gui.Adornee = body
+	gui.StudsOffsetWorldSpace = Vector3.new(0, pupPivot(pup).Position.Y + top - body.Position.Y + spec.Lift, 0)
+	gui.SizeOffset = Vector2.new(0.5, 0.5) -- (над макушкой, чуть к хвосту — как в комиксе)
+	local label = Instance.new("TextLabel")
+	label.Name = "Sleep"
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Text = DEFENCE_WORDS.Sleep
+	label.TextScaled = true
+	label.FontFace = Font.new(UIConfig.Font.Family, Enum.FontWeight.Heavy)
+	label.Parent = plate
+	base.sleep = gui
 end
 
 local function stopDust(dog: Dog)
@@ -774,6 +957,7 @@ local function watchTarget(base: Base, dog: Dog)
 	end
 	stopDust(dog)
 	local thief = thiefOf(target)
+	dog.thief = thief
 	if not thief then
 		return
 	end
@@ -797,6 +981,14 @@ local function watchTarget(base: Base, dog: Dog)
 	update()
 end
 
+-- Новая DogPos: верх земли под ней (один луч на смену; не попал — прежний).
+local function aimGround(base: Base, dog: Dog)
+	local target = dog.model:GetAttribute("DogPos")
+	if typeof(target) == "Vector3" then
+		dog.goalY = groundAt(base, target.X, target.Z) or dog.goalY
+	end
+end
+
 local function stopDog(base: Base)
 	local dog = base.dog
 	if not dog then
@@ -810,34 +1002,34 @@ local function stopDog(base: Base)
 		conn:Disconnect()
 	end
 	stopDust(dog)
-	-- (поза сервера — как была при пробуждении)
+	-- (поза сна — как была при пробуждении)
 	dog.pup:PivotTo(dog.rest)
 end
 
-local function stepDog(base: Base, dog: Dog, dt: number)
+local function stepDog(_base: Base, dog: Dog, dt: number)
 	local target = dog.model:GetAttribute("DogPos")
-	local goal = if typeof(target) == "Vector3" then Vector3.new(target.X, dog.groundY, target.Z) else dog.ground
+	local goal = if typeof(target) == "Vector3" then Vector3.new(target.X, dog.goalY, target.Z) else dog.ground
 	local alpha = 1 - math.exp(-DOG.Follow * dt)
 	local nextPos = dog.ground:Lerp(goal, alpha)
 	local delta = nextPos - dog.ground
-	local speed = if dt > 0 then delta.Magnitude / dt else 0
-	if delta.Magnitude > 1e-3 then
-		dog.look = delta.Unit
+	local flat = Vector3.new(delta.X, 0, delta.Z)
+	local speed = if dt > 0 then flat.Magnitude / dt else 0
+	if flat.Magnitude > 1e-3 then
+		dog.look = flat.Unit
 	end
 	dog.clock += dt
 	local hop = if speed > DOG.RunFrom then DOG.Hop * math.abs(math.sin(math.pi * DOG.HopHz * dog.clock)) else 0
 	dog.ground = nextPos
-	local at = nextPos + Vector3.new(0, dog.height + hop, 0)
+	local at = nextPos + Vector3.new(0, dog.feet + hop, 0)
 	dog.pup:PivotTo(CFrame.lookAt(at, at + dog.look))
 	-- пыль у ног замедленного вора
 	local dust = dog.dust
 	if dust then
 		dust.next -= dt
-		local thief = thiefOf(dog.target)
-		local character = thief and thief.Character
+		local character = dog.thief and dog.thief.Character
 		local hrp = character and character:FindFirstChild("HumanoidRootPart")
 		if hrp and hrp:IsA("BasePart") then
-			dust.holder.CFrame = CFrame.new(hrp.Position.X, dog.groundY + 0.3, hrp.Position.Z)
+			dust.holder.CFrame = CFrame.new(hrp.Position.X, nextPos.Y + 0.3, hrp.Position.Z)
 			if dust.next <= 0 then
 				dust.next = DOG.DustEvery
 				TankDisplay.emit(dust.emitter, DOG.Dust)
@@ -854,8 +1046,10 @@ local function startDog(base: Base)
 	if not dogModel or not pup then
 		return
 	end
-	local rest = pup:GetPivot()
-	local groundY = base.model:GetPivot().Position.Y
+	dropSleep(base)
+	local rest = restPose(base, pup)
+	local feet = pupShape(pup)
+	local ground = rest.Position - Vector3.new(0, feet, 0)
 	local look = Vector3.new(rest.LookVector.X, 0, rest.LookVector.Z)
 	local dog: Dog? = nil
 	local conn = RunService.RenderStepped:Connect(function(dt: number)
@@ -868,18 +1062,20 @@ local function startDog(base: Base)
 		model = dogModel,
 		pup = pup,
 		rest = rest,
-		height = rest.Position.Y - groundY,
-		groundY = groundY,
-		ground = Vector3.new(rest.Position.X, groundY, rest.Position.Z),
+		feet = feet,
+		ground = ground,
+		goalY = ground.Y,
 		look = if look.Magnitude > 1e-3 then look.Unit else Vector3.new(0, 0, -1),
 		clock = 0,
 		conn = conn,
 		target = nil,
+		thief = nil,
 		slowConn = nil,
 		dust = nil,
 	}
 	dog = made
 	base.dog = made
+	aimGround(base, made)
 	watchTarget(base, made)
 end
 
@@ -923,11 +1119,13 @@ local function apply(base: Base, now: number)
 	watchThief(base)
 	applyMark(base)
 	applyFlag(base, now)
-	if dogAwake(base) and base.distance <= DOG.Range then
+	local awake = dogAwake(base)
+	if awake and base.distance <= DOG.Range then
 		startDog(base)
 	else
 		stopDog(base)
 	end
+	applySleep(base, awake)
 end
 
 local function check(): boolean
@@ -951,7 +1149,7 @@ local function check(): boolean
 	for i, base in domes do
 		if i <= limit then
 			keep[base] = true
-			ensureDome(base, cam)
+			ensureDome(base, cam, body)
 		end
 	end
 	for _, base in bases do
@@ -1014,6 +1212,7 @@ local function untrack(model: Model)
 	dropDome(base)
 	dropFlag(base)
 	stopDog(base)
+	dropSleep(base)
 	base.trove:Clean()
 end
 
@@ -1032,6 +1231,8 @@ local function track(model: Instance)
 		domeTarget = nil,
 		flag = nil,
 		dog = nil,
+		sleep = nil,
+		ray = nil,
 		thief = nil,
 	}
 	bases[model] = base
@@ -1058,6 +1259,11 @@ local function track(model: Instance)
 				if current then
 					watchTarget(base, current)
 				end
+			elseif name == "DogPos" then
+				local current = base.dog
+				if current then
+					aimGround(base, current)
+				end
 			end
 			if name ~= "DogPos" then
 				wake()
@@ -1081,7 +1287,7 @@ function TheftWorldController.Get(model: Instance): { [string]: any }?
 	return {
 		lamp = lamp ~= nil,
 		light = lamp and lamp.light,
-		siren = siren and siren.holder,
+		siren = siren and siren.spinner,
 		beeps = if siren then siren.beeps else 0,
 		mark = mark and mark.highlight,
 		tag = mark and mark.tag,
@@ -1089,6 +1295,7 @@ function TheftWorldController.Get(model: Instance): { [string]: any }?
 		flag = base.flag and base.flag.gui,
 		dog = base.dog ~= nil,
 		dogAt = base.dog and base.dog.ground,
+		sleep = base.sleep,
 		dust = base.dog ~= nil and base.dog.dust ~= nil,
 		carried = carried and carried.model,
 		plate = carried and carried.gui,
@@ -1098,7 +1305,8 @@ function TheftWorldController.Get(model: Instance): { [string]: any }?
 end
 
 function TheftWorldController.Stats(): { [string]: any }
-	local count = { bases = 0, lamps = 0, sirens = 0, marks = 0, domes = 0, flags = 0, dogs = 0, carried = 0 }
+	local count =
+		{ bases = 0, lamps = 0, sirens = 0, marks = 0, domes = 0, flags = 0, dogs = 0, sleeps = 0, carried = 0 }
 	for _, base in bases do
 		count.bases += 1
 		count.lamps += if base.lamp then 1 else 0
@@ -1107,6 +1315,7 @@ function TheftWorldController.Stats(): { [string]: any }
 		count.domes += if base.dome then 1 else 0
 		count.flags += if base.flag then 1 else 0
 		count.dogs += if base.dog then 1 else 0
+		count.sleeps += if base.sleep then 1 else 0
 		count.carried += if base.thief and base.thief.carried then 1 else 0
 	end
 	return {
@@ -1118,6 +1327,7 @@ function TheftWorldController.Stats(): { [string]: any }
 		fading = #fading,
 		flags = count.flags,
 		dogs = count.dogs,
+		sleeps = count.sleeps,
 		carried = count.carried,
 		running = running,
 		folder = folder,

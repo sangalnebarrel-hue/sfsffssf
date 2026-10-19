@@ -14,23 +14,28 @@
 	    the LightBar; a release drops it back with a splash; the carry flies it OUT OF THE FRONT
 	    GLASS (never through the top, its top under FishPoint + ArcTop) onto the thief's head and
 	    destroys it («УНОСЯТ!»); a return flies a new one back in; "stolen" pops «УКРАДЕНО!» and red
-	    sparks, "void" is quiet; a base built mid-carry shows no display fish; ≤ MaxEmitters;
-	  • the lamp: Neon + one looping Color tween + a PointLight while AlarmState, the colour and
-	    material exactly back after (and beyond World.Range);
-	  • the siren (two spinning SpotLights + beeps) and the thief's Highlight + «ВОР!» only with
-	    HasAlarm (AlwaysOnTop for the owner, Occluded for others), gone at the end; the bell and the
-	    lanterns untouched;
-	  • the dome: the shield kind only, in range only, ≤ PhoneMax on touch, Inside transparency,
-	    fades in and out;
-	  • the tank sign's defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» (ticking), the flag label
-	    «🛡️ 4:12» for any kind;
+	    sparks, "void" is quiet; a base built mid-carry shows no display fish; ≤ MaxEmitters; the
+	    steal words AlwaysOnTop (the arcade lanterns hang at their height);
+	  • the lamp: Neon + one looping Color tween LampDim ↔ LampOn (luminance contrast ≥ 4) + a
+	    PointLight while AlarmState, the colour and material exactly back after (and beyond
+	    World.Range);
+	  • the siren (a spinner part with two SpotLights pitched down Siren.Pitch°, back to back, a Beam
+	    along each, + beeps) and the thief's Highlight + «ВОР!» only with HasAlarm (AlwaysOnTop for
+	    the owner, Occluded for others), gone at the end; the bell and the lanterns untouched;
+	  • the dome: the shield kind only, in range only, ≤ PhoneMax on touch, Inside when the camera
+	    or the own character is in (the owner at his spawn with the camera outside), in between in
+	    the Near band, fades in and out;
+	  • the tank sign's defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» on top (ticking; the sign grows up),
+	    the flag label «🛡️ 4:12» over the owner sign for any kind;
 	  • the pier word «🚨 КРАДУТ!» red during the bite, hidden under CounterHold, back after;
-	  • the dog: RenderStepped only while awake, follows DogPos facing its motion, «ГАВ!», dust
-	    while its target is Slowed, back to the rest pivot asleep;
+	  • the dog: asleep on the raised paving (not sunk) with a still «💤», RenderStepped only while
+	    awake, follows DogPos on the ground (the arcade deck) facing its motion, «ГАВ!» on its body,
+	    dust while its target is Slowed, back to the rest pose asleep, no «💤» when hidden;
 	  • the carried fish: the head weld's C0 alive (a looping tween), «🥷 Окунь $45» over it (+ «ВОР!»
 	    with the alarm), C0 restored and the plate gone with it; FisherAnimController holds it
 	    with both arms up (Trophy);
-	  • HUD: a world word under ShieldChip / TheftBar / TheftAlert fades (hudRects);
+	  • HUD: a world word under ShieldChip / TheftBar / TheftAlert fades (hudRects); «ВОР!» and
+	    the thief's plate fade under the status stack too (TrackWord) and leave the table when gone;
 	  • idle: no frame connections, no check chain, UiFx.activeJobs() == 0, nothing left after the
 	    base is released; the client's own parts within MapConfig.PartBudget.RuntimeReserve.Theft.
 
@@ -42,6 +47,7 @@ local luau = require("@lune/luau")
 local roblox = require("@lune/roblox")
 
 local Vector3 = roblox.Vector3
+local Vector2 = roblox.Vector2
 local CFrame = roblox.CFrame
 local Enum = roblox.Enum
 
@@ -461,6 +467,7 @@ tests["hold: the fish rises Lift, tilts towards the aisle and struggles; «КР�
 	local word = wordIn(tankWorld, "FxTankSteal", WORDS.Stealing)
 	t.ok(word, "«КРАДУТ!» over the display")
 	t.eq(word.MaxDistance, WORLD.StealWordRange, "… seen from the spawn (StealWordRange)")
+	t.eq(word.AlwaysOnTop, true, "… AlwaysOnTop: the arcade lanterns at its height do not cut it")
 	t.ok(#named(word, "FxRingTimer") == 1, "… with a ring timer to StealEnd")
 	local wordAt = word.Parent.WorldPosition
 	local local0 = point.WorldCFrame:PointToObjectSpace(wordAt)
@@ -609,7 +616,9 @@ tests["stolen: «УКРАДЕНО!» pops and fades in StolenTime, red sparks; v
 	-- the credit at the plot edge
 	fake:drop(thief)
 	fake:take(3, "stolen", thief)
-	t.ok(wordIn(tankWorld, "FxTankPop", WORDS.Stolen), "«УКРАДЕНО!» pops at the display")
+	local stolenWord = wordIn(tankWorld, "FxTankPop", WORDS.Stolen)
+	t.ok(stolenWord, "«УКРАДЕНО!» pops at the display")
+	t.eq(stolenWord and stolenWord.AlwaysOnTop, true, "… AlwaysOnTop (the lanterns)")
 	local sparks = named(tankWorld, "Fxsparkle", "ParticleEmitter")
 	t.ok(#sparks >= 1, "red sparks")
 	if sparks[1] then
@@ -698,10 +707,10 @@ tests["lamp: AlarmState → Neon + one looping Color tween + a red PointLight; i
 	t.eq(material, Enum.Material.Neon, "Neon on this client")
 	t.eq(lamp.Material, material0, "… the server's lamp untouched")
 	local colors = {}
-	for _ = 1, 6 do
+	for _ = 1, 8 do
 		local c = view()
 		table.insert(colors, c)
-		sim:Advance(WORLD.LampPeriod / 6)
+		sim:Advance(WORLD.LampPeriod / 8)
 	end
 	local moved = false
 	for i = 2, #colors do
@@ -710,6 +719,20 @@ tests["lamp: AlarmState → Neon + one looping Color tween + a red PointLight; i
 		end
 	end
 	t.ok(moved, "the colour tweens (flashing)")
+	-- dark ↔ hot, not red ↔ red: the luminance contrast of the blink (WCAG ratio) ≥ 4
+	local function luminance(c: any): number
+		local function lin(v: number): number
+			return if v <= 0.04045 then v / 12.92 else ((v + 0.055) / 1.055) ^ 2.4
+		end
+		return 0.2126 * lin(c.R) + 0.7152 * lin(c.G) + 0.0722 * lin(c.B)
+	end
+	local low, high = math.huge, 0
+	for _, c in colors do
+		low, high = math.min(low, luminance(c)), math.max(high, luminance(c))
+	end
+	t.near(low, luminance(WORLD.LampDim), 0.01, "the dark end: LampDim")
+	t.near(high, luminance(WORLD.LampOn), 0.03, "the hot end: LampOn")
+	t.ok((high + 0.05) / (low + 0.05) >= 4, `the blink reads (contrast {(high + 0.05) / (low + 0.05)})`)
 	t.ok(info.light and info.light:IsA("PointLight"), "a client PointLight")
 	t.eq(info.light.Range, WORLD.LampLight.Range)
 	t.eq(info.light.Shadows, false)
@@ -765,6 +788,33 @@ tests["siren and the thief's mark only with HasAlarm: two spinning SpotLights + 
 	local info = theftOwner.Get(base)
 	t.ok(info.siren, "the siren")
 	t.eq(#named(info.siren, "FxSirenBeam", "SpotLight"), 2, "two SpotLights back to back")
+	t.ok(info.siren:IsA("BasePart") and info.siren.Transparency == 1, "… on an invisible spinner part")
+	t.eq(info.siren.Material, Enum.Material.SmoothPlastic, "… its Material set")
+	t.eq(info.siren.CanQuery, false)
+	-- both pitched down Pitch° (a red pool sweeps the court), opposite ways, each with a ray
+	local heads = named(info.siren, "FxSirenHead", "Attachment")
+	t.eq(#heads, 2, "two heads")
+	local looks = {}
+	for _, head in heads do
+		local lookAt = seen(sim, owner, function()
+			return head.WorldCFrame.LookVector
+		end)
+		table.insert(looks, lookAt)
+		t.near(lookAt.Y, -math.sin(math.rad(WORLD.Siren.Pitch)), 1e-3, "pitched down Siren.Pitch°")
+	end
+	t.ok(Vector3.new(looks[1].X, 0, looks[1].Z):Dot(Vector3.new(looks[2].X, 0, looks[2].Z)) < -0.5, "… back to back")
+	local rays = named(info.siren, "FxSirenRay", "Beam")
+	t.eq(#rays, 2, "a Beam along each (seen by day and without local lights)")
+	for _, ray in rays do
+		t.eq(ray.LightInfluence, 0)
+		t.eq(ray.LightEmission, 1)
+		t.near(ray.Width0, WORLD.Siren.BeamWidth0, 1e-4)
+		t.near(ray.Width1, WORLD.Siren.BeamWidth1, 1e-4)
+		local length = seen(sim, owner, function()
+			return (ray.Attachment1.WorldPosition - ray.Attachment0.WorldPosition).Magnitude
+		end)
+		t.near(length, WORLD.Siren.BeamLength, 1e-3, "… BeamLength long")
+	end
 	local r0 = seen(sim, owner, function()
 		return info.siren.CFrame
 	end)
@@ -799,14 +849,14 @@ tests["siren and the thief's mark only with HasAlarm: two spinning SpotLights + 
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["dome: the shield only, in range only, ≤ PhoneMax on touch (all on a PC), Inside when the camera is in, fades in and out"] = function(
+tests["dome: the shield only, in range only, ≤ PhoneMax on touch (all on a PC), Inside when the camera or the own character is in (a band near the skin), fades in and out"] = function(
 	t
 )
 	local sim = boot(t, {
 		{
 			path = "ReplicatedStorage.Shared.Config.DefenceConfig",
-			from = "Inside = 0.8,\n\t\t\tRange = 260,",
-			to = "Inside = 0.8,\n\t\t\tRange = 5000,",
+			from = "Near = 16,\n\t\t\tRange = 260,",
+			to = "Near = 16,\n\t\t\tRange = 5000,",
 		},
 	})
 	local players = {}
@@ -820,8 +870,16 @@ tests["dome: the shield only, in range only, ≤ PhoneMax on touch (all on a PC)
 	end
 	local onPhone = client(sim, phone, "TheftWorldController")
 	local onDesk = client(sim, desk, "TheftWorldController")
-	nearCourt(sim, phone, fakes[1].base)
-	nearCourt(sim, desk, fakes[1].base)
+	-- (the characters outside the dome and its Near band: in front of base 1's gate)
+	local away = DOME.Center.Z - DOME.Radius - DOME.Near - 6
+	local function stand(who: any, z: number)
+		seen(sim, who, function()
+			sim.workspace.CurrentCamera.CFrame = FAR
+		end)
+		sim:Teleport(who, at(fakes[1].base, 0, 3, z))
+	end
+	stand(phone, away)
+	stand(desk, away)
 	-- a join protection: no dome
 	fakes[1]:protect("join", 90)
 	sim:Advance(WORLD.CheckEvery + 0.1)
@@ -862,6 +920,27 @@ tests["dome: the shield only, in range only, ≤ PhoneMax on touch (all on a PC)
 		return dome.Transparency
 	end)
 	t.near(outside, DOME.Transparency, 0.02, "from outside: Transparency")
+	-- the owner at his spawn (inside the dome), his follow camera behind him (outside): Inside —
+	-- not the whole court seen through the dome's face
+	local function domeLook(): number
+		return seen(sim, phone, function()
+			return dome.Transparency
+		end)
+	end
+	stand(phone, 36)
+	seen(sim, phone, function()
+		sim.workspace.CurrentCamera.CFrame = CFrame.new(at(fakes[1].base, 0, 8, 36 - 12))
+	end)
+	sim:Advance(WORLD.CheckEvery + DOME.Fade + 0.1)
+	t.near(domeLook(), DOME.Inside, 0.02, "camera outside, the own character inside: Inside")
+	-- in the Near band outside the skin: between the two
+	stand(phone, DOME.Center.Z - DOME.Radius - DOME.Near / 4)
+	sim:Advance(WORLD.CheckEvery + DOME.Fade + 0.1)
+	local band = domeLook()
+	t.ok(band > DOME.Transparency + 0.05 and band < DOME.Inside - 0.05, `in the Near band: in between ({band})`)
+	stand(phone, away)
+	sim:Advance(WORLD.CheckEvery + DOME.Fade + 0.1)
+	t.near(domeLook(), DOME.Transparency, 0.02, "beyond the band: Transparency again")
 	-- three shields: the phone keeps the PhoneMax nearest, the PC all
 	fakes[2]:protect("shield", 60)
 	fakes[3]:protect("shield", 60)
@@ -882,7 +961,7 @@ tests["dome: the shield only, in range only, ≤ PhoneMax on touch (all on a PC)
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["tank sign defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» (ticks, any kind); the flag label «🛡️ 4:12» under the owner sign"] = function(
+tests["tank sign defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» over «+$/с» (ticks, any kind; the sign grows up); the flag label «🛡️ 4:12» over the owner sign"] = function(
 	t
 )
 	local sim = boot(t)
@@ -905,7 +984,17 @@ tests["tank sign defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» (tick
 	t.ok(owned and owned.Visible, "the defences row")
 	t.eq(owned.Text, "🔐1 · 🐕 · 🚨", "«🔐1 · 🐕 · 🚨»")
 	t.eq(sign.Plate.Protect.Visible, false, "no protection: no «🛡️»")
-	t.ok(sign.Size.Y.Scale > size0.Y.Scale, "the sign grew (downwards) for the row")
+	t.ok(sign.Size.Y.Scale > size0.Y.Scale, "the sign grew for the row …")
+	local k = DISPLAY.Sign.DefenceShare
+	t.near(
+		sign.SizeOffset.Y,
+		(k / 2) / (1 + k),
+		1e-6,
+		"… UPWARDS: its bottom stays (over the fountain statue, not behind it)"
+	)
+	t.eq(owned.Position.Y.Scale, 0, "the row on top")
+	t.near(sign.Plate.Rate.Position.Y.Scale, k / (1 + k), 1e-6, "«+$/с» under it, where it was")
+	local offset0 = Vector2.new(0, 0)
 	fake:protect("join", 42)
 	sim:Advance(0.05)
 	t.eq(sign.Plate.Protect.Text, "🛡️ 0:42", "«🛡️ 0:42» for a join protection too")
@@ -920,7 +1009,9 @@ tests["tank sign defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» (tick
 	t.eq(sign.Plate.Protect.Visible, false)
 	t.eq(sign.Plate.Owned.Visible, false)
 	t.eq(sign.Size, size0, "the sign back to its size")
-	-- the flag: any kind, under the owner sign, seen across the map
+	t.eq(sign.SizeOffset, offset0, "… and place")
+	t.eq(sign.Plate.Rate.Position.Y.Scale, 0, "«+$/с» on top again")
+	-- the flag: any kind, over the owner sign (sky there, not the flag cloth), seen across the map
 	fake:protect("rest", 252)
 	sim:Advance(0.1)
 	local flag = theft.Get(base).flag
@@ -928,7 +1019,8 @@ tests["tank sign defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» (tick
 	local ownerSign = base.Flag.Pole.SignAttachment.OwnerSign
 	t.eq(flag.Adornee, base.Flag.Pole.SignAttachment, "on the flag's SignAttachment")
 	t.eq(flag.MaxDistance, ownerSign.MaxDistance, "seen as far as the owner sign")
-	t.ok(flag.SizeOffset.Y < -0.9, "under the owner sign")
+	t.ok(flag.SizeOffset.Y > 0.9, "over the owner sign")
+	t.eq(flag.Size, ownerSign.Size, "… its size")
 	t.ok(wordIn(folder(sim, visitor, "TheftWorld"), "FxFlagProtect", "🛡️ 4:12"), "«🛡️ 4:12»")
 	sim:Advance(1.6)
 	local theftWorld = folder(sim, visitor, "TheftWorld")
@@ -987,7 +1079,27 @@ tests["pier word: «🚨 КРАДУТ!» red during the bite while the own base 
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["dog: RenderStepped only while awake, follows DogPos facing its motion, «ГАВ!», dust while its target is Slowed; asleep → the rest pivot exactly"] = function(
+-- The top of the base's ground (Grounds / Arcades, the dog's floor) under a base-local (x, z):
+-- the highest top of a collidable part whose box covers it, below 4 studs (template geometry).
+local function groundTop(base: any, x: number, z: number): number
+	local pivot = base:GetPivot()
+	local best = -math.huge
+	for _, name in { "Grounds", "Arcades" } do
+		local root = base:FindFirstChild(name)
+		for _, d in if root then root:GetDescendants() else {} do
+			if d:IsA("BasePart") and d.CanQuery then
+				local p = pivot:PointToObjectSpace(d.Position)
+				local h = d.Size / 2
+				if math.abs(x - p.X) <= h.X and math.abs(z - p.Z) <= h.Z and p.Y + h.Y < 4 then
+					best = math.max(best, p.Y + h.Y)
+				end
+			end
+		end
+	end
+	return pivot.Position.Y + best
+end
+
+tests["dog: asleep on the paving with «💤» (no frame work), RenderStepped only while awake, follows DogPos on the ground facing its motion, «ГАВ!» rides with it, dust while its target is Slowed; asleep again → the rest pose"] = function(
 	t
 )
 	local sim = boot(t)
@@ -996,6 +1108,7 @@ tests["dog: RenderStepped only while awake, follows DogPos facing its motion, «
 	local fake = Fake.new(sim, owner)
 	local base = fake.base
 	local theft = client(sim, owner, "TheftWorldController")
+	local world = client(sim, owner, "TankWorldController")
 	nearCourt(sim, owner, base)
 	sim:Advance(0.5)
 	local frames0 = frameConnections(sim, owner)
@@ -1005,23 +1118,64 @@ tests["dog: RenderStepped only while awake, follows DogPos facing its motion, «
 	t.eq(frameConnections(sim, owner), frames0, "asleep: no frame connection")
 	t.eq(theft.Get(base).dog, false)
 	local pup = base.Dog.Pup
-	-- wake: «ГАВ!», then the chase
-	fake:dog("Alert", DefenceConfig.Dog.Rest.X, DefenceConfig.Dog.Rest.Z, thief)
-	sim:Advance(0.1)
-	t.ok(wordIn(folder(sim, owner, "TheftWorld"), "FxTankPop", WORDS.Bark), "«ГАВ!» on Alert")
-	t.eq(frameConnections(sim, owner), frames0 + 1, "awake: one RenderStepped")
-	fake:dog("Chase", 26, 72, thief)
-	sim:Advance(1.2)
 	-- (the client's view of the pup: its parts — RbxSim's GetPivot reads the server's)
 	local function pupAt(): any
 		return seen(sim, owner, function()
 			return pup.PrimaryPart.CFrame
 		end)
 	end
+	local function feet(): number
+		return seen(sim, owner, function()
+			local low = math.huge
+			for _, d in pup:GetDescendants() do
+				if d:IsA("BasePart") then
+					low = math.min(low, d.Position.Y - d.Size.Y / 2)
+				end
+			end
+			return low
+		end)
+	end
+	local restX, restZ = DefenceConfig.Dog.Rest.X, DefenceConfig.Dog.Rest.Z
+	local paving = groundTop(base, restX, restZ)
+	t.ok(paving > base:GetPivot().Position.Y + 0.3, "(Dog.Rest is on the raised crosswalk paving)")
+	-- asleep: the server's pivot raised onto the paving (the template height sank its legs)
+	t.near(feet(), paving, 0.02, "asleep: its paws on the paving, not in it")
+	t.near(
+		Vector3.new(pupAt().Position.X, 0, pupAt().Position.Z),
+		Vector3.new(rest.Position.X, 0, rest.Position.Z),
+		1e-3,
+		"… at Dog.Rest"
+	)
+	t.ok(pupAt().LookVector:Dot(rest.LookVector) > 0.999, "… facing the gate as the server set it")
+	local zz = theft.Get(base).sleep
+	t.ok(zz and zz.Enabled ~= false, "«💤» over the sleeping dog")
+	t.eq(zz.Adornee, pup.PrimaryPart, "… on its body")
+	t.eq(zz.MaxDistance, WORLD.Dog.SleepRange)
+	t.ok(
+		wordIn(folder(sim, owner, "TheftWorld"), "FxDogSleep", DefenceConfig.Texts.World.Sleep),
+		"… reading «💤»"
+	)
+	t.eq(theft.Stats().running, false, "a sleeping dog keeps no check chain")
+	local ui = sim:Require(sim:Find("ReplicatedStorage.Shared.UiFx"), owner)
+	t.eq(ui.activeJobs(), 0, "… and no frame job («💤» stands still)")
+	-- wake: «ГАВ!» riding with it, «💤» gone, then the chase
+	fake:dog("Alert", restX, restZ, thief)
+	sim:Advance(0.1)
+	local barkWord = wordIn(folder(sim, owner, "TheftWorld"), "FxTankPop", WORDS.Bark)
+	t.ok(barkWord, "«ГАВ!» on Alert")
+	t.eq(barkWord and barkWord.Adornee, pup.PrimaryPart, "… on the dog's body (it rides with it)")
+	t.eq(barkWord and barkWord.MaxDistance, WORLD.WordRange, "… the theft words' range")
+	t.ok(world.Stats().tracked >= 1, "… under the HUD rule (TankWorldController.TrackWord)")
+	t.eq(theft.Get(base).sleep, nil, "awake: no «💤»")
+	t.eq(frameConnections(sim, owner), frames0 + 1, "awake: one RenderStepped")
+	-- into the east arcade (its deck higher than the lawn): on the deck, not in it
+	fake:dog("Chase", 26, 72, thief)
+	sim:Advance(1.2)
 	local pivot = pupAt()
 	local goal = at(base, 26, 0, 72)
 	local flat = Vector3.new(pivot.Position.X - goal.X, 0, pivot.Position.Z - goal.Z)
 	t.ok(flat.Magnitude < 0.5, `follows DogPos ({flat.Magnitude} studs off)`)
+	t.near(feet(), groundTop(base, 26, 72), 0.05, "… its paws on the arcade deck")
 	t.near(pup:GetPivot(), rest, 1e-3, "… on this client only (the server's pup stays at Dog.Rest)")
 	fake:dog("Chase", 26, 92, thief)
 	sim:Advance(0.15)
@@ -1036,15 +1190,28 @@ tests["dog: RenderStepped only while awake, follows DogPos facing its motion, «
 	thief:SetAttribute("Slowed", nil)
 	sim:Advance(0.1)
 	t.eq(theft.Get(base).dust, false, "free again: no dust")
-	-- home and asleep: the connection goes, the pivot exactly the server's
-	fake:dog("Return", DefenceConfig.Dog.Rest.X, DefenceConfig.Dog.Rest.Z)
+	-- home and asleep: the connection goes, the rest pose (on the paving) and «💤» back
+	fake:dog("Return", restX, restZ)
 	sim:Advance(1)
-	fake:dog("Sleep", DefenceConfig.Dog.Rest.X, DefenceConfig.Dog.Rest.Z)
+	fake:dog("Sleep", restX, restZ)
 	sim:Advance(WORLD.CheckEvery + 0.1)
 	t.eq(frameConnections(sim, owner), frames0, "asleep: the RenderStepped is gone")
 	local back = pupAt()
-	t.near(back, rest, 1e-4, "the rest pivot exactly")
+	t.near(
+		Vector3.new(back.Position.X, 0, back.Position.Z),
+		Vector3.new(rest.Position.X, 0, rest.Position.Z),
+		1e-4,
+		"the rest spot exactly"
+	)
+	t.ok(back.LookVector:Dot(rest.LookVector) > 0.9999, "… the rest heading")
+	t.near(feet(), paving, 0.02, "… on the paving")
+	t.ok(theft.Get(base).sleep, "«💤» again")
 	t.eq(theft.Stats().running, false, "nothing on: no chain")
+	-- hidden (the owner left: DefenceService puts it back in the kennel): no «💤»
+	base.Dog:SetAttribute("Unlocked", false)
+	sim:Advance(0.1)
+	t.eq(theft.Get(base).sleep, nil, "hidden: no «💤»")
+	t.eq(#named(folder(sim, owner, "TheftWorld"), "FxDogSleep"), 0)
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -1221,6 +1388,91 @@ tests["HUD: a world word under the ShieldChip, the TheftBar or the TheftAlert fa
 		end
 		fake:unsteal(3)
 	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["HUD: the theft words over people — «ВОР!» and «🥷 Окунь $45» over the thief's fish — fade under the status stack like the display words (TankWorldController.TrackWord) and come back; gone words leave the table"] = function(
+	t
+)
+	local sim = boot(t)
+	local owner = addPlayer(sim, 1)
+	local thief = addPlayer(sim, 2)
+	local fake = Fake.new(sim, owner)
+	local base = fake.base
+	local theft = client(sim, owner, "TheftWorldController")
+	local world = client(sim, owner, "TankWorldController")
+	nearCourt(sim, owner, base)
+	sim:Teleport(thief, at(base, 0, 3, 56))
+	sim:Advance(0.3)
+	fake:defence({ HasAlarm = true })
+	fake:alarm("theft", thief)
+	sim:Advance(WORLD.CheckEvery + 0.1)
+	local view = seen(sim, owner, function()
+		return sim.workspace.CurrentCamera.ViewportSize
+	end)
+	-- the camera that puts a world point at screen (x, y), 14 studs deep, looking north
+	local function aimAt(point: any, x: number, y: number)
+		seen(sim, owner, function()
+			local camera = sim.workspace.CurrentCamera
+			local look = CFrame.lookAt(Vector3.zero, Vector3.new(0, 0, 1))
+			camera.CFrame = look
+			local dir = camera:ScreenPointToRay(x, y).Direction.Unit
+			camera.CFrame = CFrame.new(point - dir * (14 / look.LookVector:Dot(dir))) * look.Rotation
+		end)
+	end
+	local rects = world.HudRects()
+	t.ok(#rects >= 1, "the status stack is measured")
+	local badge = rects[1]
+	local bx, by = (badge.x0 + badge.x1) / 2, (badge.y0 + badge.y1) / 2
+	local function hidden(gui: any): boolean
+		for _, d in gui:GetDescendants() do
+			if d:IsA("TextLabel") and d.Visible and d.TextTransparency < 1 then
+				return false
+			end
+		end
+		return true
+	end
+	-- «ВОР!» over his head
+	local tag = theft.Get(base).tag
+	t.ok(tag, "«ВОР!» over the thief")
+	local head = thief.Character.Head
+	local function tagPoint(): any
+		return seen(sim, owner, function()
+			return head.Position + tag.StudsOffsetWorldSpace
+		end)
+	end
+	aimAt(tagPoint(), bx, by)
+	sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Fade + 0.1)
+	t.ok(world.IsFaded(tag), "«ВОР!» on the badge: faded")
+	t.ok(hidden(tag), "… its letters hidden")
+	aimAt(tagPoint(), view.X / 2, view.Y * 0.7)
+	sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Show + 0.1)
+	t.eq(world.IsFaded(tag), false, "away from the HUD: back")
+	-- the plate over his fish
+	local model = fake:carry(thief, "Perch")
+	sim:Advance(WORLD.Carried.Delay + 0.3)
+	local plate = theft.Get(base).plate
+	t.ok(plate, "the plate over his fish")
+	t.eq(plate.MaxDistance, WORLD.WordRange, "… the theft words' range")
+	t.ok(world.Stats().tracked >= 2, "both under the HUD rule")
+	local function platePoint(): any
+		return seen(sim, owner, function()
+			return model.PrimaryPart.Position + plate.StudsOffsetWorldSpace
+		end)
+	end
+	aimAt(platePoint(), bx, by)
+	sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Fade + 0.1)
+	t.ok(world.IsFaded(plate), "the plate on the badge: faded")
+	t.ok(hidden(plate), "… its letters hidden")
+	aimAt(platePoint(), view.X / 2, view.Y * 0.7)
+	sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Show + 0.1)
+	t.eq(world.IsFaded(plate), false, "away: back")
+	t.eq(plate:FindFirstChild("Fish", true).TextTransparency, 0, "… its letters back")
+	-- gone with the fish and the theft: out of the table
+	fake:drop(thief)
+	fake:alarm(nil)
+	sim:Advance(WORLD.CheckEvery + DISPLAY.CheckEvery + 0.2)
+	t.eq(world.Stats().tracked, 0, "the words gone: nothing tracked")
 	sim:AssertNoErrors({ warnings = true })
 end
 
