@@ -4,7 +4,9 @@
 	(tools/preview/gui_dump.luau; see tools/preview/README.md, "World in the previews").
 
 	Two modes (Capture.new opts.mode):
-	  "world"  (scenarios with `world = true`) — everything below;
+	  "world"  (scenarios with `world = true`) — everything below (the own character, when he
+	           stands away from the FishingSpot, is drawn on it — unless opts.ownInPlace: then
+	           where he really is, e.g. the thief's follow camera in thief_guide);
 	  "avatar" (every other scenario) — only the own character (posed body, the rod in hand, a
 	           held fish), always drawn standing on the FishingSpot facing the lagoon (where the
 	           old stand-in stood) at the default camera: the standard stills show the real
@@ -370,6 +372,7 @@ function Capture.new(opts: any): any
 		time = 0,
 		t0 = 0,
 		avatarOnly = opts.mode == "avatar",
+		ownInPlace = opts.ownInPlace == true and opts.mode ~= "avatar",
 		movers = {}, -- { part, id } (map parts AmbientWorld moves, within MOVER_RANGE)
 		moverInfo = {}, -- static data per mover id (scene().movers)
 		exclude = {}, -- their rest geometry in world coordinates (scene().exclude)
@@ -498,12 +501,16 @@ function Capture:pose()
 end
 
 -- How a character's parts are placed in the drawing: nil = where they are; else a CFrame
--- that moves them onto the FishingSpot (avatar mode, or a fisher standing elsewhere).
+-- that moves them onto the FishingSpot (avatar mode, or a fisher standing elsewhere; never
+-- the own character of a world capture with opts.ownInPlace — the thief's follow camera).
 function Capture:placement(character: any): any?
 	local root = character:FindFirstChild("HumanoidRootPart")
 	local pose = self:standPose(character)
 	if not root or not pose then
 		return nil
+	end
+	if self.ownInPlace and character == self.player.Character then
+		return nil -- (opts.ownInPlace) the own character too: where he really is
 	end
 	if not self.avatarOnly then
 		local d = root.Position - pose.Position

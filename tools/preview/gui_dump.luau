@@ -32,7 +32,8 @@
 	boxes on the timeline), server = true (a second sim with the REAL
 	FishingService: use h:playCatch), world = true (record the whole 3D world with
 	gui/world_capture.luau; every other scenario records the own avatar only), ambient = false
-	(a world scenario without the ambient life), beats / extraBeats (see DEFAULT_BEATS), during
+	(a world scenario without the ambient life), ownInPlace = true (a world scenario draws the own
+	character where he really stands — the thief's follow camera — not on the FishingSpot), beats / extraBeats (see DEFAULT_BEATS), during
 	= function(h) (keeps playing while the frames are dumped: taps and waits after time 0 —
 	every harness step of it is a step of the frame loop). Harness additions: h:shown(path),
 	h:stateEvents(), h:stateAfter(count, state), h:forceFish(fish), h:playCatch(fish, opts) =
@@ -2585,6 +2586,7 @@ local function main()
 				fishByTitle = fishByTitle,
 				mode = if s.world then "world" else "avatar",
 				ambient = s.ambient ~= false,
+				ownInPlace = s.ownInPlace == true,
 			})
 			if ok then
 				capture = made
