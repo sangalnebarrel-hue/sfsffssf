@@ -406,6 +406,56 @@ return function(H: { [string]: any }): { any }
 			end,
 		},
 		{
+			name = "thief_guide",
+			desc = "The carry from the thief's follow camera in the open court: the red chevrons on the ground from him to the nearest exit (the gate), crawling to it every BeamEvery s, the breathing green ring and «ВЫХОД» over the exit",
+			world = true,
+			standard = false,
+			still = { 0.3, 0.55, 1.2 },
+			burst = false,
+			run = function(h: any)
+				statusRule(h)
+				h:money(1215, 459)
+				H.place(h, h.player, { -6, 3.2, 44 }, { 0, 0, 14 })
+				holdOn(h, 3, 3)
+				h:advance(0.2)
+				carryOn(h, 3, "Puffer", false)
+				follow(h, h.player)
+			end,
+			during = function(h: any)
+				walk(h, { 0, 3.2, 14 }, 6.8, 1.3)
+			end,
+		},
+		{
+			name = "thief_tap",
+			desc = "A quick tap on «Украсть» (the hold let go after 0.3 s): no «СОРВАЛОСЬ!», a glass coaching hint «Не отпускай «Украсть», пока полоска не заполнится!»",
+			world = true,
+			standard = false,
+			still = { 0.3, 1.5 },
+			burst = false,
+			run = function(h: any)
+				local _, other = neighbourCourt(h)
+				intoCourt(h, other)
+				h:advance(h:config("UIConfig").Theft.Bar.HintTime + 0.6) -- (the first-time hint over)
+				local prompt = other.Tank.Slots.Slot_3.Pedestal.PromptAttachment:FindFirstChild("StealPrompt")
+				if not prompt then
+					h:warn("thief_tap: no StealPrompt on Slot_3")
+					return
+				end
+				h.sim:BeginHold(h.player, prompt, { ignoreDistance = true })
+				h:advance(0.1)
+				h:steal("hold", { FishId = "Puffer", Slot = 3, BaseIndex = other:GetAttribute("BaseIndex") })
+				h:advance(0.2)
+				h.sim:ReleasePrompt(h.player, prompt)
+				h:advance(0.05)
+				h:stealEvent("Cancel", {
+					Reason = "released",
+					Text = h:config("StealConfig").Texts.Cancel.released,
+					Phase = "hold",
+				})
+				h:steal(nil)
+			end,
+		},
+		{
 			name = "thief_done",
 			desc = "Over the gate: «ДОБЫЧА!» slams into the bottom band (Gold → Leaf), «Фугу — в твоём садке · +$3.2/с», confetti from over his head, the 🐟 flies into «САДОК» and the chip rolls 2/6 → 3/6",
 			world = true,
@@ -565,18 +615,20 @@ return function(H: { [string]: any }): { any }
 		}
 	end
 	local extras = {}
-	for _, pair in {
-		{ "released", "hold" },
-		{ "far", "hold" },
-		{ "died", "carry" },
-		{ "tag", "carry" },
-		{ "deadline", "hold" },
-		{ "timeout", "carry" },
-		{ "speed", "carry" },
-		{ "victim", "carry" },
-		{ "full", "carry" },
-		{ "busy", "hold" },
-	} do
+	for _, pair in
+		{
+			{ "released", "hold" },
+			{ "far", "hold" },
+			{ "died", "carry" },
+			{ "tag", "carry" },
+			{ "deadline", "hold" },
+			{ "timeout", "carry" },
+			{ "speed", "carry" },
+			{ "victim", "carry" },
+			{ "full", "carry" },
+			{ "busy", "hold" },
+		}
+	do
 		table.insert(extras, failScenario(pair[1], pair[2]))
 	end
 	local function deniedScenario(reason: string, left: number?): any
@@ -599,7 +651,18 @@ return function(H: { [string]: any }): { any }
 			end,
 		}
 	end
-	for _, pair in { { "weak" }, { "owner" }, { "tagged", 18 }, { "rest", 372 }, { "few" }, { "new", 21 }, { "full" }, { "after", 95 } } do
+	for _, pair in
+		{
+			{ "weak" },
+			{ "owner" },
+			{ "tagged", 18 },
+			{ "rest", 372 },
+			{ "few" },
+			{ "new", 21 },
+			{ "full" },
+			{ "after", 95 },
+		}
+	do
 		table.insert(extras, deniedScenario(pair[1], pair[2]))
 	end
 	-- The own base protected (newbie) and a neighbour's court: «Начнёшь красть — твоя защита погаснет».
@@ -630,7 +693,10 @@ return function(H: { [string]: any }): { any }
 		run = function(h: any)
 			holdCourt(h)
 			local steal = h:config("StealConfig")
-			h:stealEvent("Denied", { Reason = "busy", Text = steal.Texts.Banner.NoReply, BaseIndex = ownBaseIndex(h), Slot = 3 })
+			h:stealEvent(
+				"Denied",
+				{ Reason = "busy", Text = steal.Texts.Banner.NoReply, BaseIndex = ownBaseIndex(h), Slot = 3 }
+			)
 		end,
 	})
 	-- Full own tank: the theft replaces his weakest fish («ЗАМЕНА!» + coins).
@@ -723,7 +789,6 @@ return function(H: { [string]: any }): { any }
 			h:advance(0.5)
 		end,
 	})
-
 
 	table.insert(extras, {
 		name = "thief_hold_ended",

@@ -705,7 +705,8 @@ local function enterHold(data: { [string]: any })
 	tickTime(token, endT, BAR.HoldTick, false, BAR.HoldWarn, true)
 end
 
--- Земля двора под точкой (луч по Grounds и Arcades базы), иначе fallback.
+-- Земля двора под точкой: луч по Grounds и Arcades базы (не по скамейкам и витринам), за оградой —
+-- по миру; ничего — уровень ног вора.
 local function groundParams(base: Model): RaycastParams?
 	local list = {}
 	for _, name in { "Grounds", "Arcades" } do
@@ -780,7 +781,8 @@ local function startGuide()
 		pulse:Cancel()
 	end)
 	local spec = GUIDE.Label
-	local label, plate = TankDisplay.billboard(folder, "ExitLabel", UDim2.fromOffset(spec.PixelsX, spec.PixelsY), GUIDE.LabelRange)
+	local label, plate =
+		TankDisplay.billboard(folder, "ExitLabel", UDim2.fromOffset(spec.PixelsX, spec.PixelsY), GUIDE.LabelRange)
 	label.Adornee = ring
 	label.AlwaysOnTop = true
 	label.StudsOffsetWorldSpace = Vector3.new(0, spec.Lift, 0)
@@ -788,6 +790,10 @@ local function startGuide()
 	folder.Parent = Workspace
 	TankWorldController.TrackWord(label)
 	local params = groundParams(base)
+	-- (за оградой двора — дорожки хаба: любой мир под точкой, кроме персонажа и самой дорожки)
+	local world = RaycastParams.new()
+	world.FilterType = Enum.RaycastFilterType.Exclude
+	world.FilterDescendantsInstances = { character :: Model, folder }
 	local alive = true
 	carryTrove:Add(function()
 		alive = false
@@ -800,14 +806,10 @@ local function startGuide()
 		local hip = if humanoid then humanoid.HipHeight else 2
 		local feet = root.Position.Y - hip - root.Size.Y / 2
 		local function groundAt(x: number, z: number): number
-			if params then
-				local from = Vector3.new(x, root.Position.Y + GROUND_UP, z)
-				local hit = Workspace:Raycast(from, Vector3.new(0, -GROUND_DOWN, 0), params)
-				if hit then
-					return hit.Position.Y
-				end
-			end
-			return feet
+			local from = Vector3.new(x, root.Position.Y + GROUND_UP, z)
+			local hit = if params then Workspace:Raycast(from, Vector3.new(0, -GROUND_DOWN, 0), params) else nil
+			hit = hit or Workspace:Raycast(from, Vector3.new(0, -GROUND_DOWN, 0), world)
+			return if hit then hit.Position.Y else feet
 		end
 		local pivot = base:GetPivot()
 		local exitLocal = StealRules.NearestExit(StealRules.LocalOf(pivot, root.Position))
@@ -816,7 +818,8 @@ local function startGuide()
 		local ahead = Vector3.new(exit.X, 0, exit.Z) - here
 		local distance = ahead.Magnitude
 		local dir = if distance > 0.01 then ahead.Unit else root.CFrame.LookVector
-		ring.CFrame = CFrame.new(exit.X, groundAt(exit.X, exit.Z) + GUIDE.Lift, exit.Z) * CFrame.Angles(0, 0, math.pi / 2)
+		ring.CFrame = CFrame.new(exit.X, groundAt(exit.X, exit.Z) + GUIDE.Lift, exit.Z)
+			* CFrame.Angles(0, 0, math.pi / 2)
 		-- (бегущие огни: каждый шаг цепочки — на Step / Crawl ближе к выходу)
 		phase = (phase + 1) % GUIDE.Crawl
 		local shift = phase / GUIDE.Crawl * GUIDE.Step

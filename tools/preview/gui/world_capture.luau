@@ -685,7 +685,7 @@ end
 -- This player's client folder (Workspace.FishingFx, Workspace["Ambient (client)"]): every
 -- client of the sim makes its own (RbxSim shares one DataModel), and a folder of a client that
 -- has left may still be there.
-function Capture:clientFolder(name: string): any?
+function Capture:clientFolder(name: string, ownOnly: boolean?): any?
 	local sim = self.sim
 	local ctx = sim:_ctxFor(self.player)
 	local fallback = nil
@@ -698,7 +698,7 @@ function Capture:clientFolder(name: string): any?
 			fallback = c
 		end
 	end
-	return fallback
+	return if ownOnly then nil else fallback
 end
 
 function Capture:fxFolder(): any?
@@ -757,7 +757,7 @@ function Capture:scan(): { any }
 	if theftWorld then
 		walk(theftWorld, nil, nil, nil, true)
 	end
-	local guide = self:clientFolder(GUIDE_FOLDER)
+	local guide = self:clientFolder(GUIDE_FOLDER, true) -- (only this client's: one per carry)
 	if guide then
 		walk(guide, nil, nil, nil, true)
 	end

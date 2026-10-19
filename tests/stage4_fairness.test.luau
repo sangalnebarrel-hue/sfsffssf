@@ -340,11 +340,7 @@ tests["a steal by the victim clears his rest and his losses (D6)"] = function(t)
 	t.eq(defence:IsProtected(victim), nil, "the rest ended")
 	t.eq(defence._debugSizes().Losses, 0, "his losses forgotten")
 	local notes = sim:ClientEventsFor(victim, "Notify")
-	t.eq(
-		notes[#notes].args[1],
-		S.STEAL_TEXTS.Hint.Ended,
-		"«Кража погасила твою защиту»"
-	)
+	t.eq(notes[#notes].args[1], S.STEAL_TEXTS.Hint.Ended, "«Кража погасила твою защиту»")
 	sim:ReleasePrompt(victim, S.prompt(sim, other, 3))
 	sim:Advance(0.2)
 	sim:AssertNoErrors({ warnings = true })
