@@ -64,6 +64,8 @@ local function happyPath(t: any, opts: { [string]: any }?)
 	t.ok(E.seen(sim, thief, prompt) > 0, "«Украсть» is shown to the thief")
 	t.eq(E.seen(sim, victim, prompt), 0, "… and hidden from the owner (a local MaxActivationDistance 0)")
 	t.eq(prompt.HoldDuration, E.BASE_HOLD, "the ring takes 3 s (no lock)")
+	t.ok(tu.bar.Visible, "a glass hint in the court")
+	t.eq(tu.barLine.Text, E.STEAL_TEXTS.Hint.Touch, "the first-time how-to (touch)")
 
 	-- The hold.
 	local hold = sim:BeginHold(thief, prompt)
@@ -141,6 +143,22 @@ local function happyPath(t: any, opts: { [string]: any }?)
 	t.eq(tu.barTitle.Text, E.BANNER.Carry)
 	t.ok(sim.workspace:FindFirstChild("TheftGuide") ~= nil, "the red guide on the ground")
 	t.eq(tu.hud:GetAttribute("Stealing"), "carry", "his HUD knows (D locks «ДОМОЙ»)")
+	t.eq(tu.home.Icon.Text, E.ALERT.HomeLocked, "his «ДОМОЙ» shows 🔒")
+	local homeAsks = #sim:ServerEventsFor(thief, "RequestHome")
+	sim:Click(thief, tu.home)
+	sim:Advance(E.FRAME)
+	t.eq(
+		#sim:ServerEventsFor(thief, "RequestHome"),
+		homeAsks,
+		"a press on the locked «ДОМОЙ» asks the server nothing"
+	)
+	t.eq(tu.status.Visible, false, "his status plates hide while he steals (the robbed display stays in view)")
+	local pier = E.call(sim, victim, function()
+		return E.module(sim, victim, "TankWorldController").GetPierWord()
+	end)
+	local pierAlarm = pier and pier:FindFirstChild("Alarm", true)
+	t.ok(pierAlarm and pierAlarm.Visible, "the victim's pier word turned red")
+	t.eq(pierAlarm and pierAlarm.Text, E.STEAL_TEXTS.World.Pier, "«🚨 КРАДУТ!» over his bucket")
 	t.ok(
 		sim:WaitFor(function()
 			return E.alert(sim, victim).phase == "carry"
