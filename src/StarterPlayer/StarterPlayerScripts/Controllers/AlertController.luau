@@ -26,10 +26,13 @@
 	    дрожью (Quiet — тихо, без дрожи);
 	  • на телефоне (HUD ниже SHORT px), если плашка легла бы на своего рыбака
 	    (FishingLayout.fisherBox, а не вышло спроецировать — fallbackFisher) — «таблетка» Compact
-	    («🚨 ВОР! ОКУНЬ» + ЩИТ во всю её высоту, щит не готов — 🏠) рядом с рыбаком: AlertLayout
-	    (справа от него до колонки, иначе слева, иначе в колонке уведомлений; ≥ 16 px до плашек
-	    статуса, колонки кнопок, кнопки прыжка, джойстика и виджетов рыбалки). Место
-	    пересчитывается по событиям (рыбалка, виджеты, трофей над головой, экран), не каждый кадр;
+	    («🚨 ВОР! ОКУНЬ» + ЩИТ во всю её высоту, щит не готов — 🏠) на первом свободном месте:
+	    AlertLayout (справа от рыбака до колонки, иначе слева, иначе в колонке уведомлений —
+	    самая широкая, что встаёт; ≥ 16 px и обводки до рыбака, своего поплавка, плашек статуса,
+	    колонки кнопок, кнопки прыжка, джойстика, виджетов рыбалки и полосы кражи; тесно — с
+	    запасом только на обводки, потом уже, до COMPACT.Narrow: надпись прячется, ЩИТ — во всю
+	    ширину). Место пересчитывается по событиям (рыбалка, виджеты появились или сдвинулись —
+	    не чаще PLACE_SOON, предметы в руках, экран), не каждый кадр;
 	  • кнопки не забирают ввод мини-игры (её ввод — только кнопка действия);
 	  • конец — StealEvent "Saved" / "Lost" (запасной — у своей базы снят Thief): плашка уходит,
 	    AlertPhase снят, слои гаснут; итог — уведомление: украли — «Украдено: Окунь (Ника)» (вид
@@ -45,7 +48,8 @@
 	соединения (пульсации и кольца — твины и таймеры).
 
 	API (тесты, превью):
-	  AlertController.Stats() -> { phase, shown ("plate" | "compact" | nil), spot, waiting, busy }
+	  AlertController.Stats() -> { phase, shown ("plate" | "compact" | nil), spot, waiting, busy,
+	    rect (px HUD), fisher (свой рыбак при раскладке на телефоне) }
 ]]
 
 local Players = game:GetService("Players")
@@ -82,14 +86,25 @@ local THEFT = UIConfig.Theft
 local Palette = UIConfig.Palette
 local SHORT = 500 -- HUD ниже — телефон: тревога не ложится на своего рыбака (как FishingController)
 local GAP = 16 -- до соседей, px
+local INK = 8 -- обводки (своя и соседей) и наклонённые значки выступают за коробки, px
+local OWN_INK = 4 -- обводка «таблетки» (Theme.plate), px
+local WIDGET_INK = 6 -- обводки и «губы» соседних виджетов (мини-игра, кнопки) за их коробками, px
+local SLACK = 4 -- «таблетка»: сверх 16 px и обводок, пока место есть (тесно — без него), px
+local STATUS_INK = 10 -- цифры кошелька и его 💵 свисают под коробку своей строки, px
 local PLATE_SHARE = 0.22 -- плашка: доля высоты HUD (Theft.PlateHeight..× 1.35 px)
 local PLATE_GROW = 1.35
-local COMPACT = { Min = 170, Max = 300, Step = 8 } -- «таблетка»: ширина, px; шаг поиска места вниз
+-- «таблетка»: ширина, px (Narrow — тесно: без надписи, 🚨 и кнопка); шаг поиска места вниз;
+-- надпись не уже LabelMin px (иначе её нет, кнопка ЩИТ — во всю оставшуюся ширину)
+local COMPACT_SHIELD = 0.42 -- ЩИТ «таблетки» — доля её ширины (как в gui/Alert.luau)
+local COMPACT = { Min = 160, Narrow = 132, Max = 300, Step = 8, LabelMin = 56 }
+local PLACE_SOON = 0.12 -- виджет рыбалки сдвинулся — новое место «таблетки» не чаще, с
+local SHAKE = 0.01 -- дрожь при появлении: доля HUD (≈ 8 px на телефоне)
 local SHIELD_WAIT = 3 -- ⏳ на ЩИТ, пока сервер не ответил (не дольше), с
 local RESULT_AFTER = 0.25 -- итог — когда плашка ушла (место колонки снова уведомлений), с
 local ICON_HOLD = "🚨"
 local ICON_CARRY = "🏃"
 local FISHING_WIDGETS = { "Minigame", "BiteAlert", "Hint", "CatchCard", "ActionArea" }
+local BOBBER = { Dive = 1.8, Clear = 12 } -- свой поплавок: нырок клюёт до 1.8 studs (как BiteAlert)
 local STICK_SMALL = { right = 95, top = 90 } -- джойстик Roblox (зеркало кнопки прыжка; Sheet)
 local STICK_BIG = { right = 180, top = 210 }
 
@@ -113,6 +128,7 @@ local A = {
 	shown = nil :: string?, -- "plate" | "compact"
 	spot = nil :: string?, -- где «таблетка» (AlertLayout)
 	rect = nil :: Rect?,
+	fisher = nil :: Rect?, -- свой рыбак при последней раскладке (телефон)
 	waiting = false, -- ждём, пока закроется карточка улова
 	busy = false, -- ЩИТ нажат, ждём ответа сервера
 	busyWait = nil :: thread?,
@@ -209,8 +225,8 @@ local function fill()
 	if p.compactIcon then
 		p.compactIcon.Text = glyph
 	end
-	if p.buttons then
-		p.buttons.Visible = not own
+	if p.buttons and A.shown ~= "compact" then
+		p.buttons.Visible = not own -- («таблетке» кнопки плашки не нужны: place)
 	end
 	if p.text then
 		-- сам крадёшь — кнопок нет: текст во всю плашку
@@ -338,6 +354,27 @@ local function fisherRect(hud: ScreenGui): Rect?
 		or (if isPhone() then FishingLayout.fallbackFisher(hud.AbsoluteSize) else nil)
 end
 
+-- Свой поплавок (FishingFxController.GetBobber; его нет — nil).
+local function bobberRect(hud: ScreenGui): Rect?
+	local module = Controllers:FindFirstChild("FishingFxController")
+	if not module or not module:IsA("ModuleScript") then
+		return nil
+	end
+	local ok, bobber = pcall(function(): any
+		return (require :: any)(module).GetBobber(player)
+	end)
+	if not ok or typeof(bobber) ~= "Instance" or not (bobber :: Instance):IsA("Model") then
+		return nil
+	end
+	return FishingLayout.bobberBox(
+		bobber :: Model,
+		Workspace.CurrentCamera,
+		hud.AbsolutePosition,
+		BOBBER.Dive,
+		BOBBER.Clear
+	)
+end
+
 local function plateRect(hud: ScreenGui): Rect
 	local size = hud.AbsoluteSize
 	local origin = hud.AbsolutePosition
@@ -347,7 +384,13 @@ local function plateRect(hud: ScreenGui): Rect
 		else FishingLayout.rect(size.X * 0.22, size.Y * 0.26, size.X * 0.78, size.Y * 0.6)
 	local height = math.clamp(PLATE_SHARE * size.Y, THEFT.PlateHeight, THEFT.PlateHeight * PLATE_GROW)
 	local width = math.min(THEFT.Width * size.X, THEFT.WidthMax)
-	return AlertLayout.plate(size, column, NotifyController.Offset("alert"), width, height)
+	-- (≥ 16 px under the status stack's drawn rows: the Wallet's 💵 hangs under its box)
+	local status = statusRect(hud, origin)
+	local offset = NotifyController.Offset("alert")
+	if status then
+		offset = math.max(offset, status.y1 + STATUS_INK + GAP + INK - column.y0)
+	end
+	return AlertLayout.plate(size, column, offset, width, height)
 end
 
 -- Где «таблетка» (телефон, плашка легла бы на рыбака): AlertLayout.compact.
@@ -355,10 +398,22 @@ local function compactRect(hud: ScreenGui, fisher: Rect): (Rect, string)
 	local size = hud.AbsoluteSize
 	local origin = hud.AbsolutePosition
 	local keepouts: { Rect } = { fisher }
+	-- виджет HUD — с обводкой WIDGET_INK вокруг его коробки
+	local function widgetOut(r: Rect, below: number?)
+		local d = WIDGET_INK
+		table.insert(keepouts, FishingLayout.rect(r.x0 - d, r.y0 - d, r.x1 + d, r.y1 + (below or d)))
+	end
+	local bobber = bobberRect(hud)
+	if bobber then
+		table.insert(keepouts, bobber)
+	end
 	local status = statusRect(hud, origin)
+	if status then
+		widgetOut(status, STATUS_INK) -- (цифры кошелька и его 💵 свисают под коробку строки)
+	end
 	local column = columnRect(hud, origin)
 	if column then
-		table.insert(keepouts, column)
+		widgetOut(column)
 	end
 	if UserInputService.TouchEnabled then
 		local camera = Workspace.CurrentCamera
@@ -374,29 +429,36 @@ local function compactRect(hud: ScreenGui, fisher: Rect): (Rect, string)
 		for _, name in FISHING_WIDGETS do
 			local widget = guiChild(fishing, name)
 			if widget and widget.Visible then
-				table.insert(keepouts, rectOf(widget, origin))
+				widgetOut(rectOf(widget, origin))
 			end
 		end
 	end
 	local bar = guiChild(hud, "TheftBar")
 	if bar and bar.Visible then
-		table.insert(keepouts, rectOf(bar, origin))
+		widgetOut(rectOf(bar, origin))
 	end
 	local toasts = guiChild(hud, "Toasts")
 	local toastRect = if toasts then rectOf(toasts, origin) else FishingLayout.rect(0, size.Y * 0.26, size.X, size.Y)
-	local top = math.max(if status then status.y1 + GAP else FishingLayout.EDGE, toastRect.y0)
+	-- значок 🚨 свисает с левого края «таблетки» — и он не ближе EDGE к краю экрана
+	local icon = A.parts.compactIcon
+	local overhang = if icon then THEFT.CompactHeight * icon.Size.Y.Scale * icon.AnchorPoint.X else 0
 	return AlertLayout.compact({
 		fisher = fisher,
 		keepouts = keepouts,
-		top = top,
+		top = FishingLayout.EDGE + INK, -- (под кнопками Roblox вверху: 🚨 выступает над «таблеткой»)
 		bottom = size.Y - FishingLayout.EDGE,
-		left = FishingLayout.EDGE,
-		right = math.min(if column then column.x0 - GAP else size.X - FishingLayout.EDGE, size.X - FishingLayout.EDGE),
+		left = FishingLayout.EDGE + overhang,
+		right = math.min(
+			if column then column.x0 - WIDGET_INK - GAP - OWN_INK else size.X - FishingLayout.EDGE,
+			size.X - FishingLayout.EDGE
+		),
 		column = { x0 = toastRect.x0, x1 = toastRect.x1 },
 		height = THEFT.CompactHeight,
 		min = COMPACT.Min,
+		narrow = COMPACT.Narrow,
 		max = COMPACT.Max,
-		gap = GAP,
+		gap = GAP + OWN_INK + SLACK,
+		tight = GAP + OWN_INK,
 		step = COMPACT.Step,
 	})
 end
@@ -413,8 +475,10 @@ local function place(): string?
 		return nil
 	end
 	local which, r, spot = "plate", plateRect(hud), nil
+	A.fisher = nil
 	if isPhone() then
 		local fisher = fisherRect(hud)
+		A.fisher = fisher
 		if fisher and FishingLayout.hits(r, fisher) then
 			which = "compact"
 			r, spot = compactRect(hud, fisher)
@@ -434,11 +498,33 @@ local function place(): string?
 	if p.compact then
 		p.compact.Visible = which == "compact"
 	end
+	if which == "compact" then
+		-- надпись «ВОР! ОКУНЬ» — между значком 🚨 (свисает с левого края) и кнопкой справа
+		local w, h = r.x1 - r.x0, r.y1 - r.y0
+		local icon = p.compactIcon
+		local iconRight = if icon then h * icon.Size.Y.Scale * (1 - icon.AnchorPoint.X) + 2 else h * 0.2
+		local shield, home = p.compactShield, p.compactHome
+		local shieldShare = p.compactShieldShare or COMPACT_SHIELD
+		local button = if shield and shield.Visible then shieldShare * w elseif home and home.Visible then h else 0
+		local room = w - button - 6 - iconRight
+		local label = p.compactLabel
+		if label then
+			label.AnchorPoint = Vector2.new(0, 0.5)
+			label.Position = UDim2.fromScale(iconRight / w, 0.5)
+			label.Size = UDim2.fromScale(math.max(room, 1) / w, label.Size.Y.Scale)
+			label.Visible = room >= COMPACT.LabelMin
+		end
+		if shield then
+			-- надписи нет — ЩИТ во всю ширину справа от 🚨
+			local share = if room >= COMPACT.LabelMin then shieldShare else math.max(w - iconRight - 4, 1) / w
+			shield.Size = UDim2.new(share, 0, shield.Size.Y.Scale, shield.Size.Y.Offset)
+		end
+	end
 	-- уведомления — под плашкой (и под «таблеткой», если она в их колонке)
 	local toasts = guiChild(hud, "Toasts")
 	local column = if toasts then rectOf(toasts, hud.AbsolutePosition) else nil
 	if which == "plate" then
-		NotifyController.Reserve("alert", r.y1 - r.y0)
+		NotifyController.Reserve("alert", if column then math.max(r.y1 - column.y0, 0) else r.y1 - r.y0)
 	elseif column and r.x0 < column.x1 and r.x1 > column.x0 and r.y0 < column.y0 + (column.y1 - column.y0) / 2 then
 		NotifyController.Reserve("alert", math.max(r.y1 - column.y0, 0))
 	else
@@ -482,6 +568,21 @@ local function watchPlace()
 			place()
 		end
 	end
+	-- виджет рыбалки сдвинулся (уходит от поплавка, твин): одна раскладка через PLACE_SOON с
+	local pending: thread? = nil
+	local function soon()
+		if pending then
+			return
+		end
+		pending = task.delay(PLACE_SOON, function()
+			pending = nil
+			again()
+		end)
+	end
+	A.live:Add(function()
+		cancel(pending)
+		pending = nil
+	end)
 	A.live:Connect(hud:GetPropertyChangedSignal("AbsoluteSize"), again)
 	A.live:Connect(player:GetAttributeChangedSignal("FishingState"), again)
 	A.live:Connect(player:GetAttributeChangedSignal("Stealing"), function()
@@ -498,6 +599,8 @@ local function watchPlace()
 		local widget = guiChild(fishing, name)
 		if widget then
 			A.live:Connect(widget:GetPropertyChangedSignal("Visible"), again)
+			A.live:Connect(widget:GetPropertyChangedSignal("Position"), soon)
+			A.live:Connect(widget:GetPropertyChangedSignal("Size"), soon)
 		end
 	end
 	local bar = guiChild(hud, "TheftBar")
@@ -530,7 +633,7 @@ local function show(loud: boolean)
 		if loud then
 			task.delay(0.3, function()
 				if A.shown and A.root then
-					UiFx.shake(A.root, 6, 0.35)
+					UiFx.shake(A.root, SHAKE, 0.35)
 				end
 			end)
 		end
@@ -809,6 +912,7 @@ function AlertController.Stats(): { [string]: any }
 		waiting = A.waiting,
 		busy = A.busy,
 		rect = A.rect,
+		fisher = A.fisher,
 	}
 end
 
@@ -839,6 +943,10 @@ function AlertController:Start(hud: ScreenGui)
 		compactShield = compact:FindFirstChild("Shield"),
 		compactHome = compact:FindFirstChild("Home"),
 	}
+	local compactShield = A.parts.compactShield
+	A.parts.compactShieldShare = if compactShield and compactShield:IsA("GuiObject")
+		then compactShield.Size.X.Scale
+		else nil
 	-- (значок над левым краем плашки — «сокет»; его надпись — Icon.Icon)
 	if A.parts.icon == nil and iconSocket and iconSocket:IsA("TextLabel") then
 		A.parts.icon = iconSocket

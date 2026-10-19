@@ -112,6 +112,9 @@ local SimPlayers = require("../sim/players")
 local scenarios = require("./gui_scenarios")
 -- Stage 3 tank panel (TankPanelController): its own file, in the standard set.
 local panelScenarios = require("./gui_scenarios_panel")
+-- Stage 4 victim and defence HUD states (AlertController, DefenceController: the alert plate and
+-- its phone pill, the shield chip, «ЗАЩИТА» and its sheet): their own file, in the standard set.
+local defenceScenarios = require("./gui_scenarios_defence")
 -- Stage 3 world views (TankWorldController: the court, the displays, the pier word): their own
 -- file, the same scenario format, not in the standard set.
 local tankScenarios = require("./gui_scenarios_tank")
@@ -2335,6 +2338,9 @@ local function allScenarios(): { any }
 		table.insert(list, s)
 	end
 	for _, s in panelScenarios do
+		table.insert(list, s)
+	end
+	for _, s in defenceScenarios do
 		table.insert(list, s)
 	end
 	for _, s in tankScenarios do

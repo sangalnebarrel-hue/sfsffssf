@@ -19,9 +19,9 @@
 	                root's height floor is the pill's)
 	    Plate       a Berry sim plate (AlertController shakes and pops it)
 	    Icon        a socket over the plate's left end: Icon.Icon 🚨
-	    Text        the left part: Title (Title tier, CAPS «ВОР В САДКЕ!» / «ВОР УБЕГАЕТ!»), Sub
-	                (Small, «Ника крадёт: Окунь»; «Пока крадёшь сам, щит не включить» — then the
-	                buttons are hidden)
+	    Text        the left part: Title (CAPS «ВОР В САДКЕ!» / «ВОР УБЕГАЕТ!», one line, the box
+	                fits it: TITLE_MIN..TITLE_MAX px), Sub (italic, «Ника крадёт: Окунь», wraps,
+	                12..SUB_MAX px; «Пока крадёшь сам, щит не включить» — then the buttons are hidden)
 	    Buttons     the right part, a right-aligned row:
 	      Shield    a Guard row button «🛡️ ЩИТ» (Icon, Caption): Slate «⏳ 1:12» while the shield
 	                recharges, ⏳ until the server answers
@@ -65,6 +65,10 @@ local SHIELD = THEFT.ShieldShare / BUTTONS + 0.003
 local SAMPLE = { name = "Ника", short = "Окунь" }
 -- The Compact pill's ЩИТ: this share of the pill's width (≥ Theft.ShieldShare: the largest target).
 local COMPACT_SHIELD = 0.42
+-- The plate's text, px (the box fits it: TextScaled between these).
+local TITLE_MAX = 30
+local TITLE_MIN = 14
+local SUB_MAX = 20
 
 local function buildPlate(root: any)
 	local plate = U.new("Frame", {
@@ -91,13 +95,18 @@ local function buildPlate(root: any)
 		Size = UDim2.fromScale(0.985 - BUTTONS - 0.09, 0.84),
 		ZIndex = 4,
 	}, root)
+	-- (box-driven, not tiered: on a desktop the chat narrows the toast column to ≈ 390 px and the
+	-- Title tier there — 32 px — would break «ВОР УБЕГАЕТ!» into two lines over the Sub; the box
+	-- keeps one line, never under TITLE_MIN / 12 px)
 	label(text, "Title", {
 		Position = UDim2.fromScale(0, 0.02),
 		Size = UDim2.fromScale(1, 0.54),
 		Text = TEXTS.Hold,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		TextWrapped = false,
 		ZIndex = 4,
-		Tier = "Title",
+		MaxTextSize = TITLE_MAX,
+		MinTextSize = TITLE_MIN,
 	})
 	label(text, "Sub", {
 		Position = UDim2.fromScale(0, 0.58),
@@ -107,7 +116,8 @@ local function buildPlate(root: any)
 		TextWrapped = true,
 		Italic = true,
 		ZIndex = 4,
-		Tier = "Small",
+		MaxTextSize = SUB_MAX,
+		MinTextSize = 12,
 	})
 
 	-- The buttons on the right of the same row: [🛡️ ЩИТ] (the largest target) and [🏠 ДОМОЙ].
@@ -164,7 +174,7 @@ local function buildCompact(root: any)
 		Size = UDim2.fromScale(1, 1), -- (AlertController makes the root the pill's box)
 		ZIndex = 2,
 		Icon = "🚨",
-		IconScale = 1.1,
+		IconScale = 0.9, -- (inside the pill: its ink stays within the pill height)
 		Text = TextUtil.fill(TEXTS.Compact, { short = TextUtil.upper(SAMPLE.short) }),
 		Tier = "Body",
 		Radius = 0.5,
