@@ -229,12 +229,9 @@ add({
 		readyAtSpot(h)
 		alertHold(h)
 		h:advance(0.8)
-		local ok = pcall(function()
-			h:click("HUD.TheftAlert.Compact.Shield")
-		end)
-		if not ok then
-			h:click("HUD.TheftAlert.Buttons.Shield")
-		end
+		-- the visible ЩИТ: the pill's on phones, the plate's elsewhere
+		local pill = "HUD.TheftAlert.Compact.Shield"
+		h:click(if h:visible(pill) then pill else "HUD.TheftAlert.Buttons.Shield")
 		h:advance(0.25)
 	end,
 	still = { 1.2 },
