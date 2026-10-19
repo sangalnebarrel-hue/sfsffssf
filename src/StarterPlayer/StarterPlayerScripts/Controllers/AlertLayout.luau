@@ -4,9 +4,10 @@
 	контроллер; docs/stage4_design.md §6.3, §6.9). Только расчёт прямоугольников в px корня HUD:
 	ничего не создаёт и не подключает.
 
-	  • plate(hudSize, column, offset, height) — плашка «ВОР В САДКЕ!» вверху колонки уведомлений:
-	    по центру, не шире min(Theft.Width ширины HUD, Theft.WidthMax, ширины колонки), сверху —
-	    верх колонки + offset (NotifyController.Offset("alert")), высота height.
+	  • plate(hudSize, column, offset, width, height) — плашка «ВОР В САДКЕ!» вверху колонки
+	    уведомлений: по центру, не шире min(width (AlertController: Theft.Width ширины HUD, но не
+	    больше Theft.WidthMax), ширины колонки), сверху — верх колонки + offset
+	    (NotifyController.Offset("alert"), ниже стопки статуса), высота height.
 	  • compact(spec) — «таблетка» на телефоне, когда плашка легла бы на своего рыбака
 	    (FishingLayout.fisherBox). Прежнее место spec.keep ещё свободно (ни одна помеха не ближе
 	    spec.tight) — остаётся там ("keep": «таблетка» не прыгает, когда открылась мини-игра).

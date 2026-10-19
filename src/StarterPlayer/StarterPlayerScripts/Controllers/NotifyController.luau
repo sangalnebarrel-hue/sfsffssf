@@ -54,12 +54,23 @@
 
 	Место сверху колонки (Этап 4): NotifyController.Reserve(key, px) — виджет, который стоит в
 	слоте уведомлений (полоса вора "theft" — TheftController, плашка тревоги "alert" —
-	AlertController), занимает px сверху колонки; уведомления едут ниже (каждой полосе — ещё
-	зазор GAP колонки); px = 0 или nil — место освобождено, ждущие выходят. Полосы стоят друг под
-	другом в порядке RESERVE_ORDER («theft», потом «alert»; незнакомые — следом, по имени):
-	NotifyController.Offset(key) — сколько px от верха колонки до полосы key (виджет ставит себя
-	туда). Если под полосами не помещается ни одно уведомление, они ждут в очереди (на телефоне
-	иначе легли бы на голову персонажа). NotifyController.Reserved() — сколько px занято (тесты).
+	AlertController), занимает px сверху колонки — до своего нарисованного низа (с обводкой);
+	уведомления едут ниже (каждой полосе — ещё зазор NotifyController.BandGap(): GAP колонки, но не
+	меньше BAND_GAP — 16 px и обводка уведомления); px = 0 или nil — место освобождено, ждущие
+	выходят. Полосы стоят друг под другом в порядке RESERVE_ORDER («theft», потом «alert»;
+	незнакомые — следом, по имени): NotifyController.Offset(key) — сколько px от верха колонки до
+	полосы key (виджет ставит себя туда). Пока полосы стоят, уведомление под ними кончается не
+	ниже FISHER_GAP px над своим рыбаком (FishingLayout.fisherBox; на телефоне не вышло — где он у
+	камеры по умолчанию) и не ближе 16 px к кнопкам рыбалки под колонкой: полоса толкает
+	уведомления вниз — на планшете и компьютере под плашкой тревоги места до головы нет, и
+	уведомления (любые, и «опасность») ждут в очереди, пока плашка не уйдёт (тревога — секунды);
+	не помещается то, что уже на экране, — снова в очередь. NotifyController.Reserved() — сколько
+	px занято (тесты).
+	Look (третий аргумент Show): tag — метка (NotifyController.Drop(tag) убирает такие с экрана и
+	из очереди: тревога убирает «👀 Ника у тебя во дворе!» того же вора); afterSheet — ждёт, пока
+	открыт лист (атрибут HUD Sheet: легло бы на шапку листа с его кошельком; открылся лист — такое
+	уведомление уходит с экрана, в первой половине срока — снова в очередь); live — функция:
+	текст в миг показа (таймер ждавшего уведомления — на сейчас; nil — уже нечего сказать).
 
 	Чужой легендарный / мифический улов (FishingFxController.OtherTrophy), чей столб света сейчас
 	не на экране (за спиной или за краем кадра): у края экрана с его стороны — маленький значок
@@ -100,6 +111,9 @@ type ToastKind = UIConfig.ToastKind
 export type Look = {
 	swatch: Swatch?, -- цвет «конфеты» вместо цвета вида
 	icon: string?, -- значок вместо значка вида
+	tag: string?, -- метка: NotifyController.Drop(tag) уберёт с экрана и из очереди
+	afterSheet: boolean?, -- ждёт, пока открыт лист (легло бы на его шапку с кошельком)
+	live: (() -> string?)?, -- текст — в миг показа (ждавшее не врёт о таймере); nil — не показывать
 }
 
 type Pending = { text: string, kind: string, look: Look? }
@@ -174,6 +188,15 @@ local POINTER = {
 	Top = 8,
 }
 local MIN_GAP = 16 -- значок у колонки — до соседних виджетов (правило 16 px), px
+-- Полосы сверху колонки (Reserve): уведомление под полосой — не ближе BAND_GAP px к её нарисованному
+-- низу (16 px правила и TOAST_INK — обводка и значок уведомления над его коробкой); пока полосы
+-- стоят, уведомление кончается не ниже FISHER_GAP px над своим рыбаком (FishingLayout.fisherBox —
+-- уже с запасом FISHER_PAD) и 16 px + AREA_INK (обводки, подписи) над кнопками рыбалки
+-- (HUD.Fishing.ActionArea), если они под колонкой: полоса толкает уведомления вниз, на голову.
+local TOAST_INK = 8
+local BAND_GAP = MIN_GAP + TOAST_INK
+local FISHER_GAP = 16
+local AREA_INK = 6 + TOAST_INK
 
 local NotifyController = {}
 
@@ -243,7 +266,12 @@ local function reserveKeys(): { string }
 	return keys
 end
 
--- Доля высоты колонки, занятая полосами (у каждой — ещё зазор GAP).
+-- Зазор под полосой, px: GAP колонки, но не меньше BAND_GAP.
+local function bandGapPx(height: number): number
+	return math.max(GAP * height, BAND_GAP)
+end
+
+-- Доля высоты колонки, занятая полосами (у каждой — ещё зазор bandGapPx).
 local function reservedShare(): number
 	local height = columnHeight()
 	if height <= 1 or next(reserved) == nil then
@@ -251,9 +279,55 @@ local function reservedShare(): number
 	end
 	local share = 0
 	for _, px in reserved do
-		share += px / height + GAP
+		share += (px + bandGapPx(height)) / height
 	end
 	return share
+end
+
+-- Пока стоят полосы: докуда (доля колонки от её верха) могут доходить уведомления — над своим
+-- рыбаком (телефон: не вышло спроецировать — где он у камеры по умолчанию) и над кнопками
+-- рыбалки, если они под колонкой; nil — без предела (полос нет, рыбака не видно).
+local function bandLimit(): number?
+	local column = container
+	local hud = column and column.Parent
+	if next(reserved) == nil or not column or not hud or not hud:IsA("GuiBase2d") then
+		return nil
+	end
+	local height = column.AbsoluteSize.Y
+	if height <= 1 then
+		return nil
+	end
+	local origin = hud.AbsolutePosition
+	local x0 = column.AbsolutePosition.X - origin.X
+	local x1 = x0 + column.AbsoluteSize.X
+	local top = column.AbsolutePosition.Y - origin.Y
+	local limit: number? = nil
+	local function cap(y: number, x0b: number, x1b: number)
+		if x1b > x0 and x0b < x1 then
+			local share = (y - top) / height
+			limit = if limit then math.min(limit, share) else share
+		end
+	end
+	local fisher = FishingLayout.fisherBox(Players.LocalPlayer.Character, Workspace.CurrentCamera, origin)
+		or (if isPhone() then FishingLayout.fallbackFisher(hud.AbsoluteSize) else nil)
+	if fisher then
+		cap(fisher.y0 - FISHER_GAP, fisher.x0, fisher.x1)
+	end
+	local fishing = hud:FindFirstChild("Fishing")
+	local area = if fishing
+			and fishing:IsA("GuiObject")
+			and fishing.Visible
+		then fishing:FindFirstChild("ActionArea")
+		else nil
+	if area and area:IsA("GuiObject") and area.Visible then
+		for _, button in area:GetChildren() do
+			if button:IsA("GuiObject") and button.Visible and button.AbsoluteSize.Y > 0 then
+				local at = button.AbsolutePosition - origin
+				cap(at.Y - MIN_GAP - AREA_INK, at.X, at.X + button.AbsoluteSize.X)
+			end
+		end
+	end
+	return limit
 end
 
 -- Сколько уведомлений обычной высоты помещается под полосами (без полос — без предела).
@@ -261,7 +335,12 @@ local function roomBelowReserve(): number
 	if next(reserved) == nil then
 		return math.huge
 	end
-	local free = 1 - reservedShare()
+	local bottom = 1
+	local limit = bandLimit()
+	if limit then
+		bottom = math.min(bottom, limit)
+	end
+	local free = bottom - reservedShare()
 	return math.max(0, math.floor((free + GAP) / (SLOT + GAP) + 1e-6))
 end
 
@@ -323,15 +402,17 @@ local function reflow()
 end
 
 local present: (item: Pending) -> ()
+local canShow: (item: Pending, count: number) -> boolean
 
 -- Выпустить ждущих, пока есть место (с маленьким шагом, чтобы не въезжали разом); первым —
--- первый, кому сейчас можно (на телефоне при мини-игре — только «опасность»).
+-- первый, кому сейчас можно (на телефоне при мини-игре — только «опасность»; при открытом листе —
+-- не те, что ждут его ухода).
 local function drain()
 	local started = 0
 	while true do
 		local found: number? = nil
 		for index, item in queue do
-			if #active + started < capacity(styleOf(item.kind).Priority) then
+			if canShow(item, #active + started) then
 				found = index
 				break
 			end
@@ -570,10 +651,77 @@ local function rainbowRim(frame: Frame, trove: Trove.Trove)
 	end
 end
 
+-- Открыт ли лист (Controllers.Sheet: атрибут HUD Sheet, пока лист на экране).
+local function sheetOpen(): boolean
+	local hud = container and container.Parent
+	return hud ~= nil and hud:GetAttribute("Sheet") ~= nil
+end
+
+-- Высота уведомления item, доля колонки (как её даст present).
+local function heightOf(item: Pending): number
+	if styleOf(item.kind).Big then
+		return bigLayout(item.text).height
+	end
+	local _, twoLines = measure(item.text, "Body")
+	return SLOT * (if twoLines then TWO_LINES else 1)
+end
+
+-- Можно ли показать item, когда на экране уже count уведомлений: место по виду (capacity), лист
+-- (afterSheet ждёт его ухода) и, пока стоят полосы, — низ item не ниже bandLimit.
+canShow = function(item: Pending, count: number): boolean
+	if count >= capacity(styleOf(item.kind).Priority) then
+		return false
+	end
+	if item.look and item.look.afterSheet and sheetOpen() then
+		return false
+	end
+	local limit = if next(reserved) ~= nil then bandLimit() else nil
+	if not limit then
+		return true
+	end
+	local y = reservedShare()
+	for i = 1, count do
+		local toast = active[i]
+		y += (if toast then toast.height else SLOT) + GAP
+	end
+	return y + heightOf(item) <= limit + 1e-6
+end
+
+-- Уведомления, что больше не помещаются (полосы, предел над рыбаком), — снова в начало очереди.
+local function requeueOverflow()
+	while #active > 0 do
+		local last = active[#active]
+		local fits = #active <= roomBelowReserve()
+		local limit = if fits and next(reserved) ~= nil then bandLimit() else nil
+		if fits and limit then
+			local y = reservedShare()
+			for i, toast in active do
+				y += toast.height + (if i < #active then GAP else 0)
+			end
+			fits = y <= limit + 1e-6
+		end
+		if fits then
+			return
+		end
+		table.insert(queue, 1, last.item)
+		dismiss(last, true)
+	end
+end
+
 present = function(item: Pending)
 	local parent, source = container, template
 	if not parent or not source then
 		return
+	end
+	local live = item.look and item.look.live
+	if live then
+		-- (ждавшее уведомление: таймер — на сейчас; нечего сказать — не показываем)
+		local text = live()
+		if not text then
+			task.defer(drain)
+			return
+		end
+		item.text = text
 	end
 	counter += 1
 	local style = styleOf(item.kind)
@@ -702,13 +850,15 @@ function NotifyController.Show(text: string, kind: string?, look: Look?)
 	local item: Pending = { text = text, kind = name, look = look }
 	local priority = styleOf(name).Priority or 1
 	local cap = capacity(priority)
-	if #active < cap then
+	if canShow(item, #active) then
 		present(item)
 		return
 	end
 	-- Места нет: вытесняем неважное (с открытой рыбалкой — только ради более важного); при
-	-- карточке улова (и на телефоне при мини-игре) места нет вовсе — ждём.
-	local victim = if cap > 0 then victimFor(priority, busy()) else nil
+	-- карточке улова (и на телефоне при мини-игре) места нет вовсе — ждём; пока стоят полосы
+	-- (место — до головы рыбака) или ждём ухода листа — тоже ждём.
+	local waits = next(reserved) ~= nil or (look ~= nil and look.afterSheet == true and sheetOpen())
+	local victim = if cap > 0 and not waits then victimFor(priority, busy()) else nil
 	if victim then
 		dismiss(victim, true)
 		present(item)
@@ -731,22 +881,41 @@ function NotifyController.Reserve(key: string, px: number?)
 	if not container then
 		return -- (контроллер ещё не запущен: место учтётся при первом уведомлении)
 	end
-	-- Уведомления, которым под полосами больше нет места, уходят (снова в очередь).
-	local room = roomBelowReserve()
-	while #active > room do
-		local last = active[#active]
-		table.insert(queue, 1, last.item)
-		dismiss(last, true)
-	end
+	-- Уведомления, которым под полосами больше нет места (или легли бы на рыбака), уходят (снова в
+	-- очередь).
+	requeueOverflow()
 	reflow()
 	drain()
 end
 
+-- Зазор под полосой до первого уведомления, px (GAP колонки, но не меньше BAND_GAP).
+function NotifyController.BandGap(): number
+	local height = columnHeight()
+	return if height > 1 then bandGapPx(height) else BAND_GAP
+end
+
+-- Убрать уведомления с меткой tag (Look.tag) — с экрана и из очереди (тревога: «у тебя во дворе!»
+-- того же вора больше не нужно — плашка говорит то же громче).
+function NotifyController.Drop(tag: string)
+	for index = #queue, 1, -1 do
+		local look = queue[index].look
+		if look and look.tag == tag then
+			table.remove(queue, index)
+		end
+	end
+	for _, toast in table.clone(active) do
+		local look = toast.item.look
+		if look and look.tag == tag then
+			dismiss(toast, true)
+		end
+	end
+end
+
 -- Сколько px от верха колонки до полосы key (полосы — друг под другом в порядке RESERVE_ORDER;
--- у каждой — зазор GAP колонки). Полосы key нет — где встала бы следующая.
+-- у каждой — зазор BandGap). Полосы key нет — где встала бы следующая.
 function NotifyController.Offset(key: string): number
 	local height = columnHeight()
-	local gap = if height > 1 then GAP * height else 0
+	local gap = if height > 1 then bandGapPx(height) else 0
 	local y = 0
 	for _, other in reserveKeys() do
 		if other == key then
@@ -790,6 +959,27 @@ local function onBusyChanged()
 	end
 	while #queue > MAX_QUEUE do
 		table.remove(queue)
+	end
+	drain()
+end
+
+-- Лист открылся / ушёл (атрибут HUD Sheet): те, что ждут его ухода (Look.afterSheet), уходят с
+-- экрана (кто не дожил до половины срока — снова в начало очереди); ушёл — ждущие выходят.
+local function onSheetChanged()
+	if sheetOpen() then
+		local now = os.clock()
+		for _, toast in table.clone(active) do
+			local look = toast.item.look
+			if look and look.afterSheet then
+				if now - toast.shownAt < toast.life / 2 then
+					table.insert(queue, 1, toast.item)
+				end
+				dismiss(toast, true)
+			end
+		end
+		while #queue > MAX_QUEUE do
+			table.remove(queue)
+		end
 	end
 	drain()
 end
@@ -1167,6 +1357,8 @@ function NotifyController:Start(hud: ScreenGui)
 		-- время — ни одного уведомления.
 		hud:GetAttributeChangedSignal("CounterHold"):Connect(onBusyChanged)
 	end
+	-- Этап 4: лист открыт — те, что ждут его ухода (Look.afterSheet), ждут (см. canShow).
+	hud:GetAttributeChangedSignal("Sheet"):Connect(onSheetChanged)
 	-- v3: на телефоне, пока своя рыба над головой (HeldFish), — тоже (см. capacity).
 	local player = Players.LocalPlayer
 	local function watchCharacter(character: Model)

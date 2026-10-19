@@ -73,9 +73,9 @@
 	  • Кража (Этап 4, §6.7): витрина слушает ещё StealPhase и Escrow (канал кражи RemoteNames, Event
 	    не трогает) — пока рыбу крадут (удержание или вынос), кнопка продажи — Berry «КРАДУТ!», пока
 	    краденая рыба вора «в пути» (Escrow) — Slate «В ПУТИ…»; продать нельзя: нажатие НИЧЕГО не
-	    просит у сервера — карточка качается, подсказка «Её сейчас крадут!» / «Рыба ещё в пути —
-	    пара секунд!» (TankConfig.Texts.Denied locked / escrow; не чаще раза в DENY_EVERY с):
-	    продажа без «ПРОДАТЬ?» в миг, когда кража кончилась, продала бы только что спасённую рыбу.
+	    просит у сервера (продажа без «ПРОДАТЬ?» в миг, когда кража кончилась, продала бы только
+	    что спасённую рыбу) — карточка качается, подпись кнопки вспыхивает (Sun): она уже говорит
+	    почему, уведомления нет (легло бы на шапку листа с кошельком; «барабанить» — стопка).
 	    Украдена — обычное исчезновение карточки (Event "stolen"), вернулась — снова «💵 $45» и
 	    обычная продажа в два нажатия.
 	  • Бюджеты: заливка телефона ≤ 2.5× с открытой панелью (gui_render.py; не хватает —
@@ -124,7 +124,6 @@ local player = Players.LocalPlayer
 local PANEL = TankConfig.Panel
 local TEXTS = TankConfig.Texts
 local MAX_SLOTS = TankConfig.MaxSlots
-local DENY_EVERY = 2 -- «Её сейчас крадут!» по нажатию на «КРАДУТ!» / «В ПУТИ…» — не чаще, с
 local HOME_RATE = EconomyConfig.HomeRatePct
 local BOTTOM = 0.03 -- под рядом карточек — столько их высоты (обводка не обрезается)
 local RING_Z = 8 -- кольцо «ПРОДАТЬ?» — над лицом и подписью кнопки (Theme.SZ.Top 6 + 2)
@@ -156,7 +155,6 @@ local S = {
 	selling = nil :: { uid: string, slot: number }?,
 	lastSale = nil :: { uid: string, slot: number }?, -- последняя проданная (её "Sold" может прийти позже)
 	sellWait = nil :: thread?,
-	deniedAt = nil :: number?, -- (Этап 4) последняя подсказка «Её сейчас крадут!» по нажатию
 	pending = nil :: any, -- отложенное открытие (true или uid рыбы)
 	pendingConn = nil :: RBXScriptConnection?,
 	cell = Vector2.new(112, 160),
@@ -638,16 +636,16 @@ onSell = function(card: Card)
 	end
 	if card.look == "stealing" or card.look == "escrow" then
 		-- Этап 4: продать нельзя — серверу ничего (его TankSell без «ПРОДАТЬ?» продал бы рыбу,
-		-- как только кража кончилась); карточка качается, подсказка — не чаще DENY_EVERY с.
+		-- как только кража кончилась); карточка качается, «КРАДУТ!» / «В ПУТИ…» вспыхивает —
+		-- подпись и есть причина (без уведомления на шапке листа)
 		stopConfirm(true)
 		UiFx.wiggle(card.frame, 6, 2, 0.35)
-		if os.clock() - (S.deniedAt or -math.huge) >= DENY_EVERY then
-			S.deniedAt = os.clock()
-			local reason = if card.look == "stealing" then "locked" else "escrow"
-			local text = TEXTS.Denied[reason]
-			if text then
-				NotifyController.Show(text, "warning")
-			end
+		local caption = card.caption
+		if caption then
+			UiFx.flashText(caption, UIConfig.Palette.Sun.Top, 0.4)
+		end
+		if card.sell then
+			UiFx.bump(card.sell, 1.08, 0.2)
 		end
 		return
 	end

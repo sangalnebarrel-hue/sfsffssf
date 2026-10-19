@@ -23,7 +23,9 @@
 	    открыт лист (через Theft.CardAfter с; кража ещё идёт). Пока тревога идёт, новый улов
 	    (CounterHold) снова торопит карточку (HurryCard), а карточка или лист, появившись, прячут
 	    плашку до своего ухода — плашка никогда не рисуется поверх них. Вверху колонки уведомлений
-	    (NotifyController.Reserve("alert", px) — уведомления ниже), ширина — min(Theft.Width
+	    (NotifyController.Reserve("alert", px) — до нарисованного низа плашки, INK; уведомления —
+	    ниже на BandGap и не на своём рыбаке: на планшете и ПК они ждут конца тревоги; «таблетка»
+	    в колонке или над самым её верхом — так же), ширина — min(Theft.Width
 	    ширины, Theft.WidthMax, колонки), высота Theft.PlateHeight на телефоне; текст слева —
 	    «ВОР В САДКЕ!» / «Ника крадёт: Окунь», вынос — «ВОР УБЕГАЕТ!» / «Ника уносит: Окунь — жми
 	    ЩИТ!» (щит не готов — без «жми ЩИТ!»), справа — [🛡️ ЩИТ] (самая крупная цель:
@@ -47,16 +49,19 @@
 	  • кнопки не забирают ввод мини-игры (её ввод — только кнопка действия);
 	  • конец — StealEvent "Saved" / "Lost" (запасной — у своей базы снят Thief): плашка уходит,
 	    AlertPhase снят, слои гаснут; итог — уведомление: украли — «Украдено: Окунь (Ника)» (вид
-	    theft, крупно), «Садок отдыхает 1:30 — не украдут» (Until / Kind сервера) и ОДИН совет
-	    (значок DefenceConfig.Texts.TipIcon; щит был готов и не нажат — про щит, иначе самая
-	    дешёвая защита, которой нет, с ценой; DC-14); спасли — текст сервера (вид saved; поймал
-	    вора — конфетти); щит — одно уведомление «Щит спас рыбу! 🛡️ 1:00» (Result.SavedShield;
-	    «Щит включён на 1:00» DefenceController тогда не показывает:
-	    DefenceController.TakeShieldToast); Quiet — ничего;
-	  • "Intruder" (сигнализация) — «👀 Ника у тебя во дворе!» (warning) и кнопка «ЗАЩИТА»
-	    подпрыгивает Theft.IntruderBob с; "Returned" жертве (вор ушёл, рыба вернулась: у неё есть
-	    Result) — текст сервера (вид saved). "Returned" вору (рыба вернулась хозяину) — его
-	    (TheftController).
+	    theft, крупно; сразу, и поверх листа), «Садок отдыхает 1:30 — не украдут» (Until / Kind
+	    сервера) и ОДИН совет (значок DefenceConfig.Texts.TipIcon; щит был готов и не нажат — про
+	    щит, иначе самая дешёвая защита, которой нет, с ценой; DC-14); спасли — текст сервера (вид
+	    saved; поймал вора — конфетти); щит — одно уведомление «Щит спас рыбу! 🛡️ 1:00»
+	    (Result.SavedShield; «Щит включён на 1:00» DefenceController тогда не показывает:
+	    DefenceController.TakeShieldToast); Quiet — ничего. Всё, кроме «Украдено», при открытом
+	    листе ждёт его ухода (Look.afterSheet: легло бы на шапку с кошельком; на «ЗАЩИТА» итог
+	    виден на карточке щита), время — на миг показа (Look.live);
+	  • "Intruder" (сигнализация) — «👀 Ника у тебя во дворе!» (warning, метка вора) и кнопка
+	    «ЗАЩИТА» подпрыгивает Theft.IntruderBob с; тревога этого вора убирает его
+	    (NotifyController.Drop: плашка говорит то же громче); "Returned" жертве (вор ушёл, рыба
+	    вернулась: у неё есть Result) — текст сервера (вид saved, ждёт ухода листа). "Returned"
+	    вору (рыба вернулась хозяину) — его (TheftController).
 	Соединения тревоги — в Trove (слои, ожидание карточки и листа, место); покой — ни одного
 	покадрового соединения (пульсации и кольца — твины и таймеры).
 
@@ -663,13 +668,21 @@ local function place(): string?
 			layer.Size = UDim2.new(plateW / w, 0, layer.Size.Y.Scale, layer.Size.Y.Offset)
 		end
 	end
-	-- уведомления — под плашкой (и под «таблеткой», если она в их колонке)
+	-- уведомления — под плашкой (и под «таблеткой» в их колонке или над самым её верхом): место —
+	-- до нарисованного низа (обводка), уведомление — ещё NotifyController.BandGap() px ниже
 	local toasts = guiChild(hud, "Toasts")
 	local column = if toasts then rectOf(toasts, hud.AbsolutePosition) else nil
 	if which == "plate" then
-		NotifyController.Reserve("alert", if column then math.max(r.y1 - column.y0, 0) else r.y1 - r.y0)
-	elseif column and r.x0 < column.x1 and r.x1 > column.x0 and r.y0 < column.y0 + (column.y1 - column.y0) / 2 then
-		NotifyController.Reserve("alert", math.max(r.y1 - column.y0, 0))
+		NotifyController.Reserve("alert", if column then math.max(r.y1 + INK - column.y0, 0) else r.y1 - r.y0 + INK)
+	elseif
+		column
+		and r.x0 < column.x1
+		and r.x1 > column.x0
+		and r.y0 < column.y0 + (column.y1 - column.y0) / 2
+		and r.y1 + OWN_INK + NotifyController.BandGap() > column.y0
+	then
+		-- (над колонкой: 0.5 px — уведомление всё равно на BandGap ниже её нарисованного низа)
+		NotifyController.Reserve("alert", math.max(r.y1 + OWN_INK - column.y0, 0.5))
 	else
 		NotifyController.Reserve("alert", nil)
 	end
@@ -987,6 +1000,11 @@ local function finish(then_: (() -> ())?)
 	end
 end
 
+-- Метка уведомления «👀 Ника у тебя во дворе!» этого вора (тревога его убирает: плашка громче).
+local function intruderTag(thief: any): string
+	return `intruder:{if typeof(thief) == "number" then thief else "?"}`
+end
+
 local function shortOf(data: { [string]: any }): string
 	if typeof(data.Short) == "string" then
 		return data.Short
@@ -1021,6 +1039,8 @@ local function onAlert(data: { [string]: any })
 	A.alert = a
 	hud:SetAttribute("AlertPhase", phase)
 	hurryCard()
+	-- «👀 Ника у тебя во дворе!» этого вора (на экране или ждёт) — уже не нужно: плашка громче
+	NotifyController.Drop(intruderTag(a.thief))
 	if fresh then
 		startLayers(quiet)
 		local open = sheetOpen()
@@ -1060,15 +1080,18 @@ local function onLost(data: { [string]: any })
 	local untilAt = if typeof(data.Until) == "number" then data.Until else nil
 	local tip = tipFor(a)
 	finish(function()
+		-- «Украдено» — сразу (и поверх листа: это и есть конец тревоги); отдых садка и совет ждут,
+		-- пока лист уйдёт (легли бы на его шапку), отдых — со временем на миг показа
 		NotifyController.Show(TextUtil.fill(RESULT.Lost, { short = short, name = name }), "theft")
 		if untilAt and untilAt > now() then
-			NotifyController.Show(
-				TextUtil.fill(RESULT.LostSub, { t = StealRules.FormatClock(untilAt - now()) }),
-				"shield"
-			)
+			local function rest(): string?
+				local left = (untilAt :: number) - now()
+				return if left >= 1 then TextUtil.fill(RESULT.LostSub, { t = StealRules.FormatClock(left) }) else nil
+			end
+			NotifyController.Show(rest() or "", "shield", { afterSheet = true, live = rest })
 		end
 		if tip then
-			NotifyController.Show(tip, "info", { icon = DefenceConfig.Texts.TipIcon })
+			NotifyController.Show(tip, "info", { icon = DefenceConfig.Texts.TipIcon, afterSheet = true })
 		end
 	end)
 end
@@ -1081,15 +1104,27 @@ local function onSaved(data: { [string]: any })
 		text = saved[if reason == "tag" or reason == "shield" or reason == "left" then reason else "failed"]
 	end
 	local quiet = data.Quiet == true
+	local live: (() -> string?)? = nil
 	if reason == "shield" then
-		-- щит кончил кражу: одно уведомление «Щит спас рыбу! 🛡️ 1:00» (не ещё и «Щит включён»)
-		local left = DefenceController.TakeShieldToast()
-		text = TextUtil.fill(RESULT.SavedShield, { t = StealRules.FormatClock(left) })
+		-- щит кончил кражу: одно уведомление «Щит спас рыбу! 🛡️ 1:00» (не ещё и «Щит включён»);
+		-- ждёт ухода листа — время щита на миг показа (кончился — без него)
+		local untilAt = now() + DefenceController.TakeShieldToast()
+		local plain = text
+		live = function(): string?
+			local left = untilAt - now()
+			return if left >= 1 then TextUtil.fill(RESULT.SavedShield, { t = StealRules.FormatClock(left) }) else plain
+		end
+		text = (live :: () -> string?)() or plain
 	end
 	finish(if quiet
 		then nil
 		else function()
-			NotifyController.Show(text, if reason == "shield" then "shield" else "saved")
+			-- (лист открыт — ждёт его ухода: на «ЗАЩИТА» итог уже виден на карточке щита)
+			NotifyController.Show(
+				text,
+				if reason == "shield" then "shield" else "saved",
+				{ afterSheet = true, live = live }
+			)
 			local hud = A.hud
 			if reason == "tag" and hud then
 				UiFx.confettiPop(hud, { count = 24, origin = Vector2.new(0.5, 0.3), spread = 140, power = 1.2 })
@@ -1101,6 +1136,7 @@ local function onIntruder(data: { [string]: any })
 	local name = if typeof(data.Name) == "string" then data.Name else ""
 	NotifyController.Show(TextUtil.fill(StealConfig.Texts.Intruder, { name = name }), "warning", {
 		icon = StealConfig.Texts.IntruderIcon,
+		tag = intruderTag(data.Thief),
 	})
 	DefenceController.Bob(THEFT.IntruderBob)
 end
@@ -1257,7 +1293,7 @@ function AlertController:Start(hud: ScreenGui)
 		elseif kind == "Returned" and payload.Result ~= nil then
 			-- жертве: вор ушёл, рыба вернулась (у вора Result нет — его уведомление у TheftController)
 			if typeof(payload.Text) == "string" and payload.Text ~= "" then
-				NotifyController.Show(payload.Text, "saved")
+				NotifyController.Show(payload.Text, "saved", { afterSheet = true })
 			end
 		end
 	end)

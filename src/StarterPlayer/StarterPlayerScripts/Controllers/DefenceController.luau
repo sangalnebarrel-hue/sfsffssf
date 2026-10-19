@@ -34,7 +34,9 @@
 	    «Скоро воры! Увидишь 🚨 — жми 🛡️ ЩИТ!» и кнопка подпрыгивает (здесь ребёнок узнаёт про
 	    щит); щит включён — «Щит включён на 1:00» (во время тревоги — через MERGE_WAIT с: щит кончил
 	    кражу — AlertController забирает его (TakeShieldToast) в одно «Щит спас рыбу! 🛡️ 1:00»);
-	    отказ сервера — его текст (Sun) и кнопка, с которой просили, качается.
+	    отказ сервера — его текст (Sun) и кнопка, с которой просили, качается. Уведомления защиты
+	    при открытом листе ждут его ухода (NotifyController Look.afterSheet: легли бы на шапку с
+	    кошельком; на «ЗАЩИТА» то же видно на карточке щита), таймер в них — на миг показа.
 	  • Лист «ЗАЩИТА»: DefenceCards — карточки, покупка в два нажатия (DefenceBuy), ответы
 	    DefenceEvent "Bought" (MoneyController.Spend: 💵 из кошелька в карточку, «−$6 000»; штамп
 	    «КУПЛЕНО», конфетти, уведомление) / "Denied" (качается, уведомление) / "Shield".
@@ -90,6 +92,9 @@ local SHIELD_WAIT = 3 -- нет ответа на ShieldActivate столько 
 local MERGE_WAIT = 1
 local INTRO_STEPS = 3 -- «ЗАЩИТА» — через столько Wallet.IntroGap после вступления (после «САДОК»)
 local JOIN_KINDS: { [string]: boolean } = { join = true, newbie = true }
+-- Уведомления защиты при открытом листе ждут его ухода (легли бы на шапку с кошельком; на
+-- «ЗАЩИТА» то же видно на карточке щита) — NotifyController Look.afterSheet
+local AFTER_SHEET: NotifyController.Look = { afterSheet = true }
 
 local DefenceController = {}
 
@@ -352,7 +357,7 @@ local function stopCooldown(ready: boolean)
 				setCaption(restCaption(), true)
 			end
 		end)
-		NotifyController.Show(TEXTS.Shield.Ready, "shield")
+		NotifyController.Show(TEXTS.Shield.Ready, "shield", AFTER_SHEET)
 	end
 	syncAlert()
 end
@@ -439,7 +444,7 @@ local function endingWarn(kind: string, untilAt: number, left: number)
 		return
 	end
 	S.warned = untilAt
-	NotifyController.Show(TEXTS.Protect.Ending, "shield")
+	NotifyController.Show(TEXTS.Protect.Ending, "shield", AFTER_SHEET)
 	DefenceController.Bob(SHIELD.EndingWarn)
 end
 
@@ -473,7 +478,12 @@ local function greet(kind: string, left: number)
 		return
 	end
 	S.greeted = true
-	NotifyController.Show(TextUtil.fill(TEXTS.Protect[kind], { t = StealRules.FormatClock(left) }), "shield")
+	local untilAt = now() + left
+	local function text(): string?
+		local rest = untilAt - now()
+		return if rest >= 1 then TextUtil.fill(TEXTS.Protect[kind], { t = StealRules.FormatClock(rest) }) else nil
+	end
+	NotifyController.Show(text() or "", "shield", { afterSheet = true, live = text })
 end
 
 local function syncChip()
@@ -634,10 +644,14 @@ local function onDefenceEvent(kind: any, data: any)
 		local function toast()
 			S.shieldToast = nil
 			if os.clock() - S.shieldTaken > MERGE_WAIT then
-				NotifyController.Show(
-					TextUtil.fill(TEXTS.Shield.On, { t = StealRules.FormatClock(untilAt - now()) }),
-					"shield"
-				)
+				-- (лист открыт — ждёт его ухода: на «ЗАЩИТА» щит виден на карточке; время — на миг показа)
+				local function text(): string?
+					local left = untilAt - now()
+					return if left >= 1
+						then TextUtil.fill(TEXTS.Shield.On, { t = StealRules.FormatClock(left) })
+						else nil
+				end
+				NotifyController.Show(text() or "", "shield", { afterSheet = true, live = text })
 			end
 		end
 		cancel(S.shieldToast)

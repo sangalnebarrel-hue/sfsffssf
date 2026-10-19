@@ -6,12 +6,17 @@
 	Compact pill at the top beside the fisher on phones; idle, the bite, the hook from the bite into
 	the minigame (the pill stays put, the phone fill stays in budget), the minigame, the longest
 	name, a catch card hurried away, a catch landing during the alert, the carry, the shield
-	recharging, while stealing himself, a «САДОК» or «ЗАЩИТА» sheet open when it starts), the result
-	toasts (one merged toast for a shield save), the intruder toast, the shield chip «🛡️ 0:42» (all
+	recharging, while stealing himself, a «САДОК» or «ЗАЩИТА» sheet open when it starts — the
+	«ЗАЩИТА» header then says «🚨 ВОР В САДКЕ!»), the result toasts (one merged toast for a shield
+	save), the intruder toast (and the hold right after it: the toast goes), toasts arriving during
+	the alert (they wait: nothing under the plate on the fisher), the shield chip «🛡️ 0:42» (all
 	kinds), the protection's ending lesson, the «ЗАЩИТА» button (idle, «ЩИТ!», recharging), the
-	«ЗАЩИТА» sheet (cards, bought, the two-tap «КУПИТЬ?», «ЕЩЁ $3 000» without the money, the shield
-	recharging), the trophy chip beside the three-button column with the rod in hand and while
-	waiting, and the tank panel's «КРАДУТ!» / «В ПУТИ…».
+	«ЗАЩИТА» sheet (cards, the bought «✔️ КУПЛЕНО» stamps, the two-tap «КУПИТЬ?», «ЕЩЁ $3 000»
+	without the money, the shield recharging and tapped — no toasts —, the shield card's «ЩИТ!»
+	tapped during the alert), the trophy chip beside the three-button column with the rod in hand
+	and while waiting, and the tank panel's «КРАДУТ!» / «В ПУТИ…» (tapped: no toast).
+	Every scenario puts back what it changed (the base's Thief / AlarmState, the protection, the
+	defences, a slot's StealPhase) with h:atEnd: the next ones in the same dump start clean.
 
 	StealService and DefenceService are stubs in the preview sim (gui_dump STUBBED_SERVICES): the
 	scenarios play the server like they would — h:alert / h:stealEvent (StealEvent), h:shield (the
@@ -67,12 +72,42 @@ local function toMinigame(h: any, rarity: string)
 end
 
 -- The alert of a hold on Slot 2 (the Puffer) by «Ника»; settle — let the plate pop and shake.
+-- The scenario's end clears the base's Thief / AlarmState (the next scenarios in the same dump
+-- would inherit a live theft: the pier word «🚨 КРАДУТ!», an alert that never ends).
 local function alertHold(h: any, extra: { [string]: any }?)
 	local data: { [string]: any } = { Phase = "hold", Slot = 2, FishId = "Puffer", Short = "Фугу" }
 	for k, v in extra or {} do
 		data[k] = v
 	end
+	h:atEnd(function()
+		h:alert(false)
+	end)
 	h:alert(data)
+end
+
+-- The own base's protection / ShieldReadyAt (h:shield) and what it owns (h:defence) — put back
+-- when the scenario ends (no protection, the shield ready; no dog, no alarm, no lock).
+local function shieldFor(h: any, left: number?, readyIn: number?, kind: string?)
+	h:atEnd(function()
+		h:shield(nil, 0)
+	end)
+	h:shield(left, readyIn, kind)
+end
+
+local function defenceFor(h: any, owned: { [string]: any })
+	h:atEnd(function()
+		h:defence({ dog = false, alarm = false, lock = 0 })
+	end)
+	h:defence(owned)
+end
+
+-- Slot 2 (the Puffer) being stolen as the tank's channel shows it (StealPhase), cleared at the end.
+local function slotSteal(h: any, phase: string?)
+	local slots = h:base().Tank.Slots
+	h:atEnd(function()
+		slots.Slot_2:SetAttribute("StealPhase", nil)
+	end)
+	slots.Slot_2:SetAttribute("StealPhase", phase)
 end
 
 local scenarios = {}
@@ -206,7 +241,7 @@ add({
 
 add({
 	name = "victim_alert_defence_open",
-	desc = "The «ЗАЩИТА» sheet is open when the alert starts: it stays, the plate / pill stays hidden, the shield card's button becomes the alert target (Berry «ЩИТ!» with rings) — the same one tap",
+	desc = "The «ЗАЩИТА» sheet is open when the alert starts: it stays, the plate / pill stays hidden, the header says it (🚨 «ВОР В САДКЕ!» in Berry) and the shield card's button becomes the alert target (Berry «ЩИТ!» with rings) — the same one tap",
 	run = function(h: any)
 		h:tank(TANK)
 		h:money(3000, 120)
@@ -237,7 +272,7 @@ add({
 	still = { 1.2 },
 	during = function(h: any)
 		h:advance(0.3)
-		h:shield(60, 180, "shield")
+		shieldFor(h, 60, 180, "shield")
 		defenceEvent(h, "Shield", { Until = h.sim.workspace:GetServerTimeNow() + 60 })
 		h:alert(false)
 		h:stealEvent("Saved", { Reason = "shield", Slot = 2 })
@@ -263,7 +298,7 @@ add({
 	run = function(h: any)
 		h:tank(TANK)
 		readyAtSpot(h)
-		h:shield(nil, 72)
+		shieldFor(h, nil, 72)
 		alertHold(h, { Phase = "carry" })
 	end,
 	still = { 0.7 },
@@ -298,7 +333,7 @@ add({
 		alertHold(h)
 		h:advance(1.5)
 		h:alert(false)
-		h:shield(90, 0, "after")
+		shieldFor(h, 90, 0, "after")
 		h:stealEvent("Lost", {
 			Fish = { Id = "Puffer", Rarity = "Rare", Kg = 2.1, Value = 58 },
 			Name = "Ника",
@@ -329,7 +364,7 @@ add({
 	run = function(h: any)
 		h:tank(TANK)
 		readyAtSpot(h)
-		h:defence({ alarm = true })
+		defenceFor(h, { alarm = true })
 		h:stealEvent("Intruder", { Thief = 2002, Name = "Ника" })
 	end,
 	still = { 0.8 },
@@ -344,7 +379,7 @@ add({
 	desc = "The shield on: the solid Guard chip «🛡️ 0:42» at the right end of the base badge; «ЗАЩИТА» recharging (the veil, «3:42»)",
 	run = function(h: any)
 		h:money(1234, 120)
-		h:shield(42, 222, "shield")
+		shieldFor(h, 42, 222, "shield")
 	end,
 	still = { 0.8 },
 })
@@ -354,7 +389,7 @@ add({
 	desc = "The join protection: the glass chip «🛡️ 1:18» (any kind shows), the shield ready",
 	run = function(h: any)
 		h:money(1234, 120)
-		h:shield(78, 0, "join")
+		shieldFor(h, 78, 0, "join")
 	end,
 	still = { 0.8 },
 })
@@ -364,7 +399,7 @@ add({
 	desc = "«Садок отдыхает» after a second loss: the glass chip «🛡️ 6:12»",
 	run = function(h: any)
 		h:money(1234, 120)
-		h:shield(372, 0, "rest")
+		shieldFor(h, 372, 0, "rest")
 	end,
 	still = { 0.8 },
 })
@@ -374,7 +409,7 @@ add({
 	desc = "DC-07: 15 s before the newbie protection ends — «Скоро воры смогут красть. Увидишь «ВОР В САДКЕ!» — жми 🛡️ ЩИТ!», the «ЗАЩИТА» button bobs, the chip pulses in its last 10 s",
 	run = function(h: any)
 		h:money(1234, 120)
-		h:shield(16, 0, "newbie")
+		shieldFor(h, 16, 0, "newbie")
 		h:advance(1.4)
 	end,
 	still = { 0.6, 6.2 },
@@ -479,8 +514,8 @@ add({
 	desc = "Everything bought: Leaf «КУПЛЕНО» stamps, the lock «Сильнее замки — скоро в магазине» (DC-11); the shield on (glass «🛡️ 0:42»)",
 	run = function(h: any)
 		h:money(12345, 120)
-		h:defence({ dog = true, alarm = true, lock = 1 })
-		h:shield(42, 222, "shield")
+		defenceFor(h, { dog = true, alarm = true, lock = 1 })
+		shieldFor(h, 42, 222, "shield")
 		h.player:SetAttribute("ShieldUntil", h.player:GetAttribute("ShieldReadyAt") - 180)
 		readyAtSpot(h)
 		openSheet(h)
@@ -505,7 +540,7 @@ add({
 		h:click("HUD.DefencePanel.Panel.Cards.DogCard.Buy")
 		h:advance(0.1)
 		h.player:SetAttribute("Money", 3000)
-		h:defence({ dog = true })
+		defenceFor(h, { dog = true })
 		defenceEvent(h, "Bought", { Item = "Dog", Price = 6000 })
 	end,
 })
@@ -528,7 +563,7 @@ add({
 	desc = "The shield card recharging: Slate «⏳ 2:59» with its ring timer; protected by the join protection ≥ 60 s instead: «ТЫ ПОД ЗАЩИТОЙ»",
 	run = function(h: any)
 		h:money(800, 40)
-		h:shield(nil, 179)
+		shieldFor(h, nil, 179)
 		readyAtSpot(h)
 		openSheet(h)
 	end,
@@ -541,7 +576,7 @@ add({
 
 add({
 	name = "victim_tank_panel_stealing",
-	desc = "The tank panel while Slot 2 is being stolen («КРАДУТ!», Berry; a tap asks the server: «Её сейчас крадут!») and Slot 4 is the thief's own fish still on the way («В ПУТИ…», Slate)",
+	desc = "The tank panel while Slot 2 is being stolen («КРАДУТ!», Berry; a tap asks nothing: the card wiggles, «КРАДУТ!» flashes, no toast) and Slot 4 is the thief's own fish still on the way («В ПУТИ…», Slate)",
 	run = function(h: any)
 		h:tank(TANK)
 		h:money(1234, 120)
@@ -559,6 +594,113 @@ add({
 		h:advance(0.8)
 	end,
 	still = { 0.2 },
+})
+
+--------------------------------------------------------------------------------
+-- Toasts and refusals during the alert (round 3: nothing on the fisher, nothing on a sheet's header)
+--------------------------------------------------------------------------------
+
+add({
+	name = "victim_intruder_then_alert",
+	desc = "The alarm owner: «👀 Ника у тебя во дворе!», then Ника's hold 1.2 s later — the intruder toast goes (the plate says the same, louder); no toast is pushed under the plate onto the fisher",
+	run = function(h: any)
+		h:tank(TANK)
+		h:money(1234, 120)
+		defenceFor(h, { alarm = true })
+		readyAtSpot(h)
+		h:stealEvent("Intruder", { Thief = 2002, Name = "Ника" })
+		h:advance(1.2)
+		alertHold(h, { Left = 20 })
+	end,
+	still = { 0.0, 0.7 },
+})
+
+add({
+	name = "victim_alert_toasts",
+	desc = "Waiting for a bite with the alert up, two toasts arrive: they wait while the plate leaves no room above the fisher's head (tablet, desktop; phones: the pill by the column) and come out after the alert ends (here: the theft fails)",
+	run = function(h: any)
+		h:tank(TANK)
+		readyAtSpot(h)
+		h:serverSays("Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
+		h:advance(0.9)
+		alertHold(h, { Left = 20 })
+		h:advance(0.8)
+		h:notify("Рыбка подросла: Окунь стоит $40!", "info")
+		h:notify("КапитанКрюк поймал легендарную рыбу!", "info")
+	end,
+	still = { 0.8, 2.6 },
+	during = function(h: any)
+		h:advance(1.2)
+		h:alert(false)
+		h:stealEvent("Saved", { Reason = "failed", Slot = 2 })
+	end,
+})
+
+add({
+	name = "victim_alert_tank_tap",
+	desc = "«САДОК» opened during the alert (the plate / pill hides), a tap on «КРАДУТ!»: the card wiggles and «КРАДУТ!» flashes — no toast on the sheet's header and Wallet",
+	run = function(h: any)
+		h:tank(TANK)
+		h:money(1234, 120)
+		readyAtSpot(h)
+		alertHold(h, { Left = 20 })
+		slotSteal(h, "hold")
+		h:advance(0.8)
+		h:click("HUD.RightButtons.TankButton")
+		h:waitVisible("HUD.TankPanel", 2)
+		h:advance(0.8)
+	end,
+	still = { 0.1, 0.7 },
+	during = function(h: any)
+		h:advance(0.05)
+		h:click("HUD.TankPanel.Panel.Cards.Card2.Sell")
+	end,
+})
+
+add({
+	name = "defence_alert_card_tap",
+	desc = "«ЗАЩИТА» open, the alert («🚨 ВОР В САДКЕ!» in the header), one tap on the shield card's «ЩИТ!» saves the fish: the card shows «🛡️ 1:00», the header is «ЗАЩИТА» again, the toast «Щит спас рыбу!» waits for the sheet to close (it would cover the header and the Wallet)",
+	run = function(h: any)
+		h:tank(TANK)
+		h:money(3000, 120)
+		readyAtSpot(h)
+		h:click("HUD.RightButtons.DefenceButton")
+		h:waitVisible("HUD.DefencePanel", 2)
+		h:advance(0.6)
+		alertHold(h, { Left = 20 })
+		h:advance(0.8)
+		h:click("HUD.DefencePanel.Panel.Cards.ShieldCard.Buy")
+		h:advance(0.1)
+	end,
+	still = { 0.0, 0.9 },
+	during = function(h: any)
+		h:advance(0.3)
+		shieldFor(h, 60, 180, "shield")
+		defenceEvent(h, "Shield", { Until = h.sim.workspace:GetServerTimeNow() + 60 })
+		h:alert(false)
+		h:stealEvent("Saved", { Reason = "shield", Slot = 2 })
+	end,
+})
+
+add({
+	name = "defence_shield_wait_taps",
+	desc = "The shield card recharging («⏳ 2:59»), tapped three times: the button wiggles and its label flashes — no stack of «Щит перезаряжается» toasts on the header",
+	run = function(h: any)
+		h:tank(TANK)
+		h:money(3000, 120)
+		shieldFor(h, nil, 179)
+		readyAtSpot(h)
+		h:click("HUD.RightButtons.DefenceButton")
+		h:waitVisible("HUD.DefencePanel", 2)
+		h:advance(0.8)
+	end,
+	still = { 0.2, 0.9 },
+	during = function(h: any)
+		for _ = 1, 3 do
+			h:click("HUD.DefencePanel.Panel.Cards.ShieldCard.Buy")
+			h:advance(0.25)
+		end
+	end,
 })
 
 return scenarios

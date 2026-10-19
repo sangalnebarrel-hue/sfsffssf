@@ -54,6 +54,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = Shared:WaitForChild("Config")
 local DefenceConfig = require(Config:WaitForChild("DefenceConfig"))
+local StealConfig = require(Config:WaitForChild("StealConfig"))
 local TankConfig = require(Config:WaitForChild("TankConfig"))
 local UIConfig = require(Config:WaitForChild("UIConfig"))
 local Net = require(Shared:WaitForChild("Net"))
@@ -94,6 +95,10 @@ local CARD = {
 local NAME_LINE = 1.25
 local LINE = 1.25
 local ALERT_RING = { Scale = 1.15, Thickness = 4, Time = 0.6, Every = 0.9 } -- кольца «ЩИТ!» на карточке
+-- Штамп «✔️ КУПЛЕНО»: уже кнопки (доля ширины карточки) и ниже (доля высоты Buy), наклон, °
+local STAMP = { Width = 0.8, Height = 0.86, Tilt = -3 }
+local ALERT_TEXTS = StealConfig.Texts.Alert -- шапка листа во время тревоги: «🚨 ВОР В САДКЕ!»
+local HEAD_PAD = 8 -- надпись шапки шире своего текста на столько px
 
 -- Числа места листа: DefenceConfig.Panel, недостающие — как у садка (TankConfig.Panel).
 local LAYOUT: { [string]: any } = setmetatable(table.clone(PANEL :: any), { __index = TANK_PANEL }) :: any
@@ -114,6 +119,8 @@ type Card = {
 	glow: (() -> ())?, -- красные кольца «ЩИТ!» (тревога)
 	needUntil: number, -- «ЕЩЁ $3 000» на кнопке до этого os.clock()
 	effectText: string?, -- что сейчас в строке действия (её раскладка)
+	buyWidth: number, -- ширина кнопки (доля карточки) — штамп «КУПЛЕНО» уже
+	buyHeight: number?, -- высота кнопки по раскладке (доля карточки) — штамп ниже
 }
 
 export type Cards = {
@@ -257,7 +264,7 @@ end
 
 function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (from: GuiObject) -> () }): Cards
 	local panel = root:WaitForChild("Panel")
-	local header = panel:WaitForChild("Header")
+	local header = panel:WaitForChild("Header") :: GuiObject
 	local frame = panel:WaitForChild("Cards") :: ScrollingFrame
 	local grid = frame:FindFirstChildOfClass("UIGridLayout")
 	local padding = frame:FindFirstChildOfClass("UIPadding")
@@ -283,6 +290,7 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 			disc = cardFrame:FindFirstChild("Icon") :: GuiObject?,
 			look = "",
 			needUntil = 0,
+			buyWidth = buy.Size.X.Scale,
 		}
 	end
 	-- Lock.SaleMax = 0 — замков в продаже нет: карточки нет (Этап 5 поднимет SaleMax).
@@ -411,7 +419,10 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		effect.Size = UDim2.fromScale(effect.Size.X.Scale, math.max(buyTop - gap - effectTop, 1) / ch)
 		effect.Text = plan.text
 		card.effectText = plan.text
-		card.buy.Size = UDim2.fromScale(card.buy.Size.X.Scale, buyH / ch)
+		local buyShare = buyH / ch
+		card.buyHeight = buyShare
+		card.buy.Size =
+			UDim2.fromScale(card.buy.Size.X.Scale, buyShare * (if card.look == "bought" then STAMP.Height else 1))
 		if card.state then
 			card.state.Visible = false -- (купленный замок пишет своё в строке действия)
 		end
@@ -510,10 +521,45 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		end
 	end
 
+	-- «✔️ КУПЛЕНО» — штамп, а не кнопка: плоское лицо без блика и светлого ободка (после
+	-- setCandy), уже кнопки, чуть наклонён (нажатие только качает его); off — ширина и наклон
+	-- кнопки (цвет, ободок и градиент вернёт setCandy другого вида)
+	local function stampLook(card: Card, on: boolean)
+		local buy = card.buy
+		if on then
+			local face = UiFx.faceOf(buy)
+			local shine = face:FindFirstChild("Shine")
+			if shine and shine:IsA("GuiObject") then
+				shine.Visible = false
+			end
+			local rim = face:FindFirstChild("Rim")
+			local ring = if rim then rim:FindFirstChildOfClass("UIStroke") else nil
+			if ring then
+				ring.Transparency = 1
+			end
+			local fill = face:FindFirstChild("Fill")
+			if fill and fill:IsA("UIGradient") then
+				fill.Color = ColorSequence.new(Palette.Leaf.Bottom)
+			end
+		end
+		local height = card.buyHeight or buy.Size.Y.Scale
+		buy.Size = UDim2.fromScale(if on then STAMP.Width else card.buyWidth, height * (if on then STAMP.Height else 1))
+		buy.Rotation = if on then STAMP.Tilt else 0
+	end
+
 	local function setLook(card: Card, look: string, text: string, priceText: string?)
 		if card.look ~= look then
+			local before = card.look
 			card.look = look
-			UiFx.recolor(card.buy, TOKENS[look] or "Slate")
+			UiFx.recolor(card.buy, TOKENS[look] or "Slate", if look == "bought" then 0 else nil)
+			if look == "bought" then
+				stampLook(card, true)
+			elseif card.buy.Rotation ~= 0 or card.buy.Size.X.Scale ~= card.buyWidth then
+				stampLook(card, false)
+			end
+			if look == "active" and (before == "busy" or before == "alert") and open then
+				UiFx.punch(card.buy, { from = 0.8, peak = 1.12 }) -- щит включился отсюда
+			end
 			if look ~= "wait" and look ~= "confirm" then
 				stopRing(card)
 			end
@@ -609,7 +655,69 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		end
 	end
 
+	-- Шапка во время тревоги (лист открыт — плашки тревоги нет, D-18): 🚨 «ВОР В САДКЕ!» /
+	-- 🏃 «ВОР УБЕГАЕТ!» (StealConfig.Texts.Alert) цветом Berry — ребёнок в листе видит, зачем
+	-- красная «ЩИТ!»; надпись шире — по тексту (не дальше кошелька); тревога ушла, лист закрыт —
+	-- снова 🛡️ «ЗАЩИТА».
+	local headTitle = header:FindFirstChild("Title") :: TextLabel?
+	local headRest = {
+		title = if headTitle then headTitle.Text else "",
+		icon = if headIcon and headIcon:IsA("TextLabel") then headIcon.Text else "",
+		size = if headTitle then headTitle.Size else UDim2.new(),
+		color = if headTitle then headTitle.TextColor3 else Color3.new(1, 1, 1),
+	}
+	local headPhase: string? = nil
+	local function headLook()
+		local phase = if open then hud:GetAttribute("AlertPhase") else nil
+		local now = if phase == "hold" or phase == "carry" then phase else nil
+		if now == headPhase or not headTitle then
+			return
+		end
+		local fresh = headPhase == nil
+		headPhase = now
+		local title = headTitle :: TextLabel
+		local iconLabel = if headIcon and headIcon:IsA("TextLabel") then headIcon else nil
+		if not now then
+			title.Text = headRest.title
+			title.Size = headRest.size
+			title.TextColor3 = headRest.color
+			if iconLabel then
+				iconLabel.Text = headRest.icon
+			end
+			return
+		end
+		local text = if now == "carry" then ALERT_TEXTS.Carry else ALERT_TEXTS.Hold
+		title.Text = text
+		title.TextColor3 = Palette.Berry.Top
+		if iconLabel then
+			iconLabel.Text = if now == "carry" then ALERT_TEXTS.IconCarry else ALERT_TEXTS.IconHold
+		end
+		local h = header.AbsoluteSize.Y
+		if h > 1 then
+			-- шире — по тексту, но не дальше места до кошелька (тесно — текст мельче)
+			local list = header:FindFirstChildOfClass("UIListLayout")
+			local pad = if list then list.Padding.Scale * header.AbsoluteSize.X + list.Padding.Offset else 0
+			local used = 0
+			for _, item in header:GetChildren() do
+				if item:IsA("GuiObject") and item.Visible and item ~= title then
+					used += item.AbsoluteSize.X + pad
+				end
+			end
+			local room = header.AbsoluteSize.X - used - pad
+			local need = UiFx.textWidth(text, UiFx.textSize("Title")) + HEAD_PAD
+			local width = math.max(math.min(need, room), headRest.size.X.Scale * h)
+			title.Size = UDim2.fromScale(width / h, headRest.size.Y.Scale)
+		end
+		if fresh then
+			UiFx.punch(title, { from = 0.7, peak = 1.12 })
+			if iconLabel then
+				UiFx.wiggle(iconLabel, 12, 3, 0.45)
+			end
+		end
+	end
+
 	local function refresh()
+		headLook()
 		for _, card in cards do
 			if card.key == "Shield" then
 				shieldLook(card)
@@ -674,18 +782,14 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 			opts.onShield(card.buy)
 			return
 		end
+		-- «⏳ 2:59», «ТЫ ПОД ЗАЩИТОЙ», «ПОСЛЕ КРАЖИ»: подпись кнопки уже говорит почему — она
+		-- качается и вспыхивает (под пальцем; уведомление легло бы на шапку листа с кошельком, а
+		-- «барабанить» — стопка одинаковых)
 		UiFx.wiggle(card.buy, 6, 2, 0.3)
-		local t = now()
-		if look == "wait" then
-			local left = (numberAttr(player, "ShieldReadyAt") or t) - t
-			NotifyController.Show(TextUtil.fill(TEXTS.Denied.cooldown, { t = StealRules.FormatClock(left) }), "warning")
-		elseif look == "protected" then
-			NotifyController.Show(
-				TextUtil.fill(TEXTS.Denied.protected, { t = StealRules.FormatClock(protectLeft()) }),
-				"warning"
-			)
+		local label = card.label
+		if label and label.Visible then
+			UiFx.flashText(label, Palette.Sun.Top, 0.4)
 		end
-		-- ("after": подпись «ПОСЛЕ КРАЖИ» уже говорит почему — только качается)
 	end
 
 	local function onItemTap(card: Card)
@@ -777,6 +881,7 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 			card.needUntil = 0
 			card.look = "" -- (открыли снова — вид и кольца заново)
 		end
+		headLook() -- (open уже false: шапка — снова «ЗАЩИТА»)
 		trove:Clean()
 	end
 
@@ -894,10 +999,12 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 				local level = if typeof(payload.Level) == "number" then payload.Level else 1
 				local entry = LOCK.Levels[math.clamp(level, 1, #LOCK.Levels)]
 				local spec = (TEXTS.Cards :: any)[item]
+				-- (ждёт ухода листа: штамп, конфетти и 💵 уже сказали «куплено»; уведомление — что
+				-- теперь будет, и легло бы на шапку с кошельком)
 				NotifyController.Show(
 					TextUtil.fill(text, { s = entry.Hold }),
 					"success",
-					{ icon = if spec then spec.Icon else nil }
+					{ icon = if spec then spec.Icon else nil, afterSheet = true }
 				)
 			end
 		end
