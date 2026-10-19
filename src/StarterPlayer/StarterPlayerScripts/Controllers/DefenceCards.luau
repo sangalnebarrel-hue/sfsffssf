@@ -102,7 +102,7 @@ local NAME_LINE = 1.25
 local LINE = 1.25
 local ALERT_RING = { Scale = 1.15, Thickness = 4, Time = 0.6, Every = 0.9 } -- кольца «ЩИТ!» на карточке
 -- Штамп «✔️ КУПЛЕНО»: уже кнопки (доля ширины карточки) и ниже (доля высоты Buy), наклон, °
-local STAMP = { Width = 0.8, Height = 0.86, Tilt = -3 }
+local STAMP = { Width = 0.86, Height = 0.86, Tilt = -3, TextMin = 12 }
 local ALERT_TEXTS = StealConfig.Texts.Alert -- шапка листа во время тревоги: «🚨 ВОР В САДКЕ!»
 local HEAD_PAD = 8 -- надпись шапки шире своего текста на столько px
 
@@ -127,6 +127,7 @@ type Card = {
 	effectText: string?, -- что сейчас в строке действия (её раскладка)
 	buyWidth: number, -- ширина кнопки (доля карточки) — штамп «КУПЛЕНО» уже
 	buyHeight: number?, -- высота кнопки по раскладке (доля карточки) — штамп ниже
+	labelMin: number?, -- MinTextSize подписи до штампа (штамп мельчит её, чтобы в одну строку)
 }
 
 export type Cards = {
@@ -403,6 +404,8 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		return { text = short, disc = math.clamp(discFor(short), CARD.DiscMin * ch, CARD.Disc * ch) }
 	end
 
+	local stampLook: (card: Card, on: boolean) -> () -- (ниже, у вида кнопки)
+
 	local function applyCard(card: Card, cw: number, ch: number, plan: Plan, disc: number)
 		local effect = card.effect
 		if not effect then
@@ -425,10 +428,12 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		effect.Size = UDim2.fromScale(effect.Size.X.Scale, math.max(buyTop - gap - effectTop, 1) / ch)
 		effect.Text = plan.text
 		card.effectText = plan.text
-		local buyShare = buyH / ch
-		card.buyHeight = buyShare
-		card.buy.Size =
-			UDim2.fromScale(card.buy.Size.X.Scale, buyShare * (if card.look == "bought" then STAMP.Height else 1))
+		card.buyHeight = buyH / ch
+		if card.look == "bought" then
+			stampLook(card, true) -- (размер и мелкий текст штампа — заново: экран сменился)
+		else
+			card.buy.Size = UDim2.fromScale(card.buy.Size.X.Scale, buyH / ch)
+		end
 		if card.state then
 			card.state.Visible = false -- (купленный замок пишет своё в строке действия)
 		end
@@ -530,7 +535,7 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 	-- «✔️ КУПЛЕНО» — штамп, а не кнопка: плоское лицо без блика и светлого ободка (после
 	-- setCandy), уже кнопки, чуть наклонён (нажатие только качает его); off — ширина и наклон
 	-- кнопки (цвет, ободок и градиент вернёт setCandy другого вида)
-	local function stampLook(card: Card, on: boolean)
+	function stampLook(card: Card, on: boolean)
 		local buy = card.buy
 		if on then
 			local face = UiFx.faceOf(buy)
@@ -548,9 +553,20 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 				fill.Color = ColorSequence.new(Palette.Leaf.Bottom)
 			end
 		end
+		-- штамп — одна строка «✔️ КУПЛЕНО»: мельче (до STAMP.TextMin px), но не в две
 		local label = card.label
 		if label then
-			label.TextWrapped = not on -- (штамп — одна строка «✔️ КУПЛЕНО», мельче, но не в две)
+			label.TextWrapped = not on
+			local fit = label:FindFirstChildOfClass("UITextSizeConstraint")
+			if fit then
+				if on then
+					card.labelMin = card.labelMin or fit.MinTextSize
+					fit.MinTextSize = math.min(STAMP.TextMin, fit.MaxTextSize)
+				elseif card.labelMin then
+					fit.MinTextSize = math.min(card.labelMin, fit.MaxTextSize)
+					card.labelMin = nil
+				end
+			end
 		end
 		local height = card.buyHeight or buy.Size.Y.Scale
 		buy.Size = UDim2.fromScale(if on then STAMP.Width else card.buyWidth, height * (if on then STAMP.Height else 1))

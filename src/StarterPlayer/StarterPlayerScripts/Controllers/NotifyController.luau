@@ -308,7 +308,8 @@ local function bandLimit(): number?
 			limit = if limit then math.min(limit, share) else share
 		end
 	end
-	local fisher = FishingLayout.fisherBox(Players.LocalPlayer.Character, Workspace.CurrentCamera, origin)
+	local player = Players.LocalPlayer
+	local fisher = FishingLayout.fisherBox(if player then player.Character else nil, Workspace.CurrentCamera, origin)
 		or (if isPhone() then FishingLayout.fallbackFisher(hud.AbsoluteSize) else nil)
 	if fisher then
 		cap(fisher.y0 - FISHER_GAP, fisher.x0, fisher.x1)
