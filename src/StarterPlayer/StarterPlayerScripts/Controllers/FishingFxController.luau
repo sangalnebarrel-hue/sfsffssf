@@ -2425,7 +2425,8 @@ end
 	просторнее, — меньше, не мельче PLATE_FIT.minScale. Плашки статуса с кошельком — над рыбой
 	(камера с трофеем выше, FX.TrophyCamera), но на телефоне строка кошелька с доходом «+$46/с»
 	почти касалась слова редкости: табличка опускается, чтобы её верх был ≥ 16 px под ней (не
-	больше чем на полвысоты). FishingLayout.plateFit: прямоугольник таблички на экране — studs ×
+	больше чем на полвысоты; Этап 4 — и под фишкой щита у правого края плашки базы).
+	FishingLayout.plateFit: прямоугольник таблички на экране — studs ×
 	пиксели на её глубине + пиксели, как у BillboardGui, и её ход PLATE_FIT.sway. Только в момент,
 	когда табличка выскакивает или подпрыгивает (не каждый кадр): камера с трофеем над головой
 	стоит, колонка и кошелёк — тоже.
@@ -2472,6 +2473,16 @@ local function fitOwnPlate(gui: BillboardGui)
 						left, right = (left + right - width) / 2, (left + right + width) / 2
 					end
 					table.insert(list, FishingLayout.rect(left - pad, at.Y - pad, right + pad, at.Y + size.Y + pad))
+					-- Этап 4: фишка щита «🛡️ 0:42» свисает с правого края плашки базы — табличка
+					-- трофея обходит и её (как флажок базы у FishingController.statusBoxes).
+					local chip = item:FindFirstChild("ShieldChip")
+					if chip and chip:IsA("GuiObject") and chip.Visible then
+						local cat, csize = chip.AbsolutePosition, chip.AbsoluteSize
+						table.insert(
+							list,
+							FishingLayout.rect(cat.X - pad, cat.Y - pad, cat.X + csize.X + pad, cat.Y + csize.Y + pad)
+						)
+					end
 				end
 			end
 		end

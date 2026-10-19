@@ -25,9 +25,17 @@
 	    продажа связана с полным садком), на прилёте — НИЧЕГО (призрак улетел в кошелёк, сумму
 	    празднует сам MoneyController).
 	    Нет Tank в "Caught" (садок не принял рыбу) — фишка не меняется, кнопка лишь чуть
-	    подпрыгивает. Без CounterHold (нет карточки; Этап 4: "Stored") — тот же прилёт через
-	    ArrivalWait после события / через StoredWait после роста TankCount (если "Caught" не
-	    пришёл следом: он мог отстать от атрибутов на кадр).
+	    подпрыгивает. Без CounterHold (нет карточки) — тот же прилёт через ArrivalWait после
+	    события / через StoredWait после роста TankCount (если "Caught" не пришёл следом: он мог
+	    отстать от атрибутов на кадр).
+	  • Этап 4, краденая рыба (TankEvent "Stored" — TankResult и Fish прямо в данных: тот же
+	    прилёт "stored" / "replaced", с монетами за проданную слабейшую): пока у HUD атрибут
+	    TankIncoming (редкость; TheftController ставит его на вынос и снимает, когда 🐟 с головы вора
+	    долетела в кнопку, — docs/stage4_design.md §6.4), прилёт ждёт, фишка заморожена, нажатие
+	    откроет панель после прилёта — как под CounterHold. У хозяина украли (StealEvent "Lost") —
+	    красная вспышка лица и кольцо, кнопка качается «нет», фишка мигает красным
+	    (UIConfig.TankButton.Lost); число катится вниз по TankCount — так кража отличается от
+	    продажи (§6.8).
 	  • «!» новичка: после прилёта первой рыбы за всё время (Tank.First) — UiFx.badgeBob(Badge) и
 	    уведомление TankConfig.Texts.FirstFish (Water 🐠; MoneyController.CatchToast: не раньше,
 	    чем трофей над головой ушёл — на планшете плашка легла бы на него); панель садка
@@ -42,8 +50,8 @@
 	    форма, 🐠 и подпись.
 	    «Жизнь» HUD (HudController) вместо 🐟 счётчика качает 🐠 этой кнопки.
 	Атрибуты, которые читает: Player — TankCount, TankSlots, DataMode, BaseIndex, FishingState; HUD
-	— CounterHold, CounterIncoming, IntroAt. Remote: FishingState "Caught" (Tank). Соединения — один
-	раз на сессию.
+	— CounterHold, CounterIncoming, TankIncoming, IntroAt. Remote: FishingState "Caught" (Tank),
+	TankEvent "Stored", StealEvent "Lost". Соединения — один раз на сессию.
 
 	API:
 	  TankButtonController:Start(hud)
@@ -125,8 +133,10 @@ function TankButtonController:Start(hud: ScreenGui)
 	button.Visible = false
 	badge.Visible = false
 
+	-- Рыба ещё летит в кнопку: улов (CounterHold) или краденая с головы вора (Этап 4: TankIncoming,
+	-- его ставит TheftController на вынос и снимает, когда 🐟 долетела).
 	local function holding(): boolean
-		return hud:GetAttribute("CounterHold") ~= nil
+		return hud:GetAttribute("CounterHold") ~= nil or hud:GetAttribute("TankIncoming") ~= nil
 	end
 
 	local function chipText(count: number, slots: number): string
@@ -272,13 +282,10 @@ function TankButtonController:Start(hud: ScreenGui)
 		end
 	end
 
-	-- "Caught": запомнить, что за прилёт играть; без CounterHold — сыграть сразу.
-	Net.Event("FishingState").OnClientEvent:Connect(function(kind: any, data: any)
-		if kind ~= "Caught" or typeof(data) ~= "table" or typeof(data.Fish) ~= "table" then
-			return
-		end
-		local fish = data.Fish
-		local tank = if typeof(data.Tank) == "table" then data.Tank else nil
+	-- "Caught" (Tank — что стало в садке) или TankEvent "Stored" (Этап 4: рыба легла не из
+	-- улова — краденая; TankResult прямо в данных): запомнить, что за прилёт играть; пока рыба
+	-- летит (CounterHold / TankIncoming) — ждать, иначе — сыграть через ArrivalWait.
+	local function expect(fish: any, tank: any)
 		local catch: Pending = {
 			result = if tank and typeof(tank.Result) == "string" then tank.Result else nil,
 			rarity = if typeof(fish.Rarity) == "string" then fish.Rarity else "Common",
@@ -298,16 +305,49 @@ function TankButtonController:Start(hud: ScreenGui)
 		if catch.result == "sold" and button.Visible then
 			stopPulse = UiFx.pulse(chip, SPEC.SoldPulse, SPEC.SoldPeriod)
 		end
-		-- (FishingController ставит CounterHold на этот же "Caught" — до нас или после)
+		-- (FishingController ставит CounterHold на этот же "Caught" — до нас или после;
+		-- TheftController держит TankIncoming с начала выноса до прилёта 🐟)
 		task.delay(SPEC.ArrivalWait, function()
 			if pending == catch and not holding() then
 				arrive()
 			end
 		end)
+	end
+	Net.Event("FishingState").OnClientEvent:Connect(function(kind: any, data: any)
+		if kind == "Caught" and typeof(data) == "table" and typeof(data.Fish) == "table" then
+			expect(data.Fish, if typeof(data.Tank) == "table" then data.Tank else nil)
+		end
+	end)
+	Net.Event("TankEvent").OnClientEvent:Connect(function(kind: any, data: any)
+		if kind == "Stored" and typeof(data) == "table" and typeof(data.Fish) == "table" then
+			expect(data.Fish, data)
+		end
+	end)
+
+	-- Этап 4: у хозяина украли рыбу (StealEvent "Lost") — «САДОК» вспыхивает красным ободком и
+	-- качается «нет», фишка мигает Berry; само число катится вниз по атрибуту TankCount.
+	Net.Event("StealEvent").OnClientEvent:Connect(function(kind: any)
+		if kind ~= "Lost" or not button.Visible then
+			return
+		end
+		local lost = SPEC.Lost
+		UiFx.morphFlash(button, Palette.Berry.Bottom)
+		UiFx.glowRing(button, {
+			color = Palette.Berry.Top,
+			scale = SPEC.Ring.Scale,
+			thickness = SPEC.Ring.Thickness,
+			time = SPEC.Ring.Time,
+		})
+		UiFx.wiggle(button, lost.Wiggle, lost.Swings, lost.Time)
+		UiFx.flashText(chipLabel, Palette.Berry.Bottom, lost.Time)
 	end)
 
 	hud.AttributeChanged:Connect(function(name: string)
-		if name == "CounterHold" then
+		if name == "CounterHold" or name == "TankIncoming" then
+			local value = hud:GetAttribute(name)
+			if name == "TankIncoming" and typeof(value) == "string" then
+				incoming = value -- (прилёт в цветах редкости краденой рыбы)
+			end
 			if not holding() then
 				arrive() -- (и без "Caught": фишка догоняет атрибуты, выросла — тот же прилёт)
 			end

@@ -208,10 +208,19 @@
 	элемент HUD (child) — через 5 с ошибка с путём, а не вечное ожидание (ClientMain тогда
 	запускает остальные контроллеры).
 
+	Этап 4 (кража, docs/stage4_design.md §6.4): пока крадёшь (атрибут HUD Stealing) и пока внизу
+	полоса вора HUD.TheftBar или «ДОБЫЧА!» HUD.TheftTitle (TheftController), нижняя полоса —
+	их: кнопка действия спрятана, подсказка «куда идти» ждёт, а пока крадёшь — и луч к кругу (у
+	вора своя красная дорожка); ушли — всё возвращается сразу. Большие слова над панелью и
+	прижатые слева мини-игра и карточка обходят и фишку щита у плашки базы, и видимые части
+	тревоги хозяина HUD.TheftAlert и полосы вора (statusBoxes / dockBand, как флажок базы).
+
 	API для других контроллеров: GetPhase() — состояние; HurryCard() (Этап 4, DC-02) — тревога
 	кражи важнее карточки улова: AlertController просит закрыть карточку её обычным путём (как
-	«ЗАБРАТЬ!»: полёт в «САДОК» доигрывает), карточку в паузе перед ней — как только встанет
-	(волна 0 — контракт: пока ничего не делает; тело — Wave 2 C).
+	«ЗАБРАТЬ!»: она сама и 🐟 летят в «САДОК», CounterHold снимается на прилёте): показана
+	целиком — сразу; доли ещё идут — показываются разом, последняя закрывает её через
+	CARD.Linger; ещё не открылась (пауза эпической и выше, слово редкости доигрывает) — так же,
+	как только откроется (атрибут карточки Hurry). Улова на экране нет — ничего.
 ]]
 
 local ContextActionService = game:GetService("ContextActionService")
@@ -1248,6 +1257,35 @@ do
 			local stick = if smallTouchScreen() then Layout.JUMP_SMALL else Layout.JUMP_BIG -- джойстик — зеркало прыжка
 			bottom -= stick.bottom + stick.size
 		end
+		-- Этап 4 (как флажок базы): фишка щита свисает с правого края плашки базы; тревога хозяина
+		-- (колонка уведомлений) и полоса вора (нижняя полоса) — по видимым частям. Что выше
+		-- середины экрана — опускает верх, что ниже — поднимает низ.
+		local parts: { Instance } = {}
+		local badge = ui.status:FindFirstChild("BaseBadge")
+		local chip = badge and badge:FindFirstChild("ShieldChip")
+		if badge and chip and (badge :: GuiObject).Visible then
+			table.insert(parts, chip)
+		end
+		for _, name in { "TheftAlert", "TheftBar" } do
+			local holder = ui.hud:FindFirstChild(name)
+			if holder and (holder :: GuiObject).Visible then
+				for _, child in holder:GetChildren() do
+					table.insert(parts, child)
+				end
+			end
+		end
+		for _, part in parts do
+			if part:IsA("GuiObject") and part.Visible then
+				local at = part.AbsolutePosition - origin
+				if at.X < x1 and at.X + part.AbsoluteSize.X > Layout.EDGE then
+					if at.Y + part.AbsoluteSize.Y / 2 < height / 2 then
+						top = math.max(top, at.Y + part.AbsoluteSize.Y + Layout.EDGE + edge)
+					else
+						bottom = math.min(bottom, at.Y - Layout.EDGE - edge)
+					end
+				end
+			end
+		end
 		return top, bottom
 	end
 
@@ -1698,7 +1736,13 @@ do
 		local look = if collect then COLLECT_LOOK elseif catchScreen then CATCH_LOOK else currentLook()
 		local button = ui.actionButton
 		local wasVisible = button.Visible
-		local visible = rod ~= nil or offerTake
+		-- Этап 4 (§6.4): пока крадёшь (HUD.Stealing) и пока внизу полоса вора или «ДОБЫЧА!»
+		-- (TheftController), нижняя полоса — их: кнопка ждёт (у чужой витрины ей делать нечего).
+		local theftBar, theftTitle = ui.hud:FindFirstChild("TheftBar"), ui.hud:FindFirstChild("TheftTitle")
+		local visible = (rod ~= nil or offerTake)
+			and ui.hud:GetAttribute("Stealing") == nil
+			and not (theftBar and (theftBar :: GuiObject).Visible)
+			and not (theftTitle and (theftTitle :: GuiObject).Visible)
 		button.Visible = visible
 		-- Клавиша действия (F / R2) — на «клавише» у плеча кнопки, когда действие ею доступно; она
 		-- «ударяет», появляясь.
@@ -1786,7 +1830,14 @@ do
 		-- Он в мире и рыбака не закрывает: горит и пока своя рыба над головой («ДОМОЙ» сразу после
 		-- улова — луч уже ведёт назад).
 		local idle = take or (rod ~= nil and phase == "Idle")
-		if idle and root and spot and not near and not catchScreen then
+		-- Этап 4 (§6.4): пока крадёшь (HUD.Stealing) — ни луча, ни «куда идти» (у вора своя красная
+		-- дорожка); пока внизу полоса вора или «ДОБЫЧА!» — подсказка ждёт (это их полоса).
+		local stealing = ui.hud:GetAttribute("Stealing") ~= nil
+		local theftBar, theftTitle = ui.hud:FindFirstChild("TheftBar"), ui.hud:FindFirstChild("TheftTitle")
+		local theftShown = stealing
+			or (theftBar ~= nil and (theftBar :: GuiObject).Visible)
+			or (theftTitle ~= nil and (theftTitle :: GuiObject).Visible)
+		if idle and root and spot and not near and not catchScreen and not stealing then
 			guideTo = spot
 		end
 		-- Текст ждёт. v3: на телефоне (HUD ниже 500 px), пока своя рыба над головой: рыбак с
@@ -1799,7 +1850,7 @@ do
 			and character:FindFirstChild("HeldFish") ~= nil
 			and ui.fishing.AbsoluteSize.Y < 500
 		local welcome = ui.baseBanner ~= nil and ui.baseBanner.Visible
-		if not catchScreen and not trophy and not welcome then
+		if not catchScreen and not trophy and not welcome and not theftShown then
 			if guideTo then
 				text = HINT_FAR
 			elseif rod and idle and root and spot then
@@ -4342,6 +4393,7 @@ do
 		local ghost = ghostCard()
 		cardTrove:Clean()
 		card.Visible = false
+		card:SetAttribute("Hurry", nil) -- (Этап 4: HurryCard сделал своё)
 		cardSettled = true
 		clearTitle()
 		-- Кнопка снова «замирает» (тусклое «ЖДЁМ…», без ореола), пока 🐟 не долетит: сначала вид,
@@ -5307,6 +5359,11 @@ do
 			-- бы ореол «ЗАБРАТЬ!».
 			unfadeGroup(ui.actionButton, 0)
 			refreshButtons()
+			-- Этап 4 (DC-02, HurryCard): тревога кражи торопит — показанная целиком, карточка
+			-- уходит обычным путём через CARD.Linger (как самая ранняя своя), 🐟 летит в «САДОК».
+			if card:GetAttribute("Hurry") then
+				later(cardTrove, CARD.Linger, closeCard)
+			end
 			if style.Flash then
 				-- Блик по баннеру — когда «+$4/с» уже растаял (заливка на телефоне).
 				cardTrove:Add(UiFx.shineLoop(ui.banner, { interval = 2.4, delay = if instant then 0.4 else 0.9 }))
@@ -5356,6 +5413,16 @@ do
 				count()
 			end
 		end)
+		-- Этап 4 (DC-02): тревога пришла, пока карточка ждала (пауза эпической и выше, слово
+		-- редкости) — как только защита от лишнего тапа прошла, доли показываются разом, а
+		-- последняя закрывает её (Hurry выше).
+		if card:GetAttribute("Hurry") then
+			later(cardTrove, CARD_INPUT_LOCK, function()
+				if not cardSettled then
+					skipBeats()
+				end
+			end)
+		end
 
 		refreshContextHint()
 	end
@@ -5490,6 +5557,7 @@ do
 		if ui.card.Visible then
 			closeCard() -- прошлая карточка ещё открыта (редко): уходит сразу
 		end
+		ui.card:SetAttribute("Hurry", nil) -- (Этап 4: новый улов — своя карточка, не торопим)
 		catchSerial += 1
 		local serial = catchSerial
 		catchScreen = true
@@ -5890,13 +5958,23 @@ do
 	local Layout = require(script.Parent:WaitForChild("FishingLayout")) -- слова — не на рыбаке и статусе
 
 	-- Плашки статуса (видимые) и флажок базы над плашкой (он выступает за неё вверх и влево), px
-	-- HUD.Fishing: большие слова над панелью на них не заходят (ART-04).
+	-- HUD.Fishing: большие слова над панелью на них не заходят (ART-04). Этап 4: и фишка щита
+	-- (свисает с правого края плашки базы), и видимые части тревоги хозяина и полосы вора.
 	local function statusBoxes(): { any }
 		local origin = ui.fishing.AbsolutePosition
 		local boxes = {}
-		for _, item in ui.status:GetChildren() do
+		local items = ui.status:GetChildren()
+		for _, name in { "TheftAlert", "TheftBar" } do
+			local holder = ui.hud:FindFirstChild(name)
+			if holder and (holder :: GuiObject).Visible then
+				for _, child in holder:GetChildren() do
+					table.insert(items, child)
+				end
+			end
+		end
+		for _, item in items do
 			if item:IsA("GuiObject") and item.Visible then
-				for _, part in { item, item:FindFirstChild("FlagSocket") } do
+				for _, part in { item, item:FindFirstChild("FlagSocket"), item:FindFirstChild("ShieldChip") } do
 					if part and part:IsA("GuiObject") and part.Visible then
 						local at = part.AbsolutePosition - origin
 						table.insert(
@@ -7410,8 +7488,25 @@ function FishingController.GetPhase(): string
 	return phase
 end
 
--- Этап 4 (DC-02): закрыть карточку улова обычным путём — тревога кражи важнее. Волна 0: пусто.
-function FishingController.HurryCard() end
+--[[
+	Этап 4 (DC-02): тревога кражи важнее карточки улова — карточка уходит ОБЫЧНЫМ путём, как от
+	«ЗАБРАТЬ!» (сама летит в «САДОК», за ней 🐟; CounterHold снимается на прилёте). Показана
+	целиком — сразу; её доли ещё идут — показываются разом, и последняя закрывает её через
+	CARD.Linger; карточка ещё не открылась (пауза эпической и выше: слово редкости доигрывает) —
+	то же, как только откроется (атрибут карточки Hurry; снимается, когда она закрыта, и на новом
+	улове). Нет улова на экране — ничего.
+]]
+function FishingController.HurryCard()
+	if (ui :: any) == nil or not catchScreen then
+		return
+	end
+	local card = ui.card
+	card:SetAttribute("Hurry", true)
+	if card.Visible then
+		cardOpenedAt = -math.huge -- (это не лишний тап: защита первых долей не держит)
+		tapCard() -- показана целиком — закрыть; доли идут — показать разом (последняя закроет)
+	end
+end
 
 function FishingController:Start(hud: ScreenGui)
 	ui = collectUi(hud)
@@ -7470,6 +7565,22 @@ function FishingController:Start(hud: ScreenGui)
 		onCharacterAdded(player.Character)
 	end
 	refreshButtons()
+
+	-- Этап 4 (§6.4): пока крадёшь (HUD.Stealing) и пока внизу полоса вора или «ДОБЫЧА!»
+	-- (TheftController), кнопка действия и подсказка ждут — и возвращаются, как только те ушли.
+	guarded("кража", function()
+		local function theftChanged()
+			refreshButtons()
+			refreshContextHint()
+		end
+		hud:GetAttributeChangedSignal("Stealing"):Connect(theftChanged)
+		for _, name in { "TheftBar", "TheftTitle" } do
+			local widget = hud:FindFirstChild(name)
+			if widget and widget:IsA("GuiObject") then
+				widget:GetPropertyChangedSignal("Visible"):Connect(theftChanged)
+			end
+		end
+	end)
 
 	-- В мини-игре нажатие считается в момент касания (MouseButton1Down приходит и от касания
 	-- пальцем), а не отпускания (Activated): стрелка за время касания успевает уехать.
