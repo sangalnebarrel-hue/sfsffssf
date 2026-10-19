@@ -47,6 +47,7 @@ local CFrame = roblox.CFrame
 -- The thief's own small tank (free displays: the loot always fits).
 local OWN = { { Id = "Crucian", Age = 30 }, { Id = "Perch", Age = 60 } }
 -- The neighbour's tank (base 2).
+local LONGEST = "SharkPup"
 local NEIGHBOUR = {
 	{ Id = "Perch", Age = 90 },
 	{ Id = "Crucian", Age = 40 },
@@ -290,7 +291,7 @@ return function(H: { [string]: any }): { any }
 		h:advance(0.2)
 	end
 
-	return {
+	local list = {
 		{
 			name = "thief_court_hint",
 			desc = "A neighbour's court with fish he can take (TheftPrompts shows them): the first-time hint on glass in the bottom band — «Зажми «Украсть» у витрины и унеси рыбу за ограду!» (PC: «Держи E…»); «ВЗЯТЬ» and the fishing hint step aside",
@@ -469,7 +470,8 @@ return function(H: { [string]: any }): { any }
 			run = function(h: any)
 				statusRule(h)
 				holdCourt(h)
-				h:tank(OWN)
+				-- (his «САДОК» reads 2/6; base 1's displays — the robbed ones — stay as painted)
+				h.player:SetAttribute("TankCount", #OWN)
 				follow(h, h.player)
 			end,
 			during = function(h: any)
@@ -523,4 +525,227 @@ return function(H: { [string]: any }): { any }
 			end,
 		},
 	}
+
+	-- ===== critic extras (C1-R1): every fail reason, the denied variants, a full-tank ЗАМЕНА =====
+	local function failScenario(reason: string, phase: string): any
+		return {
+			name = `thief_fail_{reason}`,
+			desc = `critic: «СОРВАЛОСЬ!» with Cancel.{reason} in the {phase}`,
+			world = true,
+			standard = false,
+			still = { 0.25, 1.2 },
+			burst = false,
+			run = function(h: any)
+				statusRule(h)
+				if phase == "carry" then
+					h:money(1215, 459)
+					H.court(h, { -14, 8.9, 66.7 }, { -14, 4.6, 55 }, 70)
+					H.place(h, h.player, { -14, 3.2, 55 }, { -14, 0, 40 })
+					holdOn(h, 3, 3)
+					h:advance(0.3)
+					carryOn(h, 3, "Puffer", false)
+					h:advance(0.6)
+				else
+					holdCourt(h)
+					holdOn(h, 3, 3)
+					h:advance(1.2)
+				end
+				H.steal(h, 3, nil)
+				local fish = h.player.Character and h.player.Character:FindFirstChild("StolenFish")
+				if fish then
+					fish:Destroy()
+				end
+				h:stealEvent("Cancel", {
+					Reason = reason,
+					Text = h:config("StealConfig").Texts.Cancel[reason],
+					Phase = phase,
+				})
+				h:steal(nil)
+			end,
+		}
+	end
+	local extras = {}
+	for _, pair in {
+		{ "released", "hold" },
+		{ "far", "hold" },
+		{ "died", "carry" },
+		{ "tag", "carry" },
+		{ "deadline", "hold" },
+		{ "timeout", "carry" },
+		{ "speed", "carry" },
+		{ "victim", "carry" },
+		{ "full", "carry" },
+		{ "busy", "hold" },
+	} do
+		table.insert(extras, failScenario(pair[1], pair[2]))
+	end
+	local function deniedScenario(reason: string, left: number?): any
+		return {
+			name = `thief_denied_{reason}`,
+			desc = `critic: Denied {reason} on glass`,
+			world = true,
+			standard = false,
+			still = { 0.3, 1.5 },
+			burst = false,
+			run = function(h: any)
+				holdCourt(h)
+				local rules = h.sim:Require(h.sim:Find("ReplicatedStorage.Shared.StealRules"))
+				h:stealEvent("Denied", {
+					Reason = reason,
+					Text = rules.DeniedText(reason, left),
+					BaseIndex = ownBaseIndex(h),
+					Slot = 3,
+				})
+			end,
+		}
+	end
+	for _, pair in { { "weak" }, { "owner" }, { "tagged", 18 }, { "rest", 372 }, { "few" }, { "new", 21 }, { "full" }, { "after", 95 } } do
+		table.insert(extras, deniedScenario(pair[1], pair[2]))
+	end
+	-- The own base protected (newbie) and a neighbour's court: «Начнёшь красть — твоя защита погаснет».
+	table.insert(extras, {
+		name = "thief_court_protected",
+		desc = "critic: own base protected, entering a neighbour's court",
+		world = true,
+		standard = false,
+		still = { 0.6, 2.5 },
+		burst = false,
+		run = function(h: any)
+			h:shield(300, 0, "newbie")
+			local _, other = neighbourCourt(h)
+			intoCourt(h, other)
+		end,
+		during = function(h: any)
+			h:advance(2.6)
+		end,
+	})
+	-- NoReply: «Подожди секунду».
+	table.insert(extras, {
+		name = "thief_noreply",
+		desc = "critic: no reply to a hold → «Подожди секунду»",
+		world = true,
+		standard = false,
+		still = { 0.3, 1.5 },
+		burst = false,
+		run = function(h: any)
+			holdCourt(h)
+			local steal = h:config("StealConfig")
+			h:stealEvent("Denied", { Reason = "busy", Text = steal.Texts.Banner.NoReply, BaseIndex = ownBaseIndex(h), Slot = 3 })
+		end,
+	})
+	-- Full own tank: the theft replaces his weakest fish («ЗАМЕНА!» + coins).
+	local FULL = {
+		{ Id = "Crucian", Age = 30 },
+		{ Id = "Perch", Age = 60 },
+		{ Id = "Perch", Age = 60 },
+		{ Id = "Crucian", Age = 60 },
+		{ Id = "Perch", Age = 60 },
+		{ Id = "Perch", Age = 60 },
+	}
+	table.insert(extras, {
+		name = "thief_done_replaced",
+		desc = "critic: full own tank; the stolen Puffer replaces his weakest Crucian («ЗАМЕНА!», coins)",
+		world = true,
+		standard = false,
+		still = { 0.15, 0.5, 0.9, 1.3, 1.8, 2.4, 3.0 },
+		sheet = { from = 0, to = 3.2, fps = 5 },
+		burst = false,
+		run = function(h: any)
+			statusRule(h)
+			h:money(1215, 459)
+			H.court(h, { -2, 8.9, 25 }, { 0, 4.6, 12 }, 70)
+			h:tank(FULL)
+			H.place(h, h.player, { 0, 3.2, 14 }, { 0, 0, 0 })
+			holdOn(h, 3, 3)
+			h:advance(0.2)
+			carryOn(h, 3, "Puffer", false)
+			h:advance(0.4)
+			local fish = h.player.Character and h.player.Character:FindFirstChild("StolenFish")
+			if fish then
+				fish:Destroy()
+			end
+			H.steal(h, 3, nil)
+			local data = h:theftFish("Puffer")
+			local gone = h:theftFish("Crucian")
+			local price = math.floor(gone.Value)
+			h:money(1215 + price, 459)
+			local stored = {
+				Result = "replaced",
+				Slot = 1,
+				Uid = "harness-stolen",
+				Count = 6,
+				Slots = 6,
+				Price = price,
+				Replaced = { Id = "Crucian", Uid = "own-1", Price = price, Rarity = gone.Rarity, Kg = gone.Kg },
+				Fish = { Id = data.Id, Rarity = data.Rarity, Kg = data.Kg, Value = data.Value, Income = data.Income },
+			}
+			h:tankEvent("Stored", stored)
+			h:stealEvent("Done", {
+				Fish = stored.Fish,
+				Result = { Result = "replaced", Slot = 1, Count = 6, Slots = 6, Price = price },
+				Name = "Ника",
+			})
+			h:steal(nil)
+		end,
+	})
+	-- A Legendary steal (rainbow arpeggio / confetti) to see the slam with a big fish name.
+	table.insert(extras, {
+		name = "thief_done_long",
+		desc = "critic: «ДОБЫЧА!» with the longest fish short name",
+		world = true,
+		standard = false,
+		still = { 0.5, 1.2 },
+		burst = false,
+		run = function(h: any)
+			statusRule(h)
+			h:money(1215, 459)
+			H.court(h, { -2, 8.9, 25 }, { 0, 4.6, 12 }, 70)
+			h:tank(OWN)
+			H.place(h, h.player, { 0, 3.2, 14 }, { 0, 0, 0 })
+			holdOn(h, 3, 3, LONGEST)
+			h:advance(0.2)
+			carryOn(h, 3, LONGEST, false)
+			h:advance(0.4)
+			credit(h, 3, LONGEST)
+		end,
+	})
+	table.insert(extras, {
+		name = "thief_hold_long",
+		desc = "critic: «КРАДЁШЬ: …» with the longest fish short name",
+		world = true,
+		standard = false,
+		still = { 0.6 },
+		burst = false,
+		run = function(h: any)
+			statusRule(h)
+			holdCourt(h)
+			holdOn(h, 3, 3, LONGEST)
+			h:advance(0.5)
+		end,
+	})
+
+
+	table.insert(extras, {
+		name = "thief_hold_ended",
+		desc = "critic: his own base was protected; the hold starts and DefenceService's toast «Твоя защита снята…» lands in the toast column over the robbed display",
+		world = true,
+		standard = false,
+		still = { 0.4, 1.2 },
+		burst = false,
+		run = function(h: any)
+			statusRule(h)
+			holdCourt(h)
+			holdOn(h, 3, 3)
+			h:notify(h:config("StealConfig").Texts.Hint.Ended, "shield")
+			h:advance(0.1)
+		end,
+		during = function(h: any)
+			h:advance(1.2)
+			H.measure(h, 3, "thief_hold_ended")
+		end,
+	})
+	for _, s in extras do
+		table.insert(list, s)
+	end
+	return list
 end

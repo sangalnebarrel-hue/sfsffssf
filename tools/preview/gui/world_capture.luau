@@ -81,7 +81,8 @@
 
 	Stage 4 (TheftWorldController): the client's Workspace.TheftWorld folder is walked the same
 	way (the dome, the lamp's glow and the siren's lights, «ВОР!», the flag label, the carried
-	fish's plate, «ГАВ!», the Highlight).
+	fish's plate, «ГАВ!», the Highlight); and the thief's red guide Workspace.TheftGuide
+	(TheftController: the chevrons on the ground, the exit ring, «ВЫХОД»).
 
 	Stage 3 (TankWorldController): the client's Workspace.TankWorld folder is walked like
 	FishingFx (display fish as solids — no x-ray marks —, the words over the displays, the tank
@@ -129,6 +130,7 @@ local FISH_NAMES = { HeldFish = true, Leap = true, Dive = true }
 local AMBIENT_FOLDER = "Ambient (client)" -- AmbientController's own parts
 local TANK_FOLDER = "TankWorld" -- TankWorldController's own parts, words and FX (stage 3)
 local THEFT_FOLDER = "TheftWorld" -- TheftWorldController's dome, lights, words, Highlight (stage 4)
+local GUIDE_FOLDER = "TheftGuide" -- TheftController's red guide to the exit (stage 4, the thief)
 local SPOT_PATCH = 0.16 -- a SpotLight's lit ground patch: opacity at Brightness 6 (stage 4 siren)
 local LABEL_RANGE = 60 -- the display labels (Pedestal.LabelGui, MaxDistance 60) drawn this near
 -- Map movers (AmbientWorld): kinds and how far from the spot they are drawn moving, studs.
@@ -754,6 +756,10 @@ function Capture:scan(): { any }
 	local theftWorld = self:clientFolder(THEFT_FOLDER)
 	if theftWorld then
 		walk(theftWorld, nil, nil, nil, true)
+	end
+	local guide = self:clientFolder(GUIDE_FOLDER)
+	if guide then
+		walk(guide, nil, nil, nil, true)
 	end
 	for _, plr in self.sim:GetPlayers() do
 		local character = plr.Character

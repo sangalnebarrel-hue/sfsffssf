@@ -210,8 +210,9 @@
 
 	Этап 4 (кража, docs/stage4_design.md §6.4): пока крадёшь (атрибут HUD Stealing) и пока внизу
 	полоса вора HUD.TheftBar или «ДОБЫЧА!» HUD.TheftTitle (TheftController), нижняя полоса —
-	их: кнопка действия спрятана, подсказка «куда идти» ждёт, а пока крадёшь — и луч к кругу (у
-	вора своя красная дорожка); ушли — всё возвращается сразу. Большие слова над панелью и
+	их: кнопка действия спрятана, подсказка «куда идти» ждёт (и F / клик удочкой / R2 её не
+	зовут: pointToSpot), а пока крадёшь — и луч к кругу (у вора своя красная дорожка); ушли —
+	всё возвращается сразу. Большие слова над панелью и
 	прижатые слева мини-игра и карточка обходят и фишку щита у плашки базы, и видимые части
 	тревоги хозяина HUD.TheftAlert и полосы вора (statusBoxes / dockBand, как флажок базы).
 
@@ -1882,7 +1883,15 @@ do
 	local pointedAt = -math.huge
 	function pointToSpot()
 		local now = os.clock()
-		if now - pointedAt < POINT_GAP then
+		-- Этап 4 (§6.4): пока крадёшь и пока внизу полоса вора или «ДОБЫЧА!» — нижняя полоса их
+		-- (F, клик удочкой, R2 не зовут «Иди в сверкающий круг…» поверх полосы).
+		local bar, slam = ui.hud:FindFirstChild("TheftBar"), ui.hud:FindFirstChild("TheftTitle")
+		if
+			now - pointedAt < POINT_GAP
+			or ui.hud:GetAttribute("Stealing") ~= nil
+			or (bar and (bar :: GuiObject).Visible)
+			or (slam and (slam :: GuiObject).Visible)
+		then
 			return
 		end
 		pointedAt = now

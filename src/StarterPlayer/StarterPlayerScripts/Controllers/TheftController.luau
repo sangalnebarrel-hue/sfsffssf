@@ -1,7 +1,7 @@
 --!strict
 --[[
 	TheftController — вор (Этап 4): кнопки «Украсть» у чужих витрин и всё, что видит крадущий
-	(docs/stage4_design.md §1.1, §5.1, §6.4 rev. 3; виджеты — HUD.TheftBar и HUD.TheftTitle,
+	(docs/stage4_design.md §1.1, §5.1, §6.4 rev. 3, §11.6; виджеты — HUD.TheftBar и HUD.TheftTitle,
 	tools/builder/gui/Steal.luau; числа — UIConfig.Theft, тексты и значки — StealConfig.Texts).
 	Сервер решает всё (StealService); клиент только показывает и гасит кольцо кнопки.
 
@@ -9,30 +9,48 @@
 	  • Кнопки «Украсть» — помощник TheftPrompts: прячет те, что красть нельзя, МЕСТНЫМ
 	    MaxActivationDistance = 0 (сервер это свойство не пишет — его записи кнопку не вернут,
 	    BE-14), по строкам Shared/TheftChecks с Client = true; кнопку, которую держишь, — никогда.
+	    Хозяин поймал ("Cancel" «tag») — его база спрятана на Limits.TagCooldown с (SetTagged:
+	    строка «wait» TagLeft, как у сервера).
 	  • Полоса вора HUD.TheftBar — в НИЖНЕЙ полосе (§6.4 rev. 3: с камеры вора витрина, которую он
 	    грабит, — в верхней середине экрана, где плашки статуса и уведомления), по центру, между
 	    джойстиком и кнопкой прыжка (≥ Theft.Bar.Gap px от них и от края; не шире Theft.Width
-	    экрана и WidthMax px; верх — Bar.Top высоты HUD). Её виды:
-	      удержание — StealEvent "Hold": тёмная плашка (Night), 🥷 «КРАДЁШЬ: ОКУНЬ», «Не отходи!»,
-	        полоса заполняется к серверному концу End (один линейный твин, без покадровой
-	        работы), «1,8 с» (цепочка task.delay Bar.HoldTick);
-	      вынос — "Carry": красная (Berry), 🏃 «БЕГИ ЗА ОГРАДУ!», «Не попадись хозяину», полоса
-	        тает к End выноса, «21 с» (Bar.CarryTick); пока собака держит (атрибут Slowed) —
-	        «🐕 СОБАКА!» над правым краем; красная дорожка (Beam «TheftGuide», рецепт луча
-	        рыбалки) от вора к ближайшему выходу StealRules.NearestExit (раз в BeamEvery с);
-	      срыв — "Cancel": красная, трясётся, 💨 «СОРВАЛОСЬ!» и одна строка причины (Text
-	        сервера), FailTime с; в удержании гасит кольцо своей кнопки (InputHoldEnd: сервер
-	        кнопки не выключает — BE-15);
+	    экрана и WidthMax px; верх — Bar.Top высоты HUD); ширина меняется твином за Bar.Resize с
+	    (подсказка ↔ кража). Её виды:
+	      удержание — StealEvent "Hold": тёмная плашка (Night), 🥷 «КРАДЁШЬ: ОКУНЬ», под ним
+	        толстая полоса (Berry) заполняется к серверному концу End (один линейный твин, без
+	        покадровой работы), в ней «Не отходи!» и «1,8 с» (цепочка task.delay Bar.HoldTick:
+	        на каждой целой секунде «1,8 с» подпрыгивает, за Bar.HoldWarn с до конца ободок
+	        плашки вспыхивает);
+	      вынос — "Carry": красная (Berry), 🏃 «БЕГИ ЗА ОГРАДУ!», золотая полоса тает к End
+	        выноса (толчок на старте), в ней «Не попадись хозяину» и «21 с» (Bar.CarryTick;
+	        последние Bar.CarryWarn с — «21 с» подпрыгивает, ободок вспыхивает); пока собака
+	        держит (атрибут Slowed) — «🐕 СОБАКА!» над правым краем (качается, появляясь);
+	        красная дорожка на земле (папка Workspace.TheftGuide, Theft.Guide): шевроны от
+	        вора к ближайшему выходу StealRules.NearestExit ползут к нему (бегущие огни), у
+	        выхода — зелёное дышащее кольцо и табличка «ВЫХОД» (TankWorldController.TrackWord:
+	        у плашек HUD тает); переставляется раз в BeamEvery с (task.delay);
+	      срыв — "Cancel": красная, трясётся, 💨 «СОРВАЛОСЬ!» и под ним причина (Text сервера,
+	        Reason: шрифт Body во всю ширину; плашка — по длине текста), FailTime с; в
+	        удержании гасит кольцо своей кнопки (InputHoldEnd: сервер кнопки не выключает —
+	        BE-15). Короткий тап (отпустил «Украсть» раньше Limits.QuietSavedUnder с) — не
+	        срыв, а подсказка на стекле «Не отпускай «Украсть», пока полоска не заполнится!»;
 	      подсказка на стекле (Line, две ровные строки, ширина — по тексту, как у подсказки
 	        рыбалки) — во дворе чужой базы (цепочка task.delay HintEvery, только пока есть
 	        персонаж; StealRules.InPlot): почему здесь красть нельзя — пока стоишь во дворе, с
-	        живым «0:24» (⏳ ожидание, 🛡️ защита, 🐠 рыба: строки TheftChecks — базы, иначе
-	        витрин); можно — один раз за вход «Начнёшь красть — твоя защита погаснет» (своя база
-	        под защитой) или один раз за игру «Зажми «Украсть» у витрины…» (тач) / «Держи E…»;
+	        живым «0:24» (⏳ ожидание, 🛡️ защита, 👀 хозяин рядом, 🐠 рыба: строки TheftChecks —
+	        базы, иначе витрин); можно — по очереди на каждом входе: «Зажми «Украсть» у
+	        витрины…» один раз за игру (текст — по последнему вводу: тач / клавиатура /
+	        геймпад), потом «Начнёшь красть — твоя защита погаснет» (своя база под защитой);
 	        отказ сервера "Denied" — его текст на DeniedHint с (Quiet — без текста), и кольцо
 	        названной кнопки гаснет (InputHoldEnd по BaseIndex / Slot); нет ни "Hold", ни
-	        "Denied" за StealConfig.Hold.NoReply с после своего начала удержания — кольцо
-	        гаснет, «Подожди секунду» (BE-16).
+	        "Denied" за max(Hold.NoReply, пинг + Hold.NoReplySlack) с после своего начала
+	        удержания — кольцо гаснет, «Подожди секунду» (BE-16); опоздавшие "Hold" / "Cancel"
+	        этой кнопки — без полосы и без «СОРВАЛОСЬ!» (та же подсказка). Пока открыт лист
+	        (HUD.TankPanel, HUD.DefencePanel) — подсказок нет (полоса выше листов).
+	  • Уведомления (HUD.Toasts) ждут, пока кража идёт (своё начало удержания — и до "Cancel" /
+	    "Done"): NotifyController.Reserve("thief", вся колонка) — колонка над витриной, которую
+	    грабят, и над рыбой на голове (§6.4 rev. 3); ключ не из RESERVE_ORDER, поэтому тревога
+	    хозяина ("alert", если обворовывают и его самого) остаётся наверху колонки.
 	  • «ДОБЫЧА!» — "Done": полоса уходит, HUD.TheftTitle в той же нижней полосе: огромное
 	    «ДОБЫЧА!» (Gold → Leaf) ударом, «Окунь — в твоём садке · +$4/с», арпеджио редкости,
 	    конфетти из точки над головой вора, 🐟 летит оттуда в «САДОК»; на прилёте снят атрибут HUD
@@ -47,9 +65,9 @@
 	    нему, §3.3 F7) — уведомление его текстом («Рыба вернулась к хозяину»); с Result — это
 	    хозяину (AlertController).
 	Покой — ни одного покадрового соединения: цепочки task.delay и твины; кадры — только конфетти
-	и полёт 🐟 «ДОБЫЧИ!» (UiFx, кончаются сами). Анимации вида — в modeTrove, вынос (луч,
-	«СОБАКА!», тикер) — в carryTrove, праздник — в celebrationTrove; соединения — на сессию
-	(HUD живёт всю игру), с персонажем — в characterTrove.
+	и полёт 🐟 «ДОБЫЧИ!» (UiFx, кончаются сами). Анимации вида — в modeTrove, вынос (дорожка,
+	«СОБАКА!») — в carryTrove, праздник — в celebrationTrove; соединения — на сессию (HUD живёт
+	всю игру), с персонажем — в characterTrove.
 
 	API:
 	  TheftController:Start(hud)
@@ -59,6 +77,7 @@
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
@@ -75,6 +94,8 @@ local UiFx = require(Shared:WaitForChild("UiFx"))
 local Trove = require(Shared:WaitForChild("Util"):WaitForChild("Trove"))
 local FishingLayout = require(script.Parent:WaitForChild("FishingLayout"))
 local NotifyController = require(script.Parent:WaitForChild("NotifyController"))
+local TankDisplay = require(script.Parent:WaitForChild("TankDisplay"))
+local TankWorldController = require(script.Parent:WaitForChild("TankWorldController"))
 local TheftPrompts = require(script.Parent:WaitForChild("TheftPrompts"))
 
 local player = Players.LocalPlayer
@@ -82,8 +103,10 @@ local player = Players.LocalPlayer
 local TEXTS = StealConfig.Texts
 local BANNER = TEXTS.Banner
 local ICONS = TEXTS.Icons
+local LIMITS = StealConfig.Limits
 local SPEC = UIConfig.Theft
 local BAR = SPEC.Bar
+local GUIDE = SPEC.Guide
 local Palette = UIConfig.Palette
 -- Джойстик Roblox на тач-экране: правый край от левого края экрана, px (как у Controllers/Sheet и
 -- FishingController; кнопка прыжка — FishingLayout.JUMP_SMALL / JUMP_BIG).
@@ -91,10 +114,15 @@ local STICK_SMALL, STICK_BIG = 95, 180
 local BAR_MAX_HEIGHT = 84 -- потолок высоты полосы (UISizeConstraint сборщика)
 local TITLE_MAX_HEIGHT = 170
 local ICON_SHARE = 0.45 * 1.05 -- на сколько высот плашки кружок значка выступает влево
+local FAIL_PAD = 14 -- плашка «СОРВАЛОСЬ!» шире своего текста на столько px
+local RESERVE_KEY = "thief" -- колонка уведомлений (не из RESERVE_ORDER: «alert» выше)
+local SHEETS = { "TankPanel", "DefencePanel" } -- листы: при них подсказок на стекле нет
+local GHOST_WINDOW = 10 -- опоздавший "Hold" брошенной (NoReply) кнопки узнаём столько с
+local GROUND_UP, GROUND_DOWN = 4, 14 -- луч к земле двора для шевронов: от пояса вора, studs
 
--- Значок подсказки по причине отказа: ожидание, защита, остальное — рыба.
+-- Значок подсказки по причине отказа: ожидание, защита, хозяин рядом, остальное — рыба.
 local WAIT_REASONS = { cooldown = true, tagged = true, new = true, loading = true, nobase = true, busy = true }
-local SHIELD_REASONS = { shield = true, join = true, newbie = true, after = true, rest = true, owner = true }
+local SHIELD_REASONS = { shield = true, join = true, newbie = true, after = true, rest = true }
 
 type Mode = "none" | "hint" | "hold" | "carry" | "fail" | "done"
 
@@ -120,6 +148,8 @@ type Widgets = {
 	time: TextLabel,
 	track: Frame,
 	fill: Frame,
+	holder: Frame,
+	reason: TextLabel,
 	line: TextLabel,
 	dog: Frame,
 	slam: Frame,
@@ -140,10 +170,19 @@ local generation = 0 -- номер вида: отложенные шаги ст�
 local hintUntil = 0 -- временная подсказка (отказ, «подожди», первая) держится до (os.clock)
 local hintKey: string? = nil -- что сейчас написано на стекле (подсказки не перепоказываются)
 local plotBase: Model? = nil -- чужой двор, где стоит персонаж (прошлый шаг цепочки)
+local courtQueue: { string } = {} -- подсказки этого входа во двор по очереди ("first", "protected")
 local firstHintShown = false
-local replied = true -- на последнее своё начало удержания сервер ответил ("Hold" / "Denied")
+local awaiting = false -- своё удержание начато, ответа сервера ("Hold" / "Denied") ещё нет
 local noReplyToken = 0
+local holdBeganAt = -math.huge -- (os.clock) своё последнее начало удержания «Украсть»
+local heldFor = math.huge -- сколько с держал «Украсть» до того, как отпустил (последнее)
+-- Кнопка, на которую сервер не ответил вовремя (NoReply): её опоздавшие "Hold" / "Cancel" —
+-- без полосы; ghost — данные опоздавшего "Hold" (если вдруг пришёл и "Carry").
+local abandoned: { baseIndex: number, slot: number, at: number }? = nil
+local ghost: { [string]: any }? = nil
 local incomingSince = 0 -- (os.clock) TankIncoming стоит с
+local reservedPx: number? = nil -- сколько px колонки уведомлений занято (Reserve), nil — нисколько
+local resizeTween: Tween? = nil
 
 --------------------------------------------------------------------------------
 -- Мелочи
@@ -174,6 +213,12 @@ local function smallTouch(): boolean
 	return math.min(view.X, view.Y) <= 500
 end
 
+local function baseModel(index: any): Model?
+	local folder = Workspace:FindFirstChild("Bases")
+	local base = folder and type(index) == "number" and folder:FindFirstChild(`Base_{index}`)
+	return if base and base:IsA("Model") then base else nil
+end
+
 -- Нижняя полоса HUD (px): слева — джойстик, справа — кнопка прыжка (тач-экран), края экрана.
 local function band(): (number, number)
 	local width = w.hud.AbsoluteSize.X
@@ -189,14 +234,19 @@ local function band(): (number, number)
 	return left, right
 end
 
+local function barHeight(): number
+	return math.min(SPEC.BarHeight * w.hud.AbsoluteSize.Y, BAR_MAX_HEIGHT)
+end
+
 -- Полоса вора на месте: ширина want (nil — полная), высота — BarHeight экрана; в px HUD,
 -- записано долями (UDim2.fromScale): по центру экрана, а не влезает — сдвинута в полосу.
-local function placeBar(want: number?)
+-- animate — уже видна: к новой ширине твином за Bar.Resize с (подсказка ↔ кража).
+local function placeBar(want: number?, animate: boolean?)
 	local size = w.hud.AbsoluteSize
 	if size.X < 2 or size.Y < 2 then
 		return
 	end
-	local height = math.min(SPEC.BarHeight * size.Y, BAR_MAX_HEIGHT)
+	local height = barHeight()
 	local overhang = ICON_SHARE * height
 	local left, right = band()
 	left += overhang
@@ -204,9 +254,20 @@ local function placeBar(want: number?)
 	local width = math.min(want or full, full, math.max(right - left, 0))
 	local center = math.clamp(size.X / 2, left + width / 2, math.max(left + width / 2, right - width / 2))
 	local top = math.min(BAR.Top * size.Y, size.Y - BAR.Gap - height)
+	local position = UDim2.fromScale(center / size.X, top / size.Y)
+	local scale = UDim2.fromScale(width / size.X, height / size.Y)
+	local running = resizeTween
+	resizeTween = nil
+	if running then
+		running:Cancel()
+	end
 	w.bar.AnchorPoint = Vector2.new(0.5, 0)
-	w.bar.Position = UDim2.fromScale(center / size.X, top / size.Y)
-	w.bar.Size = UDim2.fromScale(width / size.X, height / size.Y)
+	if animate and BAR.Resize > 0 and w.bar.Visible and (w.bar.Size ~= scale or w.bar.Position ~= position) then
+		resizeTween = UiFx.tween(w.bar, BAR.Resize, { Position = position, Size = scale })
+	else
+		w.bar.Position = position
+		w.bar.Size = scale
+	end
 end
 
 -- «ДОБЫЧА!» — в той же нижней полосе, во всю её ширину (не шире полосы вора).
@@ -228,13 +289,21 @@ end
 -- Ширина «таблетки» подсказки под её текст (как у подсказки рыбалки: FishingLayout.hintWidth).
 local function hintWidth(text: string): number
 	local size = w.hud.AbsoluteSize
-	local height = math.min(SPEC.BarHeight * size.Y, BAR_MAX_HEIGHT)
+	local height = barHeight()
 	local left, right = band()
 	local room = math.min(SPEC.Width * size.X, SPEC.WidthMax, right - left - ICON_SHARE * height)
 	local px = UiFx.textSize("Body")
 	return FishingLayout.hintWidth(text, px, height, room, UiFx.textWidth(text, px), function(piece: string): number
 		return UiFx.textWidth(piece, px)
 	end)
+end
+
+-- Ширина плашки «СОРВАЛОСЬ!»: заголовок и причина в одну строку (их доля плашки — ширина Title).
+local function failWidth(reason: string): number
+	local share = math.max(w.title.Size.X.Scale, 0.1)
+	local title = UiFx.textWidth(BANNER.Fail, UiFx.textSize("Title"))
+	local line = UiFx.textWidth(reason, UiFx.textSize("Body"))
+	return math.max(title, line) / share + FAIL_PAD
 end
 
 local function setIcon(emoji: string)
@@ -249,11 +318,26 @@ local function setHud(name: string, value: any)
 	end
 end
 
+-- Колонка уведомлений занята целиком, пока кража идёт или ждём ответа на своё удержание.
+local function syncToasts(force: boolean?)
+	local column = w.hud:FindFirstChild("Toasts")
+	local want = awaiting or mode == "hold" or mode == "carry"
+	local px: number? = nil
+	if want and column and column:IsA("GuiObject") then
+		px = math.max(column.AbsoluteSize.Y, 1)
+	end
+	if px ~= reservedPx or force then
+		reservedPx = px
+		NotifyController.Reserve(RESERVE_KEY, px)
+	end
+end
+
 -- Новый вид полосы: старые тикеры и твины — прочь.
 local function newMode(next: Mode): number
 	modeTrove:Clean()
 	generation += 1
 	mode = next
+	syncToasts()
 	return generation
 end
 
@@ -305,32 +389,31 @@ local function hideBar(instant: boolean?)
 	popAway(w.dog, nil)
 end
 
--- Что видно на плашке: подсказка (Line) или полоса кражи (Title, Sub, Time, Bar).
-local subWidth = 0.66 -- (ширина подписи рядом с таймером: из сборки, Start)
-
-local function layoutFor(hint: boolean, withBar: boolean)
+-- Что видно на плашке: подсказка (Line), полоса кражи (Title, Bar с Sub и Time) или срыв
+-- (Title и Reason).
+local function layoutFor(kind: "hint" | "bar" | "fail")
+	local hint, bar = kind == "hint", kind == "bar"
 	w.line.Visible = hint
 	w.title.Visible = not hint
 	local shadow = w.bar:FindFirstChild("TitleShadow")
 	if shadow and shadow:IsA("GuiObject") then
 		shadow.Visible = not hint
 	end
-	w.sub.Visible = not hint
-	-- (без таймера — «СОРВАЛОСЬ!» с причиной — подпись во всю ширину заголовка)
-	local wide = if withBar then subWidth else w.title.Size.X.Scale
-	if w.sub.Size.X.Scale ~= wide then
-		w.sub.Size = UDim2.new(wide, 0, w.sub.Size.Y.Scale, w.sub.Size.Y.Offset)
-	end
-	w.time.Visible = not hint and withBar
-	local holder = w.fill.Parent :: GuiObject
-	holder.Visible = not hint and withBar
-	if hint then
+	w.sub.Visible = bar
+	w.time.Visible = bar
+	w.holder.Visible = bar
+	w.reason.Visible = kind == "fail"
+	if not bar then
 		popAway(w.dog, nil)
 	end
 end
 
--- Тикер «1,8 с» / «21 с» до серверного конца endT — цепочка task.delay, пока вид тот же.
-local function tickTime(token: number, endT: number, every: number, whole: boolean)
+-- Тикер «1,8 с» / «21 с» до серверного конца endT — цепочка task.delay, пока вид тот же. warn —
+-- за сколько с до конца ободок плашки вспыхивает; punchAll — «1,8 с» подпрыгивает на каждой
+-- целой секунде (иначе только в последние warn с).
+local function tickTime(token: number, endT: number, every: number, whole: boolean, warn: number, punchAll: boolean)
+	local lastWhole: number? = nil
+	local warned = false
 	local function step()
 		if token ~= generation then
 			return
@@ -338,6 +421,15 @@ local function tickTime(token: number, endT: number, every: number, whole: boole
 		local left = math.max(0, endT - serverNow())
 		local s = if whole then string.format("%d", math.ceil(left - 1e-6)) else StealRules.FormatSeconds(left)
 		w.time.Text = TextUtil.fill(BANNER.Time, { s = s })
+		local second = math.ceil(left - 1e-6)
+		if lastWhole and second < lastWhole and left > 0 and (punchAll or left <= warn) then
+			UiFx.punch(w.time, { from = 0.8, peak = 1.3 })
+		end
+		lastWhole = second
+		if not warned and left <= warn and left > 0 then
+			warned = true
+			UiFx.rimFlash(w.plate)
+		end
 		if left > 0 then
 			task.delay(every, step)
 		end
@@ -390,33 +482,23 @@ local function iconFor(reason: string?): string
 		return ICONS.Wait
 	elseif reason and SHIELD_REASONS[reason] then
 		return ICONS.Shield
+	elseif reason == "owner" then
+		return ICONS.Owner
 	elseif reason == "stealing" then
 		return ICONS.Hold
 	end
 	return ICONS.Fish
 end
 
--- Подсказка на стекле; for_ — сколько секунд держать (nil — пока её не сменит цепочка двора).
-local function showHint(text: string, emoji: string, forSeconds: number?, key: string?)
-	if mode ~= "none" and mode ~= "hint" then
-		return
+-- Открыт лист (садок, «ЗАЩИТА»): подсказка на стекле над ним не рисуется.
+local function sheetOpen(): boolean
+	for _, name in SHEETS do
+		local sheet = w.hud:FindFirstChild(name)
+		if sheet and sheet:IsA("GuiObject") and sheet.Visible then
+			return true
+		end
 	end
-	local same = mode == "hint" and hintKey == key and key ~= nil
-	if mode ~= "hint" then
-		newMode("hint")
-	end
-	hintKey = key
-	hintUntil = if forSeconds then os.clock() + forSeconds else 0
-	UiFx.setCandy(w.plate, "Glass")
-	layoutFor(true, false)
-	setIcon(emoji)
-	w.line.Text = text
-	placeBar(hintWidth(text))
-	if not isShown(w.bar) then
-		showBar()
-	elseif not same then
-		UiFx.punch(w.line, { from = 0.85, peak = 1.06 })
-	end
+	return false
 end
 
 local function hideHint()
@@ -425,6 +507,52 @@ local function hideHint()
 		hintKey = nil
 		hideBar()
 	end
+end
+
+-- Подсказка на стекле; forSeconds — сколько секунд держать (nil — пока её не сменит цепочка двора).
+local function showHint(text: string, emoji: string, forSeconds: number?, key: string?)
+	if mode ~= "none" and mode ~= "hint" then
+		return
+	end
+	if sheetOpen() then
+		hideHint()
+		return
+	end
+	local same = mode == "hint" and hintKey == key and key ~= nil
+	local wasShown = isShown(w.bar)
+	if mode ~= "hint" then
+		newMode("hint")
+	end
+	hintKey = key
+	hintUntil = if forSeconds then os.clock() + forSeconds else 0
+	UiFx.setCandy(w.plate, "Glass")
+	layoutFor("hint")
+	setIcon(emoji)
+	w.line.Text = text
+	placeBar(hintWidth(text), wasShown)
+	if not wasShown then
+		showBar()
+	elseif not same then
+		UiFx.punch(w.line, { from = 0.85, peak = 1.06 })
+	end
+end
+
+-- Первая подсказка — по последнему вводу (тач, геймпад, клавиатура; ничего ещё не нажимал — по
+-- устройству).
+local function firstText(): string
+	local last = UserInputService:GetLastInputType()
+	if last == Enum.UserInputType.Touch then
+		return TEXTS.Hint.Touch
+	elseif string.find(last.Name, "Gamepad", 1, true) then
+		return TEXTS.Hint.Gamepad
+	elseif last == Enum.UserInputType.Keyboard or string.find(last.Name, "Mouse", 1, true) then
+		return TEXTS.Hint.Keyboard
+	elseif UserInputService.TouchEnabled then
+		return TEXTS.Hint.Touch
+	elseif UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled then
+		return TEXTS.Hint.Gamepad
+	end
+	return TEXTS.Hint.Keyboard
 end
 
 -- Чужой двор, где стоит персонаж (база с хозяином, не своя), или nil.
@@ -449,9 +577,7 @@ end
 
 -- Своя база под защитой сейчас (любой вид).
 local function ownProtected(): boolean
-	local folder = Workspace:FindFirstChild("Bases")
-	local index = player:GetAttribute("BaseIndex")
-	local base = folder and type(index) == "number" and folder:FindFirstChild(`Base_{index}`)
+	local base = baseModel(player:GetAttribute("BaseIndex"))
 	local untilT = base and base:GetAttribute("ProtectUntil")
 	return finite(untilT) and (untilT :: number) > serverNow()
 end
@@ -461,8 +587,24 @@ local function plotStep(root: BasePart)
 	local base = foreignPlot(root)
 	local entered = base ~= nil and base ~= plotBase
 	plotBase = base
+	if entered then
+		-- (подсказки этого входа — по очереди: как красть, потом про свою защиту)
+		table.clear(courtQueue)
+		if not firstHintShown then
+			table.insert(courtQueue, "first")
+		end
+		if ownProtected() then
+			table.insert(courtQueue, "protected")
+		end
+	elseif not base then
+		table.clear(courtQueue)
+	end
 	if mode ~= "none" and mode ~= "hint" then
 		return -- (кража, срыв, «ДОБЫЧА!» — у них своя полоса)
+	end
+	if sheetOpen() then
+		hideHint() -- (лист открыт; закроется — подсказка вернётся на следующем шаге)
+		return
 	end
 	if mode == "hint" and hintUntil > os.clock() and (base ~= nil or hintKey == nil) then
 		return -- (отказ, «подожди», первая подсказка — держатся своё время; подсказка двора — пока он во дворе)
@@ -488,13 +630,18 @@ local function plotStep(root: BasePart)
 		hideHint()
 		return
 	end
-	if entered and ownProtected() then
-		showHint(TEXTS.Hint.Protected, ICONS.Shield, BAR.HintTime, "protected")
-	elseif entered and not firstHintShown then
-		firstHintShown = true
-		local text = if UserInputService.TouchEnabled then TEXTS.Hint.Touch else TEXTS.Hint.Keyboard
-		showHint(text, ICONS.Hint, BAR.HintTime, "first")
-	elseif mode == "hint" and hintUntil <= os.clock() then
+	while #courtQueue > 0 do
+		local next = table.remove(courtQueue, 1)
+		if next == "first" and not firstHintShown then
+			firstHintShown = true
+			showHint(firstText(), ICONS.Hint, BAR.HintTime, "first")
+			return
+		elseif next == "protected" and ownProtected() then
+			showHint(TEXTS.Hint.Protected, ICONS.Shield, BAR.HintTime, "protected")
+			return
+		end
+	end
+	if mode == "hint" and hintUntil <= os.clock() then
 		hideHint()
 	end
 end
@@ -537,70 +684,154 @@ local function enterHold(data: { [string]: any })
 		holdEnd = endT,
 		need = need,
 	}
+	awaiting = false
 	celebrationTrove:Clean()
 	popAway(w.slam, nil)
 	carryTrove:Clean()
+	local wasShown = isShown(w.bar)
 	local token = newMode("hold")
 	hintKey = nil
 	UiFx.setCandy(w.plate, "Night")
 	UiFx.setCandy(w.fill, "Berry")
-	layoutFor(false, true)
+	layoutFor("bar")
 	setIcon(ICONS.Hold)
 	local t = theft :: Theft
 	w.title.Text = TextUtil.fill(BANNER.Hold, { short = TextUtil.upper(t.short) })
 	w.sub.Text = BANNER.HoldSub
-	placeBar(nil)
+	placeBar(nil, wasShown)
 	showBar()
 	UiFx.punch(w.title, { from = 0.8, peak = 1.08 })
 	runFill(endT, need, true)
-	tickTime(token, endT, BAR.HoldTick, false)
+	tickTime(token, endT, BAR.HoldTick, false, BAR.HoldWarn, true)
 end
 
--- Красная дорожка от вора к ближайшему выходу с участка (пересчёт раз в BeamEvery с).
+-- Земля двора под точкой (луч по Grounds и Arcades базы), иначе fallback.
+local function groundParams(base: Model): RaycastParams?
+	local list = {}
+	for _, name in { "Grounds", "Arcades" } do
+		local found = base:FindFirstChild(name)
+		if found then
+			table.insert(list, found)
+		end
+	end
+	if #list == 0 then
+		return nil
+	end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = list
+	return params
+end
+
+local function guidePart(name: string, size: Vector3, color: Color3, parent: Instance): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	part.Material = Enum.Material.Neon
+	part.Color = color
+	part.Size = size
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Parent = parent
+	return part
+end
+
+-- Красная дорожка на земле (папка Workspace.TheftGuide): шевроны от вора к ближайшему выходу
+-- ползут к нему, у выхода — зелёное кольцо и «ВЫХОД»; переставляется раз в BeamEvery с.
 local function startGuide()
 	local t = theft
-	local folder = Workspace:FindFirstChild("Bases")
-	local base = t and folder and folder:FindFirstChild(`Base_{t.baseIndex}`)
+	local base = t and baseModel(t.baseIndex)
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not (base and base:IsA("Model") and root and root:IsA("BasePart")) then
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not (base and root and root:IsA("BasePart")) then
 		return
 	end
-	local from = Instance.new("Attachment")
-	from.Name = "TheftGuideFrom"
-	from.Position = Vector3.new(0, -2, 0)
-	from.Parent = root
-	local to = Instance.new("Attachment")
-	to.Name = "TheftGuideTo"
-	to.Parent = Workspace.Terrain
-	local beam = Instance.new("Beam")
-	beam.Name = "TheftGuide"
-	beam.Attachment0 = from
-	beam.Attachment1 = to
-	beam.FaceCamera = true
-	beam.Segments = 1
-	beam.Width0 = SPEC.BeamWidth[1]
-	beam.Width1 = SPEC.BeamWidth[2]
-	beam.LightEmission = 1
-	beam.LightInfluence = 0
-	beam.Color = ColorSequence.new(Palette.Berry.Top, Palette.Berry.Bottom)
-	beam.Transparency = NumberSequence.new(0.35, 0.05)
-	beam.Parent = root
-	carryTrove:Add(beam)
-	carryTrove:Add(from)
-	carryTrove:Add(to)
+	local folder = Instance.new("Folder")
+	folder.Name = "TheftGuide"
+	carryTrove:Add(folder)
+	-- Шевроны: две палочки «>» остриём к выходу (Width поперёк, Length вдоль).
+	local arm = math.sqrt((GUIDE.Width / 2) ^ 2 + GUIDE.Length ^ 2)
+	local angle = math.atan2(GUIDE.Width / 2, GUIDE.Length)
+	local red = Palette.Berry.Bottom
+	local arrows: { { Part } } = {}
+	for index = 1, GUIDE.Arrows do
+		local model = Instance.new("Model")
+		model.Name = `Arrow_{index}`
+		local size = Vector3.new(GUIDE.Bar, 0.2, arm + GUIDE.Bar)
+		arrows[index] = { guidePart("Left", size, red, model), guidePart("Right", size, red, model) }
+		model.Parent = folder
+	end
+	-- У выхода: зелёное кольцо (диск — Cylinder осью вверх) дышит, над ним «ВЫХОД».
+	local ring = guidePart("Ring", Vector3.new(0.2, GUIDE.Ring, GUIDE.Ring), Palette.Leaf.Top, folder)
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Transparency = 0.3
+	local pulse = TweenService:Create(
+		ring,
+		TweenInfo.new(GUIDE.RingPeriod / 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Size = Vector3.new(0.2, GUIDE.Ring * GUIDE.RingPulse, GUIDE.Ring * GUIDE.RingPulse), Transparency = 0.55 }
+	)
+	pulse:Play()
+	carryTrove:Add(function()
+		pulse:Cancel()
+	end)
+	local spec = GUIDE.Label
+	local label, plate = TankDisplay.billboard(folder, "ExitLabel", UDim2.fromOffset(spec.PixelsX, spec.PixelsY), GUIDE.LabelRange)
+	label.Adornee = ring
+	label.AlwaysOnTop = true
+	label.StudsOffsetWorldSpace = Vector3.new(0, spec.Lift, 0)
+	TankDisplay.word(plate, "Word", TEXTS.Exit, { 0, 0, 1, 1 }, Palette.Leaf, 3)
+	folder.Parent = Workspace
+	TankWorldController.TrackWord(label)
+	local params = groundParams(base)
 	local alive = true
 	carryTrove:Add(function()
 		alive = false
 	end)
+	local phase = 0
 	local function aim()
 		if not alive or root.Parent == nil then
 			return
 		end
+		local hip = if humanoid then humanoid.HipHeight else 2
+		local feet = root.Position.Y - hip - root.Size.Y / 2
+		local function groundAt(x: number, z: number): number
+			if params then
+				local from = Vector3.new(x, root.Position.Y + GROUND_UP, z)
+				local hit = Workspace:Raycast(from, Vector3.new(0, -GROUND_DOWN, 0), params)
+				if hit then
+					return hit.Position.Y
+				end
+			end
+			return feet
+		end
 		local pivot = base:GetPivot()
-		local here = StealRules.LocalOf(pivot, root.Position)
-		local exit = StealRules.NearestExit(here)
-		to.Position = pivot * Vector3.new(exit.X, 0.3, exit.Z)
+		local exitLocal = StealRules.NearestExit(StealRules.LocalOf(pivot, root.Position))
+		local exit = pivot * Vector3.new(exitLocal.X, 0, exitLocal.Z)
+		local here = Vector3.new(root.Position.X, 0, root.Position.Z)
+		local ahead = Vector3.new(exit.X, 0, exit.Z) - here
+		local distance = ahead.Magnitude
+		local dir = if distance > 0.01 then ahead.Unit else root.CFrame.LookVector
+		ring.CFrame = CFrame.new(exit.X, groundAt(exit.X, exit.Z) + GUIDE.Lift, exit.Z) * CFrame.Angles(0, 0, math.pi / 2)
+		-- (бегущие огни: каждый шаг цепочки — на Step / Crawl ближе к выходу)
+		phase = (phase + 1) % GUIDE.Crawl
+		local shift = phase / GUIDE.Crawl * GUIDE.Step
+		for index, pair in arrows do
+			local along = GUIDE.Start + (index - 1) * GUIDE.Step + shift
+			local hidden = along > distance - GUIDE.Ring / 2
+			local spot = here + dir * along
+			local at = Vector3.new(spot.X, groundAt(spot.X, spot.Z) + GUIDE.Lift, spot.Z)
+			local frame = CFrame.lookAt(at, at + dir)
+			pair[1].CFrame = frame * CFrame.new(-GUIDE.Width / 4, 0, 0) * CFrame.Angles(0, -angle, 0)
+			pair[2].CFrame = frame * CFrame.new(GUIDE.Width / 4, 0, 0) * CFrame.Angles(0, angle, 0)
+			for _, part in pair do
+				part.Transparency = if hidden then 1 else 0
+			end
+		end
 		task.delay(SPEC.BeamEvery, aim)
 	end
 	aim()
@@ -612,6 +843,7 @@ local function watchDog()
 		local slowed = player:GetAttribute("Slowed") == true and mode == "carry"
 		if slowed and not isShown(w.dog) then
 			popShow(w.dog, { from = 0.3, time = 0.3, rotate = -12 })
+			UiFx.wiggle(w.dog, 8, 2, 0.4)
 			UiFx.shake(w.bar, BAR.Shake * 0.5, 0.25)
 		elseif not slowed and isShown(w.dog) then
 			popAway(w.dog, 0.18)
@@ -635,7 +867,7 @@ local function enterCarry(data: { [string]: any })
 	local token = newMode("carry")
 	UiFx.setCandy(w.plate, "Berry")
 	UiFx.setCandy(w.fill, "Gold")
-	layoutFor(false, true)
+	layoutFor("bar")
 	setIcon(ICONS.Carry)
 	w.title.Text = BANNER.Carry
 	w.sub.Text = BANNER.CarrySub
@@ -643,8 +875,9 @@ local function enterCarry(data: { [string]: any })
 	showBar()
 	UiFx.rimFlash(w.plate)
 	UiFx.punch(w.title, { from = 0.7, peak = 1.12 })
+	UiFx.punch(w.holder, { from = 0.85, peak = 1.1 })
 	runFill(endT, StealConfig.Carry.Timeout, false)
-	tickTime(token, endT, BAR.CarryTick, true)
+	tickTime(token, endT, BAR.CarryTick, true, BAR.CarryWarn, false)
 	incomingSince = os.clock()
 	setHud("TankIncoming", t.rarity)
 	carryTrove:Clean()
@@ -652,20 +885,42 @@ local function enterCarry(data: { [string]: any })
 	watchDog()
 end
 
+-- Кража кончилась (срыв, «ДОБЫЧА!», молча): вынос и прилёт — прочь, кнопка больше не своя.
+local function dropTheft()
+	carryTrove:Clean()
+	theft = nil
+	awaiting = false
+end
+
 local function enterFail(data: { [string]: any })
+	local t = theft
 	if data.Phase == "hold" then
 		endHold(heldPrompt()) -- (сервер кнопку не выключает: так щит или касание гасят кольцо)
 	end
-	carryTrove:Clean()
+	-- Хозяин поймал — его база спрятана на TagCooldown (как у сервера: пара вор–хозяин).
+	if data.Reason == "tag" then
+		local base = baseModel(if t then t.baseIndex else data.BaseIndex)
+		local owner = base and base:GetAttribute("OwnerUserId")
+		if type(owner) == "number" then
+			TheftPrompts.SetTagged(owner, serverNow() + LIMITS.TagCooldown)
+		end
+	end
 	releaseIncoming()
-	theft = nil
+	dropTheft()
+	-- Короткий тап по «Украсть» — не срыв: подсказка, как держать (без тряски и звука).
+	if data.Reason == "released" and data.Phase == "hold" and heldFor < LIMITS.QuietSavedUnder then
+		newMode("none")
+		showHint(TEXTS.Hint.HoldLonger, ICONS.Hint, SPEC.DeniedHint, nil)
+		return
+	end
+	local reason = if type(data.Text) == "string" and data.Text ~= "" then data.Text else TEXTS.Cancel.busy
 	local token = newMode("fail")
 	UiFx.setCandy(w.plate, "Berry")
-	layoutFor(false, false)
+	layoutFor("fail")
 	setIcon(ICONS.Fail)
 	w.title.Text = BANNER.Fail
-	w.sub.Text = if type(data.Text) == "string" and data.Text ~= "" then data.Text else TEXTS.Cancel.busy
-	placeBar(nil)
+	w.reason.Text = reason
+	placeBar(failWidth(reason))
 	showBar()
 	UiFx.punch(w.title, { from = 1.3, peak = 1.1 })
 	UiFx.shake(w.bar, BAR.Shake, 0.4)
@@ -708,8 +963,7 @@ local function enterDone(data: { [string]: any })
 	local fishId = if type(fish.Id) == "string" then fish.Id elseif t then t.fishId else "Perch"
 	local rarity = if type(fish.Rarity) == "string" then fish.Rarity elseif t then t.rarity else "Common"
 	local income10 = if t then t.income10 elseif finite(fish.Income) then TankRules.Income10(fish.Income) else 0
-	carryTrove:Clean()
-	theft = nil
+	dropTheft()
 	local origin = headPoint()
 	local token = newMode("done")
 	hideBar(true)
@@ -777,9 +1031,20 @@ end
 -- События сервера и свои удержания
 --------------------------------------------------------------------------------
 
+-- Ответ про кнопку, на которую NoReply уже махнул рукой (опоздал): data — её BaseIndex / Slot.
+local function isAbandoned(data: { [string]: any }): boolean
+	local gone = abandoned
+	return gone ~= nil
+		and os.clock() - gone.at < GHOST_WINDOW
+		and data.BaseIndex == gone.baseIndex
+		and data.Slot == gone.slot
+end
+
 local function onDenied(data: { [string]: any })
-	replied = true
+	awaiting = false
 	noReplyToken += 1
+	abandoned = nil
+	syncToasts()
 	endHold(TheftPrompts.PromptAt(data.BaseIndex, data.Slot))
 	if data.Quiet == true or mode ~= "none" and mode ~= "hint" then
 		return
@@ -793,14 +1058,32 @@ end
 local function onStealEvent(kind: any, data: any)
 	local d: { [string]: any } = if type(data) == "table" then data else {}
 	if kind == "Hold" then
-		replied = true
 		noReplyToken += 1
+		if isAbandoned(d) then
+			-- (опоздал: кольцо уже погашено, «Подожди секунду» на стекле — полосы нет)
+			awaiting = false
+			ghost = d
+			syncToasts()
+			return
+		end
+		abandoned = nil
 		enterHold(d)
 	elseif kind == "Carry" then
+		local late = ghost
+		if late and not theft then
+			ghost, abandoned = nil, nil
+			enterHold(late) -- (сервер всё-таки засчитал удержание: вынос — как обычно)
+		end
 		enterCarry(d)
 	elseif kind == "Cancel" then
+		if ghost and not theft then
+			ghost, abandoned = nil, nil
+			showHint(BANNER.NoReply, ICONS.Wait, SPEC.DeniedHint, nil)
+			return
+		end
 		enterFail(d)
 	elseif kind == "Done" then
+		ghost, abandoned = nil, nil
 		enterDone(d)
 	elseif kind == "Denied" then
 		onDenied(d)
@@ -809,18 +1092,31 @@ local function onStealEvent(kind: any, data: any)
 	end
 end
 
--- Своё начало удержания «Украсть»: эта кнопка не прячется; нет ответа за NoReply с — гасим.
+-- Своё начало удержания «Украсть»: эта кнопка не прячется; нет ответа за NoReply с (или за
+-- пинг с запасом) — гасим; уведомления ждут.
 local function onHoldBegan(prompt: ProximityPrompt)
 	if not TheftPrompts.IsSteal(prompt) then
 		return
 	end
 	TheftPrompts.SetHeld(prompt)
-	replied = false
+	holdBeganAt = os.clock()
+	heldFor = math.huge
+	awaiting = theft == nil
+	syncToasts()
 	noReplyToken += 1
 	local token = noReplyToken
-	task.delay(StealConfig.Hold.NoReply, function()
-		if token ~= noReplyToken or replied then
+	local ping = player:GetNetworkPing()
+	local patience =
+		math.max(StealConfig.Hold.NoReply, (if finite(ping) then ping else 0) + StealConfig.Hold.NoReplySlack)
+	task.delay(patience, function()
+		if token ~= noReplyToken or not awaiting then
 			return
+		end
+		awaiting = false
+		syncToasts()
+		local baseIndex, slot = TheftPrompts.SlotOf(prompt)
+		if baseIndex and slot then
+			abandoned = { baseIndex = baseIndex, slot = slot, at = os.clock() }
 		end
 		endHold(prompt)
 		TheftPrompts.SetHeld(nil)
@@ -832,8 +1128,20 @@ local function onHoldEnded(prompt: ProximityPrompt)
 	if not TheftPrompts.IsSteal(prompt) then
 		return
 	end
-	noReplyToken += 1 -- (отпустил сам — «нет ответа» уже не про него)
+	heldFor = os.clock() - holdBeganAt
 	TheftPrompts.SetHeld(nil)
+	if awaiting then
+		-- (отпустил раньше ответа: «нет ответа» уже не про него; уведомления ждут ответа сервера
+		-- не дольше NoReply — "Cancel" или "Denied" придут, а если нет — колонка свободна)
+		noReplyToken += 1
+		local token = noReplyToken
+		task.delay(StealConfig.Hold.NoReply, function()
+			if token == noReplyToken and awaiting then
+				awaiting = false
+				syncToasts()
+			end
+		end)
+	end
 end
 
 -- Фаза сервера (Player.Stealing) → HUD.Stealing; кража кончилась без "Done" / "Cancel"
@@ -853,8 +1161,7 @@ local function onStealing()
 			local token = generation
 			task.delay(BAR.SafetyWait, function()
 				if token == generation and (mode == "hold" or mode == "carry") then
-					carryTrove:Clean()
-					theft = nil
+					dropTheft()
 					newMode("none")
 					hideBar()
 				end
@@ -885,6 +1192,8 @@ function TheftController:Start(hud: ScreenGui)
 		time = child(bar, "Time"),
 		track = child(barHolder, "Track"),
 		fill = child(barHolder, "Fill"),
+		holder = barHolder,
+		reason = child(bar, "Reason"),
 		line = child(bar, "Line"),
 		dog = child(bar, "DogChip"),
 		slam = slam,
@@ -894,7 +1203,6 @@ function TheftController:Start(hud: ScreenGui)
 	bar.Visible = false
 	slam.Visible = false
 	w.dog.Visible = false
-	subWidth = w.sub.Size.X.Scale
 
 	TheftPrompts.Start()
 
@@ -912,17 +1220,23 @@ function TheftController:Start(hud: ScreenGui)
 	player:GetAttributeChangedSignal("Stealing"):Connect(onStealing)
 	onStealing()
 
-	-- Экран поменял размер — полоса и «ДОБЫЧА!» встают на место.
+	-- Экран поменял размер — полоса и «ДОБЫЧА!» встают на место, колонка уведомлений — занята
+	-- вся по-новому.
 	hud:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		if w.bar.Visible then
 			if mode == "hint" then
 				placeBar(hintWidth(w.line.Text))
+			elseif mode == "fail" then
+				placeBar(failWidth(w.reason.Text))
 			else
 				placeBar(nil)
 			end
 		end
 		if w.slam.Visible then
 			placeSlam()
+		end
+		if reservedPx then
+			task.defer(syncToasts, true)
 		end
 	end)
 
@@ -931,6 +1245,7 @@ function TheftController:Start(hud: ScreenGui)
 	player.CharacterRemoving:Connect(function()
 		characterTrove:Clean()
 		plotBase = nil
+		table.clear(courtQueue)
 	end)
 	if player.Character then
 		startPlotChain(player.Character)

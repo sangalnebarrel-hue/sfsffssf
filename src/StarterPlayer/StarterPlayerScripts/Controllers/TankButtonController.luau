@@ -41,10 +41,13 @@
 	    чем трофей над головой ушёл — на планшете плашка легла бы на него); панель садка
 	    открылась (HUD.TankPanel стала видна — кнопкой, кнопкой у аквариума или у ларька) —
 	    UiFx.badgeHide (на сессию, без remote: First и так один раз).
-	  • Нажатие во время полёта рыбы (CounterHold, карточка уже закрылась) запоминается (без
-	    «нет»-качания): панель откроется сразу после прилёта (OpenAfter), прокрученная к новой рыбе
-	    (TankPanelController.Open(uid)); нажатие во время поклёвки, мини-игры или открытой
-	    карточки улова — качание «нет» (wiggle).
+	  • Нажатие во время полёта рыбы (CounterHold, карточка уже закрылась; краденая 🐟 «ДОБЫЧИ!» —
+	    TankIncoming, когда кража уже кончилась) запоминается (без «нет»-качания): панель
+	    откроется сразу после прилёта (OpenAfter), прокрученная к новой рыбе
+	    (TankPanelController.Open(uid)); прилёта не было (кража сорвалась) — не откроется. Пока
+	    кража идёт (удержание, вынос: Player.Stealing) — добычи в садке ещё нет, панель
+	    открывается сразу. Нажатие во время поклёвки, мини-игры или открытой карточки улова —
+	    качание «нет» (wiggle).
 	  • Цвет: Water (#6FF2FF → #13B8D6) близок к Sky («ЗАБРОСИТЬ» под ней на телефоне) — проверено
 	    рендером tank_button (tools/preview, сценарий tank_button): кнопку отличают квадратная
 	    форма, 🐠 и подпись.
@@ -277,8 +280,11 @@ function TankButtonController:Start(hud: ScreenGui)
 		end
 		if wantsOpen then
 			wantsOpen = false
-			local uid = if catch and result ~= "sold" then catch.uid else nil
-			task.delay(SPEC.OpenAfter, openPanel, uid)
+			-- (ничего не прилетело — кража сорвалась: панель сама не открывается)
+			if catch or shownCount > before then
+				local uid = if catch and result ~= "sold" then catch.uid else nil
+				task.delay(SPEC.OpenAfter, openPanel, uid)
+			end
 		end
 	end
 
@@ -431,8 +437,12 @@ function TankButtonController:Start(hud: ScreenGui)
 			UiFx.wiggle(button, 7, 2, 0.3)
 			return
 		end
-		if holding() then
-			wantsOpen = true -- рыба ещё летит: откроем, как долетит
+		-- Рыба ещё летит: откроем, как долетит. Пока кража идёт (удержание, вынос) — добычи в
+		-- садке ещё нет: открыть сразу (иначе панель выскочила бы сама на «СОРВАЛОСЬ!»).
+		local flying = hud:GetAttribute("CounterHold") ~= nil
+			or (hud:GetAttribute("TankIncoming") ~= nil and player:GetAttribute("Stealing") == nil)
+		if flying then
+			wantsOpen = true
 			return
 		end
 		callPanel("Toggle", nil)

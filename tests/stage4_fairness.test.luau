@@ -343,7 +343,7 @@ tests["a steal by the victim clears his rest and his losses (D6)"] = function(t)
 	t.eq(
 		notes[#notes].args[1],
 		S.STEAL_TEXTS.Hint.Ended,
-		"«Твоя защита снята: ты пошёл на дело!»"
+		"«Кража погасила твою защиту»"
 	)
 	sim:ReleasePrompt(victim, S.prompt(sim, other, 3))
 	sim:Advance(0.2)

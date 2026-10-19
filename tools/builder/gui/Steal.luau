@@ -19,17 +19,23 @@
 	                 TheftController recolours it with UiFx.setCandy
 	    Icon         a socket over the plate's left end: Icon.Icon 🥷 / 🏃 / 💨 / ⏳ / 🛡️ / 🐠
 	    Title        Title tier, CAPS («КРАДЁШЬ: ОКУНЬ», «БЕГИ ЗА ОГРАДУ!», «СОРВАЛОСЬ!»), the
-	                 whole width of the plate's content
-	    Sub          Small italic «Не отходи!» / «Не попадись хозяину» / the reason of a failure
-	    Time         italic Small «1,8 с» at the right end of the Sub row
-	    Bar          the progress bar (§6.1 Bar.{Track, Fill}): Track — a glass groove over the
-	                 whole bar; Fill — its sibling over it (a Berry sim pill whose X scale is the
-	                 progress, ZIndex above the Track)
+	                 whole width of the plate's content, the upper half
+	    Bar          the progress bar (§6.1 Bar.{Track, Fill}), the lower half: a chunky pill
+	                 (0.36 of the plate: ≥ 16 px on a phone — the thumb hides the stock prompt's
+	                 ring, so this is the progress he sees). Track — a glass groove over the
+	                 whole bar; Fill — its sibling over it (a sim pill with its outline, Berry
+	                 while holding, Gold while carrying: its X scale is the progress)
+	    Sub          Small italic «Не отходи!» / «Не попадись хозяину», INSIDE the bar at its
+	                 left end (white with the dark outline: reads on the fill and on the groove)
+	    Time         italic Small «1,8 с» inside the bar at its right end
+	    Reason       (hidden) «СОРВАЛОСЬ!»'s reason under the title: Body tier, italic, the whole
+	                 content width (TheftController sizes the plate to the longer of the two)
 	    Line         the hint on glass (hidden; Body tier, italic, two even lines at most: the
 	                 court hint, the "why not" reasons, «Подожди секунду») — laid out like the
 	                 fishing Hint's label, so FishingLayout.hintWidth sizes the pill to its text
-	    DogChip      a Sun plate «🐕 СОБАКА!» over the plate's right end (hidden: while Slowed;
-	                 above it, not under: the band's foot is the screen's bottom edge)
+	    DogChip      a Sun plate «СОБАКА!» with 🐕 in its own socket over its left end
+	                 (IconSocket.Icon, the chip's height), over the plate's right end (hidden:
+	                 while Slowed; above it, not under: the band's foot is the screen's bottom)
 	  TheftTitle     (hidden) the slam in the bottom band — Title (Theme.title: «ДОБЫЧА!» in Gold →
 	                 Leaf), Sub (Body: «Окунь — в твоём садке · +$4/с»)
 	Sizes are scales only, capped by UISizeConstraint on big screens; text never under 12 px.
@@ -58,6 +64,10 @@ local BAR = THEFT.Bar
 local Z = 32 -- over the sheets (30) and the base banner (20): the thief's banner is never covered
 local CONTENT_X = 0.1 -- the content starts right of the overhanging socket
 local CONTENT_W = 0.87
+local TITLE_Y, TITLE_H = 0.06, 0.42 -- the title: the upper half
+local BAR_Y, BAR_H = 0.54, 0.36 -- the bar (with Sub and Time inside): the lower half
+local REASON_Y, REASON_H = 0.5, 0.42 -- «СОРВАЛОСЬ!»'s reason, where the bar would be
+local TEXT_PAD = 0.025 -- Sub / Time inside the bar's round ends
 
 local function buildBar(hud: any)
 	local root = U.new("Frame", {
@@ -89,43 +99,23 @@ local function buildBar(hud: any)
 		ZIndex = 4,
 	})
 
-	-- The title over the whole content width; under it the Sub line with the time at its right
-	-- end, and the thin bar along the plate's foot.
+	-- The title over the whole content width (the upper half); under it the chunky bar with
+	-- the Sub line and the time written inside it (the lower half).
 	label(root, "Title", {
 		AnchorPoint = Vector2.new(0, 0),
-		Position = UDim2.fromScale(CONTENT_X, 0.05),
-		Size = UDim2.fromScale(CONTENT_W, 0.46),
+		Position = UDim2.fromScale(CONTENT_X, TITLE_Y),
+		Size = UDim2.fromScale(CONTENT_W, TITLE_H),
 		Text = TextUtil.fill(TEXTS.Banner.Hold, { short = "ОКУНЬ" }),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		ZIndex = 4,
 		Tier = "Title",
 	})
-	label(root, "Sub", {
-		AnchorPoint = Vector2.new(0, 0),
-		Position = UDim2.fromScale(CONTENT_X, 0.5),
-		Size = UDim2.fromScale(0.66, 0.3),
-		Text = TEXTS.Banner.HoldSub,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Italic = true,
-		ZIndex = 4,
-		Tier = "Small",
-	})
-	label(root, "Time", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(CONTENT_X + CONTENT_W, 0.5),
-		Size = UDim2.fromScale(0.2, 0.3),
-		Text = TextUtil.fill(TEXTS.Banner.Time, { s = "3,0" }),
-		TextXAlignment = Enum.TextXAlignment.Right,
-		Italic = true,
-		ZIndex = 4,
-		Tier = "Small",
-	})
 	local bar = U.new("Frame", {
 		Name = "Bar",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0, 0),
-		Position = UDim2.fromScale(CONTENT_X, 0.82),
-		Size = UDim2.fromScale(CONTENT_W, 0.12),
+		Position = UDim2.fromScale(CONTENT_X, BAR_Y),
+		Size = UDim2.fromScale(CONTENT_W, BAR_H),
 		ZIndex = 4,
 	}, root)
 	local track = U.new("Frame", {
@@ -135,16 +125,50 @@ local function buildBar(hud: any)
 		ZIndex = 4,
 	}, bar)
 	Theme.glass(track, { radius = 0.5, shine = false })
-	-- The fill is the Track's sibling (§6.1 Bar.{Track, Fill}), over the same box.
+	-- The fill is the Track's sibling (§6.1 Bar.{Track, Fill}), over the same box: a sim pill
+	-- with its dark outline and a gloss (the progress reads as a solid candy, not a hairline).
 	local fill = U.new("Frame", {
 		Name = "Fill",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0, 0.5),
 		Size = UDim2.fromScale(0, 1), -- X = the progress (0 → 1 holding; 1 → 0 carrying)
-		ZIndex = 5,
+		ZIndex = 6,
 	}, bar)
-	Theme.sim(fill, "Berry", { round = true, stroke = 0, rim = false, shine = false })
+	Theme.sim(fill, "Berry", { round = true, stroke = Theme.MINOR, rim = false, shine = false, gloss = true })
+	-- «Не отходи!» and «1,8 с» written inside the bar (over the fill).
+	label(root, "Sub", {
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.fromScale(CONTENT_X + TEXT_PAD, BAR_Y),
+		Size = UDim2.fromScale(0.6, BAR_H),
+		Text = TEXTS.Banner.HoldSub,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Italic = true,
+		ZIndex = 9,
+		Tier = "Small",
+	})
+	label(root, "Time", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(CONTENT_X + CONTENT_W - TEXT_PAD, BAR_Y),
+		Size = UDim2.fromScale(0.22, BAR_H),
+		Text = TextUtil.fill(TEXTS.Banner.Time, { s = "3,0" }),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Italic = true,
+		ZIndex = 9,
+		Tier = "Small",
+	})
+	-- «СОРВАЛОСЬ!»'s reason under the title (no bar then).
+	label(root, "Reason", {
+		Visible = false,
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.fromScale(CONTENT_X, REASON_Y),
+		Size = UDim2.fromScale(CONTENT_W, REASON_H),
+		Text = TEXTS.Cancel.shield,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Italic = true,
+		ZIndex = 4,
+		Tier = "Body",
+	})
 
 	-- The hint on glass: one or two even lines (the fishing Hint's label box: 0.78 of the pill,
 	-- right-anchored at 0.94 — FishingLayout.hintWidth fits the pill to it).
@@ -160,21 +184,25 @@ local function buildBar(hud: any)
 		Tier = "Body",
 	})
 
-	-- «🐕 СОБАКА!» over the plate's right end (while the dog slows the thief).
+	-- «🐕 СОБАКА!» over the plate's right end (while the dog slows the thief): the 🐕 in its own
+	-- socket at the chip's height over its left end, «СОБАКА!» beside it.
 	local dog = Theme.plate(root, "DogChip", "Sun", {
 		Visible = false,
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.fromScale(0.97, 0.16),
-		Size = UDim2.fromScale(0.32, 0.55),
+		Size = UDim2.fromScale(0.3, 0.55),
 		ZIndex = 6,
+		Icon = TEXTS.Icons.Dog,
+		Socket = true,
+		IconScale = 1.25,
 		Text = TEXTS.Banner.Dog,
 		Tier = "Small",
 		Radius = 0.5,
 		SimOpts = { stroke = Theme.MINOR, shine = false },
 		LabelProps = {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromScale(0.9, 0.8),
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.fromScale(0.94, 0.5),
+			Size = UDim2.fromScale(0.68, 0.8),
 		},
 	})
 	dog.Rotation = -3

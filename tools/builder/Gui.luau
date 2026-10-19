@@ -46,9 +46,10 @@
 	                or the catch card needs the screen (Controllers/Sheet.luau).
 	  TheftBar      (St.4, gui/Steal.luau) the thief's banner in the BOTTOM band (§6.4 rev. 3),
 	                between the thumbstick and Jump, ZIndex 32; TheftTitle — the «ДОБЫЧА!» slam
-	                in the same band.
+	                in the same band. While he steals the toasts wait (Reserve("thief")).
 	  TheftAlert    (St.4, gui/Alert.luau) the victim's plate at the top of the toast column
-	                (Reserve("alert"); under the TheftBar when both are up), ZIndex 32: text left,
+	                (Reserve("alert"); the thief's TheftBar is in the bottom band, so a thief who
+	                is robbed meanwhile sees both without stacking), ZIndex 32: text left,
 	                [🛡️ ЩИТ] (≥ 56 px, ≥ 35 % of the plate) and [🏠 ДОМОЙ] right; the Compact pill
 	                on phones when the plate would cover the own fisher.
 	  DefencePanel  (St.4, gui/Defence.luau) the «ЗАЩИТА» sheet on the same shell as TankPanel

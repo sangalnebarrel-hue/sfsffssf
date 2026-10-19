@@ -15,6 +15,8 @@
 	отказ сервера не расходятся):
 	  • всё на своей базе и всё, пока своей базы нет (или её садок не подключён);
 	  • всё, пока крадёшь (Stealing) или ждёшь (StealCooldownUntil — серверное время);
+	  • всю базу хозяина, который тебя поймал, Limits.TagCooldown с (SetTagged — по "Cancel"
+	    «tag»: сервер держит пару вор–хозяин, строка «wait» TagLeft);
 	  • всю базу под защитой (ProtectUntil / ProtectKind) или с кражей (Thief);
 	  • витрину без рыбы, с кражей (StealPhase), «в пути» (Escrow) и свежий улов (FreshUntil);
 	  • всю базу, если у хозяина меньше Limits.MinFishToRob рыб (Tank.Count) или он намного
@@ -29,16 +31,19 @@
 
 	Когда пересчитывается: на смену нужных атрибутов (своего игрока, витрин, моделей баз и
 	садков, доходов игроков) — один раз в конце кадра (task.defer), и одним task.delay к
-	ближайшему сроку (конец ожидания, защиты базы, свежего улова). Ни одного покадрового
+	ближайшему сроку (конец ожидания, «поймал», защиты базы, свежего улова). Ни одного покадрового
 	соединения. Соединения — на сессию (базы и витрины живут всю игру), у ушедшего игрока —
 	снимаются.
 
 	API:
 	  TheftPrompts.Start()                     -- один раз (TheftController:Start)
 	  TheftPrompts.SetHeld(prompt?)            -- кнопка, которую держит этот игрок (nil — никакая)
+	  TheftPrompts.SetTagged(userId, untilT)   -- хозяин userId поймал: его база спрятана до untilT
+	                                           -- (серверное время)
 	  TheftPrompts.Refresh()                   -- пересчитать сейчас
 	  TheftPrompts.PromptAt(baseIndex, slot) -> ProximityPrompt?
 	  TheftPrompts.IsSteal(prompt) -> boolean   -- это кнопка кражи
+	  TheftPrompts.SlotOf(prompt) -> (baseIndex?, slot?)   -- чья это кнопка
 	  TheftPrompts.BaseReason(base) -> (reason?, left?)   -- почему на этой базе ничего нельзя
 	  TheftPrompts.FishReason(base) -> (reason?, left?)   -- почему ни одна её рыба (когда кнопок нет)
 	  TheftPrompts.Shown(base) -> number       -- сколько её кнопок сейчас видно
@@ -92,6 +97,7 @@ local infos: { [ProximityPrompt]: Info } = {}
 local byBase: { [Model]: { Info } } = {}
 local shownBy: { [Model]: number } = {}
 local held: ProximityPrompt? = nil
+local tagged: { [number]: number } = {} -- UserId хозяина → до когда (серверное время) он «поймал»
 local dirty = false
 local expiryToken = 0
 local started = false
@@ -182,11 +188,14 @@ local function baseView(base: Model, now: number, own: Model?): TheftChecks.View
 	local cooldown = num(player:GetAttribute("StealCooldownUntil"))
 	local count = if tank then num(tank:GetAttribute("Count")) else nil
 	local ownTankModel = own and tankOf(own)
+	local ownerId = base:GetAttribute("OwnerUserId")
+	local tagUntil = if type(ownerId) == "number" then tagged[ownerId] else nil
 	return {
 		Own = own ~= nil and base == own,
 		ThiefMounted = own ~= nil and ownTankModel ~= nil and ownTankModel:GetAttribute("Count") ~= nil,
 		Stealing = player:GetAttribute("Stealing") ~= nil,
 		CooldownLeft = if cooldown then cooldown - now else 0,
+		TagLeft = if tagUntil then tagUntil - now else 0,
 		ProtectLeft = if protectUntil then protectUntil - now else 0,
 		ProtectKind = if type(kind) == "string" then kind else nil,
 		BaseTheft = base:GetAttribute("Thief") ~= nil,
@@ -219,12 +228,20 @@ local function apply(prompt: ProximityPrompt, show: boolean)
 	end
 end
 
--- Ближайший будущий срок (ожидание, защита баз, свежий улов) — пересчёт к нему одним task.delay.
+-- Ближайший будущий срок (ожидание, «поймал», защита баз, свежий улов) — пересчёт к нему одним
+-- task.delay; прошедшие «поймал» забываются.
 local function scheduleExpiry(now: number)
 	local soonest = math.huge
 	local cooldown = num(player:GetAttribute("StealCooldownUntil"))
 	if cooldown and cooldown > now then
 		soonest = cooldown
+	end
+	for userId, untilT in tagged do
+		if untilT > now then
+			soonest = math.min(soonest, untilT)
+		else
+			tagged[userId] = nil
+		end
 	end
 	for base, list in byBase do
 		local protect = num(base:GetAttribute("ProtectUntil"))
@@ -408,6 +425,19 @@ function TheftPrompts.SetHeld(prompt: ProximityPrompt?)
 		apply(prompt, true)
 	end
 	markDirty()
+end
+
+function TheftPrompts.SetTagged(userId: number, untilT: number)
+	tagged[userId] = untilT
+	markDirty()
+end
+
+function TheftPrompts.SlotOf(prompt: ProximityPrompt): (number?, number?)
+	local info = infos[prompt]
+	if not info then
+		return nil, nil
+	end
+	return tonumber(string.match(info.base.Name, "^Base_(%d+)$")), info.index
 end
 
 function TheftPrompts.IsSteal(prompt: Instance?): boolean

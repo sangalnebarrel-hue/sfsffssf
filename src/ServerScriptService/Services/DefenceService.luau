@@ -38,8 +38,8 @@
 	     VictimImmunity; стало ≥ VictimMax краж за окно — rest до (VictimMax-я с конца) +
 	     VictimWindow (DC-06).
 	  5. EndProtection(player, "stealing") — начал красть сам: все виды сняты и его losses
-	     забыты (ShieldReadyAt не возвращается), была защита — уведомление «Твоя защита снята: ты
-	     пошёл на дело!» (StealConfig.Texts.Hint.Ended, Notify "shield").
+	     забыты (ShieldReadyAt не возвращается), была защита — уведомление «Кража погасила
+	     твою защиту» (StealConfig.Texts.Hint.Ended, Notify "shield").
 	  6. Покупки (DefenceBuy, проверки по порядку — шапка RemoteNames): строка и знакомый предмет
 	     (иначе молча), лимит, CanWrite, база, "owned" / "max" / "soon", цена только из
 	     DefenceConfig, EconomyService:SpendMoney(…, "defence:<item>") не вышел — "money" (с ценой);
