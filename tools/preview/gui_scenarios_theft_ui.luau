@@ -452,7 +452,19 @@ return function(H: { [string]: any }): { any }
 			world = true,
 			standard = false,
 			still = { 1.5, 4.2, 6.6 },
-			timeline = { from = 0, to = 8, fps = 4 },
+			timeline = { from = 0, to = 9.6, fps = 4 },
+			extraBeats = {
+				{ name = "hold", appear = "HUD.TheftBar" },
+				{
+					name = "carry",
+					fn = function(h: any): boolean
+						return h.player:GetAttribute("Stealing") == "carry"
+					end,
+				},
+				{ name = "dog", appear = "HUD.TheftBar.DogChip" },
+				{ name = "ДОБЫЧА", appear = "HUD.TheftTitle" },
+				{ name = "slam gone", disappear = "HUD.TheftTitle" },
+			},
 			burst = false,
 			run = function(h: any)
 				statusRule(h)
@@ -470,7 +482,7 @@ return function(H: { [string]: any }): { any }
 				h.player:SetAttribute("Slowed", nil)
 				walk(h, { 0, 3.2, 12 }, 13.6, 1.6)
 				credit(h, 3, "Puffer")
-				h:advance(2.4)
+				h:advance(2.8)
 			end,
 		},
 		{
@@ -480,6 +492,17 @@ return function(H: { [string]: any }): { any }
 			standard = false,
 			still = { 1.0, 2.0 },
 			timeline = { from = 0, to = 4.5, fps = 4 },
+			extraBeats = {
+				{ name = "hold", appear = "HUD.TheftBar" },
+				{
+					name = "fail",
+					fn = function(h: any): boolean
+						local title = h:gui("HUD.TheftBar.Title")
+						return title ~= nil and title.Text == h:config("StealConfig").Texts.Banner.Fail
+					end,
+				},
+				{ name = "gone", disappear = "HUD.TheftBar" },
+			},
 			burst = false,
 			run = function(h: any)
 				statusRule(h)
