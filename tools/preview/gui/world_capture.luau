@@ -38,7 +38,7 @@
 	      – BillboardGui (Adornee / parent part / attachment): placed at the projected point plus
 	        StudsOffsetWorldSpace and the camera-relative StudsOffset, sized "studs x px-per-stud
 	        + px" at its depth, MaxDistance applied, its GUI laid out at that size (the trophy's
-	        nameplate, the «?» of a nibble …);
+	        nameplate, the «?» of a nibble …); AlwaysOnTop ones are drawn over the scene;
 	      – Beam: a camera-facing ribbon along the Bezier (CurveSize0/1 along the attachments'
 	        WorldAxis), Width0 -> Width1, Color / Transparency along it — the fishing line leaves
 	        the bent rod's live TipAttachment;
@@ -50,10 +50,17 @@
 	        Acceleration, Drag (speed halves every 1/Drag s), LockedToPart; dots sized by Size /
 	        coloured by Color / Transparency over the particle's life (deterministic random) —
 	        sparkles, splashes, water glints;
-	      – PointLight: a faint glow of its Colour.
+	      – PointLight: a faint glow of its Colour;
+	      – SpotLight (stage 4: the siren): a glow at the light and its lit patch on the ground
+	        under it (the part of the cone that reaches the nearest base's ground top);
+	      – Highlight (stage 4: the thief's mark): the adornee's visible parts' projected boxes,
+	        filled with FillColor and ringed with OutlineColor (gui/world.py "highlight");
+	        AlwaysOnTop is drawn over everything, Occluded hides behind the scene.
+	    Stage 4: a ForceField part (the shield dome) is a solid with ff = 1 (gui/solids.py: clear
+	    where it faces the camera, bright at the rim; not drawn from inside, like Roblox).
 	  • MARKS (the x-ray boxes of timelines): fish models (a Model with a Title attribute or named
 	    HeldFish / Leap / Dive, with their screen path), the pillar, the halo, the nameplate.
-	Not captured: Highlights, Decals/Textures, meshes other than the sphere (drawn as their
+	Not captured: Decals/Textures, meshes other than the sphere (drawn as their
 	box), sounds, camera shake, the terrain water's ripples, Drift clouds (static in the backdrop).
 
 	Camera = the GUI backdrop's (gui/backdrop.py): the Roblox default third-person camera,
@@ -71,6 +78,10 @@
 	client's camera follows the real body the same way (placement⁻¹ × the capture camera, like
 	Roblox's follow camera): FishingController's own-character keep-out sees the fisher where
 	the drawing shows him.
+
+	Stage 4 (TheftWorldController): the client's Workspace.TheftWorld folder is walked the same
+	way (the dome, the lamp's glow and the siren's lights, «ВОР!», the flag label, the carried
+	fish's plate, «ГАВ!», the Highlight).
 
 	Stage 3 (TankWorldController): the client's Workspace.TankWorld folder is walked like
 	FishingFx (display fish as solids — no x-ray marks —, the words over the displays, the tank
@@ -117,6 +128,8 @@ local MARK_PREFIXES = { "PillarCore", "PillarBeam", "Halo", "Pop", "Nameplate" }
 local FISH_NAMES = { HeldFish = true, Leap = true, Dive = true }
 local AMBIENT_FOLDER = "Ambient (client)" -- AmbientController's own parts
 local TANK_FOLDER = "TankWorld" -- TankWorldController's own parts, words and FX (stage 3)
+local THEFT_FOLDER = "TheftWorld" -- TheftWorldController's dome, lights, words, Highlight (stage 4)
+local SPOT_PATCH = 0.16 -- a SpotLight's lit ground patch: opacity at Brightness 6 (stage 4 siren)
 local LABEL_RANGE = 60 -- the display labels (Pedestal.LabelGui, MaxDistance 60) drawn this near
 -- Map movers (AmbientWorld): kinds and how far from the spot they are drawn moving, studs.
 -- Farther ones (and the Drift clouds) stay in the backdrop at rest: their motion is a pixel.
@@ -735,6 +748,13 @@ function Capture:scan(): { any }
 	if tankWorld then
 		walk(tankWorld, nil, nil, nil, true)
 	end
+	-- Stage 4: this client's theft world (TheftWorldController: the shield dome, the lamp's
+	-- glow and the siren's SpotLights, «ВОР!», the flag label, the carried fish's plate, the
+	-- thief's Highlight, «ГАВ!»)
+	local theftWorld = self:clientFolder(THEFT_FOLDER)
+	if theftWorld then
+		walk(theftWorld, nil, nil, nil, true)
+	end
 	for _, plr in self.sim:GetPlayers() do
 		local character = plr.Character
 		if character then
@@ -1125,8 +1145,11 @@ function Capture:solidOf(part: any, color: { number }?, place: any?): { [string]
 	if t > 0.005 then
 		e.t = rn(t, 100)
 	end
-	if get(part, "Material", nil) == Enum.Material.Neon then
+	local material = get(part, "Material", nil)
+	if material == Enum.Material.Neon then
 		e.m = 1
+	elseif material == Enum.Material.ForceField then
+		e.ff = 1 -- (gui/solids.py: clear where it faces the camera, bright at the rim)
 	end
 	return e
 end
@@ -1278,9 +1301,179 @@ function Capture:billboardItem(cam: any, gui: any, items: { any }, marks: { any 
 	if #objects == 0 then
 		return
 	end
-	table.insert(items, { k = "gui", objects = objects, d = z, name = gui.Name })
+	-- AlwaysOnTop (stage 4: «КРАДУТ!», «УКРАДЕНО!»): drawn over the scene, never hidden by it
+	local onTop = get(gui, "AlwaysOnTop", false) == true
+	table.insert(
+		items,
+		{ k = "gui", objects = objects, d = if onTop then 0.06 else z, top = onTop or nil, name = gui.Name }
+	)
 	if startsWithAny(gui.Name, MARK_PREFIXES) then
 		table.insert(marks, { name = gui.Name, box = { r1(rect.x), r1(rect.y), r1(rect.x + w), r1(rect.y + h) } })
+	end
+end
+
+-- A Highlight (stage 4: the thief's mark): Roblox tints its adornee's silhouette with FillColor
+-- at 1 − FillTransparency and outlines it with OutlineColor at 1 − OutlineTransparency. Here:
+-- the union of the visible parts' projected boxes (gui/world.py "highlight" fills the union and
+-- rings it); DepthMode AlwaysOnTop is drawn over everything (d ≈ 0), Occluded is hidden behind
+-- the scene from the adornee's nearest depth on. `place` = the drawing's placement of a
+-- character (Capture:placement).
+function Capture:highlightItem(cam: any, hl: any, items: { any }, place: any?)
+	if not get(hl, "Enabled", true) then
+		return
+	end
+	local target = get(hl, "Adornee", nil) or hl.Parent
+	if not target or not (target:IsA("Model") or target:IsA("BasePart")) then
+		return
+	end
+	local fill = 1 - get(hl, "FillTransparency", 0.5)
+	local outline = 1 - get(hl, "OutlineTransparency", 0)
+	if fill <= 0.01 and outline <= 0.01 then
+		return
+	end
+	local parts = if target:IsA("BasePart") then { target } else {}
+	for _, d in target:GetDescendants() do
+		if d:IsA("BasePart") then
+			table.insert(parts, d)
+		end
+	end
+	local polys, near = {}, math.huge
+	for _, part in parts do
+		if effectiveTransparency(part) >= 0.98 or part.Name == "HumanoidRootPart" then
+			continue
+		end
+		local cf = if place then place * part.CFrame else part.CFrame
+		local pts = {}
+		for i = 1, 8 do
+			local p = boxCorner(cf, part.Size, i)
+			local x, y, z = project(cam, self.W, self.H, p)
+			if z > NEAR then
+				table.insert(pts, { r1(x), r1(y) })
+				near = math.min(near, z)
+			end
+		end
+		if #pts >= 3 then
+			table.insert(polys, pts)
+		end
+	end
+	if #polys == 0 then
+		return
+	end
+	local onTop = get(hl, "DepthMode", nil) == Enum.HighlightDepthMode.AlwaysOnTop
+	table.insert(items, {
+		k = "highlight",
+		polys = polys,
+		fc = rgb(get(hl, "FillColor", roblox.Color3.new(1, 0, 0))),
+		fa = rn(fill, 100),
+		oc = rgb(get(hl, "OutlineColor", roblox.Color3.new(1, 1, 1))),
+		oa = rn(outline, 100),
+		d = if onTop then 0.06 else near,
+		top = onTop or nil,
+		name = hl.Name,
+	})
+end
+
+-- A SpotLight (stage 4: the siren's two beams): its lit patch on the ground under it (the base's
+-- ground top, y of the nearest base pivot) — the part of the cone (Face of the parent
+-- Attachment, Angle, Range) that reaches the ground, a translucent wedge in the light's colour
+-- (RbxSim does no lighting), plus a small glow at the light.
+function Capture:spotItem(cam: any, light: any, items: { any })
+	local anchor = anchorCFrame(light.Parent)
+	if not anchor then
+		return
+	end
+	local color = rgb(get(light, "Color", roblox.Color3.new(1, 1, 1)))
+	local brightness = get(light, "Brightness", 1)
+	local range = get(light, "Range", 16)
+	local half = math.rad(math.clamp(get(light, "Angle", 90), 1, 179) / 2)
+	local faces = {
+		Front = -anchor.ZVector,
+		Back = anchor.ZVector,
+		Right = anchor.XVector,
+		Left = -anchor.XVector,
+		Top = anchor.YVector,
+		Bottom = -anchor.YVector,
+	}
+	local dir = faces[enumNameOf(get(light, "Face", nil), "Front")] or -anchor.ZVector
+	local pos = anchor.Position
+	local x, y, z = project(cam, self.W, self.H, pos)
+	if z > 0.05 then
+		table.insert(items, {
+			k = "glow",
+			x = r1(x),
+			y = r1(y),
+			r = r1(3 * cam.fp / z),
+			c = color,
+			a = rn(math.clamp(brightness * 0.05, 0, 0.35), 100),
+			d = z,
+			name = light.Name,
+		})
+	end
+	-- the ground under the light
+	local groundY = nil
+	local bases = self.sim.workspace:FindFirstChild("Bases")
+	local best = math.huge
+	for _, base in if bases then bases:GetChildren() else {} do
+		local ok, pivot = pcall(function()
+			return base:GetPivot()
+		end)
+		if ok then
+			local d = (pivot.Position - pos).Magnitude
+			if d < best then
+				best, groundY = d, pivot.Position.Y
+			end
+		end
+	end
+	local height = if groundY then pos.Y - groundY else 0
+	local flat = Vector3.new(dir.X, 0, dir.Z)
+	if not groundY or height <= 0 or flat.Magnitude < 1e-3 then
+		return
+	end
+	flat = flat.Unit
+	-- the cone's lowest ray reaches the ground at `from`, its axis (if it points down) further
+	local down = math.asin(math.clamp(-dir.Y, -1, 1)) -- the axis below the horizon, radians
+	local low = down + half
+	if low <= 0.01 then
+		return -- the whole cone points up
+	end
+	local from = height / math.tan(math.min(low, math.rad(89)))
+	local reach = math.sqrt(math.max(range * range - height * height, 0))
+	if reach <= from then
+		return
+	end
+	local side = Vector3.new(-flat.Z, 0, flat.X)
+	local foot = Vector3.new(pos.X, groundY + 0.05, pos.Z)
+	-- in tiles (angle x distance), each with its own depth: the scene hides the far ones only
+	local function at(a: number, r: number): any
+		return foot + (flat * math.cos(a) + side * math.sin(a)) * r
+	end
+	local steps, bands = 6, 4
+	local alpha = rn(math.clamp(SPOT_PATCH * brightness / 6, 0, 0.4), 100)
+	for i = 0, steps - 1 do
+		local a0 = -half + 2 * half * i / steps
+		local a1 = -half + 2 * half * (i + 1) / steps
+		for j = 0, bands - 1 do
+			local r0 = from + (reach - from) * j / bands
+			local r1 = from + (reach - from) * (j + 1) / bands
+			local quad = { at(a0, r0), at(a1, r0), at(a1, r1), at(a0, r1) }
+			local pts = clipProject(cam, self.W, self.H, quad)
+			if #pts >= 3 then
+				local nearest = math.huge
+				for _, q in quad do
+					nearest = math.min(nearest, math.max((q - cam.eyeW):Dot(cam.f), NEAR))
+				end
+				local _, _, dz = project(cam, self.W, self.H, at((a0 + a1) / 2, (r0 + r1) / 2))
+				table.insert(items, {
+					k = "poly",
+					pts = pts,
+					c = color,
+					a = alpha,
+					d = math.max(dz, NEAR),
+					dn = nearest,
+					name = light.Name,
+				})
+			end
+		end
 	end
 end
 
@@ -1566,6 +1759,15 @@ function Capture:_frame(): any
 					})
 				end
 			end
+		elseif inst:IsA("SpotLight") and get(inst, "Enabled", true) then
+			self:spotItem(cam, inst, items)
+		elseif inst:IsA("Highlight") then
+			local target = get(inst, "Adornee", nil) or inst.Parent
+			local place = nil
+			if target and target:IsA("Model") and target:FindFirstChildOfClass("Humanoid") then
+				place = placeOf(target)
+			end
+			self:highlightItem(cam, inst, items, place)
 		end
 	end
 	if self.avatarOnly then

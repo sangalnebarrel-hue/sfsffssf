@@ -49,6 +49,9 @@
 	h:alert(data?) (the victim: StealEvent "Alert"), h:shield(left, readyIn, kind?) (the own base's
 	protection, all five kinds), h:defence({ dog, alarm, lock }) (what the own base owns),
 	h:stealEvent(kind, data) (any StealEvent kind; documented where they are defined).
+	Stage 4 world views (gui_scenarios_theft_world.luau): h:extraPlayer(opts?) (a second player —
+	the thief, a neighbour — with his own base; he leaves when the scenario ends) and
+	h:atEnd(fn) (runs when the scenario ends: put back what the next scenarios would inherit).
 	Every player is an R15 rig (RbxSim `rig = "R15"`) on base 1 (BaseConfig.RandomAssignment is
 	switched off: the backdrop is base 1's pier); while a Tool is equipped the Animator stand-in
 	holds the "toolnone" pose (FisherPoses.Hold), like Roblox's Animate script.
@@ -115,6 +118,10 @@ local tankScenarios = require("./gui_scenarios_tank")
 -- Stage 3 HUD states (the Wallet, «САДОК», catch → tank, the stage 3 toasts): their own file, in
 -- the standard set.
 local hudScenarios = require("./gui_scenarios_hud3")
+-- Stage 4 world views (TheftWorldController + TankWorldController during a theft: the court
+-- during a hold, the carry and the dog, the lamp, the siren and the thief's Highlight, the
+-- shield dome, the tank sign's defences, the pier word): their own file, not in the standard set.
+local theftWorldScenarios = require("./gui_scenarios_theft_world")
 local WorldCapture = require("./gui/world_capture")
 
 local Enum = roblox.Enum
@@ -1593,6 +1600,60 @@ function Harness:defence(owned: { [string]: any })
 	self:simStep(FRAME)
 end
 
+-- Another player in the scenario's sim (stage 4 world views: the thief, a neighbour): an R15
+-- rig on a desktop client that joins with the stage 3 defaults, gets the next free base and is
+-- removed when the scenario ends. opts: UserId (default 2002 + n), Name, DisplayName («Ника»).
+-- Returns the player once its character and base are there.
+function Harness:extraPlayer(opts: { [string]: any }?): any
+	local o = opts or {}
+	self.extras = self.extras or {}
+	local n = #self.extras + 1
+	local extra = self.sim:AddPlayer({
+		UserId = o.UserId or (2001 + n),
+		Name = o.Name or `Guest{n}`,
+		DisplayName = o.DisplayName or "Ника",
+		device = "desktop",
+		rig = "R15",
+	})
+	table.insert(self.extras, extra)
+	for name, value in stage3Defaults(self.sim) do
+		extra:SetAttribute(name, value)
+	end
+	self:waitFor(function()
+		local index = extra:GetAttribute("BaseIndex")
+		return typeof(index) == "number" and index > 0 and extra.Character ~= nil
+	end, 10)
+	return extra
+end
+
+-- `fn` runs when the scenario ends (before the extra players leave): a scenario that changes
+-- what the next ones would inherit (the base's attributes, a shown dog) puts it back here.
+function Harness:atEnd(fn: () -> ())
+	self.cleanups = self.cleanups or {}
+	table.insert(self.cleanups, fn)
+end
+
+-- End of a scenario: the h:atEnd functions (last first), then the extra players leave.
+function Harness:finish()
+	local cleanups = self.cleanups or {}
+	self.cleanups = {}
+	for i = #cleanups, 1, -1 do
+		local ok, err = pcall(cleanups[i])
+		if not ok then
+			self:warn(`atEnd failed: {err}`)
+		end
+	end
+	for _, extra in self.extras or {} do
+		pcall(function()
+			self.sim:RemovePlayer(extra)
+		end)
+	end
+	if self.extras and #self.extras > 0 then
+		self.extras = {}
+		self.sim:Advance(0.1)
+	end
+end
+
 --------------------------------------------------------------------------------
 -- Real-server play (scenarios with `server = true`: FishingService is live)
 --------------------------------------------------------------------------------
@@ -2282,6 +2343,9 @@ local function allScenarios(): { any }
 	for _, s in hudScenarios do
 		table.insert(list, s)
 	end
+	for _, s in theftWorldScenarios do
+		table.insert(list, s)
+	end
 	return list
 end
 
@@ -2679,6 +2743,7 @@ local function main()
 		end
 		h.yieldSteps = nil
 		h:restoreBiteDelay() -- (the real sim is shared by the next server scenarios)
+		h:finish() -- (h:atEnd, h:extraPlayer: the next scenario starts clean and alone)
 
 		local errors = {}
 		for _, e in sim.Errors do

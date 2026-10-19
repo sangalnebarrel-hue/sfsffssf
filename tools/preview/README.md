@@ -744,6 +744,38 @@ client's `Workspace.TankWorld` (TankWorldController's fish, words and FX; its fi
 boxes) and draws the pedestal labels (`Pedestal.LabelGui`) of the bases within 60 studs of the
 camera. Render them HUD-less: `gui_render.py --scenario tank_court,tank_aisle --no-hud …`.
 
+Stage 4 world views (`tools/preview/gui_scenarios_theft_world.luau`, `world = true`, not in
+`--all`; by name): `steal_hold_follow` (the follow camera behind a thief holding Slot_3: the fish
+lifted and tilted, the red pulse, «КРАДУТ!» with its ring), `steal_carry_dog` (the carry: the
+fish's arc out of the front glass onto the thief's head, his StolenFish plate and «ВОР!», the
+lamp, the siren, the Highlight, the dog running after the slowed thief), `alarm_lamp_court` (the
+lamp half a blink apart), `alarm_siren_highlight` (the owner's view of the thief: the Highlight,
+«ВОР!», the siren's beams), `shield_dome_gate` (base 1's dome from its gate, a join-protected
+neighbour without one, the camera inside the dome), `dog_court_rest` (the shown dog at
+`Dog.Rest` and the kennel), `tank_sign_defences` («🔐1 · 🐕 · 🚨» and «🛡️ 0:42»),
+`owner_pier_alert` / `owner_pier_alert_wait` (`server = true`: the real cast) — the fishing
+camera with «🚨 КРАДУТ!». The stage 4 services are stubs: the file writes the slot steal channel,
+the base / dog / player attributes and the thief's StolenFish (the real `Lib/HeldRig`) itself;
+the thief is a second player (`h:extraPlayer`, gone at the scenario's end) and `h:atEnd` puts
+base 1 back for the next scenario. The world capture walks the client's `Workspace.TheftWorld`
+and draws a Highlight (its parts' projected boxes filled + ringed; AlwaysOnTop over everything),
+a SpotLight (a glow + its lit ground patch) and a ForceField part (rim-lit, clear in the middle,
+not drawn from inside — Roblox culls back faces; a ForceField ball gets a finer sphere than
+render.py's 60 faces). The lamp, the shown dog and the kennel are
+drawn from the sim (`addLive`). World views HUD-less: `gui_render.py --scenario
+steal_hold_follow,… --devices phone --no-hud --sheets …`; the pier words with the HUD on phone and
+desktop. A BillboardGui with `AlwaysOnTop` («КРАДУТ!», «УКРАДЕНО!») is drawn over the scene, never
+cut by it. The Wave 1 B review views (design §11.5), with the HUD: `steal_hold_thief_hud` /
+`steal_hold_thief_rule` and `steal_carry_thief_hud` / `steal_carry_thief_rule` (the THIEF'S OWN
+screen — the local player holds / carries — rev. 2's top TheftBar vs the §6.4 rule mocked: Status
+hidden, the TheftBar in the bottom band; with `-v` a `[band]` line prints the robbed display's
+screen rect, `TankWorldController.StealRect`, next to the HUD's rects; run them on phone,
+phone_small, tablet and desktop), `steal_hold_spawn` (the steal word past the arcade lanterns),
+`shield_dome_spawn` (the owner on his spawn pad inside the dome: faint, then the Near band, then a
+bubble), `alarm_lamp_far` (dark ↔ hot from the lane, the pitched siren beams), `tank_sign_gate`
+(the defences row on top, from the gate and the spawn), `dog_rest_side` (the paws on the paving,
+«💤»), `flag_label_neighbour` (base 2's blue flag: the label over the owner sign).
+
 Stage 3 tank panel (`tools/preview/gui_scenarios_panel.luau`, listed after the built-in states, in
 the standard set): `tank_panel_home` (3/6: a Gold Perch, a maxed Puffer, a young Crucian, empty
 cards, the locked teaser; the open's rise and card pops at 0.12 s), `tank_panel_take` (opened with

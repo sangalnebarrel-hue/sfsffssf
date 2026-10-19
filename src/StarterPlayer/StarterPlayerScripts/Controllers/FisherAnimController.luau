@@ -118,6 +118,10 @@ local FisherPoses = require(script.Parent:WaitForChild("FisherPoses"))
 local FisherRod = require(script.Parent:WaitForChild("FisherRod"))
 
 local RANGE = 150 -- дальше от своего персонажа (камеры) рыбаков не анимируем, studs
+-- Рыба над головой — держим обеими руками: улов (HeldFish) и краденая у вора (StolenFish, Этап 4:
+-- без «показов» — он с ней бежит за ограду).
+local STOLEN = "StolenFish"
+local HELD_NAMES: { [string]: boolean } = { HeldFish = true, [STOLEN] = true }
 local POLL = 0.5 -- как часто проверять дальних / ещё не загрузившихся рыбаков, с
 local ALIVE_CHECK = 0.5 -- как часто проверять, не заменили ли суставы (внешность, смерть), с
 local MOVE_SPEED = 2.5 -- быстрее (studs/с по горизонтали) — «идёт»
@@ -537,7 +541,8 @@ LAYER.Trophy = function(f: Fisher, now: number, add: Add, k: number)
 	addRot(add, "LShoulder", 5 * k * breath, 0, 0)
 	addRot(add, "Neck", 2 * k * wave(now, 0.8, f.seed + 1.2), 0, 0)
 	addMove(add, "Root", 0, -0.08 * k * (1 - math.cos(2 * math.pi * 1.2 * (now + f.seed))) / 2, 0)
-	if k > 0.5 and now >= f.nextShow then
+	-- (краденую рыбу не «показывают»: вор с ней бежит; Этап 4)
+	if k > 0.5 and now >= f.nextShow and not (f.heldFish and f.heldFish.Name == STOLEN) then
 		f.nextShow = now + T.Trophy.ShowEvery
 		pulse(f, "pump", 0.45, 1)
 		pulse(f, "sweep", T.Trophy.ShowSweep, 1)
@@ -1511,7 +1516,7 @@ local function bindCharacter(f: Fisher, character: Model?)
 			setRoot()
 		elseif isRod(child) then
 			onToolAdded(f, child :: Tool)
-		elseif child.Name == "HeldFish" and child:IsA("Model") then
+		elseif HELD_NAMES[child.Name] and child:IsA("Model") then
 			onHeldAdded(f, child)
 		end
 	end
@@ -1519,7 +1524,7 @@ local function bindCharacter(f: Fisher, character: Model?)
 	f.charTrove:Connect(character.ChildRemoved, function(child: Instance)
 		if child:IsA("Tool") then
 			onToolRemoved(f, child)
-		elseif child.Name == "HeldFish" then
+		elseif HELD_NAMES[child.Name] then
 			onHeldRemoved(f, child)
 		end
 	end)
@@ -1527,7 +1532,7 @@ local function bindCharacter(f: Fisher, character: Model?)
 		if isRod(child) then
 			-- удочка уже в руке (вошли в игру позже) — без «взял удочку»
 			f.tool = child :: Tool
-		elseif child.Name == "HeldFish" and child:IsA("Model") then
+		elseif HELD_NAMES[child.Name] and child:IsA("Model") then
 			f.heldFish = child
 		end
 	end

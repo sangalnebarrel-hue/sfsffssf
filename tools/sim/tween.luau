@@ -131,8 +131,29 @@ function Tween.new(sim)
 	self.sim = sim
 	self.state = setmetatable({}, { __mode = "k" }) -- raw Tween -> state
 	self.active = {} -- list of raw tweens currently playing
-	self.owner = setmetatable({}, { __mode = "k" }) -- raw target -> { prop -> raw tween }
+	-- context -> raw target -> { prop -> raw tween }: a newer tween cancels an older one on the same
+	-- property only in ITS context (every client has its own TweenService: two clients tweening a
+	-- server part's local look do not cancel each other)
+	self.owner = {}
 	return self
+end
+
+-- The { prop -> raw tween } map of a tween's target in its context (create: make it).
+function Tween:_owned(st, create: boolean?)
+	local byCtx = self.owner[st.ctx]
+	if byCtx == nil then
+		if not create then
+			return nil
+		end
+		byCtx = setmetatable({}, { __mode = "k" })
+		self.owner[st.ctx] = byCtx
+	end
+	local owned = byCtx[st.target]
+	if owned == nil and create then
+		owned = {}
+		byCtx[st.target] = owned
+	end
+	return owned
 end
 
 function Tween:create(target, info, goals)
@@ -213,7 +234,7 @@ function Tween:_setPlayback(tw, st, state)
 end
 
 function Tween:_release(tw, st)
-	local owned = self.owner[st.target]
+	local owned = self:_owned(st)
 	if owned then
 		for k in st.goals do
 			if owned[k] == tw then
@@ -246,11 +267,7 @@ function Tween:play(tw)
 		end
 		sim.sched.currentCtx = prevCtx
 	end
-	local owned = self.owner[st.target]
-	if owned == nil then
-		owned = {}
-		self.owner[st.target] = owned
-	end
+	local owned = self:_owned(st, true)
 	for k in st.goals do
 		local other = owned[k]
 		if other and other ~= tw then

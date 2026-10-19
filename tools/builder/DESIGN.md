@@ -225,7 +225,42 @@ must see every base's displays and attributes.
   (`TankRules.AttrTime(GetServerTimeNow() − Age)`: whole numbers get +1/1024 s — Lune stores
   whole attribute values as float32); and `Event` = `"<n>|<kind>|<detail>"`: `in|<FishId>`,
   `mount|`, `sold|<price>`, `swap|<price>` (a replacement: State stays `"fish"`, `FishUid`
-  changes), stage 4 `stolen|`.
+  changes), stage 4 `stolen|<thief UserId>` (loud: «УКРАДЕНО!», sparks aimed at the thief)
+  and `void|` (quiet: an escrowed copy given back to its owner).
+* **The steal channel (stage 4, `docs/stage4_design.md` §4.5, §4.11; StealService writes it
+  through `TankService:SetSteal`, TankWorldController reads it):** slot attributes apart from
+  `Event` (never overloaded): `StealBy` (the thief's UserId), `StealEnd` (the hold's / the
+  carry's end, `TankRules.AttrTime`), then **`StealPhase` LAST** (`"hold"` | `"carry"`); a
+  release clears `StealBy` and `StealEnd` first and **`StealPhase` last**. Clients re-read a
+  slot on `StealPhase` too (the same coalesced `task.defer` as `Event` / `State`). The credit
+  clears the channel and writes the fish fields nil → `State` → `Event stolen|<id>` in one
+  frame; an unmount's `showEmpty` clears `StealBy`, `StealEnd`, `Escrow`, `FreshUntil`, then
+  `StealPhase` last (the channel never outlives a mount). `Escrow` (the thief's slot: the copy
+  is «в пути») and `FreshUntil` (a fresh catch) feed the client's prompt filter, not the world.
+  **What the client draws** (`TankConfig.Display.Steal`): `"hold"` — the display fish rises
+  ≤ `Lift` (its top stays `LiftGap` under the glass top), tilts towards the aisle and struggles
+  (per-part CFrame tweens, no welds), the aisle tag hides, «КРАДУТ!» stands in front of the
+  glass at the LightBar's height with a ring to `StealEnd`, a red PointLight pulses at the
+  LightBar; `"carry"` — the fish leaves **through the front face** (wholly in front of it, never
+  through the top), its top never above `FishPoint + ArcTop` (the arcade ceiling is 5.15 over
+  FishPoint), lands on the thief's `StolenFish` and is destroyed («УНОСЯТ!»); the channel
+  cleared with the fish still in the data — a release (it drops back with the `in` splash) or a
+  return (a copy flies back from the thief's head). Keep the 6.2 display cube, `FishPoint` at
+  its centre with −Z towards the aisle, the LightBar and the ceiling where they are. The steal
+  words («КРАДУТ!», «УКРАДЕНО!») are `AlwaysOnTop` (MaxDistance 90): they stand at the LightBar's
+  height (y 11.25) right behind the arcade lanterns (x ±23, y 10.5–12.3, z 66/88/110), which
+  would cut them from the court mouth and the spawn — keep the lanterns there or lower the words.
+* **The robbed display's screen band (stage 4, `docs/stage4_design.md` §6.4, §6.9):** from the
+  thief's default follow camera during a hold (12.5 studs behind, 20° down, standing at the
+  prompt ≈ 5 studs from the glass), the display's glass (`TankWorldController.StealRect(base,
+  slot)`: its 8 corners projected, px like `AbsolutePosition`) covers **x ≈ 0.36–0.64 W,
+  y ≈ 0.10–0.45 H** on every device (phone 844×390: 351..492 × 39..174; phone_small 667×375:
+  265..401 × 38..168; tablet: 373..650 × 77..344; desktop 1280×720: 510..769 × 72..322); the
+  thief's own character is under it (≈ 0.49–0.65 H) and the stock «Украсть» prompt at knee height
+  (≈ 0.50–0.70 H). That top-centre band is where `HUD.Status` and the toast column are, so the
+  thief's HUD keeps out of it while `HUD.Stealing` is set (Status hidden, the TheftBar in the
+  bottom band — the §6.4 rule; renders `steal_hold_thief_hud` / `steal_hold_thief_rule`). A
+  template change that moves the displays, the aisle or the prompt re-measures this band.
 * **Write order:** the fish fields → `State` → **`Event` last**. `"empty"` / `"locked"` set every
   fish field to `nil` (no stale `FishId` / `Value`). `n` is monotonic per base for the server's
   lifetime (never reset on unmount: a new owner's first event never repeats an old string).
