@@ -432,12 +432,26 @@ tests["Bought → MoneyController.Spend(price, button) once, the stamp «КУП�
 	p:SetAttribute("Money", 3000)
 	p:SetAttribute("HasDog", true)
 	defenceEvent(sim, p, "Bought", { Item = "Dog", Price = 6000 })
+	local floated = sim:WaitFor(function()
+		for _, item in hudOf(p):GetDescendants() do
+			if item:IsA("TextLabel") and string.find(item.Text, "−$6", 1, true) then
+				return true
+			end
+		end
+		return nil
+	end, 1, 1 / 30)
+	t.ok(floated, "«−$6 000» floats by the Wallet")
 	sim:Advance(0.3)
 	t.eq(#spent, 1, "MoneyController.Spend once")
 	t.eq(spent[1] and spent[1].amount, 6000, "with the price")
 	t.ok(spent[1] and spent[1].to and spent[1].to:IsDescendantOf(cardOf(p, "DogCard")), "the 💵 fly into the card")
 	t.eq(looks(sim, p, defence).Dog, "bought", "«КУПЛЕНО»")
 	t.ok(hasToast(p, TEXTS.Bought.Dog), `«{TEXTS.Bought.Dog}»`)
+	local counted = sim:WaitFor(function()
+		return string.find(hudOf(p).Status.Wallet.Money.Label.Text, "3", 1, true) ~= nil
+			and string.find(hudOf(p).Status.Wallet.Money.Label.Text, "9", 1, true) == nil
+	end, 3, 0.1)
+	t.ok(counted, `the Wallet counts down to $3 000 («{hudOf(p).Status.Wallet.Money.Label.Text}»)`)
 	-- Denied: the card wiggles, the server's text shows.
 	tapBuy(sim, p, "AlarmCard")
 	sim:Advance(0.5)
