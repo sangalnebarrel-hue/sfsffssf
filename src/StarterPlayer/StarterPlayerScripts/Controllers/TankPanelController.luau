@@ -70,6 +70,12 @@
 	    никогда; и по ✕ или кнопке «САДОК». Open(uid) (прилёт улова) — карточка этой рыбы
 	    прокручена в окно, кольцо цвета редкости. Каждое открытие гасит красный «!» на кнопке
 	    «САДОК» (UiFx.badgeHide: «первое открытие» — кто бы ни открыл, кнопка или ларёк).
+	  • Кража (Этап 4, §6.7): витрина слушает ещё StealPhase и Escrow (канал кражи RemoteNames, Event
+	    не трогает) — пока рыбу крадут (удержание или вынос), кнопка продажи — Berry «КРАДУТ!», пока
+	    краденая рыба вора «в пути» (Escrow) — Slate «В ПУТИ…»; продать нельзя: нажатие сразу
+	    уходит на сервер (TankSell, без «ПРОДАТЬ?»), его отказ «Её сейчас крадут!» / «Рыба ещё в
+	    пути…» — подсказкой, карточка качается. Украдена — обычное исчезновение карточки (Event
+	    "stolen"), вернулась — снова «💵 $45».
 	  • Бюджеты: заливка телефона ≤ 2.5× с открытой панелью (gui_render.py; не хватает —
 	    вместо Viewport на телефоне эмодзи редкостей 🐟 🐠 🐡 🦈 🐉); ≤ 60 временных объектов;
 	    UiFx.activeJobs() == 0 после каждого эффекта; соединений после закрытия — как до открытия
@@ -523,11 +529,26 @@ end
 
 local onSell: (card: Card) -> ()
 
+-- Этап 4: вид кнопки по каналу кражи витрины — "stealing" (крадут), "escrow" (в пути) или nil.
+local function stealLookOf(slot: number): string?
+	local model = slotModel(slot)
+	if not model then
+		return nil
+	end
+	local phase = model:GetAttribute("StealPhase")
+	if phase == "hold" or phase == "carry" then
+		return "stealing"
+	elseif model:GetAttribute("Escrow") == true then
+		return "escrow"
+	end
+	return nil
+end
+
 local function makeCard(slot: number, info: Info?): Card
 	local kind = if info then "fish" else "empty"
 	local card = TankCards.make(S.templates, kind, slot, info, S.cell, S.wide, onSell, not S.tall)
 	if card.kind == "fish" then
-		TankCards.setLook(card, lookFor(), S.wideSell)
+		TankCards.setLook(card, stealLookOf(slot) or lookFor(), S.wideSell)
 	end
 	return card
 end
@@ -609,6 +630,21 @@ end
 onSell = function(card: Card)
 	local info = card.info
 	if not isOpen() or card.kind ~= "fish" or not info or card.gone or card.look == "busy" then
+		return
+	end
+	if card.look == "stealing" or card.look == "escrow" then
+		-- Этап 4: продать нельзя — сразу спросить сервер (его отказ — подсказкой, карточка качается).
+		stopConfirm(true)
+		endSelling(false)
+		S.selling = { uid = info.uid, slot = card.slot }
+		local event = S.sellEvent
+		if event then
+			event:FireServer(info.uid)
+		end
+		S.sellWait = task.delay(PANEL.SellWait, function()
+			S.sellWait = nil
+			endSelling(false)
+		end)
 		return
 	end
 	if S.confirm ~= card then
@@ -721,6 +757,28 @@ local function saleJuice(slot: number)
 	end)
 end
 
+-- Этап 4: витрину начали / перестали красть (или рыба вора «в пути») — кнопка карточки.
+local function refreshSteal(slot: number)
+	local card = S.cards[slot]
+	if not isOpen() or not card or card.kind ~= "fish" or card.gone then
+		return
+	end
+	local want = stealLookOf(slot)
+	if want then
+		if card.look ~= want then
+			if S.confirm == card then
+				stopConfirm(false)
+				TankCards.showLoss(card, false)
+			end
+			TankCards.setLook(card, want, S.wideSell)
+			UiFx.wiggle(card.frame, 6, 2, 0.35)
+		end
+	elseif card.look == "stealing" or card.look == "escrow" then
+		TankCards.setLook(card, lookFor(), S.wideSell)
+		UiFx.punch(card.sell or card.frame, { from = 0.8, peak = 1.12 })
+	end
+end
+
 -- Перечитать витрину slot (одно отложенное на витрину: по её Event / State).
 local function refreshSlot(slot: number)
 	S.refresh[slot] = nil
@@ -762,6 +820,8 @@ local function watchSlots()
 				if (name == "Event" or name == "State") and not S.refresh[slot] then
 					S.refresh[slot] = true
 					task.defer(refreshSlot, slot)
+				elseif name == "StealPhase" or name == "Escrow" then
+					task.defer(refreshSteal, slot) -- (Этап 4: канал кражи)
 				end
 			end)
 		end

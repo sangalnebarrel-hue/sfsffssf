@@ -136,6 +136,12 @@ local INK = 0.3 -- надпись (эмодзи, обводка, наклон) �
 
 local Sheet = {}
 
+-- Открытый сейчас лист (один на экране) и что он поменял в HUD: прежний ZIndex колонки
+-- уведомлений и «вернуть слой рыбалки» — при "switch" это переходит к новому листу.
+local current: Sheet? = nil
+type Handoff = { toastsZ: number?, restoreFishing: (() -> ())? }
+local handoff: Handoff? = nil
+
 local function scaleOf(px: number, of: number): number
 	return if of > 0 then px / of else 0
 end
@@ -152,6 +158,7 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 	local column = hud:FindFirstChild("RightButtons")
 
 	local open = false
+	local switching = false -- закрывается ради другого листа ("switch")
 	local trove = Trove.new()
 	local coverFishing: () -> ()
 	local hiding: thread? = nil
@@ -335,6 +342,14 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 	-- он слушает как прежде). Закрыли лист (trove) — слой снова виден таким, каким его оставил
 	-- FishingController.
 	function coverFishing()
+		local given = handoff
+		if given and given.restoreFishing then
+			-- (переход с другого листа: слой рыбалки уже спрятан — вернёт его этот лист)
+			local restore = given.restoreFishing
+			given.restoreFishing = nil
+			trove:Add(restore)
+			return
+		end
 		local area = widget("ActionArea")
 		local fit = lastFit
 		if not (fishing and fishing:IsA("GuiObject") and fishing.Visible and area and fit) then
@@ -349,6 +364,16 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 		local layer = fishing
 		layer.Visible = false
 		trove:Add(function()
+			if switching then
+				-- "switch": слой остаётся спрятанным, вернёт его следующий лист
+				local into = handoff
+				if into then
+					into.restoreFishing = function()
+						layer.Visible = true
+					end
+				end
+				return
+			end
 			layer.Visible = true
 		end)
 	end
@@ -382,23 +407,31 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 		return open
 	end
 
-	function sheet.Close(_self: Sheet, reason: string?)
+	function sheet.Close(self: Sheet, reason: string?)
 		if not open then
 			return
 		end
 		open = false
 		local why = reason or "api"
+		if current == self then
+			current = nil
+		end
+		switching = why == "switch"
+		if switching then
+			handoff = { toastsZ = toastsZ }
+		end
 		trove:Clean()
+		switching = false
 		local toasts = hud:FindFirstChild("Toasts")
-		if toasts and toasts:IsA("GuiObject") and toastsZ then
+		if why ~= "switch" and toasts and toasts:IsA("GuiObject") and toastsZ then
 			toasts.ZIndex = toastsZ
 		end
 		toastsZ = nil
 		if opts.onClose then
 			opts.onClose(why)
 		end
-		if why == "fishing" then
-			finishHide(why) -- поклёвка или улов: экран им сразу, без анимации
+		if why == "fishing" or why == "switch" then
+			finishHide(why) -- поклёвка, улов или другой лист: экран им сразу, без анимации
 			return
 		end
 		-- (Quad In: только сжимается — у UiFx.popOut даже без «вдоха» Back In сперва чуть растёт,
@@ -414,6 +447,11 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 		if busy() then
 			return false
 		end
+		local other = current
+		if other and other ~= self and other:IsOpen() then
+			other:Close("switch") -- один лист на экране: тот уходит сразу, его изменения HUD — нам
+		end
+		current = self
 		local pending = hiding
 		if pending then
 			hiding = nil
@@ -432,10 +470,12 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 		UiFx.sound("tick", 0.3, 1.1)
 		local toasts = hud:FindFirstChild("Toasts")
 		if toasts and toasts:IsA("GuiObject") then
-			toastsZ = toasts.ZIndex
+			local given = handoff
+			toastsZ = if given and given.toastsZ then given.toastsZ else toasts.ZIndex
 			toasts.ZIndex = root.ZIndex + 1
 		end
 		coverFishing()
+		handoff = nil
 		local function check()
 			if open and busy() then
 				self:Close("fishing")
@@ -462,6 +502,9 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 
 	function sheet.Destroy(self: Sheet)
 		self:Close("api")
+		if current == self then
+			current = nil
+		end
 		local pending = hiding
 		if pending and coroutine.status(pending) == "suspended" then
 			task.cancel(pending)

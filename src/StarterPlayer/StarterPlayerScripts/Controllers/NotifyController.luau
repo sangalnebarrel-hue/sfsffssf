@@ -68,6 +68,10 @@
 	PillarTimeOther); столб попал в кадр — значка нет. На телефоне — не во время своей поклёвки,
 	мини-игры и улова (то же правило, что у уведомлений). Пока есть хоть один значок — один
 	покадровый эффект планировщика UiFx (где столб относительно камеры); нет значков — ничего.
+	Этап 4: в колонке справа три кнопки («ЗАЩИТА» над «САДОК» и «ДОМОЙ») — на HUD ниже
+	POINTER.ThreeTall px (телефоны) над колонкой места нет: значок с правой стороны встаёт СЛЕВА от
+	колонки, у её верха (его острый край — в POINTER.Gap px от неё; следующий — ниже); планшет и
+	компьютер — как раньше.
 ]]
 
 local Players = game:GetService("Players")
@@ -141,7 +145,18 @@ local BIG_LINE = 1.22 -- высота строки в размерах её те
 -- px, «тычет» к краю на Bob px за Period с; смотрим на точку столба на Lift studs над землёй;
 -- значков не больше Max (лишний уходит — самый старый). Над колонкой кнопок — ColumnGap px от
 -- края кольца (толстая обводка и кольцо цвета базы выходят за значок; правило — ≥ 16 px).
-local POINTER = { Y = 0.38, Stack = 1.35, Gap = 16, ColumnGap = 20, Bob = 6, Period = 0.8, Lift = 40, Max = 3 }
+-- Этап 4: три кнопки в колонке на HUD ниже ThreeTall px — значок слева от колонки, у её верха.
+local POINTER = {
+	Y = 0.38,
+	Stack = 1.35,
+	Gap = 16,
+	ColumnGap = 20,
+	Bob = 6,
+	Period = 0.8,
+	Lift = 40,
+	Max = 3,
+	ThreeTall = 600,
+}
 
 local NotifyController = {}
 
@@ -810,23 +825,32 @@ local function stepPointers(): boolean
 	-- Справа внизу — колонка кнопок («ДОМОЙ»): значок над ней, не ближе POINTER.ColumnGap.
 	local column = hud:FindFirstChild("RightButtons")
 	local columnTop = math.huge
+	local columnLeft = math.huge
+	local buttons = 0
 	if column and column:IsA("GuiObject") and column.Visible then
 		-- Кнопки прижаты к низу колонки (UIListLayout, VerticalAlignment Bottom): верх их стопки
 		-- считаем от низа колонки.
 		local list = column:FindFirstChildOfClass("UIListLayout")
 		local gap = if list then list.Padding.Scale * column.AbsoluteSize.Y + list.Padding.Offset else 0
 		local stack, count = 0, 0
+		local widest = 0
 		for _, button in column:GetChildren() do
 			if button:IsA("GuiObject") and button.Visible then
 				stack += button.AbsoluteSize.Y
+				widest = math.max(widest, button.AbsoluteSize.X)
 				count += 1
 			end
 		end
 		if count > 0 then
 			local bottom = column.AbsolutePosition.Y + column.AbsoluteSize.Y - hud.AbsolutePosition.Y
 			columnTop = bottom - stack - gap * (count - 1)
+			-- (кнопки — по центру колонки: левый край самой широкой)
+			columnLeft = column.AbsolutePosition.X - hud.AbsolutePosition.X + (column.AbsoluteSize.X - widest) / 2
 		end
+		buttons = count
 	end
+	-- Этап 4: три кнопки на низком HUD — над колонкой места нет, значок слева от неё у её верха.
+	local besideColumn = buttons >= 3 and area.Y < POINTER.ThreeTall
 	local wave = POINTER.Bob * (0.5 - 0.5 * math.cos(now * 2 * math.pi / POINTER.Period))
 	-- Сколько значков уже стоит у каждого края: следующий — выше (стопкой вверх).
 	local slots: { [string]: number } = { left = 0, right = 0 }
@@ -845,11 +869,17 @@ local function stepPointers(): boolean
 			end
 			local x = if right then area.X - POINTER.Gap - reach - wave else POINTER.Gap + reach + wave
 			local y = area.Y * POINTER.Y
-			if right then
-				y = math.min(y, columnTop - POINTER.ColumnGap - side * 0.75)
-			end
 			local edge = if right then "right" else "left"
-			y -= slots[edge] * side * POINTER.Stack
+			if right and besideColumn then
+				-- слева от колонки, кольцо — у её верха; следующий — ниже
+				x = columnLeft - POINTER.Gap - reach - wave
+				y = columnTop + side * 0.62 + slots[edge] * side * POINTER.Stack
+			else
+				if right then
+					y = math.min(y, columnTop - POINTER.ColumnGap - side * 0.75)
+				end
+				y -= slots[edge] * side * POINTER.Stack
+			end
 			slots[edge] += 1
 			frame.Position = UDim2.fromOffset(math.round(x), math.round(math.max(y, side * 0.7)))
 			if not pointer.shown then
