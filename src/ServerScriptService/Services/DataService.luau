@@ -59,8 +59,9 @@
 	     взят, Dirty > SnapshotSeq) — ровно ОДНО следующее после записи. После успешной записи
 	     rec.Committed = снимок и сигнал Committed(player, seq) (и у отпускания). Снимок
 	     последнего сохранения (с отпусканием) ставит rec.FinalTaken = true: после него
-	     AmendLeaving больше ничего не меняет (Этап 4); попытка не вышла — флаг снят до повтора
-	     (повтор снимет снимок заново, с правкой).
+	     AmendLeaving сразу ничего не меняет (Этап 4), правка ждёт в rec.PendingAmends; попытка
+	     не вышла — флаг снят и ждущие правки применены до повтора (повтор снимет снимок заново, с
+	     ними); вышла, «quiet», «lost» или окно кончилось — ждущие правки выброшены (A1-02).
 	  7. Выход (PlayerRemoving): сразу Leaving (CanWrite = false; ждущие WaitLoaded получают
 	     nil), последнее сохранение с отпусканием (ждущее в очереди автосохранение им и
 	     становится — одна запись, не две; обычное в пути — им же перед своей следующей попыткой,
@@ -138,7 +139,9 @@
 	  DataService:OnClose(fn: () -> ())                 -- (Этап 4) хуки BindToClose: синхронно, первыми
 	  DataService:AmendLeaving(player, fn: (data) -> ()) -> boolean   -- (Этап 4) fn(rec.Data) сразу,
 	                                                    -- только пока запись Leaving и снимок её
-	                                                    -- последнего сохранения не снят (FinalTaken)
+	                                                    -- последнего сохранения не снят (FinalTaken);
+	                                                    -- снят — fn ждёт повтора неудачной попытки
+	                                                    -- (false; A1-02)
 	  DataService.Token, DataService.StoreName          -- только для чтения (тесты)
 	  DataService._debugSizes(), _recordFor(player), _saveRecordForTest(rec)   -- для тестов
 	                                                    -- (_saveRecordForTest ждёт и отдаёт итог:
@@ -187,6 +190,7 @@ type Record = {
 	FinalPending: boolean, -- игрок ушёл, пока шло обычное сохранение: оно станет последним
 	FinalClose: boolean, -- … при закрытии сервера (Retry.Close)
 	FinalTaken: boolean, -- снимок последнего сохранения (с отпусканием) снят: AmendLeaving — нельзя
+	PendingAmends: { (data: PlayerData.Data) -> () }?, -- AmendLeaving при FinalTaken: ждут повтора (A1-02)
 	Strict: boolean, -- без незнакомых полей (после ошибки 103/104/105)
 	Waiters: { Waiter },
 	Warned: { [string]: boolean }, -- пути полей, о которых уже предупреждали
@@ -426,6 +430,7 @@ local function release(rec: Record)
 		return
 	end
 	rec.State = "Released"
+	rec.PendingAmends = nil
 	pending[rec] = nil
 	DataService.Released:Fire(rec.Player, rec.Committed)
 	if records[rec.Player] == rec then
@@ -550,6 +555,22 @@ local function saveOnce(rec: Record, releaseLock: boolean, isRetry: boolean): (S
 	return "committed", nil
 end
 
+-- Правки AmendLeaving, ждавшие повтора (A1-02): по порядку, каждая в pcall.
+local function applyPendingAmends(rec: Record)
+	local list = rec.PendingAmends
+	rec.PendingAmends = nil
+	local data = rec.Data
+	if not list or data == nil then
+		return
+	end
+	for _, fn in list do
+		local ok, err = pcall(fn, data)
+		if not ok then
+			warn(`[DataService] правка AmendLeaving игрока {rec.UserId} упала: {err}`)
+		end
+	end
+end
+
 local function requestSave(rec: Record)
 	if rec.State ~= "Ready" or rec.Queued or rec.InFlight then
 		return
@@ -605,8 +626,12 @@ local function processSave(request: Request)
 		-- него AmendLeaving снова можно (окно F8c — одна попытка, не все повторы). Записалось и
 		-- лишь ответ потерялся — повтор найдёт Session пустым («quiet») и не запишет ничего:
 		-- как и без сброса, рыба не задвоится.
+		-- Правки AmendLeaving, пришедшие, пока шла эта попытка (её снимок мог быть уже снят), — в
+		-- живые данные сейчас: повтор их запишет (A1-02). Попытка всё же легла — повтор «quiet» и
+		-- ничего не пишет: правки пропадут, как и раньше, но не удвоятся (вор свою копию уже убрал).
 		if request.Release then
 			rec.FinalTaken = false
+			applyPendingAmends(rec)
 		end
 		local err = info and info.err
 		if badValue(err) and not strictRetried then
@@ -631,6 +656,9 @@ local function processSave(request: Request)
 	end
 	rec.InFlight = false
 	request.Result = result
+	if request.Release then
+		rec.PendingAmends = nil -- (записалось, «quiet», «lost» или окно вышло: ждать больше нечего)
+	end
 
 	if rec.FinalPending and result ~= "lost" then
 		-- Игрок ушёл, пока шла попытка обычного сохранения: последнее — следом, В НАЧАЛО очереди.
@@ -870,6 +898,7 @@ local function newRecord(player: Player): Record
 		FinalPending = false,
 		FinalClose = false,
 		FinalTaken = false,
+		PendingAmends = nil,
 		Strict = false,
 		Waiters = {},
 		Warned = {},
@@ -1149,10 +1178,18 @@ end
 
 -- Единственная запись мимо CanWrite (Этап 4, только TankService и только Tank): fn(rec.Data)
 -- сразу — только пока запись Leaving и снимок её последнего сохранения ещё не снят (тогда это
--- сохранение запишет изменение). Иначе ничего: false.
+-- сохранение запишет изменение): true. Снимок уже снят (попытка в пути) — fn ждёт: попытка не
+-- вышла — fn(rec.Data) до повтора, и повтор её запишет; вышла — fn пропадает (F8c, A1-02): false.
+-- Иначе ничего: false.
 function DataService:AmendLeaving(player: Player, fn: (data: PlayerData.Data) -> ()): boolean
 	local rec = records[player]
-	if not rec or rec.State ~= "Leaving" or rec.FinalTaken or rec.Data == nil then
+	if not rec or rec.State ~= "Leaving" or rec.Data == nil then
+		return false
+	end
+	if rec.FinalTaken then
+		local list = rec.PendingAmends or {}
+		table.insert(list, fn)
+		rec.PendingAmends = list
 		return false
 	end
 	fn(rec.Data :: PlayerData.Data)

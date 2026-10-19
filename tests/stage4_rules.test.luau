@@ -991,6 +991,7 @@ tests["text widths: toasts ≤ 300 px at 12 px with the longest name, fish and p
 		TextUtil.fill(ST.Result.Lost, { short = widest, name = LONGEST_NAME }),
 		TextUtil.fill(ST.Result.LostSub, { t = clock }),
 		ST.Result.Void,
+		TextUtil.fill(ST.Result.LeftSold, { price = TankRules.FormatMoney(99999) }),
 		TextUtil.fill(ST.Intruder, { name = LONGEST_NAME }),
 		ST.HomeGuard,
 		TextUtil.fill(DT.Shield.On, { t = clock }),

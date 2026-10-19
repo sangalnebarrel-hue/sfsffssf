@@ -17,7 +17,11 @@
 	  • F8a the thief leaves mid-escrow → back in the victim's tank (original uid), the thief's final
 	    save lacks it, restart → exactly one copy; F8b the victim leaving, then the thief →
 	    AmendLeaving, the victim's key has it once; F8c the victim's final snapshot already taken →
-	    zero copies, never two (documented);
+	    zero copies, never two (documented); F8c' that final attempt fails after its snapshot → the
+	    waiting amendment rides the retry, one copy (A1-02); F8a' a full tank at the return (the
+	    victim caught into the freed display) → a stronger fish replaces the weakest, a weaker one
+	    is sold, the coins are the victim's, never dormant (A1-01); F8b' the same while the victim
+	    is leaving → the row kept (dormant), one copy (documented);
 	  • F9 Shutdown with two escrows → each fish once in its victim's key; F9' players first → the same;
 	  • F10 a crash between the two commits (a snapshot) → zero copies, never two (documented);
 	  • F13 an old dupe in a save → Sanitize keeps one per Origin.
@@ -468,6 +472,72 @@ for _, order in ORDERS do
 		sim:AssertNoErrors({ warnings = true })
 	end
 
+	cases[order]["F8c' the final attempt fails after its snapshot → the waiting amendment rides the retry: one copy"] = function(
+		t
+	)
+		local sim = bootOrder(t, order)
+		local victim = S.player(t, sim, 101, { tank = TANK })
+		local thief = S.player(t, sim, 102, { tank = { { Id = "Crucian" } } })
+		local data = S.service(sim, "DataService")
+		local key = S.key(101)
+		sim:Advance(GAP, S.COARSE)
+		sim.DataStore:SetKeyLatency(key, 1)
+		-- a victim save committed just before the credit: the theft's save waits in the queue for
+		-- the key gap, and the victim's leave turns it into his final save
+		S.toCarry(t, sim, thief, victim, 3)
+		local base = S.baseOf(sim, victim)
+		S.drive(sim, thief, S.basePoint(base, 0, S.MapConfig.PlotFront + 3, S.HRP_HEIGHT), S.CARRY, { timeout = 10 })
+		local seq = sim:Run(function()
+			return data:SaveSoon(victim)
+		end)
+		t.ok(
+			sim:WaitFor(function()
+				return data:CommittedSeq(victim) >= seq
+			end, 5, S.FRAME),
+			"the pre-credit save committed"
+		)
+		S.out(sim, thief, victim, "gate")
+		t.ok(S.last(sim, thief, "Done"), "credited")
+		local before = #sim.DataStore.Calls
+		sim:RemovePlayer(victim)
+		local rec = data._recordFor(victim)
+		t.ok(rec and rec.State == "Leaving", "the victim is leaving")
+		-- the final attempt reaches the store; in Roblox its transform runs at the read (FinalTaken)
+		-- and the write can still fail: both forced here (RbxSim runs the transform after the latency)
+		t.ok(
+			sim:WaitFor(function()
+				for i = before + 1, #sim.DataStore.Calls do
+					local call = sim.DataStore.Calls[i]
+					if call.op == "UpdateAsync" and call.key == key then
+						return true
+					end
+				end
+				return false
+			end, GAP + 4, S.FRAME),
+			"the final attempt is in flight"
+		)
+		rec.FinalTaken = true
+		sim.DataStore:FailKey(key, 1, nil, { "UpdateAsync" })
+		sim:RemovePlayer(thief)
+		sim:Advance(S.FRAME)
+		t.ok(rec.PendingAmends ~= nil and #rec.PendingAmends == 1, "the return waits for the retry (A1-02)")
+		t.ok(
+			sim:WaitFor(function()
+				return data._recordFor(victim) == nil
+			end, S.DataConfig.LeaveSaveWindow + GAP + 6, S.COARSE),
+			"the retry committed and released the record"
+		)
+		t.eq(rec.PendingAmends, nil, "nothing left waiting")
+		sim:Advance(GAP + 4, S.COARSE)
+		local after = S.restart(t, sim, 5)
+		t.eq(copies(after, 101, "f3", { 102 }), 1, "exactly one copy")
+		t.ok(S.rowOf(S.peek(after, 101).Tank, "f3"), "in the victim's key")
+		t.eq(S.peek(after, 101).Stats.Lost, 0, "Stats.Lost taken back in the saved row")
+		ledger(t, after, { 101, 102 }, "F8c'")
+		S.takeWarnings(sim, "[DataService]")
+		sim:AssertNoErrors({ warnings = true })
+	end
+
 	cases[order]["F9 Shutdown with two escrows → each fish once in its victim's key; F9' players first → the same"] = function(
 		t
 	)
@@ -507,6 +577,8 @@ tests["F8b the victim leaves, the thief 1 s later → AmendLeaving: the fish onc
 	cases.fifo["F8b the victim leaves, the thief 1 s later → AmendLeaving: the fish once in the victim's key"]
 tests["F8c the victim's final snapshot already taken → zero copies, never two (documented) (fifo)"] =
 	cases.fifo["F8c the victim's final snapshot already taken → zero copies, never two (documented)"]
+tests["F8c' the final attempt fails after its snapshot → the waiting amendment rides the retry: one copy (fifo)"] =
+	cases.fifo["F8c' the final attempt fails after its snapshot → the waiting amendment rides the retry: one copy"]
 tests["F9 Shutdown with two escrows → each fish once in its victim's key; F9' players first → the same (fifo)"] =
 	cases.fifo["F9 Shutdown with two escrows → each fish once in its victim's key; F9' players first → the same"]
 tests["F6 the victim leaves mid-escrow → the thief commits with the fish (reverse)"] =
@@ -519,8 +591,135 @@ tests["F8b the victim leaves, the thief 1 s later → AmendLeaving: the fish onc
 	cases.reverse["F8b the victim leaves, the thief 1 s later → AmendLeaving: the fish once in the victim's key"]
 tests["F8c the victim's final snapshot already taken → zero copies, never two (documented) (reverse)"] =
 	cases.reverse["F8c the victim's final snapshot already taken → zero copies, never two (documented)"]
+tests["F8c' the final attempt fails after its snapshot → the waiting amendment rides the retry: one copy (reverse)"] =
+	cases.reverse["F8c' the final attempt fails after its snapshot → the waiting amendment rides the retry: one copy"]
 tests["F9 Shutdown with two escrows → each fish once in its victim's key; F9' players first → the same (reverse)"] =
 	cases.reverse["F9 Shutdown with two escrows → each fish once in its victim's key; F9' players first → the same"]
+
+--------------------------------------------------------------------------------
+-- A full tank at the return (A1-01)
+--------------------------------------------------------------------------------
+
+local function fullTank(stolen: string, others: string): { any }
+	local list = {}
+	for slot = 1, 6 do
+		table.insert(list, { Id = if slot == 3 then stolen else others })
+	end
+	return list
+end
+
+-- The victim (6/6) loses slot 3, catches `catch` into the freed display, then the thief leaves.
+local function fullReturn(t: any, stolen: string, others: string, catch: string): (any, any, any, any)
+	local sim = S.boot(t)
+	local victim = S.player(t, sim, 101, { tank = fullTank(stolen, others) })
+	local thief = S.player(t, sim, 102, { tank = { { Id = "Crucian" } } })
+	sim:Advance(GAP, S.COARSE)
+	sim.DataStore:SetKeyLatency(S.key(101), 6)
+	theft(t, sim, thief, victim)
+	t.eq(S.service(sim, "TankService"):EscrowCount(thief), 1, "the escrow is open")
+	local caught = S.addFish(sim, victim, catch)
+	t.eq(caught and caught.Slot, 3, "the victim's catch lands in the freed display")
+	local data = S.service(sim, "DataService")
+	local money = data:Get(victim).Money
+	local sold = data:Get(victim).Stats.Sold
+	sim:RemovePlayer(thief)
+	sim:Advance(S.FRAME)
+	return sim, victim, money, sold
+end
+
+tests["F8a' a full tank at the return (A1-01): a stronger fish replaces the weakest (coins), a weaker one is sold — never dormant"] = function(
+	t
+)
+	-- the returned Puffer is stronger than the victim's Crucians: the weakest one is sold
+	local sim, victim, money, sold = fullReturn(t, "Puffer", "Crucian", "Crucian")
+	local data = S.service(sim, "DataService")
+	local tank = S.service(sim, "TankService")
+	local back = S.rowOf(S.tankOf(sim, victim), "f3")
+	t.ok(back, "the Puffer is back with its uid")
+	t.eq(#S.tankOf(sim, victim), 6, "still 6 rows")
+	local rt = tank._runtimeFor(victim)
+	t.ok(rt.BySlot[back.Slot] and rt.BySlot[back.Slot].Uid == "f3", `active in display {back.Slot}, not dormant`)
+	t.eq(S.slot(sim, victim, back.Slot):GetAttribute("FishUid"), "f3", "shown")
+	local ev = S.slot(sim, victim, back.Slot):GetAttribute("Event")
+	t.ok(type(ev) == "string" and string.find(ev, "|swap|", 1, true) ~= nil, `Event swap ({ev})`)
+	local returned = S.last(sim, victim, "Returned")
+	t.eq(returned and returned.Result, "replaced")
+	t.eq(returned and returned.Text, S.STEAL_TEXTS.Result.Saved.left)
+	t.ok(returned and type(returned.Price) == "number" and returned.Price >= 1, "the weakest fish's price")
+	t.eq(data:Get(victim).Money, money + returned.Price, "the victim got its coins (autosell)")
+	t.eq(data:Get(victim).Stats.Sold, sold + 1, "Stats.Sold + 1")
+	t.eq(data:Get(victim).Stats.Lost, 0, "Stats.Lost taken back")
+	sim:RemovePlayer(victim)
+	t.ok(
+		sim:WaitFor(function()
+			return data._recordFor(victim) == nil
+		end, 40, S.COARSE),
+		"the victim's final save released his key"
+	)
+	sim:Advance(GAP, S.COARSE)
+	local after = S.restart(t, sim, 5)
+	t.eq(copies(after, 101, "f3", { 102 }), 1, "one copy after the restart")
+	ledger(t, after, { 101, 102 }, "F8a' replaced")
+	local again = S.player(t, after, 101, { keep = true })
+	local rt2 = S.service(after, "TankService")._runtimeFor(again)
+	local row = S.rowOf(S.tankOf(after, again), "f3")
+	t.ok(row and rt2.BySlot[row.Slot] and rt2.BySlot[row.Slot].Uid == "f3", "awake after the reload")
+	sim:AssertNoErrors({ warnings = true })
+	after:AssertNoErrors({ warnings = true })
+
+	-- the returned Crucian is weaker than every Puffer: sold at once, the coins are the victim's
+	local sim2, victim2, money2, sold2 = fullReturn(t, "Crucian", "Puffer", "Puffer")
+	local data2 = S.service(sim2, "DataService")
+	t.eq(S.rowOf(S.tankOf(sim2, victim2), "f3"), nil, "the Crucian is not kept")
+	t.eq(#S.tankOf(sim2, victim2), 6, "6 rows, all awake")
+	local returned2 = S.last(sim2, victim2, "Returned")
+	t.eq(returned2 and returned2.Result, "sold")
+	t.ok(returned2 and type(returned2.Price) == "number" and returned2.Price >= 1, "its own price")
+	local TextUtil, TankRules = S.shared(sim2, "TextUtil"), S.shared(sim2, "TankRules")
+	t.eq(
+		returned2 and returned2.Text,
+		TextUtil.fill(S.STEAL_TEXTS.Result.LeftSold, { price = TankRules.FormatMoney(returned2.Price) }),
+		"«Вор ушёл — садок полон, рыба продана: …»"
+	)
+	t.eq(data2:Get(victim2).Money, money2 + returned2.Price, "the victim got its coins")
+	t.eq(data2:Get(victim2).Stats.Sold, sold2 + 1, "Stats.Sold + 1")
+	t.eq(data2:Get(victim2).Stats.Lost, 0, "Stats.Lost taken back")
+	sim2:RemovePlayer(victim2)
+	t.ok(
+		sim2:WaitFor(function()
+			return data2._recordFor(victim2) == nil
+		end, 40, S.COARSE),
+		"the victim's final save released his key"
+	)
+	sim2:Advance(GAP, S.COARSE)
+	local after2 = S.restart(t, sim2, 5)
+	t.eq(copies(after2, 101, "f3", { 102 }), 0, "sold: no copy in any key")
+	ledger(t, after2, { 101, 102 }, "F8a' sold")
+	sim2:AssertNoErrors({ warnings = true })
+	after2:AssertNoErrors({ warnings = true })
+end
+
+tests["F8b' a full tank while the victim is leaving (AmendLeaving: Tank only) → the row kept dormant, one copy (documented)"] = function(
+	t
+)
+	local sim = S.boot(t)
+	local victim = S.player(t, sim, 101, { tank = fullTank("Puffer", "Crucian") })
+	local thief = S.player(t, sim, 102, { tank = { { Id = "Crucian" } } })
+	sim:Advance(GAP, S.COARSE)
+	sim.DataStore:SetKeyLatency(S.key(101), 4)
+	theft(t, sim, thief, victim)
+	t.eq(S.addFish(sim, victim, "Crucian").Slot, 3, "a catch in the freed display")
+	sim:RemovePlayer(victim)
+	sim:Advance(0.5)
+	sim:RemovePlayer(thief)
+	sim:Advance(GAP + 12, S.COARSE)
+	local after = S.restart(t, sim, 5)
+	t.eq(copies(after, 101, "f3", { 102 }), 1, "exactly one copy, in the victim's key")
+	local row = S.rowOf(S.peek(after, 101).Tank, "f3")
+	t.eq(row and row.Slot, 3, "with its own Slot (the display is taken: it sleeps until a load finds one free)")
+	ledger(t, after, { 101, 102 }, "F8b'")
+	sim:AssertNoErrors({ warnings = true })
+end
 
 --------------------------------------------------------------------------------
 -- F7 variants, F10, F13

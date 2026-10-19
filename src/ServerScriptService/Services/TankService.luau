@@ -123,17 +123,29 @@
 	     Stats.Stolen − 1, вору StealEvent "Returned" «Рыба вернулась к хозяину»; монеты за его
 	     проданную слабейшую остаются). НИКОГДА по таймеру: таймер — единственный путь к дюпу.
 	     Записи — по самому Player жертвы (её запись, не UserId: перезаход — другая запись).
+	     Без дюпа, но не без потерь при сбоях DataStore (§3.3, A1-03): после «снять» рыба только в
+	     живых данных вора — его записи так и не легли до выхода — рыба пропала с остальным его
+	     несохранённым (F10); «аннулировать» рыбу, которая сама пришла жертве-вору через
+	     несохранённое «снять» / возврат, — тоже (F7): снять было бы дюпом.
 	     Пока «в пути»: не сохраняется (хук OnSerialize — skipUid), не продаётся (Denied
 	     "escrow"), не кандидат замены, не крадётся (TheftChecks "fresh"), без дохода.
 	  13. Вор уходит с рыбой «в пути» (PlayerRemoving; и хук DataService:OnClose — при закрытии
-	     сервера, раньше последних сохранений): вернуть каждую жертве — запись первой; жертва
-	     пишет данные — та же строка (прежний uid; своя витрина, если свободна, иначе младшая
-	     свободная, иначе «спит» до следующей загрузки), Stats.Lost − 1, SaveSoon(жертва),
-	     StealEvent "Returned" «Вор ушёл — рыба вернулась!»; жертва уже уходит, а её последний
-	     снимок не снят — DataService:AmendLeaving (та же строка в её живые данные); снимок уже
-	     снят — одна рыба потеряна (F8c, никогда не две). У вора строка убрана из живых данных
-	     (Stats.Stolen − 1). Повторное возвращение и вставка uid, который уже есть, — ничего не
-	     делают (§3.4).
+	     сервера, раньше последних сохранений): вернуть каждую жертве — запись первой, потом у вора
+	     строка убрана из живых данных (Stats.Stolen − 1), и только потом — жертве (упавшая вставка
+	     потеряет одну рыбу, но не оставит две). Жертва пишет данные — та же строка (прежний uid;
+	     своя витрина, если свободна, иначе младшая свободная), Stats.Lost − 1, SaveSoon(жертва),
+	     StealEvent "Returned" «Вор ушёл — рыба вернулась!» { Result = "stored" }; свободных витрин
+	     нет (жертва успела поймать рыбу в освободившуюся) — правило полного садка, как у AddFish
+	     (A1-01): слабейшая не Locked рыба слабее вернувшейся продана (AddMoney "autosell", Stats.Sold
+	     + 1, Event "<n>|swap|<цена>", Result "replaced", Price), иначе продана сама вернувшаяся (её
+	     строки нет, Result "sold", Price, текст Result.LeftSold) — монеты жертве в любом случае, ни
+	     одна рыба не «спит». Жертва уже уходит, а её последний снимок не снят —
+	     DataService:AmendLeaving (та же строка в её живые данные; только Tank: денег уходящей не
+	     начислить — при полном садке строка «спит» со своим Slot, пока загрузка не найдёт свободную
+	     витрину или SetSlots Этапа 5 её не разбудит); снимок уже снят — правка ждёт: та попытка не
+	     записалась — повтор возьмёт рыбу с собой, записалась — одна рыба потеряна (F8c, никогда не
+	     две; A1-02). Повторное возвращение и вставка uid, который уже есть, — ничего не делают
+	     (§3.4).
 	  14. Улов ("catch") — свежий: FreshUntil = сейчас + StealConfig.Limits.FreshCatch (запись и
 	     атрибут витрины); краденая и вернувшаяся рыба — без него.
 	  15. Канал кражи не переживает подключение: пустая витрина снимает StealBy, StealEnd, Escrow,
@@ -181,6 +193,7 @@ local Net = require(Shared.Net)
 local Signal = require(Shared.Util.Signal)
 local StealRules = require(Shared.StealRules)
 local TankRules = require(Shared.TankRules)
+local TextUtil = require(Shared.TextUtil)
 local PlayerData = require(ServerScriptService.Lib.PlayerData)
 local TankRequests = require(ServerScriptService.Lib.TankRequests)
 local BaseService = require(ServerScriptService.Services.BaseService)
@@ -1076,9 +1089,9 @@ local function hasUid(data: PlayerData.Data, uid: string): boolean
 	return false
 end
 
--- Витрина для вернувшейся рыбы: своя, если свободна, иначе младшая свободная, иначе прежняя —
--- тогда рыба «спит» до загрузки, где освободится витрина (PlayerData.Layout).
-local function homeSlot(data: PlayerData.Data, wanted: number): number
+-- Витрина для вернувшейся рыбы: своя, если свободна, иначе младшая свободная; nil — заняты все
+-- (жертва успела поймать рыбу в витрину, которую освободила кража).
+local function homeSlot(data: PlayerData.Data, wanted: number): number?
 	local cap = PlayerData.SlotCap(data)
 	local used: { [number]: boolean } = {}
 	for _, row in data.Tank do
@@ -1092,7 +1105,7 @@ local function homeSlot(data: PlayerData.Data, wanted: number): number
 			return index
 		end
 	end
-	return wanted
+	return nil
 end
 
 local function minusOne(stats: any, key: string)
@@ -1171,8 +1184,106 @@ local function voidEscrow(thief: Player, uid: string)
 	end
 end
 
+-- Вернуть рыбу играющей жертве (F8a / F9): та же строка (прежний uid) в свою витрину или младшую
+-- свободную. Свободных нет — правило полного садка, как у AddFish (A1-01): слабейшая не Locked рыба
+-- слабее вернувшейся — продана, вернувшаяся на её место ("replaced"); иначе продана сама
+-- вернувшаяся ("sold") — жертва получает монеты в любом случае, ни одна рыба не «спит».
+local function backToVictim(vrt: Runtime, vdata: PlayerData.Data, entry: Entry): boolean
+	local victim = entry.Victim
+	local now = Workspace:GetServerTimeNow()
+	local row = table.clone(entry.Row)
+	row.Uid = entry.VictimUid
+	local cap = PlayerData.SlotCap(vdata)
+	local known = FishingRules.GetFish(row.Id) ~= nil
+	local slot = homeSlot(vdata, entry.Row.Slot)
+	if slot and vrt.BySlot[slot] ~= nil then
+		slot = nil -- (строки и витрины разошлись: как полный садок)
+	end
+	-- ПРОВЕРКА: план полного садка (ничего не меняя).
+	local weak: FishRt? = nil
+	local price: number? = nil
+	local sell = false
+	if known and not slot then
+		local value, income = FishingRules.Price(row.Id, row.Kg, knownMutation(row.Mutation))
+		local weakUid = TankRules.ChooseReplacement(candidatesOf(vrt, now), TankRules.Income10(income))
+		weak = if weakUid then vrt.Fish[weakUid] else nil
+		if weak then
+			slot = weak.Rec.Slot
+			price = TankRules.SellPrice(weak.Value, ageOf(vrt, weak, now), HOME)
+		else
+			sell = true
+			price = TankRules.SellPrice(value, math.clamp(row.Age, 0, GROWTH_TIME), HOME)
+		end
+		if not goodPrice(price :: number) then
+			warn(
+				`[TankService] цена продажи не число ({price}) — вернувшаяся рыба {row.Uid} спит`
+			)
+			weak, price, sell, slot = nil, nil, false, nil
+		end
+	end
+	-- ПОТОМ: убрать → строка → деньги → статистика → витрина → доход → сигналы.
+	if weak then
+		detach(vrt, weak)
+	end
+	local fishRt: FishRt? = nil
+	if not sell then
+		row.Slot = slot or entry.Row.Slot
+		table.insert(vdata.Tank, row)
+		local fresh: FishRt
+		if slot and known and slot <= cap and vrt.BySlot[slot] == nil then
+			fresh = activeFish(row)
+			fresh.GrowFrom = TankRules.AttrTime(now - math.clamp(row.Age, 0, GROWTH_TIME))
+			vrt.BySlot[slot] = fresh
+		else
+			fresh = dormantFish(row) -- (незнакомый вид или цена не число: «спит», данные целы)
+		end
+		vrt.Fish[row.Uid] = fresh
+		fishRt = fresh
+	end
+	if price then
+		EconomyService:AddMoney(victim, price, "autosell")
+		vdata.Stats.Sold += 1
+	end
+	minusOne(vdata.Stats, "Lost")
+	local refs = mountedRefs(vrt)
+	local shown = fishRt ~= nil and not fishRt.Dormant
+	if refs and shown then
+		local f = fishRt :: FishRt
+		if weak then
+			showFish(refs, refs.Slots[f.Rec.Slot], f, "swap", string.format("%d", price :: number))
+		else
+			showFish(refs, refs.Slots[f.Rec.Slot], f, "in", row.Id)
+		end
+	end
+	refresh(vrt)
+	if shown then
+		changed(refs, (fishRt :: FishRt).Rec.Slot)
+	end
+	if weak then
+		TankService.FishRemoved:Fire(victim, table.clone(weak.Rec), "autosell")
+	end
+	if fishRt then
+		TankService.FishAdded:Fire(victim, table.clone(row), "returned")
+	end
+	DataService:SaveSoon(victim)
+	local remote = stealEvent
+	if remote and victim.Parent == Players then
+		remote:FireClient(victim, "Returned", {
+			Fish = entry.Fish,
+			Text = if sell
+				then TextUtil.fill(STEAL_TEXTS.Result.LeftSold, { price = TankRules.FormatMoney(price :: number) })
+				else STEAL_TEXTS.Result.Saved.left,
+			Result = if sell then "sold" elseif weak then "replaced" else "stored",
+			Price = price,
+		})
+	end
+	return true
+end
+
 -- Вернуть краденую рыбу «в пути» жертве (F8a / F8b / F9; F8c — снимок жертвы уже снят: рыба
--- потеряна, никогда не две) и убрать у вора. Запись — ПЕРВОЙ. true — рыба снова у жертвы.
+-- потеряна, никогда не две) и убрать у вора. Запись — ПЕРВОЙ, потом — прочь у вора, и только потом
+-- — жертве: упавшая вставка потеряет одну рыбу, но никогда не оставит две. true — рыба снова у
+-- жертвы (или монеты за неё: полный садок).
 local function returnEscrow(thief: Player, uid: string): boolean
 	local map = escrows[thief]
 	local entry = map and map[uid]
@@ -1183,55 +1294,30 @@ local function returnEscrow(thief: Player, uid: string): boolean
 	if next(map) == nil then
 		escrows[thief] = nil
 	end
+	stripFromThief(entry)
 	local victim = entry.Victim
-	local back = false
 	local vrt, vdata = writable(victim)
 	if vrt and vdata and vrt.Player == victim then
-		-- F8a / F9: жертва играет — строка, запись, витрина, доход.
-		if not hasUid(vdata, entry.VictimUid) then
-			local row = table.clone(entry.Row)
-			row.Uid = entry.VictimUid
-			row.Slot = homeSlot(vdata, entry.Row.Slot)
-			table.insert(vdata.Tank, row)
-			minusOne(vdata.Stats, "Lost")
-			local fishRt: FishRt
-			local cap = PlayerData.SlotCap(vdata)
-			if vrt.BySlot[row.Slot] == nil and row.Slot <= cap and FishingRules.GetFish(row.Id) then
-				fishRt = activeFish(row)
-				fishRt.GrowFrom = TankRules.AttrTime(Workspace:GetServerTimeNow() - math.clamp(row.Age, 0, GROWTH_TIME))
-				vrt.BySlot[row.Slot] = fishRt
-			else
-				fishRt = dormantFish(row) -- (свободных витрин нет: «спит» до загрузки)
-			end
-			vrt.Fish[row.Uid] = fishRt
-			local refs = mountedRefs(vrt)
-			if refs and not fishRt.Dormant then
-				showFish(refs, refs.Slots[row.Slot], fishRt, "in", row.Id)
-			end
-			refresh(vrt)
-			if not fishRt.Dormant then
-				changed(refs, row.Slot)
-			end
-			TankService.FishAdded:Fire(victim, table.clone(row), "returned")
-			DataService:SaveSoon(victim)
-			returned(victim, entry.Fish, STEAL_TEXTS.Result.Saved.left)
-			back = true
+		-- F8a / F9: жертва играет.
+		if hasUid(vdata, entry.VictimUid) then
+			return false
 		end
-	else
-		-- F8b: жертва уже уходит, а снимок её последнего сохранения не снят — правка её данных.
-		back = DataService:AmendLeaving(victim, function(data: PlayerData.Data)
-			if hasUid(data, entry.VictimUid) then
-				return
-			end
-			local row = table.clone(entry.Row)
-			row.Uid = entry.VictimUid
-			row.Slot = homeSlot(data, entry.Row.Slot)
-			table.insert(data.Tank, row)
-			minusOne(data.Stats, "Lost")
-		end)
+		return backToVictim(vrt, vdata, entry)
 	end
-	stripFromThief(entry)
-	return back
+	-- F8b: жертва уже уходит, а снимок её последнего сохранения не снят — правка её данных (только
+	-- Tank: денег уходящей жертве не начислить). Свободной витрины нет — строка «спит» со своим Slot
+	-- (PlayerData.Layout: проснётся на загрузке, где витрина свободна, или по SetSlots Этапа 5).
+	-- Снимок уже снят (F8c) — правка ждёт повтора, если эта попытка не запишется (DataService).
+	return DataService:AmendLeaving(victim, function(data: PlayerData.Data)
+		if hasUid(data, entry.VictimUid) then
+			return
+		end
+		local row = table.clone(entry.Row)
+		row.Uid = entry.VictimUid
+		row.Slot = homeSlot(data, entry.Row.Slot) or entry.Row.Slot
+		table.insert(data.Tank, row)
+		minusOne(data.Stats, "Lost")
+	end)
 end
 
 -- Перенести рыбу жертвы вору (§3.2): ПРОВЕРКА — план, ничего не меняя; потом — без ожиданий.

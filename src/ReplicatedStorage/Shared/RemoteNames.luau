@@ -131,8 +131,10 @@
 	            "Saved" { Reason, Slot, Text, Quiet? } — рыба спасена; "Lost" { Fish, Name, Until,
 	            Kind } — украли (Until / Kind — твоя защита теперь: "after" | "rest");
 	            "Intruder" { Thief, Name } — гость во дворе (только с сигнализацией);
-	    обоим:  "Returned" { Fish, Text } — краденую рыбу вернули хозяину (вор ушёл или запись
-	            жертвы так и не легла: StealConfig.Texts.Result).
+	    обоим:  "Returned" { Fish, Text, Result?, Price? } — краденую рыбу вернули хозяину (вор ушёл
+	            или запись жертвы так и не легла: StealConfig.Texts.Result); жертве, когда вор ушёл,
+	            ещё Result = "stored" | "replaced" | "sold" и Price — монеты при полном садке
+	            ("replaced" — продана её слабейшая, "sold" — сама вернувшаяся: Result.LeftSold).
 	  ShieldActivate клиент → сервер: () (аргументы не читаются) — включить щит. Проверки по
 	            порядку: 1) лимит DefenceConfig.Requests (Burst 4, Rate 1/с; пусто — молча);
 	            2) CanWrite ("loading"); 3) своя подключённая база ("nobase"); 4) игрок не крадёт
