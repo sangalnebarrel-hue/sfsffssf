@@ -7,8 +7,9 @@
 	    rejoin → still ≈ 140 s to ready; «Щит погас» when it ends;
 	  • the join protection (DC-07, BE-25): a fresh save → 300 s newbie; a second session → 90 s; a
 	    quick rejoin → 20 s by LastOnline and, in Memory mode, by this server's leftAt; a player queued
-	    behind a full server whose session already saved → 90 s at the mount, not 20; starting a steal
-	    ends it and a manual shield (no refund: ShieldReadyAt kept);
+	    behind a full server whose session already saved → 90 s at the mount, not 20; a steal ends it
+	    and a manual shield once the hold outlasts the tap window (no refund: ShieldReadyAt kept; the
+	    hold's first frame keeps it — stage 4 wave 3 UX-01);
 	  • after / rest re-applied on a later session of this server;
 	  • the Studio knob (DC-20): StudioProtect = 10 with IsStudio → newbie / after / rest ≤ 10 s, the
 	    shield still 60 s, one print, no warning;
