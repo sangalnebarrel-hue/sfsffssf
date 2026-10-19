@@ -61,6 +61,7 @@ row) is an outlined 💵 tilted −8° and a big **italic** `MoneyText`-green nu
 | `Pond` | muted teal | «ЖДИ КЛЁВА…» (nothing to press) | #A9E4EE | #58AFC4 | #0B3440 |
 | `Water` | aqua | water | #6FF2FF | #13B8D6 | #003A4D |
 | `Coal` | black chip | dark chips | #3C414D | #14171D | #000000 |
+| `Guard` | royal blue | «ЗАЩИТА», «ЩИТ», the shield chip and dome card (stage 4) | #8FB4FF | #3D6BFF | #0A1A57 |
 | `Glass` | dark glass | hints, captions, grooves | #0B0D14 at Alpha 0.5 | — | none |
 
 Base colours: `UIConfig.BaseSwatches` (Red = Berry, Blue = Sky, Yellow = Gold, Purple = Grape,
@@ -754,6 +755,62 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
     a stall bursts coins at its scales;
   - **pops** `FxTankPop` — the rising «+$X» of a sale over a display and of the income over the
     pier word: pop in, rise, fade, gone by themselves (`task.delay`).
+- **Theft — the thief** (stage 4; tools/builder/gui/Steal.luau, TheftController + TheftPrompts;
+  numbers `UIConfig.Theft`, texts `StealConfig.Texts`). The stock ProximityPrompt «Украсть» /
+  «Окунь · +$4/с» (the server's; the client only hides one by its LOCAL `MaxActivationDistance =
+  0`). **The thief's bar lives in the BOTTOM band** (`HUD.TheftBar`, centred between the
+  thumbstick and Jump, ≥ `Bar.Gap` 16 px from them and the edge, top at `Bar.Top` of the HUD):
+  from the thief's camera the display he robs and the fish on his head stand in the upper middle,
+  where the status stack and the toasts are — so during a theft the status stack hides
+  (HudController, HUD attribute `Stealing`) and the toast column waits (Reserve "thief", the whole
+  column; the off-screen trophy chip waits the same on phones). Its looks: the hold — a Night
+  plate, 🥷 «КРАДЁШЬ: ОКУНЬ», a thick Berry bar filling to the server's end (one linear tween),
+  «Не отходи!» and «1,8 с» in it, the rim flashes for the last second; the carry — a Berry plate,
+  🏃 «БЕГИ ЗА ОГРАДУ!», a Gold bar draining over 25 s, «🐕 СОБАКА!» over its right end while
+  slowed; a fail — a Berry plate that shakes, 💨 «СОРВАЛОСЬ!» and the server's reason in the Body
+  tier; a court hint («Зажми «Украсть»…», why not here with a live «0:24») — on glass, like the
+  fishing hint. «ДОБЫЧА!» (`HUD.TheftTitle`, the same bottom band): a Gold → Leaf slam, the sub
+  «Окунь — в твоём садке · +$4/с», confetti from over the thief's head and a 🐟 flying from there
+  into «САДОК». On the ground: red chevrons crawling to the nearest exit (`Workspace.TheftGuide`,
+  Neon, a handful of parts) and a green breathing ring with «ВЫХОД» at the exit. While carrying,
+  «ДОМОЙ» shows 🔒 (a press tells why, it never teleports).
+- **Theft — the victim** (stage 4; tools/builder/gui/Alert.luau, AlertController + AlertLayout;
+  texts `StealConfig.Texts.Alert` / `Result`). **The alert plate** `HUD.TheftAlert` — at the top
+  of the toast column (Reserve "alert"; toasts below it at the band gap, never on the own fisher):
+  a Berry sim plate ≤ `Theft.Width` × W and `WidthMax`, 🚨 (hold) / 🏃 (carry) overhanging its
+  left end, «ВОР В САДКЕ!» / «Ника крадёт: Окунь» (carry: «ВОР УБЕГАЕТ!» / «… — жми ЩИТ!»), on the
+  right a Guard **«🛡️ ЩИТ» — the largest target on the screen** (≥ `ShieldMin` 56 px and ≥
+  `ShieldShare` of the plate; a Slate «⏳ 1:12» on cooldown) and a Grape «🏠 ДОМОЙ» (≥ 44 px). It
+  pops in with a shiver (a quiet repeat — no shiver). On a phone where the plate would lie on the
+  own fisher it becomes **the compact pill** «🚨 ВОР! ОКУНЬ» + a full-height ЩИТ, placed by
+  AlertLayout in the first free spot (≥ 16 px from the fisher, his bobber, the status plates,
+  the right column, Jump, the stick, the fishing widgets and the thief's bar). **The alert's
+  zero-layout layers** come from the first frame and take no room: a thin Berry edge pulse
+  (`Theft.Edge`, its own clipped layer under the topbar; asleep while the HUD's own vignette
+  glows), the column's «ДОМОЙ!» with red rings, the «ЗАЩИТА» button turned Berry «ЩИТ!» with
+  rings (one tap — the shield, even mid-minigame), the red pier word «🚨 КРАДУТ!» and 3 pings.
+  The plate never takes the minigame's input. **The alert outranks the catch card**: a card up
+  when the alert starts takes its normal close path (the 🐟 still flies into «САДОК») and the
+  plate pops in `Theft.CardAfter` later; a catch during the alert hurries its card the same way;
+  a card or a sheet that appears hides the plate until it leaves — the plate never draws over
+  them. The end: «Украдено: Окунь (Ника)» (the big theft toast) + «Садок отдыхает 1:30 — не
+  украдут» + ONE tip, or «Вор пойман — рыба спасена!» (confetti) / one «Щит спас рыбу! 🛡️ 1:00».
+- **Defence** (stage 4; Hud.luau + tools/builder/gui/Defence.luau, DefenceController +
+  DefenceCards; texts `DefenceConfig.Texts`): **«ЗАЩИТА»** — the right column's third square (a
+  Guard `simButton` with 🛡️, above «САДОК»; Home's recipe), Berry «ЩИТ!» during an alert, a dark
+  draining veil with «2:59» on cooldown, «ГОТОВ!» on its caption when ready again. **The shield
+  chip** `Status.BaseBadge.ShieldChip` «🛡️ 0:42» docked at the badge's right end (≤ `ChipMax`
+  90 px): solid Guard for the shield, glass for the other protections, a Sun flash and bob in the
+  last 10 s. **The «ЗАЩИТА» sheet** `HUD.DefencePanel` on the Stage 3 sheet shell (one sheet on
+  screen at a time): four Pond cards Щит · Собака · Сигнализация · Замок — an icon disc, the CAPS
+  name, one effect line, a buy button (Guard «ВКЛЮЧИТЬ» / glass «🛡️ 0:42» / Slate «⏳ 2:59» for
+  the shield, Berry «ЩИТ!» during an alert; Gold «💵 $6 000» → Berry «КУПИТЬ?» → a flat Leaf
+  «✔️ КУПЛЕНО» stamp for the rest; Slate with «ЕЩЁ $3 000» under the finger when money is short). A buy sends 💵 from the Wallet into the card («−$6 000»). In the
+  world (TheftWorldController, client-only, 0 server parts): the mast lamp blinks dark ↔ hot at
+  2 Hz (never faster than 3 Hz), the bought siren spins two red SpotLights + Beams and beeps, the
+  thief of an alarmed base gets a Berry `Highlight` (AlwaysOnTop for the owner, Occluded for the
+  rest; ≤ 1 per thief) and «ВОР!», the shield (and only the shield) a ForceField dome over the
+  court (≤ 2 on phones; clearer when the camera is near or inside), the dog's «ГАВ!» / «💤».
 
 ## 4. Budgets (phones first)
 
@@ -1057,11 +1114,31 @@ RenderStepped connection for all running frame effects, disconnected when none r
   `Compact.{Label, Shield, Home}`) — AlertController; `HUD.DefencePanel` on the sheet shell
   (`Panel.Header.{Icon, Title, Money}`, `Cards.{ShieldCard, DogCard, AlarmCard, LockCard}` each
   `Icon.Emoji`, `Name` — reach it with `FindFirstChild("Name")` —, `Effect`, `State`,
-  `Buy.{Label, Price}`) — DefenceController + `Controllers/Sheet`. TheftBar and TheftAlert sit at
-  the top of the toast column: `NotifyController.Reserve("theft" | "alert", px)` moves the toasts
-  under them (`Offset(key)` — where a band stands, the thief's first; `Reserved()`); keep them
-  inside the column's px width (≤ `UIConfig.Theft.Width` × W and `WidthMax`). Their numbers:
+  `Buy.{Label, Price}`) — DefenceController + `Controllers/Sheet`. Their numbers:
   `UIConfig.Theft`; their texts: `StealConfig.Texts` / `DefenceConfig.Texts`.
+- **Stage 4 placement rules** (keep them when you add a widget):
+  - **The thief's bar and «ДОБЫЧА!» stay in the bottom band** (§6.4 rev. 3 of the design):
+    `HUD.TheftBar` / `TheftTitle` centred between the thumbstick and Jump, ≥ 16 px from them and
+    the screen edge, never in the upper middle where the robbed display and the fish on the
+    thief's head are. While the HUD has `Stealing`, the status stack is hidden and
+    `NotifyController.Reserve("thief", …)` holds the whole column (no toast, no trophy chip on
+    phones) — a new widget for the thief goes into the bottom band too.
+  - **The alert plate sits at the top of the toast column**: `NotifyController.Reserve("alert",
+    px)` moves the toasts below it (`Offset(key)`, `Reserved()`), inside the column's px width
+    (≤ `UIConfig.Theft.Width` × W and `WidthMax`); on tablets and PCs the toasts wait for the
+    alert's end, on phones the pill keeps 16 px from the fisher and every widget listed above.
+  - **The alert's layers take no layout** (edge pulse, «ДОМОЙ!» / «ЩИТ!» glow, the pier word,
+    pings): they show from the first frame and never move another widget; only the plate (or the
+    pill) needs a place. Never add a full-screen flash: the edge pulse is ≤ `Theft.Edge.Alpha` and
+    ≤ 3 Hz.
+  - **The alert outranks the catch card**: `FishingController.HurryCard()` closes the card by its
+    normal path; the plate waits for the card, `CounterHold` and an open sheet, never draws over
+    them, and never takes the minigame's input (its input is only the action button).
+  - **Guard is the defence colour**: «ЗАЩИТА», «ЩИТ», the shield chip and the shield card use
+    the `Guard` token; danger (the thief, the alert, «ЩИТ!» during an alert) stays `Berry`.
+  - **Toasts enter and leave inside their column** (C-31): a toast drops in from no higher than
+    the column's free top (`ENTER_DROP` capped at its slot's scale above the reserved bands) and
+    rises out by ≤ `LEAVE_RISE` px within the column, so a pop-in never crosses `HUD.Status`.
 
 ### 6.6 Rules for the next agents
 
