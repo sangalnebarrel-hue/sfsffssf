@@ -70,7 +70,8 @@
 	  TankDisplay.stealWord(parent, text, cap, maxDistance) -> StealWord   -- «КРАДУТ!» (FxTankSteal):
 	      светлый диск Ring со значком Steal.Icon (на нём кольцо-таймер у вызывающего) и слово Berry
 	  TankDisplay.pulseLight(parent, color) -> PointLight   -- красный пульс у LightBar (FxStealPulse)
-	  TankDisplay.signDefence(sign, cap) -> Defence;  TankDisplay.setSignDefence(sign, row, protect?, owned?)
+	  TankDisplay.signDefence(parent, cap) -> Defence   -- строка защит FxTankSignRow над надписью садка
+	  TankDisplay.setSignDefence(row, protect?, owned?, visible)
 	  TankDisplay.capDefence(row, cap);  TankDisplay.cap(label, max)   -- потолок букв любого слова
 	  TankDisplay.pierAlarm(pair, text) -> TextLabel   -- «🚨 КРАДУТ!» у ведра (спрятано)
 	  emitter вида "dust" — серая пыль у ног вора, которого держит собака (TheftWorldController)
@@ -123,8 +124,9 @@ export type Rig = {
 }
 -- «КРАДУТ!» над витриной: диск с кольцом-таймером (Ring, внутри значок) и слово.
 export type StealWord = { gui: BillboardGui, plate: Frame, ring: Frame, word: TextLabel }
--- Строка защит на табличке садка: «🛡️ 0:42» (Protect) и «🔐1 · 🐕 · 🚨» (Owned).
-export type Defence = { protect: TextLabel, owned: TextLabel, shown: boolean }
+-- Строка защит над надписью садка — своё слово FxTankSignRow: «🛡️ 0:42» (Protect) и
+-- «🔐1 · 🐕 · 🚨» (Owned).
+export type Defence = { gui: BillboardGui, plate: Frame, protect: TextLabel, owned: TextLabel, shown: boolean }
 
 local TankDisplay = {}
 TankDisplay.WHITE = WHITE_LOOK
@@ -658,60 +660,55 @@ function TankDisplay.pulseLight(parent: Instance, color: Color3): PointLight
 	return light
 end
 
--- Строка защит над надписью садка (над «+$42/с»): «🛡️ 0:42» цветом щита (Guard) слева и
--- «🔐1 · 🐕 · 🚨» белым справа; табличка растёт ВВЕРХ на Sign.DefenceShare своей высоты (прежние
--- строки остаются на месте): строка — в небе над аквариумом, а не за статуей фонтана перед ним
--- (с ворот и от спауна). Создаётся при первой нужде.
-function TankDisplay.signDefence(sign: Pair, cap: number): Defence
+-- Строка защит над надписью садка (над «+$42/с»): своё слово FxTankSignRow на той же точке
+-- (Attachment надписи садка), Sign.DefenceShare её высоты, низом — на верхней кромке надписи
+-- (SizeOffset): «🛡️ 0:42» цветом щита (Guard) слева и «🔐1 · 🐕 · 🚨» белым справа. Строка — в
+-- небе над аквариумом, а не за статуей фонтана перед ним (с ворот и от спауна; B1-04), а сама
+-- надпись садка — ровно как на Этапе 3: под правилом «не под HUD» строка тает ОТДЕЛЬНО (на
+-- телефоне от спауна она у кошелька — «+$42/с · 🐠 4/6» остаются; Wave 3 ART-01). Создаётся при
+-- первой нужде, выключенной (Enabled — setSignDefence).
+function TankDisplay.signDefence(parent: Instance, cap: number): Defence
 	local spec = DISPLAY.Sign
 	local k = spec.DefenceShare
-	local band = k / (1 + k) -- (доля новой высоты под строку, сверху)
-	local plate = sign.plate
+	local size = UDim2.new(spec.Width, spec.PixelsX, spec.Height * k, math.round(spec.PixelsY * k))
+	local gui, plate = TankDisplay.billboard(parent, "FxTankSignRow", size, DISPLAY.SignRange)
+	-- (центр — на половину надписи и половину строки выше точки: низ строки на верху надписи)
+	gui.SizeOffset = Vector2.new(0, (1 + k) / (2 * k))
+	gui.Enabled = false
 	local protect =
-		TankDisplay.word(plate, "Protect", "", { 0, 0, 0.5, band }, UIConfig.Palette.Guard, spec.Outline - 0.5, true)
+		TankDisplay.word(plate, "Protect", "", { 0, 0, 0.5, 1 }, UIConfig.Palette.Guard, spec.Outline - 0.5, true)
 	protect.TextXAlignment = Enum.TextXAlignment.Right
 	protect.TextYAlignment = Enum.TextYAlignment.Bottom
 	protect.Visible = false
-	local owned = TankDisplay.word(plate, "Owned", "", { 0.5, 0, 0.5, band }, WHITE_LOOK, spec.Outline - 0.5)
+	local owned = TankDisplay.word(plate, "Owned", "", { 0.5, 0, 0.5, 1 }, WHITE_LOOK, spec.Outline - 0.5)
 	owned.TextXAlignment = Enum.TextXAlignment.Left
 	owned.TextYAlignment = Enum.TextYAlignment.Bottom
 	owned.Visible = false
-	capLabel(protect, cap * spec.CountShare)
-	capLabel(owned, cap * spec.CountShare)
-	return { protect = protect, owned = owned, shown = false }
+	local row: Defence = { gui = gui, plate = plate, protect = protect, owned = owned, shown = false }
+	TankDisplay.capDefence(row, cap)
+	return row
 end
 
--- Тексты строки защит (nil — нет части); обе nil — строки нет, табличка прежнего размера. Одна
--- часть — во всю ширину по центру, обе — встык у середины; буквы прижаты вниз, к «+$42/с».
-function TankDisplay.setSignDefence(sign: Pair, row: Defence, protectText: string?, ownedText: string?)
-	local spec = DISPLAY.Sign
+-- Тексты строки защит (nil — нет части); обе nil — строки нет (слово выключено). Одна часть — во
+-- всю ширину по центру, обе — встык у середины; буквы прижаты вниз, к «+$42/с». visible — видна
+-- ли надпись садка (у свободной базы и до подключения садка нет и строки).
+function TankDisplay.setSignDefence(row: Defence, protectText: string?, ownedText: string?, visible: boolean)
 	local shown = protectText ~= nil or ownedText ~= nil
-	if shown ~= row.shown then
-		row.shown = shown
-		local k = if shown then spec.DefenceShare else 0
-		local share = 1 / (1 + k)
-		local band = 1 - share
-		sign.gui.Size = UDim2.new(spec.Width, spec.PixelsX, spec.Height * (1 + k), math.round(spec.PixelsY * (1 + k)))
-		-- (растёт вверх: низ на месте — центр поднят на половину прибавки)
-		sign.gui.SizeOffset = Vector2.new(0, (k / 2) / (1 + k))
-		-- прежние строки — те же доли прежней высоты, под строкой защит
-		sign.top.Position = UDim2.fromScale(0, band)
-		sign.top.Size = UDim2.fromScale(1, 0.62 * share)
-		sign.bottom.Position = UDim2.fromScale(0.15, band + 0.64 * share)
-		sign.bottom.Size = UDim2.fromScale(0.7, 0.36 * share)
+	row.shown = shown
+	local enabled = shown and visible
+	if row.gui.Enabled ~= enabled then
+		row.gui.Enabled = enabled
 	end
-	local both = protectText ~= nil and ownedText ~= nil
-	local band = 1 - 1 / (1 + spec.DefenceShare)
 	local function place(label: TextLabel, text: string?, x: number, w: number, align: Enum.TextXAlignment)
 		label.Visible = text ~= nil
 		if text and label.Text ~= text then
 			label.Text = text
 		end
 		label.Position = UDim2.fromScale(x, 0)
-		label.Size = UDim2.fromScale(w, band)
+		label.Size = UDim2.fromScale(w, 1)
 		label.TextXAlignment = align
 	end
-	if both then
+	if protectText ~= nil and ownedText ~= nil then
 		place(row.protect, protectText, 0.02, 0.44, Enum.TextXAlignment.Right)
 		place(row.owned, ownedText, 0.48, 0.5, Enum.TextXAlignment.Left)
 	else

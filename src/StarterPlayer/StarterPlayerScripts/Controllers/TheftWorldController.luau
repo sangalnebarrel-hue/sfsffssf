@@ -46,7 +46,8 @@
 	  • Табличка флага: над OwnerSign (Flag.Pole.SignAttachment) свой BillboardGui её размера,
 	    сдвинутый вверх на Flag.Raise своей высоты (там небо, не полотнище флага цвета базы), —
 	    «🛡️ 4:12» цветом Guard, пока база под любой защитой (видно через карту: её MaxDistance);
-	    цифры — раз в проверку, только при смене.
+	    часы — цепочка task.delay по целым секундам до конца защиты (как фишка щита и строка
+	    защит над аквариумом: одно время в одном кадре; Wave 3 ART-04).
 	  • Собака (Dog.Unlocked = true): спит — поза сервера (pivot щенка у DefenceConfig.Dog.Rest),
 	    поднятая лапами на землю двора (луч вниз по Grounds и Arcades базы: мощёная дорожка выше
 	    точки базы), и «💤» над ней (World.Dog.Sleep, видно до SleepRange; неподвижное); DogState ≠
@@ -166,6 +167,10 @@ type Dog = {
 
 type Fade = { part: BasePart, thread: thread }
 
+-- «🛡️ 4:12» над табличкой флага; untilAt — конец защиты, по которому идут его часы, gen —
+-- поколение их цепочки.
+type Flag = { gui: BillboardGui, label: TextLabel, untilAt: number, gen: number }
+
 type Base = {
 	model: Model,
 	trove: any,
@@ -175,7 +180,7 @@ type Base = {
 	mark: Mark?,
 	dome: BasePart?,
 	domeTarget: number?,
-	flag: { gui: BillboardGui, label: TextLabel }?,
+	flag: Flag?,
 	dog: Dog?,
 	sleep: BillboardGui?, -- «💤» над спящей собакой
 	ray: RaycastParams?, -- луч к земле двора (Grounds и Arcades базы)
@@ -754,7 +759,30 @@ local function dropFlag(base: Base)
 	local flag = base.flag
 	if flag then
 		base.flag = nil
+		flag.gen += 1
 		flag.gui:Destroy()
+	end
+end
+
+local function flagText(untilAt: number, now: number): string
+	return TextUtil.fill(DEFENCE_WORDS.Protect, { t = StealRules.FormatClock(untilAt - now) })
+end
+
+-- Часы таблички — по целым секундам до конца защиты (как фишка щита DefenceController и строка
+-- защит над аквариумом TankWorldController: одно время в одном кадре; Wave 3 ART-04): цепочка
+-- task.delay ровно до смены числа, пока табличка та же и конец защиты тот же.
+local function flagStep(base: Base, flag: Flag, gen: number)
+	if base.flag ~= flag or flag.gen ~= gen then
+		return
+	end
+	local now = Workspace:GetServerTimeNow()
+	local left = flag.untilAt - now
+	local text = flagText(flag.untilAt, now)
+	if flag.label.Text ~= text then
+		flag.label.Text = text
+	end
+	if left > 0 then
+		task.delay(math.max(left - math.floor(left), 0.01), flagStep, base, flag, gen)
 	end
 end
 
@@ -764,7 +792,7 @@ local function applyFlag(base: Base, now: number)
 		dropFlag(base)
 		return
 	end
-	local text = TextUtil.fill(DEFENCE_WORDS.Protect, { t = StealRules.FormatClock(untilAt - now) })
+	local text = flagText(untilAt, now)
 	local flag = base.flag
 	if not flag then
 		local sign = find(base.model, { "Flag", "Pole", "SignAttachment", "OwnerSign" })
@@ -787,11 +815,17 @@ local function applyFlag(base: Base, now: number)
 			true
 		)
 		UiFx.popIn(plate, { from = 0.4 })
-		flag = { gui = gui, label = label }
+		flag = { gui = gui, label = label, untilAt = untilAt, gen = 0 }
 		base.flag = flag
+		flagStep(base, flag :: Flag, 0)
 	end
-	local f = flag :: { gui: BillboardGui, label: TextLabel }
-	if f.label.Text ~= text then
+	local f = flag :: Flag
+	if f.untilAt ~= untilAt then
+		-- (щит продлили или сменился вид защиты: часы — с нового конца)
+		f.untilAt = untilAt
+		f.gen += 1
+		flagStep(base, f, f.gen)
+	elseif f.label.Text ~= text then
 		f.label.Text = text
 	end
 end

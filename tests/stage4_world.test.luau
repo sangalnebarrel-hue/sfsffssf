@@ -25,8 +25,10 @@
 	  • the dome: the shield kind only, in range only, ≤ PhoneMax on touch, Inside when the camera
 	    or the own character is in (the owner at his spawn with the camera outside), in between in
 	    the Near band, fades in and out;
-	  • the tank sign's defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» on top (ticking; the sign grows up),
-	    the flag label «🛡️ 4:12» over the owner sign for any kind;
+	  • the tank sign's defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» on top — its own word FxTankSignRow
+	    on the sign's point, the sign as in stage 3 (wave 3 ART-01), the flag label «🛡️ 4:12» over
+	    the owner sign for any kind; one clock: the row, the flag and the owner's ShieldChip show the
+	    same second at any moment (ART-04);
 	  • the pier word «🚨 КРАДУТ!» red during the bite, hidden under CounterHold, back after;
 	  • the dog: asleep on the raised paving (not sunk) with a still «💤», RenderStepped only while
 	    awake, follows DogPos on the ground (the arcade deck) facing its motion, «ГАВ!» on its body,
@@ -961,7 +963,7 @@ tests["dome: the shield only, in range only, ≤ PhoneMax on touch (all on a PC)
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["tank sign defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» over «+$/с» (ticks, any kind; the sign grows up); the flag label «🛡️ 4:12» over the owner sign"] = function(
+tests["tank sign defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» over «+$/с» (its own word FxTankSignRow on the sign's point, any kind; the sign itself as in stage 3); the flag label «🛡️ 4:12» over the owner sign"] = function(
 	t
 )
 	local sim = boot(t)
@@ -976,44 +978,48 @@ tests["tank sign defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» over 
 	sim:Advance(1)
 	local sign = world.GetSign(base)
 	t.ok(sign and sign.Enabled, "the tank sign")
-	local size0 = sign.Size
-	t.eq(sign.Plate:FindFirstChild("Owned"), nil, "nothing owned, no protection: no third row")
+	local size0, offset0 = sign.Size, sign.SizeOffset
+	local rate0, count0 = sign.Plate.Rate.Position, sign.Plate.Count.Position
+	t.eq(world.GetSignRow(base), nil, "nothing owned, no protection: no row")
 	fake:defence({ LockLevel = 1, HasDog = true, HasAlarm = true })
 	sim:Advance(0.1)
-	local owned = sign.Plate:FindFirstChild("Owned")
-	t.ok(owned and owned.Visible, "the defences row")
-	t.eq(owned.Text, "🔐1 · 🐕 · 🚨", "«🔐1 · 🐕 · 🚨»")
-	t.eq(sign.Plate.Protect.Visible, false, "no protection: no «🛡️»")
-	t.ok(sign.Size.Y.Scale > size0.Y.Scale, "the sign grew for the row …")
+	local row = world.GetSignRow(base)
+	t.ok(row and row.Enabled, "the defences row")
+	t.eq(row.Name, "FxTankSignRow", "… its own word")
+	t.eq(row.Parent, sign.Parent, "… on the sign's point")
+	local owned = row.Plate:FindFirstChild("Owned")
+	t.ok(owned and owned.Visible, "«🔐1 · 🐕 · 🚨»")
+	t.eq(owned.Text, "🔐1 · 🐕 · 🚨")
+	t.eq(row.Plate.Protect.Visible, false, "no protection: no «🛡️»")
+	t.eq(sign.Plate:FindFirstChild("Owned"), nil, "nothing added to the sign (wave 3 ART-01) …")
+	t.eq(sign.Size, size0, "… its size …")
+	t.eq(sign.SizeOffset, offset0, "… its place …")
+	t.eq(sign.Plate.Rate.Position, rate0, "… and its lines as in stage 3")
+	t.eq(sign.Plate.Count.Position, count0)
 	local k = DISPLAY.Sign.DefenceShare
+	t.near(row.Size.Y.Scale, sign.Size.Y.Scale * k, 1e-6, "the row is DefenceShare of the sign high (studs) …")
+	t.eq(row.Size.Y.Offset, math.round(sign.Size.Y.Offset * k), "… and px")
+	t.eq(row.Size.X, sign.Size.X, "… as wide")
 	t.near(
-		sign.SizeOffset.Y,
-		(k / 2) / (1 + k),
+		row.SizeOffset.Y,
+		(1 + k) / (2 * k),
 		1e-6,
-		"… UPWARDS: its bottom stays (over the fountain statue, not behind it)"
+		"… ON TOP: its bottom on the sign's top (over the fountain statue, not behind it)"
 	)
-	t.eq(owned.Position.Y.Scale, 0, "the row on top")
-	t.near(sign.Plate.Rate.Position.Y.Scale, k / (1 + k), 1e-6, "«+$/с» under it, where it was")
-	local offset0 = Vector2.new(0, 0)
 	fake:protect("join", 42)
 	sim:Advance(0.05)
-	t.eq(sign.Plate.Protect.Text, "🛡️ 0:42", "«🛡️ 0:42» for a join protection too")
-	t.eq(sign.Plate.Owned.Text, "· 🔐1 · 🐕 · 🚨", "… then the owned defences")
-	sim:Advance(2 * DISPLAY.TagEvery + DISPLAY.CheckEvery + 0.1)
-	local ticked = sign.Plate.Protect.Text
-	t.ok(ticked == "🛡️ 0:41" or ticked == "🛡️ 0:40", `it ticks once a second ({ticked})`)
+	t.eq(row.Plate.Protect.Text, "🛡️ 0:42", "«🛡️ 0:42» for a join protection too")
+	t.eq(row.Plate.Owned.Text, "· 🔐1 · 🐕 · 🚨", "… then the owned defences")
 	-- the shield's readiness is never shown: a ready shield with no protection shows nothing
 	fake:protect(nil)
 	fake:defence({ LockLevel = 0, HasDog = false, HasAlarm = false })
 	sim:Advance(0.05)
-	t.eq(sign.Plate.Protect.Visible, false)
-	t.eq(sign.Plate.Owned.Visible, false)
-	t.eq(sign.Size, size0, "the sign back to its size")
-	t.eq(sign.SizeOffset, offset0, "… and place")
-	t.eq(sign.Plate.Rate.Position.Y.Scale, 0, "«+$/с» on top again")
+	t.eq(row.Enabled, false, "nothing to show: the row off")
+	t.eq(sign.Enabled, true, "… the sign stays")
 	-- the flag: any kind, over the owner sign (sky there, not the flag cloth), seen across the map
 	fake:protect("rest", 252)
 	sim:Advance(0.1)
+	t.eq(row.Enabled, true, "a rest protection: the row back")
 	local flag = theft.Get(base).flag
 	t.ok(flag, "the flag label")
 	local ownerSign = base.Flag.Pole.SignAttachment.OwnerSign
@@ -1031,6 +1037,92 @@ tests["tank sign defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» over 
 	fake:protect(nil)
 	sim:Advance(WORLD.CheckEvery + 0.1)
 	t.eq(theft.Get(base).flag, nil, "gone with the protection")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["tank sign on a phone from the spawn pad (wave 3 ART-01): a protection row by the Wallet fades alone — «+$/с · 🐠 6/6» show as without it"] = function(
+	t
+)
+	local sim = boot(t)
+	local owner = addPlayer(sim, 1, "phone")
+	local fake = Fake.new(sim, owner)
+	local base = fake.base
+	local world = client(sim, owner, "TankWorldController")
+	fake:mount({ "Perch", "Puffer", "Crucian", "SharkPup" })
+	-- gui_scenarios_tank «tank_sign»: the owner on his spawn pad, the camera behind him
+	sim:Teleport(owner, at(base, 4, 3.2, 40))
+	seen(sim, owner, function()
+		local camera = sim.workspace.CurrentCamera
+		camera.FieldOfView = 70
+		camera.CFrame = CFrame.lookAt(at(base, -12, 9.5, 33), at(base, 0, 11, 78))
+	end)
+	sim:Advance(2 + DISPLAY.Clear.Show)
+	local sign = world.GetSign(base)
+	t.ok(sign and sign.Enabled, "the tank sign")
+	t.eq(world.IsFaded(sign), false, "no protection: the sign shows (stage 3)")
+	fake:protect("join", 240)
+	-- (the greeting toast «Твой садок под защитой …» sits on it a while: wait it out)
+	sim:Advance(8, FRAME * 4)
+	local row = world.GetSignRow(base)
+	t.ok(row and row.Enabled, "the protection row")
+	t.ok(world.IsFaded(row), "the row by the Wallet: faded")
+	t.eq(world.IsFaded(sign), false, "… the sign itself still shows")
+	t.eq(sign.Plate.Rate.TextTransparency, 0, "«+$/с» drawn")
+	t.eq(sign.Plate.Count.TextTransparency, 0, "«🐠 4/6» drawn")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["one clock (wave 3 ART-04): the row «🛡️ 3:59» over the tank, the flag label and the owner's ShieldChip show the same whole second at any moment (each a chain to the next whole second, not the check chains)"] = function(
+	t
+)
+	local sim = boot(t)
+	local owner = addPlayer(sim, 1)
+	local fake = Fake.new(sim, owner)
+	local base = fake.base
+	local world = client(sim, owner, "TankWorldController")
+	local theft = client(sim, owner, "TheftWorldController")
+	local rules = sim:Require(sim:Find("ReplicatedStorage.Shared.StealRules"))
+	fake:mount({ "Perch", "Puffer" })
+	nearCourt(sim, owner, base)
+	-- the chip waits for the base banner and the intro
+	local chip = owner.PlayerGui.HUD.Status.BaseBadge.ShieldChip
+	fake:protect("shield", 240.37)
+	for _ = 1, 100 do
+		if chip.Visible then
+			break
+		end
+		sim:Advance(0.1)
+	end
+	t.ok(chip.Visible, "the ShieldChip")
+	local untilAt = base:GetAttribute("ProtectUntil")
+	local row = world.GetSignRow(base)
+	t.ok(row and row.Enabled, "the row")
+	local mismatches = {}
+	-- 40 looks at odd moments (0.13 s apart, so every phase of the second is seen)
+	for i = 1, 40 do
+		sim:Advance(0.13)
+		local want = rules.FormatClock(untilAt - sim.workspace:GetServerTimeNow())
+		local signText = row.Plate.Protect.Text
+		local flag = theft.Get(base).flag
+		local flagText = flag and flag:FindFirstChild("Protect", true).Text
+		local chipText = chip.Label.Text
+		if signText ~= `🛡️ {want}` or flagText ~= `🛡️ {want}` or chipText ~= want then
+			table.insert(mismatches, `#{i} want {want}: sign {signText}, flag {flagText}, chip {chipText}`)
+		end
+	end
+	t.eq(#mismatches, 0, `one time in every frame: {table.concat(mismatches, "; ")}`)
+	-- the shield is topped up: the clocks follow the new end at once
+	fake:protect("shield", 59.5)
+	untilAt = base:GetAttribute("ProtectUntil")
+	sim:Advance(0.2)
+	local want = rules.FormatClock(untilAt - sim.workspace:GetServerTimeNow())
+	t.eq(row.Plate.Protect.Text, `🛡️ {want}`, "a new end: the row …")
+	t.eq(theft.Get(base).flag:FindFirstChild("Protect", true).Text, `🛡️ {want}`, "… the flag")
+	-- over: the row's clock part goes, no chain is left behind
+	fake:protect(nil)
+	sim:Advance(WORLD.CheckEvery + 1.1)
+	t.eq(row.Enabled, false, "the protection over: the row off")
+	t.eq(theft.Get(base).flag, nil, "… the flag gone")
 	sim:AssertNoErrors({ warnings = true })
 end
 
