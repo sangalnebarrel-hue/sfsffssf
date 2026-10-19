@@ -990,6 +990,7 @@ tests["text widths: toasts ≤ 300 px at 12 px with the longest name, fish and p
 	local oneLine = {
 		TextUtil.fill(ST.Result.Lost, { short = widest, name = LONGEST_NAME }),
 		TextUtil.fill(ST.Result.LostSub, { t = clock }),
+		TextUtil.fill(ST.Result.SavedShield, { t = clock }),
 		ST.Result.Void,
 		TextUtil.fill(ST.Result.LeftSold, { price = TankRules.FormatMoney(99999) }),
 		TextUtil.fill(ST.Intruder, { name = LONGEST_NAME }),
@@ -1124,7 +1125,23 @@ tests["text widths: banner and plate titles at their tier on phone_small, card n
 	end
 	fits(DT.Buy.On, cards.ShieldCard.Buy.Label, cards.ShieldCard, small, "ВКЛЮЧИТЬ")
 	fits(DT.Buy.Confirm, cards.DogCard.Buy.Label, cards.DogCard, small, "КУПИТЬ?")
-	fits(DT.Buy.Bought, cards.DogCard.Buy.Label, cards.DogCard, small, "КУПЛЕНО")
+	-- the bought stamp «✔️ КУПЛЕНО»: one line at ≥ 12 px on a button 0.86 of the card (DefenceCards
+	-- STAMP; the builder's Buy is 0.92)
+	fits(
+		DT.Buy.Bought,
+		cards.DogCard.Buy.Label,
+		cards.DogCard,
+		Vector2.new(small.X * 0.86 / 0.92, small.Y),
+		"КУПЛЕНО stamp",
+		12
+	)
+	fits(
+		TextUtil.fill(DT.Buy.Need, { price = s.TankRules.FormatMoney(DOG.Price) }),
+		cards.DogCard.Buy.Label,
+		cards.DogCard,
+		small,
+		"ЕЩЁ $ (not enough money)"
+	)
 	-- The column button and the shield chip (≤ ChipMax px).
 	t.ok(
 		UiFx.textWidth(TextUtil.fill(DT.Chip, { t = "10:00" }), 14) + 36 <= UIConfig.Theft.ChipMax,

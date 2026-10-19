@@ -971,6 +971,10 @@ tests["toasts: colour and icon by kind, width by text, slots, leave and reflow"]
 	local p = addPlayer(sim, 1, "desktop")
 	sim:Advance(5) -- the join banner is gone
 	local column = p.PlayerGui.HUD.Toasts
+	-- (stage 4: the join / newbie protection toast «Защита новичка …» shows once after the banner)
+	sim:WaitFor(function()
+		return #liveToasts(p) == 0
+	end, 15, 0.1)
 	local function live(): { any }
 		local list = {}
 		for _, c in column:GetChildren() do
@@ -1275,13 +1279,56 @@ tests["trophy chip: someone else's Legendary pillar off-screen — a small chip 
 	t.eq(chip.Body.IconSocket.Icon.Text, "🌟", "Legendary: 🌟")
 	t.ok(chip.AbsolutePosition.X > vp.X / 2, `on the right edge (x {chip.AbsolutePosition.X})`)
 	t.ok(vp.X - (chip.AbsolutePosition.X + chip.AbsoluteSize.X * 1.42) >= 16 - 1, "≥ 16 px from the screen edge")
-	-- (stage 3: «САДОК» over «ДОМОЙ» — the top of the taller column)
+	-- (stage 3: «САДОК» over «ДОМОЙ» — the top of the taller column; stage 4: with «ЗАЩИТА» over
+	-- them a phone has no room above the column — the chip stands LEFT of it, at its foot)
 	t.ok(hud.RightButtons.TankButton.Visible, "«САДОК» is on screen")
-	local chipRect, topRect = rectOf(sim, p, chip), rectOf(sim, p, hud.RightButtons.TankButton)
-	t.ok(
-		chipRect.y + chipRect.h * 1.1 + 16 <= topRect.y + 1,
-		`above the right button column, ≥ 16 px (chip {chipRect.y}+{chipRect.h}, «САДОК» {topRect.y})`
-	)
+	local chipRect = rectOf(sim, p, chip)
+	local top = if hud.RightButtons.DefenceButton.Visible
+		then hud.RightButtons.DefenceButton
+		else hud.RightButtons.TankButton
+	local topRect = rectOf(sim, p, top)
+	if hud.RightButtons.DefenceButton.Visible then
+		local columnLeft = math.huge
+		for _, button in hud.RightButtons:GetChildren() do
+			if button:IsA("GuiObject") and button.Visible then
+				columnLeft = math.min(columnLeft, button.AbsolutePosition.X)
+			end
+		end
+		t.ok(
+			columnLeft - (chip.AbsolutePosition.X + chip.AbsoluteSize.X * 1.42) >= 16 - 1,
+			`three buttons on a phone: left of the column, ≥ 16 px (chip right {chip.AbsolutePosition.X + chip.AbsoluteSize.X * 1.42}, column {columnLeft})`
+		)
+		local home = rectOf(sim, p, hud.RightButtons.HomeButton)
+		t.ok(
+			math.abs((chipRect.y + chipRect.h / 2) - (home.y + home.h / 2)) <= home.h,
+			`no fishing buttons: at the column's foot, by «ДОМОЙ» (its row {home.y}, chip {chipRect.y})`
+		)
+		-- The rod in hand («ЗАБРОСИТЬ») and waiting («СМОТАТЬ»): the chip climbs above them (≥ 16 px:
+		-- the right thumb is there) or hides when the lane has no free spot.
+		for _, name in { "ActionButton", "StopButton" } do
+			local button = hud.Fishing.ActionArea[name]
+			button.Visible = true
+			sim:Advance(0.2)
+			if chip.Visible then
+				local r = rectOf(sim, p, chip)
+				local ring = chip.AbsoluteSize.X * 0.62 -- (its base ring and tip reach past the body)
+				local b = rectOf(sim, p, button)
+				local dx = math.max(b.x - (r.x + r.w + ring / 2), (r.x - ring / 2) - (b.x + b.w), 0)
+				local dy = math.max(b.y - (r.y + r.h + ring / 2), (r.y - ring / 2) - (b.y + b.h), 0)
+				t.ok(
+					math.sqrt(dx * dx + dy * dy) >= 16 - 1,
+					`{name} up: the chip keeps ≥ 16 px from it (chip y {r.y}, {name} y {b.y})`
+				)
+			end
+			button.Visible = false
+			sim:Advance(0.2)
+		end
+	else
+		t.ok(
+			chipRect.y + chipRect.h * 1.1 + 16 <= topRect.y + 1,
+			`above the right button column, ≥ 16 px (chip {chipRect.y}+{chipRect.h}, «САДОК» {topRect.y})`
+		)
+	end
 	t.ok(chip.AbsoluteSize.Y >= 44, `big enough to see (≥ 44 px: {chip.AbsoluteSize.Y})`)
 	local baseColor = other:GetAttribute("BaseColor")
 	t.ok(

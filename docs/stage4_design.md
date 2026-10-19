@@ -111,12 +111,12 @@ the origin, y = 0 is the ground top, −Z points to the lagoon, the plot is x ±
    - **If he is stealing himself** at that moment, the plate shows no buttons and reads «Пока крадёшь
      сам, щит не включить» (his «ДОМОЙ» is guarded and the shield is refused; DC-04).
 4. **The result.**
-   - Lost: a big toast «Украдено: Окунь (Ника)» + «Садок отдыхает 1:30 — никто не украдёт». The Wallet
+   - Lost: a big toast «Украдено: Окунь (Ника)» + «Садок отдыхает 1:30 — не украдут». The Wallet
      rate rolls down with a Berry flash, «САДОК» flashes Berry and the chip rolls 6/6 → 5/6, the display
      shows «УКРАДЕНО!» for 2 s, and the shield chip «🛡️ 1:30» shows the **90 s immunity**. After a 2nd
-     loss within 10 min the chip shows the longer rest («🛡️ 6:12»). **One tip per loss**: if the
-     shield was ready and unused, «Совет: жми 🛡️ ЩИТ, как только увидишь «ВОР В САДКЕ!» — он
-     бесплатный»; otherwise the cheapest defence he lacks, with its price (DC-14).
+     loss within 10 min the chip shows the longer rest («🛡️ 6:12»). **One tip per loss** (a 💡 toast,
+     one line on every phone; §11.6 D-26): if the shield was ready and unused, «Щит бесплатный:
+     увидишь 🚨 — жми 🛡️»; otherwise the cheapest defence he lacks, with its price (DC-14).
    - Saved: «Рыба спасена! 💪» with the reason (tag, shield, the thief fell or ran out of time, the thief
      left the game). A hold shorter than 1 s that the thief ended (or nobody did) ends quietly (no toast,
      no pings: BE-19); the owner's own tag or shield is always celebrated, however early (D20, A2-04).
@@ -1237,16 +1237,21 @@ touched inside existing functions, plus the one `HurryCard` function.
 - **Badge «!»** also shows **once per session** when the first defence becomes affordable (≈ 2.5 min
   for the median kid, inside his newbie protection; DC-13), and the button bobs at the protection's
   `EndingWarn` (§2.4).
-- **Trophy chip on phones** (`read_ui_tests` §2.2): with 3 column buttons and a HUD < 600 px tall,
-  NotifyController places the chip **left of the column** at the column's top (x = column left − 16 −
-  chip width). Tablet and desktop are unchanged.
+- **Trophy chip on phones** (`read_ui_tests` §2.2): with 3 column buttons and no room above the
+  column (phones, the tablet), NotifyController places the chip **left of the column** (its tip
+  `SideGap` px from the buttons) at the **lowest free spot of that lane** — from the column's foot
+  (above Jump on touch) upward, ≥ 16 px from the fishing buttons («ЗАБРОСИТЬ», «СМОТАТЬ» with their
+  captions), the visible toasts, the alert plate and the status stack; no free spot — hidden until
+  there is one (§11.6 D-10). The desktop is unchanged.
 
 ### 6.3 The victim's alert (AlertController; never covers the fisher, never takes the minigame)
 
 **Layers, always (no layout cost):**
 
 - a thin Berry `UiFx.edgeVignette` pulse: size 0.06 on phones and 0.10 elsewhere, period 0.5 s,
-  opacity ≤ 0.35 (photosensitivity: no full-screen flash);
+  opacity ≤ 0.35 (photosensitivity: no full-screen flash); in its own clipping layer `FxAlertEdge`
+  (nothing under the Roblox top bar), asleep while the fishing has its own edge glow (the bite, a
+  minigame aura) — then on a phone the column rings rest too (fill budget; §11.6 D-20);
 - `HudController.HomeAlert(true)`: a Berry glow ring on «ДОМОЙ», caption «ДОМОЙ!»;
 - the «ЗАЩИТА» alert mode (§6.2);
 - the pier word (§5.3);
@@ -1268,25 +1273,45 @@ touched inside existing functions, plus the one `HurryCard` function.
   520 px), inside the toast column. Phone height ≈ 72 px. «Крупные кнопки» in the spec: 44 px is the
   floor, not the goal for the one tap that matters.
 - `popIn` with a shake (not for `Quiet` updates). It sits at the top of the toast column:
-  `NotifyController.Reserve("alert", px)` shifts the toasts below it.
+  `NotifyController.Reserve("alert", px)` (px — down to the plate's drawn bottom) shifts the toasts
+  below it, `NotifyController.BandGap()` (≥ 16 px + a toast's ink) under it; while a band stands a
+  toast never ends lower than 16 px over the own fisher or near the fishing buttons — on a tablet /
+  desktop there is no room above his head under the plate, so toasts wait until it leaves (§11.6
+  D-31). The phone pill in the toast column, or just above it, reserves the same way.
 - **When:**
   - idle, walking, Bite and Reeling (like today's P3 danger toast, which may show then): the full plate;
   - on phones, if the plate's rect intersects `FishingLayout.fisherBox()` → the **Compact** pill
-    (≈ 56 px: «🚨 ВОР! Окунь» + the ЩИТ button, or [🏠] when the shield is not ready) placed by
-    `FishingLayout.clearOf` at the first free spot (≥ 16 px from Jump, the column, the status stack);
+    (≈ 56 px: «🚨 ВОР! Окунь» + the ЩИТ button, or [🏠] when the shield is not ready; tight —
+    «🚨 ВОР!»; stealing himself — «ВОР! ОКУНЬ · щит после кражи», no buttons) placed by
+    `Controllers/AlertLayout` at the **topmost** free spot (≥ 16 px from the fisher, the bobber,
+    Jump, the thumbstick, the column, the status stack, the fishing widgets): the top band stays
+    free through the bite and the minigame, so the pill does not move with the fishing; a spot
+    that stays free is kept, a forced move glides (0.15 s); never by the Roblox buttons, even as a
+    last resort — then no pill (the column «ЩИТ!» remains; §11.6 D-01, D-03, D-27);
+  - **a sheet** never lies under the plate: a loud new alert closes «САДОК» at once (reason
+    "alert"); «ЗАЩИТА» stays open and its shield card becomes the Berry «ЩИТ!» with rings (the same
+    one tap); a sheet opened during the alert hides the plate until it is gone (§11.6 D-18);
   - **the alert outranks the catch card** (DC-02): when AlertController sets `AlertPhase` it calls
     `FishingController.HurryCard()`. A visible card takes its **normal close path**, as if «ЗАБРАТЬ!»
     was tapped, so the Stage 3 flight into «САДОК» still plays; a card still in its beats or in the
     Epic+ delay closes as soon as it settles, and a rarity slam in progress may finish (≤ 0.9 s). The
     plate pops in when the card is closed and `CounterHold` clears (≈ 1 s), if the theft is still live.
-    In rev. 1 a Mythic card held the plate for ≈ 6 s, longer than the whole lock-0 theft.
+    In rev. 1 a Mythic card held the plate for ≈ 6 s, longer than the whole lock-0 theft. **A catch
+    that lands while the alert is up** is hurried the same way (HurryCard again on its
+    `CounterHold`), and the plate / pill steps aside until the card and its flight are gone (§11.6
+    D-19).
 - **Ends** with the theft. The result toast follows (`theft` kind for a loss, `saved` for a save; none
   for a `Quiet` save). Buttons answer at once: ЩИТ shows ⏳ until `DefenceEvent("Shield")` or `Denied`.
+  With a sheet open, every result toast but «Украдено» waits for it to close (it would lie on the
+  sheet's header and Wallet; on «ЗАЩИТА» the shield card already shows the save), its timer read at
+  that moment (§11.6 D-33). While the alert lasts, an open «ЗАЩИТА» says it in its header: Berry
+  🚨 «ВОР В САДКЕ!» / 🏃 «ВОР УБЕГАЕТ!» (§11.6 D-34).
 - Bound by name in Start; connections in a Trove; idle = no frame jobs (the vignette and glow are timer
   loops; STYLE §6.6).
 - **The intruder toast** (alarm): `NotifyController.Show("Ника у тебя во дворе!", "warning", { icon =
-  "👀" })` and the «ЗАЩИТА» button bobs (`badgeBob`) for 5 s. The server sends none while the base is
-  protected.
+  "👀", tag = "intruder:<UserId>" })` and the «ЗАЩИТА» button bobs (`badgeBob`) for 5 s. The server
+  sends none while the base is protected. The alert of the same thief removes it at once
+  (`NotifyController.Drop`: the plate says the same, louder; §11.6 D-32).
 
 ### 6.4 The thief's banner and celebration (TheftController)
 
@@ -1332,8 +1357,9 @@ touched inside existing functions, plus the one `HurryCard` function.
 - **`HUD.Stealing`** attribute (= the phase) for the others:
   - FishingController's "where to go" hint and guide beam yield while it is set (one attribute check
     inside the existing hint function, 32 spare registers);
-  - HudController greys «ДОМОЙ» with the lock look while `Player.Stealing == "carry"` (a press shows the
-    server's guard text), and hides `HUD.Status` while `HUD.Stealing` is set (the band rule above).
+  - HudController greys «ДОМОЙ» with the lock look while `Player.Stealing == "carry"` (a press only
+    wiggles it — no RequestHome, §11.6 D-24), and hides `HUD.Status` while `HUD.Stealing` is set (the
+    band rule above).
 - **Denied:** `InputHoldEnd()` on the prompt the payload names (`BaseIndex`, `Slot`), then the `hint`
   state with the text for 2.5 s (no text for `Quiet`). A `Cancel` in the hold phase also calls
   `InputHoldEnd()` on the held prompt: the server no longer disables prompts, so this is how a shield
@@ -1367,7 +1393,8 @@ touched inside existing functions, plus the one `HurryCard` function.
 
 - **The sheet shell** as in Stage 3 (placement, glass on phones, Night plate on tablet and desktop,
   closes for fishing, hides `HUD.Fishing` under it). Its `Layout` is `DefenceConfig.Panel`. The header
-  shows 🛡️ «ЗАЩИТА» and the Wallet's «💵 $12 345» (glass chip).
+  shows 🛡️ «ЗАЩИТА» and the Wallet's «💵 $12 345» (glass chip); during an alert — Berry 🚨 «ВОР В
+  САДКЕ!» / 🏃 «ВОР УБЕГАЕТ!» (the plate is not drawn over a sheet; §11.6 D-34).
 - **One sheet at a time** (`read_ui_tests` §0.5): `Controllers/Sheet.luau` keeps a module-level `current`.
   Opening one closes the other with reason "switch" (no hide animation, no Toasts ZIndex or
   `HUD.Fishing` restore in between).
@@ -1377,19 +1404,23 @@ touched inside existing functions, plus the one `HurryCard` function.
 
   | card | icon | name (CAPS) | effect line (sentence case) | button states |
   |---|---|---|---|---|
-  | ShieldCard | 🛡️ | ЩИТ | «Никто не украдёт 1 минуту» | Guard «ВКЛЮЧИТЬ» whenever activation would be accepted (DC-03) → active glass «🛡️ 0:42» → Slate «⏳ 2:59» with `ringTimer`; protected ≥ 60 s by another kind: glass «ТЫ ПОД ЗАЩИТОЙ» |
-  | DogCard | 🐕 | СОБАКА | «Вор с рыбой бежит вдвое медленнее» | Gold «💵 $6 000» → two-tap «КУПИТЬ?» → Leaf stamp «КУПЛЕНО» |
+  | ShieldCard | 🛡️ | ЩИТ | «Никто не украдёт 1 минуту» | Guard «ВКЛЮЧИТЬ» whenever activation would be accepted (DC-03) → active glass «🛡️ 0:42» → Slate «⏳ 2:59» with `ringTimer`; protected ≥ 60 s by another kind: glass «ТЫ ПОД ЗАЩИТОЙ»; a tap on «⏳» / «ТЫ ПОД ЗАЩИТОЙ» / «ПОСЛЕ КРАЖИ» wiggles it and flashes its label — no toast (§11.6 D-33) |
+  | DogCard | 🐕 | СОБАКА | «Вор с рыбой бежит вдвое медленнее» | Gold «💵 $6 000» → two-tap «КУПИТЬ?» → a flat, tilted Leaf stamp «✔️ КУПЛЕНО» (no shine, narrower than a button: not a live button; §11.6 D-35) |
   | AlarmCard | 🚨 | СИГНАЛИЗАЦИЯ (СИГНАЛКА on cards < 120 px; width-tested) | «Узнаешь о воре, как только он войдёт» | the same as Dog |
-  | LockCard | 🔐 | ЗАМОК | «Вору держать 4 с вместо 3» | the same as Dog («💵 $1 500» → «КУПЛЕНО»); bought: Sub «Сильнее замки — скоро в магазине» (DC-11); `SaleMax = 0` hides the card |
+  | LockCard | 🔐 | ЗАМОК | «Вору держать 4 с вместо 3» | the same as Dog («💵 $1 500» → «КУПЛЕНО»); bought: the effect line becomes «Сильнее замки — скоро в магазине» (DC-11, §11.6 D-21); `SaleMax = 0` hides the card |
 
 - **Buying:** the Stage 3 two-tap confirm (first tap → «КУПИТЬ?» + 3 s ring; a second tap counts after
   `ConfirmArm` 0.4 s; mash-proof). Then `DefenceBuy(item)` and the button shows ⏳.
   - `Bought` → `MoneyController.Spend(price, card.Buy)` (new: Berry count-down on the Wallet, 💵 fly
     out of the Wallet into the card, «−$6 000» float), the card's stamp, confetti on the card, for the
-    dog a «ГАВ!» toast «Собака охраняет твой двор!».
+    dog a «ГАВ!» toast «Собака охраняет твой двор!» — once the sheet closes (§11.6 D-33).
   - `Denied` → card wiggle + a warning toast over the sheet.
-  - Not enough money: the price button is Slate with the price kept readable, and a tap shows
-    «Не хватает: нужно $6 000».
+  - Not enough money: the price button is Slate with the price kept readable, and a tap wiggles it
+    and says «ЕЩЁ $3 000» on the button itself for `Panel.NeedTime` s — under the finger, not a toast
+    over the sheet's header and Wallet (§11.6 D-22).
+  - The card is laid out in px bottom-up: Buy at the foot, the effect line gets the room between the
+    name and Buy (a smaller icon disc, one size for the row, then `EffectShort` when the full line
+    does not fit; §11.6 D-21).
 - **Live values:** one 1 s chain while open (shield timer, affordability).
 - **Budgets:** phone fill ≤ 2.5×, ≤ 60 temp GUI objects, `activeJobs() == 0` after juice, connections
   back to baseline after close. `checks.py` `CONTAINERS` / `SHEETS` gain `HUD.DefencePanel`.
@@ -1398,11 +1429,13 @@ touched inside existing functions, plus the one `HurryCard` function.
 
 Trimmed to the minimum (DC-18). `watchSlots` also listens to `StealPhase` and `Escrow`:
 
-- **hold / carry:** the card's Sell button is disabled with the label «КРАДУТ!» (a tap gives the
-  server's «Её сейчас крадут!»).
+- **hold / carry:** the card's Sell button is disabled with the label «КРАДУТ!» (a tap asks the server
+  nothing — a sale without «ПРОДАТЬ?» at the moment the theft ends would sell the saved fish — the
+  card wiggles and «КРАДУТ!» flashes: the label is the reason, no toast over the sheet's header;
+  §11.6 D-13).
 - **stolen:** the normal Stage 3 card removal.
 - **escrow** (the thief's own fresh fish): the Sell button reads «В ПУТИ…» (Slate) while the slot's
-  `Escrow` is set (BE-21).
+  `Escrow` is set (BE-21); a tap likewise asks nothing (a wiggle, the label flashes).
 
 (P2: the Berry «🚨 КРАДУТ!» pill with a timer bar, the «УКРАДЕНА!» stamp, and scrolling to the card when
 an alert fires.)
@@ -1466,39 +1499,41 @@ Rules (D20, DC-14): no display numbers, no «чужой», no gender or case agr
   - «ВОР В САДКЕ!», «{Name} крадёт: {Short}»;
   - «ВОР УБЕГАЕТ!», «{Name} уносит: {Short} — жми ЩИТ!» / «{Name} уносит: {Short}»;
   - «Пока крадёшь сам, щит не включить»;
-  - buttons «ЩИТ», «⏳ {t}», «ДОМОЙ»; compact «ВОР! {Short}».
+  - buttons «ЩИТ», «⏳ {t}», «ДОМОЙ»; compact «ВОР! {Short}» / «ВОР!» (tight) / «ВОР! {Short} · щит
+    после кражи», «ВОР! Щит после кражи» (stealing himself).
 - **Victim results:**
-  - lost (theft kind, Big): «Украдено: {Short} ({Name})» + «Садок отдыхает {t} — никто не украдёт»;
+  - lost (theft kind, Big): «Украдено: {Short} ({Name})» + «Садок отдыхает {t} — не украдут»;
   - saved:
     - tag «Вор пойман — рыба спасена!»;
-    - shield «Щит спас рыбу!»;
+    - shield «Щит спас рыбу!» — on the victim's screen one toast «Щит спас рыбу! 🛡️ {t}» instead of it
+      and «Щит включён на 1:00» (§11.6 D-23);
     - thief failed «Кража сорвалась — рыба дома»;
     - thief left «Вор ушёл — рыба вернулась!»; the tank full and the returned fish the weakest
       «Вор ушёл — садок полон, рыба продана: {price}» (`Result.LeftSold`, A1-01);
   - void «Рыба вернулась к хозяину».
-- **Tips** (one per loss, DC-14):
-  - the shield was ready and unused: «Совет: жми 🛡️ ЩИТ, как только увидишь «ВОР В САДКЕ!» — он
-    бесплатный»;
-  - otherwise the cheapest defence not owned: «Совет: замок — вору держать дольше ($1 500)», «Совет:
-    сигнализация предупредит заранее ($2 500)», «Совет: собака замедлит вора ($6 000)».
+- **Tips** (one per loss, DC-14; a 💡 toast, one line on phone_small — §11.6 D-26):
+  - the shield was ready and unused: «Щит бесплатный: увидишь 🚨 — жми 🛡️»;
+  - otherwise the cheapest defence not owned: «Замок — вору держать дольше ($1 500)», «Сигналка —
+    узнаешь о воре ($2 500)», «Собака замедлит вора ($6 000)».
 - **Intruder:** «{Name} у тебя во дворе!».
 - **Shield and protections:**
   - «Щит включён на 1:00», «Щит погас», «Щит снова готов!»;
   - «Защита новичка {t} 🛡️ — лови спокойно!» (newbie), «Твой садок под защитой {t}» (join);
-  - «Скоро воры смогут красть. Увидишь «ВОР В САДКЕ!» — жми 🛡️ ЩИТ!» (ending);
+  - «Скоро воры! Увидишь 🚨 — жми 🛡️ ЩИТ!» (ending; 🚨 is on the plate and on the phone pill);
   - «Ты и так под защитой — ещё {t}», «Щит перезаряжается — ещё {t}», «Сначала закончи кражу».
 - **Sheet:**
   - «ЗАЩИТА», «ЩИТ», «СОБАКА», «СИГНАЛИЗАЦИЯ» / «СИГНАЛКА», «ЗАМОК»;
   - effect lines (§6.6);
-  - «ВКЛЮЧИТЬ», «КУПИТЬ?», «КУПЛЕНО», «ТЫ ПОД ЗАЩИТОЙ», «Сильнее замки — скоро в магазине», «Замок
-    ур. {n}»;
+  - «ВКЛЮЧИТЬ», «КУПИТЬ?», «✔️ КУПЛЕНО», «ТЫ ПОД ЗАЩИТОЙ», «ПОСЛЕ КРАЖИ», «ЕЩЁ {$}», «Сильнее замки —
+    скоро в магазине», «Замок ур. {n}»;
+  - during an alert the header reads «ВОР В САДКЕ!» / «ВОР УБЕГАЕТ!» (`StealConfig.Texts.Alert`);
   - «Собака охраняет твой двор!», «Сигнализация включена!», «Замок: вору держать {s} с».
 - **Purchase denied:** «Уже куплено», «Замок уже лучший», «Не хватает: нужно {$}», «Сильнее замки — скоро
   в магазине».
 - **World:** «КРАДУТ!», «УНОСЯТ!», «УКРАДЕНО!», «ВОР!», «ГАВ!», «🥷 {Short} {$}», «🚨 КРАДУТ!», «🛡️ {t}»,
   «🔐{n} · 🐕 · 🚨».
-- **Tank panel:** «КРАДУТ!», «В ПУТИ…»; Denied locked «Её сейчас крадут!», escrow «Рыба ещё в пути — пара
-  секунд!».
+- **Tank panel:** «КРАДУТ!», «В ПУТИ…»; the server's Denied locked «Её сейчас крадут!», escrow «Рыба ещё
+  в пути — пара секунд!» (the client's own taps on those buttons show no toast).
 - **Studio** (Output, not a GUI): «[DefenceService] Studio: защита сокращена до 10 с
   (DefenceConfig.Debug.StudioProtect)».
 
@@ -1756,7 +1791,12 @@ Player, base and slot attributes (Stage 3 pattern; `sim:ServerEventsFor(p, "Shie
   - the ShieldChip on 5 screens (fits, 16 px), the newbie/rest copy, the pulse in the last 10 s, gone at
     0, the `EndingWarn` toast;
   - the «ЗАЩИТА» badge once when the first defence becomes affordable;
-  - the edge pulse ≤ 0.35 opacity.
+  - the edge pulse ≤ 0.35 opacity;
+  - toasts during the alert never on the own fisher (tablet / desktop: they wait), ≥ BandGap + the
+    plate's ink under it when there is room; the intruder toast goes with its thief's hold; the
+    waiting ones come out after the alert (§11.6 D-31, D-32);
+  - an open sheet: «ЗАЩИТА» says «ВОР В САДКЕ!» in its header; result and protection toasts wait for
+    the sheet, «Украдено» does not (§11.6 D-33, D-34).
 - **Panel (D, sheet):**
   - names, 4 cards, states (the Lock card as a one-time buy, then «КУПЛЕНО» + «Сильнее замки — скоро в
     магазине»);
@@ -1767,7 +1807,8 @@ Player, base and slot attributes (Stage 3 pattern; `sim:ServerEventsFor(p, "Shie
     restored);
   - phone_small scroll;
   - fill ≤ 2.5×;
-  - tank-panel Sell labels «КРАДУТ!» / «В ПУТИ…» from the slot attributes.
+  - tank-panel Sell labels «КРАДУТ!» / «В ПУТИ…» from the slot attributes (taps: no request, no toast);
+  - refusal taps on the shield card («⏳», «ТЫ ПОД ЗАЩИТОЙ») — no toast; the bought stamp «✔️ КУПЛЕНО».
 
 ### 7.7 `tests/stage4_e2e.test.luau` + `stage4_e2e_defence.test.luau` (real server + 2–3 clients; Wave 3 E)
 
@@ -2295,3 +2336,39 @@ TankButtonController, `tests/stage4_hud_thief`, the `thief_*` scenarios); rows D
 | C-33 the late reply vs a new hold (C2-R2-01) | **fixed** | NoReply remembered only the display, so the next real hold of it within 10 s (a kid mashing at «Хозяин рядом!» empties the start bucket: the 4th press is silent; the owner walks off, he holds again) was taken for the late reply: no bar, no toast reserve, «Ты уже крадёшь» on glass, «Подожди секунду» for a real let-go. `abandoned.serverAt` = the server time of the give-up; a "Hold" is the late one only if the server began it by then (`End − Need ≤ serverAt`), else it is a new theft. The court chain also returns while `Player.Stealing` is set (it replicates before "Hold": his own theft is never a court reason). Test: 3 Denied + 1 silent press, the owner leaves, a hold 1.5 s later → «КРАДЁШЬ: ФУГУ», the column reserved, never «Ты уже крадёшь». |
 | C-34 the server's half of C-20 / C-28 (C1-R2-01) | **fixed (StealService, A's file: no Wave 2 owner, D does not touch it)** | `cancel()`: a «released» in the hold shorter than what the client waits for an answer — max(`QuietSavedUnder` 1, `Hold.NoReply` 1, the thief's `GetNetworkPing()` + `NoReplySlack`) + `NoReplySlack` (jitter), at most need − `Tolerance` (1.4 s on a normal link) — records no fail and sets no `FailCooldown`, `Limits.FreeTaps` 3 times per `FailWindow` (`taps[userId]`, pruned like `fails`; `_debugSizes().Taps`); a 4th short tap counts as a fail (spam keeps R9's waits). The victim's Quiet rule is unchanged. A release the server cannot tell from NoReply (1.0–1.4 s) is free too; the client still shows «СОРВАЛОСЬ!» for a real one ≥ 1 s. Tests: `stage4_fairness` griefing (3 free, then 3 / 10 / 30), `stage4_hud_thief` quick tap and slow link (no `StealCooldownUntil`); `stage4_theft`'s 1.5 s release still waits 3 s. |
 | C-35 «ВЫХОД» vs «ГАВ!» (C1-R2-02) | **fixed (TheftController; B's bark untouched)** | Both are AlwaysOnTop panel-less words; in the carry the dog runs beside the thief, so its bark rose at the screen height of the far exit and read «ВЫХОДГАВ!». The guide hides ExitLabel (`Enabled`, ours; `TrackWord` owns the transparency) while a «ГАВ!» (`Workspace.TheftWorld`'s `FxTankPop`; measured by its letters — TextScaled stops at size 100, so near the camera its 388 px box holds 200 px of letters — not its whole box, else the tablet hid «ВЫХОД» with nothing near it) is within `Guide.Label.Clear` 8 px of it on screen — checked when a bark appears or leaves (ChildAdded / ChildRemoved, deferred: the bark's Adornee is set after it is parented) and on each 0.25 s re-aim; back when it is gone. The ring and the chevrons stay. Test: a bark over «ВЫХОД» hides it, gone → back at once, a bark 25 studs aside leaves it. Render `thief_carry` (phone, phone_small). |
+| D-01 the phone pill's place | **changed (r2: D1-R1-02, D1-R1-07)** | §6.3 said `FishingLayout.clearOf`; that helper is about words over the panel, so the pill has its own helper `Controllers/AlertLayout` (`compact`): three bands (right of the fisher up to the column, left of him, the toast column) and three passes (16 px + inks + slack; 16 px + its own stroke; down to `COMPACT.Narrow` 132 px), the **topmost** spot of all of them wins (a narrow pill at the top beats a wide one lower down: the top stays free through the waiting, the bite and the minigame, so the pill does not jump when the minigame docks — r1 jumped 86 px), at that height the widest; the spot it already has is **kept** while it stays free (`keep`), a forced move **glides** (`MOVE_TIME` 0.15 s); the last resort (least covering) never comes within 16 px of the Roblox buttons (`hard`: Jump, the thumbstick) — no such spot: **no pill** (`none`; the column «ЩИТ!» and the pulse remain). Re-placed on events only (fishing state, widgets shown / moved — debounced 0.12 s —, the character's tools, the screen), never per frame. |
+| D-02 phones always get the pill | **noted** | The toast column (from y ≈ 152 on a phone, §6.9) crosses the fisher's head on every phone, so the full plate is the tablet / desktop layout in practice; the pill sits at the top beside the status stack (D-01), clear of the fisher, the bobber and the fishing widgets. Renders `victim_alert_*` on phone, phone_small, phone_notch. |
+| D-03 the pill's label shortens | **changed (r2: D1-R1-10, D1-R1-11)** | The label is the fullest text that fits at the Body tier's least size (UiFx.textWidth + `COMPACT.LabelPad` 4 px): «ВОР! ФУГУ», then «ВОР!» (`Alert.CompactShort`: the word a 7-year-old reads fastest), only then none (ЩИТ takes the width; ≥ 56 px, ≥ 35 %). Stealing himself: «ВОР! ФУГУ · щит после кражи» / «ВОР! Щит после кражи» (`CompactStealing`, `CompactStealingShort`), no buttons — the phone kid sees why. |
+| D-04 the pill's 🚨 | **changed** | `IconScale` 0.9 (was 1.1): the emoji's ink stayed outside the 56 px pill and broke the 16 px rule against the minigame and the status stack. |
+| D-05 the plate's text is box-driven | **changed** | Title 14..30 px on one line, Sub 12..20 px wrapping (no tiers): on a desktop the chat narrows the toast column to ≈ 392 px and the Title tier broke «ВОР УБЕГАЕТ!» into two lines over the Sub. At run time the text ends 8 px left of the button row (the square ДОМОЙ is sized by height, so on a tall plate the row grows left of its share). |
+| D-06 the pop-in shake | **changed** | ≤ 5 px (`UiFx.shake` takes a fraction of the parent: the first cut used 6 = 600 % and threw the pill off screen). |
+| D-07 one shield request | **added** | `DefenceController.ActivateShield` answers false while a request waits for `DefenceEvent` (≤ 3 s): the plate, the pill, the column «ЩИТ!» and the card share it — three taps send one `ShieldActivate`. |
+| D-08 one sheet at a time | **implemented** | `Controllers/Sheet` closes the other sheet with reason "switch" and hands over the saved `Toasts.ZIndex` and the hidden fishing layer, so closing the second sheet restores both. New hook `contentHeight` (tablet / desktop: the sheet no taller than its cards). |
+| D-09 the «ЗАЩИТА» cards on a tablet / desktop | **changed** | One row at `CardAspect` 0.78 left half the sheet empty and the large tablet type overflowed the card (the name over the effect). `DefenceConfig.Panel.CardAspectTall` 0.52: taller cards, the sheet hugs them. Phones unchanged (0.78, the 4th card scrolls on phone_small). |
+| D-10 the trophy chip beside the column | **changed (r2: D1-R1-05, D2-R1-02)** | With three buttons in the column (stage 4) there is no room above it on phones and the tablet: the chip stands left of the column (`SideGap` 28 px) at the **lowest free spot of that lane** (`POINTER.Step` 4 px upward from the foot — above Jump on touch screens), ≥ 16 px + `Ink` from the fishing buttons («ЗАБРОСИТЬ», «СМОТАТЬ» and their captions: r1 sat on «СМОТАТЬ» and 6 px from «ЗАБРОСИТЬ», where the right thumb casts), the visible toasts, the alert plate, the status stack and the other chips; no free spot — hidden until one frees (the kid's hand matters more than the hint where someone else's fish is). Desktop keeps the stage 3 rule. hud_style (no rod, «ЗАБРОСИТЬ», «СМОТАТЬ»); renders `trophy_chip`, `defence_trophy_rod`, `defence_trophy_waiting` on five screens. |
+| D-11 the tip after a loss | **noted** | Lost → the big theft toast, «Садок отдыхает …», then the one tip (a 💡 toast, one line — D-26); on a tablet the column holds two, so the tip may wait for the theft toast (≤ 12 s). |
+| D-12 `MoneyController.Spend(amount, to)` | **added** | The Wallet counts down (a decrease waits for the sale's count-up like an increase), «−$6 000» floats in Berry and 💵 fly from the Wallet into the bought card. |
+| D-13 «КРАДУТ!» on the tank panel | **changed (r2: D2-R1-01; r3: D1-R2-02)** | r1 sent a real `TankSell` on a tap «so the server decides» — with no «ПРОДАТЬ?», a tap still in flight when the theft ended sold the fish that was just saved (repro: latency 0.1, release and tap in one frame → Sold). Now a tap on «КРАДУТ!» / «В ПУТИ…» asks the server **nothing**; r2 still showed «Её сейчас крадут!» (once per 2 s) — over the sheet's header and Wallet, while the button already said it. r3: the card wiggles, the label flashes Sun and the button bumps; no toast. When the look returns to the price, the normal two-tap sale applies. stage4_panel (stub + real server); render `victim_alert_tank_tap`. |
+| D-14 the bobber as a keep-out | **added** | AlertController reads the own bobber through `FishingFxController.GetBobber` (C's file, read only; nil when the API is missing). |
+| D-15 new texts / numbers | **added** | `StealConfig.Texts.Alert.HomeAlert` «ДОМОЙ!», `HomeLocked` 🔒, `IconHold` 🚨 / `IconCarry` 🏃, `CompactShort`, `CompactStealing(Short)`, `Result.SavedShield`; `DefenceConfig.Panel.CardAspectTall`, `Panel.NeedTime`, `Texts.TipIcon` 💡, `Texts.Buy.AfterTheft` / `Need`, `Cards.*.EffectShort`, `LockSoonShort`; the rest of the pill's layout numbers are in AlertController (`COMPACT`, `GAP`, inks, `MOVE_TIME`), the card's in DefenceCards (`CARD`). |
+| D-16 render `victim_alert_compact` | **changed** | The own trophy is gone once the card closes (the plate waits for the card, DC-02), so "the pill clear of the trophy" cannot happen; the scenario shows the longest short name «МЕЧ-РЫБА» in a Legendary minigame instead. |
+| D-17 tests on four screens | **noted** | `stage4_hud_alert` / `stage4_panel` run phone, phone_small, tablet and desktop (RbxSim has no inset device); phone_notch is covered by the renders (`gui_render.py --all`, 0 findings). |
+| D-18 the alert and an open sheet | **added (r2: D1-R1-01)** | The plate / pill is never drawn over a sheet. `Controllers/Sheet` writes the HUD attribute `Sheet` = the root's name while a sheet is on screen (cleared when it is hidden) and has `Sheet.Current` / `CloseCurrent(reason)`; reason "alert" closes at once (like "fishing"). A loud new alert closes «САДОК»; «ЗАЩИТА» stays open — its ShieldCard becomes the alert target (Berry «ЩИТ!» with rings, the same one tap) and the plate waits; a sheet opened during the alert hides the plate until it is gone. Renders `victim_alert_tank_open`, `victim_alert_defence_open`; stage4_hud_alert. |
+| D-19 a catch during the alert | **added (r2: D1-R1-02)** | While the alert lives, a new catch (`CounterHold` set) calls `FishingController.HurryCard()` again (C's HurryCard hurries the card on open) and the card / `CounterHold` / a sheet hide the plate / pill (`stash`) until they are gone — r1 left the plate under the card on a tablet and pushed the pill to 8 px from the thumbstick. Render `victim_alert_catch_after` (stills 0.3 / 1.0 / 3.5: at 2.0 s FishingController's Epic «ЭПИЧЕСКАЯ!» slam peaks 15 px from the Roblox menu on a phone with or without an alert — not D's; reported to C). |
+| D-20 one edge glow at a time | **added (r2: D1-R1-08)** | The pulse lives in its own clipping layer `FxAlertEdge` (the bands' hidden part no longer fills the top bar) and sleeps while the HUD has another `FxVignette` (the bite's tension, a minigame aura, a catch flash: the edges already glow); on phones the «ДОМОЙ!» / «ЩИТ!» rings rest with it (`HudController.HomeAlertRest`, `DefenceController.AlertRest`); the pill's own plate stops under its ЩИТ (invisible there). The bite → minigame hand-off on phone_small: 2.85× → 2.49× (no alert 2.34×). Render `victim_alert_hook`. |
+| D-21 the «ЗАЩИТА» cards in px | **changed (r2: D1-R1-03, D1-R1-04)** | DefenceCards lays each card out bottom-up in px: Buy at the foot (≥ 44 px, `BuyInk` 5 px above it), the effect line gets all the room between the name and Buy, measured with `UiFx.textWidth` (word wrap, 12 px × 1.25 per line); too little — a smaller icon disc (down to 0.15 of the card, one size for the row), then `EffectShort` («Щит на 1 минуту», «Вор бежит медленнее», «Узнаешь о воре заранее», «Вору держать 4 с»). The bought lock says «Сильнее замки — скоро в магазине» (narrow: «Новые замки — скоро!») in that same line; `State` stays hidden (r1 squeezed it into 9–22 px over the effect and under the button). stage4_panel checks lines × 12 × 1.25 ≤ Buy.top − Effect.top on four screens, fresh and all bought. |
+| D-22 not enough money | **changed (r2: D1-R1-09, D2-R1-04)** | §6.6 said a toast «Не хватает: нужно $6 000»: over the open sheet it covered the header and the sheet's Wallet (the number to compare), far from the finger, and each tap stacked another. Now the Slate price button wiggles and says «ЕЩЁ $3 000» (`Texts.Buy.Need`) for `Panel.NeedTime` 1.5 s, then the price again; no request, no toast. The server's own Denied (owned, max…) keeps its toast. r3 (D1-R2-02, D2-R2-02): the shield card's «⏳ 2:59» / «ТЫ ПОД ЗАЩИТОЙ» taps the same way — a wiggle and a flash of its label, no «Щит перезаряжается» toast per tap (5 taps queued 17 s of identical toasts on a phone). |
+| D-23 one toast for a shield save | **changed (r2: D1-R1-12)** | «Щит включён на 1:00» and «Щит спас рыбу!» stacked over the fisher's head on a desktop. While an alert lives, DefenceController holds «Щит включён» `MERGE_WAIT` 1 s; a Saved "shield" takes it (`DefenceController.TakeShieldToast`) and AlertController shows one `Result.SavedShield` «Щит спас рыбу! 🛡️ 1:00» — either order of the server's two events (StealService sends Saved before DefenceEvent Shield). r3: with a sheet open it waits for the sheet (D-33), its time read when it shows. |
+| D-24 «ДОМОЙ» locked in the own carry | **changed (r2: D2-R1-04)** | §6.4 said a press shows the server's guard text; every tap then queued a guard toast (and C holds the thief's toasts until the theft ends, so the stack came later). Now a press while locked asks nothing: the button wiggles and 🔒 punches; the server's guard stays as it is. |
+| D-25 the shield card while stealing | **added (r2: D2-R1-05)** | DefenceCards' header promised «ВКЛЮЧИТЬ» only when the server would accept; the code ignored `Stealing`. Now Slate «ПОСЛЕ КРАЖИ» (`Texts.Buy.AfterTheft`), a tap only wiggles. |
+| D-26 phone-length copy | **changed (r2: D1-R1-06)** | Two-line toasts covered the fisher's head on phones, and the lessons named «ВОР В САДКЕ!», which a phone (the pill) never shows. Ending «Скоро воры! Увидишь 🚨 — жми 🛡️ ЩИТ!», LostSub «Садок отдыхает {t} — не украдут», tips without «Совет:» (the 💡 `TipIcon` says it): «Щит бесплатный: увидишь 🚨 — жми 🛡️», «Замок — вору держать дольше ($1 500)», «Сигналка — узнаешь о воре ($2 500)», «Собака замедлит вора ($6 000)» — each ≤ 280 px at Body on phone_small (one line). §1.2 / §6.10 updated; stage4_rules in sync. |
+| D-27 the stealing pill | **added (r2: D1-R1-10)** | See D-03 (the label says why there are no buttons). |
+| D-28 a second alert at once | **fixed (r2: D2-R1-03)** | The end's `popOut(hide)` timer could hide a new plate shown < 0.2 s later. The hide now runs on AlertController's own timer, guarded by a generation `show()` bumps. stage4_hud_alert. |
+| D-29 glyphs in config | **changed (r2: D2-R1-06)** | DefenceCards' toast icons from `Texts.Cards[item].Icon`, the plate's 🚨 / 🏃 from `Alert.IconHold` / `IconCarry`, «ДОМОЙ»'s 🔒 from `Alert.HomeLocked`, the tip's 💡 from `TipIcon`. |
+| D-30 renders added | **added (r2)** | `victim_alert_catch_after`, `victim_alert_hook`, `victim_alert_tank_open`, `victim_alert_defence_open`, `victim_saved_shield`, `defence_cant_afford`, `defence_trophy_rod`, `defence_trophy_waiting` — in the standard set (`gui_render.py --all`). |
+| D-31 toasts under the alert, never on the fisher | **changed (r3: D1-R2-01, D2-R2-01)** | The plate reserved its box (`Reserve("alert", plate height)`), the column's `GAP` (0.08 of it ≈ 15 px) was eaten by the plate's and the toast's outlines (drawn gap 0–1 px), and on a tablet / desktop the only slot left under it was on the fisher's head: «👀 Ника у тебя во дворе!» (up 1–3 s before the hold), trophy news, any notice landed on his head and shoulders. NotifyController now: a band reserves down to its **drawn** bottom (the plate's `INK`), the first toast starts `BandGap()` = max(column GAP, 16 + 8 px) below it, bands stack the same way; **while a band stands**, a toast must end ≥ 16 px above the own fisher (`FishingLayout.fisherBox`, its pad included; phones: `fallbackFisher` when not projected) and ≥ 16 px + inks above the fishing buttons under the column — measured with the toast's real height (two lines, big) — otherwise it waits in the queue (any kind: the plate is the danger; an alert lasts seconds); toasts already up that no longer fit go back to the queue. On a tablet / desktop at the fishing camera there is no room above the head under the plate, so toasts wait and come out after the alert (with the result). The phone pill reserves when it is in the column's x-range, in its upper half or within `BandGap` above its top (r2 left 6 px; 2–6 px overlaps). Unchanged, the Stage 1–3 column itself: on a desktop it still holds up to `MaxToasts` 3 when no band stands (the result plus the waiting ones after an alert can stack there). stage4_hud_alert (phone / tablet / desktop: no toast on the fisher during the alert, they come out after; the camera turned away: a toast under the plate ≥ BandGap + ink); renders `victim_intruder_then_alert`, `victim_alert_toasts`. |
+| D-32 the intruder toast and the alert | **added (r3: D1-R2-01)** | `NotifyController.Show(…, look)` takes `look.tag`; the intruder toast is tagged `intruder:<UserId>` and the alert of that thief calls `NotifyController.Drop(tag)` — gone at once from the screen (no leave animation over the plate popping in) and from the queue: the plate says the same thing louder, and a stale «у тебя во дворе!» after the theft would mislead. |
+| D-33 toasts and an open sheet | **changed (r3: D1-R2-02, D2-R2-02)** | Stage 3 shows toasts over a sheet on purpose (the server's hints, `Toasts.ZIndex` above it), but D's own refusals and results landed on the sheet's header and its Wallet chip — the number the kid compares prices with. The client's own refusals (the shield card's «⏳» / «ТЫ ПОД ЗАЩИТОЙ», «КРАДУТ!», «В ПУТИ…», «ЕЩЁ $X», «ДОМОЙ» 🔒) show no toast: the button wiggles and its label flashes — it already says why. D's results and protection news take `look.afterSheet`: they wait while a sheet is on screen (HUD attribute `Sheet`; up when it opens → back to the queue) — «Щит спас рыбу!», «Вор пойман…», «Садок отдыхает …», the tip, «Вор ушёл — рыба вернулась!», «Щит включён / снова готов», the protection greetings and the ending lesson, «Собака охраняет твой двор!» — with `look.live` so a timer in them is read when they show (none left — the time is dropped or the toast is). «Украдено: …» shows at once (it is the end of the alert); the server's Denied texts keep the Stage 3 rule. stage4_hud_alert, stage4_panel; renders `defence_alert_card_tap`, `defence_shield_wait_taps`, `victim_alert_tank_tap`. |
+| D-34 «ЗАЩИТА» open during the alert | **added (r3: D1-R2-03)** | The plate is not drawn over a sheet (D-18), so a kid shopping saw only a red «ЩИТ!» appear with no reason. While `AlertPhase` is set the header's title becomes Berry «ВОР В САДКЕ!» / «ВОР УБЕГАЕТ!» (`StealConfig.Texts.Alert.Hold` / `Carry`) with 🚨 / 🏃 (`IconHold` / `IconCarry`), a punch and a wiggle; the title widens to its text (never past the Wallet chip; tight — smaller text); the alert over or the sheet closed — 🛡️ «ЗАЩИТА». stage4_hud_alert; render `victim_alert_defence_open`. |
+| D-35 the bought stamp | **changed (r3: D1-R2-05)** | «КУПЛЕНО» was a full Leaf candy button with bevel and shine — the same look as САДОК's live sell button, so a kid tapped it and got a wiggle. Now a stamp: «✔️ КУПЛЕНО» (`Texts.Buy.Bought`) on one line, a flat Leaf face (no shine, no light rim), `STAMP.Width` 0.8 of the card (a button is 0.92) and 0.86 of its height, tilted −3°; a tap still wiggles it. stage4_panel; render `defence_panel_bought`. |
+| D-36 the scenarios clean up | **fixed (r3: D1-R2-04)** | `alertHold` never cleared the base's `Thief` / `AlarmState`, so later scenarios in the same dump ran with a live theft (the pier word «🚨 КРАДУТ!» in `defence_trophy_rod`). Every scenario now puts back what it changes with `h:atEnd` (`alertHold`, `shieldFor`, `defenceFor`, `slotSteal`). New renders: `victim_intruder_then_alert`, `victim_alert_toasts`, `victim_alert_tank_tap`, `defence_alert_card_tap`, `defence_shield_wait_taps`. |

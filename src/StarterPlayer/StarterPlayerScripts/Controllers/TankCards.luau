@@ -26,7 +26,11 @@
 	    «ПРОДАТЬ $45»: одна подпись на всю панель, её решает sellStyle по самой длинной цене reach),
 	    "market" — то же Gold (ларёк, ×1.5; на легендарной карточке того же цвета — Sun со
 	    сплошным белым ободком, lookToken), "confirm" — Berry «ПРОДАТЬ?» (что сделает второе
-	    нажатие; не влезает в кнопку карточки — «ТОЧНО?»), "busy" — Slate «⏳» (ждём сервер).
+	    нажатие; не влезает в кнопку карточки — «ТОЧНО?»), "busy" — Slate «⏳» (ждём сервер);
+	    Этап 4 (§6.7): "stealing" — Berry «КРАДУТ!» (рыбу сейчас крадут: удержание или вынос),
+	    "escrow" — Slate «В ПУТИ…» (краденая рыба вора, пока запись жертвы не легла) — продать
+	    нельзя: нажатие серверу ничего не шлёт, TankPanelController показывает «Её сейчас крадут!» /
+	    «Рыба ещё в пути — пара секунд!» (подписи — StealConfig.Texts.Panel).
 	    showLoss(card, on) — доход карточки красным «−$4/с» (пока ждём второго нажатия).
 	  • Пустая (make "empty") — стекло (на стеклянном листе телефона — плотнее, Panel.EmptyAlpha:
 	    мир сквозь два слоя не читается частью карточки), бледная 🎣, «ПУСТО», «Поймай рыбу!»;
@@ -54,6 +58,7 @@ local TweenService = game:GetService("TweenService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = Shared:WaitForChild("Config")
 local TankConfig = require(Config:WaitForChild("TankConfig"))
+local StealConfig = require(Config:WaitForChild("StealConfig"))
 local EconomyConfig = require(Config:WaitForChild("EconomyConfig"))
 local UIConfig = require(Config:WaitForChild("UIConfig"))
 local FishingRules = require(Shared:WaitForChild("FishingRules"))
@@ -90,7 +95,7 @@ export type Card = {
 	sell: GuiButton?,
 	caption: TextLabel?,
 	rate: TextLabel?,
-	look: string, -- "home" | "market" | "confirm" | "busy"
+	look: string, -- "home" | "market" | "confirm" | "busy" | "stealing" | "escrow" (Этап 4)
 	price: number,
 	wideSell: boolean, -- подпись кнопки «ПРОДАТЬ $45» (иначе «💵 $45»): одна на всю панель
 	confirmText: string, -- подпись «confirm»: «ПРОДАТЬ?» или, если не влезает, «ТОЧНО?»
@@ -354,6 +359,10 @@ local function captionFor(card: Card): string
 		return card.confirmText
 	elseif card.look == "busy" then
 		return TEXTS.Busy
+	elseif card.look == "stealing" then
+		return StealConfig.Texts.Panel.Stealing
+	elseif card.look == "escrow" then
+		return StealConfig.Texts.Panel.Escrow
 	end
 	local money = TankRules.FormatMoney(card.price)
 	if card.wideSell then
@@ -398,7 +407,8 @@ function TankCards.sellStyle(template: GuiObject, size: Vector2, wide: boolean, 
 	return inkWidth(long, caption) <= boxWidth(caption, template, size.X)
 end
 
-local LOOK_TOKENS: { [string]: string } = { home = "Leaf", market = "Gold", confirm = "Berry", busy = "Slate" }
+local LOOK_TOKENS: { [string]: string } =
+	{ home = "Leaf", market = "Gold", confirm = "Berry", busy = "Slate", stealing = "Berry", escrow = "Slate" }
 -- Кнопка того же цвета, что и карточка (жёлтая Gold рынка на жёлто-оранжевой легендарной), сливалась
 -- с ней — их разделяла одна тёмная обводка, у самой дорогой рыбы был самый слабый призыв (ART-07):
 -- лицо — темнее (Sun), светлый ободок — сплошной белый.

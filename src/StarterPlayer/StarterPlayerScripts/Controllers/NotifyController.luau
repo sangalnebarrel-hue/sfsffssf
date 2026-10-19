@@ -54,12 +54,23 @@
 
 	Место сверху колонки (Этап 4): NotifyController.Reserve(key, px) — виджет, который стоит в
 	слоте уведомлений (полоса вора "theft" — TheftController, плашка тревоги "alert" —
-	AlertController), занимает px сверху колонки; уведомления едут ниже (каждой полосе — ещё
-	зазор GAP колонки); px = 0 или nil — место освобождено, ждущие выходят. Полосы стоят друг под
-	другом в порядке RESERVE_ORDER («theft», потом «alert»; незнакомые — следом, по имени):
-	NotifyController.Offset(key) — сколько px от верха колонки до полосы key (виджет ставит себя
-	туда). Если под полосами не помещается ни одно уведомление, они ждут в очереди (на телефоне
-	иначе легли бы на голову персонажа). NotifyController.Reserved() — сколько px занято (тесты).
+	AlertController), занимает px сверху колонки — до своего нарисованного низа (с обводкой);
+	уведомления едут ниже (каждой полосе — ещё зазор NotifyController.BandGap(): GAP колонки, но не
+	меньше BAND_GAP — 16 px и обводка уведомления); px = 0 или nil — место освобождено, ждущие
+	выходят. Полосы стоят друг под другом в порядке RESERVE_ORDER («theft», потом «alert»;
+	незнакомые — следом, по имени): NotifyController.Offset(key) — сколько px от верха колонки до
+	полосы key (виджет ставит себя туда). Пока полосы стоят, уведомление под ними кончается не
+	ниже FISHER_GAP px над своим рыбаком (FishingLayout.fisherBox; на телефоне не вышло — где он у
+	камеры по умолчанию) и не ближе 16 px к кнопкам рыбалки под колонкой: полоса толкает
+	уведомления вниз — на планшете и компьютере под плашкой тревоги места до головы нет, и
+	уведомления (любые, и «опасность») ждут в очереди, пока плашка не уйдёт (тревога — секунды);
+	не помещается то, что уже на экране, — снова в очередь. NotifyController.Reserved() — сколько
+	px занято (тесты).
+	Look (третий аргумент Show): tag — метка (NotifyController.Drop(tag) убирает такие с экрана и
+	из очереди: тревога убирает «👀 Ника у тебя во дворе!» того же вора); afterSheet — ждёт, пока
+	открыт лист (атрибут HUD Sheet: легло бы на шапку листа с его кошельком; открылся лист — такое
+	уведомление уходит с экрана, в первой половине срока — снова в очередь); live — функция:
+	текст в миг показа (таймер ждавшего уведомления — на сейчас; nil — уже нечего сказать).
 
 	Чужой легендарный / мифический улов (FishingFxController.OtherTrophy), чей столб света сейчас
 	не на экране (за спиной или за краем кадра): у края экрана с его стороны — маленький значок
@@ -68,6 +79,15 @@
 	PillarTimeOther); столб попал в кадр — значка нет. На телефоне — не во время своей поклёвки,
 	мини-игры и улова (то же правило, что у уведомлений). Пока есть хоть один значок — один
 	покадровый эффект планировщика UiFx (где столб относительно камеры); нет значков — ничего.
+	Этап 4: в колонке справа три кнопки («ЗАЩИТА» над «САДОК» и «ДОМОЙ») — над ней места для
+	значка нет (телефоны, планшет): значок с правой стороны встаёт СЛЕВА от колонки (острый край —
+	в POINTER.SideGap px от кнопок) на самом нижнем свободном месте этой полосы — от низа колонки
+	(на тач-экране — над кнопкой прыжка) вверх шагами POINTER.Step: ≥ 16 px (и POINTER.Ink на
+	обводки) от кнопок рыбалки (HUD.Fishing.ActionArea: «ЗАБРОСИТЬ», «СМОТАТЬ» с подписями — там
+	правый большой палец), видимых уведомлений, плашки тревоги, плашек статуса (с фишкой щита и
+	цифрами кошелька) и прочих значков; свободного места нет — значок спрятан, пока не появится
+	(рука ребёнка важнее подсказки, где чужой улов); места над колонкой хватает (компьютер) — как
+	раньше.
 ]]
 
 local Players = game:GetService("Players")
@@ -83,6 +103,7 @@ local UIConfig = require(Shared:WaitForChild("Config"):WaitForChild("UIConfig"))
 local FishingConfig = require(Shared:WaitForChild("Config"):WaitForChild("FishingConfig"))
 local UiFx = require(Shared:WaitForChild("UiFx"))
 local TextUtil = require(Shared:WaitForChild("TextUtil"))
+local FishingLayout = require(script.Parent:WaitForChild("FishingLayout"))
 
 type Swatch = UIConfig.Swatch
 type ToastKind = UIConfig.ToastKind
@@ -90,6 +111,9 @@ type ToastKind = UIConfig.ToastKind
 export type Look = {
 	swatch: Swatch?, -- цвет «конфеты» вместо цвета вида
 	icon: string?, -- значок вместо значка вида
+	tag: string?, -- метка: NotifyController.Drop(tag) уберёт с экрана и из очереди
+	afterSheet: boolean?, -- ждёт, пока открыт лист (легло бы на его шапку с кошельком)
+	live: (() -> string?)?, -- текст — в миг показа (ждавшее не врёт о таймере); nil — не показывать
 }
 
 type Pending = { text: string, kind: string, look: Look? }
@@ -141,7 +165,38 @@ local BIG_LINE = 1.22 -- высота строки в размерах её те
 -- px, «тычет» к краю на Bob px за Period с; смотрим на точку столба на Lift studs над землёй;
 -- значков не больше Max (лишний уходит — самый старый). Над колонкой кнопок — ColumnGap px от
 -- края кольца (толстая обводка и кольцо цвета базы выходят за значок; правило — ≥ 16 px).
-local POINTER = { Y = 0.38, Stack = 1.35, Gap = 16, ColumnGap = 20, Bob = 6, Period = 0.8, Lift = 40, Max = 3 }
+-- Этап 4: три кнопки в колонке и над ней нет места — значок слева от колонки, SideGap px от кнопок
+-- (ColumnGap и острый край с обводкой, они выступают за «reach»), на самом нижнем свободном месте:
+-- от низа колонки (на тач-экране — кольцо (Ring его размера от центра) JumpGap px над кнопкой
+-- прыжка; SmallTouch — маленькая кнопка) вверх шагами Step px, не выше Top px от верха HUD; до
+-- соседей — 16 px и Ink на обводки.
+local POINTER = {
+	Y = 0.38,
+	Stack = 1.35,
+	Gap = 16,
+	ColumnGap = 20,
+	Bob = 6,
+	Period = 0.8,
+	Lift = 40,
+	Max = 3,
+	SideGap = 28,
+	JumpGap = 17,
+	Ring = 0.71,
+	SmallTouch = 500,
+	Step = 4,
+	Ink = 6,
+	Top = 8,
+}
+local MIN_GAP = 16 -- значок у колонки — до соседних виджетов (правило 16 px), px
+-- Полосы сверху колонки (Reserve): уведомление под полосой — не ближе BAND_GAP px к её нарисованному
+-- низу (16 px правила и TOAST_INK — обводка и значок уведомления над его коробкой); пока полосы
+-- стоят, уведомление кончается не ниже FISHER_GAP px над своим рыбаком (FishingLayout.fisherBox —
+-- уже с запасом FISHER_PAD) и 16 px + AREA_INK (обводки, подписи) над кнопками рыбалки
+-- (HUD.Fishing.ActionArea), если они под колонкой: полоса толкает уведомления вниз, на голову.
+local TOAST_INK = 8
+local BAND_GAP = MIN_GAP + TOAST_INK
+local FISHER_GAP = 16
+local AREA_INK = 6 + TOAST_INK
 
 local NotifyController = {}
 
@@ -211,7 +266,12 @@ local function reserveKeys(): { string }
 	return keys
 end
 
--- Доля высоты колонки, занятая полосами (у каждой — ещё зазор GAP).
+-- Зазор под полосой, px: GAP колонки, но не меньше BAND_GAP.
+local function bandGapPx(height: number): number
+	return math.max(GAP * height, BAND_GAP)
+end
+
+-- Доля высоты колонки, занятая полосами (у каждой — ещё зазор bandGapPx).
 local function reservedShare(): number
 	local height = columnHeight()
 	if height <= 1 or next(reserved) == nil then
@@ -219,9 +279,56 @@ local function reservedShare(): number
 	end
 	local share = 0
 	for _, px in reserved do
-		share += px / height + GAP
+		share += (px + bandGapPx(height)) / height
 	end
 	return share
+end
+
+-- Пока стоят полосы: докуда (доля колонки от её верха) могут доходить уведомления — над своим
+-- рыбаком (телефон: не вышло спроецировать — где он у камеры по умолчанию) и над кнопками
+-- рыбалки, если они под колонкой; nil — без предела (полос нет, рыбака не видно).
+local function bandLimit(): number?
+	local column = container
+	local hud = column and column.Parent
+	if next(reserved) == nil or not column or not hud or not hud:IsA("GuiBase2d") then
+		return nil
+	end
+	local height = column.AbsoluteSize.Y
+	if height <= 1 then
+		return nil
+	end
+	local origin = hud.AbsolutePosition
+	local x0 = column.AbsolutePosition.X - origin.X
+	local x1 = x0 + column.AbsoluteSize.X
+	local top = column.AbsolutePosition.Y - origin.Y
+	local limit: number? = nil
+	local function cap(y: number, x0b: number, x1b: number)
+		if x1b > x0 and x0b < x1 then
+			local share = (y - top) / height
+			limit = if limit then math.min(limit, share) else share
+		end
+	end
+	local player = Players.LocalPlayer
+	local fisher = FishingLayout.fisherBox(if player then player.Character else nil, Workspace.CurrentCamera, origin)
+		or (if isPhone() then FishingLayout.fallbackFisher(hud.AbsoluteSize) else nil)
+	if fisher then
+		cap(fisher.y0 - FISHER_GAP, fisher.x0, fisher.x1)
+	end
+	local fishing = hud:FindFirstChild("Fishing")
+	local area = if fishing
+			and fishing:IsA("GuiObject")
+			and fishing.Visible
+		then fishing:FindFirstChild("ActionArea")
+		else nil
+	if area and area:IsA("GuiObject") and area.Visible then
+		for _, button in area:GetChildren() do
+			if button:IsA("GuiObject") and button.Visible and button.AbsoluteSize.Y > 0 then
+				local at = button.AbsolutePosition - origin
+				cap(at.Y - MIN_GAP - AREA_INK, at.X, at.X + button.AbsoluteSize.X)
+			end
+		end
+	end
+	return limit
 end
 
 -- Сколько уведомлений обычной высоты помещается под полосами (без полос — без предела).
@@ -229,7 +336,12 @@ local function roomBelowReserve(): number
 	if next(reserved) == nil then
 		return math.huge
 	end
-	local free = 1 - reservedShare()
+	local bottom = 1
+	local limit = bandLimit()
+	if limit then
+		bottom = math.min(bottom, limit)
+	end
+	local free = bottom - reservedShare()
 	return math.max(0, math.floor((free + GAP) / (SLOT + GAP) + 1e-6))
 end
 
@@ -291,15 +403,17 @@ local function reflow()
 end
 
 local present: (item: Pending) -> ()
+local canShow: (item: Pending, count: number) -> boolean
 
 -- Выпустить ждущих, пока есть место (с маленьким шагом, чтобы не въезжали разом); первым —
--- первый, кому сейчас можно (на телефоне при мини-игре — только «опасность»).
+-- первый, кому сейчас можно (на телефоне при мини-игре — только «опасность»; при открытом листе —
+-- не те, что ждут его ухода).
 local function drain()
 	local started = 0
 	while true do
 		local found: number? = nil
 		for index, item in queue do
-			if #active + started < capacity(styleOf(item.kind).Priority) then
+			if canShow(item, #active + started) then
 				found = index
 				break
 			end
@@ -538,10 +652,77 @@ local function rainbowRim(frame: Frame, trove: Trove.Trove)
 	end
 end
 
+-- Открыт ли лист (Controllers.Sheet: атрибут HUD Sheet, пока лист на экране).
+local function sheetOpen(): boolean
+	local hud = container and container.Parent
+	return hud ~= nil and hud:GetAttribute("Sheet") ~= nil
+end
+
+-- Высота уведомления item, доля колонки (как её даст present).
+local function heightOf(item: Pending): number
+	if styleOf(item.kind).Big then
+		return bigLayout(item.text).height
+	end
+	local _, twoLines = measure(item.text, "Body")
+	return SLOT * (if twoLines then TWO_LINES else 1)
+end
+
+-- Можно ли показать item, когда на экране уже count уведомлений: место по виду (capacity), лист
+-- (afterSheet ждёт его ухода) и, пока стоят полосы, — низ item не ниже bandLimit.
+canShow = function(item: Pending, count: number): boolean
+	if count >= capacity(styleOf(item.kind).Priority) then
+		return false
+	end
+	if item.look and item.look.afterSheet and sheetOpen() then
+		return false
+	end
+	local limit = if next(reserved) ~= nil then bandLimit() else nil
+	if not limit then
+		return true
+	end
+	local y = reservedShare()
+	for i = 1, count do
+		local toast = active[i]
+		y += (if toast then toast.height else SLOT) + GAP
+	end
+	return y + heightOf(item) <= limit + 1e-6
+end
+
+-- Уведомления, что больше не помещаются (полосы, предел над рыбаком), — снова в начало очереди.
+local function requeueOverflow()
+	while #active > 0 do
+		local last = active[#active]
+		local fits = #active <= roomBelowReserve()
+		local limit = if fits and next(reserved) ~= nil then bandLimit() else nil
+		if fits and limit then
+			local y = reservedShare()
+			for i, toast in active do
+				y += toast.height + (if i < #active then GAP else 0)
+			end
+			fits = y <= limit + 1e-6
+		end
+		if fits then
+			return
+		end
+		table.insert(queue, 1, last.item)
+		dismiss(last, true)
+	end
+end
+
 present = function(item: Pending)
 	local parent, source = container, template
 	if not parent or not source then
 		return
+	end
+	local live = item.look and item.look.live
+	if live then
+		-- (ждавшее уведомление: таймер — на сейчас; нечего сказать — не показываем)
+		local text = live()
+		if not text then
+			task.defer(drain)
+			return
+		end
+		item.text = text
 	end
 	counter += 1
 	local style = styleOf(item.kind)
@@ -670,13 +851,15 @@ function NotifyController.Show(text: string, kind: string?, look: Look?)
 	local item: Pending = { text = text, kind = name, look = look }
 	local priority = styleOf(name).Priority or 1
 	local cap = capacity(priority)
-	if #active < cap then
+	if canShow(item, #active) then
 		present(item)
 		return
 	end
 	-- Места нет: вытесняем неважное (с открытой рыбалкой — только ради более важного); при
-	-- карточке улова (и на телефоне при мини-игре) места нет вовсе — ждём.
-	local victim = if cap > 0 then victimFor(priority, busy()) else nil
+	-- карточке улова (и на телефоне при мини-игре) места нет вовсе — ждём; пока стоят полосы
+	-- (место — до головы рыбака) или ждём ухода листа — тоже ждём.
+	local waits = next(reserved) ~= nil or (look ~= nil and look.afterSheet == true and sheetOpen())
+	local victim = if cap > 0 and not waits then victimFor(priority, busy()) else nil
 	if victim then
 		dismiss(victim, true)
 		present(item)
@@ -699,22 +882,51 @@ function NotifyController.Reserve(key: string, px: number?)
 	if not container then
 		return -- (контроллер ещё не запущен: место учтётся при первом уведомлении)
 	end
-	-- Уведомления, которым под полосами больше нет места, уходят (снова в очередь).
-	local room = roomBelowReserve()
-	while #active > room do
-		local last = active[#active]
-		table.insert(queue, 1, last.item)
-		dismiss(last, true)
-	end
+	-- Уведомления, которым под полосами больше нет места (или легли бы на рыбака), уходят (снова в
+	-- очередь).
+	requeueOverflow()
 	reflow()
 	drain()
 end
 
+-- Зазор под полосой до первого уведомления, px (GAP колонки, но не меньше BAND_GAP).
+function NotifyController.BandGap(): number
+	local height = columnHeight()
+	return if height > 1 then bandGapPx(height) else BAND_GAP
+end
+
+-- Убрать уведомления с меткой tag (Look.tag) — с экрана (сразу, без ухода) и из очереди (тревога:
+-- «у тебя во дворе!» того же вора больше не нужно — плашка говорит то же громче).
+function NotifyController.Drop(tag: string)
+	for index = #queue, 1, -1 do
+		local look = queue[index].look
+		if look and look.tag == tag then
+			table.remove(queue, index)
+		end
+	end
+	local removed = false
+	for index = #active, 1, -1 do
+		local toast = active[index]
+		local look = toast.item.look
+		if look and look.tag == tag then
+			-- сразу, без ухода: на его месте уже встаёт то, что говорит то же громче (плашка)
+			table.remove(active, index)
+			toast.trove:Clean()
+			toast.frame:Destroy()
+			removed = true
+		end
+	end
+	if removed then
+		reflow()
+		drain()
+	end
+end
+
 -- Сколько px от верха колонки до полосы key (полосы — друг под другом в порядке RESERVE_ORDER;
--- у каждой — зазор GAP колонки). Полосы key нет — где встала бы следующая.
+-- у каждой — зазор BandGap). Полосы key нет — где встала бы следующая.
 function NotifyController.Offset(key: string): number
 	local height = columnHeight()
-	local gap = if height > 1 then GAP * height else 0
+	local gap = if height > 1 then bandGapPx(height) else 0
 	local y = 0
 	for _, other in reserveKeys() do
 		if other == key then
@@ -762,6 +974,27 @@ local function onBusyChanged()
 	drain()
 end
 
+-- Лист открылся / ушёл (атрибут HUD Sheet): те, что ждут его ухода (Look.afterSheet), уходят с
+-- экрана (кто не дожил до половины срока — снова в начало очереди); ушёл — ждущие выходят.
+local function onSheetChanged()
+	if sheetOpen() then
+		local now = os.clock()
+		for _, toast in table.clone(active) do
+			local look = toast.item.look
+			if look and look.afterSheet then
+				if now - toast.shownAt < toast.life / 2 then
+					table.insert(queue, 1, toast.item)
+				end
+				dismiss(toast, true)
+			end
+		end
+		while #queue > MAX_QUEUE do
+			table.remove(queue)
+		end
+	end
+	drain()
+end
+
 --------------------------------------------------------------------------------
 -- Значок чужого улова вне экрана (см. шапку)
 --------------------------------------------------------------------------------
@@ -779,6 +1012,68 @@ local function aimPointer(pointer: Pointer, right: boolean)
 	if tip and tip:IsA("GuiObject") then
 		tip.Position = UDim2.fromScale(if right then 1.1 else -0.1, tip.Position.Y.Scale)
 	end
+end
+
+type Box = { x0: number, y0: number, x1: number, y1: number }
+
+-- Виден ли элемент (он и все его предки до stop).
+local function shownUnder(item: Instance, stop: Instance): boolean
+	local node: Instance? = item
+	while node and node ~= stop do
+		if node:IsA("GuiObject") and not node.Visible then
+			return false
+		end
+		node = node.Parent
+	end
+	return node == stop
+end
+
+-- Что значок у колонки не закрывает (px HUD): кнопки рыбалки с подписями, видимые уведомления,
+-- плашка тревоги, плашки статуса (их цифры свисают на POINTER.Ink ниже).
+local function pointerKeepouts(hud: GuiObject): { Box }
+	local origin = hud.AbsolutePosition
+	local out: { Box } = {}
+	local function add(item: Instance?, below: number?)
+		if item and item:IsA("GuiObject") and shownUnder(item, hud) then
+			local at, size = item.AbsolutePosition - origin, item.AbsoluteSize
+			if size.X > 0 and size.Y > 0 then
+				table.insert(out, { x0 = at.X, y0 = at.Y, x1 = at.X + size.X, y1 = at.Y + size.Y + (below or 0) })
+			end
+		end
+	end
+	local status = hud:FindFirstChild("Status")
+	if status then
+		for _, row in status:GetChildren() do
+			add(row, POINTER.Ink)
+			add(row:FindFirstChild("ShieldChip"))
+		end
+	end
+	if container then
+		for _, toast in container:GetChildren() do
+			if toast.Name == "Toast" then
+				add(toast)
+			end
+		end
+	end
+	add(hud:FindFirstChild("TheftAlert"))
+	local fishing = hud:FindFirstChild("Fishing")
+	local area = if fishing then fishing:FindFirstChild("ActionArea") else nil
+	if area then
+		for _, button in area:GetChildren() do
+			add(button)
+			add(button:FindFirstChild("Caption"))
+		end
+	end
+	return out
+end
+
+local function boxesClear(box: Box, keepouts: { Box }, gap: number): boolean
+	for _, k in keepouts do
+		if box.x0 < k.x1 + gap and k.x0 < box.x1 + gap and box.y0 < k.y1 + gap and k.y0 < box.y1 + gap then
+			return false
+		end
+	end
+	return true
 end
 
 -- Каждый кадр, пока есть значки: где столб относительно камеры; false — значков больше нет.
@@ -805,27 +1100,65 @@ local function stepPointers(): boolean
 	local hidden = isPhone() and capacity(1) == 0
 	local area = hud.AbsoluteSize
 	local view = camera.ViewportSize
-	local side = math.clamp(area.Y * 0.118, 46, 72) -- размер значка (HUD.TrophyPointer)
+	local side = math.clamp(area.Y * 0.118, 44, 72) -- размер значка (HUD.TrophyPointer)
 	local reach = side * 0.92 -- от центра до кончика острого края
 	-- Справа внизу — колонка кнопок («ДОМОЙ»): значок над ней, не ближе POINTER.ColumnGap.
 	local column = hud:FindFirstChild("RightButtons")
 	local columnTop = math.huge
+	local columnLeft = math.huge
+	local columnBottom = math.huge
+	local buttons = 0
 	if column and column:IsA("GuiObject") and column.Visible then
 		-- Кнопки прижаты к низу колонки (UIListLayout, VerticalAlignment Bottom): верх их стопки
 		-- считаем от низа колонки.
 		local list = column:FindFirstChildOfClass("UIListLayout")
 		local gap = if list then list.Padding.Scale * column.AbsoluteSize.Y + list.Padding.Offset else 0
 		local stack, count = 0, 0
+		local widest = 0
 		for _, button in column:GetChildren() do
 			if button:IsA("GuiObject") and button.Visible then
 				stack += button.AbsoluteSize.Y
+				widest = math.max(widest, button.AbsoluteSize.X)
 				count += 1
 			end
 		end
 		if count > 0 then
 			local bottom = column.AbsolutePosition.Y + column.AbsoluteSize.Y - hud.AbsolutePosition.Y
 			columnTop = bottom - stack - gap * (count - 1)
+			columnBottom = bottom
+			-- (кнопки — по центру колонки: левый край самой широкой)
+			columnLeft = column.AbsolutePosition.X - hud.AbsolutePosition.X + (column.AbsoluteSize.X - widest) / 2
 		end
+		buttons = count
+	end
+	-- Этап 4: три кнопки, и над колонкой места нет — значок слева от неё, на самом нижнем свободном
+	-- месте полосы: от низа колонки (на тач-экране — над кнопкой прыжка: его кольцо ≥ 16 px от неё)
+	-- вверх, мимо кнопок рыбалки, уведомлений, плашки тревоги и статуса (pointerKeepouts).
+	local besideColumn = buttons >= 3 and columnTop - POINTER.ColumnGap - side * 0.75 < side * 0.7
+	local footY = columnBottom - side * 0.62
+	if besideColumn and UserInputService.TouchEnabled then
+		local small = math.min(view.X, view.Y) <= POINTER.SmallTouch
+		local jump, r = FishingLayout.jumpCircle(area, small)
+		footY = jump.Y - r - POINTER.JumpGap - side * POINTER.Ring
+	end
+	local laneKeepouts = if besideColumn then pointerKeepouts(hud :: GuiObject) else {}
+	local ringHalf = side * POINTER.Ring
+	-- значок в полосе у колонки с центром на высоте y (с запасом на покачивание и кольцо)
+	local function laneBox(y: number): Box
+		local x = columnLeft - POINTER.SideGap - reach
+		return { x0 = x - ringHalf - POINTER.Bob, y0 = y - ringHalf, x1 = x + reach, y1 = y + ringHalf }
+	end
+	local function laneSpot(): number?
+		local y = footY
+		local top = POINTER.Top + ringHalf
+		while y >= top do
+			local box = laneBox(y)
+			if boxesClear(box, laneKeepouts, MIN_GAP + POINTER.Ink) then
+				return y
+			end
+			y -= POINTER.Step
+		end
+		return nil
 	end
 	local wave = POINTER.Bob * (0.5 - 0.5 * math.cos(now * 2 * math.pi / POINTER.Period))
 	-- Сколько значков уже стоит у каждого края: следующий — выше (стопкой вверх).
@@ -845,12 +1178,29 @@ local function stepPointers(): boolean
 			end
 			local x = if right then area.X - POINTER.Gap - reach - wave else POINTER.Gap + reach + wave
 			local y = area.Y * POINTER.Y
-			if right then
-				y = math.min(y, columnTop - POINTER.ColumnGap - side * 0.75)
-			end
 			local edge = if right then "right" else "left"
-			y -= slots[edge] * side * POINTER.Stack
+			local spot: number? = nil
+			if right and besideColumn then
+				-- слева от колонки, на самом нижнем свободном месте; следующий — над ним (его коробка —
+				-- в помехах); места нет — значок спрятан
+				spot = laneSpot()
+				x = columnLeft - POINTER.SideGap - reach - wave
+				y = spot or 0
+				if spot then
+					table.insert(laneKeepouts, laneBox(spot))
+				end
+			else
+				if right then
+					y = math.min(y, columnTop - POINTER.ColumnGap - side * 0.75)
+				end
+				y -= slots[edge] * side * POINTER.Stack
+			end
 			slots[edge] += 1
+			if right and besideColumn and spot == nil then
+				frame.Visible = false
+				pointer.shown = false
+				continue
+			end
 			frame.Position = UDim2.fromOffset(math.round(x), math.round(math.max(y, side * 0.7)))
 			if not pointer.shown then
 				pointer.shown = true
@@ -1018,6 +1368,8 @@ function NotifyController:Start(hud: ScreenGui)
 		-- время — ни одного уведомления.
 		hud:GetAttributeChangedSignal("CounterHold"):Connect(onBusyChanged)
 	end
+	-- Этап 4: лист открыт — те, что ждут его ухода (Look.afterSheet), ждут (см. canShow).
+	hud:GetAttributeChangedSignal("Sheet"):Connect(onSheetChanged)
 	-- v3: на телефоне, пока своя рыба над головой (HeldFish), — тоже (см. capacity).
 	local player = Players.LocalPlayer
 	local function watchCharacter(character: Model)

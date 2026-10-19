@@ -46,6 +46,12 @@
 	         «+$1 234» (amount) уровня Button и звук "ping".
 	    opts.Rate ("down" | "up") — подсказка, куда покатится доход «+$/с»; катит его сам атрибут
 	    Income (ниже), так что продажа и замена катятся и без неё.
+	  • Spend(amount, to?) (Этап 4: покупка защиты, DefenceController на DefenceEvent "Bought") —
+	    деньги впервые уходят: сервер уже списал их (атрибут Money меньше), надпись «сбегает» вниз
+	    (то же «набегание», Wallet.Count) с красной вспышкой Berry, 💵 вылетают из кошелька в to
+	    (кнопку карточки), красное «−$6 000» уровня Button у кошелька, звук "swoosh". Падение Money
+	    больше Wallet.JumpSeconds секунд дохода — покупка: надпись ждёт Spend Wallet.SaleWait с (как
+	    рост ждёт свой праздник), не пришёл — число «сбегает» само (не прыгает).
 	  • Доход «+$/с» катится (countUp Wallet.RateRoll с, FormatRate) к атрибуту Income: вниз — с
 	    короткой красной вспышкой Berry («продал — дохода меньше»), вверх — с золотой. Пока у HUD
 	    CounterHold (улов летит в садок), доход стоит на прежнем и катится, когда рыба долетела.
@@ -81,6 +87,7 @@
 	API:
 	  MoneyController:Start(hud)
 	  MoneyController.Celebrate(amount: number, from: GuiObject?, opts: { Rate: ("down" | "up")? }?)
+	  MoneyController.Spend(amount: number, to: GuiObject?)   -- Этап 4: покупка (деньги уже списаны)
 	  MoneyController.Shown() -> number     -- число на надписи (тесты, сценарии)
 	  MoneyController.CatchToast(text: string, kind: string, look: NotifyController.Look?, delay: number?)
 ]]
@@ -323,16 +330,17 @@ local function tick()
 		run.target = goal -- «набегание» само дойдёт до правды
 		return
 	end
-	if goal - shown > jumpLimit() then
+	if math.abs(goal - shown) > jumpLimit() then
 		-- Продажа: её remote (и Celebrate / "Caught") приходит после атрибута — подождать, пока
 		-- праздник придержит свою сумму; никто не пришёл — число «набегает» само (не прыгает).
+		-- Покупка (Этап 4: число вниз) — так же ждёт свой Spend.
 		jumpWait = true
 		task.delay(WALLET.SaleWait, function()
 			jumpWait = false
 			if state ~= "ready" then
 				return
 			end
-			local step = truth() - shown
+			local step = math.abs(truth() - shown)
 			if step > jumpLimit() and counting == nil then
 				countTo(countTime(step))
 			else
@@ -580,6 +588,53 @@ function MoneyController.Celebrate(amount: number, from: GuiObject?, _opts: Cele
 		})
 	else
 		land()
+	end
+end
+
+--[[
+	Этап 4: покупка (DefenceController, DefenceEvent "Bought"). Сервер уже списал amount (атрибут
+	Money меньше): надпись «сбегает» к правде (countTo — то же «набегание», вниз) с красной вспышкой,
+	💵 вылетают из кошелька в to (кнопку купленной карточки; нет её или кошелька не видно — без
+	полёта), красное «−$6 000» у кошелька.
+]]
+function MoneyController.Spend(amount: number, to: GuiObject?)
+	if not started then
+		return
+	end
+	local whole = math.floor(number(amount))
+	if whole <= 0 then
+		return
+	end
+	lastParty = os.clock() -- (пока 💵 летят, «+$13» дохода не всплывает)
+	if state ~= "ready" then
+		tick()
+		return
+	end
+	countTo(countTime(whole))
+	UiFx.flashText(label, Palette.Berry.Top, 0.45)
+	UiFx.bump(money, 1.1, 0.3)
+	local text = "−" .. TankRules.FormatMoney(whole)
+	local H = math.max(wallet.AbsoluteSize.Y, 1)
+	local px = math.max(UiFx.textSize("Button"), H * 0.7)
+	local w = textWidth(text, px)
+	floatOnHud(text, Vector2.new(fitted.rowLeft - w * 0.5 - H * 0.15, H * 0.5), Vector2.new(w, px), {
+		colors = { Palette.Berry.Top, Palette.Berry.Bottom },
+		rise = H * WALLET.FloatRise,
+		time = 1.0,
+		rotate = 4,
+	})
+	UiFx.sound("swoosh", 0.3, 1.2)
+	if to and to.Parent and to.Visible and wallet.Visible then
+		UiFx.flyTo(hud, icon, to, {
+			text = "💵",
+			count = coinsFor(whole),
+			time = 0.5,
+			size = 0.07,
+			arc = 0.14,
+			onEach = function(index: number)
+				UiFx.sound("tick", 0.2, 1.3 - 0.05 * index)
+			end,
+		})
 	end
 end
 

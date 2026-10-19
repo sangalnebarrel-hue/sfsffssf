@@ -14,20 +14,24 @@
 	  TheftAlert    (hidden, ZIndex 32: over the sheets) the root at the top of the toast column
 	                (NotifyController.Reserve("alert", px) moves the toasts under it): Theft.Width
 	                of the HUD width (≤ Theft.WidthMax px; AlertController keeps it inside the toast
-	                column), ≈ Theft.PlateHeight px tall on a phone
+	                column), ≈ Theft.PlateHeight px tall on a phone; for the Compact pill
+	                AlertController makes the root the pill's own box (Theft.CompactHeight tall: the
+	                root's height floor is the pill's)
 	    Plate       a Berry sim plate (AlertController shakes and pops it)
 	    Icon        a socket over the plate's left end: Icon.Icon 🚨
-	    Text        the left part: Title (Title tier, CAPS «ВОР В САДКЕ!» / «ВОР УБЕГАЕТ!»), Sub
-	                (Small, «Ника крадёт: Окунь»; «Пока крадёшь сам, щит не включить» — then the
-	                buttons are hidden)
+	    Text        the left part: Title (CAPS «ВОР В САДКЕ!» / «ВОР УБЕГАЕТ!», one line, the box
+	                fits it: TITLE_MIN..TITLE_MAX px), Sub (italic, «Ника крадёт: Окунь», wraps,
+	                12..SUB_MAX px; «Пока крадёшь сам, щит не включить» — then the buttons are hidden)
 	    Buttons     the right part, a right-aligned row:
 	      Shield    a Guard row button «🛡️ ЩИТ» (Icon, Caption): Slate «⏳ 1:12» while the shield
 	                recharges, ⏳ until the server answers
 	      Home      a Grape square «🏠 ДОМОЙ» (Icon, Caption) with Home's cooldown veil look
-	    Compact     (hidden) the pill variant ≈ Theft.CompactHeight px tall, placed by
-	                FishingLayout.clearOf: a Berry plate with Icon 🚨 and Label «ВОР! Окунь», then
-	                Shield (Guard «🛡️ ЩИТ») or Home (a round Grape 🏠, hidden: when the shield is not
-	                ready)
+	    Compact     (hidden) the pill variant filling the root (Theft.CompactHeight px tall on a
+	                phone), placed by AlertController beside the own fisher: a Berry plate with Icon 🚨
+	                and Label «ВОР! Окунь», then Shield (Guard «🛡️ ЩИТ» at the pill's right end, its
+	                full height — ≥ Theft.ShieldMin px — and ≥ Theft.ShieldShare of its width: the
+	                largest target here too) or Home (a round Grape 🏠, hidden: when the shield is
+	                not ready)
 	Sizes are scales only, capped by UISizeConstraint on big screens; text never under 12 px.
 ]]
 
@@ -59,6 +63,12 @@ local BUTTONS = 0.485
 local SHIELD = THEFT.ShieldShare / BUTTONS + 0.003
 
 local SAMPLE = { name = "Ника", short = "Окунь" }
+-- The Compact pill's ЩИТ: this share of the pill's width (≥ Theft.ShieldShare: the largest target).
+local COMPACT_SHIELD = 0.42
+-- The plate's text, px (the box fits it: TextScaled between these).
+local TITLE_MAX = 30
+local TITLE_MIN = 14
+local SUB_MAX = 20
 
 local function buildPlate(root: any)
 	local plate = U.new("Frame", {
@@ -85,13 +95,18 @@ local function buildPlate(root: any)
 		Size = UDim2.fromScale(0.985 - BUTTONS - 0.09, 0.84),
 		ZIndex = 4,
 	}, root)
+	-- (box-driven, not tiered: on a desktop the chat narrows the toast column to ≈ 390 px and the
+	-- Title tier there — 32 px — would break «ВОР УБЕГАЕТ!» into two lines over the Sub; the box
+	-- keeps one line, never under TITLE_MIN / 12 px)
 	label(text, "Title", {
 		Position = UDim2.fromScale(0, 0.02),
 		Size = UDim2.fromScale(1, 0.54),
 		Text = TEXTS.Hold,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		TextWrapped = false,
 		ZIndex = 4,
-		Tier = "Title",
+		MaxTextSize = TITLE_MAX,
+		MinTextSize = TITLE_MIN,
 	})
 	label(text, "Sub", {
 		Position = UDim2.fromScale(0, 0.58),
@@ -101,7 +116,8 @@ local function buildPlate(root: any)
 		TextWrapped = true,
 		Italic = true,
 		ZIndex = 4,
-		Tier = "Small",
+		MaxTextSize = SUB_MAX,
+		MinTextSize = 12,
 	})
 
 	-- The buttons on the right of the same row: [🛡️ ЩИТ] (the largest target) and [🏠 ДОМОЙ].
@@ -155,10 +171,10 @@ local function buildCompact(root: any)
 		Visible = false,
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.5, 0),
-		Size = UDim2.fromScale(0.8, THEFT.CompactHeight / THEFT.PlateHeight),
+		Size = UDim2.fromScale(1, 1), -- (AlertController makes the root the pill's box)
 		ZIndex = 2,
 		Icon = "🚨",
-		IconScale = 1.1,
+		IconScale = 0.9, -- (inside the pill: its ink stays within the pill height)
 		Text = TextUtil.fill(TEXTS.Compact, { short = TextUtil.upper(SAMPLE.short) }),
 		Tier = "Body",
 		Radius = 0.5,
@@ -172,10 +188,11 @@ local function buildCompact(root: any)
 		},
 	})
 	U.new("UISizeConstraint", { MinSize = Vector2.new(0, THEFT.CompactHeight) }, compact)
+	-- ЩИТ at the pill's right end, its full height (≥ ShieldMin) and COMPACT_SHIELD of its width.
 	local shield = Theme.simButton(compact, "Shield", "Guard", {
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.fromScale(0.98, 0.5),
-		Size = UDim2.fromScale(0.4, 0.86),
+		Position = UDim2.fromScale(1, 0.5),
+		Size = UDim2.fromScale(COMPACT_SHIELD, 1),
 		Layout = "row",
 		Icon = "🛡️",
 		Caption = TEXTS.Shield,
@@ -183,12 +200,12 @@ local function buildCompact(root: any)
 		ZIndex = 5,
 		SimOpts = { stroke = Theme.MINOR },
 	})
-	U.new("UISizeConstraint", { MinSize = Vector2.new(0, THEFT.HomeMin) }, shield)
+	U.new("UISizeConstraint", { MinSize = Vector2.new(0, THEFT.ShieldMin) }, shield)
 	local home = Theme.simButton(compact, "Home", "Grape", {
 		Visible = false,
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.fromScale(0.98, 0.5),
-		Size = UDim2.fromScale(0.86, 0.86),
+		Position = UDim2.fromScale(1, 0.5),
+		Size = UDim2.fromScale(1, 1),
 		SizeConstraint = Enum.SizeConstraint.RelativeYY,
 		Layout = "round",
 		Icon = "🏠",
@@ -209,8 +226,10 @@ local function build(hud: any)
 		Size = UDim2.fromScale(THEFT.Width, HEIGHT),
 		ZIndex = Z,
 	}, hud)
+	-- (the height floor is the Compact pill's: AlertController sizes the root in px — the plate
+	-- Theft.PlateHeight.., the pill Theft.CompactHeight)
 	U.new("UISizeConstraint", {
-		MinSize = Vector2.new(0, THEFT.PlateHeight),
+		MinSize = Vector2.new(0, THEFT.CompactHeight),
 		MaxSize = Vector2.new(THEFT.WidthMax, THEFT.PlateHeight * 1.35),
 	}, root)
 	buildPlate(root)

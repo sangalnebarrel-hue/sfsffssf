@@ -51,9 +51,25 @@
 	Все эффекты здесь — на твинах и таймерах, HUD живёт всю сессию (ResetOnSpawn = false), поэтому
 	соединения создаются один раз.
 
-	API (Этап 4): HudController.HomeAlert(on) — тревога кражи у своей базы: красное кольцо вокруг
-	«ДОМОЙ» и подпись «ДОМОЙ!» (зовёт AlertController; волна 0 — контракт: пока ничего не делает,
-	тело — Wave 2 D).
+	Этап 4 (кража; docs/stage4_design.md §6.3, §6.4):
+	  • HudController.HomeAlert(on) — тревога кражи у своей базы (зовёт AlertController): вокруг
+	    «ДОМОЙ» расходятся красные кольца (UiFx.glowRing loop, Berry; остановка — в его Trove),
+	    подпись «ДОМОЙ!» (StealConfig.Texts.Alert.HomeAlert) «бьёт» на месте; off — как было.
+	    Нажатие во время тревоги — обычный «ДОМОЙ»: сервер (охрана BaseService) ставит на площадку
+	    лицом во двор.
+	  • Рыба на голове (атрибут игрока Stealing = "carry"): «ДОМОЙ» серый, «под замком» (Slate, 🔒 —
+	    StealConfig.Texts.Alert.HomeLocked — вместо 🏠); нажатие серверу ничего не шлёт (его охрана
+	    всё равно не пустит, а уведомления вора во время кражи ждут её конца — стопка «Сначала
+	    унеси рыбу за ограду!» вышла бы потом): кнопка качается, замок «бьёт»; кулдаун не тратится,
+	    вуали нет; вынос кончился — Grape и 🏠.
+	  • Пока у HUD атрибут Stealing (полоса вора внизу, TheftController) — HUD.Status спрятан
+	    (плашка базы, кошелёк, фишка щита: за кражу они не меняются, а на экране вора там висит
+	    витрина, которую он грабит — §6.4 rev. 3); снят — Status выскакивает обратно (popIn), до
+	    полёта «ДОБЫЧИ» в «САДОК».
+	  • HudController.HomeAlertRest(rest) — кольца «ДОМОЙ!» отдыхают (телефон: пока у рыбалки свой
+	    светящийся край — поклёвка, аура мини-игры, — заливка; подпись «ДОМОЙ!» остаётся);
+	  • HudController.PressHome() — то же, что нажать «ДОМОЙ» (кнопка «🏠 ДОМОЙ» плашки тревоги);
+	    HudController.HomeReady() — «ДОМОЙ» не на кулдауне (плашка тревоги рисует свою вуаль).
 ]]
 
 local Players = game:GetService("Players")
@@ -65,6 +81,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local BaseConfig = require(Shared:WaitForChild("Config"):WaitForChild("BaseConfig"))
+local StealConfig = require(Shared:WaitForChild("Config"):WaitForChild("StealConfig"))
 local UIConfig = require(Shared:WaitForChild("Config"):WaitForChild("UIConfig"))
 local Net = require(Shared:WaitForChild("Net"))
 local Trove = require(Shared:WaitForChild("Util"):WaitForChild("Trove"))
@@ -93,6 +110,9 @@ local DISC_POP = 0.15 -- «выскок» кнопки действия с до�
 local BANNER_FLY = 0.4 -- полёт баннера в плашку
 local CAPTION_REST = "ДОМОЙ"
 local CAPTION_WAIT = "ЖДИ"
+local CAPTION_ALERT = StealConfig.Texts.Alert.HomeAlert -- «ДОМОЙ!» во время кражи у своей базы
+local ICON_LOCKED = StealConfig.Texts.Alert.HomeLocked -- «ДОМОЙ» под замком, пока рыба на голове
+local ALERT_RING = { Scale = 1.3, Thickness = 5, Time = 0.6, Every = 0.9 } -- красные кольца тревоги
 
 local HudController = {}
 
@@ -114,8 +134,44 @@ local function baseSwatch(): Swatch
 	return Palette.Slate
 end
 
--- Этап 4: тревога кражи у своей базы — «ДОМОЙ» зовёт домой (кольцо, «ДОМОЙ!»). Волна 0: пусто.
-function HudController.HomeAlert(_on: boolean) end
+-- Этап 4: что делает Start (до него — ничего; тревога, пришедшая раньше, применяется в Start).
+local homeAlertImpl: ((on: boolean) -> ())? = nil
+local homeRestImpl: ((rest: boolean) -> ())? = nil
+local pressHomeImpl: (() -> ())? = nil
+local homeReady = true
+local alertWanted = false
+
+-- Этап 4: тревога кражи у своей базы — «ДОМОЙ» зовёт домой (красные кольца, «ДОМОЙ!»).
+function HudController.HomeAlert(on: boolean)
+	alertWanted = on == true
+	local impl = homeAlertImpl
+	if impl then
+		impl(alertWanted)
+	end
+end
+
+-- Этап 4: кольца «ДОМОЙ!» отдыхают (rest) или снова идут (AlertController: заливка телефона).
+function HudController.HomeAlertRest(rest: boolean)
+	local impl = homeRestImpl
+	if impl then
+		impl(rest == true)
+	end
+end
+
+-- Этап 4: нажать «ДОМОЙ» (кнопка плашки тревоги). false — HUD ещё не запущен.
+function HudController.PressHome(): boolean
+	local impl = pressHomeImpl
+	if impl then
+		impl()
+		return true
+	end
+	return false
+end
+
+-- «ДОМОЙ» не на кулдауне (плашка тревоги показывает вуаль, пока нет).
+function HudController.HomeReady(): boolean
+	return homeReady
+end
 
 function HudController:Start(hud: ScreenGui)
 	local status = hud:WaitForChild("Status") :: Frame
@@ -491,6 +547,10 @@ function HudController:Start(hud: ScreenGui)
 	-- Кнопка «Домой» -------------------------------------------------------------------
 	local ready = true
 	local countdown: thread? = nil
+	local carryLocked = false -- рыба на голове (Stealing = "carry"): «ДОМОЙ» под замком
+	local alertOn = false -- тревога кражи у своей базы (HomeAlert)
+	local alertTrove = Trove.new()
+	local homeGlyph = homeIcon.Text
 	cooldownOverlay.Visible = false
 	if cooldownText then
 		cooldownText.Visible = false
@@ -515,6 +575,11 @@ function HudController:Start(hud: ScreenGui)
 		end
 	end
 
+	-- Подпись кнопки в покое: «ДОМОЙ!» во время тревоги кражи (не под замком выноса), иначе «ДОМОЙ».
+	local function restCaption(): string
+		return if alertOn and not carryLocked then CAPTION_ALERT else CAPTION_REST
+	end
+
 	-- Вид кнопки: готова («ДОМОЙ», яркий домик) или ждёт («ЖДИ» над вуалью, бледный домик).
 	local function setWaiting(waiting: boolean)
 		UiFx.tween(homeIcon, 0.2, { TextTransparency = if waiting then 0.85 else 0 })
@@ -523,19 +588,98 @@ function HudController:Start(hud: ScreenGui)
 			-- Новая подпись «бьёт» на месте (не «слот-машина»: в маленькой кнопке старая и новая
 			-- подписи наезжали друг на друга и на цифры кулдауна — SIM-C1-07). Слой — до текста.
 			caption.ZIndex = if waiting then captionTop else captionZ
-			UiFx.setText(caption, if waiting then CAPTION_WAIT else CAPTION_REST)
+			UiFx.setText(caption, if waiting then CAPTION_WAIT else restCaption())
 			UiFx.punch(caption, { from = 0.6, peak = 1.12 })
 		end
 	end
 
-	homeButton.Activated:Connect(function()
+	-- Этап 4: тревога кражи — красные кольца вокруг «ДОМОЙ» и «ДОМОЙ!» (кольца — только пока
+	-- кнопка видна и не под замком; их остановка — в alertTrove).
+	local ringRest = false -- кольца отдыхают (HomeAlertRest)
+	local function syncRing()
+		alertTrove:Clean()
+		if alertOn and not carryLocked and not ringRest then
+			alertTrove:Add(UiFx.glowRing(homeButton, {
+				color = Palette.Berry.Top,
+				scale = ALERT_RING.Scale,
+				thickness = ALERT_RING.Thickness,
+				time = ALERT_RING.Time,
+				interval = ALERT_RING.Every,
+				loop = true,
+			}))
+		end
+	end
+	local function applyHomeAlert(on: boolean)
+		if on == alertOn then
+			return
+		end
+		alertOn = on
+		if not on then
+			ringRest = false
+		end
+		syncRing()
+		local caption = homeCaption
+		if caption and ready then
+			UiFx.setText(caption, restCaption())
+			UiFx.punch(caption, { from = 0.6, peak = 1.15 })
+		end
+	end
+	homeAlertImpl = applyHomeAlert
+	homeRestImpl = function(rest: boolean)
+		if rest ~= ringRest then
+			ringRest = rest
+			syncRing()
+		end
+	end
+
+	-- Этап 4: рыба на голове (Stealing = "carry") — «ДОМОЙ» под замком (Slate, 🔒); вынос кончился —
+	-- Grape и 🏠 (тревога у своей базы в это время — без колец: сначала унеси рыбу).
+	local function syncCarryLock()
+		local locked = player:GetAttribute("Stealing") == "carry"
+		if locked == carryLocked then
+			return
+		end
+		carryLocked = locked
+		UiFx.setCandy(homeButton, if locked then "Slate" else "Grape")
+		homeIcon.Text = if locked then ICON_LOCKED else homeGlyph
+		local wasAlert = alertOn
+		alertOn = not wasAlert -- (заново: кольца — по новому замку)
+		applyHomeAlert(wasAlert)
+		if homeButton.Visible then
+			UiFx.punch(homeButton, { from = 0.9, peak = 1.08 })
+		end
+	end
+	player:GetAttributeChangedSignal("Stealing"):Connect(syncCarryLock)
+
+	-- Этап 4 (§6.4 rev. 3): пока крадёшь (атрибут HUD Stealing — TheftController), плашки статуса
+	-- спрятаны; кража кончилась — выскакивают обратно.
+	local function syncStatus()
+		local stealing = hud:GetAttribute("Stealing") ~= nil
+		if stealing and status.Visible then
+			status.Visible = false
+		elseif not stealing and not status.Visible then
+			status.Visible = true
+			UiFx.popIn(status, { from = 0.6, time = 0.3 })
+		end
+	end
+	hud:GetAttributeChangedSignal("Stealing"):Connect(syncStatus)
+
+	local function pressHome()
 		lastActivity = os.clock()
+		if carryLocked then
+			-- Рыба на голове: сервер не пустит — не просим (иначе каждое нажатие — его уведомление в
+			-- очередь до конца кражи); «нет» покачиванием, замок «бьёт». Кулдаун не тратится.
+			UiFx.wiggle(homeButton, 7, 2, 0.3)
+			UiFx.punch(homeIcon, { from = 0.7, peak = 1.2 })
+			return
+		end
 		if not ready then
 			-- Кнопка стоит в UIListLayout (позицию двигать нельзя) — «нет» покачиванием.
 			UiFx.wiggle(homeButton, 7, 2, 0.3)
 			return
 		end
 		ready = false
+		homeReady = false
 		requestHome:FireServer()
 		UiFx.wiggle(homeIcon, 12, 3, 0.45)
 		UiFx.ripple(homeButton)
@@ -565,6 +709,7 @@ function HudController:Start(hud: ScreenGui)
 			end
 			countdown = nil
 			ready = true
+			homeReady = true
 			cooldownOverlay.Visible = false
 			showSeconds(0)
 			setWaiting(false)
@@ -575,7 +720,14 @@ function HudController:Start(hud: ScreenGui)
 				UiFx.shine(homeButton, 0.5)
 			end
 		end)
-	end)
+	end
+	homeButton.Activated:Connect(pressHome)
+	pressHomeImpl = pressHome
+	syncCarryLock()
+	syncStatus()
+	if alertWanted then
+		applyHomeAlert(true) -- (тревога пришла раньше Start)
+	end
 
 	-- «Жизнь» плашек между событиями (UI v4): раз в MICRO_MIN…MICRO_MAX секунд — и только в покое
 	-- (не рыбачим, нет улова, уведомлений и баннера, MICRO_QUIET секунд после последнего события) —
