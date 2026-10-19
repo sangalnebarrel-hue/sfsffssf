@@ -68,10 +68,10 @@
 	PillarTimeOther); столб попал в кадр — значка нет. На телефоне — не во время своей поклёвки,
 	мини-игры и улова (то же правило, что у уведомлений). Пока есть хоть один значок — один
 	покадровый эффект планировщика UiFx (где столб относительно камеры); нет значков — ничего.
-	Этап 4: в колонке справа три кнопки («ЗАЩИТА» над «САДОК» и «ДОМОЙ») — на HUD ниже
-	POINTER.ThreeTall px (телефоны) над колонкой места нет: значок с правой стороны встаёт СЛЕВА от
-	колонки, у её верха (кольцо — в POINTER.ColumnGap px от неё; следующий — ниже); планшет и
-	компьютер — как раньше.
+	Этап 4: в колонке справа три кнопки («ЗАЩИТА» над «САДОК» и «ДОМОЙ») — над ней места для
+	значка нет (телефоны, планшет): значок с правой стороны встаёт СЛЕВА от колонки, у её низа
+	(у верха — уведомления; острый край — в POINTER.SideGap px от кнопок; следующий — выше);
+	места над колонкой хватает (компьютер) — как раньше.
 ]]
 
 local Players = game:GetService("Players")
@@ -87,6 +87,7 @@ local UIConfig = require(Shared:WaitForChild("Config"):WaitForChild("UIConfig"))
 local FishingConfig = require(Shared:WaitForChild("Config"):WaitForChild("FishingConfig"))
 local UiFx = require(Shared:WaitForChild("UiFx"))
 local TextUtil = require(Shared:WaitForChild("TextUtil"))
+local FishingLayout = require(script.Parent:WaitForChild("FishingLayout"))
 
 type Swatch = UIConfig.Swatch
 type ToastKind = UIConfig.ToastKind
@@ -145,7 +146,9 @@ local BIG_LINE = 1.22 -- высота строки в размерах её те
 -- px, «тычет» к краю на Bob px за Period с; смотрим на точку столба на Lift studs над землёй;
 -- значков не больше Max (лишний уходит — самый старый). Над колонкой кнопок — ColumnGap px от
 -- края кольца (толстая обводка и кольцо цвета базы выходят за значок; правило — ≥ 16 px).
--- Этап 4: три кнопки в колонке на HUD ниже ThreeTall px — значок слева от колонки, у её верха.
+-- Этап 4: три кнопки в колонке и над ней нет места — значок слева от колонки, у её низа, SideGap
+-- px от кнопок (ColumnGap и острый край с обводкой, они выступают за «reach»); на тач-экране —
+-- кольцо (Ring его размера от центра) JumpGap px над кнопкой прыжка (SmallTouch — маленькая кнопка).
 local POINTER = {
 	Y = 0.38,
 	Stack = 1.35,
@@ -155,7 +158,10 @@ local POINTER = {
 	Period = 0.8,
 	Lift = 40,
 	Max = 3,
-	ThreeTall = 600,
+	SideGap = 28,
+	JumpGap = 17,
+	Ring = 0.71,
+	SmallTouch = 500,
 }
 
 local NotifyController = {}
@@ -820,12 +826,13 @@ local function stepPointers(): boolean
 	local hidden = isPhone() and capacity(1) == 0
 	local area = hud.AbsoluteSize
 	local view = camera.ViewportSize
-	local side = math.clamp(area.Y * 0.118, 46, 72) -- размер значка (HUD.TrophyPointer)
+	local side = math.clamp(area.Y * 0.118, 44, 72) -- размер значка (HUD.TrophyPointer)
 	local reach = side * 0.92 -- от центра до кончика острого края
 	-- Справа внизу — колонка кнопок («ДОМОЙ»): значок над ней, не ближе POINTER.ColumnGap.
 	local column = hud:FindFirstChild("RightButtons")
 	local columnTop = math.huge
 	local columnLeft = math.huge
+	local columnBottom = math.huge
 	local buttons = 0
 	if column and column:IsA("GuiObject") and column.Visible then
 		-- Кнопки прижаты к низу колонки (UIListLayout, VerticalAlignment Bottom): верх их стопки
@@ -844,13 +851,21 @@ local function stepPointers(): boolean
 		if count > 0 then
 			local bottom = column.AbsolutePosition.Y + column.AbsoluteSize.Y - hud.AbsolutePosition.Y
 			columnTop = bottom - stack - gap * (count - 1)
+			columnBottom = bottom
 			-- (кнопки — по центру колонки: левый край самой широкой)
 			columnLeft = column.AbsolutePosition.X - hud.AbsolutePosition.X + (column.AbsoluteSize.X - widest) / 2
 		end
 		buttons = count
 	end
-	-- Этап 4: три кнопки на низком HUD — над колонкой места нет, значок слева от неё у её верха.
-	local besideColumn = buttons >= 3 and area.Y < POINTER.ThreeTall
+	-- Этап 4: три кнопки, и над колонкой места нет — значок слева от неё у её низа; на тач-экране —
+	-- как можно ниже над кнопкой прыжка (его кольцо — ≥ 16 px от неё: выше — уведомления).
+	local besideColumn = buttons >= 3 and columnTop - POINTER.ColumnGap - side * 0.75 < side * 0.7
+	local footY = columnBottom - side * 0.62
+	if besideColumn and UserInputService.TouchEnabled then
+		local small = math.min(view.X, view.Y) <= POINTER.SmallTouch
+		local jump, r = FishingLayout.jumpCircle(area, small)
+		footY = jump.Y - r - POINTER.JumpGap - side * POINTER.Ring
+	end
 	local wave = POINTER.Bob * (0.5 - 0.5 * math.cos(now * 2 * math.pi / POINTER.Period))
 	-- Сколько значков уже стоит у каждого края: следующий — выше (стопкой вверх).
 	local slots: { [string]: number } = { left = 0, right = 0 }
@@ -871,9 +886,9 @@ local function stepPointers(): boolean
 			local y = area.Y * POINTER.Y
 			local edge = if right then "right" else "left"
 			if right and besideColumn then
-				-- слева от колонки, кольцо — у её верха; следующий — ниже
-				x = columnLeft - POINTER.ColumnGap - reach - wave
-				y = columnTop + side * 0.62 + slots[edge] * side * POINTER.Stack
+				-- слева от колонки, у её низа (у верха — уведомления); следующий — выше
+				x = columnLeft - POINTER.SideGap - reach - wave
+				y = footY - slots[edge] * side * POINTER.Stack
 			else
 				if right then
 					y = math.min(y, columnTop - POINTER.ColumnGap - side * 0.75)

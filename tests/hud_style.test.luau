@@ -1280,7 +1280,7 @@ tests["trophy chip: someone else's Legendary pillar off-screen — a small chip 
 	t.ok(chip.AbsolutePosition.X > vp.X / 2, `on the right edge (x {chip.AbsolutePosition.X})`)
 	t.ok(vp.X - (chip.AbsolutePosition.X + chip.AbsoluteSize.X * 1.42) >= 16 - 1, "≥ 16 px from the screen edge")
 	-- (stage 3: «САДОК» over «ДОМОЙ» — the top of the taller column; stage 4: with «ЗАЩИТА» over
-	-- them a phone has no room above the column — the chip stands LEFT of it, at its top)
+	-- them a phone has no room above the column — the chip stands LEFT of it, at its foot)
 	t.ok(hud.RightButtons.TankButton.Visible, "«САДОК» is on screen")
 	local chipRect = rectOf(sim, p, chip)
 	local top = if hud.RightButtons.DefenceButton.Visible
@@ -1298,9 +1298,10 @@ tests["trophy chip: someone else's Legendary pillar off-screen — a small chip 
 			columnLeft - (chip.AbsolutePosition.X + chip.AbsoluteSize.X * 1.42) >= 16 - 1,
 			`three buttons on a phone: left of the column, ≥ 16 px (chip right {chip.AbsolutePosition.X + chip.AbsoluteSize.X * 1.42}, column {columnLeft})`
 		)
+		local home = rectOf(sim, p, hud.RightButtons.HomeButton)
 		t.ok(
-			math.abs((chipRect.y + chipRect.h / 2) - (topRect.y + topRect.h / 2)) <= topRect.h,
-			`at the column's top («ЗАЩИТА» {topRect.y}, chip {chipRect.y})`
+			math.abs((chipRect.y + chipRect.h / 2) - (home.y + home.h / 2)) <= home.h,
+			`at the column's foot, by «ДОМОЙ» (its row {home.y}, chip {chipRect.y}; the toasts are at its top)`
 		)
 	else
 		t.ok(
