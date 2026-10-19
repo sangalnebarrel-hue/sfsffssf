@@ -471,6 +471,20 @@ local scenarios = {
 		end,
 	},
 	{
+		name = "tank_sign_join",
+		desc = "Stage 3's tank_sign camera (the spawn pad) with only a join protection, after its greeting toast (Wave 3 ART-01): «+$/с · 🐠 6/6» keep their Stage 3 look; the protection row «🛡️ 3:55» is its own word (FxTankSignRow) over them — on phones it fades under the Wallet alone",
+		world = true,
+		standard = false,
+		still = { 6.0 },
+		burst = false,
+		run = function(h: any)
+			h.sim:Teleport(h.player, at(h, 4, 3.2, 40))
+			court(h, { -12, 9.5, 33 }, { 0, 11, 78 }, 70)
+			h:shield(240, nil, "join")
+			h:advance(1.2)
+		end,
+	},
+	{
 		name = "owner_pier_alert",
 		desc = "The owner fishing at his own spot (the fishing camera) while his base is robbed: the pier word «🚨 КРАДУТ!» pulsing over the bucket, clear of the fisher",
 		world = true,
@@ -712,14 +726,14 @@ local scenarios = {
 	},
 	{
 		name = "dog_rest_side",
-		desc = "The shown dog asleep at Dog.Rest seen from the side (14 studs): its paws on the crosswalk paving (not sunk), «💤» over it",
+		desc = "The shown dog asleep at Dog.Rest seen from the side (14 studs): its paws on the crosswalk paving (not sunk), «💤» beside its head (Dog.Sleep.Side; wave 3 ART-07: the camera a little higher than before, which put the dog right under the Wallet and «💤» faded there)",
 		world = true,
 		standard = false,
 		still = { 0.4 },
 		burst = false,
 		run = function(h: any)
 			h.sim:Teleport(h.player, at(h, 30, 3.2, 120))
-			court(h, { 17, 5.5, 47 }, { 6, 1.6, 58 }, 60)
+			court(h, { 17, 7, 47 }, { 6, 4.6, 58 }, 60)
 			showDog(h)
 			h:advance(0.3)
 		end,

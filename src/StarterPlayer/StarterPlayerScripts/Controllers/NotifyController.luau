@@ -18,7 +18,10 @@
 	снизу в золото). Радуга мифической — только по обводке (она вращается): на тёмной плашке
 	белые буквы читаются; уведомление не шире колонки (на тач-экране — 1.25 колонки), длинная
 	строка «что» на тач-экране сначала мельчает (до 12 px), переносится, только если не влезает и
-	так (ширина — по буквам, UiFx.textWidth): плашка не ложится на голову персонажа. Чужой
+	так (ширина — по буквам, UiFx.textWidth): плашка не ложится на голову персонажа; на телефоне,
+	если и так две строки дошли бы до макушки своего рыбака (его видно под колонкой), — одна строка
+	«Кто: ЧТО» над ней, не мельче BIG_ONE_LINE px (Этап 4 wave 3, ART-08: «Украдено / ФУГУ (Ника)»
+	ложилось на макушку). Чужой
 	улов не красит экран (никаких радужных краёв: новичок не подумает, что это он поймал).
 	Неизвестный вид — как "info".
 	look = { swatch = {Top, Bottom, Lip}?, icon = "🚩"? } заменяет цвет и значок вида.
@@ -36,7 +39,10 @@
 	чтобы не задевать окно чата Roblox слева вверху (CHAT_RIGHT, CHAT_GAP), и при смене размера окна.
 
 	Сколько видно сразу: UIConfig.MaxToasts на компьютере, MaxToastsTouch на планшете,
-	MaxToastsPhone на телефоне (HUD ниже PHONE_HEIGHT px: второе легло бы на голову персонажа).
+	MaxToastsPhone на телефоне (HUD ниже PHONE_HEIGHT px: второе легло бы на голову персонажа); на
+	планшете и компьютере стопка ещё и кончается не ниже FISHER_GAP над своим рыбаком, если его видно
+	под колонкой (первое уведомление — всегда; остальные ждут своей очереди: Этап 4 wave 3, UX-06 —
+	после кражи «Украдено», отдых садка и совет ложились втроём на его голову и грудь).
 	Пока улов на экране (у HUD атрибут CounterHold — от "Caught" до прилёта 🐟 в счётчик — или
 	видна HUD.Fishing.CatchCard) — ни одного; на телефоне ни одного (кроме «опасности») и пока
 	своя рыба над головой (HeldFish в своём персонаже, v3: трофей не под уведомлением); пока мини-игра или «КЛЮЁТ!» (Minigame / BiteAlert)
@@ -45,7 +51,9 @@
 	попадания (Minigame.FxFloat) — ни одного, кроме «опасности», на любом экране: эти слова
 	поднимаются в колонку уведомлений, а уведомление, которое не прочесть, зря тратит свой срок.
 	Остальные ждут в очереди и выходят, когда место освободится; уведомление, которое такой
-	виджет согнал с экрана в первой половине срока, встаёт в начало очереди. Когда места нет,
+	виджет согнал с экрана в первой половине срока, встаёт в начало очереди (согнанное полосой и
+	прождавшее дольше своего срока — уже несвежее: не показываем; UX-05 — «Щит погас» мигал 8 с
+	спустя, перед «Украдено»). Когда места нет,
 	уходит самое старое из самых неважных (Priority вида; «опасность» вытесняет обычные); если
 	все на экране важнее нового — новое ждёт в очереди.
 	Уход: через Life (или UIConfig.ToastDuration) секунд уведомление поднимается на LEAVE_RISE px
@@ -122,7 +130,9 @@ export type Look = {
 	live: (() -> string?)?, -- текст — в миг показа (ждавшее не врёт о таймере); nil — не показывать
 }
 
-type Pending = { text: string, kind: string, look: Look? }
+-- requeued — os.clock(), когда полоса согнала его с экрана в первой половине срока (снова в
+-- очереди): прождал дольше своего срока — уже несвежее, не показываем (Wave 3 UX-05).
+type Pending = { text: string, kind: string, look: Look?, requeued: number? }
 
 type Toast = {
 	frame: Frame,
@@ -296,13 +306,13 @@ local function reservedShare(): number
 	return share
 end
 
--- Пока стоят полосы: докуда (доля колонки от её верха) могут доходить уведомления — над своим
--- рыбаком (телефон: не вышло спроецировать — где он у камеры по умолчанию) и над кнопками
--- рыбалки, если они под колонкой; nil — без предела (полос нет, рыбака не видно).
-local function bandLimit(): number?
+-- Докуда (доля колонки от её верха) могут доходить уведомления — над своим рыбаком (fallback:
+-- на телефоне не вышло спроецировать — где он у камеры по умолчанию) и над кнопками рыбалки,
+-- если они под колонкой; nil — без предела (рыбака не видно).
+local function fisherLimit(fallback: boolean): number?
 	local column = container
 	local hud = column and column.Parent
-	if next(reserved) == nil or not column or not hud or not hud:IsA("GuiBase2d") then
+	if not column or not hud or not hud:IsA("GuiBase2d") then
 		return nil
 	end
 	local height = column.AbsoluteSize.Y
@@ -322,7 +332,7 @@ local function bandLimit(): number?
 	end
 	local player = Players.LocalPlayer
 	local fisher = FishingLayout.fisherBox(if player then player.Character else nil, Workspace.CurrentCamera, origin)
-		or (if isPhone() then FishingLayout.fallbackFisher(hud.AbsoluteSize) else nil)
+		or (if fallback and isPhone() then FishingLayout.fallbackFisher(hud.AbsoluteSize) else nil)
 	if fisher then
 		cap(fisher.y0 - FISHER_GAP, fisher.x0, fisher.x1)
 	end
@@ -343,18 +353,37 @@ local function bandLimit(): number?
 	return limit
 end
 
--- Сколько уведомлений обычной высоты помещается под полосами (без полос — без предела).
+-- Предел низа уведомлений (доля колонки), nil — без предела. Пока стоят полосы — над рыбаком и
+-- кнопками рыбалки всегда (на телефоне — и где рыбак у камеры по умолчанию). Без полос — на
+-- планшете и компьютере тоже над своим рыбаком, если его видно (Wave 3 UX-06: на компьютере
+-- три уведомления после кражи — «Украдено», отдых садка, совет — ложились ему на голову и
+-- грудь); первое уведомление выходит всегда (см. canShow), остальные ждут. На телефоне без полос
+-- — одно уведомление, предела нет.
+local function stackLimit(): number?
+	if next(reserved) ~= nil then
+		return fisherLimit(true)
+	end
+	if isPhone() then
+		return nil
+	end
+	return fisherLimit(false)
+end
+
+-- Сколько уведомлений обычной высоты помещается под полосами и над рыбаком (без предела — сколько
+-- угодно; без полос — хотя бы одно).
 local function roomBelowReserve(): number
-	if next(reserved) == nil then
+	local banded = next(reserved) ~= nil
+	local limit = stackLimit()
+	if not banded and not limit then
 		return math.huge
 	end
 	local bottom = 1
-	local limit = bandLimit()
 	if limit then
 		bottom = math.min(bottom, limit)
 	end
 	local free = bottom - reservedShare()
-	return math.max(0, math.floor((free + GAP) / (SLOT + GAP) + 1e-6))
+	local room = math.max(0, math.floor((free + GAP) / (SLOT + GAP) + 1e-6))
+	return if banded then room else math.max(room, 1)
 end
 
 -- Сколько уведомлений приоритета priority может быть на экране, если полос сверху нет.
@@ -422,6 +451,14 @@ local canShow: (item: Pending, count: number) -> boolean
 -- не те, что ждут его ухода).
 local function drain()
 	local started = 0
+	local now = os.clock()
+	for index = #queue, 1, -1 do
+		local item = queue[index]
+		local requeued = item.requeued
+		if requeued and now - requeued > (styleOf(item.kind).Life or UIConfig.ToastDuration) then
+			table.remove(queue, index) -- (согнанное полосой и прождавшее дольше своего срока — несвежее)
+		end
+	end
 	while true do
 		local found: number? = nil
 		for index, item in queue do
@@ -527,6 +564,28 @@ type BigLayout = {
 	head: number, -- размер текста «что», px
 }
 
+-- Сколько px от верха первого слота колонки (под полосами) до его макушки (fisherBox без своего
+-- запаса FISHER_PAD) за вычетом TOAST_INK — обводки и кольца уведомления, если рыбака видно под
+-- колонкой (только настоящий, не «где у камеры по умолчанию»); nil — не видно. (На телефоне от
+-- верха колонки до макушки ≈ 32 px: полные FISHER_GAP над запасом не оставили бы места и одной
+-- строке не мельче 12 px.)
+local function roomAboveFisher(): number?
+	local column = container
+	local hud = column and column.Parent
+	if not column or not hud or not hud:IsA("GuiBase2d") or column.AbsoluteSize.Y <= 1 then
+		return nil
+	end
+	local player = Players.LocalPlayer
+	local origin = hud.AbsolutePosition
+	local fisher = FishingLayout.fisherBox(if player then player.Character else nil, Workspace.CurrentCamera, origin)
+	local x0 = column.AbsolutePosition.X - origin.X
+	if not fisher or fisher.x1 <= x0 or fisher.x0 >= x0 + column.AbsoluteSize.X then
+		return nil
+	end
+	local top = column.AbsolutePosition.Y - origin.Y + reservedShare() * column.AbsoluteSize.Y
+	return math.max(0, fisher.y0 + FishingLayout.FISHER_PAD - TOAST_INK - top)
+end
+
 -- Размеры текста громкого уведомления, px: «кто», нижний предел «что», «что». На телефоне «что» —
 -- Title − 2 (нижний предел Title): так обе строки помещаются над головой персонажа.
 local function bigSizes(): (number, number, number)
@@ -569,9 +628,21 @@ local function bigLayout(text: string): BigLayout
 			head, lines = if touch then body else title, 2
 		end
 	end
+	local px = ((if byline then small else 0) + head * lines) * BIG_LINE / BIG_PAD
+	-- Телефон: две строки «кто» + «что» доходят до головы своего рыбака (его видно под колонкой) —
+	-- одна строка «Кто: ЧТО» (Wave 3 ART-08: «Украдено / ФУГУ (Ника)» ложилось на макушку), не
+	-- выше места над ним и не мельче BIG_ONE_LINE px.
+	local above = if byline and isPhone() then roomAboveFisher() else nil
+	if above and px > above then
+		local line = `{byline}: {headline}`
+		local byWidth = math.floor(room / math.max(width(line, 1), 1))
+		local byHeight = math.floor(above * BIG_PAD / BIG_LINE)
+		byline, headline, lines = nil, line, 1
+		head = math.max(math.min(title, byWidth, byHeight), BIG_ONE_LINE)
+		px = head * BIG_LINE / BIG_PAD
+	end
 	local need = math.max(width(byline, small), width(headline, head) / lines)
 	local natural = math.clamp(need / (LABEL_SHARE * 0.94) / area.X, MIN_WIDTH, widest)
-	local px = ((if byline then small else 0) + head * lines) * BIG_LINE / BIG_PAD
 	return {
 		natural = natural,
 		height = px / area.Y,
@@ -686,7 +757,7 @@ local function heightOf(item: Pending): number
 end
 
 -- Можно ли показать item, когда на экране уже count уведомлений: место по виду (capacity), лист
--- (afterSheet ждёт его ухода) и, пока стоят полосы, — низ item не ниже bandLimit.
+-- (afterSheet ждёт его ухода) и низ item не ниже stackLimit (без полос первое — всегда).
 canShow = function(item: Pending, count: number): boolean
 	if count >= capacity(styleOf(item.kind).Priority) then
 		return false
@@ -694,8 +765,8 @@ canShow = function(item: Pending, count: number): boolean
 	if item.look and item.look.afterSheet and sheetOpen() then
 		return false
 	end
-	local limit = if next(reserved) ~= nil then bandLimit() else nil
-	if not limit then
+	local limit = stackLimit()
+	if not limit or (count == 0 and next(reserved) == nil) then
 		return true
 	end
 	local y = reservedShare()
@@ -706,12 +777,14 @@ canShow = function(item: Pending, count: number): boolean
 	return y + heightOf(item) <= limit + 1e-6
 end
 
--- Уведомления, что больше не помещаются (полосы, предел над рыбаком), — снова в начало очереди.
+-- Уведомления, что больше не помещаются (полосы, предел над рыбаком), уходят; кто не дожил и до
+-- половины срока — снова в начало очереди (с пометкой requeued: прождёт дольше своего срока —
+-- уже не покажем, Wave 3 UX-05: «Щит погас» 8 с спустя, на миг перед «Украдено»).
 local function requeueOverflow()
 	while #active > 0 do
 		local last = active[#active]
 		local fits = #active <= roomBelowReserve()
-		local limit = if fits and next(reserved) ~= nil then bandLimit() else nil
+		local limit = if fits and (next(reserved) ~= nil or #active > 1) then stackLimit() else nil
 		if fits and limit then
 			local y = reservedShare()
 			for i, toast in active do
@@ -722,7 +795,11 @@ local function requeueOverflow()
 		if fits then
 			return
 		end
-		table.insert(queue, 1, last.item)
+		local now = os.clock()
+		if now - last.shownAt < last.life / 2 then
+			last.item.requeued = now
+			table.insert(queue, 1, last.item)
+		end
 		dismiss(last, true)
 	end
 end
@@ -732,6 +809,7 @@ present = function(item: Pending)
 	if not parent or not source then
 		return
 	end
+	item.requeued = nil -- (снова на экране: пометка «согнано полосой» — только до показа)
 	local live = item.look and item.look.live
 	if live then
 		-- (ждавшее уведомление: таймер — на сейчас; нечего сказать — не показываем)

@@ -607,6 +607,7 @@ local UIConfig = {
 			FlySize = 0.09,
 			Shake = 0.012,
 			SafetyWait = 1.5,
+			LockedTime = 1.6, -- «🔒 Сначала за ограду!» в полосе выноса после нажатия «ДОМОЙ» под замком, с
 		},
 		ReadyPop = 1.5,
 		IntruderBob = 5,

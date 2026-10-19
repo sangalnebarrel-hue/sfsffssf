@@ -469,8 +469,8 @@ function chipTick(gen: number)
 		end
 	end
 	endingWarn(kind, untilAt, left)
-	local step = left - math.floor(left)
-	task.delay(if step > 0.02 then step else 1, chipTick, gen)
+	-- (ровно до смены числа — как строка защит над аквариумом и табличка флага: одно время)
+	task.delay(math.max(left - math.floor(left), 0.01), chipTick, gen)
 end
 
 local function greet(kind: string, left: number)

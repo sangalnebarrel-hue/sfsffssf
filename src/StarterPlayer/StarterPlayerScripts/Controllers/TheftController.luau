@@ -23,7 +23,9 @@
 	        плашки вспыхивает);
 	      вынос — "Carry": красная (Berry), 🏃 «БЕГИ ЗА ОГРАДУ!», золотая полоса тает к End
 	        выноса (толчок на старте), в ней «Не попадись хозяину» и «21 с» (Bar.CarryTick;
-	        последние Bar.CarryWarn с — «21 с» подпрыгивает, ободок вспыхивает); пока собака
+	        последние Bar.CarryWarn с — «21 с» подпрыгивает, ободок вспыхивает); нажал «ДОМОЙ» под
+	        замком (атрибут HUD HomeLockedTap, HudController) — «🔒 Сначала за ограду!» вместо
+	        «Не попадись хозяину» на Bar.LockedTime с; пока собака
 	        держит (атрибут Slowed) — «🐕 СОБАКА!» над правым краем (качается, появляясь);
 	        красная дорожка на земле (папка Workspace.TheftGuide, Theft.Guide): шевроны от
 	        вора к ближайшему выходу StealRules.NearestExit ползут к нему (бегущие огни), у
@@ -32,7 +34,8 @@
 	        Guide.Label.Clear px — ждёт, пока он не уйдёт: слова слились бы; пока «ГАВ!» живёт,
 	        проверка раз в Guide.BarkEvery с); переставляется раз в BeamEvery с (task.delay);
 	      срыв — "Cancel": красная, трясётся, 💨 «СОРВАЛОСЬ!» и под ним причина (Text сервера,
-	        Reason: шрифт Body во всю ширину; плашка — по длине текста), FailTime с; в
+	        Reason: шрифт Body во всю ширину; плашка — по длине текста, в одну строку: на
+	        планшете и компьютере — и шире Theft.WidthMax, но не шире полосы), FailTime с; в
 	        удержании гасит кольцо своей кнопки (InputHoldEnd: сервер кнопки не выключает —
 	        BE-15). Короткий тап (отпустил «Украсть» раньше Limits.QuietSavedUnder с) — не
 	        срыв, а подсказка на стекле «Не отпускай «Украсть», пока полоска не заполнится!»
@@ -103,6 +106,7 @@ local NotifyController = require(script.Parent:WaitForChild("NotifyController"))
 local TankDisplay = require(script.Parent:WaitForChild("TankDisplay"))
 local TankWorldController = require(script.Parent:WaitForChild("TankWorldController"))
 local TheftPrompts = require(script.Parent:WaitForChild("TheftPrompts"))
+local TheftWorldController = require(script.Parent:WaitForChild("TheftWorldController"))
 
 local player = Players.LocalPlayer
 
@@ -121,17 +125,21 @@ local BAR_MAX_HEIGHT = 84 -- потолок высоты полосы (UISizeCon
 local TITLE_MAX_HEIGHT = 170
 local ICON_SHARE = 0.45 * 1.05 -- на сколько высот плашки кружок значка выступает влево
 local FAIL_PAD = 14 -- плашка «СОРВАЛОСЬ!» шире своего текста на столько px
+local FAIL_SLACK = 1.08 -- … и причина — шире своей оценки по буквам во столько раз
 local RESERVE_KEY = "thief" -- колонка уведомлений (не из RESERVE_ORDER: «alert» выше)
 local SHEETS = { "TankPanel", "DefencePanel" } -- листы: при них подсказок на стекле нет
 local GHOST_WINDOW = 10 -- опоздавший "Hold" брошенной (NoReply) кнопки узнаём столько с
 local GROUND_UP, GROUND_DOWN = 4, 14 -- луч к земле двора для шевронов: от пояса вора, studs
--- «ГАВ!» собаки (TheftWorldController: TankDisplay.rise в папке Workspace.TheftWorld) — над ним
--- «ВЫХОД» не пишется (C1-R2-02); «ГАВ!» всплывает на BarkRise studs — место ему нужно на весь
--- подъём, а не только там, где он сейчас (Stage 4 wave 3: между проверками он вплывал в «ВЫХОД»).
-local WORLD_FOLDER, BARK_NAME = "TheftWorld", "FxTankPop"
+-- «ГАВ!» собаки (TheftWorldController: TankDisplay.rise в его папке Workspace.TheftWorld —
+-- TheftWorldController.Folder(), не поиск по имени: в эмуляторе тестов клиенты делят один
+-- Workspace, и находилась папка чужого клиента; Wave 3 ART-09) — над ним «ВЫХОД» не пишется
+-- (C1-R2-02); «ГАВ!» всплывает на BarkRise studs — место ему нужно на весь подъём, а не только
+-- там, где он сейчас (Stage 4 wave 3: между проверками он вплывал в «ВЫХОД»).
+local BARK_NAME = "FxTankPop"
 local BARK_RISE = Vector3.new(0, DefenceConfig.World.Dog.BarkRise, 0)
 -- Ширина буквы слова мира в долях кегля (Montserrat Heavy Italic); TextScaled не крупнее кегля 100 —
--- в широкой рамке вблизи буквы уже рамки (рамка «ГАВ!» у камеры — 388 px, буквы — 200).
+-- в широкой рамке вблизи буквы уже рамки (рамка «ГАВ!» у камеры — 388 px, буквы — 200); у слова с
+-- потолком букв (UITextSizeConstraint "Cap": «ГАВ!» — Dog.BarkCap) — не крупнее потолка.
 local GLYPH, SCALED_MAX = 0.5, 100
 
 -- Значок подсказки по причине отказа: ожидание, защита, хозяин рядом, остальное — рыба.
@@ -256,8 +264,10 @@ end
 
 -- Полоса вора на месте: ширина want (nil — полная), высота — BarHeight экрана; в px HUD,
 -- записано долями (UDim2.fromScale): по центру экрана, а не влезает — сдвинута в полосу.
--- animate — уже видна: к новой ширине твином за Bar.Resize с (подсказка ↔ кража).
-local function placeBar(want: number?, animate: boolean?)
+-- animate — уже видна: к новой ширине твином за Bar.Resize с (подсказка ↔ кража). wide — шире
+-- WidthMax, если want просит (плашка «СОРВАЛОСЬ!»: причина в одну строку на планшете и
+-- компьютере, Wave 3 ART-05), но не шире полосы.
+local function placeBar(want: number?, animate: boolean?, wide: boolean?)
 	local size = w.hud.AbsoluteSize
 	if size.X < 2 or size.Y < 2 then
 		return
@@ -267,7 +277,16 @@ local function placeBar(want: number?, animate: boolean?)
 	local left, right = band()
 	left += overhang
 	local full = math.min(SPEC.Width * size.X, SPEC.WidthMax)
-	local width = math.min(want or full, full, math.max(right - left, 0))
+	local cap = if wide and want then math.max(full, want) else full
+	local width = math.min(want or full, cap, math.max(right - left, 0))
+	local limit = w.bar:FindFirstChildOfClass("UISizeConstraint")
+	if limit then
+		-- (сборщик держит плашку не шире WidthMax; широкой «СОРВАЛОСЬ!» — её ширина)
+		local most = Vector2.new(math.max(SPEC.WidthMax, math.ceil(width)), BAR_MAX_HEIGHT)
+		if limit.MaxSize ~= most then
+			limit.MaxSize = most
+		end
+	end
 	local center = math.clamp(size.X / 2, left + width / 2, math.max(left + width / 2, right - width / 2))
 	local top = math.min(BAR.Top * size.Y, size.Y - BAR.Gap - height)
 	local position = UDim2.fromScale(center / size.X, top / size.Y)
@@ -314,11 +333,13 @@ local function hintWidth(text: string): number
 	end)
 end
 
--- Ширина плашки «СОРВАЛОСЬ!»: заголовок и причина в одну строку (их доля плашки — ширина Title).
+-- Ширина плашки «СОРВАЛОСЬ!»: заголовок и причина в одну строку (их доля плашки — ширина Title;
+-- причина — с запасом FAIL_SLACK на оценку ширины курсива по буквам: на планшете и компьютере
+-- «…вернулась домой» иначе переносилось на ободок, Wave 3 ART-05).
 local function failWidth(reason: string): number
 	local share = math.max(w.title.Size.X.Scale, 0.1)
 	local title = UiFx.textWidth(BANNER.Fail, UiFx.textSize("Title"))
-	local line = UiFx.textWidth(reason, UiFx.textSize("Body"))
+	local line = UiFx.textWidth(reason, UiFx.textSize("Body")) * FAIL_SLACK
 	return math.max(title, line) / share + FAIL_PAD
 end
 
@@ -768,7 +789,12 @@ local function wordBox(
 	local w = size.X.Scale * perStud + size.X.Offset
 	local h = size.Y.Scale * perStud + size.Y.Offset
 	if text then
-		w = math.min(w, (utf8.len(text) or #text) * GLYPH * math.min(h, SCALED_MAX))
+		local cap = gui:FindFirstChild("Cap", true)
+		local most = if cap and cap:IsA("UITextSizeConstraint")
+			then math.min(cap.MaxTextSize, SCALED_MAX)
+			else SCALED_MAX
+		h = math.min(h, most)
+		w = math.min(w, (utf8.len(text) or #text) * GLYPH * h)
 	end
 	return { x0 = p.X - w / 2, y0 = p.Y - h / 2, x1 = p.X + w / 2, y1 = p.Y + h / 2 }
 end
@@ -846,7 +872,7 @@ local function startGuide()
 	local clearPad = spec.Clear
 	local function clearOfBark()
 		local camera = Workspace.CurrentCamera
-		local barks = Workspace:FindFirstChild(WORLD_FOLDER)
+		local barks = TheftWorldController.Folder()
 		if label.Parent == nil or not camera then
 			return
 		end
@@ -882,7 +908,7 @@ local function startGuide()
 			end
 		end
 	end
-	local barks = Workspace:FindFirstChild(WORLD_FOLDER)
+	local barks = TheftWorldController.Folder()
 	if barks then
 		local watching, stopped = false, false
 		carryTrove:Add(function()
@@ -1019,6 +1045,25 @@ local function enterCarry(data: { [string]: any })
 	carryTrove:Clean()
 	startGuide()
 	watchDog()
+	-- «ДОМОЙ» под замком нажали (HudController: атрибут HUD HomeLockedTap) — строка полосы говорит
+	-- почему, на Bar.LockedTime с, и снова «Не попадись хозяину» (Wave 3 UX-07: только качание и 🔒
+	-- ничего не объясняли)
+	local said = 0
+	carryTrove:Add(w.hud:GetAttributeChangedSignal("HomeLockedTap"):Connect(function()
+		if mode ~= "carry" or generation ~= token then
+			return
+		end
+		said += 1
+		local mine = said
+		w.sub.Text = BANNER.HomeLocked
+		UiFx.punch(w.sub, { from = 0.8, peak = 1.15 })
+		UiFx.flashText(w.sub, Palette.Sun.Top, 0.4)
+		task.delay(BAR.LockedTime, function()
+			if mine == said and mode == "carry" and generation == token then
+				w.sub.Text = BANNER.CarrySub
+			end
+		end)
+	end))
 end
 
 -- Кража кончилась (срыв, «ДОБЫЧА!», молча): вынос и прилёт — прочь, кнопка больше не своя.
@@ -1056,7 +1101,7 @@ local function enterFail(data: { [string]: any })
 	setIcon(ICONS.Fail)
 	w.title.Text = BANNER.Fail
 	w.reason.Text = reason
-	placeBar(failWidth(reason))
+	placeBar(failWidth(reason), nil, true)
 	showBar()
 	UiFx.punch(w.title, { from = 1.3, peak = 1.1 })
 	UiFx.shake(w.bar, BAR.Shake, 0.4)
@@ -1371,7 +1416,7 @@ function TheftController:Start(hud: ScreenGui)
 			if mode == "hint" then
 				placeBar(hintWidth(w.line.Text))
 			elseif mode == "fail" then
-				placeBar(failWidth(w.reason.Text))
+				placeBar(failWidth(w.reason.Text), nil, true)
 			else
 				placeBar(nil)
 			end

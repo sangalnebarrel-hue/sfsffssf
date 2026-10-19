@@ -93,6 +93,9 @@
 	    Transparency / BackgroundTransparency, своя — в атрибуте FadeBase; Visible, Enabled и
 	    UIScale слова у других), снова проявляются за Clear.Show с, только когда слово отошло на
 	    Clear.Back px. Слово за камерой, дальше своего MaxDistance или выключенное — как было.
+	    «УНОСЯТ!» тает так же и у слов над людьми (TrackWord) ближе Clear.Words px: в начале
+	    выноса вор ещё у витрины, и табличка рыбы на его голове вставала на слово (проверка — и
+	    через Carried.Delay после начала выноса, когда табличка выскакивает; Wave 3 ART-03).
 	  • События витрин (базы ближе EventRange; дальше — тихо): "in" — новая рыба вырастает из точки
 	    (Fx.From → 1 за Fx.Grow с), брызги и искры цвета редкости (Emit на временном Attachment на
 	    Fx.Above над ВЕРХОМ витрины, не внутри стекла), вспышка света у LightBar (свой PointLight,
@@ -120,11 +123,15 @@
 	    появляется). Event "stolen|<вор>" — «УКРАДЕНО!» всплывает и тает за StolenTime с, красные
 	    искры летят к вору (рыба, ещё стоящая в витрине, прыгает к нему); "void" — тихо. База
 	    построена посреди выноса — рыбы в витрине нет, слово «УНОСЯТ!».
-	  • Строка защит надписи садка (Этап 4, атрибуты модели базы ProtectUntil / ProtectKind,
+	  • Строка защит над надписью садка (Этап 4, атрибуты модели базы ProtectUntil / ProtectKind,
 	    LockLevel, HasDog, HasAlarm — DefenceService): «🛡️ 0:42» цветом щита, пока база под любой
-	    защитой (раз в TagEvery с), и купленное «🔐1 · 🐕 · 🚨» — видят все; готов ли щит — не
-	    показываем никогда; строка — НАД «+$42/с», надпись растёт вверх на Sign.DefenceShare
-	    (прежние строки на месте: с ворот и от спауна строка в небе, а не за статуей фонтана).
+	    защитой, и купленное «🔐1 · 🐕 · 🚨» — видят все; готов ли щит — не показываем никогда.
+	    Строка — своё слово FxTankSignRow на точке надписи садка, НАД «+$42/с» (Sign.DefenceShare
+	    её высоты; с ворот и от спауна — в небе, а не за статуей фонтана), и под правилом «не под
+	    HUD» тает отдельно: надпись садка остаётся ровно как на Этапе 3 (на телефоне от спауна
+	    строка у кошелька — тает только она). Часы — цепочка task.delay по целым секундам до
+	    конца защиты (как фишка щита DefenceController и табличка флага TheftWorldController:
+	    одно время в одном кадре), только пока база построена и под защитой.
 	  • У ведра своей базы, пока у неё AlarmState = "theft", — одно красное «🚨 КРАДУТ!» (пульс 2 Гц,
 	    Steal.PierPulse) вместо строк садка; видно и в поклёвку, и в мини-игре, но не под
 	    CounterHold и не под своим трофеем.
@@ -152,6 +159,7 @@
 	  TankWorldController.GetFish(base, slotIndex) -> Model?          -- рыба в витрине (Base_N)
 	  TankWorldController.GetTag(base, slotIndex) -> BillboardGui?
 	  TankWorldController.GetSign(base) -> BillboardGui?
+	  TankWorldController.GetSignRow(base) -> BillboardGui?           -- строка защит FxTankSignRow
 	  TankWorldController.GetPierWord() -> BillboardGui?
 	  TankWorldController.IsBuilt(base) -> boolean
 	  TankWorldController.IsAlive(base, slotIndex) -> boolean         -- твин жизни идёт
@@ -201,6 +209,7 @@ local STEAL = DISPLAY.Steal
 local WORLD_WORDS = StealConfig.Texts.World
 local DEFENCE_WORDS = DefenceConfig.Texts.World
 local STEAL_WORD_RANGE = DefenceConfig.World.StealWordRange
+local CARRIED_DELAY = DefenceConfig.World.Carried.Delay
 local LOCK_LEVELS = #DefenceConfig.Lock.Levels
 local BERRY = UIConfig.Palette.Berry
 -- Атрибуты модели базы, от которых зависит строка защит надписи садка (DefenceService).
@@ -280,7 +289,8 @@ type Base = {
 	distance: number,
 	owner: number,
 	sign: TankDisplay.Pair?,
-	defence: TankDisplay.Defence?, -- строка защит надписи садка (Этап 4)
+	defence: TankDisplay.Defence?, -- строка защит над надписью садка (Этап 4; своё слово)
+	clockGen: number, -- поколение часов «🛡️ 0:42» (цепочка по целым секундам)
 	prompt: ProximityPrompt?,
 	leaving: { [Model]: boolean }, -- уходящие рыбы (сжимаются): убрать вместе с базой
 }
@@ -310,10 +320,10 @@ local faded: { [BillboardGui]: boolean } = {}
 local arcs = 0 -- новых копий рыбы в полёте (возврат с головы вора; Steal.MaxArcs)
 local tagCap, signCap = TankDisplay.tagCap(390), TankDisplay.signCap(390)
 local tagCapHeight = 0 -- высота экрана, по которой они посчитаны
--- Надпись садка у потолка букв: «+$1 234/с» ≈ SIGN_W потолков в ширину, две строки ≈ SIGN_H
--- (со строкой защит — SIGN_H_ROW).
+-- Надпись садка у потолка букв: «+$1 234/с» ≈ SIGN_W потолков в ширину, две строки ≈ SIGN_H;
+-- строка защит над ней (своё слово FxTankSignRow) — SIGN_H_ROW.
 local SIGN_W, SIGN_H = 7, 1.8
-local SIGN_H_ROW = SIGN_H * (1 + DISPLAY.Sign.DefenceShare)
+local SIGN_H_ROW = SIGN_H * DISPLAY.Sign.DefenceShare
 -- Слова мира других контроллеров под тем же правилом «не под HUD» (TrackWord: TheftWorldController
 -- — «ВОР!», табличка рыбы на голове вора, «ГАВ!»): потолок букв, как у wordRect.
 type Track = { cap: number?, capW: number?, capH: number? }
@@ -690,12 +700,36 @@ local function clearWord(gui: BillboardGui?, rects: { Rect }?, cap: number?, cap
 	end
 end
 
+-- Прямоугольник шире на px с каждой стороны.
+local function grow(r: Rect, px: number): Rect
+	return { x0 = r.x0 - px, y0 = r.y0 - px, x1 = r.x1 + px, y1 = r.y1 + px }
+end
+
 -- Все слова (цепочка проверок, новое уведомление).
 local function clearHud()
-	if not Workspace.CurrentCamera then
+	local camera = Workspace.CurrentCamera
+	if not camera then
 		return
 	end
 	local rects = hudRects()
+	-- «УНОСЯТ!» тает и у слов над людьми (TrackWord: табличка рыбы на голове вора, «ВОР!», «ГАВ!»):
+	-- вор с рыбой ещё у витрины — его табличка там же, где слово (Wave 3 ART-03); ближе
+	-- Clear.Words px (у clearWord — Margin: прямоугольники шире на разницу). Считаются, только
+	-- если какую-то витрину выносят.
+	local nearWords: { Rect }? = nil
+	local function carryRects(): { Rect }
+		if not nearWords then
+			local list = table.clone(rects)
+			for gui, spec in tracked do
+				local r = if gui.Parent ~= nil then wordRect(gui, camera, spec.cap, spec.capW, spec.capH) else nil
+				if r then
+					table.insert(list, grow(r, math.max(CLEAR.Words - CLEAR.Margin, 0)))
+				end
+			end
+			nearWords = list
+		end
+		return nearWords :: { Rect }
+	end
 	-- (ушедшие слова — из таблицы)
 	for gui in faded do
 		if gui.Parent == nil then
@@ -703,14 +737,19 @@ local function clearHud()
 		end
 	end
 	for _, base in bases do
+		-- надпись садка и строка защит над ней тают порознь (Wave 3 ART-01: строка у кошелька не
+		-- прячет «+$42/с · 🐠 4/6»)
+		clearWord(base.sign and base.sign.gui, rects, signCap, SIGN_W, SIGN_H)
 		local row = base.defence
-		clearWord(base.sign and base.sign.gui, rects, signCap, SIGN_W, if row and row.shown then SIGN_H_ROW else SIGN_H)
+		clearWord(row and row.gui, rects, signCap, SIGN_W, SIGN_H_ROW)
 		for _, slot in base.slots do
 			clearWord(slot.tag and slot.tag.gui, rects, tagCap)
 			clearWord(slot.lockGui, rects)
 			local steal = slot.steal
 			local word = steal and steal.word
-			clearWord(word and word.gui, rects, tagCap, 4, 1.4)
+			if steal and word then
+				clearWord(word.gui, if steal.phase == "carry" then carryRects() else rects, tagCap, 4, 1.4)
+			end
 		end
 	end
 	clearWord(pier.word and pier.word.gui, rects)
@@ -1489,6 +1528,10 @@ local function refresh(base: Base, slot: Slot)
 				model:Destroy()
 			end
 		end
+		if steal.phase ~= "carry" then
+			-- (табличка рыбы вора выскакивает через Carried.Delay — «УНОСЯТ!» уступает ей сразу)
+			task.delay(CARRIED_DELAY + 0.05, clearHud)
+		end
 		steal.phase = "carry"
 		steal.spot = thiefSpot(info.stealBy) or steal.spot
 		slot.queued = false
@@ -1595,6 +1638,7 @@ local function updateSign(base: Base)
 	local tank = base.tank
 	local count, slots = num(tank, "Count"), num(tank, "Slots")
 	local show = base.owner > 0 and count ~= nil and slots ~= nil
+	local row = base.defence
 	if show and not base.sign then
 		local glass = base.glass
 		local at = glass.CFrame
@@ -1620,18 +1664,41 @@ local function updateSign(base: Base)
 			TankRules.FormatRate(income10),
 			TextUtil.fill(TEXTS.TankCount, { count = count or 0, slots = slots or 0 })
 		)
-		-- Этап 4: третья строка — защита базы «🛡️ 0:42» (любая; готов ли щит — никогда) и
-		-- купленные защиты «🔐1 · 🐕 · 🚨» (видят все)
-		local protect, owned = defenceTexts(base.model)
-		local row = base.defence
-		if (protect or owned) and not row then
-			row = TankDisplay.signDefence(sign, signCap)
-			base.defence = row
-		end
-		if row then
-			TankDisplay.setSignDefence(sign, row, protect, owned)
-		end
 	end
+	-- Этап 4: строка над надписью — защита базы «🛡️ 0:42» (любая; готов ли щит — никогда) и
+	-- купленные защиты «🔐1 · 🐕 · 🚨» (видят все); своё слово на той же точке
+	local protect, owned = defenceTexts(base.model)
+	local point = sign.gui.Parent
+	if show and (protect or owned) and not row and point then
+		row = TankDisplay.signDefence(point, signCap)
+		base.defence = row
+		clearWord(row.gui, nil, signCap, SIGN_W, SIGN_H_ROW)
+	end
+	if row then
+		TankDisplay.setSignDefence(row, protect, owned, show)
+	end
+end
+
+-- Часы «🛡️ 0:42» строки защит — по целым секундам до конца защиты (как фишка щита у плашки
+-- базы, DefenceController, и табличка флага, TheftWorldController): цепочка task.delay ровно до
+-- смены числа, только пока база построена и под защитой (Wave 3 ART-04: раньше — раз в TagEvery
+-- цепочки проверок, и «🛡️ 4:12» над аквариумом стояло рядом с «4:11» фишки и флага).
+local function clockStep(base: Base, gen: number)
+	if base.clockGen ~= gen or bases[base.model] ~= base then
+		return
+	end
+	updateSign(base)
+	local untilAt = num(base.model, "ProtectUntil")
+	local left = if untilAt then untilAt - Workspace:GetServerTimeNow() else 0
+	if left <= 0 then
+		return
+	end
+	task.delay(math.max(left - math.floor(left), 0.01), clockStep, base, gen)
+end
+
+local function syncClock(base: Base)
+	base.clockGen += 1
+	clockStep(base, base.clockGen)
 end
 
 -- Кнопка садка: у чужой базы спрятана на этом клиенте; стала своей — как у сервера.
@@ -1696,6 +1763,7 @@ local function build(model: Model, distance: number): Base?
 		owner = num(model, "OwnerUserId") or 0,
 		sign = nil,
 		defence = nil,
+		clockGen = 0,
 		prompt = nil,
 		leaving = {},
 	}
@@ -1752,6 +1820,8 @@ local function build(model: Model, distance: number): Base?
 	base.trove:Connect(model.AttributeChanged, function(name: string)
 		if name == "OwnerUserId" then
 			ownerChanged(base)
+		elseif name == "ProtectUntil" then
+			syncClock(base) -- (Этап 4: строка защит и её часы)
 		elseif SIGN_ATTRIBUTES[name] then
 			updateSign(base) -- (Этап 4: строка защит)
 		end
@@ -1775,8 +1845,9 @@ local function build(model: Model, distance: number): Base?
 		table.clear(base.leaving)
 		base.sign = nil
 		base.defence = nil
+		base.clockGen += 1
 	end)
-	updateSign(base)
+	syncClock(base)
 	applyPrompt(base)
 	return base
 end
@@ -2146,10 +2217,6 @@ local function check()
 		if not base.prompt then
 			applyPrompt(base)
 		end
-		-- Этап 4: «🛡️ 0:42» на надписи садка идёт раз в TagEvery с
-		if tagTime and base.sign and num(base.model, "ProtectUntil") then
-			updateSign(base)
-		end
 	end
 	lastBuilds = built
 	-- доход над ведром
@@ -2195,6 +2262,12 @@ function TankWorldController.GetTag(base: Instance, index: number): BillboardGui
 	local slot = slotOf(base, index)
 	local tag = slot and slot.tag
 	return tag and tag.gui
+end
+
+function TankWorldController.GetSignRow(base: Instance): BillboardGui?
+	local b = bases[base :: Model]
+	local row = b and b.defence
+	return row and row.gui
 end
 
 function TankWorldController.GetSign(base: Instance): BillboardGui?

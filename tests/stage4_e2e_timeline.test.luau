@@ -90,11 +90,7 @@ tests["(7) the timeline: the victim in the minigame taps the column «ЩИТ!» 
 		end, 0.5, E.FRAME),
 		"the thief's «СОРВАЛОСЬ!»"
 	)
-	t.eq(
-		tu.barReason.Text,
-		E.CANCEL.shield,
-		"«Хозяин включил щит — рыба вернулась домой»"
-	)
+	t.eq(tu.barReason.Text, E.CANCEL.shield, "«Хозяин включил щит — рыба дома»")
 	sim:Advance(0.3)
 	t.eq(E.slot(sim, victim, 3):GetAttribute("FishUid"), uid, "the fish is home")
 	-- The minigame never noticed.

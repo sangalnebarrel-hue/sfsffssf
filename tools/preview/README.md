@@ -816,6 +816,7 @@ warning, not a crash (clicks are forced). A scenario is
 	server = true,                            -- the real FishingService (a second sim)
 	world = true,                             -- record the whole 3D world (gui/world_capture.luau)
 	ambient = false,                          -- … without the ambient life
+	ownInPlace = true,                        -- … the own character where he stands (not on the spot)
 	during = function(h) ... end,             -- keeps playing while the frames are dumped
 	beats = { spec, ... },                    -- replaces DEFAULT_BEATS; extraBeats adds to them
 	fresh = true, settle = s, standard = false,

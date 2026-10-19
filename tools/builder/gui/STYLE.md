@@ -1141,6 +1141,27 @@ RenderStepped connection for all running frame effects, disconnected when none r
   - **Toasts enter and leave inside their column** (C-31): a toast drops in from no higher than
     the column's free top (`ENTER_DROP` capped at its slot's scale above the reserved bands) and
     rises out by ≤ `LEAVE_RISE` px within the column, so a pop-in never crosses `HUD.Status`.
+  - **Never on the own fisher, even without an alert** (Wave 3 UX-06 / ART-06 / ART-08): on a
+    tablet and a PC the toast stack ends `FISHER_GAP` over `FishingLayout.fisherBox` whenever he
+    is under the column (the first toast always shows, the rest queue — no burst of three on his
+    head after a loss); the victim's plate lifts towards the status stack (then shorter, never
+    under `Theft.PlateHeight`) so its lip stays ≥ 16 px off his hair; on a phone a two-line
+    broadcast that would reach his head is one line «Кто: ЧТО» (≥ 12 px). A toast a band pushed
+    out early and that then waited longer than its own life is stale and dropped (UX-05).
+  - **A locked control explains itself in place** (UX-07): the carry's locked «🔒 ДОМОЙ» wiggles
+    and the thief's bar line says why («🔒 Сначала за ограду!», `Theft.Bar.LockedTime`); no toast
+    (the thief's toasts wait for the theft's end) and nothing to the server.
+  - **One line for the fail reason** (ART-05): «СОРВАЛОСЬ!» may grow past `Theft.WidthMax` within
+    the bottom band so its reason fits one line at the Body tier (measured with a slack over the
+    per-letter estimate); keep `Cancel` reasons short (≤ ~35 letters).
+  - **World words** (Wave 3 ART-01 / 02 / 03 / 07): every Stage 4 world word is under the HUD rule
+    (`TankWorldController.TrackWord` or its own `clearWord`) with letters capped by the display
+    tags' cap (`TankDisplay.cap`; the dog's «ГАВ!» at `Dog.BarkCap` caps — never louder than the
+    Wallet); a new line on an existing world word is its own BillboardGui on the same point (the
+    tank sign's protection row `FxTankSignRow`: by the Wallet only the row fades, never the stage
+    3 sign under it); «УНОСЯТ!» yields to the words over people (the thief's plate, «ВОР!»,
+    «ГАВ!») by `Display.Clear.Words` px; one protection clock everywhere (chip, flag label, tank
+    row: each a chain to the next whole second).
 
 ### 6.6 Rules for the next agents
 

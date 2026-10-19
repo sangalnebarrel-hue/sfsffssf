@@ -30,7 +30,10 @@
 	  thief_carry        the carry: «🏃 БЕГИ ЗА ОГРАДУ!» draining, «🐕 СОБАКА!» (Slowed), the
 	                     StolenFish on his head, the red chevrons to the gate
 	  thief_guide        the carry from his follow camera in the open court: the chevrons on the
-	                     ground crawling to the gate, the green ring and «ВЫХОД» (C-17)
+	                     ground crawling to the gate, the green ring and «ВЫХОД» (C-17); his body
+	                     drawn where he runs (ownInPlace)
+	  thief_carry_follow the showcase's carry (Wave 3 ART-10): his follow camera, his body with
+	                     the Puffer on his head, the dog at his heels, «🐕 СОБАКА!», «ВЫХОД»
 	  thief_tap          a quick tap (a real local hold let go after 0.3 s): the glass hint «Не
 	                     отпускай «Украсть»…», not «СОРВАЛОСЬ!» (C-20)
 	  thief_done         over the gate: «ДОБЫЧА!» + «Фугу — в твоём садке · +$3.2/с», confetti,
@@ -67,6 +70,8 @@ local NEIGHBOUR = {
 
 return function(H: { [string]: any }): { any }
 	local at = H.at
+	-- thief_carry_follow's camera: this many studs to the right of the thief's follow camera.
+	local SIDE = 3.5
 
 	-- HUD.Status hides while HUD.Stealing is set (HudController, wave 2 D): mocked until D's
 	-- HudController handles it (then this does nothing).
@@ -91,15 +96,17 @@ return function(H: { [string]: any }): { any }
 	end
 
 	-- The follow camera behind `who` (12.5 studs, 20° down, like Roblox's default and the
-	-- preview's): from the HRP and its facing.
-	local function follow(h: any, who: any)
+	-- preview's): from the HRP and its facing; `side` studs to his right (the kid has orbited
+	-- the camera a little: the path ahead shows past his body).
+	local function follow(h: any, who: any, side: number?)
 		local root = who.Character and who.Character:FindFirstChild("HumanoidRootPart")
 		if not (root and h.world) then
 			return
 		end
 		local look = root.CFrame.LookVector
 		local flat = Vector3.new(look.X, 0, look.Z).Unit
-		local eye = root.Position - flat * 11.7 + Vector3.new(0, 5.7, 0)
+		local right = flat:Cross(Vector3.new(0, 1, 0))
+		local eye = root.Position - flat * 11.7 + right * (side or 0) + Vector3.new(0, 5.7, 0)
 		h.world:setCamera(eye, root.Position + Vector3.new(0, 1.4, 0), 70)
 	end
 
@@ -269,8 +276,8 @@ return function(H: { [string]: any }): { any }
 	end
 
 	-- The thief walks from where he stands towards a base-local point at `speed` studs/s for
-	-- `seconds` (the camera follows; one teleport per 1/15 s).
-	local function walk(h: any, to: { number }, speed: number, seconds: number)
+	-- `seconds` (the camera follows, `side` studs to his right; one teleport per 1/15 s).
+	local function walk(h: any, to: { number }, speed: number, seconds: number, side: number?)
 		local root = h.player.Character and h.player.Character:FindFirstChild("HumanoidRootPart")
 		if not root then
 			return
@@ -286,7 +293,7 @@ return function(H: { [string]: any }): { any }
 				local next = here + move
 				h.sim:Teleport(h.player, CFrame.lookAt(next, next + ahead.Unit))
 			end
-			follow(h, h.player)
+			follow(h, h.player, side)
 			h:advance(step)
 			t += step
 		end
@@ -416,6 +423,25 @@ return function(H: { [string]: any }): { any }
 			end,
 		},
 		{
+			name = "thief_carry_home_locked",
+			desc = "Wave 3 (UX-07): in the carry the kid taps the locked «🔒 ДОМОЙ» — it wiggles, the 🔒 beats, and the bar's line says why for Bar.LockedTime: «🔒 Сначала за ограду!» (then «Не попадись хозяину» again); nothing is sent to the server",
+			world = true,
+			standard = false,
+			still = { 0.5, 2.4 },
+			burst = false,
+			run = function(h: any)
+				statusRule(h)
+				h:money(1215, 459)
+				H.court(h, { -14, 8.9, 66.7 }, { -14, 4.6, 55 }, 70)
+				H.place(h, h.player, { -14, 3.2, 55 }, { -14, 0, 40 })
+				holdOn(h, 3, 3)
+				h:advance(0.3)
+				carryOn(h, 3, "Puffer", false)
+				h:advance(0.4)
+				h:click("HUD.RightButtons.HomeButton")
+			end,
+		},
+		{
 			name = "thief_carry_trophy",
 			desc = "Wave 3 (C-32): the carry while someone else's Legendary pillar burns off screen to the right — the 🌟 trophy chip beside the three-button column stays ≥ 16 px from the bottom-band TheftBar and its «🐕 СОБАКА!» chip (the broadcast toast waits for the theft)",
 			world = true,
@@ -446,8 +472,9 @@ return function(H: { [string]: any }): { any }
 		},
 		{
 			name = "thief_guide",
-			desc = "The carry from the thief's follow camera in the open court: the red chevrons on the ground from him to the nearest exit (the gate), crawling to it every BeamEvery s, the breathing green ring and «ВЫХОД» over the exit",
+			desc = "The carry from the thief's follow camera in the open court (his body drawn where he runs, the Puffer on his head): the red chevrons on the ground from him to the nearest exit (the gate), crawling to it every BeamEvery s, the breathing green ring and «ВЫХОД» over the exit",
 			world = true,
+			ownInPlace = true,
 			standard = false,
 			still = { 0.3, 0.55, 1.2 },
 			burst = false,
@@ -462,6 +489,38 @@ return function(H: { [string]: any }): { any }
 			end,
 			during = function(h: any)
 				walk(h, { 0, 3.2, 14 }, 6.8, 1.3)
+			end,
+		},
+		{
+			name = "thief_carry_follow",
+			desc = "Wave 3 (ART-10, the showcase's carry): the thief's own follow camera with his body drawn where he runs (ownInPlace) — the Puffer on his head, the dog at his heels, «🏃 БЕГИ ЗА ОГРАДУ!» draining with «🐕 СОБАКА!» (Slowed), the red chevrons to the gate, the ring and «ВЫХОД»",
+			world = true,
+			ownInPlace = true,
+			standard = false,
+			still = { 0.6, 1.2 },
+			burst = false,
+			run = function(h: any)
+				statusRule(h)
+				h:money(1215, 459)
+				H.place(h, h.player, { -10, 3.2, 54 }, { 0, 0, 14 })
+				holdOn(h, 3, 3)
+				h:advance(0.2)
+				carryOn(h, 3, "Puffer", true)
+				H.showDog(h)
+				H.dogTo(h, "Chase", -13.6, 55, h.player)
+				follow(h, h.player, SIDE)
+			end,
+			during = function(h: any)
+				-- he runs for the gate (slowed), the dog at his heels on his left (not before the camera)
+				local root = h.player.Character and h.player.Character:FindFirstChild("HumanoidRootPart")
+				local base = h:base()
+				for _ = 1, 6 do
+					walk(h, { 0, 3.2, 14 }, 6.8, 0.2, SIDE)
+					if root and base then
+						local here = base:GetPivot():PointToObjectSpace(root.Position)
+						H.dogTo(h, "Chase", here.X - 3.6, here.Z + 1, h.player)
+					end
+				end
 			end,
 		},
 		{
@@ -517,7 +576,7 @@ return function(H: { [string]: any }): { any }
 		},
 		{
 			name = "thief_fail",
-			desc = "The owner raised the shield mid-hold: «💨 СОРВАЛОСЬ!» on Berry, shaking, «Хозяин включил щит — рыба вернулась домой»; gone after FailTime",
+			desc = "The owner raised the shield mid-hold: «💨 СОРВАЛОСЬ!» on Berry, shaking, «Хозяин включил щит — рыба дома» on one line on every screen; gone after FailTime",
 			world = true,
 			standard = false,
 			still = { 0.2, 1.0 },

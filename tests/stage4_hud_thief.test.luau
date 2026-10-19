@@ -48,7 +48,11 @@
 	    «нет» and opens nothing, a failure never opens it;
 	  • wave 3 (integration): «ВЫХОД» waits for a «ГАВ!» that will rise into it, for one that runs
 	    into it between two steps of the guide and for one that was there before the carry; the
-	    owner's alert asks for the column's top while the thief's band holds the whole column.
+	    owner's alert asks for the column's top while the thief's band holds the whole column;
+	    (wave 3 fix) «ВЫХОД» reads its own client's bark folder, not another client's
+	    Workspace.TheftWorld found first by name (ART-09); every «СОРВАЛОСЬ!» reason on one line
+	    at its full size on a tablet / PC (ART-05); the locked «ДОМОЙ» tapped in the carry says
+	    why in the bar (UX-07).
 
 	Run: lune run tools/run_tests.luau stage4_hud_thief
 ]]
@@ -983,11 +987,7 @@ tests["Cancel: the owner's shield mid-hold → «СОРВАЛОСЬ!» with the 
 	t.eq(modeOf(sim, thief), "fail", "«СОРВАЛОСЬ!»")
 	t.eq(u.title.Text, BANNER.Fail, "the title")
 	t.eq(u.reason.Text, cancel and cancel.Text, "the server's reason")
-	t.eq(
-		u.reason.Text,
-		TEXTS.Cancel.shield,
-		"«Хозяин включил щит — рыба вернулась домой»"
-	)
+	t.eq(u.reason.Text, TEXTS.Cancel.shield, "«Хозяин включил щит — рыба дома»")
 	t.ok(u.reason.Visible and not u.holder.Visible and not u.sub.Visible, "the reason under the title, no bar")
 	t.eq(u.hud:GetAttribute("Stealing"), nil, "HUD.Stealing cleared")
 	sim:Advance(SPEC.FailTime + 0.4)
@@ -1576,6 +1576,54 @@ tests["«ВЫХОД» waits while a «ГАВ!» crosses it on screen and comes b
 	t.eq(#sim.Errors, 0, sim:FormatErrors())
 end
 
+tests["«ВЫХОД» watches its own client's «ГАВ!» (TheftWorldController.Folder), not another client's Workspace.TheftWorld found by name (wave 3 ART-09: «ВЫХОДГАВ!» in the batch renders)"] = function(
+	t
+)
+	local sim = S.boot(t)
+	-- a bystander whose client starts first: his TheftWorld is the first one by that name
+	local bystander = S.player(t, sim, 297, { client = true, device = "desktop" })
+	local victim = S.player(t, sim, 298, { tank = VICTIM })
+	local thief = S.player(t, sim, 299, { tank = THIEF, client = true, device = "phone" })
+	local own = S.client(sim, thief, "TheftWorldController").Stats().folder
+	local first = sim.workspace:FindFirstChild("TheftWorld")
+	t.ok(own ~= nil and first ~= nil and first ~= own, "another client's TheftWorld is found first by name")
+	t.eq(S.client(sim, bystander, "TheftWorldController").Stats().folder, first, "… the bystander's")
+	sim:Teleport(victim, S.exitPoint(S.baseOf(sim, thief), "gate"))
+	sim:Advance(1.5)
+	S.toCarry(t, sim, thief, victim, 3)
+	sim:Advance(0.5)
+	local guide = sim.workspace:FindFirstChild("TheftGuide")
+	local ring = guide and guide:FindFirstChild("Ring")
+	local label = guide and guide:FindFirstChild("ExitLabel")
+	t.ok(ring ~= nil and label ~= nil, "the ring and «ВЫХОД»")
+	if not (ring and label) then
+		return
+	end
+	local camera = sim.workspace.CurrentCamera
+	sim:Run(function()
+		camera.CFrame = CFrame.lookAt(ring.Position + Vector3.new(0, 12, 30), ring.Position)
+		camera.FieldOfView = 70
+	end, thief)
+	sim:Advance(SPEC.BeamEvery + S.FRAME)
+	t.ok(label.Enabled, "«ВЫХОД» shown")
+	-- the thief's own dog bark (in HIS folder) right over «ВЫХОД»
+	local gui = sim:Create("BillboardGui", {
+		Name = "FxTankPop",
+		Size = UDim2.new(3, 30, 1.2, 14),
+		Adornee = ring,
+		StudsOffsetWorldSpace = Vector3.new(0, GUIDE.Label.Lift, 0),
+		AlwaysOnTop = true,
+		MaxDistance = 400,
+	}, own)
+	sim:Create("TextLabel", { Name = "Amount", Text = "ГАВ!", TextScaled = true, Size = UDim2.fromScale(1, 1) }, gui)
+	sim:Advance(S.FRAME * 2)
+	t.ok(not label.Enabled, "his own «ГАВ!» over «ВЫХОД»: the label waits")
+	gui:Destroy()
+	sim:Advance(S.FRAME * 2)
+	t.ok(label.Enabled, "gone: «ВЫХОД» back")
+	t.eq(#sim.Errors, 0, sim:FormatErrors())
+end
+
 tests["«ВЫХОД» waits for a «ГАВ!» that will rise into it, and for one that runs into it between two steps of the guide (stage 4 wave 3: «ВЫХОДГАВ!» in thief_carry at 0.5 s)"] = function(
 	t
 )
@@ -1798,7 +1846,7 @@ tests["the first-time hint names the gamepad's way on a console"] = function(t)
 	t.eq(#sim.Errors, 0, sim:FormatErrors())
 end
 
-tests["«СОРВАЛОСЬ!» on 5 screens: every reason at the Body tier on one line, the plate sized to it, ≥ 16 px from the controls"] = function(
+tests["«СОРВАЛОСЬ!» on 5 screens: every reason at the Body tier on one line (at its full size on a tablet / PC — the plate past WidthMax if need be), the plate sized to it, ≥ 16 px from the controls"] = function(
 	t
 )
 	local sim = S.boot(t)
@@ -1816,10 +1864,20 @@ tests["«СОРВАЛОСЬ!» on 5 screens: every reason at the Body tier on on
 			t.eq(modeOf(sim, thief), "fail", `{d.name} {reason}: «СОРВАЛОСЬ!»`)
 			t.eq(u.reason.Text, text, `{d.name} {reason}: the reason`)
 			local limit = u.reason:FindFirstChildOfClass("UITextSizeConstraint")
-			local px = math.max(if limit then limit.MinTextSize else 12, 12)
+			-- (wave 3 ART-05: TextScaled wraps — on a tablet / PC the box fits the line at its
+			-- full Body size, the plate wider than WidthMax if need be; a phone's band may be
+			-- narrower: there the line shrinks to the tier's floor)
+			local big = d.name == "tablet" or d.name == "desktop"
+			local px = if big
+				then call(sim, thief, function()
+					return UiFx.textSize("Body") -- (the tier on this screen: what a fresh client fits)
+				end)
+				else math.max(if limit then limit.MinTextSize else 12, 12)
+			-- (+ 8 % on a tablet / PC: the per-letter estimate runs short of the italic Heavy face —
+			-- «…вернулась домой» wrapped in the renders with the estimate alone)
 			local width = call(sim, thief, function()
 				return UiFx.textWidth(text, px)
-			end)
+			end) * (if big then 1.08 else 1)
 			t.ok(
 				width <= u.reason.AbsoluteSize.X + 0.5,
 				`{d.name} {reason}: one line ({width} ≤ {u.reason.AbsoluteSize.X} at {px} px; plate {fmt(rect(u.bar))})`
@@ -1832,6 +1890,36 @@ tests["«СОРВАЛОСЬ!» on 5 screens: every reason at the Body tier on on
 	end
 	sim:Advance(SPEC.FailTime + 0.4)
 	t.ok(not u.bar.Visible, `gone after FailTime ({SPEC.FailTime} s)`)
+	t.eq(#sim.Errors, 0, sim:FormatErrors())
+end
+
+tests["the locked «🔒 ДОМОЙ» tapped in the carry says why in the bar — «🔒 Сначала за ограду!» for Bar.LockedTime, then «Не попадись хозяину» — and asks the server nothing (wave 3 UX-07)"] = function(
+	t
+)
+	local sim = S.boot(t)
+	local victim = S.player(t, sim, 301, { tank = VICTIM })
+	local thief = S.player(t, sim, 302, { tank = THIEF, client = true, device = "phone" })
+	sim:Teleport(victim, S.exitPoint(S.baseOf(sim, thief), "gate"))
+	sim:Advance(1.5)
+	local u = ui(sim, thief)
+	local home = sim:Gui(thief, "HUD.RightButtons.HomeButton")
+	S.toCarry(t, sim, thief, victim, 3)
+	sim:Advance(0.3)
+	t.eq(modeOf(sim, thief), "carry", "«БЕГИ ЗА ОГРАДУ!»")
+	t.eq(u.sub.Text, BANNER.CarrySub, "«Не попадись хозяину»")
+	local asks = #sim:ServerEventsFor(thief, "RequestHome")
+	sim:Click(thief, home)
+	sim:Advance(S.FRAME * 2)
+	t.eq(u.sub.Text, BANNER.HomeLocked, "the press: «🔒 Сначала за ограду!» in the bar")
+	t.eq(#sim:ServerEventsFor(thief, "RequestHome"), asks, "… the server is not asked")
+	sim:Advance(BAR.LockedTime * 0.6)
+	sim:Click(thief, home)
+	sim:Advance(S.FRAME * 2)
+	sim:Advance(BAR.LockedTime * 0.6)
+	t.eq(u.sub.Text, BANNER.HomeLocked, "a second press keeps it up its own LockedTime")
+	sim:Advance(BAR.LockedTime * 0.5)
+	t.eq(u.sub.Text, BANNER.CarrySub, "then «Не попадись хозяину» again")
+	t.eq(modeOf(sim, thief), "carry", "still the carry")
 	t.eq(#sim.Errors, 0, sim:FormatErrors())
 end
 
