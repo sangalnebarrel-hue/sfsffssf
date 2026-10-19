@@ -293,7 +293,7 @@ local function dogTo(h: any, state: string, x: number, z: number, target: any?)
 	dog:SetAttribute("DogState", state)
 end
 
-return {
+local scenarios = {
 	{
 		name = "steal_hold_follow",
 		desc = "The thief's follow camera in the west aisle during a hold on Slot_3 (the Puffer): the fish lifted under the glass top and tilted to the aisle, struggling, the red pulse at the light bar, «КРАДУТ!» with its ring in front of the glass",
@@ -763,3 +763,23 @@ return {
 		end,
 	},
 }
+
+-- Wave 2 C: the thief's own HUD over these courts (gui_scenarios_theft_ui.luau: thief_*), drawn
+-- with the same helpers.
+local helpers = {
+	at = at,
+	court = court,
+	place = place,
+	steal = steal,
+	carry = carry,
+	alarm = alarm,
+	measure = measure,
+	showDog = showDog,
+	dogTo = dogTo,
+	serverLook = serverLook,
+}
+for _, s in require("./gui_scenarios_theft_ui")(helpers) do
+	table.insert(scenarios, s)
+end
+
+return scenarios

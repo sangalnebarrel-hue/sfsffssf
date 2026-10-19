@@ -181,8 +181,10 @@ local function band(): (number, number)
 	if UserInputService.TouchEnabled then
 		local small = smallTouch()
 		local jump = if small then FishingLayout.JUMP_SMALL else FishingLayout.JUMP_BIG
-		left = math.max(left, (if small then STICK_SMALL else STICK_BIG) + BAR.Gap)
-		right = math.min(right, width - jump.right - jump.size - BAR.Gap)
+		-- (+ размах тряски «СОРВАЛОСЬ!»: и трясясь, плашка не ближе Gap к джойстику и прыжку)
+		local wobble = BAR.Shake * width
+		left = math.max(left, (if small then STICK_SMALL else STICK_BIG) + BAR.Gap + wobble)
+		right = math.min(right, width - jump.right - jump.size - BAR.Gap - wobble)
 	end
 	return left, right
 end
@@ -255,22 +257,57 @@ local function newMode(next: Mode): number
 	return generation
 end
 
--- Показать полосу (если спрятана — выскакивает; уже видна — «удар» по плашке).
+-- Показ и уход виджета с поколением: уход прячет его, только если за время «вдоха» его не
+-- показали снова (иначе отложенное Visible = false спрятало бы новую полосу).
+local shownAt: { [GuiObject]: number } = {}
+local showing: { [GuiObject]: boolean } = {}
+
+local function popShow(gui: GuiObject, opts: { [string]: any })
+	shownAt[gui] = (shownAt[gui] or 0) + 1
+	showing[gui] = true
+	gui.Visible = true
+	UiFx.popIn(gui, opts :: any)
+end
+
+local function popAway(gui: GuiObject, time: number?)
+	shownAt[gui] = (shownAt[gui] or 0) + 1
+	showing[gui] = false
+	if not time then
+		gui.Visible = false
+		return
+	end
+	local token = shownAt[gui]
+	UiFx.popOut(gui, { time = time })
+	task.delay(time, function()
+		if shownAt[gui] == token then
+			gui.Visible = false
+		end
+	end)
+end
+
+local function isShown(gui: GuiObject): boolean
+	return showing[gui] == true and gui.Visible
+end
+
+-- Показать полосу (если спрятана или уходит — выскакивает).
 local function showBar()
-	if not w.bar.Visible then
-		w.bar.Visible = true
-		UiFx.popIn(w.bar, { from = 0.4, time = 0.3 })
+	if not isShown(w.bar) then
+		popShow(w.bar, { from = 0.4, time = 0.3 })
 	end
 end
 
-local function hideBar()
-	if w.bar.Visible then
-		UiFx.popOut(w.bar, { time = 0.2, hide = true })
+local function hideBar(instant: boolean?)
+	if instant then
+		popAway(w.bar, nil) -- («ДОБЫЧА!» встаёт на её место сразу)
+	elseif isShown(w.bar) then
+		popAway(w.bar, 0.2)
 	end
-	w.dog.Visible = false
+	popAway(w.dog, nil)
 end
 
 -- Что видно на плашке: подсказка (Line) или полоса кражи (Title, Sub, Time, Bar).
+local subWidth = 0.66 -- (ширина подписи рядом с таймером: из сборки, Start)
+
 local function layoutFor(hint: boolean, withBar: boolean)
 	w.line.Visible = hint
 	w.title.Visible = not hint
@@ -279,11 +316,16 @@ local function layoutFor(hint: boolean, withBar: boolean)
 		shadow.Visible = not hint
 	end
 	w.sub.Visible = not hint
+	-- (без таймера — «СОРВАЛОСЬ!» с причиной — подпись во всю ширину заголовка)
+	local wide = if withBar then subWidth else w.title.Size.X.Scale
+	if w.sub.Size.X.Scale ~= wide then
+		w.sub.Size = UDim2.new(wide, 0, w.sub.Size.Y.Scale, w.sub.Size.Y.Offset)
+	end
 	w.time.Visible = not hint and withBar
 	local holder = w.fill.Parent :: GuiObject
 	holder.Visible = not hint and withBar
 	if hint then
-		w.dog.Visible = false
+		popAway(w.dog, nil)
 	end
 end
 
@@ -370,7 +412,7 @@ local function showHint(text: string, emoji: string, forSeconds: number?, key: s
 	setIcon(emoji)
 	w.line.Text = text
 	placeBar(hintWidth(text))
-	if not w.bar.Visible then
+	if not isShown(w.bar) then
 		showBar()
 	elseif not same then
 		UiFx.punch(w.line, { from = 0.85, peak = 1.06 })
@@ -496,7 +538,7 @@ local function enterHold(data: { [string]: any })
 		need = need,
 	}
 	celebrationTrove:Clean()
-	w.slam.Visible = false
+	popAway(w.slam, nil)
 	carryTrove:Clean()
 	local token = newMode("hold")
 	hintKey = nil
@@ -568,17 +610,16 @@ end
 local function watchDog()
 	local function update()
 		local slowed = player:GetAttribute("Slowed") == true and mode == "carry"
-		if slowed and not w.dog.Visible then
-			w.dog.Visible = true
-			UiFx.popIn(w.dog, { from = 0.3, time = 0.3, rotate = -12 })
+		if slowed and not isShown(w.dog) then
+			popShow(w.dog, { from = 0.3, time = 0.3, rotate = -12 })
 			UiFx.shake(w.bar, BAR.Shake * 0.5, 0.25)
-		elseif not slowed and w.dog.Visible then
-			UiFx.popOut(w.dog, { time = 0.18, hide = true })
+		elseif not slowed and isShown(w.dog) then
+			popAway(w.dog, 0.18)
 		end
 	end
 	carryTrove:Add(player:GetAttributeChangedSignal("Slowed"):Connect(update))
 	carryTrove:Add(function()
-		w.dog.Visible = false
+		popAway(w.dog, nil)
 	end)
 	update()
 end
@@ -653,7 +694,7 @@ local function headPoint(): Vector2?
 		return nil
 	end
 	local point, onScreen = camera:WorldToScreenPoint(world :: Vector3)
-	if not onScreen or point.Z <= 0 then
+	if not onScreen or point.Z <= 0 or not finite(point.X) or not finite(point.Y) then
 		return nil
 	end
 	local size = w.hud.AbsoluteSize
@@ -671,7 +712,7 @@ local function enterDone(data: { [string]: any })
 	theft = nil
 	local origin = headPoint()
 	local token = newMode("done")
-	hideBar()
+	hideBar(true)
 	celebrationTrove:Clean()
 	setHud("TankIncoming", rarity) -- (держит прилёт «САДОК», пока 🐟 летит)
 	-- «ДОБЫЧА!» — ударом в нижней полосе, подпись — следом.
@@ -680,6 +721,8 @@ local function enterDone(data: { [string]: any })
 		short = shortOf(fishId, nil),
 		rate = TankRules.FormatRate(income10),
 	})
+	shownAt[w.slam] = (shownAt[w.slam] or 0) + 1
+	showing[w.slam] = true
 	w.slam.Visible = true
 	UiFx.slam(w.slamTitle, 2.2, 0.35)
 	UiFx.popIn(w.slamSub, { from = 0.3, time = 0.3, delay = 0.2 })
@@ -703,7 +746,7 @@ local function enterDone(data: { [string]: any })
 		start.BackgroundTransparency = 1
 		start.AnchorPoint = Vector2.new(0.5, 0.5)
 		start.Size = UDim2.fromOffset(2, 2)
-		start.Position = UDim2.fromOffset(at.X, at.Y)
+		start.Position = UDim2.fromOffset(math.round(at.X), math.round(at.Y))
 		start.Parent = w.hud
 		celebrationTrove:Add(UiFx.flyTo(w.hud, start, target, {
 			text = ICONS.Fly,
@@ -722,8 +765,8 @@ local function enterDone(data: { [string]: any })
 	task.delay(SPEC.DoneTime, function()
 		if token == generation then
 			newMode("none")
-			if w.slam.Visible then
-				UiFx.popOut(w.slam, { time = 0.25, hide = true })
+			if isShown(w.slam) then
+				popAway(w.slam, 0.25)
 			end
 			releaseIncoming() -- (подстраховка: полёт не долетел)
 		end
@@ -851,6 +894,7 @@ function TheftController:Start(hud: ScreenGui)
 	bar.Visible = false
 	slam.Visible = false
 	w.dog.Visible = false
+	subWidth = w.sub.Size.X.Scale
 
 	TheftPrompts.Start()
 
