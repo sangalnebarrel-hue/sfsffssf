@@ -126,6 +126,9 @@ local GROUND_UP, GROUND_DOWN = 4, 14 -- луч к земле двора для �
 -- «ГАВ!» собаки (TheftWorldController: TankDisplay.rise в папке Workspace.TheftWorld) — над ним
 -- «ВЫХОД» не пишется (C1-R2-02).
 local WORLD_FOLDER, BARK_NAME = "TheftWorld", "FxTankPop"
+-- Ширина буквы слова мира в долях кегля (Montserrat Heavy Italic); TextScaled не крупнее кегля 100 —
+-- в широкой рамке вблизи буквы уже рамки (рамка «ГАВ!» у камеры — 388 px, буквы — 200).
+local GLYPH, SCALED_MAX = 0.5, 100
 
 -- Значок подсказки по причине отказа: ожидание, защита, хозяин рядом, остальное — рыба.
 local WAIT_REASONS = { cooldown = true, tagged = true, new = true, loading = true, nobase = true, busy = true }
@@ -737,8 +740,13 @@ local function groundParams(base: Model): RaycastParams?
 end
 
 -- Рамка слова мира на экране (px, как AbsolutePosition) или nil: выключено, без Adornee-детали,
--- за камерой. Size: Scale — studs, Offset — px (как у TankWorldController).
-local function wordBox(gui: BillboardGui, camera: Camera): { x0: number, y0: number, x1: number, y1: number }?
+-- за камерой. Size: Scale — studs, Offset — px (как у TankWorldController). text — по ширине букв
+-- этой надписи (TextScaled), а не всей рамки.
+local function wordBox(
+	gui: BillboardGui,
+	camera: Camera,
+	text: string?
+): { x0: number, y0: number, x1: number, y1: number }?
 	local adornee = gui.Adornee
 	if not gui.Enabled or not (adornee and adornee:IsA("BasePart")) then
 		return nil
@@ -750,8 +758,12 @@ local function wordBox(gui: BillboardGui, camera: Camera): { x0: number, y0: num
 	end
 	local perStud = camera.ViewportSize.Y / (2 * p.Z * math.tan(math.rad(camera.FieldOfView) / 2))
 	local size = gui.Size
-	local half = Vector2.new(size.X.Scale * perStud + size.X.Offset, size.Y.Scale * perStud + size.Y.Offset) / 2
-	return { x0 = p.X - half.X, y0 = p.Y - half.Y, x1 = p.X + half.X, y1 = p.Y + half.Y }
+	local w = size.X.Scale * perStud + size.X.Offset
+	local h = size.Y.Scale * perStud + size.Y.Offset
+	if text then
+		w = math.min(w, (utf8.len(text) or #text) * GLYPH * math.min(h, SCALED_MAX))
+	end
+	return { x0 = p.X - w / 2, y0 = p.Y - h / 2, x1 = p.X + w / 2, y1 = p.Y + h / 2 }
 end
 
 local function guidePart(name: string, size: Vector3, color: Color3, parent: Instance): Part
@@ -836,7 +848,8 @@ local function startGuide()
 		end
 		for _, item in (barks :: Instance):GetChildren() do
 			if item.Name == BARK_NAME and item:IsA("BillboardGui") then
-				local other = wordBox(item, camera)
+				local word = item:FindFirstChildWhichIsA("TextLabel", true)
+				local other = wordBox(item, camera, if word then word.Text else nil)
 				if
 					other
 					and mine.x0 < other.x1 + clearPad

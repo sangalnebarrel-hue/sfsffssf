@@ -1532,7 +1532,7 @@ tests["«ВЫХОД» waits while a «ГАВ!» crosses it on screen and comes b
 	local world = S.client(sim, thief, "TheftWorldController").Stats().folder
 	-- A «ГАВ!» as TheftWorldController makes it (TankDisplay.rise: FxTankPop, studs + px, on top).
 	local function bark(offset: any): any
-		return sim:Create("BillboardGui", {
+		local gui = sim:Create("BillboardGui", {
 			Name = "FxTankPop",
 			Size = UDim2.new(3, 30, 1.2, 14),
 			Adornee = ring,
@@ -1540,6 +1540,12 @@ tests["«ВЫХОД» waits while a «ГАВ!» crosses it on screen and comes b
 			AlwaysOnTop = true,
 			MaxDistance = 400,
 		}, world)
+		sim:Create(
+			"TextLabel",
+			{ Name = "Amount", Text = "ГАВ!", TextScaled = true, Size = UDim2.fromScale(1, 1) },
+			gui
+		)
+		return gui
 	end
 	local over = bark(Vector3.new(0, GUIDE.Label.Lift, 0))
 	sim:Advance(S.FRAME * 2)
