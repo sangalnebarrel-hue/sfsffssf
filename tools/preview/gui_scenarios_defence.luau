@@ -3,7 +3,7 @@
 	(gui_dump.luau loads them after gui_scenarios_panel.luau; the same scenario format, part of the
 	standard set, so `gui_render.py --all` checks them on every device; docs/stage4_design.md §7.9):
 	the owner's alert «🚨 ВОР В САДКЕ!» (the plate in the toast column on a tablet / desktop, the
-	Compact pill beside the fisher on phones; idle, the bite, the minigame, the trophy, a catch
+	Compact pill beside the fisher on phones; idle, the bite, the minigame, the longest name, a catch
 	card hurried away, the carry, the shield recharging, while stealing himself), the result toasts,
 	the intruder toast, the shield chip «🛡️ 0:42» (all kinds), the protection's ending lesson, the
 	«ЗАЩИТА» button (idle, «ЩИТ!», recharging), the «ЗАЩИТА» sheet (cards, bought, the two-tap
