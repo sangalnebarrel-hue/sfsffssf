@@ -460,7 +460,8 @@ local function dismiss(toast: Toast, quick: boolean?)
 	local column = container
 	local columnHeight = if column then column.AbsoluteSize.Y else 0
 	local room = math.max(0, frame.Position.Y.Scale - reservedShare()) * columnHeight
-	local rise = math.min(LEAVE_RISE, room)
+	-- (колонка ещё не разложена — высота 0, доля слота не число: не двигаем, px — целые)
+	local rise = if room == room and room < math.huge then math.round(math.min(LEAVE_RISE, room)) else 0
 	UiFx.tween(frame, time, { Position = frame.Position - UDim2.fromOffset(0, rise), Rotation = 4 }, quad, inDir)
 	UiFx.tween(UiFx.scaleOf(frame), time, { Scale = 0.92 }, quad, inDir)
 	UiFx.fadeOut(frame, time)
