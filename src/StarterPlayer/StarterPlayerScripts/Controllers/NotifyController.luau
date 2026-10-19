@@ -69,9 +69,14 @@
 	мини-игры и улова (то же правило, что у уведомлений). Пока есть хоть один значок — один
 	покадровый эффект планировщика UiFx (где столб относительно камеры); нет значков — ничего.
 	Этап 4: в колонке справа три кнопки («ЗАЩИТА» над «САДОК» и «ДОМОЙ») — над ней места для
-	значка нет (телефоны, планшет): значок с правой стороны встаёт СЛЕВА от колонки, у её низа
-	(у верха — уведомления; острый край — в POINTER.SideGap px от кнопок; следующий — выше);
-	места над колонкой хватает (компьютер) — как раньше.
+	значка нет (телефоны, планшет): значок с правой стороны встаёт СЛЕВА от колонки (острый край —
+	в POINTER.SideGap px от кнопок) на самом нижнем свободном месте этой полосы — от низа колонки
+	(на тач-экране — над кнопкой прыжка) вверх шагами POINTER.Step: ≥ 16 px (и POINTER.Ink на
+	обводки) от кнопок рыбалки (HUD.Fishing.ActionArea: «ЗАБРОСИТЬ», «СМОТАТЬ» с подписями — там
+	правый большой палец), видимых уведомлений, плашки тревоги, плашек статуса (с фишкой щита и
+	цифрами кошелька) и прочих значков; свободного места нет — значок спрятан, пока не появится
+	(рука ребёнка важнее подсказки, где чужой улов); места над колонкой хватает (компьютер) — как
+	раньше.
 ]]
 
 local Players = game:GetService("Players")
@@ -146,9 +151,11 @@ local BIG_LINE = 1.22 -- высота строки в размерах её те
 -- px, «тычет» к краю на Bob px за Period с; смотрим на точку столба на Lift studs над землёй;
 -- значков не больше Max (лишний уходит — самый старый). Над колонкой кнопок — ColumnGap px от
 -- края кольца (толстая обводка и кольцо цвета базы выходят за значок; правило — ≥ 16 px).
--- Этап 4: три кнопки в колонке и над ней нет места — значок слева от колонки, у её низа, SideGap
--- px от кнопок (ColumnGap и острый край с обводкой, они выступают за «reach»); на тач-экране —
--- кольцо (Ring его размера от центра) JumpGap px над кнопкой прыжка (SmallTouch — маленькая кнопка).
+-- Этап 4: три кнопки в колонке и над ней нет места — значок слева от колонки, SideGap px от кнопок
+-- (ColumnGap и острый край с обводкой, они выступают за «reach»), на самом нижнем свободном месте:
+-- от низа колонки (на тач-экране — кольцо (Ring его размера от центра) JumpGap px над кнопкой
+-- прыжка; SmallTouch — маленькая кнопка) вверх шагами Step px, не выше Top px от верха HUD; до
+-- соседей — 16 px и Ink на обводки.
 local POINTER = {
 	Y = 0.38,
 	Stack = 1.35,
@@ -162,7 +169,11 @@ local POINTER = {
 	JumpGap = 17,
 	Ring = 0.71,
 	SmallTouch = 500,
+	Step = 4,
+	Ink = 6,
+	Top = 8,
 }
+local MIN_GAP = 16 -- значок у колонки — до соседних виджетов (правило 16 px), px
 
 local NotifyController = {}
 
@@ -802,6 +813,68 @@ local function aimPointer(pointer: Pointer, right: boolean)
 	end
 end
 
+type Box = { x0: number, y0: number, x1: number, y1: number }
+
+-- Виден ли элемент (он и все его предки до stop).
+local function shownUnder(item: Instance, stop: Instance): boolean
+	local node: Instance? = item
+	while node and node ~= stop do
+		if node:IsA("GuiObject") and not node.Visible then
+			return false
+		end
+		node = node.Parent
+	end
+	return node == stop
+end
+
+-- Что значок у колонки не закрывает (px HUD): кнопки рыбалки с подписями, видимые уведомления,
+-- плашка тревоги, плашки статуса (их цифры свисают на POINTER.Ink ниже).
+local function pointerKeepouts(hud: GuiObject): { Box }
+	local origin = hud.AbsolutePosition
+	local out: { Box } = {}
+	local function add(item: Instance?, below: number?)
+		if item and item:IsA("GuiObject") and shownUnder(item, hud) then
+			local at, size = item.AbsolutePosition - origin, item.AbsoluteSize
+			if size.X > 0 and size.Y > 0 then
+				table.insert(out, { x0 = at.X, y0 = at.Y, x1 = at.X + size.X, y1 = at.Y + size.Y + (below or 0) })
+			end
+		end
+	end
+	local status = hud:FindFirstChild("Status")
+	if status then
+		for _, row in status:GetChildren() do
+			add(row, POINTER.Ink)
+			add(row:FindFirstChild("ShieldChip"))
+		end
+	end
+	if container then
+		for _, toast in container:GetChildren() do
+			if toast.Name == "Toast" then
+				add(toast)
+			end
+		end
+	end
+	add(hud:FindFirstChild("TheftAlert"))
+	local fishing = hud:FindFirstChild("Fishing")
+	local area = if fishing then fishing:FindFirstChild("ActionArea") else nil
+	if area then
+		for _, button in area:GetChildren() do
+			add(button)
+			add(button:FindFirstChild("Caption"))
+		end
+	end
+	return out
+end
+
+local function boxesClear(box: Box, keepouts: { Box }, gap: number): boolean
+	for _, k in keepouts do
+		if box.x0 < k.x1 + gap and k.x0 < box.x1 + gap and box.y0 < k.y1 + gap and k.y0 < box.y1 + gap then
+			return false
+		end
+	end
+	return true
+end
+
 -- Каждый кадр, пока есть значки: где столб относительно камеры; false — значков больше нет.
 local function stepPointers(): boolean
 	local now = os.clock()
@@ -857,14 +930,34 @@ local function stepPointers(): boolean
 		end
 		buttons = count
 	end
-	-- Этап 4: три кнопки, и над колонкой места нет — значок слева от неё у её низа; на тач-экране —
-	-- как можно ниже над кнопкой прыжка (его кольцо — ≥ 16 px от неё: выше — уведомления).
+	-- Этап 4: три кнопки, и над колонкой места нет — значок слева от неё, на самом нижнем свободном
+	-- месте полосы: от низа колонки (на тач-экране — над кнопкой прыжка: его кольцо ≥ 16 px от неё)
+	-- вверх, мимо кнопок рыбалки, уведомлений, плашки тревоги и статуса (pointerKeepouts).
 	local besideColumn = buttons >= 3 and columnTop - POINTER.ColumnGap - side * 0.75 < side * 0.7
 	local footY = columnBottom - side * 0.62
 	if besideColumn and UserInputService.TouchEnabled then
 		local small = math.min(view.X, view.Y) <= POINTER.SmallTouch
 		local jump, r = FishingLayout.jumpCircle(area, small)
 		footY = jump.Y - r - POINTER.JumpGap - side * POINTER.Ring
+	end
+	local laneKeepouts = if besideColumn then pointerKeepouts(hud :: GuiObject) else {}
+	local ringHalf = side * POINTER.Ring
+	-- значок в полосе у колонки с центром на высоте y (с запасом на покачивание и кольцо)
+	local function laneBox(y: number): Box
+		local x = columnLeft - POINTER.SideGap - reach
+		return { x0 = x - ringHalf - POINTER.Bob, y0 = y - ringHalf, x1 = x + reach, y1 = y + ringHalf }
+	end
+	local function laneSpot(): number?
+		local y = footY
+		local top = POINTER.Top + ringHalf
+		while y >= top do
+			local box = laneBox(y)
+			if boxesClear(box, laneKeepouts, MIN_GAP + POINTER.Ink) then
+				return y
+			end
+			y -= POINTER.Step
+		end
+		return nil
 	end
 	local wave = POINTER.Bob * (0.5 - 0.5 * math.cos(now * 2 * math.pi / POINTER.Period))
 	-- Сколько значков уже стоит у каждого края: следующий — выше (стопкой вверх).
@@ -885,10 +978,16 @@ local function stepPointers(): boolean
 			local x = if right then area.X - POINTER.Gap - reach - wave else POINTER.Gap + reach + wave
 			local y = area.Y * POINTER.Y
 			local edge = if right then "right" else "left"
+			local spot: number? = nil
 			if right and besideColumn then
-				-- слева от колонки, у её низа (у верха — уведомления); следующий — выше
+				-- слева от колонки, на самом нижнем свободном месте; следующий — над ним (его коробка —
+				-- в помехах); места нет — значок спрятан
+				spot = laneSpot()
 				x = columnLeft - POINTER.SideGap - reach - wave
-				y = footY - slots[edge] * side * POINTER.Stack
+				y = spot or 0
+				if spot then
+					table.insert(laneKeepouts, laneBox(spot))
+				end
 			else
 				if right then
 					y = math.min(y, columnTop - POINTER.ColumnGap - side * 0.75)
@@ -896,6 +995,11 @@ local function stepPointers(): boolean
 				y -= slots[edge] * side * POINTER.Stack
 			end
 			slots[edge] += 1
+			if right and besideColumn and spot == nil then
+				frame.Visible = false
+				pointer.shown = false
+				continue
+			end
 			frame.Position = UDim2.fromOffset(math.round(x), math.round(math.max(y, side * 0.7)))
 			if not pointer.shown then
 				pointer.shown = true

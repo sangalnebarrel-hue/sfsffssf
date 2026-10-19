@@ -148,6 +148,102 @@ add({
 })
 
 add({
+	name = "victim_alert_catch_after",
+	desc = "A catch lands while the alert is live (Epic minigame → hold → caught): the plate / pill hides while the card and its flight are up (HurryCard is called again), the edge pulse and the column «ЩИТ!» stay; it comes back once the card is gone",
+	run = function(h: any)
+		h:tank(TANK)
+		toMinigame(h, "Epic")
+		alertHold(h, { Left = 10 })
+		h:advance(0.6)
+		h:caught(
+			{ Id = "Puffer", Rarity = "Epic", Kg = 2.1, Value = 58, Income = 5.2 },
+			1,
+			{ Result = "stored", Slot = 5, Uid = "f9", Count = 5, Slots = 6 }
+		)
+	end,
+	-- (not 2.0 s: the Epic «ЭПИЧЕСКАЯ!» slam peaks 15 px from the Roblox menu on a phone then,
+	-- with or without an alert — FishingController's, not this scenario's subject)
+	still = { 0.3, 1.0, 3.5 },
+})
+
+add({
+	name = "victim_alert_hook",
+	desc = "The alert during the bite, then the kid hooks: the pill keeps its spot when it stays free (no jump), the bite → minigame hand-off stays inside the phone fill budget with the edge pulse",
+	run = function(h: any)
+		h:tank(TANK)
+		toBite(h)
+		alertHold(h)
+		h:advance(0.5)
+	end,
+	still = { 0.0, 0.5, 0.9 },
+	during = function(h: any)
+		h:advance(0.3)
+		h:click("HUD.Fishing.ActionArea.ActionButton")
+		h:advance(0.1)
+		h:minigame("Rare")
+	end,
+})
+
+add({
+	name = "victim_alert_tank_open",
+	desc = "The «САДОК» sheet is open when the alert starts: the sheet closes (the alert outranks it, like a catch card), then the plate / pill pops in — never drawn over a sheet",
+	run = function(h: any)
+		h:tank(TANK)
+		h:money(1234, 120)
+		readyAtSpot(h)
+		h:click("HUD.RightButtons.TankButton")
+		h:waitVisible("HUD.TankPanel", 2)
+		h:advance(0.6)
+		alertHold(h)
+		h:advance(0.8)
+	end,
+	still = { 0.2 },
+})
+
+add({
+	name = "victim_alert_defence_open",
+	desc = "The «ЗАЩИТА» sheet is open when the alert starts: it stays, the plate / pill stays hidden, the shield card's button becomes the alert target (Berry «ЩИТ!» with rings) — the same one tap",
+	run = function(h: any)
+		h:tank(TANK)
+		h:money(3000, 120)
+		readyAtSpot(h)
+		h:click("HUD.RightButtons.DefenceButton")
+		h:waitVisible("HUD.DefencePanel", 2)
+		h:advance(0.6)
+		alertHold(h)
+		h:advance(0.8)
+	end,
+	still = { 0.2 },
+})
+
+add({
+	name = "victim_saved_shield",
+	desc = "One ЩИТ tap ends the hold: one merged toast «Щит спас рыбу! 🛡️ 1:00» (not «Щит включён» and «Щит спас рыбу!» stacked), the chip shows the timer",
+	run = function(h: any)
+		h:tank(TANK)
+		h:money(1234, 120)
+		readyAtSpot(h)
+		alertHold(h)
+		h:advance(0.8)
+		local ok = pcall(function()
+			h:click("HUD.TheftAlert.Compact.Shield")
+		end)
+		if not ok then
+			h:click("HUD.TheftAlert.Buttons.Shield")
+		end
+		h:advance(0.25)
+	end,
+	still = { 1.2 },
+	during = function(h: any)
+		h:advance(0.3)
+		h:shield(60, 180, "shield")
+		defenceEvent(h, "Shield", { Until = h.sim.workspace:GetServerTimeNow() + 60 })
+		h:alert(false)
+		h:stealEvent("Saved", { Reason = "shield", Slot = 2 })
+	end,
+})
+
+add({
 	name = "victim_alert_carry",
 	desc = "The carry: «🏃 ВОР УБЕГАЕТ!» / «Ника уносит: Фугу — жми ЩИТ!» with the same two buttons (the shield also returns a carried fish, DC-01)",
 	run = function(h: any)
@@ -305,6 +401,56 @@ add({
 	still = { 0.6, 1.3 },
 })
 
+-- Someone else's Legendary pillar 70° off the view on the next pier (the trophy chip at the right
+-- edge — beside the three-button column) with its broadcast toast, the kid with the rod in hand
+-- (cast = also waiting for a bite).
+local function trophyBeside(h: any, cast: boolean)
+	h:tank(TANK)
+	readyAtSpot(h)
+	h:poseLikeBackdrop()
+	if cast then
+		h:serverSays("Waiting", { Target = Vector3.new(0, 0, -22), FlightTime = 0.7 })
+		h:advance(0.9)
+	end
+	local spot, base = h:spot(), h:base()
+	local scripts = h.player:FindFirstChildOfClass("PlayerScripts")
+	local module = scripts and h.sim:Find("Controllers.FishingFxController", scripts)
+	local fx = module and h.sim:Require(module, h.player)
+	if spot and base and fx then
+		local look = base:GetPivot().LookVector
+		local right = look:Cross(Vector3.new(0, 1, 0)).Unit
+		local angle = math.rad(70)
+		local at = spot.Position + (look * math.cos(angle) + right * math.sin(angle)) * 184
+		h.sim:Run(function()
+			fx.OtherTrophy:Fire(h.player, at, "Legendary")
+		end, h.player)
+	end
+	h:notify(
+		"КапитанКрюк (Лазурная база): легендарная рыба «Акулёнок»!",
+		"Legendary"
+	)
+end
+
+add({
+	name = "defence_trophy_rod",
+	desc = "The trophy chip with the rod in hand («ЗАБРОСИТЬ» up): the 🌟 chip beside the three-button column keeps ≥ 16 px from the action button (its spot is chosen clear of HUD.Fishing.ActionArea)",
+	world = true,
+	run = function(h: any)
+		trophyBeside(h, false)
+	end,
+	still = { 2.0 },
+})
+
+add({
+	name = "defence_trophy_waiting",
+	desc = "The trophy chip while waiting for a bite («СМОТАТЬ» up): the 🌟 chip never sits on the stop button",
+	world = true,
+	run = function(h: any)
+		trophyBeside(h, true)
+	end,
+	still = { 2.0 },
+})
+
 --------------------------------------------------------------------------------
 -- The «ЗАЩИТА» sheet
 --------------------------------------------------------------------------------
@@ -361,6 +507,19 @@ add({
 		h:defence({ dog = true })
 		defenceEvent(h, "Bought", { Item = "Dog", Price = 6000 })
 	end,
+})
+
+add({
+	name = "defence_cant_afford",
+	desc = "A tap on the dog's price without the money ($3 000 of $6 000): the Slate button wiggles and says «ЕЩЁ $3 000» right under the finger for 1.5 s (no toast over the sheet's header and Wallet), then its price again",
+	run = function(h: any)
+		h:money(3000, 120)
+		readyAtSpot(h)
+		openSheet(h)
+		h:click("HUD.DefencePanel.Panel.Cards.DogCard.Buy")
+		h:advance(0.5)
+	end,
+	still = { 0.1, 0.8 },
 })
 
 add({

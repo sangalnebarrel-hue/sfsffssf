@@ -10,8 +10,9 @@
 	Что делает лист:
 	  • Open — плашка поднимается снизу на место (без перелёта: она у самых краёв своего места —
 	    кнопка прыжка, колонка, стопка статуса; лесенку карточек делает владелец), Close — сжимается
-	    к середине (Quad In: только меньше, ни на миг не больше), потом корень прячется; "fishing" — прячется сразу
-	    (поклёвке, мини-игре и карточке улова — весь экран и вся заливка). opts.onClose(reason) —
+	    к середине (Quad In: только меньше, ни на миг не больше), потом корень прячется; "fishing",
+	    "switch" и "alert" — прячется сразу (поклёвке, мини-игре и карточке улова — весь экран и
+	    вся заливка; другому листу; тревоге кражи — Этап 4, AlertController). opts.onClose(reason) —
 	    сразу (владелец останавливает свои таймеры), opts.onClosed(reason) — когда спрятан
 	    (владелец убирает карточки). Открыли снова, пока уходит, — уход отменён, onClosed не
 	    будет.
@@ -47,6 +48,10 @@
 	    их собственный Visible лист слушает как прежде; закрыт — слой снова виден.
 	  • Всё, что живёт, пока лист открыт (соединения: камера, атрибуты, виджеты рыбалки), — в его
 	    Trove: закрыт — соединений как до открытия; закрытый лист ничего не делает.
+	  • Один лист на экране (Этап 4): открыли другой — этот закрывается с "switch" и отдаёт ему
+	    спрятанный слой рыбалки и прежний ZIndex уведомлений. Пока лист открыт, у HUD атрибут
+	    Sheet = имя его корня ("TankPanel", "DefencePanel"; закрыт — снят): по нему тревога кражи
+	    не рисует плашку поверх листа (AlertController).
 
 	API:
 	  Sheet.new(hud, root, opts) -> Sheet
@@ -63,6 +68,8 @@
 	  sheet:Place()                    -- пересчитать место (смена экрана)
 	  sheet:Fit() -> Fit?              -- последнее место (px)
 	  sheet:Destroy()
+	  Sheet.Current() -> Sheet?          -- открытый сейчас лист (один на экране)
+	  Sheet.CloseCurrent(reason) -> string? -- закрыть его (имя его корня; nil — листа нет)
 ]]
 
 local Players = game:GetService("Players")
@@ -145,6 +152,26 @@ local Sheet = {}
 local current: Sheet? = nil
 type Handoff = { toastsZ: number?, restoreFishing: (() -> ())? }
 local handoff: Handoff? = nil
+
+-- Атрибут HUD: имя корня открытого листа (Этап 4: AlertController не рисует тревогу поверх).
+local OPEN_ATTR = "Sheet"
+-- Причины, по которым лист уходит сразу, без анимации (экран нужен другому).
+local INSTANT: { [string]: boolean } = { fishing = true, switch = true, alert = true }
+
+function Sheet.Current(): Sheet?
+	local open = current
+	return if open and open:IsOpen() then open else nil
+end
+
+function Sheet.CloseCurrent(reason: string): string?
+	local open = Sheet.Current()
+	if not open then
+		return nil
+	end
+	local name = open.Root.Name
+	open:Close(reason)
+	return name
+end
 
 local function scaleOf(px: number, of: number): number
 	return if of > 0 then px / of else 0
@@ -428,6 +455,9 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 		if current == self then
 			current = nil
 		end
+		if hud:GetAttribute(OPEN_ATTR) == root.Name then
+			hud:SetAttribute(OPEN_ATTR, nil)
+		end
 		switching = why == "switch"
 		if switching then
 			handoff = { toastsZ = toastsZ }
@@ -442,8 +472,8 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 		if opts.onClose then
 			opts.onClose(why)
 		end
-		if why == "fishing" or why == "switch" then
-			finishHide(why) -- поклёвка, улов или другой лист: экран им сразу, без анимации
+		if INSTANT[why] then
+			finishHide(why) -- поклёвка, улов, другой лист, тревога: экран им сразу, без анимации
 			return
 		end
 		-- (Quad In: только сжимается — у UiFx.popOut даже без «вдоха» Back In сперва чуть растёт,
@@ -464,6 +494,7 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 			other:Close("switch") -- один лист на экране: тот уходит сразу, его изменения HUD — нам
 		end
 		current = self
+		hud:SetAttribute(OPEN_ATTR, root.Name)
 		local pending = hiding
 		if pending then
 			hiding = nil

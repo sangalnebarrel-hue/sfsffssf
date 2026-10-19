@@ -31,9 +31,10 @@
 	    плашки.
 	  • Уведомления: первая защита входа за игру — «Защита новичка 5:00 🛡️ — лови спокойно!» /
 	    «Твой садок под защитой 1:30»; за Shield.EndingWarn с до конца защиты входа / новичка —
-	    «Скоро воры смогут красть…» и кнопка подпрыгивает (здесь ребёнок узнаёт про щит); щит
-	    включён — «Щит включён на 1:00»; отказ сервера — его текст (Sun) и кнопка, с которой
-	    просили, качается.
+	    «Скоро воры! Увидишь 🚨 — жми 🛡️ ЩИТ!» и кнопка подпрыгивает (здесь ребёнок узнаёт про
+	    щит); щит включён — «Щит включён на 1:00» (во время тревоги — через MERGE_WAIT с: щит кончил
+	    кражу — AlertController забирает его (TakeShieldToast) в одно «Щит спас рыбу! 🛡️ 1:00»);
+	    отказ сервера — его текст (Sun) и кнопка, с которой просили, качается.
 	  • Лист «ЗАЩИТА»: DefenceCards — карточки, покупка в два нажатия (DefenceBuy), ответы
 	    DefenceEvent "Bought" (MoneyController.Spend: 💵 из кошелька в карточку, «−$6 000»; штамп
 	    «КУПЛЕНО», конфетти, уведомление) / "Denied" (качается, уведомление) / "Shield".
@@ -49,6 +50,10 @@
 	                                             -- пока сервер не ответил — false (одна просьба)
 	  DefenceController.ShieldReady() -> boolean -- щит готов (ShieldReadyAt ≤ сейчас)
 	  DefenceController.Bob(seconds: number)     -- кнопка «ЗАЩИТА» подпрыгивает столько с
+	  DefenceController.AlertRest(rest)          -- кольца «ЩИТ!» отдыхают (телефон: у рыбалки свой
+	                                             -- светящийся край — заливка; «ЩИТ!» и «!» остаются)
+	  DefenceController.TakeShieldToast() -> number -- щит спас рыбу: «Щит включён» не показывать
+	                                             -- (уже показан — не отменить); сколько с щита
 	  DefenceController.Stats() -> { ... }       -- тесты: chains, open, alert, cooldown
 ]]
 
@@ -79,6 +84,10 @@ local ALERT_RING = { Scale = 1.3, Thickness = 5, Time = 0.6, Every = 0.9 } -- к
 local BOB_EVERY = { 0.45, 0.6 } -- кнопка «ЗАЩИТА» подпрыгивает раз в столько с (Bob)
 local CHIP_BUMP = 1.25 -- фишка «🛡️ 0:09» в последние секунды
 local SHIELD_WAIT = 3 -- нет ответа на ShieldActivate столько с — «⏳» уходит
+-- Щит включён во время тревоги: «Щит включён» ждёт столько с — кража кончится щитом, и
+-- AlertController покажет одно «Щит спас рыбу! 🛡️ 1:00»; «Saved» пришёл раньше — столько с
+-- «Щит включён» не нужен (TakeShieldToast)
+local MERGE_WAIT = 1
 local INTRO_STEPS = 3 -- «ЗАЩИТА» — через столько Wallet.IntroGap после вступления (после «САДОК»)
 local JOIN_KINDS: { [string]: boolean } = { join = true, newbie = true }
 
@@ -99,6 +108,8 @@ local S = {
 	base = nil :: Model?,
 	baseTrove = Trove.new(), -- соединения своей базы (ProtectUntil, ProtectKind)
 	alertTrove = Trove.new(), -- вид «ЩИТ!»
+	ringTrove = Trove.new(), -- его красные кольца
+	ringRest = false, -- кольца отдыхают (AlertRest)
 	bobStop = nil :: (() -> ())?,
 	bobUntil = 0,
 	alert = false, -- кнопка сейчас «ЩИТ!»
@@ -115,6 +126,8 @@ local S = {
 	affordBadge = false, -- «!» сейчас горит из-за него
 	shieldFrom = nil :: GuiObject?, -- кто просил щит (качается при отказе)
 	shieldWait = nil :: thread?,
+	shieldToast = nil :: thread?, -- отложенное «Щит включён» (тревога)
+	shieldTaken = -math.huge, -- когда AlertController забрал «Щит включён» в «Щит спас рыбу!»
 	cards = nil :: any, -- DefenceCards
 }
 
@@ -240,6 +253,29 @@ local function alertWanted(): boolean
 		and player:GetAttribute("Stealing") == nil
 end
 
+-- Красные кольца «ЩИТ!»: пока кнопка «ЩИТ!» и не отдыхают (AlertRest).
+local function syncRing()
+	S.ringTrove:Clean()
+	local button = S.button
+	if button and S.alert and not S.ringRest then
+		S.ringTrove:Add(UiFx.glowRing(button, {
+			color = Palette.Berry.Top,
+			scale = ALERT_RING.Scale,
+			thickness = ALERT_RING.Thickness,
+			time = ALERT_RING.Time,
+			interval = ALERT_RING.Every,
+			loop = true,
+		}))
+	end
+end
+
+function DefenceController.AlertRest(rest: boolean)
+	if (rest == true) ~= S.ringRest then
+		S.ringRest = rest == true
+		syncRing()
+	end
+end
+
 -- «ЗАЩИТА» ↔ «ЩИТ!» (тревога, щит готов, сам не крадёшь).
 local function syncAlert()
 	local button = S.button
@@ -252,16 +288,12 @@ local function syncAlert()
 	end
 	S.alert = want
 	S.alertTrove:Clean()
+	if not want then
+		S.ringRest = false
+	end
+	syncRing()
 	if want then
 		UiFx.setCandy(button, "Berry")
-		S.alertTrove:Add(UiFx.glowRing(button, {
-			color = Palette.Berry.Top,
-			scale = ALERT_RING.Scale,
-			thickness = ALERT_RING.Thickness,
-			time = ALERT_RING.Time,
-			interval = ALERT_RING.Every,
-			loop = true,
-		}))
 		if button.Visible then
 			UiFx.punch(button, { from = 0.8, peak = 1.15 })
 		end
@@ -566,6 +598,17 @@ function DefenceController.IsOpen(): boolean
 	return S.cards ~= nil and S.cards:IsOpen()
 end
 
+-- Щит кончил кражу (AlertController, Saved "shield"): «Щит включён» не показывать — ни
+-- отложенное, ни то, что придёт в ближайшие MERGE_WAIT с. Сколько с щита осталось.
+function DefenceController.TakeShieldToast(): number
+	S.shieldTaken = os.clock()
+	cancel(S.shieldToast)
+	S.shieldToast = nil
+	local untilAt = numberAttr(player, "ShieldUntil")
+	local left = if untilAt then untilAt - now() else 0
+	return if left > 0 then left else SHIELD.Duration
+end
+
 function DefenceController.Stats(): { [string]: any }
 	return {
 		open = DefenceController.IsOpen(),
@@ -588,7 +631,23 @@ local function onDefenceEvent(kind: any, data: any)
 		S.shieldWait = nil
 		S.shieldFrom = nil
 		local untilAt = if typeof(payload.Until) == "number" then payload.Until else now() + SHIELD.Duration
-		NotifyController.Show(TextUtil.fill(TEXTS.Shield.On, { t = StealRules.FormatClock(untilAt - now()) }), "shield")
+		local function toast()
+			S.shieldToast = nil
+			if os.clock() - S.shieldTaken > MERGE_WAIT then
+				NotifyController.Show(
+					TextUtil.fill(TEXTS.Shield.On, { t = StealRules.FormatClock(untilAt - now()) }),
+					"shield"
+				)
+			end
+		end
+		cancel(S.shieldToast)
+		S.shieldToast = nil
+		local hud = S.hud
+		if hud and hud:GetAttribute("AlertPhase") ~= nil then
+			S.shieldToast = task.delay(MERGE_WAIT, toast) -- (кража кончится щитом — одно уведомление)
+		else
+			toast()
+		end
 		if S.cards then
 			S.cards:ShieldAnswered(true)
 		end

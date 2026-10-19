@@ -9,47 +9,61 @@
 	    на пару вор–жертва, остальные Quiet) — тревога: атрибут HUD AlertPhase = "hold" | "carry"
 	    (кнопка «ЗАЩИТА» становится «ЩИТ!», DefenceController) и FishingController.HurryCard()
 	    (тревога важнее карточки улова, DC-02: карточка закрывается обычным путём, полёт в «САДОК»
-	    доигрывает);
+	    доигрывает); громкая новая тревога закрывает лист «САДОК» (Controllers.Sheet, причина
+	    "alert", сразу); лист «ЗАЩИТА» остаётся — его карточка щита сама становится «ЩИТ!»
+	    (DefenceCards: то же одно нажатие);
 	  • слои без места на экране (с первого кадра): тонкая красная пульсация краёв
 	    (UiFx.edgeVignette: Theft.Edge — полоса Phone / Other, период Period, непрозрачность не
-	    больше Alpha: без вспышек экрана), HudController.HomeAlert(true) (красные кольца у «ДОМОЙ»,
-	    «ДОМОЙ!»), Theft.Pings «пина» через Theft.PingGap с (не при Quiet);
-	  • плашка HUD.TheftAlert — когда карточки улова нет и CounterHold снят (через Theft.CardAfter
-	    с; кража ещё идёт): вверху колонки уведомлений (NotifyController.Reserve("alert", px) —
-	    уведомления ниже), ширина — min(Theft.Width ширины, Theft.WidthMax, колонки), высота
-	    Theft.PlateHeight на телефоне; текст слева — «ВОР В САДКЕ!» / «Ника крадёт: Окунь»,
-	    вынос — «ВОР УБЕГАЕТ!» / «Ника уносит: Окунь — жми ЩИТ!» (щит не готов — без «жми ЩИТ!»),
-	    справа — [🛡️ ЩИТ] (самая крупная цель: ≥ Theft.ShieldMin px и ≥ Theft.ShieldShare ширины
-	    плашки; щит перезаряжается — Slate «⏳ 1:12», нажатие качает её; ⏳ — пока сервер не
-	    ответил) и [🏠 ДОМОЙ] (HudController.PressHome; «ДОМОЙ» на кулдауне — Slate); сам
-	    крадёшь — без кнопок, «Пока крадёшь сам, щит не включить» (DC-04). Выскакивает с
-	    дрожью (Quiet — тихо, без дрожи);
+	    больше Alpha: без вспышек экрана) в своём обрезающем слое FxAlertEdge (полосы не заходят
+	    на верхнюю панель Roblox и вырез; пока у HUD свой край — поклёвка, аура мини-игры, вспышка
+	    улова: другой FxVignette, — она спит: края уже светятся, вдвоём — лишняя заливка
+	    телефона), HudController.HomeAlert(true) (красные кольца у «ДОМОЙ», «ДОМОЙ!»), Theft.Pings
+	    «пина» через Theft.PingGap с (не при Quiet);
+	  • плашка HUD.TheftAlert — когда место свободно: нет карточки улова, CounterHold снят и не
+	    открыт лист (через Theft.CardAfter с; кража ещё идёт). Пока тревога идёт, новый улов
+	    (CounterHold) снова торопит карточку (HurryCard), а карточка или лист, появившись, прячут
+	    плашку до своего ухода — плашка никогда не рисуется поверх них. Вверху колонки уведомлений
+	    (NotifyController.Reserve("alert", px) — уведомления ниже), ширина — min(Theft.Width
+	    ширины, Theft.WidthMax, колонки), высота Theft.PlateHeight на телефоне; текст слева —
+	    «ВОР В САДКЕ!» / «Ника крадёт: Окунь», вынос — «ВОР УБЕГАЕТ!» / «Ника уносит: Окунь — жми
+	    ЩИТ!» (щит не готов — без «жми ЩИТ!»), справа — [🛡️ ЩИТ] (самая крупная цель:
+	    ≥ Theft.ShieldMin px и ≥ Theft.ShieldShare ширины плашки; щит перезаряжается — Slate
+	    «⏳ 1:12», нажатие качает её; ⏳ — пока сервер не ответил) и [🏠 ДОМОЙ]
+	    (HudController.PressHome; «ДОМОЙ» на кулдауне — Slate); сам крадёшь — без кнопок, «Пока
+	    крадёшь сам, щит не включить» (DC-04). Выскакивает с дрожью (Quiet — тихо, без дрожи);
+	    уходит с поколением (новая тревога сразу после конца прошлой не прячется её таймером);
 	  • на телефоне (HUD ниже SHORT px), если плашка легла бы на своего рыбака
 	    (FishingLayout.fisherBox, а не вышло спроецировать — fallbackFisher) — «таблетка» Compact
-	    («🚨 ВОР! ОКУНЬ» + ЩИТ во всю её высоту, щит не готов — 🏠) на первом свободном месте:
-	    AlertLayout (справа от рыбака до колонки, иначе слева, иначе в колонке уведомлений —
-	    самая широкая, что встаёт; ≥ 16 px и обводки до рыбака, своего поплавка, плашек статуса,
-	    колонки кнопок, кнопки прыжка, джойстика, виджетов рыбалки и полосы кражи; тесно — с
-	    запасом только на обводки, потом уже, до COMPACT.Narrow: надпись прячется, ЩИТ — во всю
-	    ширину). Место пересчитывается по событиям (рыбалка, виджеты появились или сдвинулись —
-	    не чаще PLACE_SOON, предметы в руках, экран), не каждый кадр;
+	    («🚨 ВОР! ОКУНЬ» + ЩИТ во всю её высоту, щит не готов — 🏠; тесно для имени — «ВОР!»,
+	    теснее — без надписи; сам крадёшь — «ВОР! ОКУНЬ · щит после кражи» без кнопок) на месте
+	    AlertLayout: прежнее, пока оно свободно, иначе самое верхнее свободное (справа от рыбака
+	    до колонки, слева, в колонке уведомлений; ≥ 16 px и обводки до рыбака, своего поплавка,
+	    плашек статуса, колонки кнопок, кнопки прыжка, джойстика, виджетов рыбалки и полосы
+	    кражи), тесно — с запасом только на обводки, потом уже, до COMPACT.Narrow; последний
+	    выбор — где закрывает меньше всего, но не у кнопок Roblox (прыжок, джойстик); и его нет —
+	    «таблетки» нет (остаётся «ЩИТ!» в колонке). Место пересчитывается по событиям (рыбалка,
+	    виджеты появились или сдвинулись — не чаще PLACE_SOON, предметы в руках, экран), не каждый
+	    кадр; переезд — твином MOVE_TIME с, не прыжком;
 	  • кнопки не забирают ввод мини-игры (её ввод — только кнопка действия);
 	  • конец — StealEvent "Saved" / "Lost" (запасной — у своей базы снят Thief): плашка уходит,
 	    AlertPhase снят, слои гаснут; итог — уведомление: украли — «Украдено: Окунь (Ника)» (вид
-	    theft, крупно), «Садок отдыхает 1:30 — никто не украдёт» (Until / Kind сервера) и ОДИН
-	    совет (щит был готов и не нажат — про щит, иначе самая дешёвая защита, которой нет, с
-	    ценой; DC-14); спасли — текст сервера (вид saved; щит — вид shield; поймал вора —
-	    конфетти); Quiet — ничего;
+	    theft, крупно), «Садок отдыхает 1:30 — не украдут» (Until / Kind сервера) и ОДИН совет
+	    (значок DefenceConfig.Texts.TipIcon; щит был готов и не нажат — про щит, иначе самая
+	    дешёвая защита, которой нет, с ценой; DC-14); спасли — текст сервера (вид saved; поймал
+	    вора — конфетти); щит — одно уведомление «Щит спас рыбу! 🛡️ 1:00» (Result.SavedShield;
+	    «Щит включён на 1:00» DefenceController тогда не показывает:
+	    DefenceController.TakeShieldToast); Quiet — ничего;
 	  • "Intruder" (сигнализация) — «👀 Ника у тебя во дворе!» (warning) и кнопка «ЗАЩИТА»
 	    подпрыгивает Theft.IntruderBob с; "Returned" жертве (вор ушёл, рыба вернулась: у неё есть
 	    Result) — текст сервера (вид saved). "Returned" вору (рыба вернулась хозяину) — его
 	    (TheftController).
-	Соединения тревоги — в Trove (слои, ожидание карточки, место); покой — ни одного покадрового
-	соединения (пульсации и кольца — твины и таймеры).
+	Соединения тревоги — в Trove (слои, ожидание карточки и листа, место); покой — ни одного
+	покадрового соединения (пульсации и кольца — твины и таймеры).
 
 	API (тесты, превью):
-	  AlertController.Stats() -> { phase, shown ("plate" | "compact" | nil), spot, waiting, busy,
-	    rect (px HUD), fisher (свой рыбак при раскладке на телефоне) }
+	  AlertController.Stats() -> { phase, shown ("plate" | "compact" | "none" | nil), spot,
+	    waiting, busy, rect (px HUD), fisher (свой рыбак при раскладке на телефоне), label (текст
+	    «таблетки» или nil), edge ("on" | "asleep" | nil) }
 ]]
 
 local Players = game:GetService("Players")
@@ -76,6 +90,7 @@ local DefenceController = require(Controllers:WaitForChild("DefenceController"))
 local DefenceCards = require(Controllers:WaitForChild("DefenceCards"))
 local FishingLayout = require(Controllers:WaitForChild("FishingLayout"))
 local AlertLayout = require(Controllers:WaitForChild("AlertLayout"))
+local Sheet = require(Controllers:WaitForChild("Sheet"))
 
 type Rect = FishingLayout.Rect
 
@@ -94,17 +109,23 @@ local STATUS_INK = 10 -- цифры кошелька и его 💵 свисаю
 local PLATE_SHARE = 0.22 -- плашка: доля высоты HUD (Theft.PlateHeight..× 1.35 px)
 local PLATE_GROW = 1.35
 -- «таблетка»: ширина, px (Narrow — тесно: без надписи, 🚨 и кнопка); шаг поиска места вниз;
--- надпись не уже LabelMin px (иначе её нет, кнопка ЩИТ — во всю оставшуюся ширину)
+-- надпись — самая полная, что влезает (имя рыбы, «ВОР!»), с запасом LabelPad px; не влезает и
+-- «ВОР!» — её нет, кнопка ЩИТ — во всю оставшуюся ширину
 local COMPACT_SHIELD = 0.42 -- ЩИТ «таблетки» — доля её ширины (как в gui/Alert.luau)
-local COMPACT = { Min = 160, Narrow = 132, Max = 300, Step = 8, LabelMin = 56 }
+local COMPACT = { Min = 160, Narrow = 132, Max = 300, Step = 8, LabelPad = 4 }
 local PLACE_SOON = 0.12 -- виджет рыбалки сдвинулся — новое место «таблетки» не чаще, с
 local SHAKE = 5 -- дрожь при появлении: не больше px (UiFx.shake — в долях корня)
 local TEXT_GAP = 8 -- текст плашки — не ближе к кнопкам, px
 local ROW_PAD = 0.02 -- зазор ряда кнопок плашки — доля его ширины (как в gui/Alert.luau)
 local SHIELD_WAIT = 3 -- ⏳ на ЩИТ, пока сервер не ответил (не дольше), с
 local RESULT_AFTER = 0.25 -- итог — когда плашка ушла (место колонки снова уведомлений), с
-local ICON_HOLD = "🚨"
-local ICON_CARRY = "🏃"
+local HIDE_TIME = 0.2 -- плашка уходит (конец тревоги), с
+local STASH_TIME = 0.12 -- … уступает карточке улова или листу, с
+local MOVE_TIME = 0.15 -- «таблетка» переезжает (её место заняли), с
+local EDGE_KEEP = 0.3 -- слой края живёт после гашения пульсации (её fadeOut 0.25 с), с
+local OWN_SHEET = "DefencePanel" -- лист «ЗАЩИТА»: тревога его не закрывает (его щит — та же цель)
+local ICON_HOLD = TEXTS.IconHold
+local ICON_CARRY = TEXTS.IconCarry
 local FISHING_WIDGETS = { "Minigame", "BiteAlert", "Hint", "CatchCard", "ActionArea" }
 local BOBBER = { Dive = 1.8, Clear = 12 } -- свой поплавок: нырок клюёт до 1.8 studs (как BiteAlert)
 local STICK_SMALL = { right = 95, top = 90 } -- джойстик Roblox (зеркало кнопки прыжка; Sheet)
@@ -134,10 +155,13 @@ local A = {
 	waiting = false, -- ждём, пока закроется карточка улова
 	busy = false, -- ЩИТ нажат, ждём ответа сервера
 	busyWait = nil :: thread?,
-	layers = Trove.new(), -- пульсация краёв, «ДОМОЙ!», «пины»
-	wait = Trove.new(), -- ожидание карточки
+	layers = Trove.new(), -- пульсация краёв, «ДОМОЙ!», «пины», карточка и лист во время тревоги
+	wait = Trove.new(), -- ожидание: карточка улова или лист уйдут
 	live = Trove.new(), -- пока плашка видна: место по событиям, отсчёт «⏳ 1:12»
 	tickGen = 0,
+	hideGen = 0, -- уход плашки: таймер прячет её, только если поколение то же
+	label = nil :: string?, -- текст «таблетки» (nil — без надписи)
+	edge = nil :: string?, -- пульсация краёв: "on" | "asleep" | nil
 	base = nil :: Instance?,
 	baseConn = nil :: RBXScriptConnection?,
 }
@@ -188,6 +212,18 @@ local function cardUp(): boolean
 	end
 	local card = guiChild(hud:FindFirstChild("Fishing"), "CatchCard")
 	return (card ~= nil and card.Visible) or hud:GetAttribute("CounterHold") ~= nil
+end
+
+-- Открытый лист (имя его корня: Controllers.Sheet пишет атрибут HUD Sheet) или nil.
+local function sheetOpen(): string?
+	local hud = A.hud
+	local name = if hud then hud:GetAttribute("Sheet") else nil
+	return if typeof(name) == "string" then name else nil
+end
+
+-- Место плашки занято: карточка улова (или 🐟 летит в «САДОК») или открытый лист.
+local function blocked(): boolean
+	return cardUp() or sheetOpen() ~= nil
 end
 
 --------------------------------------------------------------------------------
@@ -292,9 +328,6 @@ local function fill()
 				end
 			end
 		end
-	end
-	if p.compactLabel then
-		p.compactLabel.Text = TextUtil.fill(TEXTS.Compact, { short = TextUtil.upper(a.short) })
 	end
 	-- «таблетка»: ЩИТ, а когда щит не готов — 🏠; сам крадёшь — ни того, ни другого
 	if p.compactShield then
@@ -421,7 +454,7 @@ local function plateRect(hud: ScreenGui): Rect
 end
 
 -- Где «таблетка» (телефон, плашка легла бы на рыбака): AlertLayout.compact.
-local function compactRect(hud: ScreenGui, fisher: Rect): (Rect, string)
+local function compactRect(hud: ScreenGui, fisher: Rect): (Rect?, string)
 	local size = hud.AbsoluteSize
 	local origin = hud.AbsolutePosition
 	local keepouts: { Rect } = { fisher }
@@ -442,14 +475,18 @@ local function compactRect(hud: ScreenGui, fisher: Rect): (Rect, string)
 	if column then
 		widgetOut(column)
 	end
+	local hard: { Rect } = {} -- кнопки Roblox: под ними большие пальцы (их не закрывает ничто)
 	if UserInputService.TouchEnabled then
 		local camera = Workspace.CurrentCamera
 		local view = if camera then camera.ViewportSize else size
 		local small = math.min(view.X, view.Y) <= SHORT
 		local jump, r = FishingLayout.jumpCircle(size, small)
-		table.insert(keepouts, FishingLayout.rect(jump.X - r, jump.Y - r, jump.X + r, jump.Y + r))
+		table.insert(hard, FishingLayout.rect(jump.X - r, jump.Y - r, jump.X + r, jump.Y + r))
 		local stick = if small then STICK_SMALL else STICK_BIG
-		table.insert(keepouts, FishingLayout.rect(0, size.Y - stick.top, stick.right, size.Y))
+		table.insert(hard, FishingLayout.rect(0, size.Y - stick.top, stick.right, size.Y))
+		for _, k in hard do
+			table.insert(keepouts, k)
+		end
 	end
 	local fishing = guiChild(hud, "Fishing")
 	if fishing and fishing.Visible then
@@ -472,6 +509,8 @@ local function compactRect(hud: ScreenGui, fisher: Rect): (Rect, string)
 	return AlertLayout.compact({
 		fisher = fisher,
 		keepouts = keepouts,
+		hard = hard,
+		keep = if A.shown == "compact" then A.rect else nil,
 		top = FishingLayout.EDGE + INK, -- (под кнопками Roblox вверху: 🚨 выступает над «таблеткой»)
 		bottom = size.Y - FishingLayout.EDGE,
 		left = FishingLayout.EDGE + overhang,
@@ -490,8 +529,54 @@ local function compactRect(hud: ScreenGui, fisher: Rect): (Rect, string)
 	})
 end
 
--- Плашка или «таблетка» на своём месте (px HUD, записанные масштабом); место колонки
--- уведомлений — под ней. Возвращает вариант.
+-- Надпись «таблетки» шириной room px: самая полная, что влезает при наименьшем размере её
+-- текста (уровень Body − 2, UiFx.fitText): «ВОР! ОКУНЬ», тесно — «ВОР!»; сам крадёшь — «ВОР! ОКУНЬ ·
+-- щит после кражи» / «ВОР! Щит после кражи». Ничего не влезает — nil (надписи нет).
+local function compactText(room: number): string?
+	local a = A.alert
+	if not a then
+		return nil
+	end
+	local px = math.max(UiFx.textSize("Body") - 2, 12)
+	local short = TextUtil.upper(a.short)
+	local options = if stealing()
+		then {
+			TextUtil.fill(TEXTS.CompactStealing, { short = short }),
+			TEXTS.CompactStealingShort,
+			TEXTS.CompactShort,
+		}
+		else { TextUtil.fill(TEXTS.Compact, { short = short }), TEXTS.CompactShort }
+	for _, text in options do
+		if UiFx.textWidth(text, px) + COMPACT.LabelPad <= room then
+			return text
+		end
+	end
+	return nil
+end
+
+-- Корень — на прямоугольник r (px HUD, записанные масштабом); «таблетка», что уже видна и
+-- переезжает, — твином MOVE_TIME с (не прыжком: ребёнок только что видел, где ЩИТ).
+local function moveRoot(root: GuiObject, r: Rect, size: Vector2, glide: boolean)
+	local position = UDim2.fromScale(r.x0 / size.X, r.y0 / size.Y)
+	local box = UDim2.fromScale((r.x1 - r.x0) / size.X, (r.y1 - r.y0) / size.Y)
+	root.AnchorPoint = Vector2.zero
+	if glide then
+		UiFx.tween(
+			root,
+			MOVE_TIME,
+			{ Position = position, Size = box },
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.Out
+		)
+	else
+		root.Position = position
+		root.Size = box
+	end
+end
+
+-- Плашка или «таблетка» на своём месте (px HUD, записанные масштабом); места для «таблетки» нет
+-- (кнопки Roblox) — "none": корень спрятан, остаётся «ЩИТ!» колонки. Место колонки уведомлений —
+-- под плашкой. Возвращает вариант.
 local function place(): string?
 	local hud, root = A.hud, A.root
 	if not hud or not root then
@@ -501,23 +586,38 @@ local function place(): string?
 	if size.X <= 1 or size.Y <= 1 then
 		return nil
 	end
-	local which, r, spot = "plate", plateRect(hud), nil
+	local before, beforeRect = A.shown, A.rect
+	local which, r, spot = "plate", plateRect(hud) :: Rect?, nil
 	A.fisher = nil
 	if isPhone() then
 		local fisher = fisherRect(hud)
 		A.fisher = fisher
-		if fisher and FishingLayout.hits(r, fisher) then
-			which = "compact"
+		if fisher and r and FishingLayout.hits(r, fisher) then
 			r, spot = compactRect(hud, fisher)
+			which = if r then "compact" else "none"
 		end
 	end
 	A.rect, A.spot = r, spot
 	A.shown = which
-	fitText(stealing())
-	root.AnchorPoint = Vector2.zero
-	root.Position = UDim2.fromScale(r.x0 / size.X, r.y0 / size.Y)
-	root.Size = UDim2.fromScale((r.x1 - r.x0) / size.X, (r.y1 - r.y0) / size.Y)
 	local p = A.parts
+	if which == "none" or not r then
+		-- (корень прячется, пока места нет; появится — show / again покажут)
+		root.Visible = false
+		A.label = nil
+		NotifyController.Reserve("alert", nil)
+		return which
+	end
+	if before == "none" and not root.Visible then
+		root.Visible = true
+		UiFx.popIn(root, { from = 0.4, time = 0.25 })
+	end
+	fitText(stealing())
+	local glide = before == "compact"
+		and which == "compact"
+		and beforeRect ~= nil
+		and root.Visible
+		and (math.abs(beforeRect.x0 - r.x0) > 1 or math.abs(beforeRect.y0 - r.y0) > 1)
+	moveRoot(root, r, size, glide)
 	for _, name in { "plate", "iconRoot", "text", "buttons" } do
 		local part = p[name]
 		if part then
@@ -527,8 +627,9 @@ local function place(): string?
 	if p.compact then
 		p.compact.Visible = which == "compact"
 	end
+	A.label = nil
 	if which == "compact" then
-		-- надпись «ВОР! ОКУНЬ» — между значком 🚨 (свисает с левого края) и кнопкой справа
+		-- надпись — между значком 🚨 (свисает с левого края) и кнопкой справа
 		local w, h = r.x1 - r.x0, r.y1 - r.y0
 		local icon = p.compactIcon
 		local iconRight = if icon then h * icon.Size.Y.Scale * (1 - icon.AnchorPoint.X) + 2 else h * 0.2
@@ -536,17 +637,30 @@ local function place(): string?
 		local shieldShare = p.compactShieldShare or COMPACT_SHIELD
 		local button = if shield and shield.Visible then shieldShare * w elseif home and home.Visible then h else 0
 		local room = w - button - 6 - iconRight
+		local text = compactText(room)
+		A.label = text
 		local label = p.compactLabel
 		if label then
 			label.AnchorPoint = Vector2.new(0, 0.5)
 			label.Position = UDim2.fromScale(iconRight / w, 0.5)
 			label.Size = UDim2.fromScale(math.max(room, 1) / w, label.Size.Y.Scale)
-			label.Visible = room >= COMPACT.LabelMin
+			label.Visible = text ~= nil
+			if text then
+				label.Text = text
+			end
 		end
+		local shieldW = 0
 		if shield then
 			-- надписи нет — ЩИТ во всю ширину справа от 🚨
-			local share = if room >= COMPACT.LabelMin then shieldShare else math.max(w - iconRight - 4, 1) / w
+			local share = if text then shieldShare else math.max(w - iconRight - 4, 1) / w
 			shield.Size = UDim2.new(share, 0, shield.Size.Y.Scale, shield.Size.Y.Offset)
+			shieldW = if shield.Visible then share * w else 0
+		end
+		-- плашка «таблетки» кончается под ЩИТ (его скруглённый край закрывает её конец): под
+		-- кнопкой её не рисуем — заливка телефона (вид тот же)
+		local plateW = if shieldW > 0 then math.min(w - shieldW + h / 2, w) else w
+		for _, layer in p.compactPlate or {} do
+			layer.Size = UDim2.new(plateW / w, 0, layer.Size.Y.Scale, layer.Size.Y.Offset)
 		end
 	end
 	-- уведомления — под плашкой (и под «таблеткой», если она в их колонке)
@@ -559,7 +673,6 @@ local function place(): string?
 	else
 		NotifyController.Reserve("alert", nil)
 	end
-	A.shown = which
 	return which
 end
 
@@ -648,36 +761,71 @@ local function watchPlace()
 	end
 end
 
+-- Плашка уходит (popOut без hide: прячет её таймер этого поколения — новая тревога, показанная
+-- раньше, чем он сработал, его отменяет).
+local function hideRoot(time: number)
+	local root = A.root
+	if not root or not root.Visible then
+		return
+	end
+	A.hideGen += 1
+	local gen = A.hideGen
+	UiFx.popOut(root, { time = time, swell = false })
+	task.delay(time, function()
+		if gen == A.hideGen and A.shown == nil then
+			root.Visible = false
+			UiFx.scaleOf(root).Scale = 1
+		end
+	end)
+end
+
 local function show(loud: boolean)
 	local root = A.root
 	if not root or not A.alert then
 		return
 	end
 	local was = A.shown
+	A.hideGen += 1 -- (уход прошлой плашки, если ещё идёт, её не спрячет)
 	fill()
-	place()
+	local which = place()
 	if not was then
+		A.live:Clean()
+		watchPlace()
+		restartTick()
+		if which == "none" then
+			return
+		end
 		root.Visible = true
 		UiFx.popIn(root, { from = 0.4, time = 0.32, rotate = if loud then -5 else nil })
 		if loud then
 			task.delay(0.3, function()
-				if A.shown and A.root then
+				if A.shown and A.shown ~= "none" and A.root then
 					local size = if A.hud then A.hud.AbsoluteSize else Vector2.one
 					UiFx.shake(A.root, SHAKE / math.max(size.X, size.Y, 1), 0.35)
 				end
 			end)
 		end
-		A.live:Clean()
-		watchPlace()
-		restartTick()
-	elseif loud then
+	elseif loud and which ~= "none" then
 		UiFx.punch(root, { from = 0.85, peak = 1.1 })
 	end
 end
 
--- Карточка улова ещё на экране (или 🐟 летит в «САДОК»): плашка — когда закроется (DC-02).
+-- Карточка улова или лист заняли место: плашка уходит до их ухода (слои, «ЩИТ!» колонки остаются).
+local function stash()
+	if not A.shown then
+		return
+	end
+	A.live:Clean()
+	A.tickGen += 1
+	A.shown = nil
+	A.label = nil
+	hideRoot(STASH_TIME)
+	NotifyController.Reserve("alert", nil)
+end
+
+-- Карточка улова ещё на экране (или 🐟 летит в «САДОК»), открыт лист: плашка — когда уйдут (DC-02).
 local function showWhenFree(loud: boolean)
-	if not cardUp() then
+	if not blocked() then
 		show(loud)
 		return
 	end
@@ -687,13 +835,13 @@ local function showWhenFree(loud: boolean)
 	A.waiting = true
 	local hud = A.hud :: ScreenGui
 	local function check()
-		if not A.waiting or cardUp() then
+		if not A.waiting or blocked() then
 			return
 		end
 		A.waiting = false
 		A.wait:Clean()
 		A.wait:Add(task.delay(THEFT.CardAfter, function()
-			if A.alert and not cardUp() then
+			if A.alert and not blocked() then
 				show(loud)
 			elseif A.alert then
 				showWhenFree(loud)
@@ -701,10 +849,85 @@ local function showWhenFree(loud: boolean)
 		end))
 	end
 	A.wait:Connect(hud:GetAttributeChangedSignal("CounterHold"), check)
+	A.wait:Connect(hud:GetAttributeChangedSignal("Sheet"), check)
 	local card = guiChild(hud:FindFirstChild("Fishing"), "CatchCard")
 	if card then
 		A.wait:Connect(card:GetPropertyChangedSignal("Visible"), check)
 	end
+end
+
+-- Пока тревога идёт: новый улов (CounterHold) снова торопит карточку (HurryCard — один раз на
+-- улов: на самой карточке он «тапает» её), а карточка или лист, появившись, прячут плашку.
+local function watchBlockers(hud: ScreenGui)
+	local function onBlock()
+		if A.alert and blocked() then
+			stash()
+			showWhenFree(false)
+		end
+	end
+	A.layers:Connect(hud:GetAttributeChangedSignal("CounterHold"), function()
+		if A.alert and hud:GetAttribute("CounterHold") ~= nil then
+			task.defer(hurryCard) -- (новый улов во время тревоги: карточка уйдёт обычным путём)
+		end
+		onBlock()
+	end)
+	A.layers:Connect(hud:GetAttributeChangedSignal("Sheet"), onBlock)
+	local card = guiChild(hud:FindFirstChild("Fishing"), "CatchCard")
+	if card then
+		A.layers:Connect(card:GetPropertyChangedSignal("Visible"), onBlock)
+	end
+end
+
+-- Пульсация краёв — в своём слое FxAlertEdge, обрезанном по HUD (её полосы «за краем» не ложатся
+-- на верхнюю панель Roblox и вырез); пока у HUD есть свой край (поклёвка, аура мини-игры, вспышка
+-- улова: другой FxVignette) — спит.
+local function startEdge(hud: ScreenGui, quiet: boolean)
+	local edge = THEFT.Edge
+	local holder = Instance.new("Frame")
+	holder.Name = "FxAlertEdge"
+	holder.BackgroundTransparency = 1
+	holder.Size = UDim2.fromScale(1, 1)
+	holder.ClipsDescendants = true
+	holder.Active = false
+	holder.ZIndex = 90
+	holder.Parent = hud
+	local stop = UiFx.edgeVignette(holder, Palette.Berry.Top, 1 - edge.Alpha, edge.Period, {
+		size = if isPhone() then edge.Phone else edge.Other,
+		pulseTo = 1 - edge.Alpha * 0.35,
+		fadeIn = if quiet then 0.1 else 0.25,
+	})
+	local function sync()
+		local other = false
+		for _, child in hud:GetChildren() do
+			if child.Name == "FxVignette" then
+				other = true
+				break
+			end
+		end
+		holder.Visible = not other
+		A.edge = if other then "asleep" else "on"
+		-- телефон: и кольца «ДОМОЙ!» / «ЩИТ!» отдыхают (поклёвка → мини-игра — самый плотный кадр)
+		local rest = other and isPhone()
+		HudController.HomeAlertRest(rest)
+		DefenceController.AlertRest(rest)
+	end
+	local function onChild(child: Instance)
+		if child.Name == "FxVignette" then
+			task.defer(sync)
+		end
+	end
+	A.layers:Connect(hud.ChildAdded, onChild)
+	A.layers:Connect(hud.ChildRemoved, onChild)
+	sync()
+	A.layers:Add(function()
+		A.edge = nil
+		HudController.HomeAlertRest(false)
+		DefenceController.AlertRest(false)
+		stop()
+		task.delay(EDGE_KEEP, function()
+			holder:Destroy()
+		end)
+	end)
 end
 
 local function startLayers(quiet: boolean)
@@ -713,19 +936,12 @@ local function startLayers(quiet: boolean)
 		return
 	end
 	A.layers:Clean()
-	local edge = THEFT.Edge
-	local stop = UiFx.edgeVignette(hud, Palette.Berry.Top, 1 - edge.Alpha, edge.Period, {
-		size = if isPhone() then edge.Phone else edge.Other,
-		pulseTo = 1 - edge.Alpha * 0.35,
-		fadeIn = 0.25,
-	})
-	A.layers:Add(function()
-		stop()
-	end)
+	startEdge(hud, quiet)
 	HudController.HomeAlert(true)
 	A.layers:Add(function()
 		HudController.HomeAlert(false)
 	end)
+	watchBlockers(hud)
 	if not quiet then
 		for i = 0, THEFT.Pings - 1 do
 			A.layers:Add(task.delay(i * THEFT.PingGap, UiFx.sound, "ping", 0.55, 1.35 + 0.1 * i))
@@ -749,16 +965,21 @@ local function finish(then_: (() -> ())?)
 	if hud and had then
 		hud:SetAttribute("AlertPhase", nil)
 	end
-	local wasShown = A.shown ~= nil
+	local wasShown = A.shown ~= nil and A.shown ~= "none"
 	A.shown = nil
+	A.label = nil
 	if root and wasShown and root.Visible then
-		UiFx.popOut(root, { time = 0.2, hide = true })
-		task.delay(0.2, function()
-			if not A.shown then
+		hideRoot(HIDE_TIME)
+		local gen = A.hideGen
+		task.delay(HIDE_TIME, function()
+			if gen == A.hideGen and not A.shown then
 				NotifyController.Reserve("alert", nil)
 			end
 		end)
 	else
+		if root and not wasShown then
+			root.Visible = false
+		end
 		NotifyController.Reserve("alert", nil)
 	end
 	if then_ then
@@ -802,6 +1023,12 @@ local function onAlert(data: { [string]: any })
 	hurryCard()
 	if fresh then
 		startLayers(quiet)
+		local open = sheetOpen()
+		if open and open ~= OWN_SHEET and not quiet then
+			-- тревога важнее листа «САДОК» (как карточки улова): он уходит сразу; «ЗАЩИТА» остаётся —
+			-- его щит и есть цель (DefenceCards: «ЩИТ!»)
+			Sheet.CloseCurrent("alert")
+		end
 	end
 	if A.shown then
 		fill()
@@ -841,7 +1068,7 @@ local function onLost(data: { [string]: any })
 			)
 		end
 		if tip then
-			NotifyController.Show(tip, "info", { icon = "💡" })
+			NotifyController.Show(tip, "info", { icon = DefenceConfig.Texts.TipIcon })
 		end
 	end)
 end
@@ -854,6 +1081,11 @@ local function onSaved(data: { [string]: any })
 		text = saved[if reason == "tag" or reason == "shield" or reason == "left" then reason else "failed"]
 	end
 	local quiet = data.Quiet == true
+	if reason == "shield" then
+		-- щит кончил кражу: одно уведомление «Щит спас рыбу! 🛡️ 1:00» (не ещё и «Щит включён»)
+		local left = DefenceController.TakeShieldToast()
+		text = TextUtil.fill(RESULT.SavedShield, { t = StealRules.FormatClock(left) })
+	end
 	finish(if quiet
 		then nil
 		else function()
@@ -943,6 +1175,8 @@ function AlertController.Stats(): { [string]: any }
 		busy = A.busy,
 		rect = A.rect,
 		fisher = A.fisher,
+		label = A.label,
+		edge = A.edge,
 	}
 end
 
@@ -977,6 +1211,15 @@ function AlertController:Start(hud: ScreenGui)
 	A.parts.compactShieldShare = if compactShield and compactShield:IsA("GuiObject")
 		then compactShield.Size.X.Scale
 		else nil
+	-- слои плашки «таблетки» (Theme.plate: обводка Lip и лицо Face) — их ширину режет place()
+	local plateLayers: { GuiObject } = {}
+	for _, name in { "Lip", "Face" } do
+		local layer = compact:FindFirstChild(name)
+		if layer and layer:IsA("GuiObject") then
+			table.insert(plateLayers, layer)
+		end
+	end
+	A.parts.compactPlate = plateLayers
 	-- (значок над левым краем плашки — «сокет»; его надпись — Icon.Icon)
 	if A.parts.icon == nil and iconSocket and iconSocket:IsA("TextLabel") then
 		A.parts.icon = iconSocket

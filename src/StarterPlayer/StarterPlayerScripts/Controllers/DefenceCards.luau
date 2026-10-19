@@ -10,26 +10,34 @@
 
 	Карточки (один ряд; ширина / высота — Panel.CardAspect, не уже Panel.CardMin px; на маленьком
 	телефоне четвёртая листается: явный CanvasSize, как у садка; на планшете и ПК все в листе, выше
-	— до Panel.CardAspectTall: крупному тексту там нужно место, — лист — не выше них). Кнопка Buy
-	каждой карточки — одно из (UiFx.setCandy + подпись):
+	— до Panel.CardAspectTall: крупному тексту там нужно место, — лист — не выше них). Карточка
+	раскладывается в px снизу вверх (как карточки садка): кнопка Buy — у низа (≥ 44 px), строка
+	действия Effect — всё место между именем и кнопкой; её строки (UiFx.textWidth, перенос по
+	пробелам, при наименьшем размере текста) не влезают — сперва меньше кружок-значок (до
+	DISC_MIN), потом короткая строка EffectShort (DefenceConfig.Texts.Cards). Кнопка Buy каждой
+	карточки — одно из (UiFx.setCandy + подпись):
 	  ЩИТ:  Guard «ВКЛЮЧИТЬ» — когда сервер примет (сам не крадёшь, защиты меньше
 	        Shield.StackBelow с, щит готов; DC-03) → нажатие — ShieldActivate (opts.onShield), «⏳» до
-	        ответа; щит включён — стекло «🛡️ 0:42»; перезарядка — Slate «⏳ 2:59» с кольцом-таймером
-	        (нажатие — качается и «Щит перезаряжается — ещё …»); защищён другим видом ≥ StackBelow —
-	        стекло «ТЫ ПОД ЗАЩИТОЙ».
+	        ответа; у тебя крадут (атрибут HUD AlertPhase) — та же кнопка Berry «ЩИТ!» с красными
+	        кольцами (лист открыт — плашки тревоги нет: эта кнопка и есть ЩИТ); щит включён —
+	        стекло «🛡️ 0:42»; перезарядка — Slate «⏳ 2:59» с кольцом-таймером (нажатие — качается и
+	        «Щит перезаряжается — ещё …»); защищён другим видом ≥ StackBelow — стекло «ТЫ ПОД
+	        ЗАЩИТОЙ»; крадёшь сам — Slate «ПОСЛЕ КРАЖИ» (нажатие качается: сервер откажет).
 	  СОБАКА / СИГНАЛИЗАЦИЯ / ЗАМОК: Gold «💵 $6 000» → первое нажатие — Berry «КУПИТЬ?» с кольцом
 	        TankConfig.ConfirmTime с; второе — не раньше ConfirmArm после предыдущего (раньше — отсчёт
 	        заново, кнопка качается: «барабанить» не покупает) → DefenceBuy(item), «⏳» до ответа
 	        (нет ответа Panel.SellWait садка — назад); не хватает денег — Slate с той же ценой
-	        (читается), нажатие — качается и «Не хватает: нужно $6 000»; куплено — штамп Leaf
-	        «КУПЛЕНО» (замок: ниже «Сильнее замки — скоро в магазине», DC-11; Lock.SaleMax = 0 —
-	        карточки замка нет). Имя «СИГНАЛИЗАЦИЯ» не влезает в карточку — «СИГНАЛКА».
+	        (читается), нажатие — качается и прямо на кнопке «ЕЩЁ $3 000» Panel.NeedTime с (под
+	        пальцем; уведомления нет — оно легло бы на шапку листа с кошельком); куплено — штамп
+	        Leaf «КУПЛЕНО» (замок: строка действия — «Сильнее замки — скоро в магазине», DC-11;
+	        Lock.SaleMax = 0 — карточки замка нет). Имя «СИГНАЛИЗАЦИЯ» не влезает — «СИГНАЛКА».
 	  Ответ "Bought" — штамп «КУПЛЕНО», конфетти над карточкой, MoneyController.Spend(цена, кнопка)
-	  (💵 летят из кошелька в карточку, «−$6 000»), уведомление «Собака охраняет твой двор!» (🐕 /
-	  🚨 / 🔐); "Denied" — карточка качается (текст показывает DefenceController).
+	  (💵 летят из кошелька в карточку, «−$6 000»), уведомление «Собака охраняет твой двор!»
+	  (значок — Texts.Cards[предмет].Icon); "Denied" — карточка качается (текст показывает
+	  DefenceController).
 	Живые числа (таймер щита, «хватает ли денег», кошелёк шапки) — одна цепочка task.delay раз в
-	секунду, пока лист открыт, и сразу по атрибутам игрока; всё, что живёт при открытом листе, — в
-	его Trove: закрыт — соединений как до открытия.
+	секунду, пока лист открыт, и сразу по атрибутам игрока и тревоги HUD; всё, что живёт при
+	открытом листе, — в его Trove: закрыт — соединений как до открытия.
 
 	API:
 	  DefenceCards.new(hud, root, { onShield: (from: GuiObject) -> () }) -> Cards
@@ -68,7 +76,24 @@ local TANK_PANEL = TankConfig.Panel
 local Palette = UIConfig.Palette
 local BOTTOM = 0.03 -- под рядом карточек — столько их высоты (обводка не обрезается)
 local RING_Z = 8 -- кольцо «КУПИТЬ?» / перезарядки — над лицом и подписью кнопки
-local ICONS: { [string]: string } = { Dog = "🐕", Alarm = "🚨", Lock = "🔐" }
+-- Карточка в долях её высоты (gui/Defence.luau): кружок-значок (Disc; тесно — до DiscMin), верх
+-- кружка, кнопка Buy (не ниже BuyMin px) и её низ, имя (не ниже NAME_LINE его текста), зазор; над
+-- кнопкой ещё BuyInk px (её толстая обводка и «губа» выступают за коробку); строка текста — LINE
+-- его размера (как считает перенос Roblox, с обводкой букв)
+local CARD = {
+	Disc = 0.23,
+	DiscMin = 0.15,
+	Top = 0.03,
+	Buy = 0.245,
+	BuyMin = 44,
+	BuyInk = 5,
+	Foot = 0.965,
+	Name = 0.12,
+	Gap = 0.015,
+}
+local NAME_LINE = 1.25
+local LINE = 1.25
+local ALERT_RING = { Scale = 1.15, Thickness = 4, Time = 0.6, Every = 0.9 } -- кольца «ЩИТ!» на карточке
 
 -- Числа места листа: DefenceConfig.Panel, недостающие — как у садка (TankConfig.Panel).
 local LAYOUT: { [string]: any } = setmetatable(table.clone(PANEL :: any), { __index = TANK_PANEL }) :: any
@@ -82,9 +107,13 @@ type Card = {
 	buy: GuiButton,
 	label: TextLabel?,
 	price: TextLabel?,
+	disc: GuiObject?,
 	look: string,
 	ring: (() -> ())?,
 	ringFor: number?, -- до какого времени тикает кольцо перезарядки
+	glow: (() -> ())?, -- красные кольца «ЩИТ!» (тревога)
+	needUntil: number, -- «ЕЩЁ $3 000» на кнопке до этого os.clock()
+	effectText: string?, -- что сейчас в строке действия (её раскладка)
 }
 
 export type Cards = {
@@ -167,6 +196,41 @@ local function money(): number
 	return math.floor(numberAttr(player, "Money") or 0)
 end
 
+-- Сколько строк займёт text в коробке box px при размере px (перенос по пробелам, как
+-- TextWrapped; неразрывный пробел «1 минуту» слова не делит).
+local function lineCount(text: string, px: number, box: number): number
+	local lines, line = 1, 0
+	local space = UiFx.textWidth(" ", px)
+	for word in string.gmatch(text, "%S+") do
+		local w = UiFx.textWidth(word, px)
+		if line == 0 then
+			line = w
+		elseif line + space + w <= box then
+			line += space + w
+		else
+			lines += 1
+			line = w
+		end
+	end
+	return lines
+end
+DefenceCards.LineCount = lineCount
+
+-- Строка действия карточки: (полная, короткая). Замок куплен — «Сильнее замки — скоро в магазине».
+local function effectTexts(key: string): (string, string)
+	local spec = (TEXTS.Cards :: any)[key]
+	if key == "Lock" then
+		local level = numberAttr(player, "LockLevel") or 0
+		local hold = StealRules.NextLock(level, LOCK.SaleMax)
+		if level > 0 and hold == nil then
+			return TEXTS.LockSoon, TEXTS.LockSoonShort
+		end
+		local values = { new = hold or LOCK.Levels[1].Hold, old = StealRules.HoldTime(level) }
+		return TextUtil.fill(spec.Effect, values), TextUtil.fill(spec.EffectShort or spec.Effect, values)
+	end
+	return spec.Effect, spec.EffectShort or spec.Effect
+end
+
 local function ownBase(): Instance?
 	local index = numberAttr(player, "BaseIndex")
 	local bases = Workspace:FindFirstChild("Bases")
@@ -216,7 +280,9 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 			buy = buy,
 			label = buy:FindFirstChild("Label") :: TextLabel?,
 			price = buy:FindFirstChild("Price") :: TextLabel?,
+			disc = cardFrame:FindFirstChild("Icon") :: GuiObject?,
 			look = "",
+			needUntil = 0,
 		}
 	end
 	-- Lock.SaleMax = 0 — замков в продаже нет: карточки нет (Этап 5 поднимет SaleMax).
@@ -289,6 +355,86 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		end
 	end
 
+	-- Карточка cw × ch px снизу вверх: кнопка у низа, кружок и имя сверху, строке действия — всё
+	-- между ними; её строки не влезают — кружок меньше (до DiscMin), потом короткая строка.
+	-- Ряд (layoutCards): кружок у всех карточек один — самый маленький из нужных.
+	type Plan = { text: string, disc: number }
+	local function metrics(ch: number): (number, number, number, number, number, number)
+		local small = UiFx.textSize("Small")
+		local px = math.max(small - 2, 12) -- (наименьший размер, что даст UiFx.fitText)
+		local gap = math.max(CARD.Gap * ch, 2)
+		local buyH = math.max(CARD.Buy * ch, CARD.BuyMin)
+		local buyTop = CARD.Foot * ch - buyH - CARD.BuyInk -- (низ строки действия — над обводкой кнопки)
+		local nameH = math.max(CARD.Name * ch, small * NAME_LINE)
+		return px, gap, buyH, buyTop, nameH, CARD.Top * ch
+	end
+
+	local function planCard(card: Card, cw: number, ch: number): Plan?
+		local effect = card.effect
+		if cw <= 1 or ch <= 1 or not effect then
+			return nil
+		end
+		local px, gap, _, buyTop, nameH, top = metrics(ch)
+		local box = effect.Size.X.Scale * cw
+		local full, short = effectTexts(card.key)
+		-- самый большой кружок, при котором строке действия хватает места
+		local function discFor(text: string): number
+			local need = lineCount(text, px, box) * px * LINE
+			return buyTop - top - 3 * gap - nameH - need
+		end
+		local disc = discFor(full)
+		if disc >= CARD.DiscMin * ch then
+			return { text = full, disc = math.min(disc, CARD.Disc * ch) }
+		end
+		return { text = short, disc = math.clamp(discFor(short), CARD.DiscMin * ch, CARD.Disc * ch) }
+	end
+
+	local function applyCard(card: Card, cw: number, ch: number, plan: Plan, disc: number)
+		local effect = card.effect
+		if not effect then
+			return
+		end
+		local _, gap, buyH, buyTop, nameH, top = metrics(ch)
+		local discEl = card.disc
+		if discEl then
+			discEl.Position = UDim2.fromScale(0.5, top / ch)
+			discEl.Size = UDim2.fromScale(disc / ch, disc / ch) -- (RelativeYY: доли высоты)
+		end
+		local nameTop = top + disc + gap
+		local nameLabel = card.name
+		if nameLabel then
+			nameLabel.Position = UDim2.fromScale(0.5, nameTop / ch)
+			nameLabel.Size = UDim2.fromScale(nameLabel.Size.X.Scale, nameH / ch)
+		end
+		local effectTop = nameTop + nameH + gap
+		effect.Position = UDim2.fromScale(0.5, effectTop / ch)
+		effect.Size = UDim2.fromScale(effect.Size.X.Scale, math.max(buyTop - gap - effectTop, 1) / ch)
+		effect.Text = plan.text
+		card.effectText = plan.text
+		card.buy.Size = UDim2.fromScale(card.buy.Size.X.Scale, buyH / ch)
+		if card.state then
+			card.state.Visible = false -- (купленный замок пишет своё в строке действия)
+		end
+	end
+
+	local function layoutCards()
+		local cw, ch = cell.X, cell.Y
+		local plans: { [Card]: Plan } = {}
+		local disc = CARD.Disc * ch
+		for _, card in cards do
+			local plan = planCard(card, cw, ch)
+			if plan then
+				plans[card] = plan
+				if card.frame.Visible then
+					disc = math.min(disc, plan.disc)
+				end
+			end
+		end
+		for card, plan in plans do
+			applyCard(card, cw, ch, plan, disc)
+		end
+	end
+
 	local function onPlace(fit: Sheet.Fit)
 		local grid, padding = grid, padding
 		if not grid or not padding then
@@ -323,6 +469,7 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		frame.CanvasPosition = Vector2.new(math.min(frame.CanvasPosition.X, math.max(canvasW - windowW, 0)), 0)
 		cell = Vector2.new(cw, ch)
 		fitNames(cw)
+		layoutCards()
 	end
 
 	------------------------------------------------------------------------------
@@ -338,9 +485,13 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		end
 	end
 
-	-- look: "on" | "active" | "wait" | "protected" | "price" | "poor" | "confirm" | "busy" | "bought"
+	-- look: "on" | "alert" | "active" | "wait" | "protected" | "after" | "price" | "poor" | "need" |
+	-- "confirm" | "busy" | "bought"
 	local TOKENS: { [string]: string } = {
 		on = "Guard",
+		alert = "Berry",
+		after = "Slate",
+		need = "Slate",
 		active = "Glass",
 		wait = "Slate",
 		protected = "Glass",
@@ -351,12 +502,33 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		bought = "Leaf",
 	}
 
+	local function stopGlow(card: Card)
+		local glow = card.glow
+		card.glow = nil
+		if glow then
+			glow()
+		end
+	end
+
 	local function setLook(card: Card, look: string, text: string, priceText: string?)
 		if card.look ~= look then
 			card.look = look
 			UiFx.recolor(card.buy, TOKENS[look] or "Slate")
 			if look ~= "wait" and look ~= "confirm" then
 				stopRing(card)
+			end
+			stopGlow(card)
+			if look == "alert" and open then
+				-- у тебя крадут: эта кнопка — ЩИТ (красные кольца, как у «ЩИТ!» в колонке)
+				card.glow = UiFx.glowRing(card.buy, {
+					color = Palette.Berry.Top,
+					scale = ALERT_RING.Scale,
+					thickness = ALERT_RING.Thickness,
+					time = ALERT_RING.Time,
+					interval = ALERT_RING.Every,
+					loop = true,
+				})
+				UiFx.punch(card.buy, { from = 0.8, peak = 1.12 })
 			end
 		end
 		local label, price = card.label, card.price
@@ -388,7 +560,10 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		local shieldUntil = numberAttr(player, "ShieldUntil") or 0
 		local ready = numberAttr(player, "ShieldReadyAt") or 0
 		local left = protectLeft()
-		if shieldUntil > t then
+		if player:GetAttribute("Stealing") ~= nil and shieldUntil <= t then
+			-- крадёшь сам: сервер щит не включит («Сначала закончи кражу») — видно сразу
+			setLook(card, "after", BUY.AfterTheft)
+		elseif shieldUntil > t then
 			setLook(card, "active", TextUtil.fill(BUY.Active, { t = StealRules.FormatClock(shieldUntil - t) }))
 		elseif ready > t then
 			setLook(card, "wait", TextUtil.fill(BUY.Wait, { t = StealRules.FormatClock(ready - t) }))
@@ -399,6 +574,8 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 			end
 		elseif left >= SHIELD.StackBelow then
 			setLook(card, "protected", BUY.Protected)
+		elseif hud:GetAttribute("AlertPhase") ~= nil then
+			setLook(card, "alert", TEXTS.ButtonAlert)
 		else
 			setLook(card, "on", BUY.On)
 		end
@@ -415,14 +592,20 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 			local price = priceOf(item)
 			if not price then
 				setLook(card, "bought", BUY.Bought)
+			elseif money() < price and os.clock() < card.needUntil then
+				-- «ЕЩЁ $3 000» под пальцем (нажали, а денег не хватает)
+				setLook(card, "need", TextUtil.fill(BUY.Need, { price = TankRules.FormatMoney(price - money()) }))
 			else
 				setLook(card, if money() >= price then "price" else "poor", "", priceLabel(price))
 			end
 		end
 		if item == "Lock" and stateLabel then
-			local level = math.floor(numberAttr(player, "LockLevel") or 0)
-			stateLabel.Visible = level > 0 and priceOf("Lock") == nil
-			stateLabel.Text = TEXTS.LockSoon
+			stateLabel.Visible = false
+			-- купленный замок: строка действия — «Сильнее замки — скоро в магазине» (её раскладка)
+			local full, short = effectTexts("Lock")
+			if card.effectText ~= full and card.effectText ~= short then
+				layoutCards()
+			end
 		end
 	end
 
@@ -483,7 +666,7 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 
 	local function onShieldTap(card: Card)
 		local look = card.look
-		if look == "on" then
+		if look == "on" or look == "alert" then
 			stopConfirm(true)
 			endBusy(false)
 			busy = card
@@ -502,6 +685,7 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 				"warning"
 			)
 		end
+		-- ("after": подпись «ПОСЛЕ КРАЖИ» уже говорит почему — только качается)
 	end
 
 	local function onItemTap(card: Card)
@@ -517,13 +701,17 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 			return
 		end
 		if money() < price then
-			-- Не хватает: качается и «Не хватает: нужно $6 000» (цену решит и сервер)
+			-- Не хватает: качается и прямо на кнопке «ЕЩЁ $3 000» NeedTime с (под пальцем: уведомление
+			-- легло бы на шапку листа с кошельком; повторное нажатие — заново, без стопки уведомлений)
 			stopConfirm(true)
 			UiFx.wiggle(card.buy, 6, 2, 0.3)
-			NotifyController.Show(
-				TextUtil.fill(TEXTS.Denied.money, { price = TankRules.FormatMoney(price) }),
-				"warning"
-			)
+			card.needUntil = os.clock() + PANEL.NeedTime
+			itemLook(card)
+			task.delay(PANEL.NeedTime + 0.02, function()
+				if open and os.clock() >= card.needUntil then
+					itemLook(card)
+				end
+			end)
 			return
 		end
 		if confirm ~= card then
@@ -585,6 +773,9 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		ticker = nil
 		for _, card in cards do
 			stopRing(card)
+			stopGlow(card)
+			card.needUntil = 0
+			card.look = "" -- (открыли снова — вид и кольца заново)
 		end
 		trove:Clean()
 	end
@@ -635,6 +826,7 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 		if base then
 			trove:Connect(base:GetAttributeChangedSignal("ProtectUntil"), refresh)
 		end
+		trove:Connect(hud:GetAttributeChangedSignal("AlertPhase"), refresh) -- (тревога: щит — «ЩИТ!»)
 		local items: { GuiObject } = {}
 		for _, card in visibleCards() do
 			table.insert(items, card.frame)
@@ -701,7 +893,12 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 			if text then
 				local level = if typeof(payload.Level) == "number" then payload.Level else 1
 				local entry = LOCK.Levels[math.clamp(level, 1, #LOCK.Levels)]
-				NotifyController.Show(TextUtil.fill(text, { s = entry.Hold }), "success", { icon = ICONS[item] })
+				local spec = (TEXTS.Cards :: any)[item]
+				NotifyController.Show(
+					TextUtil.fill(text, { s = entry.Hold }),
+					"success",
+					{ icon = if spec then spec.Icon else nil }
+				)
 			end
 		end
 	end
