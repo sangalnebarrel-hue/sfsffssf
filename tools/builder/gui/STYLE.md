@@ -414,7 +414,10 @@ a slower rainbow (`Motion.Reduced`). Nothing ever flashes faster than 3 times pe
   side, when no band is left above them or when the letters would be 1.25× bigger there
   (`CLIMAX.TitleBeside`: on a tablet or a PC the band over a big trophy is thin — the word beside
   him is 2× taller), never smaller than `CLIMAX.TitleSide` 24 px, 16 px from the Roblox buttons
-  and, without touch, from the chat window and the player list;
+  and, without touch, from the chat window and the player list (by the menu and the chat pill its
+  drawn letters keep those 16 px while it wobbles ±`CLIMAX.TitleWobble`° and slams too: lower by
+  the end's rise, else a quieter wobble and a smaller slam — `FishingLayout.coreClear`, Stage 4
+  last mile F-06);
   white → rarity → shade fill, a thick outline; Legendary/Mythic letter by letter, each letter
   starts its wave as it lands; a white shine sweeps the word right behind the letters) and, once
   the shockwave is gone (+0.55 s), a light full-screen dim (the card's dim + 0.2; not on phones:
@@ -1119,7 +1122,9 @@ RenderStepped connection for all running frame effects, disconnected when none r
 - **Stage 4 placement rules** (keep them when you add a widget):
   - **The thief's bar and «ДОБЫЧА!» stay in the bottom band** (§6.4 rev. 3 of the design):
     `HUD.TheftBar` / `TheftTitle` centred between the thumbstick and Jump, ≥ 16 px from them and
-    the screen edge, never in the upper middle where the robbed display and the fish on the
+    the screen edge — at the peak of its pop-in too (the Back overshoot: a bar filling the band on
+    a phone pops from nearer 1, `TheftController` popFrom; design §11.7 F-08) — never in the upper
+    middle where the robbed display and the fish on the
     thief's head are. While the HUD has `Stealing`, the status stack is hidden and
     `NotifyController.Reserve("thief", …)` holds the whole column (no toast, no trophy chip on
     phones) — a new widget for the thief goes into the bottom band too.
@@ -1147,7 +1152,9 @@ RenderStepped connection for all running frame effects, disconnected when none r
     head after a loss); the victim's plate lifts towards the status stack (then shorter, never
     under `Theft.PlateHeight`) so its lip stays ≥ 16 px off his hair; on a phone a two-line
     broadcast that would reach his head is one line «Кто: ЧТО» (≥ 12 px). A toast a band pushed
-    out early and that then waited longer than its own life is stale and dropped (UX-05).
+    out early and that then waited longer than its own life is stale and dropped (UX-05); one
+    already read (on screen `UIConfig.ToastSeen` 0.8 s) is not queued again at all — one server
+    `Notify`, one show (§11.7 F-05: the victim saw «Щит погас» before and after a short alert).
   - **A locked control explains itself in place** (UX-07): the carry's locked «🔒 ДОМОЙ» wiggles
     and the thief's bar line says why («🔒 Сначала за ограду!», `Theft.Bar.LockedTime`); no toast
     (the thief's toasts wait for the theft's end) and nothing to the server.

@@ -1541,7 +1541,8 @@ end
 -- (nil / 0 = none: ProtectUntil and ProtectKind cleared), readyIn = seconds until the shield is
 -- ready again (nil / 0 = ready), kind = "shield" (default) | "join" | "newbie" | "after" |
 -- "rest". The base gets ProtectUntil / ProtectKind, the player ShieldUntil (the shield kind
--- only) and ShieldReadyAt — all through TankRules.AttrTime.
+-- only) and ShieldReadyAt — all through TankRules.AttrTime. The base's protection is cleared when
+-- the scenario ends (h:atEnd).
 local PROTECT_KINDS = { shield = true, join = true, newbie = true, after = true, rest = true }
 function Harness:shield(left: number?, readyIn: number?, kind: string?)
 	local tankRules = self.sim:Require(self.sim:Find("ReplicatedStorage.Shared.TankRules"))
@@ -1556,6 +1557,14 @@ function Harness:shield(left: number?, readyIn: number?, kind: string?)
 	if base then
 		base:SetAttribute("ProtectUntil", untilAt)
 		base:SetAttribute("ProtectKind", if untilAt then k else nil)
+		if not self.shieldCleared then
+			-- (the stub sim keeps base 1 for the next scenario's player: no protection leaks into it)
+			self.shieldCleared = true
+			self:atEnd(function()
+				base:SetAttribute("ProtectUntil", nil)
+				base:SetAttribute("ProtectKind", nil)
+			end)
+		end
 	else
 		self:warn("h:shield: the player has no base")
 	end

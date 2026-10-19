@@ -18,7 +18,8 @@
 	    грабит, — в верхней середине экрана, где плашки статуса и уведомления), по центру, между
 	    джойстиком и кнопкой прыжка (≥ Theft.Bar.Gap px от них и от края; не шире Theft.Width
 	    экрана и WidthMax px; верх — Bar.Top высоты HUD); ширина меняется твином за Bar.Resize с
-	    (подсказка ↔ кража). Её виды:
+	    (подсказка ↔ кража); выскакивает с масштаба 0.4, а во всю полосу (телефон) — крупнее: и на
+	    пике перелёта Back она не ближе Gap к джойстику и прыжку (popFrom). Её виды:
 	      удержание — StealEvent "Hold": тёмная плашка (Night), 🥷 «КРАДЁШЬ: ОКУНЬ», под ним
 	        толстая полоса (Berry) заполняется к серверному концу End (один линейный твин, без
 	        покадровой работы), в ней «Не отходи!» и «1,8 с» (цепочка task.delay Bar.HoldTick:
@@ -131,6 +132,9 @@ local TITLE_MAX_HEIGHT = 170
 local ICON_SHARE = 0.45 * 1.05 -- на сколько высот плашки кружок значка выступает влево
 local FAIL_PAD = 14 -- плашка «СОРВАЛОСЬ!» шире своего текста на столько px
 local FAIL_SLACK = 1.08 -- … и причина — шире своей оценки по буквам во столько раз
+-- Плашка выскакивает (UiFx.popIn, Back Out) с масштаба POP_FROM; Back перелетает за 1 на POP_OVER
+-- пути: с 0.4 — до 1.06 вокруг якоря (середина верха).
+local POP_FROM, POP_OVER = 0.4, 0.1
 local RESERVE_KEY = "thief" -- колонка уведомлений (не из RESERVE_ORDER: «alert» выше)
 local SHEETS = { "TankPanel", "DefencePanel" } -- листы: при них подсказок на стекле нет
 local GHOST_WINDOW = 10 -- опоздавший "Hold" брошенной (NoReply) кнопки узнаём столько с
@@ -258,19 +262,21 @@ local function baseModel(index: any): Model?
 	return if base and base:IsA("Model") then base else nil
 end
 
--- Нижняя полоса HUD (px): слева — джойстик, справа — кнопка прыжка (тач-экран), края экрана.
-local function band(): (number, number)
+-- Нижняя полоса HUD (px): слева — джойстик, справа — кнопка прыжка (тач-экран), края экрана;
+-- третье — запас на тряску (px, с каждой стороны; 0 без тач-экрана).
+local function band(): (number, number, number)
 	local width = w.hud.AbsoluteSize.X
 	local left, right = BAR.Gap, width - BAR.Gap
+	local wobble = 0
 	if UserInputService.TouchEnabled then
 		local small = smallTouch()
 		local jump = if small then FishingLayout.JUMP_SMALL else FishingLayout.JUMP_BIG
 		-- (+ размах тряски «СОРВАЛОСЬ!»: и трясясь, плашка не ближе Gap к джойстику и прыжку)
-		local wobble = BAR.Shake * width
+		wobble = BAR.Shake * width
 		left = math.max(left, (if small then STICK_SMALL else STICK_BIG) + BAR.Gap + wobble)
 		right = math.min(right, width - jump.right - jump.size - BAR.Gap - wobble)
 	end
-	return left, right
+	return left, right, wobble
 end
 
 local function barHeight(): number
@@ -425,10 +431,30 @@ local function isShown(gui: GuiObject): boolean
 	return showing[gui] == true and gui.Visible
 end
 
+-- С какого масштаба выскочить плашке на её месте (placeBar): и на пике перелёта (1 + POP_OVER ×
+-- (1 − from) вокруг середины верха) она со значком держит BAR.Gap до джойстика и прыжка; запас
+-- тряски — её, если она не трясётся сразу (shaking). Во всю полосу (телефон: подсказка «Начнёшь
+-- красть — …», полоса кражи) начинает крупнее, перелёт меньше (последняя миля, F-08).
+local function popFrom(shaking: boolean?): number
+	local size = w.hud.AbsoluteSize
+	local half = w.bar.Size.X.Scale * size.X / 2
+	if size.X < 2 or half < 1 then
+		return POP_FROM
+	end
+	local left, right, wobble = band()
+	if not shaking then
+		left -= wobble
+		right += wobble
+	end
+	local center = w.bar.Position.X.Scale * size.X
+	local reach = math.min((center - left) / (half + ICON_SHARE * barHeight()), (right - center) / half)
+	return math.clamp(1 - (reach - 1) / POP_OVER, POP_FROM, 1)
+end
+
 -- Показать полосу (если спрятана или уходит — выскакивает).
-local function showBar()
+local function showBar(shaking: boolean?)
 	if not isShown(w.bar) then
-		popShow(w.bar, { from = 0.4, time = 0.3 })
+		popShow(w.bar, { from = popFrom(shaking), time = 0.3 })
 	end
 end
 
@@ -1119,7 +1145,7 @@ local function enterFail(data: { [string]: any })
 	w.title.Text = BANNER.Fail
 	w.reason.Text = reason
 	placeBar(failWidth(reason), nil, true)
-	showBar()
+	showBar(true)
 	UiFx.punch(w.title, { from = 1.3, peak = 1.1 })
 	UiFx.shake(w.bar, BAR.Shake, 0.4)
 	UiFx.sound("swoosh", 0.35, 0.7)

@@ -44,7 +44,10 @@
 	  thief_timeline_fail hold → the shield → «СОРВАЛОСЬ!»
 	The critic's set (round 1): thief_fail_<reason> (every Cancel reason), thief_denied_<reason>
 	(weak, owner, tagged, rest, few, new, full, after), thief_court_protected (a protected
-	newcomer: the how-to, then the warning), thief_noreply, thief_done_replaced (a full tank:
+	newcomer: the warning first, then the how-to — design §11.7 F-03), thief_court_shielded /
+	thief_court_wary (the last mile, F-01: a Cancel with BaseUntil closes the owner's base — its
+	«Украсть» hidden, after «СОРВАЛОСЬ!» the court says «🛡️ Хозяин включил щит — здесь красть снова
+	через 3:5x» / «👀 Хозяин настороже — …» with a live clock), thief_noreply, thief_done_replaced (a full tank:
 	«ЗАМЕНА!» and the coins), thief_done_long / thief_hold_long (the longest short name),
 	thief_hold_ended (the protection-ended toast waits: nothing over the robbed display).
 
@@ -781,6 +784,36 @@ return function(H: { [string]: any }): { any }
 			h:advance(2.6)
 		end,
 	})
+	-- The last mile (F-01): a Cancel with BaseUntil / BaseReason closes that owner's base on the
+	-- client — no «Украсть» there, and after «СОРВАЛОСЬ!» the court says why, with a live clock.
+	local function closedScenario(name: string, reason: string, cancel: string, left: number): any
+		return {
+			name = name,
+			desc = `last mile: a Cancel «{cancel}» with BaseReason «{reason}» — the base hidden, the court says why`,
+			world = true,
+			standard = false,
+			still = { 0.3, 3.8 },
+			burst = false,
+			run = function(h: any)
+				local _, other = neighbourCourt(h)
+				intoCourt(h, other)
+				local steal = h:config("StealConfig")
+				h:stealEvent("Cancel", {
+					Reason = cancel,
+					Text = steal.Texts.Cancel[cancel],
+					Phase = "hold",
+					BaseIndex = other:GetAttribute("BaseIndex"),
+					BaseUntil = h.sim.workspace:GetServerTimeNow() + left,
+					BaseReason = reason,
+				})
+			end,
+			during = function(h: any)
+				h:advance(3.9)
+			end,
+		}
+	end
+	table.insert(extras, closedScenario("thief_court_shielded", "shielded", "shield", 239))
+	table.insert(extras, closedScenario("thief_court_wary", "wary", "released", 58))
 	-- NoReply: «Подожди секунду».
 	table.insert(extras, {
 		name = "thief_noreply",
