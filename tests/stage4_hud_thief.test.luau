@@ -48,7 +48,9 @@
 	    «нет» and opens nothing, a failure never opens it;
 	  • wave 3 (integration): «ВЫХОД» waits for a «ГАВ!» that will rise into it, for one that runs
 	    into it between two steps of the guide and for one that was there before the carry; the
-	    owner's alert asks for the column's top while the thief's band holds the whole column.
+	    owner's alert asks for the column's top while the thief's band holds the whole column;
+	    (wave 3 fix, ART-09) «ВЫХОД» reads its own client's bark folder, not another client's
+	    Workspace.TheftWorld found first by name.
 
 	Run: lune run tools/run_tests.luau stage4_hud_thief
 ]]
@@ -1571,6 +1573,54 @@ tests["«ВЫХОД» waits while a «ГАВ!» crosses it on screen and comes b
 	sim:Advance(SPEC.BeamEvery * 2)
 	t.ok(label.Enabled, "a bark elsewhere on the screen: «ВЫХОД» stays")
 	aside:Destroy()
+	t.eq(#sim.Errors, 0, sim:FormatErrors())
+end
+
+tests["«ВЫХОД» watches its own client's «ГАВ!» (TheftWorldController.Folder), not another client's Workspace.TheftWorld found by name (wave 3 ART-09: «ВЫХОДГАВ!» in the batch renders)"] = function(
+	t
+)
+	local sim = S.boot(t)
+	-- a bystander whose client starts first: his TheftWorld is the first one by that name
+	local bystander = S.player(t, sim, 297, { client = true, device = "desktop" })
+	local victim = S.player(t, sim, 298, { tank = VICTIM })
+	local thief = S.player(t, sim, 299, { tank = THIEF, client = true, device = "phone" })
+	local own = S.client(sim, thief, "TheftWorldController").Stats().folder
+	local first = sim.workspace:FindFirstChild("TheftWorld")
+	t.ok(own ~= nil and first ~= nil and first ~= own, "another client's TheftWorld is found first by name")
+	t.eq(S.client(sim, bystander, "TheftWorldController").Stats().folder, first, "… the bystander's")
+	sim:Teleport(victim, S.exitPoint(S.baseOf(sim, thief), "gate"))
+	sim:Advance(1.5)
+	S.toCarry(t, sim, thief, victim, 3)
+	sim:Advance(0.5)
+	local guide = sim.workspace:FindFirstChild("TheftGuide")
+	local ring = guide and guide:FindFirstChild("Ring")
+	local label = guide and guide:FindFirstChild("ExitLabel")
+	t.ok(ring ~= nil and label ~= nil, "the ring and «ВЫХОД»")
+	if not (ring and label) then
+		return
+	end
+	local camera = sim.workspace.CurrentCamera
+	sim:Run(function()
+		camera.CFrame = CFrame.lookAt(ring.Position + Vector3.new(0, 12, 30), ring.Position)
+		camera.FieldOfView = 70
+	end, thief)
+	sim:Advance(SPEC.BeamEvery + S.FRAME)
+	t.ok(label.Enabled, "«ВЫХОД» shown")
+	-- the thief's own dog bark (in HIS folder) right over «ВЫХОД»
+	local gui = sim:Create("BillboardGui", {
+		Name = "FxTankPop",
+		Size = UDim2.new(3, 30, 1.2, 14),
+		Adornee = ring,
+		StudsOffsetWorldSpace = Vector3.new(0, GUIDE.Label.Lift, 0),
+		AlwaysOnTop = true,
+		MaxDistance = 400,
+	}, own)
+	sim:Create("TextLabel", { Name = "Amount", Text = "ГАВ!", TextScaled = true, Size = UDim2.fromScale(1, 1) }, gui)
+	sim:Advance(S.FRAME * 2)
+	t.ok(not label.Enabled, "his own «ГАВ!» over «ВЫХОД»: the label waits")
+	gui:Destroy()
+	sim:Advance(S.FRAME * 2)
+	t.ok(label.Enabled, "gone: «ВЫХОД» back")
 	t.eq(#sim.Errors, 0, sim:FormatErrors())
 end
 

@@ -7,9 +7,10 @@
 	собаки и игроков, RemoteNames «Кража и защита»). Витрины во время кражи, строка защит над
 	аквариумом и слово у ведра — TankWorldController. Всё своё — в папке Workspace.TheftWorld (одна
 	невидимая деталь-держатель Anchor в начале координат с Attachment'ами света и пыли; волчок
-	сирены; купола; подсветки и слова — BillboardGui с Adornee на деталях сервера). Слова над
-	головами («ВОР!», табличка рыбы вора, «ГАВ!») — под правилом «не под HUD» TankWorldController
-	(TrackWord: у плашек HUD тают).
+	сирены; купола; подсветки и слова — BillboardGui с Adornee на деталях сервера). Слова мира
+	(«ВОР!», табличка рыбы вора, «ГАВ!», «💤», табличка флага «🛡️ 4:12») — под правилом «не под
+	HUD» TankWorldController (TrackWord: у плашек HUD тают; буквы — не крупнее потолка надписей
+	витрин, у «ГАВ!» — Dog.BarkCap потолков).
 
 	Что делает:
 	  • Базы Workspace.Bases — все сразу: по одному AttributeChanged на модель базы и на её Dog.
@@ -43,14 +44,16 @@
 	    внутри купола, его камера — снаружи: иначе весь двор сквозь лицо купола, во весь экран);
 	    только у баз ближе Dome.Range, на тач-экране — не больше Dome.PhoneMax ближайших;
 	    появляется и тает за Fade с.
-	  • Табличка флага: над OwnerSign (Flag.Pole.SignAttachment) свой BillboardGui её размера,
-	    сдвинутый вверх на Flag.Raise своей высоты (там небо, не полотнище флага цвета базы), —
-	    «🛡️ 4:12» цветом Guard, пока база под любой защитой (видно через карту: её MaxDistance);
+	  • Табличка флага: над OwnerSign (Flag.Pole.SignAttachment) строка «🛡️ 4:12» цветом Guard —
+	    свой BillboardGui Flag.Wide × Flag.Line её размера там, где строка внизу рамки её размера,
+	    поднятой на Flag.Raise своей высоты (там небо, не полотнище флага цвета базы), пока база
+	    под любой защитой (видно через карту: её MaxDistance);
 	    часы — цепочка task.delay по целым секундам до конца защиты (как фишка щита и строка
 	    защит над аквариумом: одно время в одном кадре; Wave 3 ART-04).
 	  • Собака (Dog.Unlocked = true): спит — поза сервера (pivot щенка у DefenceConfig.Dog.Rest),
 	    поднятая лапами на землю двора (луч вниз по Grounds и Arcades базы: мощёная дорожка выше
-	    точки базы), и «💤» над ней (World.Dog.Sleep, видно до SleepRange; неподвижное); DogState ≠
+	    точки базы), и «💤» у её головы, вбок на экране (World.Dog.Sleep: Side studs в осях камеры;
+	    видно до SleepRange; неподвижное); DogState ≠
 	    "Sleep" и база ближе World.Dog.Range — RenderStepped (ТОЛЬКО на это время): щенок догоняет
 	    DogPos (Vector3 мира) с α = 1 − e^(−Follow·dt), лапами на земле под ней (один луч на каждую
 	    новую DogPos: галерея и дорожки выше газона), смотрит по ходу, на бегу подпрыгивает (Hop
@@ -78,6 +81,7 @@
 	                                     -- life — твин рыбы на голове вора)
 	  TheftWorldController.Stats() -> { bases, lamps, sirens, marks, domes, fading, flags, dogs,
 	                                    sleeps, carried, running, folder }   -- running: цепочка идёт
+	  TheftWorldController.Folder() -> Folder?   -- своя Workspace.TheftWorld (TheftController: «ГАВ!»)
 ]]
 
 local Players = game:GetService("Players")
@@ -120,6 +124,7 @@ local HALF_TURN = math.rad(179.9) -- (полоборота твином: кор�
 -- вора ≈ PLATE_W × PLATE_H потолков (две строки), «ВОР!» ≈ TAG_W × TAG_H.
 local PLATE_W, PLATE_H = 7, 2.6
 local TAG_W, TAG_H = 3, 1.2
+local SLEEP_W, SLEEP_H = 1.4, 1.2 -- «💤»
 
 type Lamp = {
 	part: BasePart,
@@ -801,20 +806,26 @@ local function applyFlag(base: Base, now: number)
 		if not (sign and sign:IsA("BillboardGui") and point and point:IsA("Attachment") and root) then
 			return
 		end
-		local gui, plate = TankDisplay.billboard(root, "FxFlagProtect", sign.Size, sign.MaxDistance)
-		gui.Adornee = point
-		-- (над табличкой владельца — на её высоту выше: там небо, не синее полотнище флага)
-		gui.SizeOffset = Vector2.new(0, FLAG.Raise)
-		local label = TankDisplay.word(
-			plate,
-			"Protect",
-			text,
-			{ (1 - FLAG.Wide) / 2, 1 - FLAG.Line, FLAG.Wide, FLAG.Line },
-			GUARD,
-			FLAG.Outline,
-			true
+		-- Рамка — ровно строка (Wide × Line размера таблички владельца) там, где строка была бы
+		-- внизу рамки её размера, поднятой на Raise своей высоты: над табличкой — небо, не синее
+		-- полотнище флага. Рамка по буквам — её меряет правило «не под HUD» (Wave 3 ART-07).
+		local size = sign.Size
+		local gui, plate = TankDisplay.billboard(
+			root,
+			"FxFlagProtect",
+			UDim2.new(
+				size.X.Scale * FLAG.Wide,
+				math.round(size.X.Offset * FLAG.Wide),
+				size.Y.Scale * FLAG.Line,
+				math.round(size.Y.Offset * FLAG.Line)
+			),
+			sign.MaxDistance
 		)
+		gui.Adornee = point
+		gui.SizeOffset = Vector2.new(0, (FLAG.Raise - 0.5 + FLAG.Line / 2) / FLAG.Line)
+		local label = TankDisplay.word(plate, "Protect", text, { 0, 0, 1, 1 }, GUARD, FLAG.Outline, true)
 		UiFx.popIn(plate, { from = 0.4 })
+		TankWorldController.TrackWord(gui) -- (у плашек HUD — тает, как «ВОР!»)
 		flag = { gui = gui, label = label, untilAt = untilAt, gen = 0 }
 		base.flag = flag
 		flagStep(base, flag :: Flag, 0)
@@ -917,7 +928,14 @@ local function bark(base: Base)
 		TankDisplay.rise(root, WORDS.Bark, SUN, billboardSize(DOG.Bark), DOG.BarkRise, DOG.BarkTime, WORLD.WordRange)
 	gui.Adornee = body
 	gui.StudsOffsetWorldSpace = Vector3.new(0, lift, 0)
-	TankWorldController.TrackWord(gui)
+	-- буквы не крупнее BarkCap потолков надписей витрин: у камеры рамка растёт, а не буквы (не
+	-- громче кошелька; Wave 3 ART-02 — без потолка ≈ 70 px на телефоне, как «ДОБЫЧА!»)
+	local cap = letterCap() * DOG.BarkCap
+	local amount = gui:FindFirstChild("Amount", true)
+	if amount and amount:IsA("TextLabel") then
+		TankDisplay.cap(amount, cap)
+	end
+	TankWorldController.TrackWord(gui, cap, TAG_W, TAG_H)
 end
 
 local function dropSleep(base: Base)
@@ -957,8 +975,11 @@ local function applySleep(base: Base, awake: boolean)
 	local _, top = pupShape(pup)
 	local gui, plate = TankDisplay.billboard(root, "FxDogSleep", billboardSize(spec), DOG.SleepRange)
 	gui.Adornee = body
-	gui.StudsOffsetWorldSpace = Vector3.new(0, pupPivot(pup).Position.Y + top - body.Position.Y + spec.Lift, 0)
-	gui.SizeOffset = Vector2.new(0.5, 0.5) -- (над макушкой, чуть к хвосту — как в комиксе)
+	-- у макушки и вбок на экране (Side studs в осях камеры; как в комиксе): собака посреди
+	-- кадра — «💤» не на его середине, где стопка статуса (Wave 3 ART-07); рамка — по центру точки
+	gui.StudsOffsetWorldSpace =
+		Vector3.new(0, pupPivot(pup).Position.Y + top - body.Position.Y + spec.Lift + spec.Height / 2, 0)
+	gui.StudsOffset = Vector3.new(spec.Side, 0, 0)
 	local label = Instance.new("TextLabel")
 	label.Name = "Sleep"
 	label.BackgroundTransparency = 1
@@ -967,6 +988,9 @@ local function applySleep(base: Base, awake: boolean)
 	label.TextScaled = true
 	label.FontFace = Font.new(UIConfig.Font.Family, Enum.FontWeight.Heavy)
 	label.Parent = plate
+	local cap = letterCap()
+	TankDisplay.cap(label, cap)
+	TankWorldController.TrackWord(gui, cap, SLEEP_W, SLEEP_H) -- (у плашек HUD — тает)
 	base.sleep = gui
 end
 
@@ -1337,6 +1361,12 @@ function TheftWorldController.Get(model: Instance): { [string]: any }?
 		life = carried and carried.tween,
 		distance = base.distance,
 	}
+end
+
+-- Своя папка Workspace.TheftWorld этого клиента (TheftController ищет в ней «ГАВ!»; по имени в
+-- Workspace — нельзя: в эмуляторе тестов клиенты делят один Workspace).
+function TheftWorldController.Folder(): Folder?
+	return folder
 end
 
 function TheftWorldController.Stats(): { [string]: any }

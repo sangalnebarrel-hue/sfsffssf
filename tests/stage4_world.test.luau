@@ -36,8 +36,10 @@
 	  • the carried fish: the head weld's C0 alive (a looping tween), «🥷 Окунь $45» over it (+ «ВОР!»
 	    with the alarm), C0 restored and the plate gone with it; FisherAnimController holds it
 	    with both arms up (Trophy);
-	  • HUD: a world word under ShieldChip / TheftBar / TheftAlert fades (hudRects); «ВОР!» and
-	    the thief's plate fade under the status stack too (TrackWord) and leave the table when gone;
+	  • HUD: a world word under ShieldChip / TheftBar / TheftAlert fades (hudRects); «ВОР!», the
+	    thief's plate, the flag label and «💤» fade under the status stack too (TrackWord) and
+	    leave the table when gone; «ГАВ!» and «💤» capped, «💤» beside the dog (wave 3 ART-02/07);
+	    «УНОСЯТ!» gives way to the thief's plate while he is at the display (ART-03);
 	  • idle: no frame connections, no check chain, UiFx.activeJobs() == 0, nothing left after the
 	    base is released; the client's own parts within MapConfig.PartBudget.RuntimeReserve.Theft.
 
@@ -1026,7 +1028,7 @@ tests["tank sign defences row «🛡️ 0:42» + «🔐1 · 🐕 · 🚨» over 
 	t.eq(flag.Adornee, base.Flag.Pole.SignAttachment, "on the flag's SignAttachment")
 	t.eq(flag.MaxDistance, ownerSign.MaxDistance, "seen as far as the owner sign")
 	t.ok(flag.SizeOffset.Y > 0.9, "over the owner sign")
-	t.eq(flag.Size, ownerSign.Size, "… its size")
+	t.near(flag.Size.X.Scale, ownerSign.Size.X.Scale * WORLD.Flag.Wide, 1e-6, "… its line of it (wave 3 ART-07)")
 	t.ok(wordIn(folder(sim, visitor, "TheftWorld"), "FxFlagProtect", "🛡️ 4:12"), "«🛡️ 4:12»")
 	sim:Advance(1.6)
 	local theftWorld = folder(sim, visitor, "TheftWorld")
@@ -1247,6 +1249,18 @@ tests["dog: asleep on the paving with «💤» (no frame work), RenderStepped on
 		wordIn(folder(sim, owner, "TheftWorld"), "FxDogSleep", DefenceConfig.Texts.World.Sleep),
 		"… reading «💤»"
 	)
+	-- (wave 3 ART-07) beside the dog on screen, its letters capped like the display tags, under
+	-- the HUD rule
+	local display = client(sim, owner, "TankDisplay")
+	local viewY = seen(sim, owner, function()
+		return sim.workspace.CurrentCamera.ViewportSize.Y
+	end)
+	local tagCap = display.tagCap(viewY)
+	t.near(zz.StudsOffset.X, WORLD.Dog.Sleep.Side, 1e-4, "… beside the pup's head on screen (Side)")
+	t.eq(zz.SizeOffset, Vector2.new(0, 0), "… its frame centred on that point")
+	local zzCap = zz:FindFirstChild("Cap", true)
+	t.ok(zzCap and zzCap.MaxTextSize == math.round(tagCap), "… letters capped like the display tags")
+	t.ok(world.Stats().tracked >= 1, "… under the HUD rule (TrackWord)")
 	t.eq(theft.Stats().running, false, "a sleeping dog keeps no check chain")
 	local ui = sim:Require(sim:Find("ReplicatedStorage.Shared.UiFx"), owner)
 	t.eq(ui.activeJobs(), 0, "… and no frame job («💤» stands still)")
@@ -1258,6 +1272,11 @@ tests["dog: asleep on the paving with «💤» (no frame work), RenderStepped on
 	t.eq(barkWord and barkWord.Adornee, pup.PrimaryPart, "… on the dog's body (it rides with it)")
 	t.eq(barkWord and barkWord.MaxDistance, WORLD.WordRange, "… the theft words' range")
 	t.ok(world.Stats().tracked >= 1, "… under the HUD rule (TankWorldController.TrackWord)")
+	local barkCap = barkWord and barkWord:FindFirstChild("Cap", true)
+	t.ok(
+		barkCap and barkCap.MaxTextSize == math.round(tagCap * WORLD.Dog.BarkCap),
+		"… its letters capped at Dog.BarkCap display tags (wave 3 ART-02: no louder than the Wallet)"
+	)
 	t.eq(theft.Get(base).sleep, nil, "awake: no «💤»")
 	t.eq(frameConnections(sim, owner), frames0 + 1, "awake: one RenderStepped")
 	-- into the east arcade (its deck higher than the lawn): on the deck, not in it
@@ -1565,6 +1584,117 @@ tests["HUD: the theft words over people — «ВОР!» and «🥷 Окунь $4
 	fake:alarm(nil)
 	sim:Advance(WORLD.CheckEvery + DISPLAY.CheckEvery + 0.2)
 	t.eq(world.Stats().tracked, 0, "the words gone: nothing tracked")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["HUD: the flag label «🛡️ 4:12» and the dog's «💤» fade under the status stack too (TrackWord; wave 3 ART-07); the flag's frame is its line"] = function(
+	t
+)
+	local sim = boot(t)
+	local owner = addPlayer(sim, 1)
+	local visitor = addPlayer(sim, 2)
+	local fake = Fake.new(sim, visitor)
+	local base = fake.base
+	local theft = client(sim, owner, "TheftWorldController")
+	local world = client(sim, owner, "TankWorldController")
+	nearCourt(sim, owner, base)
+	fake:protect("join", 252)
+	fake:showDog()
+	fake:dog("Sleep")
+	sim:Advance(WORLD.CheckEvery + 0.2)
+	local flag = theft.Get(base).flag
+	local zz = theft.Get(base).sleep
+	t.ok(flag and zz, "the flag label and «💤»")
+	if not (flag and zz) then
+		return
+	end
+	-- the flag's frame is just its line, where the line was (Wide × Line of the owner sign, raised)
+	local ownerSign = base.Flag.Pole.SignAttachment.OwnerSign
+	local F = WORLD.Flag
+	t.near(flag.Size.X.Scale, ownerSign.Size.X.Scale * F.Wide, 1e-6, "the flag frame: Wide of the sign")
+	t.near(flag.Size.Y.Scale, ownerSign.Size.Y.Scale * F.Line, 1e-6, "… Line of it high")
+	t.near(flag.SizeOffset.Y, (F.Raise - 0.5 + F.Line / 2) / F.Line, 1e-6, "… raised where the line was")
+	local view = seen(sim, owner, function()
+		return sim.workspace.CurrentCamera.ViewportSize
+	end)
+	local look = CFrame.lookAt(Vector3.zero, Vector3.new(0, 0, 1))
+	local DEPTH = 14
+	-- the camera (looking north) that puts the centre of `gui`'s frame at screen (x, y)
+	local function aim(gui: any, x: number, y: number)
+		seen(sim, owner, function()
+			local camera = sim.workspace.CurrentCamera
+			camera.CFrame = look
+			local adornee = gui.Adornee
+			local base0 = if adornee:IsA("Attachment") then adornee.WorldPosition else adornee.Position
+			local point = base0 + gui.StudsOffsetWorldSpace + look:VectorToWorldSpace(gui.StudsOffset)
+			local perStud = view.Y / (2 * DEPTH * math.tan(math.rad(camera.FieldOfView) / 2))
+			local w = gui.Size.X.Scale * perStud + gui.Size.X.Offset
+			local h = gui.Size.Y.Scale * perStud + gui.Size.Y.Offset
+			local sx, sy = x - gui.SizeOffset.X * w, y + gui.SizeOffset.Y * h
+			local dir = camera:ScreenPointToRay(sx, sy).Direction.Unit
+			camera.CFrame = CFrame.new(point - dir * (DEPTH / look.LookVector:Dot(dir))) * look.Rotation
+		end)
+	end
+	local rects = world.HudRects()
+	local badge = rects[1]
+	local bx, by = (badge.x0 + badge.x1) / 2, (badge.y0 + badge.y1) / 2
+	for _, case in { { flag, "the flag label" }, { zz, "«💤»" } } do
+		local gui, name = case[1], case[2]
+		aim(gui, view.X / 2, view.Y * 0.45)
+		sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Show + 0.1)
+		t.eq(world.IsFaded(gui), false, `{name} clear of the HUD`)
+		aim(gui, bx, by)
+		sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Fade + 0.1)
+		t.ok(world.IsFaded(gui), `{name} on the base badge: faded (it read as part of the HUD)`)
+		aim(gui, view.X / 2, view.Y * 0.45)
+		sim:Advance(DISPLAY.CheckEvery + DISPLAY.Clear.Show + 0.1)
+		t.eq(world.IsFaded(gui), false, `{name} away: back`)
+	end
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["«УНОСЯТ!» gives way to the thief's plate «🥷 Окунь $45» while he is still at the display (wave 3 ART-03) and comes back once he runs off"] = function(
+	t
+)
+	local sim = boot(t)
+	local owner = addPlayer(sim, 1)
+	local thief = addPlayer(sim, 2)
+	local fake = Fake.new(sim, owner)
+	local base = fake.base
+	local world = client(sim, owner, "TankWorldController")
+	local theft = client(sim, owner, "TheftWorldController")
+	world.SetLife(false)
+	fake:mount({ "Perch", "Puffer", "Swordfish" })
+	local display = slotModel(base, 3).Display
+	sim:Teleport(owner, (display.CFrame * CFrame.new(0, -4, -16)).Position)
+	seen(sim, owner, function()
+		sim.workspace.CurrentCamera.CFrame =
+			CFrame.lookAt((display.CFrame * CFrame.new(0, 2, -15)).Position, display.Position + Vector3.new(0, 3, 0))
+	end)
+	local prompt = slotModel(base, 3).Pedestal.PromptAttachment.WorldPosition
+	sim:Teleport(thief, prompt + Vector3.new(0, 1, 0))
+	sim:Advance(2.2, FRAME * 2)
+	fake:alarm("theft", thief)
+	fake:steal(3, "hold", thief, 3)
+	sim:Advance(STEAL.LiftTime + DISPLAY.CheckEvery + 0.1)
+	local tankWorld = folder(sim, owner, "TankWorld")
+	local word = wordIn(tankWorld, "FxTankSteal", WORDS.Stealing)
+	t.ok(word, "«КРАДУТ!»")
+	t.eq(word and world.IsFaded(word), false, "… shown in the hold (no plate yet)")
+	fake:carry(thief, "Swordfish")
+	fake:steal(3, "carry", thief, StealConfig.Carry.Timeout)
+	t.ok(wordIn(tankWorld, "FxTankSteal", WORDS.Carrying), "«КРАДУТ!» → «УНОСЯТ!»")
+	sim:Advance(WORLD.Carried.Delay + 0.05 + DISPLAY.Clear.Fade + FRAME * 2)
+	local plate = theft.Get(base).plate
+	t.ok(plate, "the plate over his fish")
+	t.ok(word and world.IsFaded(word), "the plate popped at the display: «УНОСЯТ!» faded at once")
+	-- he runs off down the aisle: the word comes back over the robbed display
+	sim:Teleport(thief, (display.CFrame * CFrame.new(-30, 0, -9)).Position)
+	sim:Advance(DISPLAY.CheckEvery * 2 + DISPLAY.Clear.Show + 0.1)
+	t.eq(word and world.IsFaded(word), false, "the thief away: «УНОСЯТ!» back with its ring")
+	fake:drop(thief)
+	fake:unsteal(3)
+	fake:alarm(nil)
 	sim:AssertNoErrors({ warnings = true })
 end
 

@@ -165,9 +165,11 @@ local DefenceConfig = {
 		-- раз в секунду; лапы — на земле двора: луч вниз (только Grounds и Arcades базы) от GroundUp
 		-- studs над точкой базы на GroundDown studs — при каждой новой DogPos и у места сна; «ГАВ!»
 		-- (Bark: studs + px, всплывает на BarkRise за BarkTime с, едет с собакой; BarkLift studs над
-		-- ней) — при тревоге и при укусе; пока вор замедлен — пыль у его ног (Dust пылинок раз в
-		-- DustEvery с). Спит — «💤» над ней (Sleep: studs + px, Lift studs над макушкой, видно до
-		-- SleepRange; неподвижное — в покое ни одного твина).
+		-- ней; буквы не крупнее BarkCap потолков надписей витрин — не громче кошелька) — при тревоге
+		-- и при укусе; пока вор замедлен — пыль у его ног (Dust пылинок раз в DustEvery с). Спит —
+		-- «💤» у её головы (Sleep: studs + px; низ — на Lift studs от макушки, середина — на Side studs
+		-- вбок на экране: не над собакой посреди кадра, где стопка статуса; буквы — по потолку
+		-- надписей витрин; видно до SleepRange; неподвижное — в покое ни одного твина).
 		Dog = {
 			Range = 200,
 			Follow = 12,
@@ -180,9 +182,10 @@ local DefenceConfig = {
 			BarkRise = 1.4,
 			BarkTime = 0.9,
 			BarkLift = 1.2,
+			BarkCap = 1.4,
 			Dust = 3,
 			DustEvery = 0.25,
-			Sleep = { Width = 1.6, Height = 1.2, PixelsX = 16, PixelsY = 12, Lift = 0.5 },
+			Sleep = { Width = 1.6, Height = 1.2, PixelsX = 16, PixelsY = 12, Lift = -0.2, Side = 1.6 },
 			SleepRange = 60,
 		},
 		-- «🛡️ 4:12» над табличкой флага (Flag.Pole.SignAttachment.OwnerSign; над ней только небо —

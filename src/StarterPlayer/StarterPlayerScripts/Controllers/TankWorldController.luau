@@ -93,6 +93,9 @@
 	    Transparency / BackgroundTransparency, своя — в атрибуте FadeBase; Visible, Enabled и
 	    UIScale слова у других), снова проявляются за Clear.Show с, только когда слово отошло на
 	    Clear.Back px. Слово за камерой, дальше своего MaxDistance или выключенное — как было.
+	    «УНОСЯТ!» тает так же и у слов над людьми (TrackWord) ближе Clear.Words px: в начале
+	    выноса вор ещё у витрины, и табличка рыбы на его голове вставала на слово (проверка — и
+	    через Carried.Delay после начала выноса, когда табличка выскакивает; Wave 3 ART-03).
 	  • События витрин (базы ближе EventRange; дальше — тихо): "in" — новая рыба вырастает из точки
 	    (Fx.From → 1 за Fx.Grow с), брызги и искры цвета редкости (Emit на временном Attachment на
 	    Fx.Above над ВЕРХОМ витрины, не внутри стекла), вспышка света у LightBar (свой PointLight,
@@ -206,6 +209,7 @@ local STEAL = DISPLAY.Steal
 local WORLD_WORDS = StealConfig.Texts.World
 local DEFENCE_WORDS = DefenceConfig.Texts.World
 local STEAL_WORD_RANGE = DefenceConfig.World.StealWordRange
+local CARRIED_DELAY = DefenceConfig.World.Carried.Delay
 local LOCK_LEVELS = #DefenceConfig.Lock.Levels
 local BERRY = UIConfig.Palette.Berry
 -- Атрибуты модели базы, от которых зависит строка защит надписи садка (DefenceService).
@@ -696,12 +700,36 @@ local function clearWord(gui: BillboardGui?, rects: { Rect }?, cap: number?, cap
 	end
 end
 
+-- Прямоугольник шире на px с каждой стороны.
+local function grow(r: Rect, px: number): Rect
+	return { x0 = r.x0 - px, y0 = r.y0 - px, x1 = r.x1 + px, y1 = r.y1 + px }
+end
+
 -- Все слова (цепочка проверок, новое уведомление).
 local function clearHud()
-	if not Workspace.CurrentCamera then
+	local camera = Workspace.CurrentCamera
+	if not camera then
 		return
 	end
 	local rects = hudRects()
+	-- «УНОСЯТ!» тает и у слов над людьми (TrackWord: табличка рыбы на голове вора, «ВОР!», «ГАВ!»):
+	-- вор с рыбой ещё у витрины — его табличка там же, где слово (Wave 3 ART-03); ближе
+	-- Clear.Words px (у clearWord — Margin: прямоугольники шире на разницу). Считаются, только
+	-- если какую-то витрину выносят.
+	local nearWords: { Rect }? = nil
+	local function carryRects(): { Rect }
+		if not nearWords then
+			local list = table.clone(rects)
+			for gui, spec in tracked do
+				local r = if gui.Parent ~= nil then wordRect(gui, camera, spec.cap, spec.capW, spec.capH) else nil
+				if r then
+					table.insert(list, grow(r, math.max(CLEAR.Words - CLEAR.Margin, 0)))
+				end
+			end
+			nearWords = list
+		end
+		return nearWords :: { Rect }
+	end
 	-- (ушедшие слова — из таблицы)
 	for gui in faded do
 		if gui.Parent == nil then
@@ -719,7 +747,9 @@ local function clearHud()
 			clearWord(slot.lockGui, rects)
 			local steal = slot.steal
 			local word = steal and steal.word
-			clearWord(word and word.gui, rects, tagCap, 4, 1.4)
+			if steal and word then
+				clearWord(word.gui, if steal.phase == "carry" then carryRects() else rects, tagCap, 4, 1.4)
+			end
 		end
 	end
 	clearWord(pier.word and pier.word.gui, rects)
@@ -1497,6 +1527,10 @@ local function refresh(base: Base, slot: Slot)
 			else
 				model:Destroy()
 			end
+		end
+		if steal.phase ~= "carry" then
+			-- (табличка рыбы вора выскакивает через Carried.Delay — «УНОСЯТ!» уступает ей сразу)
+			task.delay(CARRIED_DELAY + 0.05, clearHud)
 		end
 		steal.phase = "carry"
 		steal.spot = thiefSpot(info.stealBy) or steal.spot

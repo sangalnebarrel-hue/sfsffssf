@@ -103,6 +103,7 @@ local NotifyController = require(script.Parent:WaitForChild("NotifyController"))
 local TankDisplay = require(script.Parent:WaitForChild("TankDisplay"))
 local TankWorldController = require(script.Parent:WaitForChild("TankWorldController"))
 local TheftPrompts = require(script.Parent:WaitForChild("TheftPrompts"))
+local TheftWorldController = require(script.Parent:WaitForChild("TheftWorldController"))
 
 local player = Players.LocalPlayer
 
@@ -125,13 +126,16 @@ local RESERVE_KEY = "thief" -- колонка уведомлений (не из 
 local SHEETS = { "TankPanel", "DefencePanel" } -- листы: при них подсказок на стекле нет
 local GHOST_WINDOW = 10 -- опоздавший "Hold" брошенной (NoReply) кнопки узнаём столько с
 local GROUND_UP, GROUND_DOWN = 4, 14 -- луч к земле двора для шевронов: от пояса вора, studs
--- «ГАВ!» собаки (TheftWorldController: TankDisplay.rise в папке Workspace.TheftWorld) — над ним
--- «ВЫХОД» не пишется (C1-R2-02); «ГАВ!» всплывает на BarkRise studs — место ему нужно на весь
--- подъём, а не только там, где он сейчас (Stage 4 wave 3: между проверками он вплывал в «ВЫХОД»).
-local WORLD_FOLDER, BARK_NAME = "TheftWorld", "FxTankPop"
+-- «ГАВ!» собаки (TheftWorldController: TankDisplay.rise в его папке Workspace.TheftWorld —
+-- TheftWorldController.Folder(), не поиск по имени: в эмуляторе тестов клиенты делят один
+-- Workspace, и находилась папка чужого клиента; Wave 3 ART-09) — над ним «ВЫХОД» не пишется
+-- (C1-R2-02); «ГАВ!» всплывает на BarkRise studs — место ему нужно на весь подъём, а не только
+-- там, где он сейчас (Stage 4 wave 3: между проверками он вплывал в «ВЫХОД»).
+local BARK_NAME = "FxTankPop"
 local BARK_RISE = Vector3.new(0, DefenceConfig.World.Dog.BarkRise, 0)
 -- Ширина буквы слова мира в долях кегля (Montserrat Heavy Italic); TextScaled не крупнее кегля 100 —
--- в широкой рамке вблизи буквы уже рамки (рамка «ГАВ!» у камеры — 388 px, буквы — 200).
+-- в широкой рамке вблизи буквы уже рамки (рамка «ГАВ!» у камеры — 388 px, буквы — 200); у слова с
+-- потолком букв (UITextSizeConstraint "Cap": «ГАВ!» — Dog.BarkCap) — не крупнее потолка.
 local GLYPH, SCALED_MAX = 0.5, 100
 
 -- Значок подсказки по причине отказа: ожидание, защита, хозяин рядом, остальное — рыба.
@@ -768,7 +772,12 @@ local function wordBox(
 	local w = size.X.Scale * perStud + size.X.Offset
 	local h = size.Y.Scale * perStud + size.Y.Offset
 	if text then
-		w = math.min(w, (utf8.len(text) or #text) * GLYPH * math.min(h, SCALED_MAX))
+		local cap = gui:FindFirstChild("Cap", true)
+		local most = if cap and cap:IsA("UITextSizeConstraint")
+			then math.min(cap.MaxTextSize, SCALED_MAX)
+			else SCALED_MAX
+		h = math.min(h, most)
+		w = math.min(w, (utf8.len(text) or #text) * GLYPH * h)
 	end
 	return { x0 = p.X - w / 2, y0 = p.Y - h / 2, x1 = p.X + w / 2, y1 = p.Y + h / 2 }
 end
@@ -846,7 +855,7 @@ local function startGuide()
 	local clearPad = spec.Clear
 	local function clearOfBark()
 		local camera = Workspace.CurrentCamera
-		local barks = Workspace:FindFirstChild(WORLD_FOLDER)
+		local barks = TheftWorldController.Folder()
 		if label.Parent == nil or not camera then
 			return
 		end
@@ -882,7 +891,7 @@ local function startGuide()
 			end
 		end
 	end
-	local barks = Workspace:FindFirstChild(WORLD_FOLDER)
+	local barks = TheftWorldController.Folder()
 	if barks then
 		local watching, stopped = false, false
 		carryTrove:Add(function()

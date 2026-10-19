@@ -726,14 +726,14 @@ local scenarios = {
 	},
 	{
 		name = "dog_rest_side",
-		desc = "The shown dog asleep at Dog.Rest seen from the side (14 studs): its paws on the crosswalk paving (not sunk), «💤» over it",
+		desc = "The shown dog asleep at Dog.Rest seen from the side (14 studs): its paws on the crosswalk paving (not sunk), «💤» beside its head (Dog.Sleep.Side; wave 3 ART-07: the camera a little higher than before, which put the dog right under the Wallet and «💤» faded there)",
 		world = true,
 		standard = false,
 		still = { 0.4 },
 		burst = false,
 		run = function(h: any)
 			h.sim:Teleport(h.player, at(h, 30, 3.2, 120))
-			court(h, { 17, 5.5, 47 }, { 6, 1.6, 58 }, 60)
+			court(h, { 17, 7, 47 }, { 6, 4.6, 58 }, 60)
 			showDog(h)
 			h:advance(0.3)
 		end,
