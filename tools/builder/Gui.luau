@@ -44,9 +44,9 @@
 	                .. 16 px above the bottom (capped 900 × 560 and centred on big screens); never
 	                over the Wallet or «САДОК», no dim; it closes itself when the bite, the minigame
 	                or the catch card needs the screen (Controllers/Sheet.luau).
-	  TheftBar      (St.4, gui/Steal.luau) the thief's banner at the top of the toast column
-	                (NotifyController.Reserve("theft")), ZIndex 32; TheftTitle — the «ДОБЫЧА!» slam
-	                in the top band.
+	  TheftBar      (St.4, gui/Steal.luau) the thief's banner in the BOTTOM band (§6.4 rev. 3),
+	                between the thumbstick and Jump, ZIndex 32; TheftTitle — the «ДОБЫЧА!» slam
+	                in the same band.
 	  TheftAlert    (St.4, gui/Alert.luau) the victim's plate at the top of the toast column
 	                (Reserve("alert"); under the TheftBar when both are up), ZIndex 32: text left,
 	                [🛡️ ЩИТ] (≥ 56 px, ≥ 35 % of the plate) and [🏠 ДОМОЙ] right; the Compact pill
