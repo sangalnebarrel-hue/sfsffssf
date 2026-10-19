@@ -10,17 +10,18 @@
 	What is checked:
 	  • the contract names, four cards in one row, their looks: ЩИТ Guard «ВКЛЮЧИТЬ», the prices
 	    (Gold), not enough money (Slate, the price still readable; a tap says «ЕЩЁ $3 000» right on
-	    the button for Panel.NeedTime s — no toast over the sheet's header), bought (Leaf «КУПЛЕНО»;
-	    the lock a one-time buy whose action line becomes «Сильнее замки — скоро в магазине»);
+	    the button for Panel.NeedTime s — no toast over the sheet's header), bought (a flat tilted
+	    Leaf stamp «✔️ КУПЛЕНО», one line, no shine — not a live button; the lock a one-time buy
+	    whose action line becomes «Сильнее замки — скоро в магазине»);
 	  • every card's action line fits between its name and its button on phone / phone_small /
 	    tablet / desktop (lines × 12 px × 1.25 ≤ Buy.top − Effect.top; the short line when needed);
 	  • the shield card while the player steals himself: Slate «ПОСЛЕ КРАЖИ», a tap fires nothing;
 	  • the two-tap buy: the first tap says «КУПИТЬ?» and fires nothing; a tap 0.15 s later fires
 	    nothing (the arm restarts); a tap 0.5 s after that fires DefenceBuy(item) once, «⏳» until the
-	    answer; "Bought" → MoneyController.Spend(price, the button) once, the stamp «КУПЛЕНО» and the
-	    toast; "Denied" → the card wiggles and the server's text shows;
+	    answer; "Bought" → MoneyController.Spend(price, the button) once, the stamp and — once the
+	    sheet closes — the toast; "Denied" → the card wiggles and the server's text shows;
 	  • the shield card: «ВКЛЮЧИТЬ» → ShieldActivate at once (no confirm), «🛡️ 0:59» while on,
-	    «⏳ 2:59» recharging (a tap wiggles it and fires nothing);
+	    «⏳ 2:59» recharging and «ТЫ ПОД ЗАЩИТОЙ» (taps wiggle it: no request, no toast);
 	  • one sheet at a time with the tank panel: open «САДОК», open «ЗАЩИТА» (the tank panel goes),
 	    close «ЗАЩИТА» → the fishing layer (the action button) and Toasts.ZIndex are back as before;
 	  • the layout on phone / phone_small / tablet / desktop: on screen, never over the Wallet or the
@@ -29,7 +30,7 @@
 	  • nothing left running after close (the 1 s ticker stops, connections back to the baseline);
 	  • the tank panel's Sell during a theft (§6.7): «КРАДУТ!» while the slot's StealPhase is hold /
 	    carry, «В ПУТИ…» while its Escrow is set — a tap asks the server NOTHING (the card wiggles,
-	    «Её сейчас крадут!» / «Рыба ещё в пути…» once per 2 s), back to the price after; and on the
+	    the label flashes, no toast over the header), back to the price after; and on the
 	    REAL server (latency 0.1): the thief lets go and in the same frame the victim taps
 	    «КРАДУТ!» — no sale, the saved fish stays in its slot.
 
@@ -494,7 +495,7 @@ tests["two-tap buy: «КУПИТЬ?», 0.15 s ignored (the arm restarts), 0.5 s 
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["Bought → MoneyController.Spend(price, button) once, the stamp «КУПЛЕНО», the toast; Denied → wiggle + the server's text"] = function(
+tests["Bought → MoneyController.Spend(price, button) once, the flat tilted stamp «✔️ КУПЛЕНО», the toast after the sheet closes; Denied → wiggle + the server's text"] = function(
 	t
 )
 	local sim, p, defence = opened(t, { money = 9000 })
@@ -534,7 +535,15 @@ tests["Bought → MoneyController.Spend(price, button) once, the stamp «КУП�
 	t.eq(spent[1] and spent[1].amount, 6000, "with the price")
 	t.ok(spent[1] and spent[1].to and spent[1].to:IsDescendantOf(cardOf(p, "DogCard")), "the 💵 fly into the card")
 	t.eq(looks(sim, p, defence).Dog, "bought", "«КУПЛЕНО»")
-	t.ok(hasToast(p, TEXTS.Bought.Dog), `«{TEXTS.Bought.Dog}»`)
+	local stamp = cardOf(p, "DogCard").Buy
+	t.eq(stamp.Label.Text, TEXTS.Buy.Bought, `the stamp «{TEXTS.Buy.Bought}»`)
+	t.ok(math.abs(stamp.Rotation) > 1, `tilted like a stamp ({stamp.Rotation}°)`)
+	t.ok(stamp.Size.X.Scale < cardOf(p, "ShieldCard").Buy.Size.X.Scale - 0.05, "narrower than a button")
+	local face = stamp:FindFirstChild("Face")
+	local shine = face and face:FindFirstChild("Shine")
+	t.ok(shine == nil or not shine.Visible, "no shine (not a live button)")
+	t.eq(stamp.Label.TextWrapped, false, "one line")
+	t.ok(not hasToast(p, TEXTS.Bought.Dog), "the toast waits for the sheet (it would cover the header and Wallet)")
 	local counted = sim:WaitFor(function()
 		return string.find(hudOf(p).Status.Wallet.Money.Label.Text, "3", 1, true) ~= nil
 			and string.find(hudOf(p).Status.Wallet.Money.Label.Text, "9", 1, true) == nil
@@ -561,10 +570,17 @@ tests["Bought → MoneyController.Spend(price, button) once, the stamp «КУП�
 	t.ok(hasToast(p, "Не хватает: нужно $2 500"), "the server's text")
 	t.ok(looks(sim, p, defence).Alarm ~= "busy", "the button is back")
 	t.eq(#spent, 1, "no spend on a refusal")
+	call(sim, p, function()
+		return defence.Toggle()
+	end)
+	local shown = sim:WaitFor(function()
+		return if hasToast(p, TEXTS.Bought.Dog) then true else nil
+	end, 6, 0.1)
+	t.ok(shown, `closed: «{TEXTS.Bought.Dog}»`)
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["the shield card: «ВКЛЮЧИТЬ» → ShieldActivate at once; «🛡️ 0:59» while on; «⏳ 2:59» recharging (a tap wiggles, fires nothing)"] = function(
+tests["the shield card: «ВКЛЮЧИТЬ» → ShieldActivate at once; «🛡️ 0:59» while on; «⏳ 2:59» recharging and «ТЫ ПОД ЗАЩИТОЙ» (taps wiggle — no request, no toast)"] = function(
 	t
 )
 	local sim, p, defence = opened(t, { money = 0 })
@@ -584,8 +600,25 @@ tests["the shield card: «ВКЛЮЧИТЬ» → ShieldActivate at once; «🛡�
 	sim:Advance(1.1)
 	t.eq(looks(sim, p, defence).Shield, "wait", "recharging: Slate «⏳ …»")
 	t.ok(string.find(buyText(p, "ShieldCard"), "⏳", 1, true) ~= nil, `«⏳ …» («{buyText(p, "ShieldCard")}»)`)
-	tapBuy(sim, p, "ShieldCard")
-	t.eq(#sim:ServerEventsFor(p, "ShieldActivate"), 1, "a tap while recharging fires nothing")
+	for _ = 1, 5 do
+		tapBuy(sim, p, "ShieldCard")
+		sim:Advance(0.3)
+	end
+	t.eq(#sim:ServerEventsFor(p, "ShieldActivate"), 1, "taps while recharging fire nothing")
+	t.eq(#toastTexts(p), 0, "5 taps: no toast (the button says «⏳ 2:59»; it wiggles and flashes)")
+	-- Another protection ≥ StackBelow: glass «ТЫ ПОД ЗАЩИТОЙ» — a tap only wiggles too.
+	p:SetAttribute("ShieldReadyAt", 0)
+	local base = sim.workspace.Bases:FindFirstChild(`Base_{p:GetAttribute("BaseIndex")}`)
+	base:SetAttribute("ProtectUntil", T(now(sim) + 300))
+	base:SetAttribute("ProtectKind", "join")
+	sim:Advance(1.1)
+	t.eq(looks(sim, p, defence).Shield, "protected", "«ТЫ ПОД ЗАЩИТОЙ»")
+	for _ = 1, 3 do
+		tapBuy(sim, p, "ShieldCard")
+		sim:Advance(0.3)
+	end
+	t.eq(#sim:ServerEventsFor(p, "ShieldActivate"), 1, "protected: taps fire nothing")
+	t.eq(#toastTexts(p), 0, "protected: no toast either")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -746,7 +779,7 @@ end
 -- The tank panel during a theft (§6.7)
 --------------------------------------------------------------------------------
 
-tests["the tank panel: «КРАДУТ!» while the slot is held / carried, «В ПУТИ…» with Escrow — a tap asks nothing (a toast once per 2 s), the price after"] = function(
+tests["the tank panel: «КРАДУТ!» while the slot is held / carried, «В ПУТИ…» with Escrow — a tap asks nothing (a wiggle, no toast), the price after"] = function(
 	t
 )
 	local sim = boot(t)
@@ -810,21 +843,11 @@ tests["the tank panel: «КРАДУТ!» while the slot is held / carried, «В 
 	sim:Click(p, cards.Card2.Sell)
 	sim:Advance(0.1)
 	t.eq(#sim:ServerEventsFor(p, "TankSell"), 0, "a tap asks the server nothing (no sale of a fish being stolen)")
-	t.ok(hasToast(p, TankConfig.Texts.Denied.locked), `«{TankConfig.Texts.Denied.locked}»`)
-	local function count(text: string): number
-		local n = 0
-		for _, s in toastTexts(p) do
-			if s == text then
-				n += 1
-			end
-		end
-		return n
-	end
 	sim:Click(p, cards.Card2.Sell)
 	sim:Advance(0.1)
 	sim:Click(p, cards.Card2.Sell)
 	sim:Advance(0.1)
-	t.eq(count(TankConfig.Texts.Denied.locked), 1, "mashing it: one toast, not a stack")
+	t.eq(#toastTexts(p), 0, "no toast over the sheet's header («КРАДУТ!» says it; the card wiggles)")
 	t.eq(#sim:ServerEventsFor(p, "TankSell"), 0, "still nothing asked")
 	slot(2):SetAttribute("StealPhase", "carry")
 	sim:Advance(0.1)
@@ -843,7 +866,7 @@ tests["the tank panel: «КРАДУТ!» while the slot is held / carried, «В 
 	sim:Click(p, cards.Card1.Sell)
 	sim:Advance(0.1)
 	t.eq(#sim:ServerEventsFor(p, "TankSell"), 0, "a tap on «В ПУТИ…» asks nothing")
-	t.ok(hasToast(p, TankConfig.Texts.Denied.escrow), `«{TankConfig.Texts.Denied.escrow}»`)
+	t.eq(#toastTexts(p), 0, "and shows no toast")
 	slot(1):SetAttribute("Escrow", nil)
 	sim:Advance(0.1)
 	t.ok(caption(1) ~= StealConfig.Texts.Panel.Escrow, "the price after the escrow")

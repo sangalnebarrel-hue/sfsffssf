@@ -894,8 +894,8 @@ function NotifyController.BandGap(): number
 	return if height > 1 then bandGapPx(height) else BAND_GAP
 end
 
--- Убрать уведомления с меткой tag (Look.tag) — с экрана и из очереди (тревога: «у тебя во дворе!»
--- того же вора больше не нужно — плашка говорит то же громче).
+-- Убрать уведомления с меткой tag (Look.tag) — с экрана (сразу, без ухода) и из очереди (тревога:
+-- «у тебя во дворе!» того же вора больше не нужно — плашка говорит то же громче).
 function NotifyController.Drop(tag: string)
 	for index = #queue, 1, -1 do
 		local look = queue[index].look
@@ -903,11 +903,21 @@ function NotifyController.Drop(tag: string)
 			table.remove(queue, index)
 		end
 	end
-	for _, toast in table.clone(active) do
+	local removed = false
+	for index = #active, 1, -1 do
+		local toast = active[index]
 		local look = toast.item.look
 		if look and look.tag == tag then
-			dismiss(toast, true)
+			-- сразу, без ухода: на его месте уже встаёт то, что говорит то же громче (плашка)
+			table.remove(active, index)
+			toast.trove:Clean()
+			toast.frame:Destroy()
+			removed = true
 		end
+	end
+	if removed then
+		reflow()
+		drain()
 	end
 end
 

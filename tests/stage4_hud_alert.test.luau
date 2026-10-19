@@ -42,6 +42,14 @@
 	      – results: Lost → «Украдено: Фугу (Ника)», «Садок отдыхает …» and one tip; Saved shield
 	        → the shield toast; a Quiet save → nothing; Intruder → «👀 Ника у тебя во дворе!» and
 	        «ЗАЩИТА» bobs;
+	      – toasts during the alert (phone, tablet, desktop): the intruder toast goes the moment
+	        its thief's hold starts; toasts that arrive never land on the own fisher (on a tablet /
+	        desktop they wait: no room above his head under the plate) and keep BandGap + the
+	        plate's ink from it; they come out after the alert; bands stack ≥ 16 px + ink apart;
+	      – an open sheet: the «ЗАЩИТА» header says «ВОР В САДКЕ!» / «ВОР УБЕГАЕТ!» (Berry, 🚨 / 🏃)
+	        while the alert lasts; one tap on the card's «ЩИТ!» saves, the shield toast waits for
+	        the sheet to close (then «Щит спас рыбу! 🛡️ …»); a loss — «Украдено» at once, «Садок
+	        отдыхает …» after the sheet closes;
 	      – the ShieldChip on phone / phone_small / tablet / desktop: on screen right of the badge,
 	        the time, the pulse in the last WarnLast s, gone at 0; the EndingWarn toast for the
 	        newbie protection;
@@ -1202,6 +1210,245 @@ tests["the ShieldChip on 4 screens: on screen right of the badge, the time, the 
 		t.eq(chip.Visible, false, `{screen.name}: gone at 0`)
 		sim:AssertNoErrors({ warnings = true })
 	end
+end
+
+-- The own fisher on screen (px, with FishingLayout's pad), as the controllers see him; nil — not
+-- projected (no camera on him).
+local function fisherOf(sim: any, p: any): Rect?
+	local hud = hudOf(p)
+	local Layout = module(sim, p, "FishingLayout")
+	local origin = hud.AbsolutePosition
+	local box = call(sim, p, function()
+		return Layout.fisherBox(p.Character, sim.workspace.CurrentCamera, origin)
+	end)
+	if not box then
+		return nil
+	end
+	return { x0 = box.x0 + origin.X, y0 = box.y0 + origin.Y, x1 = box.x1 + origin.X, y1 = box.y1 + origin.Y }
+end
+
+-- At the own fishing spot with the default follow camera behind him (12.5 studs back, 18° down;
+-- RbxSim has no camera scripts — as tests/fishing_keepout): the controllers project him from it.
+local function atSpotFollowed(sim: any, p: any)
+	local base = baseOf(sim, p)
+	sim:Teleport(p, base.FishingSpot.CFrame.Position + Vector3.new(0, 3, 0))
+	sim:Advance(0.3)
+	local look = base:GetPivot().LookVector
+	local focus = p.Character.HumanoidRootPart.Position + Vector3.new(0, 1.5, 0)
+	local eye = focus - look * (12.5 * math.cos(math.rad(18))) + Vector3.new(0, 12.5 * math.sin(math.rad(18)), 0)
+	local camera = sim.workspace.CurrentCamera
+	call(sim, p, function()
+		camera.CFrame = roblox.CFrame.lookAt(eye, focus)
+	end)
+	sim:Advance(0.1)
+end
+
+local function liveToasts(p: any): { any }
+	local out = {}
+	for _, toast in hudOf(p).Toasts:GetChildren() do
+		if toast.Name == "Toast" and toast:IsA("GuiObject") and toast.Visible then
+			table.insert(out, toast)
+		end
+	end
+	return out
+end
+
+tests["toasts during the alert: none pushed onto the own fisher or within the band gap of the plate; the intruder toast goes with its thief's hold; the waiting ones come out after the alert"] = function(
+	t
+)
+	local intruder = fill(StealConfig.Texts.Intruder, { name = "Ника" })
+	local news = {
+		"Рыбка подросла: Окунь стоит $40!",
+		"КапитанКрюк поймал легендарную рыбу!",
+	}
+	for _, screen in { SCREENS[1], SCREENS[3], SCREENS[4] } do
+		local sim = boot(t)
+		local p = addPlayer(sim, 1, screen)
+		local notify = module(sim, p, "NotifyController")
+		local hud = hudOf(p)
+		atSpotFollowed(sim, p)
+		-- The alarm's early warning, then Ника's hold 1.2 s later (the usual alarm-owner flow).
+		stealEvent(sim, p, "Intruder", { Thief = 2002, Name = "Ника" })
+		sim:Advance(1.2)
+		t.ok(anyHas(toastTexts(p), intruder), `{screen.name}: «{intruder}» up`)
+		alert(sim, p, { Thief = 2002 })
+		local still = false
+		for _, toast in hud.Toasts:GetChildren() do
+			for _, item in toast:GetDescendants() do
+				if item:IsA("TextLabel") and string.find(item.Text, intruder, 1, true) then
+					still = true
+				end
+			end
+		end
+		t.ok(not still, `{screen.name}: the hold of the same thief drops it at once (the plate says it louder)`)
+		t.ok(waitShown(sim, p), `{screen.name}: the alert shows`)
+		sim:Advance(0.5)
+		call(sim, p, function()
+			for _, text in news do
+				notify.Show(text, "info")
+			end
+		end)
+		local fisher = if screen.phone then alertStats(sim, p).fisher else fisherOf(sim, p)
+		if not screen.phone then
+			t.ok(fisher ~= nil, `{screen.name}: the own fisher is on screen ({fisher and fmt(fisher)})`)
+		end
+		local shown, worst, near = 0, math.huge, math.huge
+		for _ = 1, 15 do
+			local plate = hud.TheftAlert
+			for _, toast in liveToasts(p) do
+				shown += 1
+				local r = rectOf(toast)
+				if fisher then
+					local f = fisher :: Rect
+					if hits(r, f) then
+						worst = math.min(worst, -1)
+					end
+				end
+				if plate.Visible and alertStats(sim, p).shown == "plate" then
+					near = math.min(near, gap(r, rectOf(plate)))
+				end
+			end
+			sim:Advance(0.1)
+		end
+		t.ok(worst > 0, `{screen.name}: no toast on the own fisher while the alert is up`)
+		t.ok(
+			near >= notify.BandGap() + 8 - 0.5,
+			`{screen.name}: a toast under the plate keeps ≥ BandGap + the plate's ink ({near})`
+		)
+		if not screen.phone then
+			t.eq(shown, 0, `{screen.name}: no room above the fisher's head under the plate — the toasts wait`)
+		end
+		over(sim, p, "Saved", { Reason = "failed", Slot = 2, Text = RESULT.Saved.failed })
+		local seen = watchToasts(sim, p, 4)
+		for _, text in news do
+			t.ok(anyHas(seen, text), `{screen.name}: «{text}» after the alert`)
+		end
+		sim:AssertNoErrors({ warnings = true })
+	end
+	-- No fisher under the column (the camera turned away from him): a toast does show under the
+	-- plate — BandGap below the plate's drawn bottom (its INK), not touching it.
+	do
+		local sim = boot(t)
+		local p = addPlayer(sim, 1, SCREENS[4])
+		local notify = module(sim, p, "NotifyController")
+		atSpotFollowed(sim, p)
+		local base = baseOf(sim, p)
+		local look = base:GetPivot().LookVector
+		local at = p.Character.HumanoidRootPart.Position
+		local camera = sim.workspace.CurrentCamera
+		call(sim, p, function()
+			camera.CFrame = roblox.CFrame.lookAt(at - look * 2 + Vector3.new(0, 4, 0), at - look * 40)
+		end)
+		sim:Advance(0.1)
+		t.eq(fisherOf(sim, p), nil, "desktop: the own fisher is off screen")
+		alert(sim, p)
+		t.ok(waitShown(sim, p), "desktop: the plate shows")
+		sim:Advance(0.6)
+		call(sim, p, function()
+			notify.Show(news[1], "info")
+		end)
+		sim:Advance(0.8)
+		local toasts = liveToasts(p)
+		t.eq(#toasts, 1, "desktop: the toast shows under the plate")
+		if toasts[1] then
+			local plate, r = rectOf(hudOf(p).TheftAlert), rectOf(toasts[1])
+			t.ok(r.y0 >= plate.y1, "below the plate")
+			t.ok(
+				r.y0 - plate.y1 >= notify.BandGap() + 8 - 0.5,
+				`≥ BandGap + the plate's ink between the boxes ({r.y0 - plate.y1})`
+			)
+		end
+		sim:AssertNoErrors({ warnings = true })
+	end
+	-- Bands stack with BandGap between them (the plate under the thief's band).
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, SCREENS[3])
+	local notify = module(sim, p, "NotifyController")
+	local offset = call(sim, p, function()
+		notify.Reserve("theft", 50)
+		notify.Reserve("alert", 72)
+		local at = notify.Offset("alert")
+		notify.Reserve("theft", nil)
+		notify.Reserve("alert", nil)
+		return at
+	end)
+	t.ok(offset >= 50 + 16 + 8 - 0.01, `the second band ≥ 16 px + ink under the first ({offset})`)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["an open sheet: result and protection toasts wait for it to close (its header and Wallet stay clear), «Украдено» shows at once; the «ЗАЩИТА» header says «ВОР В САДКЕ!» while the alert lasts"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, SCREENS[1], 3000)
+	local hud = hudOf(p)
+	local defence = module(sim, p, "DefenceController")
+	local header = hud.DefencePanel.Panel.Header
+	local function toggle()
+		call(sim, p, function()
+			return defence.Toggle()
+		end)
+		sim:Advance(0.6)
+	end
+	toggle()
+	t.eq(header.Title.Text, DTEXTS.Title, "«ЗАЩИТА» in the header")
+	alert(sim, p)
+	sim:Advance(0.5)
+	t.eq(header.Title.Text, ALERT.Hold, `the alert: «{ALERT.Hold}» in the header`)
+	t.eq(header.Icon.Text, ALERT.IconHold, `with {ALERT.IconHold}`)
+	t.ok(header.Title.TextColor3.R > header.Title.TextColor3.B, "in Berry")
+	alert(sim, p, { Phase = "carry", Quiet = true })
+	sim:Advance(0.1)
+	t.eq(header.Title.Text, ALERT.Carry, `the carry: «{ALERT.Carry}»`)
+	-- One tap on the card's «ЩИТ!» ends it with the shield: the toast waits for the sheet.
+	sim:Click(p, hud.DefencePanel.Panel.Cards.ShieldCard.Buy)
+	sim:Advance(0.1)
+	t.eq(#sim:ServerEventsFor(p, "ShieldActivate"), 1, "one ShieldActivate")
+	local at = now(sim)
+	p:SetAttribute("ShieldUntil", T(at + DefenceConfig.Shield.Duration))
+	p:SetAttribute("ShieldReadyAt", T(at + DefenceConfig.Shield.Duration + DefenceConfig.Shield.Cooldown))
+	local base = baseOf(sim, p)
+	base:SetAttribute("ProtectUntil", T(at + DefenceConfig.Shield.Duration))
+	base:SetAttribute("ProtectKind", "shield")
+	defenceEvent(sim, p, "Shield", { Until = at + DefenceConfig.Shield.Duration })
+	over(sim, p, "Saved", { Reason = "shield", Slot = 2, Text = RESULT.Saved.shield })
+	local merged = string.match(RESULT.SavedShield, "^(.-){t}") or RESULT.SavedShield
+	local open = watchToasts(sim, p, 2.5)
+	t.ok(not anyHas(open, "Щит"), `no shield toast over the open sheet ({table.concat(open, " | ")})`)
+	t.eq(header.Title.Text, DTEXTS.Title, "the header is «ЗАЩИТА» again")
+	t.eq(
+		call(sim, p, function()
+			return defence.Stats().cards.looks.Shield
+		end),
+		"active",
+		"the card shows the shield «🛡️ 0:5x»"
+	)
+	toggle()
+	local after = watchToasts(sim, p, 2)
+	t.ok(anyHas(after, merged), `closed: «{RESULT.SavedShield}» comes ({table.concat(after, " | ")})`)
+	t.ok(not anyHas(after, "Щит включён"), "one toast (not «Щит включён» too)")
+	-- A loss with the sheet open: «Украдено» at once, the rest and the tip after it closes.
+	p:SetAttribute("ShieldUntil", nil)
+	base:SetAttribute("ProtectUntil", nil)
+	base:SetAttribute("ProtectKind", nil)
+	sim:Advance(3)
+	toggle()
+	alert(sim, p, { Thief = 2003, Name = "Вика" })
+	sim:Advance(1)
+	over(sim, p, "Lost", {
+		Fish = { Id = "Puffer", Rarity = "Rare", Kg = 2.1, Value = 58 },
+		Name = "Вика",
+		Until = now(sim) + 90,
+		Kind = "after",
+	})
+	open = watchToasts(sim, p, 3)
+	t.ok(anyHas(open, "Украдено"), "«Украдено» over the sheet at once (the end of the alert)")
+	t.ok(not anyHas(open, "Садок отдыхает"), "the rest waits for the sheet")
+	toggle()
+	after = watchToasts(sim, p, 10)
+	t.ok(anyHas(after, "Садок отдыхает"), `closed: «{RESULT.LostSub}» with the time now`)
+	t.eq(header.Title.Text, DTEXTS.Title, "the header is «ЗАЩИТА» when closed")
+	sim:AssertNoErrors({ warnings = true })
 end
 
 tests["«ЗАЩИТА» «!» once: when the first defence becomes affordable"] = function(t)

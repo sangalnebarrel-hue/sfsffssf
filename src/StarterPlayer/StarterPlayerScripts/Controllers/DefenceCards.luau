@@ -542,6 +542,10 @@ function DefenceCards.new(hud: ScreenGui, root: GuiObject, opts: { onShield: (fr
 				fill.Color = ColorSequence.new(Palette.Leaf.Bottom)
 			end
 		end
+		local label = card.label
+		if label then
+			label.TextWrapped = not on -- (штамп — одна строка «✔️ КУПЛЕНО», мельче, но не в две)
+		end
 		local height = card.buyHeight or buy.Size.Y.Scale
 		buy.Size = UDim2.fromScale(if on then STAMP.Width else card.buyWidth, height * (if on then STAMP.Height else 1))
 		buy.Rotation = if on then STAMP.Tilt else 0
