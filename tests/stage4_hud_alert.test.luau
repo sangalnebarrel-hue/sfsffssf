@@ -20,12 +20,24 @@
 	      – recharging: Slate «⏳ 1:12» (a tap wiggles, fires nothing), the carry line without «жми
 	        ЩИТ!»; stealing himself: no buttons, «Пока крадёшь сам, щит не включить» (DC-04);
 	      – ЩИТ: «⏳» until the server answers, one ShieldActivate for several taps; the column
-	        «ЩИТ!» in the alert (Berry, rings, «!»);
+	        «ЩИТ!» in the alert (Berry, rings, «!»); a shield save shows ONE toast «Щит спас рыбу!
+	        🛡️ 1:00» whichever of Shield / Saved comes first (no «Щит включён» beside it);
 	      – loud alerts ping three times and shake; coalesced Quiet ones do neither;
 	      – an alert with a catch card up (CounterHold): FishingController.HurryCard (a spy) is
-	        called at once, the plate waits and shows once the hold is gone;
-	      – the layers: the edge pulse ≤ 0.35 opacity, «ДОМОЙ!» with its rings, «ДОМОЙ» locked 🔒
-	        in the own carry, HUD.Status hidden while HUD.Stealing is set; all gone at the end,
+	        called at once, the plate waits and shows once the hold is gone; a catch that lands
+	        while the alert is up hurries the card again and hides the plate until it is gone;
+	      – a sheet open when the alert starts: «САДОК» closes at once, «ЗАЩИТА» stays and its
+	        shield card is the «ЩИТ!» (one tap); a sheet opened during the alert hides the plate —
+	        it is never drawn over a sheet;
+	      – a second alert right after the first one ended shows (the first one's hide timer does
+	        not hide it);
+	      – the phone pill (AlertLayout): the topmost free spot, kept while it stays free, never by
+	        the Roblox buttons (no spot — no pill); its label «ВОР! ФУГУ» → «ВОР!» when tight, the
+	        reason while the victim steals himself;
+	      – the layers: the edge pulse ≤ 0.35 opacity (in its clipping layer FxAlertEdge; asleep
+	        while the fishing has its own edge glow, the rings resting with it on a phone),
+	        «ДОМОЙ!» with its rings, «ДОМОЙ» locked 🔒 in the own carry (taps ask the server
+	        nothing), HUD.Status hidden while HUD.Stealing is set; all gone at the end,
 	        connections back to the baseline;
 	      – results: Lost → «Украдено: Фугу (Ника)», «Садок отдыхает …» and one tip; Saved shield
 	        → the shield toast; a Quiet save → nothing; Intruder → «👀 Ника у тебя во дворе!» and
@@ -650,13 +662,34 @@ tests["ЩИТ: «⏳» until the server answers — one ShieldActivate for sever
 	defenceEvent(sim, p, "Shield", { Until = at + DefenceConfig.Shield.Duration })
 	t.eq(alertStats(sim, p).busy, false, "the answer clears ⏳")
 	over(sim, p, "Saved", { Reason = "shield", Slot = 2, Text = RESULT.Saved.shield })
-	local seen = watchToasts(sim, p, 1.5)
-	t.ok(anyHas(seen, RESULT.Saved.shield), `«{RESULT.Saved.shield}»`)
-	t.ok(anyHas(seen, "Щит включён"), "«Щит включён на 1:00»")
+	local seen = watchToasts(sim, p, 2)
+	local merged = string.match(RESULT.SavedShield, "^(.-){t}") or RESULT.SavedShield
+	t.ok(anyHas(seen, merged), `one toast «{RESULT.SavedShield}» ({table.concat(seen, " | ")})`)
+	t.ok(not anyHas(seen, "Щит включён"), "not «Щит включён» beside it")
 	t.eq(alertStats(sim, p).shown, nil, "the plate is gone")
+	-- The other order (Saved first, then the server's Shield): still one toast.
+	p:SetAttribute("ShieldReadyAt", 0)
+	p:SetAttribute("ShieldUntil", nil)
+	sim:Advance(4) -- (the toasts above are gone)
+	alert(sim, p)
+	t.ok(waitShown(sim, p), "another alert")
+	sim:Advance(0.6)
+	sim:Click(p, hudOf(p).TheftAlert.Buttons.Shield)
+	sim:Advance(0.1)
+	at = now(sim)
+	p:SetAttribute("ShieldUntil", T(at + DefenceConfig.Shield.Duration))
+	p:SetAttribute("ShieldReadyAt", T(at + DefenceConfig.Shield.Duration + DefenceConfig.Shield.Cooldown))
+	over(sim, p, "Saved", { Reason = "shield", Slot = 2, Text = RESULT.Saved.shield })
+	defenceEvent(sim, p, "Shield", { Until = at + DefenceConfig.Shield.Duration })
+	seen = watchToasts(sim, p, 2)
+	t.ok(anyHas(seen, merged), "Saved first: the merged toast")
+	t.ok(not anyHas(seen, "Щит включён"), "Saved first: no «Щит включён»")
+	sim:Advance(4)
 	-- A Denied with no item (the server refused the shield) clears ⏳ too.
 	p:SetAttribute("ShieldReadyAt", 0)
 	p:SetAttribute("ShieldUntil", nil)
+	over(sim, p)
+	sim:Advance(0.5)
 	alert(sim, p)
 	t.ok(waitShown(sim, p), "a new alert")
 	sim:Advance(0.6)
@@ -735,6 +768,258 @@ tests["a catch card up (CounterHold): HurryCard is called at once, the plate wai
 	sim:AssertNoErrors({ warnings = true })
 end
 
+tests["a sheet open when the alert starts: «САДОК» closes at once, «ЗАЩИТА» stays and its shield card is «ЩИТ!»; a sheet opened during the alert hides the plate — never over a sheet"] = function(
+	t
+)
+	for _, screen in { SCREENS[1], SCREENS[3] } do
+		local sim = boot(t)
+		local p = addPlayer(sim, 1, screen, 3000)
+		local hud = hudOf(p)
+		local tank = module(sim, p, "TankPanelController")
+		local defence = module(sim, p, "DefenceController")
+		local function never(what: string)
+			local root = hud.TheftAlert
+			for _, sheet in { hud.TankPanel, hud.DefencePanel } do
+				if root.Visible and sheet.Visible then
+					t.ok(
+						not hits(rectOf(root), rectOf(sheet.Panel)),
+						`{screen.name} {what}: the alert is not over {sheet.Name}`
+					)
+				end
+			end
+		end
+		call(sim, p, function()
+			return tank.Toggle()
+		end)
+		sim:Advance(0.6)
+		t.ok(hud.TankPanel.Visible, `{screen.name}: «САДОК» open`)
+		alert(sim, p)
+		t.eq(
+			call(sim, p, function()
+				return tank.IsOpen()
+			end),
+			false,
+			`{screen.name}: the alert closes «САДОК»`
+		)
+		t.eq(hud.TankPanel.Visible, false, `{screen.name}: at once (no closing animation under the plate)`)
+		t.ok(waitShown(sim, p), `{screen.name}: then the alert shows`)
+		never("after «САДОК»")
+		-- «САДОК» opened during the alert: the plate steps aside while it is open.
+		call(sim, p, function()
+			return tank.Toggle()
+		end)
+		sim:Advance(0.4)
+		t.ok(hud.TankPanel.Visible, `{screen.name}: «САДОК» opened during the alert`)
+		t.eq(alertStats(sim, p).shown, nil, `{screen.name}: the plate waits`)
+		t.eq(hud.TheftAlert.Visible, false, `{screen.name}: not drawn over the sheet`)
+		never("«САДОК» during the alert")
+		call(sim, p, function()
+			return tank.Toggle()
+		end)
+		t.ok(waitShown(sim, p, 1.5), `{screen.name}: back once the sheet is closed`)
+		over(sim, p, "Saved", { Reason = "failed", Slot = 2, Text = RESULT.Saved.failed, Quiet = true })
+		sim:Advance(1)
+		-- «ЗАЩИТА» open: it stays; its shield card is the «ЩИТ!».
+		call(sim, p, function()
+			return defence.Toggle()
+		end)
+		sim:Advance(0.6)
+		alert(sim, p)
+		sim:Advance(0.8)
+		t.ok(
+			call(sim, p, function()
+				return defence.IsOpen()
+			end),
+			`{screen.name}: «ЗАЩИТА» stays open`
+		)
+		t.eq(alertStats(sim, p).shown, nil, `{screen.name}: no plate over it`)
+		local looks = call(sim, p, function()
+			return defence.Stats().cards.looks
+		end)
+		t.eq(looks.Shield, "alert", `{screen.name}: the shield card is the alert target`)
+		local buy = hud.DefencePanel.Panel.Cards.ShieldCard.Buy
+		t.eq(buy.Label.Text, DTEXTS.ButtonAlert, `{screen.name}: «{DTEXTS.ButtonAlert}» on it`)
+		t.ok(buy:FindFirstChild("FxRing") ~= nil or sim:WaitFor(function()
+			return buy:FindFirstChild("FxRing") ~= nil
+		end, 1.5, 0.05) ~= nil, `{screen.name}: with red rings`)
+		never("«ЗАЩИТА»")
+		sim:Click(p, buy)
+		sim:Advance(0.1)
+		t.eq(#sim:ServerEventsFor(p, "ShieldActivate"), 1, `{screen.name}: one tap — ShieldActivate`)
+		call(sim, p, function()
+			return defence.Toggle()
+		end)
+		t.ok(waitShown(sim, p, 1.5), `{screen.name}: the alert shows once the sheet is closed`)
+		never("after «ЗАЩИТА»")
+		sim:AssertNoErrors({ warnings = true })
+	end
+end
+
+tests["a catch while the alert is up: HurryCard again, the plate / pill hides until the card and its flight are gone"] = function(
+	t
+)
+	for _, screen in { SCREENS[1], SCREENS[3] } do
+		local sim = boot(t)
+		local p = addPlayer(sim, 1, screen)
+		local fishing = module(sim, p, "FishingController")
+		local hurried = 0
+		fishing.HurryCard = function()
+			hurried += 1
+		end
+		local hud = hudOf(p)
+		alert(sim, p)
+		t.ok(waitShown(sim, p), `{screen.name}: the alert shows`)
+		sim:Advance(0.5)
+		local before = hurried
+		hud:SetAttribute("CounterHold", "f9") -- (a new catch: the counter holds its number)
+		sim:Advance(0.05)
+		t.eq(hurried, before + 1, `{screen.name}: the new catch is hurried (HurryCard)`)
+		t.eq(alertStats(sim, p).shown, nil, `{screen.name}: the alert steps aside`)
+		sim:Advance(0.3)
+		t.eq(hud.TheftAlert.Visible, false, `{screen.name}: not drawn over the card`)
+		hud.Fishing.CatchCard.Visible = true
+		sim:Advance(0.6)
+		t.eq(alertStats(sim, p).shown, nil, `{screen.name}: still aside while the card is up`)
+		t.eq(hud:GetAttribute("AlertPhase"), "hold", `{screen.name}: the alert lives on («ЩИТ!» in the column)`)
+		hud.Fishing.CatchCard.Visible = false
+		hud:SetAttribute("CounterHold", nil)
+		t.ok(waitShown(sim, p, THEFT.CardAfter + 1), `{screen.name}: back once the card and its flight are gone`)
+		local stats = alertStats(sim, p)
+		if screen.phone and stats.rect then
+			-- never by the Roblox buttons: the thumbstick and Jump keep 16 px
+			local viewport = sim.players.state[sim:Unwrap(p)].viewport
+			local hudTop = hud.AbsolutePosition.Y
+			local r = {
+				x0 = stats.rect.x0,
+				y0 = stats.rect.y0 + hudTop,
+				x1 = stats.rect.x1,
+				y1 = stats.rect.y1 + hudTop,
+			}
+			local stick = { x0 = 0, y0 = viewport.Y - 90 - 16, x1 = 95 + 16, y1 = viewport.Y }
+			t.ok(not hits(r, stick), `{screen.name}: ≥ 16 px from the thumbstick {fmt(r)}`)
+		end
+		sim:AssertNoErrors({ warnings = true })
+	end
+end
+
+tests["a second alert right after the first one ended shows (the first one's hide does not hide it)"] = function(t)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, SCREENS[3])
+	alert(sim, p)
+	t.ok(waitShown(sim, p), "the first alert shows")
+	sim:Advance(1.5)
+	over(sim, p, "Saved", { Reason = "failed", Slot = 2, Text = RESULT.Saved.failed })
+	sim:Advance(0.05) -- (a second thief starts at once)
+	alert(sim, p, { Thief = 2003, Name = "Вика" })
+	sim:Advance(0.8)
+	local root = hudOf(p).TheftAlert
+	t.ok(alertStats(sim, p).shown ~= nil, "the second alert is shown")
+	t.ok(root.Visible, "its plate is visible")
+	local scale = root:FindFirstChildOfClass("UIScale")
+	t.ok(scale == nil or math.abs(scale.Scale - 1) < 0.05, `at full size ({scale and scale.Scale})`)
+	t.eq(root.Text.Sub.Text, fill(ALERT.HoldSub, { name = "Вика", short = "Фугу" }), "about the new thief")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["the phone pill (AlertLayout): the topmost free spot, kept while free, never by the Roblox buttons; the label shortens; the stealing reason"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, SCREENS[2])
+	local layout = module(sim, p, "AlertLayout")
+	local function R(x0: number, y0: number, x1: number, y1: number): Rect
+		return { x0 = x0, y0 = y0, x1 = x1, y1 = y1 }
+	end
+	local fisher = R(300, 100, 370, 250)
+	local function spec(keepouts: { Rect }, extra: { [string]: any }?): { [string]: any }
+		local list = { fisher }
+		for _, k in keepouts do
+			table.insert(list, k)
+		end
+		local out: { [string]: any } = {
+			fisher = fisher,
+			keepouts = list,
+			top = 24,
+			bottom = 300,
+			left = 30,
+			right = 560,
+			column = { x0 = 150, x1 = 520 },
+			height = 56,
+			min = 160,
+			narrow = 132,
+			max = 300,
+			gap = 24,
+			tight = 20,
+			step = 8,
+		}
+		for k, v in extra or {} do
+			out[k] = v
+		end
+		return out
+	end
+	local function place(sp: { [string]: any }): (Rect?, string)
+		return call(sim, p, function()
+			return layout.compact(sp)
+		end)
+	end
+	-- The status stack across the top (x 200..600): wide room only lower down, a narrow pill fits at
+	-- the top left — the topmost wins (the top stays free in the bite and the minigame).
+	local status = R(200, 0, 600, 90)
+	local r, spot = place(spec({ status }))
+	t.ok(r ~= nil and math.abs(r.y0 - 24) < 0.5, `the topmost spot ({spot} {r and fmt(r)})`)
+	-- Kept while it stays free; a minigame lower down does not move it.
+	local minigame = R(40, 170, 290, 300)
+	local again, how = place(spec({ status, minigame }, { keep = r }))
+	t.eq(how, "keep", "the same spot is kept")
+	t.ok(again == r or (again and math.abs(again.y0 - r.y0) < 0.5), "it does not move")
+	-- A keep spot that is covered now moves.
+	local _, moved = place(spec({ status, R(0, 0, 200, 120) }, { keep = r }))
+	t.ok(moved ~= "keep", `a covered spot is left ({moved})`)
+	-- No room anywhere but by the thumbstick: never there — no pill at all.
+	local everything = R(0, 0, 700, 240)
+	local stick = R(0, 240, 120, 320)
+	local last, why = place(spec({ everything }, { hard = { stick }, bottom = 320 }))
+	if last then
+		local gapX = math.max(stick.x0 - last.x1, last.x0 - stick.x1, 0)
+		local gapY = math.max(stick.y0 - last.y1, last.y0 - stick.y1, 0)
+		t.ok(math.max(gapX, gapY) >= 20 - 0.5, `the last resort keeps off the thumbstick ({why} {fmt(last)})`)
+	end
+	local none, noneWhy = place(spec({ everything }, { hard = { R(0, 0, 700, 400) } }))
+	t.eq(none, nil, "no free spot at all: no pill")
+	t.eq(noneWhy, "none", "«none»")
+	-- The live pill on the smallest phone: a label that fits («ВОР! ФУГУ» or «ВОР!»).
+	alert(sim, p)
+	t.ok(waitShown(sim, p), "the alert shows")
+	sim:Advance(1)
+	local stats = alertStats(sim, p)
+	t.eq(stats.shown, "compact", "phone_small: the pill")
+	local label = hudOf(p).TheftAlert.Compact.Label
+	t.ok(stats.label ~= nil and label.Visible, `a label («{stats.label}»)`)
+	local UiFx = sim:Require(sim:Find("ReplicatedStorage.Shared.UiFx"), p)
+	if stats.label then
+		t.ok(
+			stats.label == fill(ALERT.Compact, { short = "ФУГУ" }) or stats.label == ALERT.CompactShort,
+			`«ВОР! ФУГУ» or «ВОР!» («{stats.label}»)`
+		)
+		t.ok(
+			UiFx.textWidth(stats.label, 13) <= label.AbsoluteSize.X + 0.5,
+			`it fits its box ({UiFx.textWidth(stats.label, 13)} ≤ {label.AbsoluteSize.X})`
+		)
+	end
+	-- Stealing himself: no buttons, the label says why.
+	p:SetAttribute("Stealing", "hold")
+	sim:Advance(0.3)
+	stats = alertStats(sim, p)
+	local reasons = {
+		[fill(ALERT.CompactStealing, { short = "ФУГУ" })] = true,
+		[ALERT.CompactStealingShort] = true,
+		[ALERT.CompactShort] = true,
+	}
+	t.ok(stats.label ~= nil and reasons[stats.label], `the stealing label («{stats.label}»)`)
+	t.eq(hudOf(p).TheftAlert.Compact.Shield.Visible, false, "no ЩИТ while stealing")
+	sim:AssertNoErrors({ warnings = true })
+end
+
 tests["the layers: edge pulse ≤ 0.35, «ДОМОЙ!» rings, «ДОМОЙ» 🔒 in the own carry, Status hidden while HUD.Stealing; all gone at the end"] = function(
 	t
 )
@@ -750,7 +1035,7 @@ tests["the layers: edge pulse ≤ 0.35, «ДОМОЙ!» rings, «ДОМОЙ» �
 	for _ = 1, 30 do
 		sim:Advance(0.1)
 		for _, layer in hud:GetChildren() do
-			if string.sub(layer.Name, 1, 8) == "FxVignet" or layer.Name == "FxVignette" then
+			if layer.Name == "FxAlertEdge" then
 				for _, item in layer:GetDescendants() do
 					if item:IsA("GuiObject") and item.Visible then
 						local opacity = 1 - item.BackgroundTransparency
@@ -774,16 +1059,38 @@ tests["the layers: edge pulse ≤ 0.35, «ДОМОЙ!» rings, «ДОМОЙ» �
 	t.ok(sim:WaitFor(function()
 		return home:FindFirstChild("FxRing") ~= nil
 	end, 1.5, 0.05) ~= nil, "rings around it")
+	t.ok(hud.FxAlertEdge.ClipsDescendants, "the pulse in its own clipping layer (no fill under the top bar)")
+	-- The fishing's own edge glow (a bite, a minigame aura): the pulse sleeps, the rings rest (phone).
+	local glow = sim:Create("Frame", { Name = "FxVignette", BackgroundTransparency = 1 }, hud)
+	sim:Advance(1.2)
+	t.eq(alertStats(sim, p).edge, "asleep", "the pulse sleeps while the fishing glows")
+	t.eq(hud.FxAlertEdge.Visible, false, "its layer hidden")
+	t.eq(home:FindFirstChild("FxRing"), nil, "the «ДОМОЙ!» rings rest on a phone")
+	t.eq(hud.RightButtons.DefenceButton:FindFirstChild("FxRing"), nil, "the «ЩИТ!» rings too")
+	t.eq(home.Caption.Text, ALERT.HomeAlert, "«ДОМОЙ!» stays")
+	glow:Destroy()
+	sim:Advance(0.1)
+	t.eq(alertStats(sim, p).edge, "on", "awake again")
+	t.ok(sim:WaitFor(function()
+		return home:FindFirstChild("FxRing") ~= nil
+	end, 1.5, 0.05) ~= nil, "the rings are back")
 	-- The own carry (he is the thief somewhere else): «ДОМОЙ» locked.
 	p:SetAttribute("Stealing", "carry")
 	hud:SetAttribute("Stealing", "carry")
 	sim:Advance(0.3)
-	t.eq(home.Icon.Text, "🔒", "🔒 on «ДОМОЙ» in the carry")
+	t.eq(home.Icon.Text, ALERT.HomeLocked, "🔒 on «ДОМОЙ» in the carry")
+	-- Mashing it asks the server nothing (its guard would answer each tap with a toast).
+	for _ = 1, 4 do
+		sim:Click(p, home)
+		sim:Advance(0.25)
+	end
+	t.eq(#sim:ServerEventsFor(p, "RequestHome"), 0, "no RequestHome while locked")
+	t.ok(not anyHas(toastTexts(p), StealConfig.Texts.HomeGuard), "no stack of guard toasts")
 	t.eq(hud.Status.Visible, false, "HUD.Status hidden while HUD.Stealing is set (§6.4 rev. 3)")
 	p:SetAttribute("Stealing", nil)
 	hud:SetAttribute("Stealing", nil)
 	sim:Advance(0.6)
-	t.ok(home.Icon.Text ~= "🔒", "unlocked after")
+	t.ok(home.Icon.Text ~= ALERT.HomeLocked, "unlocked after")
 	t.ok(hud.Status.Visible, "Status back")
 	-- The end (Thief cleared, the result): every layer goes.
 	over(sim, p, "Saved", { Reason = "tag", Slot = 2, Text = RESULT.Saved.tag })
@@ -817,18 +1124,19 @@ tests["results: Lost → «Украдено…», «Садок отдыхает 
 	-- (the theft kind: the byline «Украдено» over the headline «ФУГУ (Ника)»)
 	t.ok(anyHas(seen, "Украдено"), "«Украдено: Фугу (Ника)»")
 	t.ok(anyHas(seen, "(Ника)"), "with the thief's name")
-	t.ok(
-		anyHas(seen, "Садок отдыхает"),
-		"«Садок отдыхает 1:30 — никто не украдёт»"
-	)
+	t.ok(anyHas(seen, "Садок отдыхает"), `«{RESULT.LostSub}»`)
 	local tips = 0
 	for _, s in seen do
-		if string.find(s, "Совет:", 1, true) then
-			tips += 1
+		for key, tip in DTEXTS.Tips do
+			local head = string.match(tip, "^(.-) ?%(") or tip
+			if s == tip or (key ~= "Shield" and string.find(s, head, 1, true) == 1) then
+				tips += 1
+			end
 		end
 	end
 	t.eq(tips, 1, `one tip ({table.concat(seen, " | ")})`)
 	t.ok(anyHas(seen, DTEXTS.Tips.Shield), "the shield was ready and unused: the shield tip")
+	t.ok(anyHas(seen, DTEXTS.TipIcon), `with the tip's icon {DTEXTS.TipIcon}`)
 	-- The alarm: someone in the yard.
 	stealEvent(sim, p, "Intruder", { Thief = 2002, Name = "Ника" })
 	sim:Advance(0.2)
@@ -883,7 +1191,7 @@ tests["the ShieldChip on 4 screens: on screen right of the badge, the time, the 
 		end
 		-- The newbie protection ends soon: the lesson toast.
 		local seen = watchToasts(sim, p, 4)
-		t.ok(anyHas(seen, "Скоро воры смогут красть"), `{screen.name}: the EndingWarn toast`)
+		t.ok(anyHas(seen, DTEXTS.Protect.Ending), `{screen.name}: the EndingWarn toast`)
 		-- The last WarnLast s: Sun pulses; then it goes.
 		sim:Advance(math.max(left - 4 - 1.2 - DefenceConfig.Shield.WarnLast + 2, 0))
 		t.ok(chip.Visible, `{screen.name}: still there in the last seconds`)

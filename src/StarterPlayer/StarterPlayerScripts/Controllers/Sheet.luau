@@ -49,9 +49,9 @@
 	  • Всё, что живёт, пока лист открыт (соединения: камера, атрибуты, виджеты рыбалки), — в его
 	    Trove: закрыт — соединений как до открытия; закрытый лист ничего не делает.
 	  • Один лист на экране (Этап 4): открыли другой — этот закрывается с "switch" и отдаёт ему
-	    спрятанный слой рыбалки и прежний ZIndex уведомлений. Пока лист открыт, у HUD атрибут
-	    Sheet = имя его корня ("TankPanel", "DefencePanel"; закрыт — снят): по нему тревога кражи
-	    не рисует плашку поверх листа (AlertController).
+	    спрятанный слой рыбалки и прежний ZIndex уведомлений. Пока лист на экране (открыт или ещё
+	    уходит), у HUD атрибут Sheet = имя его корня ("TankPanel", "DefencePanel"; спрятан — снят):
+	    по нему тревога кражи не рисует плашку поверх листа (AlertController).
 
 	API:
 	  Sheet.new(hud, root, opts) -> Sheet
@@ -420,6 +420,9 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 	local function finishHide(reason: string)
 		hiding = nil
 		root.Visible = false
+		if not open and hud:GetAttribute(OPEN_ATTR) == root.Name then
+			hud:SetAttribute(OPEN_ATTR, nil) -- (лист ушёл с экрана — тревога может встать на его место)
+		end
 		UiFx.scaleOf(panel).Scale = 1
 		panel.Position = CENTRE
 		if opts.onClosed then
@@ -454,9 +457,6 @@ function Sheet.new(hud: ScreenGui, root: GuiObject, opts: Options): Sheet
 		local why = reason or "api"
 		if current == self then
 			current = nil
-		end
-		if hud:GetAttribute(OPEN_ATTR) == root.Name then
-			hud:SetAttribute(OPEN_ATTR, nil)
 		end
 		switching = why == "switch"
 		if switching then

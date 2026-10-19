@@ -1301,8 +1301,28 @@ tests["trophy chip: someone else's Legendary pillar off-screen — a small chip 
 		local home = rectOf(sim, p, hud.RightButtons.HomeButton)
 		t.ok(
 			math.abs((chipRect.y + chipRect.h / 2) - (home.y + home.h / 2)) <= home.h,
-			`at the column's foot, by «ДОМОЙ» (its row {home.y}, chip {chipRect.y}; the toasts are at its top)`
+			`no fishing buttons: at the column's foot, by «ДОМОЙ» (its row {home.y}, chip {chipRect.y})`
 		)
+		-- The rod in hand («ЗАБРОСИТЬ») and waiting («СМОТАТЬ»): the chip climbs above them (≥ 16 px:
+		-- the right thumb is there) or hides when the lane has no free spot.
+		for _, name in { "ActionButton", "StopButton" } do
+			local button = hud.Fishing.ActionArea[name]
+			button.Visible = true
+			sim:Advance(0.2)
+			if chip.Visible then
+				local r = rectOf(sim, p, chip)
+				local ring = chip.AbsoluteSize.X * 0.62 -- (its base ring and tip reach past the body)
+				local b = rectOf(sim, p, button)
+				local dx = math.max(b.x - (r.x + r.w + ring / 2), (r.x - ring / 2) - (b.x + b.w), 0)
+				local dy = math.max(b.y - (r.y + r.h + ring / 2), (r.y - ring / 2) - (b.y + b.h), 0)
+				t.ok(
+					math.sqrt(dx * dx + dy * dy) >= 16 - 1,
+					`{name} up: the chip keeps ≥ 16 px from it (chip y {r.y}, {name} y {b.y})`
+				)
+			end
+			button.Visible = false
+			sim:Advance(0.2)
+		end
 	else
 		t.ok(
 			chipRect.y + chipRect.h * 1.1 + 16 <= topRect.y + 1,

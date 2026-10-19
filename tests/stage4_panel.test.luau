@@ -9,8 +9,12 @@
 
 	What is checked:
 	  • the contract names, four cards in one row, their looks: ЩИТ Guard «ВКЛЮЧИТЬ», the prices
-	    (Gold), not enough money (Slate, the price still readable), bought (Leaf «КУПЛЕНО»; the lock a
-	    one-time buy with «Сильнее замки — скоро в магазине» under it);
+	    (Gold), not enough money (Slate, the price still readable; a tap says «ЕЩЁ $3 000» right on
+	    the button for Panel.NeedTime s — no toast over the sheet's header), bought (Leaf «КУПЛЕНО»;
+	    the lock a one-time buy whose action line becomes «Сильнее замки — скоро в магазине»);
+	  • every card's action line fits between its name and its button on phone / phone_small /
+	    tablet / desktop (lines × 12 px × 1.25 ≤ Buy.top − Effect.top; the short line when needed);
+	  • the shield card while the player steals himself: Slate «ПОСЛЕ КРАЖИ», a tap fires nothing;
 	  • the two-tap buy: the first tap says «КУПИТЬ?» and fires nothing; a tap 0.15 s later fires
 	    nothing (the arm restarts); a tap 0.5 s after that fires DefenceBuy(item) once, «⏳» until the
 	    answer; "Bought" → MoneyController.Spend(price, the button) once, the stamp «КУПЛЕНО» and the
@@ -24,8 +28,10 @@
 	    past the window, an explicit CanvasSize); phone fill ≤ 2.5×;
 	  • nothing left running after close (the 1 s ticker stops, connections back to the baseline);
 	  • the tank panel's Sell during a theft (§6.7): «КРАДУТ!» while the slot's StealPhase is hold /
-	    carry (a tap asks the server: TankSell), «В ПУТИ…» while its Escrow is set, back to the
-	    price after.
+	    carry, «В ПУТИ…» while its Escrow is set — a tap asks the server NOTHING (the card wiggles,
+	    «Её сейчас крадут!» / «Рыба ещё в пути…» once per 2 s), back to the price after; and on the
+	    REAL server (latency 0.1): the thief lets go and in the same frame the victim taps
+	    «КРАДУТ!» — no sale, the saved fish stays in its slot.
 
 	Run: lune run tools/run_tests.luau stage4_panel
 ]]
@@ -33,6 +39,8 @@
 local fs = require("@lune/fs")
 local luau = require("@lune/luau")
 local roblox = require("@lune/roblox")
+
+local S = require("./stage4_server")
 
 local Vector2 = roblox.Vector2
 
@@ -344,6 +352,20 @@ tests["looks: ЩИТ «ВКЛЮЧИТЬ», prices, not enough money, bought; the
 	)
 	t.ok(string.find(buyText(p, "AlarmCard"), "2", 1, true) ~= nil, "the alarm's price")
 	t.eq(cardOf(p, "LockCard").State.Visible, false, "no shop line before the lock is bought")
+	-- Not enough money: a tap says it right on the button (no toast over the header / Wallet).
+	tapBuy(sim, p, "DogCard")
+	sim:Advance(0.1)
+	t.eq(looks(sim, p, defence).Dog, "need", "the dog's button says what is missing")
+	local tankRules = sim:Require(sim:Find("ReplicatedStorage.Shared.TankRules"))
+	local need = fill(TEXTS.Buy.Need, { price = tankRules.FormatMoney(3000) })
+	t.eq(buyText(p, "DogCard"), need, `«{need}» under the finger`)
+	t.ok(not hasToast(p, "Не хватает"), "no toast over the sheet")
+	tapBuy(sim, p, "DogCard")
+	sim:Advance(0.1)
+	t.ok(not hasToast(p, "Не хватает"), "a second tap: still no stack of toasts")
+	t.eq(#sim:ServerEventsFor(p, "DefenceBuy"), 0, "nothing asked")
+	sim:Advance(DefenceConfig.Panel.NeedTime + 0.3)
+	t.eq(looks(sim, p, defence).Dog, "poor", "back to the (readable) price")
 	-- Bought (DefenceService writes the attributes): the dog and the lock.
 	p:SetAttribute("HasDog", true)
 	p:SetAttribute("LockLevel", 1)
@@ -353,8 +375,12 @@ tests["looks: ЩИТ «ВКЛЮЧИТЬ», prices, not enough money, bought; the
 	t.eq(l.Lock, "bought", "the lock: «КУПЛЕНО» (one level in stage 4)")
 	t.eq(buyText(p, "DogCard"), TEXTS.Buy.Bought, "«КУПЛЕНО»")
 	t.eq(buyText(p, "LockCard"), TEXTS.Buy.Bought, "«КУПЛЕНО»")
-	local state = cardOf(p, "LockCard").State
-	t.ok(state.Visible and state.Text == TEXTS.LockSoon, `«{TEXTS.LockSoon}» under the bought lock`)
+	local lock = cardOf(p, "LockCard")
+	t.eq(lock.State.Visible, false, "no separate shop line (it collided with the effect and the button)")
+	t.ok(
+		lock.Effect.Text == TEXTS.LockSoon or lock.Effect.Text == TEXTS.LockSoonShort,
+		`the bought lock's action line: «{lock.Effect.Text}»`
+	)
 	-- Money changes the looks live (the header chip too).
 	p:SetAttribute("Money", 1000)
 	sim:Advance(0.2)
@@ -363,6 +389,68 @@ tests["looks: ЩИТ «ВКЛЮЧИТЬ», prices, not enough money, bought; the
 		string.find(hudOf(p).DefencePanel.Panel.Header.Money.Label.Text, "1", 1, true) ~= nil,
 		"the header's money follows the Wallet"
 	)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["every card's action line fits between its name and its button on 4 screens (the short line when needed); the bought lock too"] = function(
+	t
+)
+	for _, spec in DEVICES do
+		local sim, p = opened(t, { device = spec.device, viewport = spec.viewport, money = 3000 })
+		local cards = module(sim, p, "DefenceCards")
+		local function check(what: string)
+			for _, name in CARD_NAMES do
+				local card = cardOf(p, name)
+				local effect, title, buy = card.Effect, card:FindFirstChild("Name"), card.Buy
+				local box = effect.AbsoluteSize.X
+				local lines = call(sim, p, function()
+					return cards.LineCount(effect.Text, 12, box)
+				end)
+				local room = buy.AbsolutePosition.Y - effect.AbsolutePosition.Y
+				t.ok(
+					lines * 12 * 1.25 <= room + 0.5,
+					`{spec.name} {what} {name}: {lines} line(s) of «{effect.Text}» fit {math.floor(room)} px`
+				)
+				t.ok(
+					effect.AbsolutePosition.Y >= title.AbsolutePosition.Y + title.AbsoluteSize.Y - 0.5,
+					`{spec.name} {what} {name}: the line under the name`
+				)
+				t.ok(
+					effect.AbsolutePosition.Y + effect.AbsoluteSize.Y <= buy.AbsolutePosition.Y + 0.5,
+					`{spec.name} {what} {name}: the line above the button`
+				)
+				local texts = TEXTS.Cards[string.gsub(name, "Card$", "")]
+				t.ok(effect.Text ~= "" and texts ~= nil, `{spec.name} {what} {name}: an action line`)
+			end
+		end
+		check("fresh")
+		p:SetAttribute("HasDog", true)
+		p:SetAttribute("HasAlarm", true)
+		p:SetAttribute("LockLevel", 1)
+		sim:Advance(1.2)
+		check("all bought")
+		local lock = cardOf(p, "LockCard")
+		t.ok(
+			lock.Effect.Text == TEXTS.LockSoon or lock.Effect.Text == TEXTS.LockSoonShort,
+			`{spec.name}: the bought lock says «скоро» in its line`
+		)
+		t.eq(lock.State.Visible, false, `{spec.name}: no second line`)
+		sim:AssertNoErrors({ warnings = true })
+	end
+end
+
+tests["the shield card while stealing himself: Slate «ПОСЛЕ КРАЖИ», a tap fires nothing"] = function(t)
+	local sim, p, defence = opened(t, { money = 0 })
+	p:SetAttribute("Stealing", "carry")
+	sim:Advance(0.2)
+	t.eq(looks(sim, p, defence).Shield, "after", "«ПОСЛЕ КРАЖИ» (the server would refuse)")
+	t.eq(buyText(p, "ShieldCard"), TEXTS.Buy.AfterTheft, `«{TEXTS.Buy.AfterTheft}»`)
+	tapBuy(sim, p, "ShieldCard")
+	sim:Advance(0.2)
+	t.eq(#sim:ServerEventsFor(p, "ShieldActivate"), 0, "a tap fires nothing")
+	p:SetAttribute("Stealing", nil)
+	sim:Advance(0.2)
+	t.eq(looks(sim, p, defence).Shield, "on", "«ВКЛЮЧИТЬ» after the theft")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -658,7 +746,7 @@ end
 -- The tank panel during a theft (§6.7)
 --------------------------------------------------------------------------------
 
-tests["the tank panel: «КРАДУТ!» while the slot is held / carried (a tap asks the server), «В ПУТИ…» with Escrow, the price after"] = function(
+tests["the tank panel: «КРАДУТ!» while the slot is held / carried, «В ПУТИ…» with Escrow — a tap asks nothing (a toast once per 2 s), the price after"] = function(
 	t
 )
 	local sim = boot(t)
@@ -720,10 +808,24 @@ tests["the tank panel: «КРАДУТ!» while the slot is held / carried (a tap
 	t.eq(caption(2), StealConfig.Texts.Panel.Stealing, "«КРАДУТ!» in the hold")
 	t.ok(caption(1) ~= StealConfig.Texts.Panel.Stealing, "the other card keeps its price")
 	sim:Click(p, cards.Card2.Sell)
-	sim:Advance(1 / 60)
-	local sells = sim:ServerEventsFor(p, "TankSell")
-	t.eq(#sells, 1, "a tap asks the server at once (it answers «Её сейчас крадут!»)")
-	t.eq(sells[1] and sells[1].args[1], "f2", "TankSell(the fish being stolen)")
+	sim:Advance(0.1)
+	t.eq(#sim:ServerEventsFor(p, "TankSell"), 0, "a tap asks the server nothing (no sale of a fish being stolen)")
+	t.ok(hasToast(p, TankConfig.Texts.Denied.locked), `«{TankConfig.Texts.Denied.locked}»`)
+	local function count(text: string): number
+		local n = 0
+		for _, s in toastTexts(p) do
+			if s == text then
+				n += 1
+			end
+		end
+		return n
+	end
+	sim:Click(p, cards.Card2.Sell)
+	sim:Advance(0.1)
+	sim:Click(p, cards.Card2.Sell)
+	sim:Advance(0.1)
+	t.eq(count(TankConfig.Texts.Denied.locked), 1, "mashing it: one toast, not a stack")
+	t.eq(#sim:ServerEventsFor(p, "TankSell"), 0, "still nothing asked")
 	slot(2):SetAttribute("StealPhase", "carry")
 	sim:Advance(0.1)
 	t.eq(caption(2), StealConfig.Texts.Panel.Stealing, "«КРАДУТ!» in the carry")
@@ -737,9 +839,69 @@ tests["the tank panel: «КРАДУТ!» while the slot is held / carried (a tap
 	slot(1):SetAttribute("Escrow", true)
 	sim:Advance(0.1)
 	t.eq(caption(1), StealConfig.Texts.Panel.Escrow, "«В ПУТИ…» while Escrow is set")
+	sim:Advance(2.1)
+	sim:Click(p, cards.Card1.Sell)
+	sim:Advance(0.1)
+	t.eq(#sim:ServerEventsFor(p, "TankSell"), 0, "a tap on «В ПУТИ…» asks nothing")
+	t.ok(hasToast(p, TankConfig.Texts.Denied.escrow), `«{TankConfig.Texts.Denied.escrow}»`)
 	slot(1):SetAttribute("Escrow", nil)
 	sim:Advance(0.1)
 	t.ok(caption(1) ~= StealConfig.Texts.Panel.Escrow, "the price after the escrow")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["real server: the thief lets go and in the same frame the victim taps «КРАДУТ!» — no sale, the saved fish stays"] = function(
+	t
+)
+	local sim = S.boot(t, { latency = 0.1 })
+	local victim = S.player(t, sim, 101, {
+		tank = { { Id = "Perch" }, { Id = "Perch" }, { Id = "Puffer", Age = 200 }, { Id = "Crucian" } },
+		client = true,
+		device = "tablet",
+		name = "Хозяин",
+	})
+	local thief = S.player(t, sim, 102, { tank = { { Id = "Crucian" } }, name = "Ника" })
+	local ready = sim:WaitFor(function()
+		local gui = victim:FindFirstChild("PlayerGui")
+		local hud = gui and gui:FindFirstChild("HUD")
+		return hud ~= nil and hud.RightButtons.DefenceButton.Visible and hud.RightButtons.TankButton.Visible
+	end, 15, S.COARSE)
+	t.ok(ready, "the victim's HUD")
+	sim:Advance(5)
+	local hud = hudOf(victim)
+	local tank = module(sim, victim, "TankPanelController")
+	local hold, prompt = S.hold(t, sim, thief, victim, 3)
+	t.ok(hold.active, "the hold began")
+	sim:Advance(0.3)
+	-- (the alert closes an open «САДОК»; the kid opens it again during the theft)
+	t.ok(
+		call(sim, victim, function()
+			return tank.Toggle()
+		end),
+		"«САДОК» opens during the theft"
+	)
+	sim:Advance(0.5)
+	t.ok(hud.TankPanel.Visible, "the tank panel is up")
+	local card = hud.TankPanel.Panel.Cards:FindFirstChild("Card3")
+	local names = {}
+	for _, c in hud.TankPanel.Panel.Cards:GetChildren() do
+		table.insert(names, c.Name)
+	end
+	t.ok(card ~= nil, `Card3 ({table.concat(names, ", ")})`)
+	if not card then
+		return
+	end
+	t.eq(card.Sell.Caption.Text, StealConfig.Texts.Panel.Stealing, "«КРАДУТ!» on the card")
+	local soldBefore = #S.tankEvents(sim, victim, "Sold")
+	sim:ReleasePrompt(thief, prompt)
+	sim:Click(victim, card.Sell) -- (his screen still says «КРАДУТ!»)
+	sim:Advance(1.5)
+	t.eq(#sim:ServerEventsFor(victim, "TankSell"), 0, "no TankSell from «КРАДУТ!»")
+	t.eq(#S.tankEvents(sim, victim, "Sold"), soldBefore, "nothing sold")
+	local slot3 = S.slotAttrs(sim, victim, 3)
+	t.eq(slot3.State, "fish", "the saved fish stays in its slot")
+	t.eq(slot3.FishId, "Puffer", "the Puffer")
+	t.ok(card.Sell.Caption.Text ~= StealConfig.Texts.Panel.Stealing, "the price is back")
 	sim:AssertNoErrors({ warnings = true })
 end
 
