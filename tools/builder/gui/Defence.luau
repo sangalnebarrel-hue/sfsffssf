@@ -9,7 +9,8 @@
 
 	Names are a contract (DefenceController, tests and the preview scenarios find them):
 	  DefencePanel             (hidden, ZIndex 30)
-	    Panel.Header.{Icon, Title, Money} — Money: a glass chip «💵 $12 345» (Icon, Label)
+	    Panel.Header.{Icon, Title, Money} — Money: a glass chip «💵 $12 345» (Icon, Label); during an
+	                           alert the controller writes Berry 🚨 «ВОР В САДКЕ!» into Icon / Title
 	    Panel.Strip            the Night band under the header (phones: the plate is glass there)
 	    Panel.Close            the round Berry «✕»
 	    Panel.Cards            ScrollingFrame + UIGridLayout with the four cards (LayoutOrder 1..4):
@@ -26,9 +27,10 @@
 	                 not fit); the bought lock says «Сильнее замки — скоро в магазине» HERE
 	        State    Small italic, hidden (reserved: «Замок ур. 1» — the levelled lock is stage 5's)
 	        Buy      the button across the card's foot (≥ 44 px on a phone): Label (the state word —
-	                 «ВКЛЮЧИТЬ», «КУПИТЬ?», «КУПЛЕНО», «ТЫ ПОД ЗАЩИТОЙ», ⏳) and Price («💵 $6 000»);
+	                 «ВКЛЮЧИТЬ», «КУПИТЬ?», «✔️ КУПЛЕНО», «ТЫ ПОД ЗАЩИТОЙ», ⏳) and Price («💵 $6 000»);
 	                 the controller shows one of them and recolours the button (Guard / Gold /
-	                 Berry / Leaf stamp / Slate) with UiFx.setCandy. Shield: Guard «ВКЛЮЧИТЬ»;
+	                 Berry / Slate) with UiFx.setCandy, or turns it into the bought stamp (a flat
+	                 Leaf face without Shine / Rim, narrower, tilted). Shield: Guard «ВКЛЮЧИТЬ»;
 	                 the others: Gold with the price
 	Sizes are scales of the card (phone ≈ 117 × 150 px; DefenceController sets the cells in px
 	written as scales: DefenceConfig.Panel.CardAspect, CardMin, and re-lays the icon, the name,
