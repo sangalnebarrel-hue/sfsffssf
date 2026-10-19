@@ -15,8 +15,13 @@
 	отказ сервера не расходятся):
 	  • всё на своей базе и всё, пока своей базы нет (или её садок не подключён);
 	  • всё, пока крадёшь (Stealing) или ждёшь (StealCooldownUntil — серверное время);
-	  • всю базу хозяина, который тебя поймал, Limits.TagCooldown с (SetTagged — по "Cancel"
-	    «tag»: сервер держит пару вор–хозяин, строка «wait» TagLeft);
+	  • всю базу хозяина, закрытую для тебя (SetTagged — по "Cancel" с BaseUntil / BaseReason
+	    сервера: поймал — Limits.TagCooldown, «tagged»; включил щит против твоей кражи — до конца
+	    щита и ещё Limits.ShieldWait, «shielded»; Limits.BaseFails срывов на ней — BaseWait,
+	    «wary»; сервер держит пару вор–хозяин, строка «wait» TagLeft / TagKind);
+	  • после отказа сервера "Denied" с Until (SetDenied: его причина и срок — в поле view её
+	    строки TheftChecks: «wait», «protect» или свежий улов этой витрины) — до Until: ребёнок не
+	    жмёт кнопку, которая всё равно откажет (карта закрытых баз теряется при перезаходе — A2-03);
 	  • всю базу под защитой (ProtectUntil / ProtectKind) или с кражей (Thief);
 	  • витрину без рыбы, с кражей (StealPhase), «в пути» (Escrow) и свежий улов (FreshUntil);
 	  • всю базу, если у хозяина меньше Limits.MinFishToRob рыб (Tank.Count) или он намного
@@ -31,15 +36,18 @@
 
 	Когда пересчитывается: на смену нужных атрибутов (своего игрока, витрин, моделей баз и
 	садков, доходов игроков) — один раз в конце кадра (task.defer), и одним task.delay к
-	ближайшему сроку (конец ожидания, «поймал», защиты базы, свежего улова). Ни одного покадрового
+	ближайшему сроку (конец ожидания, закрытой базы, защиты базы, свежего улова, отказа с Until). Ни одного покадрового
 	соединения. Соединения — на сессию (базы и витрины живут всю игру), у ушедшего игрока —
 	снимаются.
 
 	API:
 	  TheftPrompts.Start()                     -- один раз (TheftController:Start)
 	  TheftPrompts.SetHeld(prompt?)            -- кнопка, которую держит этот игрок (nil — никакая)
-	  TheftPrompts.SetTagged(userId, untilT)   -- хозяин userId поймал: его база спрятана до untilT
-	                                           -- (серверное время)
+	  TheftPrompts.SetTagged(userId, untilT, kind?)   -- база хозяина userId закрыта для тебя до
+	                                           -- untilT (серверное время), kind — почему ("tagged" |
+	                                           -- "shielded" | "wary"; нет — "tagged")
+	  TheftPrompts.SetDenied(baseIndex, slot, reason, untilT)   -- отказ сервера с Until: эта
+	                                           -- причина до untilT (база, ожидание вора или витрина)
 	  TheftPrompts.Refresh()                   -- пересчитать сейчас
 	  TheftPrompts.PromptAt(baseIndex, slot) -> ProximityPrompt?
 	  TheftPrompts.IsSteal(prompt) -> boolean   -- это кнопка кражи
@@ -80,6 +88,15 @@ local SLOT_FIELDS = {
 }
 local BASE_FIELDS = { ProtectUntil = true, ProtectKind = true, Thief = true, OwnerUserId = true }
 local OWN_FIELDS = { BaseIndex = true, Stealing = true, StealCooldownUntil = true, Income = true, TankSlots = true }
+-- Виды защиты базы (строка «protect» TheftChecks): отказ с таким Reason — защита этой базы.
+local PROTECT_KINDS: { [string]: boolean } = {}
+for _, row in TheftChecks.Rows do
+	if row.Id == "protect" then
+		for _, reason in row.Reasons do
+			PROTECT_KINDS[reason] = true
+		end
+	end
+end
 
 type Info = {
 	prompt: ProximityPrompt,
@@ -97,7 +114,13 @@ local infos: { [ProximityPrompt]: Info } = {}
 local byBase: { [Model]: { Info } } = {}
 local shownBy: { [Model]: number } = {}
 local held: ProximityPrompt? = nil
-local tagged: { [number]: number } = {} -- UserId хозяина → до когда (серверное время) он «поймал»
+-- UserId хозяина → до когда (серверное время) его база закрыта для тебя и почему (TagKind)
+local tagged: { [number]: { untilT: number, kind: string? } } = {}
+-- Отказы сервера с Until (их поле клиент не знал или узнал позже): ожидание вора, защита базы,
+-- свежий улов витрины — серверное время конца; новая запись того же атрибута сервером их снимает
+local deniedCooldown = 0
+local deniedProtect: { [Model]: { untilT: number, kind: string } } = {}
+local deniedFresh: { [ProximityPrompt]: number } = {}
 local dirty = false
 local expiryToken = 0
 local started = false
@@ -185,17 +208,23 @@ local function baseView(base: Model, now: number, own: Model?): TheftChecks.View
 	local owner = ownerOf(base)
 	local protectUntil = num(base:GetAttribute("ProtectUntil"))
 	local kind = base:GetAttribute("ProtectKind")
-	local cooldown = num(player:GetAttribute("StealCooldownUntil"))
+	local cooldown = math.max(num(player:GetAttribute("StealCooldownUntil")) or 0, deniedCooldown)
 	local count = if tank then num(tank:GetAttribute("Count")) else nil
 	local ownTankModel = own and tankOf(own)
 	local ownerId = base:GetAttribute("OwnerUserId")
-	local tagUntil = if type(ownerId) == "number" then tagged[ownerId] else nil
+	local closed = if type(ownerId) == "number" then tagged[ownerId] else nil
+	-- (отказ «защита» с Until, которого атрибуты базы ещё не показали, — его вид и срок)
+	local refused = deniedProtect[base]
+	if refused and refused.untilT > (protectUntil or 0) and refused.untilT > now then
+		protectUntil, kind = refused.untilT, refused.kind
+	end
 	return {
 		Own = own ~= nil and base == own,
 		ThiefMounted = own ~= nil and ownTankModel ~= nil and ownTankModel:GetAttribute("Count") ~= nil,
 		Stealing = player:GetAttribute("Stealing") ~= nil,
-		CooldownLeft = if cooldown then cooldown - now else 0,
-		TagLeft = if tagUntil then tagUntil - now else 0,
+		CooldownLeft = cooldown - now,
+		TagLeft = if closed then closed.untilT - now else 0,
+		TagKind = if closed then closed.kind else nil,
 		ProtectLeft = if protectUntil then protectUntil - now else 0,
 		ProtectKind = if type(kind) == "string" then kind else nil,
 		BaseTheft = base:GetAttribute("Thief") ~= nil,
@@ -207,13 +236,14 @@ local function baseView(base: Model, now: number, own: Model?): TheftChecks.View
 end
 
 -- Поля витрины поверх полей базы.
-local function slotView(view: TheftChecks.View, slot: Instance, now: number, own: Own): TheftChecks.View
+local function slotView(view: TheftChecks.View, info: Info, now: number, own: Own): TheftChecks.View
 	local v = table.clone(view)
+	local slot = info.slot
 	local state = slot:GetAttribute("State")
-	local fresh = num(slot:GetAttribute("FreshUntil"))
+	local fresh = math.max(num(slot:GetAttribute("FreshUntil")) or 0, deniedFresh[info.prompt] or 0)
 	v.FishMissing = state ~= "fish"
 	v.FishTaken = slot:GetAttribute("StealPhase") ~= nil or slot:GetAttribute("Escrow") == true
-	v.FreshLeft = if fresh then fresh - now else 0
+	v.FreshLeft = fresh - now
 	if state == "fish" then
 		local income10 = tenths(slot:GetAttribute("Income")) or 0
 		v.Placeable = StealRules.CanPlace(own.candidates, own.free, income10) ~= nil
@@ -228,19 +258,35 @@ local function apply(prompt: ProximityPrompt, show: boolean)
 	end
 end
 
--- Ближайший будущий срок (ожидание, «поймал», защита баз, свежий улов) — пересчёт к нему одним
--- task.delay; прошедшие «поймал» забываются.
+-- Ближайший будущий срок (ожидание, закрытые базы, защита баз, свежий улов, отказы с Until) —
+-- пересчёт к нему одним task.delay; прошедшие закрытия и отказы забываются.
 local function scheduleExpiry(now: number)
 	local soonest = math.huge
-	local cooldown = num(player:GetAttribute("StealCooldownUntil"))
-	if cooldown and cooldown > now then
+	local cooldown = math.max(num(player:GetAttribute("StealCooldownUntil")) or 0, deniedCooldown)
+	if cooldown > now then
 		soonest = cooldown
+	else
+		deniedCooldown = 0
 	end
-	for userId, untilT in tagged do
+	for userId, closed in tagged do
+		if closed.untilT > now then
+			soonest = math.min(soonest, closed.untilT)
+		else
+			tagged[userId] = nil
+		end
+	end
+	for base, refused in deniedProtect do
+		if refused.untilT > now then
+			soonest = math.min(soonest, refused.untilT)
+		else
+			deniedProtect[base] = nil
+		end
+	end
+	for prompt, untilT in deniedFresh do
 		if untilT > now then
 			soonest = math.min(soonest, untilT)
 		else
-			tagged[userId] = nil
+			deniedFresh[prompt] = nil
 		end
 	end
 	for base, list in byBase do
@@ -277,7 +323,7 @@ function TheftPrompts.Refresh()
 		local view = baseView(base, now, own)
 		local shown = 0
 		for _, info in list do
-			local reason = StealRules.CanStealView(slotView(view, info.slot, now, tank))
+			local reason = StealRules.CanStealView(slotView(view, info, now, tank))
 			local show = reason == nil
 			if info.prompt == held and not carrying then
 				show = true -- (держит сам: гасит только сервер)
@@ -331,6 +377,9 @@ local function register(prompt: ProximityPrompt)
 		table.insert(
 			connections,
 			base.AttributeChanged:Connect(function(name: string)
+				if name == "OwnerUserId" or name == "ProtectUntil" or name == "ProtectKind" then
+					deniedProtect[base] = nil -- (атрибуты сервера — новее отказа; или хозяин другой)
+				end
 				if BASE_FIELDS[name] then
 					markDirty()
 				end
@@ -349,6 +398,9 @@ local function register(prompt: ProximityPrompt)
 	table.insert(
 		connections,
 		slot.AttributeChanged:Connect(function(name: string)
+			if name == "FishUid" or name == "FreshUntil" then
+				deniedFresh[prompt] = nil -- (атрибут сервера — новее отказа; или рыба другая)
+			end
 			if SLOT_FIELDS[name] then
 				markDirty()
 			end
@@ -393,6 +445,9 @@ function TheftPrompts.Start()
 	table.insert(
 		connections,
 		player.AttributeChanged:Connect(function(name: string)
+			if name == "StealCooldownUntil" then
+				deniedCooldown = 0 -- (атрибут сервера — новее отказа)
+			end
 			if OWN_FIELDS[name] then
 				markDirty()
 			end
@@ -427,8 +482,43 @@ function TheftPrompts.SetHeld(prompt: ProximityPrompt?)
 	markDirty()
 end
 
-function TheftPrompts.SetTagged(userId: number, untilT: number)
-	tagged[userId] = untilT
+-- (срок — серверный: каждый "Cancel" с BaseUntil пишет текущее закрытие пары целиком)
+function TheftPrompts.SetTagged(userId: number, untilT: number, kind: string?)
+	if not finite(untilT) then
+		return
+	end
+	tagged[userId] = { untilT = untilT, kind = if type(kind) == "string" then kind else nil }
+	markDirty()
+end
+
+-- Отказ сервера с Until: причина reason до untilT — в поле view её строки TheftChecks (фильтр и
+-- подсказка двора говорят то же, что сервер, с тем же временем). Закрытая база ("tagged",
+-- "shielded", "wary") — вся база хозяина; ожидание вора ("cooldown") — все базы; защита базы —
+-- эта база; свежий улов ("new") — эта витрина. Другие причины — мимо (у них нет срока).
+function TheftPrompts.SetDenied(baseIndex: any, slot: any, reason: string, untilT: number)
+	local base = baseByIndex(baseIndex)
+	if not finite(untilT) or untilT <= serverNow() then
+		return
+	end
+	if reason == "cooldown" then
+		deniedCooldown = math.max(deniedCooldown, untilT)
+	elseif reason == "tagged" or reason == "shielded" or reason == "wary" then
+		local ownerId = base and base:GetAttribute("OwnerUserId")
+		if type(ownerId) ~= "number" then
+			return
+		end
+		tagged[ownerId] = { untilT = untilT, kind = reason }
+	elseif reason == "new" then
+		local prompt = TheftPrompts.PromptAt(baseIndex, slot)
+		if not prompt then
+			return
+		end
+		deniedFresh[prompt] = untilT
+	elseif base and PROTECT_KINDS[reason] then
+		deniedProtect[base] = { untilT = untilT, kind = reason }
+	else
+		return
+	end
 	markDirty()
 end
 
@@ -477,7 +567,7 @@ function TheftPrompts.FishReason(base: Model): (string?, number?)
 	local best: string?, bestLeft: number? = nil, nil
 	for _, info in list do
 		if info.slot:GetAttribute("State") == "fish" then
-			local reason, left = StealRules.CanStealView(slotView(view, info.slot, now, tank))
+			local reason, left = StealRules.CanStealView(slotView(view, info, now, tank))
 			if reason and reason ~= "missing" then
 				if best == nil or (left and (bestLeft == nil or left < bestLeft)) then
 					best, bestLeft = reason, left

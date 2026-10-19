@@ -9,8 +9,11 @@
 	  • Кнопки «Украсть» — помощник TheftPrompts: прячет те, что красть нельзя, МЕСТНЫМ
 	    MaxActivationDistance = 0 (сервер это свойство не пишет — его записи кнопку не вернут,
 	    BE-14), по строкам Shared/TheftChecks с Client = true; кнопку, которую держишь, — никогда.
-	    Хозяин поймал ("Cancel" «tag») — его база спрятана на Limits.TagCooldown с (SetTagged:
-	    строка «wait» TagLeft, как у сервера).
+	    База хозяина закрыта для вора ("Cancel" с BaseUntil / BaseReason: поймал — «tagged», щит
+	    хозяина против этой кражи — «shielded», Limits.BaseFails срывов на ней — «wary») — её
+	    кнопки спрятаны до BaseUntil (SetTagged: строка «wait» TagLeft / TagKind, как у сервера;
+	    сервер без BaseUntil и «tag» — на Limits.TagCooldown с). Отказ сервера "Denied" с Until —
+	    кнопки этой причины спрятаны до Until (SetDenied): ребёнок не жмёт мёртвую кнопку.
 	  • Полоса вора HUD.TheftBar — в НИЖНЕЙ полосе (§6.4 rev. 3: с камеры вора витрина, которую он
 	    грабит, — в верхней середине экрана, где плашки статуса и уведомления), по центру, между
 	    джойстиком и кнопкой прыжка (≥ Theft.Bar.Gap px от них и от края; не шире Theft.Width
@@ -43,10 +46,12 @@
 	      подсказка на стекле (Line, две ровные строки, ширина — по тексту, как у подсказки
 	        рыбалки) — во дворе чужой базы (цепочка task.delay HintEvery, только пока есть
 	        персонаж; StealRules.InPlot): почему здесь красть нельзя — пока стоишь во дворе, с
-	        живым «0:24» (⏳ ожидание, 🛡️ защита, 👀 хозяин рядом, 🐠 рыба: строки TheftChecks —
-	        базы, иначе витрин); можно — по очереди на каждом входе: «Зажми «Украсть» у
-	        витрины…» один раз за игру (текст — по последнему вводу: тач / клавиатура /
-	        геймпад), потом «Начнёшь красть — твоя защита погаснет» (своя база под защитой);
+	        живым «0:24» (⏳ ожидание, 🛡️ защита и база, закрытая щитом хозяина («shielded»),
+	        👀 хозяин рядом и хозяин настороже («wary»), 🐠 рыба: строки TheftChecks — базы, иначе
+	        витрин); можно — по очереди: «Начнёшь красть — твоя защита погаснет» (своя база под
+	        защитой: раз за защиту и до первой кражи под ней — сервер гасит защиту только после
+	        окна тапа, Wave 3 UX-01), потом «Зажми «Украсть» у витрины…» один раз за игру (текст —
+	        по последнему вводу: тач / клавиатура / геймпад);
 	        отказ сервера "Denied" — его текст на DeniedHint с (Quiet — без текста), и кольцо
 	        названной кнопки гаснет (InputHoldEnd по BaseIndex / Slot); нет ни "Hold", ни
 	        "Denied" за max(Hold.NoReply, пинг + Hold.NoReplySlack) с после своего начала
@@ -142,8 +147,19 @@ local BARK_RISE = Vector3.new(0, DefenceConfig.World.Dog.BarkRise, 0)
 -- потолком букв (UITextSizeConstraint "Cap": «ГАВ!» — Dog.BarkCap) — не крупнее потолка.
 local GLYPH, SCALED_MAX = 0.5, 100
 
--- Значок подсказки по причине отказа: ожидание, защита, хозяин рядом, остальное — рыба.
-local WAIT_REASONS = { cooldown = true, tagged = true, new = true, loading = true, nobase = true, busy = true }
+-- Значок подсказки по причине отказа: ожидание (⏳; база, закрытая щитом хозяина, — 🛡️, хозяин
+-- настороже — 👀: у всех ожиданий — живые часы до конца), защита, хозяин рядом, остальное — рыба.
+local WAIT_REASONS = {
+	cooldown = true,
+	tagged = true,
+	shielded = true,
+	wary = true,
+	new = true,
+	loading = true,
+	nobase = true,
+	busy = true,
+}
+local WAIT_ICONS = { shielded = ICONS.Shield, wary = ICONS.Wary } -- (ожидания со своим значком)
 local SHIELD_REASONS = { shield = true, join = true, newbie = true, after = true, rest = true }
 
 type Mode = "none" | "hint" | "hold" | "carry" | "fail" | "done"
@@ -191,9 +207,8 @@ local characterTrove = Trove.new() -- цепочка «вор во дворе» 
 local generation = 0 -- номер вида: отложенные шаги старого вида ничего не делают
 local hintUntil = 0 -- временная подсказка (отказ, «подожди», первая) держится до (os.clock)
 local hintKey: string? = nil -- что сейчас написано на стекле (подсказки не перепоказываются)
-local plotBase: Model? = nil -- чужой двор, где стоит персонаж (прошлый шаг цепочки)
-local courtQueue: { string } = {} -- подсказки этого входа во двор по очереди ("first", "protected")
 local firstHintShown = false
+local protectWarned = false -- «Начнёшь красть — твоя защита погаснет» уже было за эту защиту
 local awaiting = false -- своё удержание начато, ответа сервера ("Hold" / "Denied") ещё нет
 local noReplyToken = 0
 local holdBeganAt = -math.huge -- (os.clock) своё последнее начало удержания «Украсть»
@@ -516,7 +531,7 @@ end
 
 local function iconFor(reason: string?): string
 	if reason and WAIT_REASONS[reason] then
-		return ICONS.Wait
+		return WAIT_ICONS[reason] or ICONS.Wait
 	elseif reason and SHIELD_REASONS[reason] then
 		return ICONS.Shield
 	elseif reason == "owner" then
@@ -622,19 +637,9 @@ end
 -- Шаг цепочки «вор во дворе»: что написать на стекле (или убрать подсказку).
 local function plotStep(root: BasePart)
 	local base = foreignPlot(root)
-	local entered = base ~= nil and base ~= plotBase
-	plotBase = base
-	if entered then
-		-- (подсказки этого входа — по очереди: как красть, потом про свою защиту)
-		table.clear(courtQueue)
-		if not firstHintShown then
-			table.insert(courtQueue, "first")
-		end
-		if ownProtected() then
-			table.insert(courtQueue, "protected")
-		end
-	elseif not base then
-		table.clear(courtQueue)
+	local protected = ownProtected()
+	if not protected then
+		protectWarned = false -- (защита кончилась: следующая снова предупредит)
 	end
 	if mode ~= "none" and mode ~= "hint" then
 		return -- (кража, срыв, «ДОБЫЧА!» — у них своя полоса)
@@ -670,16 +675,16 @@ local function plotStep(root: BasePart)
 		hideHint()
 		return
 	end
-	while #courtQueue > 0 do
-		local next = table.remove(courtQueue, 1)
-		if next == "first" and not firstHintShown then
-			firstHintShown = true
-			showHint(firstText(), ICONS.Hint, BAR.HintTime, "first")
-			return
-		elseif next == "protected" and ownProtected() then
-			showHint(TEXTS.Hint.Protected, ICONS.Shield, BAR.HintTime, "protected")
-			return
-		end
+	-- По очереди, каждая — HintTime: сначала про свою защиту (раз за защиту — до первой кражи под
+	-- ней: случайный тап её не гасит, UX-01), потом как красть (раз за игру).
+	if protected and not protectWarned then
+		protectWarned = true
+		showHint(TEXTS.Hint.Protected, ICONS.Shield, BAR.HintTime, "protected")
+		return
+	elseif not firstHintShown then
+		firstHintShown = true
+		showHint(firstText(), ICONS.Hint, BAR.HintTime, "first")
+		return
 	end
 	if mode == "hint" and hintUntil <= os.clock() then
 		hideHint()
@@ -688,7 +693,6 @@ end
 
 local function startPlotChain(character: Model)
 	characterTrove:Clean()
-	plotBase = nil
 	local alive = true
 	characterTrove:Add(function()
 		alive = false
@@ -1073,19 +1077,32 @@ local function dropTheft()
 	awaiting = false
 end
 
+-- "Cancel" с BaseUntil: база хозяина закрыта для вора до BaseUntil (серверное время) по причине
+-- BaseReason ("tagged" | "shielded" | "wary") — её кнопки прячутся, двор говорит почему, с часами
+-- (S-02, S-05, S-06); сервер без BaseUntil и «tag» — на TagCooldown (пара вор–хозяин).
+local function closeBase(baseIndex: any, data: { [string]: any })
+	local base = baseModel(baseIndex)
+	local owner = base and base:GetAttribute("OwnerUserId")
+	if type(owner) ~= "number" then
+		return
+	end
+	if finite(data.BaseUntil) then
+		TheftPrompts.SetTagged(
+			owner,
+			data.BaseUntil,
+			if type(data.BaseReason) == "string" then data.BaseReason else nil
+		)
+	elseif data.Reason == "tag" then
+		TheftPrompts.SetTagged(owner, serverNow() + LIMITS.TagCooldown, "tagged")
+	end
+end
+
 local function enterFail(data: { [string]: any })
 	local t = theft
 	if data.Phase == "hold" then
 		endHold(heldPrompt()) -- (сервер кнопку не выключает: так щит или касание гасят кольцо)
 	end
-	-- Хозяин поймал — его база спрятана на TagCooldown (как у сервера: пара вор–хозяин).
-	if data.Reason == "tag" then
-		local base = baseModel(if t then t.baseIndex else data.BaseIndex)
-		local owner = base and base:GetAttribute("OwnerUserId")
-		if type(owner) == "number" then
-			TheftPrompts.SetTagged(owner, serverNow() + LIMITS.TagCooldown)
-		end
-	end
+	closeBase(if t then t.baseIndex else data.BaseIndex, data)
 	releaseIncoming()
 	dropTheft()
 	-- Короткий тап по «Украсть» — не срыв: подсказка, как держать (без тряски и звука).
@@ -1235,6 +1252,10 @@ local function onDenied(data: { [string]: any })
 	abandoned = nil
 	syncToasts()
 	endHold(TheftPrompts.PromptAt(data.BaseIndex, data.Slot))
+	-- Отказ со сроком (Until): кнопки этой причины спрятаны до него (и тихий повтор — тоже)
+	if finite(data.Until) and type(data.Reason) == "string" then
+		TheftPrompts.SetDenied(data.BaseIndex, data.Slot, data.Reason, data.Until)
+	end
 	if data.Quiet == true or mode ~= "none" and mode ~= "hint" then
 		return
 	end
@@ -1265,8 +1286,10 @@ local function onStealEvent(kind: any, data: any)
 		end
 		enterCarry(d)
 	elseif kind == "Cancel" then
-		if ghost and not theft then
+		local late = ghost
+		if late and not theft then
 			ghost, abandoned = nil, nil
+			closeBase(late.BaseIndex, d) -- (опоздавший ответ тоже закрывает базу)
 			showHint(BANNER.NoReply, ICONS.Wait, SPEC.DeniedHint, nil)
 			return
 		end
@@ -1433,8 +1456,6 @@ function TheftController:Start(hud: ScreenGui)
 	player.CharacterAdded:Connect(startPlotChain)
 	player.CharacterRemoving:Connect(function()
 		characterTrove:Clean()
-		plotBase = nil
-		table.clear(courtQueue)
 	end)
 	if player.Character then
 		startPlotChain(player.Character)

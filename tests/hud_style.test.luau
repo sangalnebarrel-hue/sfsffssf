@@ -13,8 +13,9 @@
 	    on screen, the right column («САДОК» over «ДОМОЙ») stays above the Jump button on touch
 	    screens;
 	  • stage 4 wave 3: on a PC the toast stack stops above the own fisher (the rest wait, UX-06),
-	    a toast an alert pushed out early is dropped once it is stale (UX-05), a phone's broadcast
-	    that would reach his head goes one line (ART-08);
+	    a toast an alert pushed out early is dropped once it is stale (UX-05), one pushed out after
+	    it was read (UIConfig.ToastSeen) is not shown again (F-05: «Щит погас» twice), a phone's
+	    broadcast that would reach his head goes one line (ART-08);
 	  • the runtime juice: base swatch on the badge and the base banner flying into it, the «САДОК»
 	    chip (frozen while the HUD has CounterHold, rolling on arrival), the draining Home cooldown («ЖДИ»),
 	    toasts by kind (colour, icon, width, slots, queue while fishing widgets are up — and while
@@ -1662,6 +1663,60 @@ tests["toasts (stage 4 wave 3, UX-05): a toast an alert band pushed out early co
 		"theft",
 		"after a long alert: only «Украдено» — the stale «Щит погас» is dropped"
 	)
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["toasts (stage 4 last mile, F-05): «Щит погас» read for UIConfig.ToastSeen and then pushed out by an alert band is gone for good — one Notify, one show (the critic's bait log saw it twice: before the alert and after it)"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, "phone")
+	quiet(sim, p)
+	local notifyModule = clientModule(sim, p, "NotifyController")
+	local column = p.PlayerGui.HUD.Toasts
+	local function band(on: boolean)
+		sim:Run(function()
+			notifyModule.Reserve("alert", if on then column.AbsoluteSize.Y else nil)
+		end, p)
+	end
+	local shows = 0
+	local connection = column.ChildAdded:Connect(function(child: any)
+		if child.Name == "Toast" and child:GetAttribute("Kind") == "shield" then
+			shows += 1
+		end
+	end)
+	local life = UIConfig.ToastKinds.shield.Life or UIConfig.ToastDuration
+	t.ok(UIConfig.ToastSeen < life / 2, "ToastSeen inside the first half of a toast's life")
+	notify(sim, p, "Щит погас", "shield")
+	sim:Advance(UIConfig.ToastSeen + 0.25) -- (the bait log: the next alert 1.0 s after it)
+	t.eq(#liveToasts(p), 1, "«Щит погас» on screen, read")
+	band(true)
+	sim:Advance(0.3)
+	t.eq(#liveToasts(p), 0, "the alert's band pushed it out")
+	sim:Advance(1.2) -- (a short alert: a tap the owner's alert ends at once)
+	band(false)
+	local back = false
+	local t0 = sim:Time()
+	while sim:Time() - t0 < life + 1 do
+		for _, toast in liveToasts(p) do
+			if toast:GetAttribute("Kind") == "shield" then
+				back = true
+			end
+		end
+		sim:Advance(1 / 30)
+	end
+	t.eq(back, false, "after the alert it does not come back")
+	t.eq(shows, 1, "shown once")
+	-- (the early push still comes back: UX-05's own rule, «first half» and not yet read)
+	notify(sim, p, "Щит погас", "shield")
+	sim:Advance(0.4)
+	band(true)
+	sim:Advance(0.3)
+	band(false)
+	sim:Advance(0.4)
+	local again = liveToasts(p)[1]
+	t.ok(again and again:GetAttribute("Kind") == "shield", "pushed before it was read (0.4 s): it comes back")
+	connection:Disconnect()
 	sim:AssertNoErrors({ warnings = true })
 end
 

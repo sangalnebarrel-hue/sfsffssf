@@ -9,7 +9,10 @@
 	    на пару вор–жертва, остальные Quiet) — тревога: атрибут HUD AlertPhase = "hold" | "carry"
 	    (кнопка «ЗАЩИТА» становится «ЩИТ!», DefenceController) и FishingController.HurryCard()
 	    (тревога важнее карточки улова, DC-02: карточка закрывается обычным путём, полёт в «САДОК»
-	    доигрывает); громкая новая тревога закрывает лист «САДОК» (Controllers.Sheet, причина
+	    доигрывает) — кроме тихого (Quiet) удержания вора, у которого кража на этой базе уже
+	    сорвалась меньше Limits.FailWindow с назад (Wave 3 UX-03: один вор, дёргая удержание, не
+	    закрывает ребёнку карточку улова раз за разом; его вынос торопит карточку как обычно —
+	    рыба уже уходит); громкая новая тревога закрывает лист «САДОК» (Controllers.Sheet, причина
 	    "alert", сразу); лист «ЗАЩИТА» остаётся — его карточка щита сама становится «ЩИТ!»
 	    (DefenceCards: то же одно нажатие);
 	  • слои без места на экране (с первого кадра): тонкая красная пульсация краёв
@@ -70,9 +73,9 @@
 	покадрового соединения (пульсации и кольца — твины и таймеры).
 
 	API (тесты, превью):
-	  AlertController.Stats() -> { phase, shown ("plate" | "compact" | "none" | nil), spot,
-	    waiting, busy, rect (px HUD), fisher (свой рыбак при раскладке на телефоне), label (текст
-	    «таблетки» или nil), edge ("on" | "asleep" | nil) }
+	  AlertController.Stats() -> { phase, calm (карточку улова не торопили: UX-03), shown ("plate" |
+	    "compact" | "none" | nil), spot, waiting, busy, rect (px HUD), fisher (свой рыбак при
+	    раскладке на телефоне), label (текст «таблетки» или nil), edge ("on" | "asleep" | nil) }
 ]]
 
 local Players = game:GetService("Players")
@@ -147,6 +150,7 @@ type Alert = {
 	thief: number?,
 	readyAtStart: boolean, -- щит был готов, когда тревога пришла (совет после кражи)
 	tried: boolean, -- ЩИТ нажат за эту тревогу
+	calm: boolean, -- тихое удержание вора, который здесь уже срывался: карточку улова не торопим
 }
 
 local AlertController = {}
@@ -173,6 +177,7 @@ local A = {
 	edge = nil :: string?, -- пульсация краёв: "on" | "asleep" | nil
 	base = nil :: Instance?,
 	baseConn = nil :: RBXScriptConnection?,
+	failed = {} :: { [number]: number }, -- UserId вора → os.clock() его последнего срыва на своей базе
 }
 
 local function now(): number
@@ -906,7 +911,8 @@ local function watchBlockers(hud: ScreenGui)
 		end
 	end
 	A.layers:Connect(hud:GetAttributeChangedSignal("CounterHold"), function()
-		if A.alert and hud:GetAttribute("CounterHold") ~= nil then
+		local a = A.alert
+		if a and not a.calm and hud:GetAttribute("CounterHold") ~= nil then
 			task.defer(hurryCard) -- (новый улов во время тревоги: карточка уйдёт обычным путём)
 		end
 		onBlock()
@@ -1058,14 +1064,21 @@ local function onAlert(data: { [string]: any })
 			thief = nil,
 			readyAtStart = DefenceController.ShieldReady(),
 			tried = false,
+			calm = false,
 		}
 	a.phase = phase
 	a.name = if typeof(data.Name) == "string" then data.Name else a.name
 	a.short = shortOf(data)
 	a.thief = if typeof(data.Thief) == "number" then data.Thief else a.thief
+	-- Тихое удержание вора, у которого здесь уже сорвалось за FailWindow, — карточку улова не
+	-- торопим (UX-03); вынос — торопим всегда.
+	local failedAt = if a.thief then A.failed[a.thief] else nil
+	a.calm = quiet and phase == "hold" and failedAt ~= nil and os.clock() - failedAt < StealConfig.Limits.FailWindow
 	A.alert = a
 	hud:SetAttribute("AlertPhase", phase)
-	hurryCard()
+	if not a.calm then
+		hurryCard()
+	end
 	-- «👀 Ника у тебя во дворе!» этого вора (на экране или ждёт) — уже не нужно: плашка громче
 	NotifyController.Drop(intruderTag(a.thief))
 	if fresh then
@@ -1126,6 +1139,17 @@ end
 local function onSaved(data: { [string]: any })
 	local reason = data.Reason
 	local text = if typeof(data.Text) == "string" then data.Text else ""
+	-- (кража сорвалась: этот вор здесь уже срывался — его тихое удержание не торопит карточку улова)
+	local thief = A.alert and A.alert.thief
+	if thief then
+		local t = os.clock()
+		for id, at in A.failed do
+			if t - at >= StealConfig.Limits.FailWindow then
+				A.failed[id] = nil
+			end
+		end
+		A.failed[thief] = t
+	end
 	if text == "" then
 		local saved = RESULT.Saved
 		text = saved[if reason == "tag" or reason == "shield" or reason == "left" then reason else "failed"]
@@ -1232,6 +1256,7 @@ end
 function AlertController.Stats(): { [string]: any }
 	return {
 		phase = if A.alert then A.alert.phase else nil,
+		calm = if A.alert then A.alert.calm else nil,
 		shown = A.shown,
 		spot = A.spot,
 		waiting = A.waiting,

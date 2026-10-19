@@ -37,8 +37,9 @@
 	  • critic round 1 (design §11.6 C-16…): the toasts wait while he steals (a protected thief's
 	    «Кража погасила твою защиту» never over the robbed display, the alert's slot on top, shown
 	    after «ДОБЫЧА!»); a quick tap is a glass hint, not «СОРВАЛОСЬ!»; a protected newcomer gets
-	    the how-to first, then the warning; 👀 for «Хозяин рядом!»; the gamepad's first hint; the
-	    owner's tag hides his base for TagCooldown; F / a click with the rod in the carry call no
+	    the protection warning first (once per protection: §11.7 F-03), then the how-to; 👀 for
+	    «Хозяин рядом!»; the gamepad's first hint; the owner's tag hides his base for TagCooldown
+	    (the Cancel's BaseUntil); F / a click with the rod in the carry call no
 	    fishing hint; no court hint over an open sheet; a slow link's late Hold / Cancel show no
 	    bar and no «СОРВАЛОСЬ!»; every «СОРВАЛОСЬ!» reason on one line at the Body tier on 5 screens;
 	  • critic round 2 (C-30, C-33…C-35): three quick taps cost no wait on the server (FreeTaps; a
@@ -814,7 +815,7 @@ tests["the banner on 5 screens: the hint, the hold, the carry with the dog, «Д
 	t.eq(#sim.Errors, 0, sim:FormatErrors())
 end
 
-tests["court hints: a protected newcomer gets the how-to first, then the protection warning; the warning on every later entry; a wait with a live countdown"] = function(
+tests["court hints: a protected newcomer gets the protection warning first, then the how-to; the warning once per protection (again for a new one); a wait with a live countdown"] = function(
 	t
 )
 	local sim = S.boot(t)
@@ -831,32 +832,45 @@ tests["court hints: a protected newcomer gets the how-to first, then the protect
 	end
 
 	-- His own protection (a newcomer: DefenceService writes it on his base) on his FIRST entry:
-	-- the how-to first (keyboard: «Держи E у витрины…»), then the protection warning (C1-R1-05).
+	-- the protection warning first — before his first hold under it (wave 3 UX-01: the server ends
+	-- it only after the tap window, so a curious tap costs nothing, but the kid is told before
+	-- he tries), then the how-to (keyboard: «Держи E у витрины…»).
 	own:SetAttribute("ProtectKind", "newbie")
 	own:SetAttribute("ProtectUntil", attrTime(sim, serverTime(sim) + 120))
 	intoCourt(sim, thief, victim, 3)
 	t.ok(u.bar.Visible and u.line.Visible, "a hint on entry")
-	t.eq(u.line.Text, TEXTS.Hint.Keyboard, "the how-to first «Держи E у витрины…» (PC)")
-	sim:Advance(BAR.HintTime + SPEC.HintEvery + 0.2)
-	t.ok(u.bar.Visible, "then the next hint")
 	t.eq(
 		u.line.Text,
 		TEXTS.Hint.Protected,
-		"«Начнёшь красть — твоя защита погаснет»"
+		"the warning first «Начнёшь красть — твоя защита погаснет»"
 	)
+	t.eq(u.icon.Icon.Text, ICONS.Shield, "… with 🛡️")
+	sim:Advance(BAR.HintTime + SPEC.HintEvery + 0.2)
+	t.ok(u.bar.Visible, "then the next hint")
+	t.eq(u.line.Text, TEXTS.Hint.Keyboard, "the how-to «Держи E у витрины…» (PC)")
 	sim:Advance(BAR.HintTime + SPEC.HintEvery + 0.2)
 	t.ok(not u.bar.Visible, `it leaves after HintTime ({BAR.HintTime} s)`)
 	leave()
 	intoCourt(sim, thief, victim, 3)
-	t.eq(u.line.Text, TEXTS.Hint.Protected, "the warning again on the next entry (the how-to once)")
+	t.ok(not u.bar.Visible, "the next entry under the same protection: no warning again (once per protection)")
 	leave()
-	t.ok(not u.bar.Visible, "gone when he leaves the plot")
 
-	-- No protection: nothing more on entry (the how-to is once per session).
+	-- The protection ends; a new one (the shield of his own base, say) warns again — once.
 	own:SetAttribute("ProtectKind", nil)
 	own:SetAttribute("ProtectUntil", nil)
 	intoCourt(sim, thief, victim, 3)
-	t.ok(not u.bar.Visible, "the how-to only once per session")
+	t.ok(not u.bar.Visible, "no protection: nothing on entry (the how-to is once per session)")
+	leave()
+	own:SetAttribute("ProtectKind", "shield")
+	own:SetAttribute("ProtectUntil", attrTime(sim, serverTime(sim) + 60))
+	intoCourt(sim, thief, victim, 3)
+	t.eq(u.bar.Visible and u.line.Text, TEXTS.Hint.Protected, "a new protection: the warning again")
+	leave()
+	t.ok(not u.bar.Visible, "gone when he leaves the plot")
+	intoCourt(sim, thief, victim, 3)
+	t.ok(not u.bar.Visible, "… and only once for it")
+	own:SetAttribute("ProtectKind", nil)
+	own:SetAttribute("ProtectUntil", nil)
 
 	-- Waiting after a theft: the reason stays while he is in the court, counting down.
 	thief:SetAttribute("StealCooldownUntil", attrTime(sim, serverTime(sim) + 25))

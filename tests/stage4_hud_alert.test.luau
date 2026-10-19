@@ -25,7 +25,9 @@
 	      – loud alerts ping three times and shake; coalesced Quiet ones do neither;
 	      – an alert with a catch card up (CounterHold): FishingController.HurryCard (a spy) is
 	        called at once, the plate waits and shows once the hold is gone; a catch that lands
-	        while the alert is up hurries the card again and hides the plate until it is gone;
+	        while the alert is up hurries the card again and hides the plate until it is gone; a
+	        coalesced (Quiet) hold of a thief who already failed here within FailWindow does not
+	        (UX-03, F-04), his carry and another thief do;
 	      – a sheet open when the alert starts: «САДОК» closes at once, «ЗАЩИТА» stays and its
 	        shield card is the «ЩИТ!» (one tap); a sheet opened during the alert hides the plate —
 	        it is never drawn over a sheet;
@@ -773,6 +775,69 @@ tests["a catch card up (CounterHold): HurryCard is called at once, the plate wai
 	t.eq(alertStats(sim, p).shown, nil, "still waiting while the hold lasts")
 	hud:SetAttribute("CounterHold", nil)
 	t.ok(waitShown(sim, p, THEFT.CardAfter + 1), "the plate shows once the hold is gone")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["UX-03's client half (F-04): a coalesced (Quiet) hold of a thief who already failed here leaves the catch card alone — no HurryCard, the plate waits; his carry hurries it; another thief and an old failure hurry as before"] = function(
+	t
+)
+	local sim = boot(t)
+	local p = addPlayer(sim, 1, SCREENS[3])
+	local fishing = module(sim, p, "FishingController")
+	local hurried = 0
+	fishing.HurryCard = function()
+		hurried += 1
+	end
+	local hud = hudOf(p)
+	-- the 1st attempt: a loud alert hurries the card; it fails («Кража сорвалась»)
+	hud:SetAttribute("CounterHold", "f1")
+	alert(sim, p)
+	sim:Advance(0.1)
+	t.eq(hurried, 1, "the 1st (loud) alert hurries the card")
+	t.eq(alertStats(sim, p).calm, false)
+	hud:SetAttribute("CounterHold", nil)
+	over(sim, p, "Saved", { Reason = "released", Slot = 2, Text = RESULT.Saved.failed })
+	sim:Advance(1)
+
+	-- the same thief again within FailWindow, coalesced (Quiet): the card is left alone
+	hud:SetAttribute("CounterHold", "f2")
+	alert(sim, p, { Quiet = true })
+	sim:Advance(0.1)
+	t.eq(hurried, 1, "his Quiet hold: no HurryCard")
+	local stats = alertStats(sim, p)
+	t.eq(stats.calm, true, "calm")
+	t.eq(hud:GetAttribute("AlertPhase"), "hold", "the column «ЩИТ!» is there all the same")
+	t.eq(stats.shown, nil, "the plate waits for the card")
+	hud:SetAttribute("CounterHold", "f3") -- (another catch lands during it: not hurried either)
+	sim:Advance(0.1)
+	t.eq(hurried, 1, "a catch during his calm hold: not hurried")
+	-- his carry: the fish is leaving — hurried as always
+	alert(sim, p, { Phase = "carry", Quiet = true })
+	sim:Advance(0.1)
+	t.eq(hurried, 2, "his carry hurries the card")
+	t.eq(alertStats(sim, p).calm, false)
+	hud:SetAttribute("CounterHold", nil)
+	over(sim, p, "Saved", { Reason = "shield", Slot = 2, Text = RESULT.Saved.shield })
+	sim:Advance(1)
+
+	-- another thief's Quiet hold (a first attempt of his here) hurries
+	hud:SetAttribute("CounterHold", "f4")
+	alert(sim, p, { Quiet = true, Thief = 3003, Name = "Вова" })
+	sim:Advance(0.1)
+	t.eq(hurried, 3, "another thief: hurried")
+	hud:SetAttribute("CounterHold", nil)
+	over(sim, p, "Lost", { Fish = { Id = "Puffer", Rarity = "Rare" }, Name = "Вова" })
+	sim:Advance(1)
+
+	-- the first thief after FailWindow: an old failure no longer counts
+	sim:Advance(StealConfig.Limits.FailWindow)
+	hud:SetAttribute("CounterHold", "f5")
+	alert(sim, p, { Quiet = true })
+	sim:Advance(0.1)
+	t.eq(hurried, 4, "after FailWindow: hurried again")
+	hud:SetAttribute("CounterHold", nil)
+	over(sim, p, "Saved", { Reason = "released", Slot = 2, Text = RESULT.Saved.failed, Quiet = true })
+	sim:Advance(1)
 	sim:AssertNoErrors({ warnings = true })
 end
 
