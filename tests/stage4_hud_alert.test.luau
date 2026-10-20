@@ -48,7 +48,9 @@
 	        connections back to the baseline;
 	      – results: Lost → «Украдено: Фугу (Ника)», «Садок отдыхает …» and one tip; Saved shield
 	        → the shield toast; a Quiet save → nothing; Intruder → «👀 Ника у тебя во дворе!» and
-	        «ЗАЩИТА» bobs;
+	        «ЗАЩИТА» bobs; one clock (F-12): «Садок отдыхает 1:25» and «Щит спас рыбу! 🛡️ 0:59»
+	        tick with the ShieldChip beside them — the same time in every 0.1 s sample on a phone
+	        and a tablet (the toast froze at its show before);
 	      – toasts during the alert (phone, tablet, desktop): the intruder toast goes the moment
 	        its thief's hold starts; toasts that arrive never land on the own fisher (on a tablet /
 	        desktop they wait: no room above his head under the plate) and keep BandGap + the
@@ -340,8 +342,8 @@ tests["real server, phone: a hold during the minigame — one tap on the pill's 
 	local shown = sim:WaitFor(function()
 		local stats = alertStats(sim, victim)
 		return stats.phase == "hold" and stats.shown ~= nil
-	end, 1.5, 1 / 30)
-	t.ok(shown, "the alert shows within a moment (in the minigame)")
+	end, 2.5, 1 / 30)
+	t.ok(shown, "the alert shows once the hold outlasts the tap window (in the minigame)")
 	local stats = alertStats(sim, victim)
 	t.eq(stats.shown, "compact", "a phone: the Compact pill (the plate would cover the fisher)")
 	t.ok(
@@ -1372,6 +1374,88 @@ tests["results: Lost → «Украдено…», «Садок отдыхает 
 		"«ЗАЩИТА» bobs"
 	)
 	sim:AssertNoErrors({ warnings = true })
+end
+
+-- The clock («1:25») in a text, nil — none.
+local function clockOf(text: string?): string?
+	return if type(text) == "string" then string.match(text, "(%d+:%d%d)") else nil
+end
+
+-- Every 0.1 s for `seconds`: the visible toast that has `needle` in its text against the ShieldChip.
+-- Returns the samples where both were on screen, the mismatches and the distinct times seen.
+local function sameClock(sim: any, p: any, needle: string, seconds: number): (number, { string }, number)
+	local chip = hudOf(p).Status.BaseBadge.ShieldChip
+	local samples, wrong, values, distinct = 0, {}, {}, 0
+	local t0 = sim:Time()
+	while sim:Time() - t0 < seconds do
+		local toastClock: string? = nil
+		for _, text in toastTexts(p) do
+			if string.find(text, needle, 1, true) then
+				toastClock = clockOf(text)
+			end
+		end
+		local chipClock = if chip.Visible then clockOf(chip.Label.Text) else nil
+		if toastClock and chipClock then
+			samples += 1
+			if toastClock ~= chipClock then
+				table.insert(wrong, `{string.format("%.1f", sim:Time() - t0)} s: toast {toastClock}, chip {chipClock}`)
+			end
+			if not values[toastClock] then
+				values[toastClock] = true
+				distinct += 1
+			end
+		end
+		sim:Advance(0.1)
+	end
+	return samples, wrong, distinct
+end
+
+tests["one clock (F-12): «Садок отдыхает …» and «Щит спас рыбу! 🛡️ …» tick with the ShieldChip — the same time in every 0.1 s sample while they are on screen (phone, tablet)"] = function(
+	t
+)
+	for _, screen in { SCREENS[1], SCREENS[3] } do
+		-- a loss: the «after» protection with a fraction of a second, as a real one has
+		local sim = boot(t)
+		local p = addPlayer(sim, 1, screen)
+		local tankRules = sim:Require(sim:Find("ReplicatedStorage.Shared.TankRules"))
+		local base = baseOf(sim, p)
+		alert(sim, p)
+		sim:Advance(1.5)
+		local untilAt = tankRules.AttrTime(now(sim) + DefenceConfig.Shield.Duration + 25.3)
+		base:SetAttribute("ProtectUntil", untilAt)
+		base:SetAttribute("ProtectKind", "after")
+		over(sim, p, "Lost", {
+			Fish = { Id = "Puffer", Rarity = "Rare", Kg = 2.1, Value = 58 },
+			Name = "Ника",
+			Until = untilAt,
+			Kind = "after",
+		})
+		local head = string.match(RESULT.LostSub, "^(.-) ?{t}") or RESULT.LostSub
+		local samples, wrong, distinct = sameClock(sim, p, head, 14)
+		t.ok(samples >= 15, `{screen.name}: «{head} …» beside the chip in {samples} samples`)
+		t.ok(distinct >= 2, `{screen.name}: … and it ticked on screen ({distinct} times seen)`)
+		t.eq(#wrong, 0, `{screen.name}: the toast and the chip say one time ({table.concat(wrong, "; ")})`)
+		sim:AssertNoErrors({ warnings = true })
+
+		-- a shield save: «Щит спас рыбу! 🛡️ 1:00» beside the chip's shield
+		sim = boot(t)
+		p = addPlayer(sim, 1, screen)
+		tankRules = sim:Require(sim:Find("ReplicatedStorage.Shared.TankRules"))
+		base = baseOf(sim, p)
+		alert(sim, p)
+		sim:Advance(1)
+		local shieldUntil = tankRules.AttrTime(now(sim) + DefenceConfig.Shield.Duration - 0.6)
+		p:SetAttribute("ShieldUntil", shieldUntil)
+		base:SetAttribute("ProtectUntil", shieldUntil)
+		base:SetAttribute("ProtectKind", "shield")
+		over(sim, p, "Saved", { Reason = "shield", Slot = 2, Text = RESULT.Saved.shield })
+		local shieldHead = string.match(RESULT.SavedShield, "^(.-) ?{t}") or RESULT.SavedShield
+		samples, wrong, distinct = sameClock(sim, p, shieldHead, 6)
+		t.ok(samples >= 15, `{screen.name}: «{shieldHead} …» beside the chip in {samples} samples`)
+		t.ok(distinct >= 2, `{screen.name}: … and it ticked on screen ({distinct} times seen)`)
+		t.eq(#wrong, 0, `{screen.name}: the shield toast and the chip say one time ({table.concat(wrong, "; ")})`)
+		sim:AssertNoErrors({ warnings = true })
+	end
 end
 
 tests["the ShieldChip on 4 screens: on screen right of the badge, the time, the pulse in the last 10 s, gone at 0; the newbie EndingWarn toast"] = function(

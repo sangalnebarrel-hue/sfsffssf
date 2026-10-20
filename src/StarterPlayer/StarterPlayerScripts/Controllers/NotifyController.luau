@@ -86,7 +86,11 @@
 	из очереди: тревога убирает «👀 Ника у тебя во дворе!» того же вора); afterSheet — ждёт, пока
 	открыт лист (атрибут HUD Sheet: легло бы на шапку листа с его кошельком; открылся лист — такое
 	уведомление уходит с экрана, в первой половине срока — снова в очередь); live — функция:
-	текст в миг показа (таймер ждавшего уведомления — на сейчас; nil — уже нечего сказать).
+	текст в миг показа (таймер ждавшего уведомления — на сейчас; nil — уже нечего сказать);
+	clock — серверное время, к которому идёт таймер в тексте live: пока уведомление на экране,
+	live перечитывается на каждой целой секунде до clock (цепочка task.delay в его Trove, как у
+	фишки щита — одни часы: «Садок отдыхает 1:25» рядом с «🛡️ 1:25», last-mile F-12; кончилось —
+	последний текст до ухода; без покадровой работы).
 
 	Чужой легендарный / мифический улов (FishingFxController.OtherTrophy), чей столб света сейчас
 	не на экране (за спиной или за краем кадра): у края экрана с его стороны — маленький значок
@@ -130,6 +134,7 @@ export type Look = {
 	tag: string?, -- метка: NotifyController.Drop(tag) уберёт с экрана и из очереди
 	afterSheet: boolean?, -- ждёт, пока открыт лист (легло бы на его шапку с кошельком)
 	live: (() -> string?)?, -- текст — в миг показа (ждавшее не врёт о таймере); nil — не показывать
+	clock: number?, -- серверное время конца таймера в тексте live: на экране — каждую целую секунду
 }
 
 -- requeued — os.clock(), когда полоса согнала его с экрана в первой половине срока (снова в
@@ -808,6 +813,38 @@ local function requeueOverflow()
 	end
 end
 
+-- Таймер в тексте (Look.clock): пока уведомление на экране, live перечитывается на каждой целой
+-- секунде до clock — как фишка щита (DefenceController: task.delay ровно до смены числа), поэтому
+-- в одном кадре оба говорят одно время (F-12). Кончилось (live — nil или clock прошёл) — цепочки
+-- нет, последний текст до ухода; ушло с экрана (Trove) — шаг ничего не делает.
+local function tickLive(toast: Toast, label: TextLabel, live: () -> string?, clock: number)
+	local on = true
+	toast.trove:Add(function()
+		on = false
+	end)
+	local step: () -> ()
+	local function after()
+		local left = clock - Workspace:GetServerTimeNow()
+		if left > 0 then
+			task.delay(math.max(left - math.floor(left), 0.01), step)
+		end
+	end
+	step = function()
+		if not on then
+			return
+		end
+		local text = live()
+		if not text then
+			return
+		end
+		if label.Text ~= text then
+			label.Text = text
+		end
+		after()
+	end
+	after()
+end
+
 present = function(item: Pending)
 	local parent, source = container, template
 	if not parent or not source then
@@ -863,6 +900,10 @@ present = function(item: Pending)
 		if layout then
 			dressBig(frame, label, style, layout)
 		end
+	end
+	local clock = look.clock
+	if live and type(clock) == "number" and not layout and label and label:IsA("TextLabel") then
+		tickLive(toast, label, live, clock) -- (одни часы с фишкой щита, F-12)
 	end
 	local socket = frame:FindFirstChild("IconSocket")
 	local icon = if socket then socket:FindFirstChild("Icon") else nil

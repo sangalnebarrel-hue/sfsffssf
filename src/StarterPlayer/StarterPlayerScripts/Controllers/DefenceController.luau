@@ -36,7 +36,8 @@
 	    кражу — AlertController забирает его (TakeShieldToast) в одно «Щит спас рыбу! 🛡️ 1:00»);
 	    отказ сервера — его текст (Sun) и кнопка, с которой просили, качается. Уведомления защиты
 	    при открытом листе ждут его ухода (NotifyController Look.afterSheet: легли бы на шапку с
-	    кошельком; на «ЗАЩИТА» то же видно на карточке щита), таймер в них — на миг показа.
+	    кошельком; на «ЗАЩИТА» то же видно на карточке щита), таймер в них — на миг показа и дальше
+	    секунда в секунду с фишкой щита, пока уведомление на экране (Look.clock, last-mile F-12).
 	  • Лист «ЗАЩИТА»: DefenceCards — карточки, покупка в два нажатия (DefenceBuy), ответы
 	    DefenceEvent "Bought" (MoneyController.Spend: 💵 из кошелька в карточку, «−$6 000»; штамп
 	    «КУПЛЕНО», конфетти, уведомление) / "Denied" (качается, уведомление) / "Shield".
@@ -483,7 +484,7 @@ local function greet(kind: string, left: number)
 		local rest = untilAt - now()
 		return if rest >= 1 then TextUtil.fill(TEXTS.Protect[kind], { t = StealRules.FormatClock(rest) }) else nil
 	end
-	NotifyController.Show(text() or "", "shield", { afterSheet = true, live = text })
+	NotifyController.Show(text() or "", "shield", { afterSheet = true, live = text, clock = untilAt })
 end
 
 local function syncChip()
@@ -644,14 +645,15 @@ local function onDefenceEvent(kind: any, data: any)
 		local function toast()
 			S.shieldToast = nil
 			if os.clock() - S.shieldTaken > MERGE_WAIT then
-				-- (лист открыт — ждёт его ухода: на «ЗАЩИТА» щит виден на карточке; время — на миг показа)
+				-- (лист открыт — ждёт его ухода: на «ЗАЩИТА» щит виден на карточке; время — на миг показа
+				-- и дальше секунда в секунду с фишкой, clock: F-12)
 				local function text(): string?
 					local left = untilAt - now()
 					return if left >= 1
 						then TextUtil.fill(TEXTS.Shield.On, { t = StealRules.FormatClock(left) })
 						else nil
 				end
-				NotifyController.Show(text() or "", "shield", { afterSheet = true, live = text })
+				NotifyController.Show(text() or "", "shield", { afterSheet = true, live = text, clock = untilAt })
 			end
 		end
 		cancel(S.shieldToast)

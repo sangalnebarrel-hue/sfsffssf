@@ -5,8 +5,9 @@
 	числа — UIConfig.Theft, тексты — StealConfig.Texts.Alert / Result, DefenceConfig.Texts.Tips).
 
 	Что делает:
-	  • StealEvent "Alert" (сервер: начало удержания и начало выноса; громко — раз в AlertCoalesce с
-	    на пару вор–жертва, остальные Quiet) — тревога: атрибут HUD AlertPhase = "hold" | "carry"
+	  • StealEvent "Alert" (сервер: удержание пережило окно тапа, ≈ 1,4 с — тап жертве не приходит
+	    вовсе, last-mile V-UX-01, — и начало выноса; громко — раз в AlertCoalesce с на пару
+	    вор–жертва, остальные Quiet) — тревога: атрибут HUD AlertPhase = "hold" | "carry"
 	    (кнопка «ЗАЩИТА» становится «ЩИТ!», DefenceController) и FishingController.HurryCard()
 	    (тревога важнее карточки улова, DC-02: карточка закрывается обычным путём, полёт в «САДОК»
 	    доигрывает) — кроме тихого (Quiet) удержания вора, у которого кража на этой базе уже
@@ -67,7 +68,8 @@
 	    (Result.SavedShield; «Щит включён на 1:00» DefenceController тогда не показывает:
 	    DefenceController.TakeShieldToast); Quiet — ничего. Всё, кроме «Украдено», при открытом
 	    листе ждёт его ухода (Look.afterSheet: легло бы на шапку с кошельком; на «ЗАЩИТА» итог
-	    виден на карточке щита), время — на миг показа (Look.live);
+	    виден на карточке щита), время — на миг показа (Look.live) и дальше секунда в секунду с
+	    фишкой щита, пока уведомление на экране (Look.clock: last-mile F-12, одни часы);
 	  • "Intruder" (сигнализация) — «👀 Ника у тебя во дворе!» (warning, метка вора) и кнопка
 	    «ЗАЩИТА» подпрыгивает Theft.IntruderBob с; тревога этого вора убирает его
 	    (NotifyController.Drop: плашка говорит то же громче); "Returned" жертве (вор ушёл, рыба
@@ -1183,14 +1185,15 @@ local function onLost(data: { [string]: any })
 	local tip = tipFor(a)
 	finish(function()
 		-- «Украдено» — сразу (и поверх листа: это и есть конец тревоги); отдых садка и совет ждут,
-		-- пока лист уйдёт (легли бы на его шапку), отдых — со временем на миг показа
+		-- пока лист уйдёт (легли бы на его шапку), отдых — со временем на миг показа и дальше
+		-- секунда в секунду с фишкой щита (clock, F-12)
 		NotifyController.Show(TextUtil.fill(RESULT.Lost, { short = short, name = name }), "theft")
 		if untilAt and untilAt > now() then
 			local function rest(): string?
 				local left = (untilAt :: number) - now()
 				return if left >= 1 then TextUtil.fill(RESULT.LostSub, { t = StealRules.FormatClock(left) }) else nil
 			end
-			NotifyController.Show(rest() or "", "shield", { afterSheet = true, live = rest })
+			NotifyController.Show(rest() or "", "shield", { afterSheet = true, live = rest, clock = untilAt })
 		end
 		if tip then
 			NotifyController.Show(tip, "info", { icon = DefenceConfig.Texts.TipIcon, afterSheet = true })
@@ -1218,10 +1221,13 @@ local function onSaved(data: { [string]: any })
 	end
 	local quiet = data.Quiet == true
 	local live: (() -> string?)? = nil
+	local shieldUntil: number? = nil
 	if reason == "shield" then
 		-- щит кончил кражу: одно уведомление «Щит спас рыбу! 🛡️ 1:00» (не ещё и «Щит включён»);
-		-- ждёт ухода листа — время щита на миг показа (кончился — без него)
+		-- ждёт ухода листа — время щита на миг показа и дальше секунда в секунду с фишкой щита
+		-- (clock, F-12; кончился — без него)
 		local untilAt = now() + DefenceController.TakeShieldToast()
+		shieldUntil = untilAt
 		local plain = text
 		live = function(): string?
 			local left = untilAt - now()
@@ -1236,7 +1242,7 @@ local function onSaved(data: { [string]: any })
 			NotifyController.Show(
 				text,
 				if reason == "shield" then "shield" else "saved",
-				{ afterSheet = true, live = live }
+				{ afterSheet = true, live = live, clock = shieldUntil }
 			)
 			local hud = A.hud
 			if reason == "tag" and hud then
