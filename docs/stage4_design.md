@@ -37,7 +37,7 @@ the origin, y = 0 is the ground top, −Z points to the lagoon, the plot is x ±
 | D7 | Shield (щит) | **Free.** It lasts **60 s** and is ready again **240 s after activation** (60 on + 180 cooldown). The ready time is **saved** (`Upgrades.ShieldReadyAt`, `os.time`), so a rejoin does not reset it. Raising it **cancels a hold on your base and returns a fish that is being carried** (it flies home; DC-01): «Никто не украдёт 1 минуту» is literally true. It is refused only while your remaining protection is ≥ 60 s (no cooldown spent; DC-03 lets it top up a protection that is about to end) and while you are stealing. |
 | D8 | Lock (замок) | `LockLevel` sets the hold time. **Stage 4 sells level 1 only** (DC-11): **$1 500, hold 3 → 4 s**, a one-time buy on the «ЗАЩИТА» sheet like the dog and the alarm. The levelled «Лучший замок» is a Stage 5 shop item: its table (levels 2–5: **5.0 / 6.0 / 7.5 / 9.0 s, $5 000 / $15 000 / $40 000 / $100 000**) is already in `DefenceConfig.Lock.Levels`, every level works at runtime, and `Lock.SaleMax = 1` is the only thing Stage 5 raises. The time is captured when the hold starts. |
 | D9 | Dog (собака) | A one-time **$6 000**. Visible **only when owned** (README); then it **sleeps in the court** at (6, 58), between the fountain and the big tank (DC-05), so it reaches every starting display during a lock-0 hold. The kennel stays at the fence. It is a **logical dog on the server**: a point that runs at **24 st/s** to the active thief, only while a theft is on. Within **5 studs** the thief's WalkSpeed is **×0.5** (and it lingers 1 s). Clients animate the existing 13-part shiba from 3 attributes. It never chases visitors. |
-| D10 | Alarm (сигнализация) | **Baseline for everyone** (the spec): the owner is alerted the moment a hold starts, and the lamp flashes at 2 Hz. **The $2 500 upgrade adds:** (1) an **early warning** when another player enters your plot (once per 45 s per player, never while you are protected), so you can raise the shield before the hold; (2) the thief is **marked** for everyone (a red `Highlight`, seen through walls by the owner, and a «ВОР!» tag); (3) a siren (a spinning red light and a beep loop; the bell swing and red lanterns are P2, DC-17). |
+| D10 | Alarm (сигнализация) | **Baseline for everyone** (the spec): the owner is alerted the moment a hold becomes an attempt — once it outlasts the tap window, ≈ 1.4 s; a kid's tap never reaches him (§11.7 F-10) — and the lamp flashes at 2 Hz. **The $2 500 upgrade adds:** (1) an **early warning** when another player enters your plot (once per 45 s per player, never while you are protected), so you can raise the shield before the hold; (2) the thief is **marked** for everyone (a red `Highlight`, seen through walls by the owner, and a «ВОР!» tag); (3) a siren (a spinning red light and a beep loop; the bell swing and red lanterns are P2, DC-17). |
 | D11 | Owner's counterplay | **Tag**: the owner's character within **6 studs** of the thief (hold or carry) → the fish goes home («Рыба спасена!»), and that thief cannot start on this base for 20 s. **«ДОМОЙ» during an alert** lands the owner on his spawn **facing the court** (not the gate). **ЩИТ** works in the hold and the carry (D7). While carrying, the thief cannot use «ДОМОЙ», start another steal or raise a shield. |
 | D12 | Where defences are bought | A new third right-column button **«ЗАЩИТА» 🛡️** opens the **«ЗАЩИТА» sheet** (the Stage 3 `gui/Sheet` shell) with four cards: Щит · Собака · Сигнализация · Замок. It is built as the future shop's first page: Stage 5 renames the button to «МАГАЗИН» and adds tabs (§4.12). During an alert, while the shield is ready, the same button becomes a **one-tap «ЩИТ!»** that works even mid-minigame. |
 | D13 | Anti-dupe | The Stage 3 §4.8 order, hardened: **one synchronous `TankService:StealFish`** that applies a precomputed plan (no yield, no signal before the escrow exists) → `SaveSoon(victim)` → the thief's copy is **escrowed** (not saved, not sellable, not stealable, earns nothing) until the **victim's record** commits that seq. The escrow entry is **registered before the fish enters the thief's data** and keyed by the thief's `Player`, matched by the victim's `Player` (BE-2, BE-3). A thief who leaves mid-escrow **gives the fish back to the victim**, also when the victim is already leaving (`DataService:AmendLeaving`, BE-1). Shutdown returns escrows before the close saves. A victim whose save never lands (`DataService.Released`) **voids** the thief's copy. Every path is idempotent (BE-4). **No path duplicates a fish.** The only losses (one fish, never two) are a hard crash inside the thief's ≈ 6–7 s key gap, a both-leave race narrowed to one request, and a lost write reply (§3.3). |
@@ -67,7 +67,9 @@ the origin, y = 0 is the ground top, −Z points to the lagoon, the plot is x ±
    «Садок отдыхает — ещё 6:12», «Садок полон — эта рыба слабее твоих», «У игрока мало рыбы», «Свежий
    улов — красть можно через 0:21», «Этот игрок пока намного слабее — найди соперника по силе»; a base
    closed to him alone shows no «Украсть» either: «🛡️ Хозяин включил щит — здесь красть снова через
-   3:59», «👀 Хозяин настороже — здесь красть снова через 0:58» (§11.7 F-01). If he has protection
+   3:57», «👀 Хозяин настороже — здесь красть снова через 0:57» right after «СОРВАЛОСЬ!» (§11.7 F-01;
+   where his own wait and the base's both apply, the court names the one that ends later — the true
+   time here, F-11). If he has protection
    of his own, it says first — once per protection, before his first hold under it — «Начнёшь
    красть — твоя защита погаснет», then the how-to (§11.7 F-03).
 3. **The hold.** The banner «🥷 КРАДЁШЬ: ОКУНЬ» shows a bar that fills to the server's end time, «НЕ
@@ -96,12 +98,14 @@ the origin, y = 0 is the ground top, −Z points to the lagoon, the plot is x ±
 1. **Another player enters his plot** (only with the alarm upgrade, and only while he is not
    protected): a soft toast «👀 Ника у тебя во дворе!», the lamp blinks slowly, and the «ЗАЩИТА» button
    bobs. He can raise the shield now and nothing can be started.
-2. **A hold starts on his base.** In one frame:
+2. **A hold on his base outlasts the tap window** (≈ 1.4 s into it: from then on it is an attempt; a
+   shorter tap never reaches him — no plate, ping, lamp or result, §11.7 F-10). In one frame:
    - **The alert plate** «🚨 ВОР В САДКЕ!» / «Ника крадёт: Окунь» with a big [🛡️ ЩИТ] (Slate «⏳ 1:12»
      while the shield recharges) and [🏠 ДОМОЙ].
    - Three pings, a thin Berry edge pulse, «ДОМОЙ» glowing Berry, and «ЗАЩИТА» → «ЩИТ!» glowing.
    - The pier word over his bucket turns into a red «🚨 КРАДУТ!».
-   - At the base: the lamp flashes red (2 Hz) and his dog starts running.
+   - At the base: the lamp flashes red (2 Hz). (His dog is already running: it wakes at the hold's
+     start — a dog barks at any hand on the display.)
    - If a catch card is on screen, it closes through its normal path (the fish still flies into
      «САДОК») and the plate pops in about a second later (DC-02).
 3. **What he can do:**
@@ -121,8 +125,9 @@ the origin, y = 0 is the ground top, −Z points to the lagoon, the plot is x ±
      one line on every phone; §11.6 D-26): if the shield was ready and unused, «Щит бесплатный:
      увидишь 🚨 — жми 🛡️»; otherwise the cheapest defence he lacks, with its price (DC-14).
    - Saved: «Рыба спасена! 💪» with the reason (tag, shield, the thief fell or ran out of time, the thief
-     left the game). A hold shorter than 1 s that the thief ended (or nobody did) ends quietly (no toast,
-     no pings: BE-19); the owner's own tag or shield is always celebrated, however early (D20, A2-04).
+     left the game). A hold the thief let go inside the tap window never reached him: no alert, no
+     result (F-10); a hold whose alerts were all coalesced ends quietly (no toast, no pings: BE-19,
+     S-05); the owner's own tag or shield is always celebrated, however early (D20, A2-04).
 
 ### 1.3 Bystanders
 
@@ -164,7 +169,7 @@ Distances are from `read_world.md` §2. Speeds: 16 studs/s, carry 13.6, with the
 | after being tagged, on that base | 20 s | `TagCooldown` |
 | after 2 own-fault failures on one base within 60 s, on that base («wary», S-05) | 60 s | `BaseFails`, `BaseWait` |
 | after the owner's shield stopped his theft, on that base («shielded», S-02) | the shield's rest + 180 s | `ShieldWait` |
-| his own protection ends when his hold outlasts the tap window (S-01) | ≈ 1.4 s into the hold | `QuietSavedUnder`, `Hold.NoReply`, `NoReplySlack` |
+| his own protection ends, the base's alarm (`AlarmState`) starts and the victim's hold alert goes when his hold outlasts the tap window (S-01, F-10) | ≈ 1.4 s into the hold | `QuietSavedUnder`, `Hold.NoReply`, `NoReplySlack` |
 | victim immunity after a loss (`after`) | 90 s | `VictimImmunity` |
 | victim cap (`rest` after the 2nd loss, until the older loss is 600 s old) | ≤ 2 losses / 600 s | `VictimMax`, `VictimWindow` |
 | a fish just caught | not stealable for 30 s | `FreshCatch` |
@@ -231,12 +236,13 @@ Distances are from `read_world.md` §2. Speeds: 16 studs/s, carry 13.6, with the
 
 | | baseline (every base: the spec) | with `Upgrades.Alarm` ($2 500) |
 |---|---|---|
-| when the owner hears | at the **hold start** | also when **another player enters the plot** (DefenceService, 1 Hz, only bases with the alarm; once per 45 s per player; **not while the base is protected**) |
+| when the owner hears | once the **hold outlasts the tap window** (≈ 1.4 s; a tap never reaches him, F-10) | also when **another player enters the plot** (DefenceService, 1 Hz, only bases with the alarm; once per 45 s per player; **not while the base is protected**) |
 | alert | the plate + pings + edge pulse + pier word (§1.2) | + the early «👀 Ника у тебя во дворе!» |
 | lamp | `Alarm.Lamp` flashes Neon red ↔ `LampOff` at 2 Hz, a red PointLight (client, from the base attribute `AlarmState = "theft"`) | + a spinning red SpotLight (siren) and an `electronicpingshort` beep loop within 120 studs; `AlarmState = "intruder"` flashes at 1 Hz. (The bell swing and the red court lanterns are P2: DC-17.) |
-| the thief | his fish is visible over his head | + a red `Highlight` (AlwaysOnTop on the owner's client, Occluded for others) and a «ВОР!» billboard, for everyone, during the hold and the carry |
+| the thief | his fish is visible over his head | + a red `Highlight` (AlwaysOnTop on the owner's client, Occluded for others) and a «ВОР!» billboard, for everyone, during the hold (from the tap window on, with `AlarmState = "theft"`: a tap marks nobody, F-10) and the carry |
 
-The lamp flashes during the hold and the carry, then for `StealConfig.Alarm.Linger` 3 s more.
+The lamp flashes from the tap window on through the hold and the carry, then for
+`StealConfig.Alarm.Linger` 3 s more (a tap lights nothing, F-10).
 
 ### 2.3 The lock («замок»)
 
@@ -699,14 +705,16 @@ Trove }`. Maps: `byThief[Player]`, `byBase[Base]`.
 **Begin** (after §4.3):
 
 1. `TankService:SetSteal(victim, uid, token, "hold", { By = thief.UserId, End = HoldEnd })`.
-2. (Not here: `DefenceService:EndProtection(thief, "stealing")` runs when the hold outlasts the tap
-   window — the watcher's hold step, at the latest the hold → carry step; S-01.)
+2. (Not here: **commit** — `DefenceService:EndProtection(thief, "stealing")`, the base's `AlarmState =
+   "theft"` and the victim's hold `Alert` — runs when the hold outlasts the tap window: a `task.delay`
+   from the start, the watcher's hold step if the ping fell, at the latest the hold → carry step
+   (then without the hold Alert: the carry's follows); S-01, F-10.)
 3. The theft's Trove gets its **first** cleanup: `Speed.ClearAll(thief)` (which also clears `Slowed`),
    so it runs even if a later cleanup throws (BE-10).
-4. Base `Thief = thief.UserId` and `AlarmState = "theft"`; Player `Stealing = "hold"`. No prompt
-   `Enabled` writes: clients hide the base's other prompts from `Thief` (BE-15).
+4. Base `Thief = thief.UserId` (`AlarmState` at the commit, step 2); Player `Stealing = "hold"`. No
+   prompt `Enabled` writes: clients hide the base's other prompts from `Thief` (BE-15).
 5. The dog wakes, if `DefenceService:HasDog(victim)`.
-6. `StealEvent("Hold", …)` to the thief, `StealEvent("Alert", …)` to the victim (coalesced, §4.9).
+6. `StealEvent("Hold", …)` to the thief (the victim's `Alert` at the commit, step 2; coalesced, §4.9).
 7. Start the watcher if it is idle.
 
 **Hold → carry:**
@@ -752,8 +760,9 @@ Trove }`. Maps: `byThief[Player]`, `byBase[Base]`.
    - `victim`, `full`, `busy`, `left` → no wait (not his fault).
 4. `StealEvent("Cancel", { Reason, Text, Phase, BaseUntil?, BaseReason? })` to the thief, if he is still
    here (`BaseUntil` / `BaseReason`: that base is closed to him until then, and why — the client hides it).
-5. `StealEvent("Saved", { Reason, Slot, Quiet })` to the victim, if he is still here and it was not his
-   leave. `Quiet = true` (no toast, no pings) in the hold when it lasted less than `QuietSavedUnder` 1 s,
+5. `StealEvent("Saved", { Reason, Slot, Quiet })` to the victim, if he is still here, it was not his
+   leave, and an `Alert` of this theft reached him or the reason is his own `tag` / `shield` (an
+   uncommitted hold — a tap — never reached him: nothing, F-10). `Quiet = true` (no toast, no pings) in the hold when it lasted less than `QuietSavedUnder` 1 s,
    or was a free tap (S-03), or every alert of the theft was Quiet (coalesced: S-05) — and the reason is
    not the owner's own `tag` or `shield` (those are always loud; A2-04). A carry's result is always loud.
 6. End.
@@ -993,7 +1002,8 @@ Speed.Allowed(player, grace: number?) -> number -- CharacterWalkSpeed × the hig
 ### 4.9 Alerts (server side)
 
 - **Victim alert**: `StealEvent("Alert", { Phase, Thief = UserId, Name = DisplayName, Slot, FishId,
-  Rarity, Mutation?, Short, Income10, End, Quiet? })` at hold start and at carry start. **Loud** at most
+  Rarity, Mutation?, Short, Income10, End, Quiet? })` when the hold outlasts the tap window (the commit,
+  §4.2; a tap sends nothing and takes no coalesce slot, F-10) and at carry start. **Loud** at most
   once per (thief, victim) per `AlertCoalesce` 30 s, measured from the last loud one; the others go
   with `Quiet = true` (the client updates the plate silently: no pings, no shake). A griefer looping
   hold/release gets one loud alert per 30 s and the escalating waits of §4.2 (DC-10, BE-19).
@@ -1152,7 +1162,8 @@ They are driven by the slot's `StealPhase`, read on its change and on the first 
   - a looped `electronicpingshort.wav` (0.6 s period) within `BeepRange` 120;
   - (P2, DC-17: the bell swing ±18° and the red court lanterns. The owner on his pier never sees them,
     and the thief already has enough signal.)
-- **The thief marked** (`HasAlarm` and base `Thief`):
+- **The thief marked** (`HasAlarm`, base `Thief` and `AlarmState = "theft"` — the hold outlasted the
+  tap window; a tap marks nobody, §11.7 F-10):
   - one `Highlight` on the thief's character (Berry fill 0.7, outline Berry): `DepthMode = AlwaysOnTop`
     on the owner's client, `Occluded` on others;
   - a «ВОР!» BillboardGui over his head;
@@ -1885,7 +1896,10 @@ New Kit helpers in `tests/stage4_kit.luau` (Wave 0):
    hold end + 1 s (in the carry) → «Щит спас рыбу!», the minigame still answers, the thief
    «СОРВАЛОСЬ!».
 8. **Catch card** (DC-02): the victim lands a Mythic and a hold starts on his base while the card is up
-   → the card closes within 1 s, the plate shows, his ЩИТ tap saves the fish.
+   → once the alert comes (the tap window) the card closes within 1 s, the plate shows, his ЩИТ tap
+   saves the fish.
+   (+ case 10, the bait log F-05, and case 11, the free tap F-10: a 0.3 s tap never reaches the
+   victim's phone, a real hold 4 s later is loud.)
 9. **The happy path with `remoteLatency 0.15`**, the prompt events delayed too (S8).
 
 ### 7.8 Existing tests to update
@@ -2120,7 +2134,7 @@ the RU notes.
 | R6 | One fish can be lost (never duplicated): a hard crash inside the thief's key gap (F10), a both-leave race after the victim's final snapshot (F8c, ≈ one request), a lost write reply (F7). | Accepted and documented. P2: a write token in every save closes the F7 case (BE-6). |
 | R7 | The logical dog may clip decor on its straight runs (the run to slot 5 grazes the big tank's front-west corner). | One waypoint for a dog in front of the arcades. The pup never collides. Accept the rest. |
 | R8 | A teleport-in exploit saves walking time. | Not detected at the start (the server-timed hold, the reach check, and the carry budget on the way out cover the gain). P2: a suspicion counter on MarketService's 1 Hz sample (BE-12). |
-| R9 | Griefing by start/cancel spam. | One loud alert per (thief, victim) per 30 s and a quiet result for a coalesced alert (S-05), fail waits 3 / 10 / 30 s (`early` an ordinary step, S-04; the first 3 short taps per 60 s are free and quiet, C-34 / S-03), 2 failures on one base close it for 60 s (S-05), the tag wait 20 s, the shield's base wait (S-02), quiet saves under 1 s, the start bucket, the victim cap. |
+| R9 | Griefing by start/cancel spam. | One loud alert per (thief, victim) per 30 s and a quiet result for a coalesced alert (S-05), fail waits 3 / 10 / 30 s (`early` an ordinary step, S-04; the first 3 short taps per 60 s are free, and no tap ever reaches the victim — no alert, no result, no coalesce slot: C-34 / S-03 / F-10), 2 failures on one base close it for 60 s (S-05), the tag wait 20 s, the shield's base wait (S-02), quiet saves under 1 s, the start bucket, the victim cap. |
 | R10 | The DisplayName in the victim's toast. | Shown only to the victim (it is public in the player list anyway); no server broadcast. |
 | R11 | Friends or an alt farming protection: without the pair limit, an alt can rob his main twice to give him 10 min of `rest`. | Accept: it creates no money, it costs the main two fish (they go to the alt), and the rest ends the moment the main steals. P2 if seen: no `after`/`rest` for a loot weaker than the victim's weakest active fish. |
 | R12 | The 3rd column button lowers the docked catch card's room on phones. | Re-render the `catch_*` scenarios (D); the card floors follow the visible stack automatically (Stage 3 §6.3). |
@@ -2175,7 +2189,8 @@ the RU notes.
 2. **Кража:** первым игроком зайди во двор второго → у витрины с рыбой «E Украсть · Окунь · +$4/с».
    Держи 3 секунды (сверху полоска «КРАДЁШЬ: ОКУНЬ»). Рыба прыгнет на голову → «БЕГИ ЗА ОГРАДУ!» и
    красная дорожка к выходу → выйди за забор → «ДОБЫЧА!», рыба в твоём садке.
-3. **Жертва:** у второго игрока сразу плашка «ВОР В САДКЕ!» с большой кнопкой «ЩИТ» и кнопкой «ДОМОЙ»,
+3. **Жертва:** у второго игрока, как только удержание дольше ~1,4 с (короткий тап он не видит),
+   плашка «ВОР В САДКЕ!» с большой кнопкой «ЩИТ» и кнопкой «ДОМОЙ»,
    мигает лампа на мачте, у ведра на пирсе «🚨 КРАДУТ!». Если в этот момент открыта карточка улова, она
    сама закроется и плашка появится. После кражи — «Украдено: …» и «Садок отдыхает 1:30».
 4. **Прервать кражу:** отпусти кнопку / отойди от витрины / нажми Reset → «СОРВАЛОСЬ!», рыба вернулась.

@@ -1174,7 +1174,16 @@ RenderStepped connection for all running frame effects, disconnected when none r
     tank sign's protection row `FxTankSignRow`: by the Wallet only the row fades, never the stage
     3 sign under it); «УНОСЯТ!» yields to the words over people (the thief's plate, «ВОР!»,
     «ГАВ!») by `Display.Clear.Words` px; one protection clock everywhere (chip, flag label, tank
-    row: each a chain to the next whole second).
+    row: each a chain to the next whole second) — a timed toast too: «Садок отдыхает 1:25», «Щит
+    спас рыбу! 🛡️ 0:59», «Щит включён на …» and the join greeting pass `Look.clock` (the end they
+    count to), so NotifyController re-reads their `live` text on each whole second while they are
+    on screen (§11.7 F-12: they froze at their show, a second off the chip beside them).
+  - **A tap is not an alarm** (§11.7 F-10): nothing on the victim's screen or at his base (plate,
+    pill, pings, edge, «ЩИТ!», the lamp, the siren, «🚨 КРАДУТ!») starts before the thief's hold
+    outlasts the tap window (≈ 1.4 s); a widget that reacts to a theft listens to the server's
+    `Alert` / `AlarmState`, never to `Thief` or the slot's `StealPhase` alone (those are the
+    hold's own state from its first frame: the hidden prompts, the «КРАДУТ!» over the display and
+    on the panel's Sell).
 
 ### 6.6 Rules for the next agents
 
