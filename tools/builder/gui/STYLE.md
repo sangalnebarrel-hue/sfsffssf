@@ -1134,6 +1134,12 @@ RenderStepped connection for all running frame effects, disconnected when none r
     `Reserved()`), inside the column's px width
     (≤ `UIConfig.Theft.Width` × W and `WidthMax`); on tablets and PCs the toasts wait for the
     alert's end, on phones the pill keeps 16 px from the fisher and every widget listed above.
+    Its motion keeps them too, in every frame (§11.7 F-09): the pop-in (UIScale from its
+    top-left corner) overshoots only if the overshoot fits right of it and below it (else it pops
+    without one), the loud tilt only as far as its raised corner fits above it, the shake per axis
+    only as far as there is room on both sides (under the status stack: sideways only), the punch
+    of a louder phase only as high as fits — `AlertLayout.room` / `motion`. A widget placed tight
+    against a neighbour must not bounce into it.
   - **The alert's layers take no layout** (edge pulse, «ДОМОЙ!» / «ЩИТ!» glow, the pier word,
     pings): they show from the first frame and never move another widget; only the plate (or the
     pill) needs a place. Never add a full-screen flash: the edge pulse is ≤ `Theft.Edge.Alpha` and
