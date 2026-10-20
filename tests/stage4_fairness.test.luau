@@ -12,10 +12,11 @@
 	  • exploits: a Triggered with no hold → nothing; 100 HoldBegans on one prompt in a frame → one
 	    theft, no answers; a HoldBegan fired after the player left → no bucket entry (BE-20);
 	  • griefing (DC-10, BE-19): release loops → the first Limits.FreeTaps short taps in FailWindow
-	    cost nothing (a kid learning to hold, C-20), then waits 3 / 10 / 30 s, at most one loud alert
-	    per 30 s (≤ 3 in 60 s), holds under 1 s → Saved Quiet (the global ladder alone: BaseFails
-	    off here; the per-base close, the shield bait, the free tap's quiet result and the newbie's
-	    tap are in stage4_fairness_grief);
+	    cost nothing (a kid learning to hold, C-20), then waits 3 / 10 / 30 s; the victim hears none
+	    of these short holds — no Alert, no Saved (V-UX-01: a hold reaches him only once it outlasts
+	    the tap window) (the global ladder alone: BaseFails off here; the per-base close, the
+	    coalesced loud alerts, the shield bait, the free tap and the newbie's tap are in
+	    stage4_fairness_grief);
 	  • the victim cap (DC-06): four thieves for 10 virtual minutes → exactly 2 losses, then «rest»
 	    until the older loss is 600 s old; a steal by the victim clears his rest and his losses (once
 	    his hold outlasts a tap).
@@ -221,7 +222,7 @@ end
 -- Griefing
 --------------------------------------------------------------------------------
 
-tests["griefing (DC-10, BE-19): release loops → FreeTaps free taps, then waits 3 / 10 / 30 s, ≤ one loud alert per 30 s (≤ 3 in 60 s), short holds Quiet"] = function(
+tests["griefing (DC-10, BE-19): release loops → FreeTaps free taps, then waits 3 / 10 / 30 s; the victim hears none of the short holds (no Alert, no Saved: V-UX-01)"] = function(
 	t
 )
 	-- (the global ladder alone: Limits.BaseFails off — the per-base close of stage 4 wave 3 UX-03 would
@@ -253,7 +254,7 @@ tests["griefing (DC-10, BE-19): release loops → FreeTaps free taps, then waits
 		sim:ReleasePrompt(thief, prompt)
 		sim:Advance(0.1)
 		t.eq(S.last(sim, thief, "Cancel").Reason, "released")
-		t.eq(S.last(sim, victim, "Saved").Quiet, true, "a hold under 1 s ends quietly for the victim")
+		t.eq(S.last(sim, victim, "Saved"), nil, "a hold under 1 s: nothing to the victim")
 		table.insert(waits, math.floor(cooldownLeft(sim, thief) + 0.5))
 		if waits[#waits] == 0 then
 			sim:Advance(1 / S.LIMITS.StartRate) -- (a free tap waits nothing: a start token for the next)
@@ -266,16 +267,11 @@ tests["griefing (DC-10, BE-19): release loops → FreeTaps free taps, then waits
 	t.eq(waits[free + 1], S.LIMITS.FailCooldown[1], "then the 1st failure: 3 s")
 	t.eq(waits[free + 2], S.LIMITS.FailCooldown[2], "2nd: 10 s")
 	t.eq(waits[free + 3], S.LIMITS.FailCooldown[3], "3rd: 30 s")
-	local n = loud(sim, victim)
-	t.ok(n >= 1 and n <= 3, `loud alerts in 60 s: {n} (attempts {attempts})`)
-	-- loud ones at least AlertCoalesce apart
-	local last = -math.huge
-	for _, e in S.events(sim, victim, "Alert") do
-		if e.data.Quiet == nil then
-			t.ok(e.time - last >= S.LIMITS.AlertCoalesce - 0.1, `loud alerts {e.time - last} s apart`)
-			last = e.time
-		end
-	end
+	-- none of them outlasted the tap window: the victim heard nothing (the spam waits are the
+	-- thief's; one loud alert per AlertCoalesce for real attempts — stage4_fairness_grief UX-03)
+	t.eq(loud(sim, victim), 0, `loud alerts in 60 s: 0 (attempts {attempts})`)
+	t.eq(#S.events(sim, victim, "Alert"), 0, "no Alert at all")
+	t.eq(#S.events(sim, victim, "Saved"), 0, "no Saved at all")
 	sim:AssertNoErrors({ warnings = true })
 end
 

@@ -896,7 +896,8 @@ tests["real server: the thief lets go and in the same frame the victim taps «К
 	local hold, prompt = S.hold(t, sim, thief, victim, 3)
 	t.ok(hold.active, "the hold began")
 	sim:Advance(0.3)
-	-- (the alert closes an open «САДОК»; the kid opens it again during the theft)
+	-- (a loud alert closes an open «САДОК»; this hold is let go inside the tap window, so the victim
+	-- never gets one: the kid has his «САДОК» open during the hold)
 	t.ok(
 		call(sim, victim, function()
 			return tank.Toggle()

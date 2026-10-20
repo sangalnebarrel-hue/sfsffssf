@@ -3,20 +3,24 @@
 	server (docs/stage4_design.md §11.7 S-rows), in RbxSim against the built Place1.rbxl with headless
 	players (tests/stage4_server.luau):
 	  • UX-01 a newbie's accidental tap: a 0.3 s tap on «Украсть» keeps his 5:00 «newbie» protection
-	    to the second (no «Кража погасила твою защиту», no wait, the victim's result quiet); a real
+	    to the second (no «Кража погасила твою защиту», no wait, nothing to the victim); a real
 	    hold ends it once it outlasts the tap window (1.4 s on a normal link) — still in the hold,
-	    never in the carry;
+	    never in the carry — and only then the victim's loud Alert;
 	  • UX-02 the shield bait: the owner's shield against a hold costs the thief no wait, but closes
 	    that base to him until the shield ends and Limits.ShieldWait more («shielded»: Cancel
 	    BaseUntil / BaseReason, Denied with Until) — exactly when the owner's shield is ready again;
 	    another base stays open; the base opens again on time;
-	  • DATA-01 a let-go inside the tap window (1.2 s) is a free tap for both: no StealCooldownUntil
-	    and the victim's Saved Quiet, Limits.FreeTaps times per FailWindow, then a failure;
+	  • DATA-01 / V-UX-01 a let-go inside the tap window (1.2 s) is a free tap for both: no
+	    StealCooldownUntil, and the victim hears nothing (no Alert, no Saved: the hold reaches him
+	    only once it outlasts the tap window), Limits.FreeTaps times per FailWindow, then a failure
+	    (still nothing to the victim); the base's alarm (AlarmState) waits for the window too; a
+	    tap neither takes the pair's loud alert (a real hold right after is loud) nor, every 31 s
+	    for 3 minutes, gives the victim a single Alert;
 	  • UX-03 griefing one kid: Limits.BaseFails own-fault failures on one base within FailWindow
 	    close it to that thief for Limits.BaseWait («wary»; other bases open, back on time); an
 	    attempt whose alert was coalesced (Quiet) ends quietly too; a 150 s release-spam loop on one
-	    kid gives ≤ 6 holds and ≤ 3 loud results (the critic measured 8 holds, 5 loud alerts and 8
-	    loud «Кража сорвалась» before).
+	    kid gives ≤ 6 holds and ≤ 3 loud results, the loud alerts ≥ AlertCoalesce apart (the critic
+	    measured 8 holds, 5 loud alerts and 8 loud «Кража сорвалась» before).
 
 	Run: lune run tools/run_tests.luau stage4_fairness_grief
 ]]
@@ -102,7 +106,8 @@ tests["UX-01: a newbie's 0.3 s tap keeps his 5:00 protection (no «Кража п
 		"no «Кража погасила твою защиту»"
 	)
 	t.eq(cooldownLeft(sim, kid), 0, "no wait: a free tap")
-	t.eq(saved and saved.Quiet, true, "the victim: the tap ends quietly")
+	t.eq(saved, nil, "the victim: no Saved for the tap …")
+	t.eq(#S.events(sim, victim, "Alert"), 0, "… and no Alert: he never heard of it (V-UX-01)")
 
 	-- a real attempt: the protection goes once the hold outlasts the tap window — in the hold
 	sim:Advance(1 / LIMITS.StartRate)
@@ -115,6 +120,9 @@ tests["UX-01: a newbie's 0.3 s tap keeps his 5:00 protection (no «Кража п
 	t.eq(defence:IsProtected(kid), nil, "past the 1.4 s tap window: his protection is gone")
 	t.eq(kidBase:GetAttribute("ProtectKind"), nil, "… on the base too")
 	t.ok(notified(sim, kid, S.STEAL_TEXTS.Hint.Ended), "«Кража погасила твою защиту»")
+	local alerts = S.events(sim, victim, "Alert")
+	t.eq(#alerts, 1, "… and now the victim's Alert")
+	t.eq(alerts[1] and alerts[1].data.Quiet, nil, "… loud: the tap took nothing from it")
 	local carried = sim:WaitFor(function()
 		return kid:GetAttribute("Stealing") == "carry"
 	end, S.BASE_HOLD, S.FRAME)
@@ -221,26 +229,82 @@ end
 -- DATA-01: the tap window is free for both
 --------------------------------------------------------------------------------
 
-tests["DATA-01: a let-go at 1.2 s (inside the tap window) is a free tap for both — no StealCooldownUntil, the victim's Saved Quiet; FreeTaps of them, then a failure"] = function(
+tests["DATA-01 / V-UX-01: a let-go at 1.2 s (inside the tap window) is a free tap for both — no StealCooldownUntil, nothing to the victim (no Alert, no Saved, no alarm); FreeTaps of them, then a failure (still nothing to him)"] = function(
 	t
 )
 	local sim = S.boot(t)
 	local victim = S.player(t, sim, 101, { tank = TANK })
 	local thief = S.player(t, sim, 102, { tank = { { Id = "Crucian" } } })
+	local base = S.baseOf(sim, victim)
+	local alarms = 0
+	base:GetAttributeChangedSignal("AlarmState"):Connect(function()
+		if base:GetAttribute("AlarmState") == "theft" then
+			alarms += 1
+		end
+	end)
 	for i = 1, LIMITS.FreeTaps do
 		local cancel, saved = holdFor(t, sim, thief, victim, 3, 1.2)
 		t.eq(cancel and cancel.Reason, "released", `tap {i}: «released»`)
 		t.eq(cooldownLeft(sim, thief), 0, `tap {i}: no wait`)
-		t.eq(saved and saved.Reason, "released", `tap {i}: Saved to the victim`)
-		t.eq(saved and saved.Quiet, true, `tap {i}: Quiet — no «Кража сорвалась» toast for a tap`)
+		t.eq(saved, nil, `tap {i}: no Saved to the victim — no «Кража сорвалась» for a tap`)
 		sim:Advance(1 / LIMITS.StartRate)
 	end
-	local alerts = S.events(sim, victim, "Alert")
-	t.eq(alerts[1] and alerts[1].data.Quiet, nil, "the first alert was loud: its quiet result is the tap rule")
-	-- one more 1.2 s let-go in the window: spam — a failure
-	local cancel = holdFor(t, sim, thief, victim, 3, 1.2)
+	t.eq(#S.events(sim, victim, "Alert"), 0, "no Alert for a tap: it never outlasted the tap window")
+	-- one more 1.2 s let-go in the window: spam — a failure (his wait), still nothing to the victim
+	local cancel, saved = holdFor(t, sim, thief, victim, 3, 1.2)
 	t.eq(cancel and cancel.Reason, "released")
 	t.near(cooldownLeft(sim, thief), FAIL[1], 0.3, `tap {LIMITS.FreeTaps + 1}: a failure, {FAIL[1]} s`)
+	t.eq(saved, nil, "… the victim still hears nothing")
+	t.eq(#S.events(sim, victim, "Alert"), 0, "… no Alert")
+	t.eq(alarms, 0, "the base's alarm (AlarmState «theft») never went off for these holds")
+
+	-- the taps took nothing from a real attempt: a hold 4 s later is loud (V-UX-01: the tap did not
+	-- take the pair's AlertCoalesce slot)
+	sim:Advance(FAIL[1] + 1)
+	local hold, prompt = S.hold(t, sim, thief, victim, 3)
+	t.ok(hold.active, "the real hold")
+	sim:Advance(1.6)
+	local alerts = S.events(sim, victim, "Alert")
+	t.eq(#alerts, 1, "the real hold: the victim's Alert")
+	t.eq(alerts[1] and alerts[1].data.Quiet, nil, "… loud")
+	t.eq(alarms, 1, "… and the alarm")
+	sim:ReleasePrompt(thief, prompt)
+	sim:Advance(0.2)
+	local result = S.last(sim, victim, "Saved")
+	t.eq(result and result.Reason, "released", "its end: Saved …")
+	t.eq(result and result.Quiet, nil, "… loud «Кража сорвалась — рыба дома»")
+	sim:AssertNoErrors({ warnings = true })
+end
+
+tests["V-UX-01: a 0.3 s tap every 31 s for 3 minutes on one kid — not a single Alert or Saved to him, no alarm, no wait for the thief"] = function(
+	t
+)
+	local sim = S.boot(t)
+	local steal = S.service(sim, "StealService")
+	local victim = S.player(t, sim, 101, { tank = TANK })
+	local thief = S.player(t, sim, 102, { tank = { { Id = "Crucian" } } })
+	local base = S.baseOf(sim, victim)
+	local alarms = 0
+	base:GetAttributeChangedSignal("AlarmState"):Connect(function()
+		if base:GetAttribute("AlarmState") ~= nil then
+			alarms += 1
+		end
+	end)
+	local taps = 0
+	local start = sim:Time()
+	while sim:Time() - start < 180 do
+		local cancel = holdFor(t, sim, thief, victim, 3, 0.3)
+		taps += 1
+		t.eq(cancel and cancel.Reason, "released", `tap {taps}: «released»`)
+		t.eq(cancel and cancel.BaseReason, nil, `tap {taps}: the base stays open`)
+		t.eq(cooldownLeft(sim, thief), 0, `tap {taps}: no wait (a tap per 31 s is under FreeTaps per minute)`)
+		sim:Advance(31 - 0.4, 0.25)
+	end
+	t.ok(taps >= 6, `{taps} taps`)
+	t.eq(#S.events(sim, victim, "Alert"), 0, "not one Alert to the victim")
+	t.eq(#S.events(sim, victim, "Saved"), 0, "not one Saved")
+	t.eq(alarms, 0, "the base's alarm never went off")
+	t.eq(steal._debugSizes().Alerts, 0, "no pair's loud-alert slot taken")
 	sim:AssertNoErrors({ warnings = true })
 end
 
@@ -338,6 +402,14 @@ tests["UX-03: a 150 s release-spam loop on one kid — ≤ 6 holds (8 before), �
 			if lastAlert and lastAlert.Quiet == true then
 				t.eq(e.data.Quiet, true, "a Quiet alert's result is quiet")
 			end
+		end
+	end
+	-- loud ones at least AlertCoalesce apart
+	local lastLoud = -math.huge
+	for _, e in S.events(sim, victim, "Alert") do
+		if e.data.Quiet == nil then
+			t.ok(e.time - lastLoud >= LIMITS.AlertCoalesce - 0.1, `loud alerts {e.time - lastLoud} s apart`)
+			lastLoud = e.time
 		end
 	end
 	t.log(`150 s of release spam: {holds} holds, {loudAlerts} loud alerts, {loudResults} loud results`)

@@ -131,10 +131,12 @@
 	            "Done" { Fish, Result, Name } — рыба твоя (Fish — FishData, Result — TankResult,
 	            Name — DisplayName хозяина);
 	    жертве: "Alert" { Phase, Thief, Name, Slot, FishId, Rarity, Mutation?, Short, Income10,
-	            End, Quiet? } — у тебя крадут (при начале удержания и при начале выноса; громко —
-	            не чаще раза в Limits.AlertCoalesce с на пару вор–жертва, остальные Quiet);
-	            "Saved" { Reason, Slot, Text, Quiet? } — рыба спасена (Quiet — без уведомления:
-	            удержание вора было тапом или все его тревоги были тихими); "Lost" { Fish, Name, Until,
+	            End, Quiet? } — у тебя крадут (когда удержание пережило окно тапа, ≈ 1,4 с, и при
+	            начале выноса; тап короче — жертве ничего; громко — не чаще раза в
+	            Limits.AlertCoalesce с на пару вор–жертва, остальные Quiet);
+	            "Saved" { Reason, Slot, Text, Quiet? } — рыба спасена (только после "Alert" — или
+	            её "tag" / "shield"; Quiet — без уведомления: все тревоги вора были тихими или
+	            удержание короче QuietSavedUnder); "Lost" { Fish, Name, Until,
 	            Kind } — украли (Until / Kind — твоя защита теперь: "after" | "rest");
 	            "Intruder" { Thief, Name } — гость во дворе (только с сигнализацией);
 	    обоим:  "Returned" { Fish, Text, Result?, Price? } — краденую рыбу вернули хозяину (вор ушёл
@@ -164,7 +166,8 @@
 	    (открыты всем, но чужую готовность щита интерфейс не показывает), HasDog, HasAlarm,
 	    LockLevel; доход Income (Этап 3) — для фильтра «намного слабее».
 	  Модель базы Base_N: ProtectUntil, ProtectKind ("shield" | "join" | "newbie" | "after" |
-	    "rest"; nil, когда кончилась), AlarmState ("theft" | "intruder"), Thief (UserId вора),
+	    "rest"; nil, когда кончилась), AlarmState ("theft" — с окна тапа удержания до конца кражи и
+	    ещё StealConfig.Alarm.Linger с | "intruder"), Thief (UserId вора, с начала удержания),
 	    HasDog, HasAlarm, LockLevel, HoldTime. Всё снимается при отключении садка (до того, как базу
 	    получит другой).
 	  Витрина Slot_K — отдельный канал, Event не трогает: StealBy (UserId вора), StealEnd (конец

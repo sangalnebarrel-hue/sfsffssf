@@ -32,7 +32,8 @@
 	    полоборота за SirenSpin / 2 (два прожектора — полный оборот за SirenSpin); писк
 	    electronicpingshort раз в Siren.BeepPeriod с (цепочка task.delay), если камера или свой
 	    персонаж ближе BeepRange.
-	  • Вор (HasAlarm и Thief, база ближе Range): Highlight на персонаже (Mark: заливка Berry с
+	  • Вор (HasAlarm, Thief и AlarmState = "theft" — удержание пережило окно тапа: тап не метит,
+	    last-mile F-10; база ближе Range): Highlight на персонаже (Mark: заливка Berry с
 	    прозрачностью Fill, обводка Berry; хозяину базы — AlwaysOnTop, остальным — Occluded) и
 	    «ВОР!» над головой (Mark.Word, видно до WordRange; с рыбой на голове — строкой над её
 	    табличкой). Создаются при начале и удаляются в конце (Enabled не трогаем: выключенный
@@ -597,7 +598,11 @@ end
 
 local function applyMark(base: Base)
 	local thief = base.thief
-	local want = base.model:GetAttribute("HasAlarm") == true and thief ~= nil and base.distance <= WORLD.Range
+	-- (метка — тревога: с окна тапа, когда сервер пишет AlarmState "theft"; тап вора не метит, F-10)
+	local want = base.model:GetAttribute("HasAlarm") == true
+		and thief ~= nil
+		and str(base.model, "AlarmState") == "theft"
+		and base.distance <= WORLD.Range
 	local character = thief and thief.player.Character
 	local head = character and character:FindFirstChild("Head")
 	local mark = base.mark

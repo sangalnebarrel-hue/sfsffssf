@@ -91,8 +91,8 @@ local function happyPath(t: any, opts: { [string]: any }?)
 		sim:WaitFor(function()
 			local stats = E.alert(sim, victim)
 			return stats.phase == "hold" and stats.shown == "plate"
-		end, 1.5, E.FRAME),
-		"the victim's plate shows (tablet: the full plate)"
+		end, 2.5, E.FRAME),
+		"the victim's plate shows once the hold outlasts the tap window (tablet: the full plate)"
 	)
 	local plate = vu.alert
 	t.eq(plate.Text.Title.Text, E.ALERT.Hold, "«ВОР В САДКЕ!»")

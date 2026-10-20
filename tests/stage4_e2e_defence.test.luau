@@ -105,7 +105,7 @@ local function plateUp(t: any, sim: any, victim: any, phase: string)
 		sim:WaitFor(function()
 			local stats = E.alert(sim, victim)
 			return stats.phase == phase and stats.shown ~= nil
-		end, 1.5, E.FRAME),
+		end, 2.5, E.FRAME), -- (the hold's alert comes once it outlasts the tap window, ≈ 1.4 s: V-UX-01)
 		`the victim's alert ({phase}) is up`
 	)
 end
@@ -388,8 +388,8 @@ tests["(3) dog + alarm bought from the sheet; the early «у тебя во дв�
 		sim:WaitFor(function()
 			local view = E.world(sim, bystander, base)
 			return view ~= nil and view.mark ~= nil
-		end, 1, E.FRAME),
-		"the bystander sees the thief marked"
+		end, 2.5, E.FRAME),
+		"the bystander sees the thief marked (once the hold outlasts the tap window: F-10)"
 	)
 	local mark = E.world(sim, bystander, base).mark
 	t.eq(mark.ClassName, "Highlight", "a Highlight")
@@ -404,8 +404,8 @@ tests["(3) dog + alarm bought from the sheet; the early «у тебя во дв�
 		sim:WaitFor(function()
 			local view = E.world(sim, bystander, base)
 			return view ~= nil and view.siren ~= nil
-		end, 1, E.FRAME),
-		"the siren spins"
+		end, 2.5, E.FRAME),
+		"the siren spins (the base's alarm starts once the hold outlasts the tap window: F-10)"
 	)
 	t.ok(
 		sim:WaitFor(function()

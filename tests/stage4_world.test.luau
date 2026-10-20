@@ -21,7 +21,9 @@
 	    World.Range);
 	  • the siren (a spinner part with two SpotLights pitched down Siren.Pitch°, back to back, a Beam
 	    along each, + beeps) and the thief's Highlight + «ВОР!» only with HasAlarm (AlwaysOnTop for
-	    the owner, Occluded for others), gone at the end; the bell and the lanterns untouched;
+	    the owner, Occluded for others) and only once AlarmState is «theft» (Thief alone — a hold
+	    inside the tap window — marks nobody: last-mile F-10), gone at the end; the bell and the
+	    lanterns untouched;
 	  • the dome: the shield kind only, in range only, ≤ PhoneMax on touch, Inside when the camera
 	    or the own character is in (the owner at his spawn with the camera outside), in between in
 	    the Near band, fades in and out;
@@ -765,7 +767,7 @@ tests["lamp: AlarmState → Neon + one looping Color tween + a red PointLight; i
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["siren and the thief's mark only with HasAlarm: two spinning SpotLights + beeps; Highlight AlwaysOnTop for the owner, Occluded for a bystander; «ВОР!»; gone at the end; bell and lanterns untouched"] = function(
+tests["siren and the thief's mark only with HasAlarm: two spinning SpotLights + beeps; Highlight AlwaysOnTop for the owner, Occluded for a bystander; «ВОР!»; gone at the end; bell and lanterns untouched; no mark for a hold inside the tap window (F-10)"] = function(
 	t
 )
 	local sim = boot(t)
@@ -848,6 +850,18 @@ tests["siren and the thief's mark only with HasAlarm: two spinning SpotLights + 
 	t.eq(theftOwner.Get(base).mark, nil, "the Highlight destroyed")
 	t.eq(countClass(folder(sim, owner, "TheftWorld"), "Highlight"), 0, "… none left in the folder")
 	t.eq(#named(folder(sim, owner, "TheftWorld"), "FxThiefTag"), 0, "no «ВОР!»")
+	-- a hold inside the tap window (Thief, no AlarmState yet: F-10) — the alarm marks nobody yet
+	fake:alarm(nil, thief)
+	sim:Advance(WORLD.CheckEvery + 0.1)
+	t.eq(theftOwner.Get(base).mark, nil, "Thief without AlarmState (a tap): no Highlight")
+	t.eq(theftOwner.Get(base).siren, nil, "… no siren")
+	t.eq(theftOwner.Get(base).lamp, nil, "… no lamp")
+	fake:alarm("theft", thief)
+	sim:Advance(WORLD.CheckEvery + 0.1)
+	t.ok(theftOwner.Get(base).mark, "the hold outlasted the window (AlarmState «theft»): the Highlight")
+	fake:alarm(nil)
+	sim:Advance(WORLD.CheckEvery + 0.1)
+	t.eq(theftOwner.Get(base).mark, nil, "… and gone at the end")
 	t.eq(bell.CFrame, bellCF, "the bell untouched (P2)")
 	t.eq(bell.Color, bellColor)
 	sim:AssertNoErrors({ warnings = true })

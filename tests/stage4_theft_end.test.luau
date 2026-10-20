@@ -17,8 +17,8 @@
 	    the theft — Stealing nil, 16, no record, no StolenFish, the watcher stops, one warning;
 	  • rejoin (A2-03): the wait survives a rejoin and the new Player gets StealCooldownUntil back
 	    (the client filter matches the server's «cooldown»); none once the wait is over;
-	  • quiet (A2-04): a tag or the shield inside the first second → Saved loud; the thief's own
-	    release inside it → Quiet;
+	  • quiet (A2-04): a tag or the shield inside the first second → Saved loud (though no Alert
+	    reached the owner yet); the thief's own release inside it → nothing to the owner (V-UX-01);
 	  • BindToClose during the hold and the carry → the fish home, once (the victim's close save
 	    has it, the thief's has none).
 
@@ -321,7 +321,7 @@ tests["rejoin (A2-03): the thief's wait survives a rejoin — the new Player get
 end
 
 -- A2-04: the owner's own defence is celebrated even inside the first QuietSavedUnder second.
-tests["quiet (A2-04): a tag or the shield within 1 s → Saved loud; the thief's own release within 1 s → Quiet"] = function(
+tests["quiet (A2-04): a tag or the shield within 1 s → Saved loud (though no Alert reached him yet); the thief's own release within 1 s → nothing to the victim (V-UX-01)"] = function(
 	t
 )
 	local sim, victim, thief = pair(t)
@@ -337,6 +337,7 @@ tests["quiet (A2-04): a tag or the shield within 1 s → Saved loud; the thief's
 	local saved = S.last(sim, victim, "Saved")
 	t.eq(saved and saved.Reason, "tag", "a tag after ≈ 0.5 s")
 	t.eq(saved and saved.Quiet, nil, "the owner's tag is celebrated (not Quiet)")
+	t.eq(#S.events(sim, victim, "Alert"), 0, "… inside the tap window: no Alert had reached him (V-UX-01)")
 	sim:Advance(S.LIMITS.TagCooldown + 1, S.COARSE)
 
 	-- the shield 0.5 s into a hold (on another victim: the tag wait is per base)
@@ -350,16 +351,16 @@ tests["quiet (A2-04): a tag or the shield within 1 s → Saved loud; the thief's
 	t.eq(saved and saved.Reason, "shield", "the shield after ≈ 0.7 s")
 	t.eq(saved and saved.Quiet, nil, "the owner's shield save is celebrated (not Quiet)")
 
-	-- the thief's own release within 1 s stays quiet (BE-19)
+	-- the thief's own release within 1 s: the victim never heard of that hold — nothing (BE-19, V-UX-01)
 	local victim3 = S.player(t, sim, 104, { tank = TANK })
 	local _, prompt3 = S.hold(t, sim, thief, victim3, 3)
 	t.eq(thief:GetAttribute("Stealing"), "hold", "a third hold began")
 	sim:Advance(0.4)
 	sim:ReleasePrompt(thief, prompt3)
 	sim:Advance(0.2)
-	saved = S.last(sim, victim3, "Saved")
-	t.eq(saved and saved.Reason, "released")
-	t.eq(saved and saved.Quiet, true, "a release under 1 s is Quiet")
+	t.eq(S.last(sim, thief, "Cancel").Reason, "released", "the thief let go")
+	t.eq(#S.events(sim, victim3, "Alert"), 0, "a release under 1 s: no Alert …")
+	t.eq(#S.events(sim, victim3, "Saved"), 0, "… and no Saved")
 	sim:AssertNoErrors({ warnings = true })
 end
 
