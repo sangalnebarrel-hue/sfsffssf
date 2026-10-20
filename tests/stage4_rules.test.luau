@@ -383,6 +383,12 @@ local function failures(): { [string]: { { change: { [string]: any }, reason: st
 			{ change = { CooldownLeft = 12 }, reason = "cooldown", left = 12 },
 			{ change = { TagLeft = 7 }, reason = "tagged", left = 7 },
 			{ change = { CooldownLeft = 12, TagLeft = 7 }, reason = "cooldown", left = 12 },
+			-- (both: the one that ends later — the true time here, last-mile F-11; a tie — the base's)
+			{ change = { CooldownLeft = 3, TagLeft = 20 }, reason = "tagged", left = 20 },
+			{ change = { CooldownLeft = 10, TagLeft = 57, TagKind = "wary" }, reason = "wary", left = 57 },
+			{ change = { CooldownLeft = 30, TagLeft = 50, TagKind = "wary" }, reason = "wary", left = 50 },
+			{ change = { CooldownLeft = 30, TagLeft = 20, TagKind = "tagged" }, reason = "cooldown", left = 30 },
+			{ change = { CooldownLeft = 9, TagLeft = 9, TagKind = "shielded" }, reason = "shielded", left = 9 },
 			-- (why the base is closed to him: TagKind; stage 4 wave 3 UX-02 / UX-03)
 			{ change = { TagLeft = 7, TagKind = "tagged" }, reason = "tagged", left = 7 },
 			{ change = { TagLeft = 200, TagKind = "shielded" }, reason = "shielded", left = 200 },

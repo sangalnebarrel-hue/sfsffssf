@@ -11,9 +11,10 @@
 	    court says «Хозяин включил щит — здесь красть снова через 3:5x» with 🛡️ and a live clock
 	    (the base's wait, not the shield's own minute), still after the shield is over; another
 	    base stays shown; the prompts come back when ShieldReadyAt passes;
-	  • the wary base (S-05): two own-fault failures on one base — his 10 s wait first (every base
-	    hidden, ⏳ «Красть снова можно через …»), then only that base hidden with 👀 «Хозяин
-	    настороже — здесь красть снова через …»; a rejoin forgets the client's map — the server's
+	  • the wary base (S-05): two own-fault failures on one base — every base hidden while his 10 s
+	    wait runs, but that court says 👀 «Хозяин настороже — здесь красть снова через …» with the
+	    base's clock at once (the later wait is the true time there, F-11), then only that base
+	    hidden; a rejoin forgets the client's map — the server's
 	    "Denied" with Until (S-06) hides the base again, with its reason and clock, until Until;
 	  • a "Denied" with Until for the other waits: «new» hides that one display, «cooldown» every
 	    base, «shield» the whole base — each until Until, then back; a newer write of the same
@@ -182,7 +183,7 @@ tests["the shield bait (S-02): the base hides at once with 🛡️ «Хозяи�
 	sim:AssertNoErrors({ warnings = true })
 end
 
-tests["the wary base (S-05): two own failures — his 10 s wait (⏳, every base), then 👀 «Хозяин настороже…» on that base only; a rejoin forgets it, the server's Denied with Until hides it again (S-06); back at BaseUntil"] = function(
+tests["the wary base (S-05): two own failures — 👀 «Хозяин настороже…» with the base's clock at once (F-11; his 10 s hides every base meanwhile), then that base only; a rejoin forgets it, the server's Denied with Until hides it again (S-06); back at BaseUntil"] = function(
 	t
 )
 	local sim = S.boot(t)
@@ -209,8 +210,18 @@ tests["the wary base (S-05): two own failures — his 10 s wait (⏳, every base
 	intoCourt(sim, thief, victim, 3)
 	local wait = thief:GetAttribute("StealCooldownUntil") - serverTime(sim)
 	t.ok(wait > 0, "his own 10 s wait still runs")
-	courtSays(t, u, "cooldown", wait, ICONS.Wait, "his wait first (row «wait»: cooldown before the base)")
-	t.eq(shownOn(sim, thief, other), "{}", "… every base hidden meanwhile")
+	-- here both apply: the court names the one that ends later — the base's, the true time here
+	-- (F-11: «⏳ 0:07» first and then «👀 0:50» moved the goalposts)
+	courtSays(
+		t,
+		u,
+		"wary",
+		untilT - serverTime(sim),
+		ICONS.Wary,
+		"the base's wait at once (the later of his 10 s and the base's: F-11)"
+	)
+	t.eq((baseReason(sim, thief, victim)), "wary", "… its reason «wary» from the first moment")
+	t.eq(shownOn(sim, thief, other), "{}", "… every base hidden meanwhile (his own wait)")
 	sim:Advance(wait + 0.5)
 	t.eq(shownOn(sim, thief, other), "{1,2,3,4}", "his wait over: another base shown")
 	t.eq(shownOn(sim, thief, victim), "{}", "… this one still closed")

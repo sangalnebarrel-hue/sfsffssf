@@ -33,7 +33,9 @@
 	  9  Stealing       true — вор уже крадёт                            (клиент) → stealing
 	  10 CooldownLeft, TagLeft  > 0 — вор ждёт (после кражи / срывов) или эта база закрыта для него
 	                    (TagKind — почему: "tagged" — хозяин поймал, "shielded" — хозяин включил щит
-	                    против его кражи, "wary" — Limits.BaseFails срывов на ней; нет — "tagged")
+	                    против его кражи, "wary" — Limits.BaseFails срывов на ней; нет — "tagged");
+	                    оба сразу — то, что кончится позже (с его временем: когда здесь снова можно,
+	                    F-11; равны — причина базы)
 	                                                    (клиент) → cooldown / tagged / shielded / wary
 	  11 ProtectLeft, ProtectKind  > 0 — база под защитой (shield | join | newbie | after | rest)
 	                                                                     (клиент) → её вид
@@ -195,11 +197,15 @@ local Rows: { Row } = {
 		Client = true,
 		Reasons = { "cooldown", "tagged", "shielded", "wary" },
 		Test = function(v: View): string?
-			if positive(v.CooldownLeft) then
-				return "cooldown"
-			elseif positive(v.TagLeft) then
+			-- Оба ожидания сразу (своё вора и закрытая база) — то, что кончится ПОЗЖЕ: настоящее время,
+			-- когда здесь снова можно (last-mile F-11: «⏳ 0:07», а потом «👀 0:50» двигали срок); равны —
+			-- причина базы (точнее).
+			local cooldown, tag = v.CooldownLeft, v.TagLeft
+			if positive(tag) and not (positive(cooldown) and (cooldown :: number) > (tag :: number)) then
 				local kind = v.TagKind
 				return if type(kind) == "string" and BASE_WAITS[kind] then kind else "tagged"
+			elseif positive(cooldown) then
+				return "cooldown"
 			end
 			return nil
 		end,
