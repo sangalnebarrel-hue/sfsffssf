@@ -17,6 +17,11 @@
 	        (phone, phone_small), never on the own fisher (AlertController.Stats().fisher), ≥ 16 px
 	        from the status stack and the right column; ЩИТ ≥ 56 px tall and ≥ 35 % of the plate /
 	        pill, ДОМОЙ ≥ 44 px;
+	      – its pop-in, tilt, shake and punch stay in the room the placement left (AlertLayout.room
+	        / motion, last-mile F-09): every frame of the first 0.8 s on 4 screens, the scaled and
+	        turned plate keeps the placement's box gap (16 px + inks) to the status rows and the
+	        column (was 10–15 px of drawn gap on a tablet and phone_small); the numbers of room /
+	        motion themselves;
 	      – recharging: Slate «⏳ 1:12» (a tap wiggles, fires nothing), the carry line without «жми
 	        ЩИТ!»; stealing himself: no buttons, «Пока крадёшь сам, щит не включить» (DC-04);
 	      – ЩИТ: «⏳» until the server answers, one ShieldActivate for several taps; the column
@@ -593,6 +598,148 @@ tests["the plate on tablet / desktop, the pill on phones never on the fisher; Щ
 		end
 		sim:AssertNoErrors({ warnings = true })
 	end
+end
+
+tests["the pop-in, tilt, shake and punch stay in the room the placement left: no frame nearer the status rows or the column than the placement keeps (AlertLayout.room / motion, F-09)"] = function(
+	t
+)
+	-- The numbers (px HUD): a 520 × 72 plate starting exactly where the status stack's 16 px end.
+	do
+		local sim = boot(t)
+		local p = addPlayer(sim, 1, SCREENS[3])
+		local layout = module(sim, p, "AlertLayout")
+		local spec = { from = 0.4, over = 0.1, tilt = 5, tiltMin = 1, shake = 5, punch = 1.1 }
+		local function R(x0: number, y0: number, x1: number, y1: number): Rect
+			return { x0 = x0, y0 = y0, x1 = x1, y1 = y1 }
+		end
+		local screen = R(11, 17, 1013, 700)
+		local function roomOf(r: Rect, keepouts: { Rect }): any
+			return call(sim, p, function()
+				return layout.room(r, keepouts, 24, screen, 60)
+			end)
+		end
+		local function motionOf(r: Rect, room: any): any
+			return call(sim, p, function()
+				return layout.motion(r, room, spec)
+			end)
+		end
+		local plate = R(252, 182, 772, 254)
+		local status = R(280, 8, 744, 158) -- (its rows with their ink; 24 px over the plate)
+		local room = roomOf(plate, { status })
+		t.ok(math.abs(room.up) < 0.01, `no room above under the status stack ({room.up})`)
+		t.ok(room.left >= 59.9 and room.right >= 59.9 and room.down >= 59.9, "room on the other sides")
+		local m = motionOf(plate, room)
+		t.eq(m.tilt, 0, "no tilt: its raised corner would go up")
+		t.ok(m.shake.Y == 0 and m.shake.X == 5, `the shake is sideways only ({m.shake.X}, {m.shake.Y})`)
+		t.eq(m.flat, false, "the overshoot grows right and down: it fits")
+		-- the own fisher's rod behind the plate (a box spanning it): no side is limited by it
+		local rod = R(386, 15, 664, 547)
+		local spanned = roomOf(plate, { status, rod })
+		t.ok(spanned.down >= 59.9 and spanned.left >= 59.9, "a neighbour spanning the plate limits nothing")
+		-- the fisher's hair under the plate's lip (U-11 on a PC): it may not go lower
+		local hair = R(400, 240, 620, 600)
+		local lip = roomOf(plate, { status, hair })
+		t.eq(lip.down, 0, "a neighbour under its lip: no room below")
+		local low = motionOf(plate, lip)
+		t.eq(low.flat, true, "then the pop has no overshoot")
+		t.ok(math.abs(low.punch - 1) < 1e-6, "and no punch over 1")
+		-- the phone_small pill 0.4 px from the Wallet's 16 px: no overshoot, no sideways shake
+		local pill = R(16, 24, 157, 80)
+		local wallet = R(181.4, 0, 500, 90)
+		local tight = roomOf(pill, { wallet })
+		t.ok(tight.right < 1, `≈ no room on the right ({tight.right})`)
+		local pm = motionOf(pill, tight)
+		t.eq(pm.flat, true, "the pill pops without overshoot")
+		t.ok(pm.shake.X < 1, `and does not shake sideways ({pm.shake.X})`)
+		t.ok(pm.tilt > 1, `but still tilts (room above and left: {pm.tilt}°)`)
+		-- room everywhere: the full Back pop, the 5° tilt, the 5 px shake, the 1.1 punch
+		local free = motionOf(R(300, 300, 500, 356), roomOf(R(300, 300, 500, 356), {}))
+		t.ok(not free.flat and math.abs(free.tilt - 5) < 1e-6, "with room: Back and 5°")
+		t.ok(free.shake.X == 5 and free.shake.Y == 5 and math.abs(free.punch - 1.1) < 1e-6, "5 px, 1.1")
+	end
+	-- Live on 4 screens: every 1/60 s of the first 0.8 s, the plate as drawn (UIScale about its
+	-- top-left corner, Rotation about the scaled centre, the shake's Position) keeps the box gap
+	-- the placement keeps to every status row and column button within 40 px at rest — 16 px plus
+	-- the inks (the plate under the Wallet: its 💵 10 + the plate's 8; the pill beside a widget:
+	-- 6 + 4), or its rest gap if that is less.
+	local known = 0
+	for _, screen in SCREENS do
+		local sim = boot(t)
+		local p = addPlayer(sim, 1, screen)
+		local hud = hudOf(p)
+		local root = hud.TheftAlert
+		local neighbours: { any } = {}
+		for _, item in hud.Status:GetChildren() do
+			if item:IsA("GuiObject") and item.Visible then
+				table.insert(neighbours, item)
+			end
+		end
+		for _, button in hud.RightButtons:GetChildren() do
+			if button:IsA("GuiObject") and button.Visible then
+				table.insert(neighbours, button)
+			end
+		end
+		local function drawn(): Rect
+			local r = rectOf(root)
+			local scale = root:FindFirstChildOfClass("UIScale")
+			local k = if scale then scale.Scale else 1
+			local w, h = (r.x1 - r.x0) * k, (r.y1 - r.y0) * k
+			local a = math.rad(root.Rotation)
+			local hx = w / 2 * math.abs(math.cos(a)) + h / 2 * math.abs(math.sin(a))
+			local hy = w / 2 * math.abs(math.sin(a)) + h / 2 * math.abs(math.cos(a))
+			local cx, cy = r.x0 + w / 2, r.y0 + h / 2
+			return { x0 = cx - hx, y0 = cy - hy, x1 = cx + hx, y1 = cy + hy }
+		end
+		local closest: { number } = {}
+		local frames, peak, swayX = 0, 1, 0
+		local rest0: Rect? = nil
+		alert(sim, p)
+		for _ = 1, 48 do
+			sim:Advance(1 / 60)
+			if root.Visible then
+				frames += 1
+				local box = drawn()
+				for i, n in neighbours do
+					closest[i] = math.min(closest[i] or math.huge, gap(box, rectOf(n)))
+				end
+				local scale = root:FindFirstChildOfClass("UIScale")
+				peak = math.max(peak, if scale then scale.Scale else 1)
+				rest0 = rest0 or rectOf(root)
+				swayX = math.max(swayX, math.abs(rectOf(root).x0 - (rest0 :: Rect).x0))
+			end
+		end
+		sim:Advance(1)
+		local stats = alertStats(sim, p)
+		local rest = rectOf(root)
+		t.ok(frames > 30, `{screen.name}: the plate was seen popping ({frames} frames)`)
+		local margin = if stats.shown == "plate" then 16 + 10 + 8 else 16 + 6 + 4
+		for i, n in neighbours do
+			local atRest = gap(rest, rectOf(n))
+			if atRest < 40 and closest[i] then
+				t.ok(
+					closest[i] >= math.min(atRest, margin) - 0.5,
+					`{screen.name}: {n.Name} {string.format("%.1f", closest[i])} px in the motion, {string.format(
+						"%.1f",
+						atRest
+					)} at rest`
+				)
+			end
+		end
+		local m = stats.motion
+		known += if m then 1 else 0
+		if m then
+			print(
+				`[F-09] {screen.name}: {stats.shown} flat {m.flat} tilt {string.format("%.1f", m.tilt)} shake {m.shake.X},{m.shake.Y} punch {string.format(
+					"%.3f",
+					m.punch
+				)}; peak scale {string.format("%.3f", peak)}, sideways {string.format("%.1f", swayX)} px`
+			)
+			-- still lively where there is room: an overshoot, or a shake, or a tilt
+			t.ok(peak > 1.01 or swayX > 1 or m.tilt > 1 or m.shake.Y > 1, `{screen.name}: it still moves`)
+		end
+		sim:AssertNoErrors({ warnings = true })
+	end
+	t.eq(known, #SCREENS, "AlertController.Stats().motion on every screen")
 end
 
 tests["recharging: Slate «⏳ 1:12» (a tap wiggles, fires nothing), the carry line without «жми ЩИТ!»; stealing himself: no buttons (DC-04)"] = function(
