@@ -59,6 +59,7 @@ local FONT = Font.new(UIConfig.Font.Family, Enum.FontWeight.Heavy)
 local FONT_ITALIC = Font.new(UIConfig.Font.Family, Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
 local BACK = Enum.EasingStyle.Back
 local QUAD = Enum.EasingStyle.Quad
+local QUART = Enum.EasingStyle.Quart
 local SINE = Enum.EasingStyle.Sine
 local LINEAR = Enum.EasingStyle.Linear
 local OUT = Enum.EasingDirection.Out
@@ -648,9 +649,11 @@ export type PopOptions = {
 	time: number?, -- 0.3
 	delay: number?, -- задержка (для «лесенки»)
 	rotate: number?, -- начальный поворот, градусы (например −6)
+	flat: boolean?, -- без перелёта (Quart Out): у элемента нет места вырасти за свой размер
 }
 
--- Выскакивание: масштаб from → 1 с перелётом (Back Out), по желанию с доворотом.
+-- Выскакивание: масштаб from → 1 с перелётом (Back Out; flat — без него, Quart Out), по желанию с
+-- доворотом.
 function UiFx.popIn(gui: GuiObject, opts: PopOptions?)
 	local o: PopOptions = opts or {}
 	local time = o.time or 0.3
@@ -658,11 +661,12 @@ function UiFx.popIn(gui: GuiObject, opts: PopOptions?)
 		calmPop(gui, o.from, o.delay)
 		return
 	end
-	scaleAll(gui, o.from or 0, time, 1, BACK, OUT, o.delay)
+	local style = if o.flat then QUART else BACK
+	scaleAll(gui, o.from or 0, time, 1, style, OUT, o.delay)
 	if o.rotate and o.rotate ~= 0 then
 		local motion = beginMotion(rotations, gui, gui.Rotation)
 		gui.Rotation = motion.rest + o.rotate
-		tween(gui, time, { Rotation = motion.rest }, BACK, OUT, o.delay)
+		tween(gui, time, { Rotation = motion.rest }, style, OUT, o.delay)
 		table.insert(
 			motion.threads,
 			task.delay(time + (o.delay or 0), function()
@@ -978,13 +982,18 @@ function UiFx.wiggle(gui: GuiObject, angle: number?, swings: number?, time: numb
 	)
 end
 
--- Тряска позиции ±amount (доля родителя, по умолчанию 1.5 %), затухающая за time (0.25 с); тень-
--- близнец трясётся с теми же сдвигами.
-function UiFx.shake(gui: GuiObject, amount: number?, time: number?)
+-- Тряска позиции ±amount (доля родителя, по умолчанию 1.5 %; Vector2 — своя по каждой оси, 0 — ось
+-- стоит), затухающая за time (0.25 с); тень-близнец трясётся с теми же сдвигами.
+function UiFx.shake(gui: GuiObject, amount: (number | Vector2)?, time: number?)
 	if reduced() then
 		return
 	end
-	local size = amount or 0.015
+	local sizeX, sizeY = 0.015, 0.015
+	if typeof(amount) == "Vector2" then
+		sizeX, sizeY = amount.X, amount.Y
+	elseif type(amount) == "number" then
+		sizeX, sizeY = amount, amount
+	end
 	local steps = 6
 	local stepTime = (time or 0.25) / steps
 	local targets: { GuiObject } = { gui }
@@ -997,7 +1006,10 @@ function UiFx.shake(gui: GuiObject, amount: number?, time: number?)
 		local k = 1 - (index - 1) / steps
 		offsets[index] = if index == steps
 			then UDim2.new()
-			else UDim2.fromScale(rng:NextNumber(-size, size) * k, rng:NextNumber(-size, size) * k)
+			else UDim2.fromScale(
+				if sizeX > 0 then rng:NextNumber(-sizeX, sizeX) * k else 0,
+				if sizeY > 0 then rng:NextNumber(-sizeY, sizeY) * k else 0
+			)
 	end
 	for _, target in targets do
 		local motion = beginMotion(positions, target, target.Position)

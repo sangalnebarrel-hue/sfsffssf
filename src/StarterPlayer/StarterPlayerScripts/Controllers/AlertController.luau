@@ -127,6 +127,13 @@ local COMPACT_SHIELD = 0.42 -- ЩИТ «таблетки» — доля её ш�
 local COMPACT = { Min = 160, Narrow = 132, Max = 300, Step = 8, LabelPad = 4 }
 local PLACE_SOON = 0.12 -- виджет рыбалки сдвинулся — новое место «таблетки» не чаще, с
 local SHAKE = 5 -- дрожь при появлении: не больше px (UiFx.shake — в долях корня)
+-- Выскакивание (UiFx.popIn от левого верхнего угла) и «пинок» — в запасе вокруг места, что
+-- оставила раскладка (AlertLayout.room / motion, last-mile F-09): перелёт Back — OVER пути сверх 1,
+-- наклон громкой тревоги — до TILT°, считается до MOTION_ROOM px.
+local MOTION = { from = 0.4, over = 0.1, tilt = 5, tiltMin = 1, shake = SHAKE, punch = 1.1 }
+local PUNCH_FROM = 0.85
+local MOTION_ROOM = 60
+local TOPBAR_GAP = 7 -- низ кнопок Roblox (меню, чат) выше верха HUD, px (FishingController CLIMAX)
 local TEXT_GAP = 8 -- текст плашки — не ближе к кнопкам, px
 local ROW_PAD = 0.02 -- зазор ряда кнопок плашки — доля его ширины (как в gui/Alert.luau)
 local SHIELD_WAIT = 3 -- ⏳ на ЩИТ, пока сервер не ответил (не дольше), с
@@ -165,6 +172,7 @@ local A = {
 	spot = nil :: string?, -- где «таблетка» (AlertLayout)
 	rect = nil :: Rect?,
 	fisher = nil :: Rect?, -- свой рыбак при последней раскладке (телефон)
+	motion = nil :: AlertLayout.Motion?, -- как выскочить и дрогнуть на этом месте
 	waiting = false, -- ждём, пока закроется карточка улова
 	busy = false, -- ЩИТ нажат, ждём ответа сервера
 	busyWait = nil :: thread?,
@@ -490,11 +498,16 @@ local function plateRect(hud: ScreenGui): Rect
 	return r
 end
 
--- Где «таблетка» (телефон, плашка легла бы на рыбака): AlertLayout.compact.
-local function compactRect(hud: ScreenGui, fisher: Rect): (Rect?, string)
+-- Соседи тревоги в px HUD: свой рыбак (если есть), поплавок, плашки статуса, колонка кнопок,
+-- виджеты рыбалки и полоса кражи (с обводками) и кнопки Roblox (hard: прыжок, джойстик — тоже в
+-- keepouts).
+local function neighbours(hud: ScreenGui, fisher: Rect?): ({ Rect }, { Rect })
 	local size = hud.AbsoluteSize
 	local origin = hud.AbsolutePosition
-	local keepouts: { Rect } = { fisher }
+	local keepouts: { Rect } = {}
+	if fisher then
+		table.insert(keepouts, fisher)
+	end
 	-- виджет HUD — с обводкой WIDGET_INK вокруг его коробки
 	local function widgetOut(r: Rect, below: number?)
 		local d = WIDGET_INK
@@ -538,6 +551,15 @@ local function compactRect(hud: ScreenGui, fisher: Rect): (Rect?, string)
 	if bar and bar.Visible then
 		widgetOut(rectOf(bar, origin))
 	end
+	return keepouts, hard
+end
+
+-- Где «таблетка» (телефон, плашка легла бы на рыбака): AlertLayout.compact.
+local function compactRect(hud: ScreenGui, fisher: Rect): (Rect?, string)
+	local size = hud.AbsoluteSize
+	local origin = hud.AbsolutePosition
+	local keepouts, hard = neighbours(hud, fisher)
+	local column = columnRect(hud, origin)
 	local toasts = guiChild(hud, "Toasts")
 	local toastRect = if toasts then rectOf(toasts, origin) else FishingLayout.rect(0, size.Y * 0.26, size.X, size.Y)
 	-- значок 🚨 свисает с левого края «таблетки» — и он не ближе EDGE к краю экрана
@@ -564,6 +586,27 @@ local function compactRect(hud: ScreenGui, fisher: Rect): (Rect?, string)
 		tight = GAP + OWN_INK,
 		step = COMPACT.Step,
 	})
+end
+
+-- Как плашке или «таблетке» на r выскочить, наклониться, дрогнуть и «пнуться», не подходя к
+-- соседям ближе их 16 px с обводками (раскладка держала их ровно; перелёт Back, наклон −5° и дрожь
+-- в 5 px подводили плашку под стопкой статуса на планшете на 10–15 px, «таблетку» на phone_small —
+-- к кошельку на 10 px: last-mile F-09). Запас — до тех же соседей (и рыбака: на планшете и ПК
+-- тоже), что и у раскладки, и до края экрана (с 🚨, что свисает слева).
+local function motionOf(hud: ScreenGui, r: Rect, which: string, fisher: Rect?): AlertLayout.Motion
+	local size = hud.AbsoluteSize
+	local keepouts = neighbours(hud, fisher)
+	local plate = which == "plate"
+	local icon = if plate then A.parts.iconRoot else A.parts.compactIcon
+	local overhang = if icon and icon:IsA("GuiObject")
+		then (r.y1 - r.y0) * icon.Size.Y.Scale * icon.AnchorPoint.X
+		else 0
+	-- (дрожь может занять SHAKE px поля EDGE у края экрана; сверху — 16 px под кнопками Roblox)
+	local edge = FishingLayout.EDGE - SHAKE
+	local top = GAP - TOPBAR_GAP + INK
+	local bounds = FishingLayout.rect(edge + overhang, top, size.X - edge, size.Y - edge)
+	local room = AlertLayout.room(r, keepouts, GAP + (if plate then INK else OWN_INK), bounds, MOTION_ROOM)
+	return AlertLayout.motion(r, room, MOTION)
 end
 
 -- Надпись «таблетки» шириной room px: самая полная, что влезает при наименьшем размере её
@@ -641,12 +684,15 @@ local function place(): string?
 		-- (корень прячется, пока места нет; появится — show / again покажут)
 		root.Visible = false
 		A.label = nil
+		A.motion = nil
 		NotifyController.Reserve("alert", nil)
 		return which
 	end
+	local motion = motionOf(hud, r, which, if isPhone() then A.fisher else fisherRect(hud))
+	A.motion = motion
 	if before == "none" and not root.Visible then
 		root.Visible = true
-		UiFx.popIn(root, { from = 0.4, time = 0.25 })
+		UiFx.popIn(root, { from = MOTION.from, time = 0.25, flat = motion.flat })
 	end
 	fitText(stealing())
 	local glide = before == "compact"
@@ -841,17 +887,28 @@ local function show(loud: boolean)
 			return
 		end
 		root.Visible = true
-		UiFx.popIn(root, { from = 0.4, time = 0.32, rotate = if loud then -5 else nil })
+		local m = A.motion
+		UiFx.popIn(root, {
+			from = MOTION.from,
+			time = 0.32,
+			rotate = if loud and m and m.tilt > 0 then -m.tilt else nil,
+			flat = if m then m.flat else true,
+		})
 		if loud then
 			task.delay(0.3, function()
-				if A.shown and A.shown ~= "none" and A.root then
-					local size = if A.hud then A.hud.AbsoluteSize else Vector2.one
-					UiFx.shake(A.root, SHAKE / math.max(size.X, size.Y, 1), 0.35)
+				-- (дрожь — в запасе места, где плашка сейчас: по оси без запаса она стоит)
+				local now, hudNow = A.motion, A.hud
+				if A.shown and A.shown ~= "none" and A.root and now and hudNow then
+					local size = hudNow.AbsoluteSize
+					if now.shake.X >= 0.5 or now.shake.Y >= 0.5 then
+						local amount = Vector2.new(now.shake.X / math.max(size.X, 1), now.shake.Y / math.max(size.Y, 1))
+						UiFx.shake(A.root, amount, 0.35)
+					end
 				end
 			end)
 		end
 	elseif loud and which ~= "none" then
-		UiFx.punch(root, { from = 0.85, peak = 1.1 })
+		UiFx.punch(root, { from = PUNCH_FROM, peak = if A.motion then A.motion.punch else 1 })
 	end
 end
 
@@ -1263,6 +1320,7 @@ function AlertController.Stats(): { [string]: any }
 		busy = A.busy,
 		rect = A.rect,
 		fisher = A.fisher,
+		motion = A.motion,
 		label = A.label,
 		edge = A.edge,
 	}
